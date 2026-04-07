@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Project planning (dev only)
+task_plan.md
+findings.md
+progress.md
+
+# Generated output
+output/
+
+# Archive (old code, not needed)
+_archive/
+
+# Raw scraped data (large, copyrighted)
+docs/ff9_raw/
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

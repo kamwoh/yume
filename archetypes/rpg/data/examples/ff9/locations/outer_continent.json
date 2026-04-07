@@ -1,0 +1,94 @@
+{
+  "id": "outer_continent",
+  "name": "Outer Continent",
+  "type": "field",
+  "description": "A wild, untamed landmass with dense jungles and ancient ruins. The dwarven settlement of Conde Petie sits at its edge.",
+
+  "layout": {
+    "width": 1000,
+    "height": 700,
+    "ground_color": [0.15, 0.3, 0.12],
+    "entrance": {"x": 100, "y": 400, "from": "west"},
+    "areas": [
+      {"name": "Jungle Path", "x": 200, "y": 400, "w": 250, "h": 200, "ground_color": [0.12, 0.28, 0.1]},
+      {"name": "Ancient Ruins", "x": 500, "y": 250, "w": 250, "h": 200, "ground_color": [0.25, 0.22, 0.18]},
+      {"name": "Conde Petie", "x": 500, "y": 550, "w": 200, "h": 150, "ground_color": [0.35, 0.28, 0.2]},
+      {"name": "Cliff Overlook", "x": 800, "y": 350, "w": 180, "h": 200, "ground_color": [0.2, 0.25, 0.15]}
+    ]
+  },
+
+  "exits": [
+    {"target": "alexandria_harbor", "x": 30, "y": 400, "direction": "west", "label": "To Alexandria Harbor"},
+    {"target": "iifa_tree", "x": 950, "y": 250, "direction": "east", "label": "To the Iifa Tree"},
+    {"target": "terra", "x": 950, "y": 500, "direction": "southeast", "label": "To Terra"}
+  ],
+
+  "props": [
+    {"type": "jungle_tree", "x": 150, "y": 350, "label": "", "color": [0.1, 0.35, 0.1]},
+    {"type": "jungle_tree", "x": 280, "y": 450, "label": "", "color": [0.1, 0.35, 0.1]},
+    {"type": "jungle_tree", "x": 350, "y": 320, "label": "", "color": [0.12, 0.38, 0.12]},
+    {"type": "vine", "x": 200, "y": 380, "label": "", "color": [0.15, 0.3, 0.1]},
+    {"type": "vine", "x": 320, "y": 500, "label": "", "color": [0.15, 0.3, 0.1]},
+    {"type": "stone_pillar", "x": 460, "y": 230, "label": "", "color": [0.4, 0.38, 0.32]},
+    {"type": "stone_pillar", "x": 570, "y": 220, "label": "", "color": [0.4, 0.38, 0.32]},
+    {"type": "ruin_wall", "x": 520, "y": 280, "label": "Ancient Inscription", "color": [0.35, 0.32, 0.28]},
+    {"type": "dwarf_house", "x": 480, "y": 540, "label": "Conde Petie", "color": [0.45, 0.35, 0.22]},
+    {"type": "dwarf_house", "x": 540, "y": 560, "label": "", "color": [0.45, 0.35, 0.22]},
+    {"type": "waterfall", "x": 800, "y": 300, "label": "", "color": [0.3, 0.5, 0.7]},
+    {"type": "exotic_flower", "x": 250, "y": 480, "label": "", "color": [0.8, 0.3, 0.5]},
+    {"type": "exotic_flower", "x": 380, "y": 380, "label": "", "color": [0.9, 0.5, 0.2]},
+    {"type": "rock", "x": 750, "y": 450, "label": "", "color": [0.35, 0.3, 0.25]}
+  ],
+
+  "story_npcs": [],
+
+  "ambient_npcs": [
+    {
+      "name": "Conde Petie Dwarf",
+      "x": 510,
+      "y": 560,
+      "color": [0.55, 0.45, 0.35],
+      "dialogue": "Rally-ho! Welcome to Conde Petie! Ye must be wed before ye can pass through our village. 'Tis tradition!",
+      "patrol": null
+    },
+    {
+      "name": "Explorer",
+      "x": 520,
+      "y": 270,
+      "color": [0.5, 0.5, 0.4],
+      "dialogue": "These ruins are older than any civilization on the Mist Continent. Who built them? And why do they point toward that giant tree?",
+      "patrol": {"from_x": 470, "to_x": 580, "speed": 15}
+    }
+  ],
+
+  "treasures": [
+    {"item_id": "hi_potion", "item_name": "Hi-Potion", "x": 300, "y": 350, "hidden": false},
+    {"item_id": "diamond_sword", "item_name": "Diamond Sword", "x": 560, "y": 200, "hidden": true},
+    {"item_id": "ether", "item_name": "Ether", "x": 820, "y": 420, "hidden": true}
+  ],
+
+  "atmosphere": {
+    "bg_color": [0.05, 0.08, 0.04],
+    "ambient_light": [0.8, 0.9, 0.6],
+    "particles": "fireflies",
+    "music_mood": "adventurous_wild"
+  },
+
+  "on_enter_events": [
+    {
+      "condition": "first_visit",
+      "type": "narration",
+      "text": "The Outer Continent is a world apart — dense jungle canopy blots out the sky, ancient stone ruins jut from the undergrowth, and strange creatures call from the shadows. The dwarven village of Conde Petie clings to the cliff edge ahead, smoke rising from its chimneys."
+    }
+  ],
+
+  "connections": ["alexandria_harbor", "iifa_tree", "terra"],
+  "encounters": [],
+  "shop": [
+    {"item_id": "hi_potion", "item_name": "Hi-Potion", "price": 200},
+    {"item_id": "diamond_sword", "item_name": "Diamond Sword", "price": 2400},
+    {"item_id": "platinum_mail", "item_name": "Platinum Mail", "price": 2000},
+    {"item_id": "ether", "item_name": "Ether", "price": 500}
+  ],
+  "is_starting_location": false
+}

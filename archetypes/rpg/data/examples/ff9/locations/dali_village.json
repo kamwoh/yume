@@ -1,0 +1,106 @@
+{
+  "id": "dali_village",
+  "name": "Village of Dali",
+  "type": "town",
+  "description": "A quaint farming village with windmills and thatched-roof cottages. Beneath its peaceful exterior lies a secret underground factory producing Black Mage soldiers.",
+
+  "layout": {
+    "width": 850,
+    "height": 650,
+    "ground_color": [0.3, 0.4, 0.2],
+    "entrance": {"x": 100, "y": 350, "from": "west"},
+    "areas": [
+      {"name": "Village Road", "x": 200, "y": 350, "w": 250, "h": 100, "ground_color": [0.4, 0.35, 0.25]},
+      {"name": "Village Square", "x": 450, "y": 350, "w": 200, "h": 200, "ground_color": [0.38, 0.33, 0.23]},
+      {"name": "Farmland", "x": 700, "y": 200, "w": 200, "h": 250, "ground_color": [0.3, 0.45, 0.2]},
+      {"name": "Windmill Hill", "x": 250, "y": 150, "w": 200, "h": 180, "ground_color": [0.32, 0.42, 0.22]},
+      {"name": "Underground Factory", "x": 450, "y": 550, "w": 300, "h": 100, "ground_color": [0.2, 0.18, 0.15]}
+    ]
+  },
+
+  "exits": [
+    {"target": "ice_cavern", "x": 30, "y": 350, "direction": "west", "label": "To Ice Cavern"},
+    {"target": "lindblum", "x": 820, "y": 200, "direction": "east", "label": "To Lindblum"}
+  ],
+
+  "props": [
+    {"type": "windmill", "x": 250, "y": 150, "label": "Dali Windmill", "color": [0.5, 0.4, 0.3]},
+    {"type": "windmill", "x": 350, "y": 120, "label": "", "color": [0.5, 0.4, 0.3]},
+    {"type": "cottage", "x": 380, "y": 300, "label": "Inn", "color": [0.55, 0.4, 0.25]},
+    {"type": "cottage", "x": 520, "y": 280, "label": "Item Shop", "color": [0.55, 0.4, 0.25]},
+    {"type": "well", "x": 450, "y": 380, "label": "Village Well", "color": [0.4, 0.38, 0.35]},
+    {"type": "hay_bale", "x": 650, "y": 250, "label": "", "color": [0.7, 0.6, 0.3]},
+    {"type": "hay_bale", "x": 720, "y": 300, "label": "", "color": [0.7, 0.6, 0.3]},
+    {"type": "fence", "x": 600, "y": 200, "label": "", "color": [0.45, 0.35, 0.2]},
+    {"type": "tree", "x": 150, "y": 250, "label": "", "color": [0.2, 0.5, 0.15]},
+    {"type": "tree", "x": 780, "y": 150, "label": "", "color": [0.2, 0.5, 0.15]},
+    {"type": "flower_bed", "x": 500, "y": 420, "label": "", "color": [0.8, 0.6, 0.3]},
+    {"type": "barrel", "x": 420, "y": 550, "label": "", "color": [0.45, 0.3, 0.15]},
+    {"type": "sign", "x": 200, "y": 320, "label": "Welcome to Dali\nA Peaceful Farming Village", "color": [0.5, 0.4, 0.2]},
+    {"type": "trapdoor", "x": 450, "y": 480, "label": "Suspicious Hatch", "color": [0.3, 0.25, 0.15]}
+  ],
+
+  "story_npcs": [],
+
+  "ambient_npcs": [
+    {
+      "name": "Village Elder",
+      "x": 430,
+      "y": 360,
+      "color": [0.5, 0.45, 0.4],
+      "dialogue": "Nothing to see here, traveler. Just a simple farming village. Pay no mind to the noises underground...",
+      "patrol": null
+    },
+    {
+      "name": "Farm Girl",
+      "x": 680,
+      "y": 220,
+      "color": [0.6, 0.7, 0.5],
+      "dialogue": "The crops have been strange lately. Something in the ground is making them wilt.",
+      "patrol": {"from_x": 650, "to_x": 750, "speed": 15}
+    },
+    {
+      "name": "Nervous Boy",
+      "x": 350,
+      "y": 400,
+      "color": [0.6, 0.55, 0.45],
+      "dialogue": "Don't go near the underground! The grown-ups say it's dangerous!",
+      "patrol": {"from_x": 300, "to_x": 400, "speed": 30}
+    }
+  ],
+
+  "treasures": [
+    {"item_id": "potion", "item_name": "Potion", "x": 520, "y": 310, "hidden": false},
+    {"item_id": "ether", "item_name": "Ether", "x": 460, "y": 570, "hidden": true}
+  ],
+
+  "atmosphere": {
+    "bg_color": [0.15, 0.18, 0.25],
+    "ambient_light": [1.0, 0.95, 0.75],
+    "particles": "none",
+    "music_mood": "pastoral_peaceful"
+  },
+
+  "on_enter_events": [
+    {
+      "condition": "first_visit",
+      "type": "narration",
+      "text": "The quaint village of Dali stretches before you — windmills turning lazily in the breeze, cottages with thatched roofs, the smell of fresh earth. It seems impossibly peaceful. But a faint rhythmic clanging echoes from somewhere beneath your feet."
+    },
+    {
+      "condition": "quest_active:black_mage_factory",
+      "type": "dialogue",
+      "dialogue_id": "vivi_factory"
+    }
+  ],
+
+  "connections": ["ice_cavern", "lindblum"],
+  "encounters": [
+    {"trigger": "boss", "enemy_ids": ["black_waltz_3"], "encounter_rate": 0.0}
+  ],
+  "shop": [
+    {"item_id": "potion", "item_name": "Potion", "price": 50},
+    {"item_id": "broadsword", "item_name": "Broadsword", "price": 300}
+  ],
+  "is_starting_location": false
+}

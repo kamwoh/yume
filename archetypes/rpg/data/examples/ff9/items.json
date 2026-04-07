@@ -1,0 +1,153 @@
+[
+  {
+    "id": "potion",
+    "name": "Potion",
+    "item_type": "consumable",
+    "description": "Restores 100 HP",
+    "stats": {},
+    "price": 50,
+    "element": "none",
+    "usable_in_battle": true,
+    "heal_amount": 100
+  },
+  {
+    "id": "hi_potion",
+    "name": "Hi-Potion",
+    "item_type": "consumable",
+    "description": "Restores 350 HP",
+    "stats": {},
+    "price": 200,
+    "element": "none",
+    "usable_in_battle": true,
+    "heal_amount": 350
+  },
+  {
+    "id": "ether",
+    "name": "Ether",
+    "item_type": "consumable",
+    "description": "Restores 50 MP",
+    "stats": {},
+    "price": 500,
+    "element": "none",
+    "usable_in_battle": true,
+    "heal_amount": 0
+  },
+  {
+    "id": "phoenix_down",
+    "name": "Phoenix Down",
+    "item_type": "consumable",
+    "description": "Revives a fallen ally with some HP",
+    "stats": {},
+    "price": 300,
+    "element": "none",
+    "usable_in_battle": true,
+    "heal_amount": 50
+  },
+  {
+    "id": "broadsword",
+    "name": "Broadsword",
+    "item_type": "weapon",
+    "description": "A sturdy steel sword",
+    "stats": {
+      "strength": 5
+    },
+    "price": 300,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  },
+  {
+    "id": "mythril_sword",
+    "name": "Mythril Sword",
+    "item_type": "weapon",
+    "description": "A blade forged from mythril ore",
+    "stats": {
+      "strength": 10
+    },
+    "price": 800,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  },
+  {
+    "id": "diamond_sword",
+    "name": "Diamond Sword",
+    "item_type": "weapon",
+    "description": "A gleaming sword with a diamond-edged blade",
+    "stats": {
+      "strength": 18
+    },
+    "price": 2400,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  },
+  {
+    "id": "mythril_spear",
+    "name": "Mythril Spear",
+    "item_type": "weapon",
+    "description": "A lightweight mythril spear for dragon knights",
+    "stats": {
+      "strength": 9
+    },
+    "price": 750,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  },
+  {
+    "id": "leather_hat",
+    "name": "Leather Hat",
+    "item_type": "armor",
+    "description": "A simple leather cap",
+    "stats": {
+      "defense": 3,
+      "spirit": 2
+    },
+    "price": 150,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  },
+  {
+    "id": "chain_mail",
+    "name": "Chain Mail",
+    "item_type": "armor",
+    "description": "Armor made of interlocking metal rings",
+    "stats": {
+      "defense": 8
+    },
+    "price": 600,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  },
+  {
+    "id": "platinum_mail",
+    "name": "Platinum Mail",
+    "item_type": "armor",
+    "description": "Heavy armor forged from platinum alloy",
+    "stats": {
+      "defense": 15,
+      "spirit": 5
+    },
+    "price": 2000,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  },
+  {
+    "id": "dragon_mail",
+    "name": "Dragon Mail",
+    "item_type": "armor",
+    "description": "Armor blessed by dragon knights, strong against elements",
+    "stats": {
+      "defense": 12,
+      "spirit": 8
+    },
+    "price": 1800,
+    "element": "none",
+    "usable_in_battle": false,
+    "heal_amount": 0
+  }
+]

@@ -1,0 +1,80 @@
+{
+  "id": "evil_forest",
+  "name": "Evil Forest",
+  "type": "dungeon",
+  "description": "A dark, twisted woodland where gnarled trees seem to reach out with clawed branches. Bioluminescent fungi cast an eerie green glow. The forest itself seems alive and hostile.",
+
+  "layout": {
+    "width": 1000,
+    "height": 600,
+    "ground_color": [0.1, 0.15, 0.08],
+    "entrance": {"x": 100, "y": 300, "from": "west"},
+    "areas": [
+      {"name": "Forest Edge", "x": 150, "y": 300, "w": 200, "h": 400, "ground_color": [0.12, 0.18, 0.1]},
+      {"name": "Twisted Path", "x": 400, "y": 300, "w": 200, "h": 250, "ground_color": [0.08, 0.12, 0.06]},
+      {"name": "Fungal Clearing", "x": 650, "y": 200, "w": 250, "h": 200, "ground_color": [0.1, 0.2, 0.1]},
+      {"name": "Dead End Hollow", "x": 650, "y": 480, "w": 150, "h": 150, "ground_color": [0.06, 0.1, 0.05]},
+      {"name": "Deep Forest", "x": 900, "y": 300, "w": 150, "h": 300, "ground_color": [0.05, 0.08, 0.04]}
+    ]
+  },
+
+  "exits": [
+    {"target": "alexandria_castle", "x": 30, "y": 300, "direction": "west", "label": "Back to Alexandria"},
+    {"target": "ice_cavern", "x": 970, "y": 300, "direction": "east", "label": "To Ice Cavern"}
+  ],
+
+  "props": [
+    {"type": "gnarled_tree", "x": 200, "y": 150, "label": "", "color": [0.25, 0.15, 0.1]},
+    {"type": "gnarled_tree", "x": 300, "y": 450, "label": "", "color": [0.25, 0.15, 0.1]},
+    {"type": "gnarled_tree", "x": 500, "y": 180, "label": "", "color": [0.2, 0.12, 0.08]},
+    {"type": "gnarled_tree", "x": 550, "y": 430, "label": "", "color": [0.2, 0.12, 0.08]},
+    {"type": "mushroom", "x": 620, "y": 180, "label": "", "color": [0.2, 0.8, 0.3]},
+    {"type": "mushroom", "x": 680, "y": 220, "label": "", "color": [0.15, 0.7, 0.25]},
+    {"type": "mushroom", "x": 700, "y": 160, "label": "", "color": [0.2, 0.9, 0.35]},
+    {"type": "vine", "x": 400, "y": 200, "label": "", "color": [0.15, 0.3, 0.1]},
+    {"type": "vine", "x": 450, "y": 400, "label": "", "color": [0.15, 0.3, 0.1]},
+    {"type": "rock", "x": 350, "y": 350, "label": "", "color": [0.3, 0.28, 0.25]},
+    {"type": "rock", "x": 800, "y": 250, "label": "", "color": [0.3, 0.28, 0.25]},
+    {"type": "web", "x": 450, "y": 250, "label": "", "color": [0.7, 0.7, 0.7, 0.3]},
+    {"type": "bones", "x": 630, "y": 500, "label": "...remains of an adventurer", "color": [0.8, 0.75, 0.65]}
+  ],
+
+  "story_npcs": [],
+
+  "ambient_npcs": [
+    {
+      "name": "Lost Traveler",
+      "x": 300, "y": 280,
+      "color": [0.5, 0.45, 0.35],
+      "dialogue": "Turn back! The deeper you go, the more alive the forest becomes... it doesn't want us here.",
+      "patrol": null
+    }
+  ],
+
+  "treasures": [
+    {"item_id": "potion", "item_name": "Potion", "x": 620, "y": 500, "hidden": false},
+    {"item_id": "ether", "item_name": "Ether", "x": 880, "y": 150, "hidden": true}
+  ],
+
+  "atmosphere": {
+    "bg_color": [0.03, 0.05, 0.02],
+    "ambient_light": [0.3, 0.6, 0.2],
+    "particles": "mist",
+    "music_mood": "ominous_dark"
+  },
+
+  "on_enter_events": [
+    {
+      "condition": "first_visit",
+      "type": "narration",
+      "text": "The Evil Forest looms before you. Twisted branches claw at the sky like grasping fingers. An eerie green glow pulses from deep within. Every instinct says to turn back."
+    }
+  ],
+
+  "connections": ["alexandria_castle", "ice_cavern"],
+  "encounters": [
+    {"trigger": "random", "enemy_ids": ["fang", "goblin"], "encounter_rate": 0.15}
+  ],
+  "shop": [],
+  "is_starting_location": false
+}

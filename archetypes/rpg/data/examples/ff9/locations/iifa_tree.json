@@ -1,0 +1,73 @@
+{
+  "id": "iifa_tree",
+  "name": "Iifa Tree",
+  "type": "dungeon",
+  "description": "A colossal tree that is the source of the Mist covering the land. Its roots plunge deep underground, draining life energy. Pulsing veins of sickly green energy run through its bark.",
+
+  "layout": {
+    "width": 900,
+    "height": 750,
+    "ground_color": [0.12, 0.18, 0.08],
+    "entrance": {"x": 450, "y": 700, "from": "south"},
+    "areas": [
+      {"name": "Root Base", "x": 450, "y": 650, "w": 300, "h": 120, "ground_color": [0.15, 0.2, 0.1]},
+      {"name": "Inner Trunk", "x": 350, "y": 500, "w": 250, "h": 200, "ground_color": [0.1, 0.18, 0.08]},
+      {"name": "Vein Chamber", "x": 550, "y": 350, "w": 250, "h": 200, "ground_color": [0.08, 0.2, 0.06]},
+      {"name": "Root Network", "x": 250, "y": 250, "w": 200, "h": 200, "ground_color": [0.06, 0.15, 0.05]},
+      {"name": "Heart of the Tree", "x": 500, "y": 100, "w": 250, "h": 200, "ground_color": [0.05, 0.22, 0.04]}
+    ]
+  },
+
+  "exits": [
+    {"target": "outer_continent", "x": 100, "y": 700, "direction": "southwest", "label": "Back to Outer Continent"}
+  ],
+
+  "props": [
+    {"type": "pulsing_vein", "x": 400, "y": 550, "label": "", "color": [0.2, 0.8, 0.2]},
+    {"type": "pulsing_vein", "x": 550, "y": 400, "label": "", "color": [0.2, 0.8, 0.2]},
+    {"type": "pulsing_vein", "x": 300, "y": 300, "label": "", "color": [0.15, 0.7, 0.15]},
+    {"type": "pulsing_vein", "x": 500, "y": 150, "label": "", "color": [0.15, 0.9, 0.15]},
+    {"type": "root", "x": 350, "y": 620, "label": "", "color": [0.25, 0.2, 0.12]},
+    {"type": "root", "x": 550, "y": 620, "label": "", "color": [0.25, 0.2, 0.12]},
+    {"type": "root", "x": 250, "y": 350, "label": "", "color": [0.22, 0.18, 0.1]},
+    {"type": "mist_vent", "x": 450, "y": 480, "label": "Mist seeps from below", "color": [0.5, 0.7, 0.5, 0.4]},
+    {"type": "mist_vent", "x": 600, "y": 300, "label": "", "color": [0.5, 0.7, 0.5, 0.4]},
+    {"type": "dead_branch", "x": 200, "y": 400, "label": "", "color": [0.3, 0.22, 0.12]},
+    {"type": "dead_branch", "x": 700, "y": 250, "label": "", "color": [0.3, 0.22, 0.12]},
+    {"type": "fungus", "x": 380, "y": 380, "label": "", "color": [0.3, 0.6, 0.25]},
+    {"type": "soul_wisp", "x": 520, "y": 130, "label": "Trapped Soul", "color": [0.4, 0.9, 0.4, 0.5]},
+    {"type": "soul_wisp", "x": 480, "y": 180, "label": "", "color": [0.4, 0.9, 0.4, 0.5]}
+  ],
+
+  "story_npcs": [],
+
+  "ambient_npcs": [],
+
+  "treasures": [
+    {"item_id": "hi_potion", "item_name": "Hi-Potion", "x": 300, "y": 280, "hidden": false},
+    {"item_id": "ether", "item_name": "Ether", "x": 650, "y": 380, "hidden": false},
+    {"item_id": "phoenix_down", "item_name": "Phoenix Down", "x": 480, "y": 120, "hidden": true}
+  ],
+
+  "atmosphere": {
+    "bg_color": [0.02, 0.06, 0.02],
+    "ambient_light": [0.3, 0.7, 0.2],
+    "particles": "mist",
+    "music_mood": "ominous_corrupted"
+  },
+
+  "on_enter_events": [
+    {
+      "condition": "first_visit",
+      "type": "narration",
+      "text": "The Iifa Tree is alive in the worst possible way. Sickly green veins pulse through its bark like a diseased heartbeat. The Mist that has blanketed the world for centuries pours from its roots. Deep below, you can feel something ancient and wrong feeding on the souls of the dead."
+    }
+  ],
+
+  "connections": ["outer_continent"],
+  "encounters": [
+    {"trigger": "random", "enemy_ids": ["fang", "ice_golem"], "encounter_rate": 0.18}
+  ],
+  "shop": [],
+  "is_starting_location": false
+}

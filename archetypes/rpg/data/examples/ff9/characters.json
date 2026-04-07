@@ -1,0 +1,421 @@
+[
+  {
+    "id": "zidane",
+    "name": "Zidane Tribal",
+    "role": "party_member",
+    "character_class": "Thief",
+    "description": "A cheerful young man with a monkey tail, sandy blonde hair, and a roguish grin. Wears a sleeveless teal vest and white shirt. Quick on his feet and quicker with words.",
+    "backstory": "A Genome from Terra raised on Gaia by the Tantalus theater troupe. Doesn't know his true origins but carries an innate warmth that draws people to him.",
+    "stats": {
+      "hp": 105,
+      "mp": 35,
+      "strength": 12,
+      "magic": 8,
+      "defense": 8,
+      "spirit": 6,
+      "speed": 12,
+      "level": 1
+    },
+    "abilities": [
+      {
+        "name": "Steal",
+        "description": "Attempt to steal an item from the enemy",
+        "mp_cost": 0,
+        "power": 0,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 1
+      },
+      {
+        "name": "Tidal Flame",
+        "description": "Strike with fire-infused daggers",
+        "mp_cost": 12,
+        "power": 24,
+        "element": "fire",
+        "target": "single_enemy",
+        "learn_level": 5
+      },
+      {
+        "name": "Solution 9",
+        "description": "A devastating multi-hit dagger combo",
+        "mp_cost": 32,
+        "power": 65,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 18
+      }
+    ],
+    "portrait_prompt": "Young man with sandy blonde hair, blue eyes, confident smirk, wearing teal vest, storybook watercolor style",
+    "sprite_prompts": {
+      "idle": "Chibi thief character, sandy blonde hair, monkey tail, teal vest, standing relaxed with daggers at sides, watercolor style",
+      "walk": "Chibi thief character walking, sandy hair, teal vest, monkey tail swaying, watercolor style",
+      "attack": "Chibi thief lunging forward with twin daggers, dynamic pose, watercolor style",
+      "hurt": "Chibi thief recoiling from hit, pained expression, watercolor style",
+      "dead": "Chibi thief collapsed on ground, eyes closed, watercolor style"
+    }
+  },
+  {
+    "id": "garnet",
+    "name": "Garnet (Dagger)",
+    "role": "party_member",
+    "character_class": "Summoner",
+    "description": "A graceful princess with long dark hair and determined brown eyes. Wears a white and orange jumpsuit. Gentle but resolute, she grows from sheltered royal to confident queen.",
+    "backstory": "Princess of Alexandria who fled her mother's corruption. Carries the power of eidolons within her. Later becomes queen after Brahne's death.",
+    "stats": {
+      "hp": 88,
+      "mp": 72,
+      "strength": 7,
+      "magic": 14,
+      "defense": 7,
+      "spirit": 12,
+      "speed": 8,
+      "level": 1
+    },
+    "abilities": [
+      {
+        "name": "Cure",
+        "description": "Restore HP to one ally",
+        "mp_cost": 6,
+        "power": 20,
+        "element": "holy",
+        "target": "single_ally",
+        "learn_level": 1
+      },
+      {
+        "name": "Shiva",
+        "description": "Summon Shiva to deal ice damage to all enemies",
+        "mp_cost": 24,
+        "power": 40,
+        "element": "ice",
+        "target": "all_enemies",
+        "learn_level": 8
+      },
+      {
+        "name": "Bahamut",
+        "description": "Summon the dragon king for massive non-elemental damage",
+        "mp_cost": 56,
+        "power": 95,
+        "element": "none",
+        "target": "all_enemies",
+        "learn_level": 22
+      }
+    ],
+    "portrait_prompt": "Young woman with long dark hair, brown eyes, gentle expression, white and orange outfit, tiara, watercolor style",
+    "sprite_prompts": {
+      "idle": "Chibi princess character, long dark hair, white-orange outfit, holding rod, watercolor style",
+      "walk": "Chibi princess walking gracefully, long dark hair flowing, watercolor style",
+      "attack": "Chibi princess raising rod casting magic, glowing light, watercolor style",
+      "hurt": "Chibi princess flinching from hit, watercolor style",
+      "dead": "Chibi princess fallen, eyes closed, watercolor style"
+    }
+  },
+  {
+    "id": "vivi",
+    "name": "Vivi Ornitier",
+    "role": "party_member",
+    "character_class": "Black Mage",
+    "description": "A small, timid figure in an oversized blue coat and pointed straw hat. Glowing yellow eyes peer from the darkness under his hat. Despite his fearsome magic, he is gentle and uncertain.",
+    "backstory": "A manufactured Black Mage who somehow gained consciousness. Struggles with questions of mortality and purpose as he discovers his kind are weapons of war.",
+    "stats": {
+      "hp": 78,
+      "mp": 80,
+      "strength": 5,
+      "magic": 15,
+      "defense": 5,
+      "spirit": 10,
+      "speed": 7,
+      "level": 1
+    },
+    "abilities": [
+      {
+        "name": "Fire",
+        "description": "Deal fire damage to one enemy",
+        "mp_cost": 6,
+        "power": 18,
+        "element": "fire",
+        "target": "single_enemy",
+        "learn_level": 1
+      },
+      {
+        "name": "Blizzard",
+        "description": "Deal ice damage to one enemy",
+        "mp_cost": 6,
+        "power": 18,
+        "element": "ice",
+        "target": "single_enemy",
+        "learn_level": 1
+      },
+      {
+        "name": "Thunder",
+        "description": "Deal thunder damage to one enemy",
+        "mp_cost": 6,
+        "power": 18,
+        "element": "thunder",
+        "target": "single_enemy",
+        "learn_level": 1
+      },
+      {
+        "name": "Firaga",
+        "description": "Deal heavy fire damage to all enemies",
+        "mp_cost": 36,
+        "power": 72,
+        "element": "fire",
+        "target": "all_enemies",
+        "learn_level": 20
+      },
+      {
+        "name": "Flare",
+        "description": "Devastating non-elemental magic on one enemy",
+        "mp_cost": 48,
+        "power": 100,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 25
+      }
+    ],
+    "portrait_prompt": "Small figure in blue coat, pointed straw hat, glowing yellow eyes in shadow, shy posture, watercolor style",
+    "sprite_prompts": {
+      "idle": "Chibi black mage, oversized blue coat, pointed hat, glowing yellow eyes, standing shyly, watercolor style",
+      "walk": "Chibi black mage waddling forward, blue coat, pointed hat, watercolor style",
+      "attack": "Chibi black mage casting spell, fire erupting from hands, glowing eyes bright, watercolor style",
+      "hurt": "Chibi black mage stumbling backward, hat askew, watercolor style",
+      "dead": "Chibi black mage collapsed, hat fallen beside him, watercolor style"
+    }
+  },
+  {
+    "id": "steiner",
+    "name": "Adelbert Steiner",
+    "role": "party_member",
+    "character_class": "Knight",
+    "description": "A large, clunky man in full plate armor that clanks with every step. Has a round face with a bushy mustache. Fiercely loyal and hilariously earnest.",
+    "backstory": "Captain of Alexandria's Knights of Pluto. Initially opposes Zidane but grows to respect him. His loyalty shifts from blind obedience to true conviction.",
+    "stats": {
+      "hp": 140,
+      "mp": 22,
+      "strength": 14,
+      "magic": 5,
+      "defense": 12,
+      "spirit": 5,
+      "speed": 6,
+      "level": 1
+    },
+    "abilities": [
+      {
+        "name": "Power Break",
+        "description": "Attack that lowers enemy strength",
+        "mp_cost": 8,
+        "power": 18,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 1
+      },
+      {
+        "name": "Sword Art",
+        "description": "Powerful two-handed slash",
+        "mp_cost": 16,
+        "power": 38,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 10
+      },
+      {
+        "name": "Shock",
+        "description": "Holy-elemental sword strike with maximum force",
+        "mp_cost": 42,
+        "power": 85,
+        "element": "holy",
+        "target": "single_enemy",
+        "learn_level": 24
+      }
+    ],
+    "portrait_prompt": "Burly knight with round face, bushy mustache, full plate armor, determined expression, watercolor style",
+    "sprite_prompts": {
+      "idle": "Chibi knight in full plate armor, broadsword at side, stiff posture, watercolor style",
+      "walk": "Chibi knight clanking forward in heavy armor, watercolor style",
+      "attack": "Chibi knight swinging heavy broadsword overhead, watercolor style",
+      "hurt": "Chibi knight staggering in armor, watercolor style",
+      "dead": "Chibi knight collapsed in armor, watercolor style"
+    }
+  },
+  {
+    "id": "freya",
+    "name": "Freya Crescent",
+    "role": "party_member",
+    "character_class": "Dragon Knight",
+    "description": "A tall, rat-like Burmecian woman in a red coat and wide-brimmed hat. Carries a long spear. Elegant and melancholic, with a warrior's discipline.",
+    "backstory": "A dragon knight of Burmecia searching for her lost love, Sir Fratley. Returns home to find it destroyed by Alexandria's forces.",
+    "stats": {
+      "hp": 115,
+      "mp": 40,
+      "strength": 11,
+      "magic": 9,
+      "defense": 9,
+      "spirit": 8,
+      "speed": 10,
+      "level": 1
+    },
+    "abilities": [
+      {
+        "name": "Jump",
+        "description": "Leap into the air and crash down on an enemy",
+        "mp_cost": 8,
+        "power": 28,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 1
+      },
+      {
+        "name": "Reis's Wind",
+        "description": "Grant HP regeneration to all allies",
+        "mp_cost": 12,
+        "power": 15,
+        "element": "none",
+        "target": "all_allies",
+        "learn_level": 6
+      },
+      {
+        "name": "Dragon Breath",
+        "description": "Devastating breath attack on all enemies",
+        "mp_cost": 40,
+        "power": 78,
+        "element": "none",
+        "target": "all_enemies",
+        "learn_level": 20
+      }
+    ],
+    "portrait_prompt": "Rat-like woman with elegant features, red coat, wide-brimmed hat, holding spear, melancholic expression, watercolor style",
+    "sprite_prompts": {
+      "idle": "Chibi dragon knight, rat features, red coat, wide hat, spear at side, watercolor style",
+      "walk": "Chibi dragon knight walking with spear, red coat flowing, watercolor style",
+      "attack": "Chibi dragon knight leaping with spear pointed down, watercolor style",
+      "hurt": "Chibi dragon knight knocked back, hat flying, watercolor style",
+      "dead": "Chibi dragon knight fallen, spear beside her, watercolor style"
+    }
+  },
+  {
+    "id": "kuja",
+    "name": "Kuja",
+    "role": "antagonist",
+    "character_class": "Sorcerer",
+    "description": "An elegant, silver-haired man in flamboyant clothing with a feathered outfit. Narcissistic and theatrical, hiding deep insecurity about his mortality.",
+    "backstory": "A Genome created by Garland to be the Angel of Death. When he learns he has a limited lifespan, his despair drives him to destroy everything.",
+    "stats": {
+      "hp": 800,
+      "mp": 200,
+      "strength": 22,
+      "magic": 30,
+      "defense": 18,
+      "spirit": 20,
+      "speed": 14,
+      "level": 25
+    },
+    "abilities": [
+      {
+        "name": "Flare Star",
+        "description": "Massive fire-based explosion hitting all party members",
+        "mp_cost": 30,
+        "power": 60,
+        "element": "fire",
+        "target": "all_enemies",
+        "learn_level": 1
+      },
+      {
+        "name": "Thundaga",
+        "description": "Devastating thunder magic",
+        "mp_cost": 24,
+        "power": 55,
+        "element": "thunder",
+        "target": "all_enemies",
+        "learn_level": 1
+      },
+      {
+        "name": "Ultima",
+        "description": "The ultimate destructive spell",
+        "mp_cost": 60,
+        "power": 120,
+        "element": "none",
+        "target": "all_enemies",
+        "learn_level": 1
+      }
+    ],
+    "portrait_prompt": "Elegant silver-haired man, feathered flamboyant outfit, cold smirk, purple eye shadow, watercolor style",
+    "sprite_prompts": {
+      "idle": "Chibi sorcerer, silver hair, feathered outfit, arms crossed, smirking, watercolor style",
+      "walk": "Chibi sorcerer gliding forward, silver hair, dramatic cape, watercolor style",
+      "attack": "Chibi sorcerer casting devastating spell, energy swirling, watercolor style",
+      "hurt": "Chibi sorcerer recoiling, expression of rage, watercolor style",
+      "dead": "Chibi sorcerer collapsed, reaching out, watercolor style"
+    }
+  },
+  {
+    "id": "brahne",
+    "name": "Queen Brahne",
+    "role": "boss",
+    "character_class": "Queen",
+    "description": "A large, imposing woman with blue-purple skin and a regal crown. Once a kind mother, now corrupted by power and Kuja's manipulation.",
+    "backstory": "Garnet's mother who was manipulated by Kuja into waging war using stolen eidolons and manufactured Black Mages.",
+    "stats": {
+      "hp": 450,
+      "mp": 100,
+      "strength": 16,
+      "magic": 20,
+      "defense": 14,
+      "spirit": 12,
+      "speed": 8,
+      "level": 12
+    },
+    "abilities": [
+      {
+        "name": "Summon Odin",
+        "description": "Calls forth Odin for a devastating slash",
+        "mp_cost": 30,
+        "power": 50,
+        "element": "none",
+        "target": "all_enemies",
+        "learn_level": 1
+      }
+    ],
+    "portrait_prompt": "Large imposing queen, blue-purple skin, golden crown, stern cruel expression, watercolor style",
+    "sprite_prompts": null
+  },
+  {
+    "id": "garland",
+    "name": "Garland",
+    "role": "boss",
+    "character_class": "Ancient",
+    "description": "A towering armored figure from the ancient world of Terra. Speaks with cold authority about destiny and the cycle of souls.",
+    "backstory": "Creator of Kuja and Zidane, orchestrating the merge of Terra and Gaia to resurrect his dying world.",
+    "stats": {
+      "hp": 600,
+      "mp": 150,
+      "strength": 20,
+      "magic": 25,
+      "defense": 16,
+      "spirit": 18,
+      "speed": 10,
+      "level": 20
+    },
+    "abilities": [
+      {
+        "name": "Wave Cannon",
+        "description": "Fires concentrated energy at the party",
+        "mp_cost": 20,
+        "power": 45,
+        "element": "none",
+        "target": "all_enemies",
+        "learn_level": 1
+      },
+      {
+        "name": "Stop",
+        "description": "Freezes a party member in time",
+        "mp_cost": 15,
+        "power": 0,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 1
+      }
+    ],
+    "portrait_prompt": "Towering armored ancient being, glowing eyes, dark ornate armor, cold expression, watercolor style",
+    "sprite_prompts": null
+  }
+]

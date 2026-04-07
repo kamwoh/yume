@@ -1,0 +1,113 @@
+[
+  {
+    "id": "garnet_intro",
+    "location_id": "alexandria_castle",
+    "lines": [
+      {
+        "speaker": "Zidane",
+        "text": "Well well, looks like the princess wants to be kidnapped!",
+        "expression": "happy"
+      },
+      {
+        "speaker": "Garnet",
+        "text": "Please, take me away from here. My mother... she's changed.",
+        "expression": "sad"
+      },
+      {
+        "speaker": "Steiner",
+        "text": "Princess! I cannot allow this! These are common thieves!",
+        "expression": "angry"
+      },
+      {
+        "speaker": "Garnet",
+        "text": "Steiner, I must go. Something terrible is happening in this kingdom.",
+        "expression": "determined"
+      }
+    ],
+    "branches": [],
+    "trigger_condition": "auto",
+    "sets_flag": "garnet_joined"
+  },
+  {
+    "id": "vivi_factory",
+    "location_id": "dali_village",
+    "lines": [
+      {
+        "speaker": "Vivi",
+        "text": "Those... those things in the factory. They look just like me.",
+        "expression": "sad"
+      },
+      {
+        "speaker": "Zidane",
+        "text": "Vivi...",
+        "expression": "sad"
+      },
+      {
+        "speaker": "Vivi",
+        "text": "Am I... am I just a weapon too? Was I made to hurt people?",
+        "expression": "sad"
+      },
+      {
+        "speaker": "Zidane",
+        "text": "You're not a weapon, Vivi. You're our friend. That's what matters.",
+        "expression": "determined"
+      }
+    ],
+    "branches": [],
+    "trigger_condition": "quest:black_mage_factory",
+    "sets_flag": "vivi_aware"
+  },
+  {
+    "id": "freya_burmecia",
+    "location_id": "burmecia",
+    "lines": [
+      {
+        "speaker": "Freya",
+        "text": "My home... what have they done to my home?",
+        "expression": "sad"
+      },
+      {
+        "speaker": "Zidane",
+        "text": "Freya, I'm sorry. We'll make them pay for this.",
+        "expression": "determined"
+      },
+      {
+        "speaker": "Freya",
+        "text": "Kuja... I saw him here. He was watching the destruction like it was entertainment.",
+        "expression": "angry"
+      }
+    ],
+    "branches": [],
+    "trigger_condition": "auto",
+    "sets_flag": "met_freya"
+  },
+  {
+    "id": "terra_revelation",
+    "location_id": "terra",
+    "lines": [
+      {
+        "speaker": "Garland",
+        "text": "Welcome home, Zidane. You are a Genome \u2014 created by me, to serve Terra.",
+        "expression": "neutral"
+      },
+      {
+        "speaker": "Zidane",
+        "text": "What are you talking about?!",
+        "expression": "surprised"
+      },
+      {
+        "speaker": "Garland",
+        "text": "You were meant to be the Angel of Death. The catalyst for Terra's rebirth.",
+        "expression": "neutral"
+      },
+      {
+        "speaker": "Zidane",
+        "text": "I don't care where I came from. My friends \u2014 THEY are my home.",
+        "expression": "determined"
+      }
+    ],
+    "branches": [],
+    "trigger_condition": "quest:journey_to_terra",
+    "sets_flag": "terra_truth"
+  }
+]

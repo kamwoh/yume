@@ -1,0 +1,283 @@
+[
+  {
+    "id": "fang",
+    "name": "Fang",
+    "description": "A wolf-like beast with sharp fangs",
+    "stats": {
+      "hp": 45,
+      "mp": 0,
+      "strength": 8,
+      "magic": 3,
+      "defense": 4,
+      "spirit": 3,
+      "speed": 7,
+      "level": 1
+    },
+    "abilities": [],
+    "element_weak": "fire",
+    "element_resist": "none",
+    "drop_table": [
+      {
+        "item_id": "potion",
+        "chance": 0.25
+      }
+    ],
+    "xp_reward": 15,
+    "gil_reward": 20,
+    "sprite_prompt": "Wolf beast with sharp fangs, aggressive stance, watercolor style",
+    "is_boss": false
+  },
+  {
+    "id": "goblin",
+    "name": "Goblin",
+    "description": "A small green-skinned creature with a dagger",
+    "stats": {
+      "hp": 35,
+      "mp": 0,
+      "strength": 6,
+      "magic": 2,
+      "defense": 3,
+      "spirit": 2,
+      "speed": 8,
+      "level": 1
+    },
+    "abilities": [],
+    "element_weak": "none",
+    "element_resist": "none",
+    "drop_table": [
+      {
+        "item_id": "potion",
+        "chance": 0.2
+      }
+    ],
+    "xp_reward": 12,
+    "gil_reward": 25,
+    "sprite_prompt": "Small green goblin with dagger, mischievous grin, watercolor style",
+    "is_boss": false
+  },
+  {
+    "id": "ice_golem",
+    "name": "Ice Golem",
+    "description": "A construct of living ice",
+    "stats": {
+      "hp": 120,
+      "mp": 20,
+      "strength": 12,
+      "magic": 10,
+      "defense": 10,
+      "spirit": 8,
+      "speed": 4,
+      "level": 5
+    },
+    "abilities": [
+      {
+        "name": "Ice Punch",
+        "description": "A freezing punch",
+        "mp_cost": 0,
+        "power": 15,
+        "element": "ice",
+        "target": "single_enemy",
+        "learn_level": 1
+      }
+    ],
+    "element_weak": "fire",
+    "element_resist": "ice",
+    "drop_table": [
+      {
+        "item_id": "ether",
+        "chance": 0.1
+      }
+    ],
+    "xp_reward": 40,
+    "gil_reward": 60,
+    "sprite_prompt": "Living ice construct, crystalline body, glowing blue eyes, watercolor style",
+    "is_boss": false
+  },
+  {
+    "id": "black_waltz_3",
+    "name": "Black Waltz No.3",
+    "description": "The strongest of Brahne's artificial mages, with tattered wings and blazing magic",
+    "stats": {
+      "hp": 280,
+      "mp": 80,
+      "strength": 14,
+      "magic": 18,
+      "defense": 10,
+      "spirit": 10,
+      "speed": 10,
+      "level": 8
+    },
+    "abilities": [
+      {
+        "name": "Thundara",
+        "description": "Strong thunder magic",
+        "mp_cost": 12,
+        "power": 30,
+        "element": "thunder",
+        "target": "all_enemies",
+        "learn_level": 1
+      }
+    ],
+    "element_weak": "water",
+    "element_resist": "thunder",
+    "drop_table": [],
+    "xp_reward": 100,
+    "gil_reward": 200,
+    "sprite_prompt": "Dark winged mage with tattered wings, glowing with electric energy, menacing, watercolor style",
+    "is_boss": true
+  },
+  {
+    "id": "brahne_guard",
+    "name": "Alexandrian Elite Guard",
+    "description": "A heavily armored soldier of Alexandria",
+    "stats": {
+      "hp": 180,
+      "mp": 10,
+      "strength": 15,
+      "magic": 5,
+      "defense": 14,
+      "spirit": 6,
+      "speed": 7,
+      "level": 10
+    },
+    "abilities": [],
+    "element_weak": "thunder",
+    "element_resist": "none",
+    "drop_table": [
+      {
+        "item_id": "hi_potion",
+        "chance": 0.3
+      }
+    ],
+    "xp_reward": 60,
+    "gil_reward": 100,
+    "sprite_prompt": "Heavily armored female soldier, red plume helmet, sword and shield, watercolor style",
+    "is_boss": false
+  },
+  {
+    "id": "garland",
+    "name": "Garland",
+    "description": "A towering armored figure from the ancient world of Terra",
+    "stats": {
+      "hp": 600,
+      "mp": 150,
+      "strength": 20,
+      "magic": 25,
+      "defense": 16,
+      "spirit": 18,
+      "speed": 10,
+      "level": 20
+    },
+    "abilities": [
+      {
+        "name": "Wave Cannon",
+        "description": "Fires concentrated energy at the party",
+        "mp_cost": 20,
+        "power": 45,
+        "element": "none",
+        "target": "all_enemies",
+        "learn_level": 1
+      },
+      {
+        "name": "Stop",
+        "description": "Freezes a party member in time",
+        "mp_cost": 15,
+        "power": 0,
+        "element": "none",
+        "target": "single_enemy",
+        "learn_level": 1
+      }
+    ],
+    "element_weak": "holy",
+    "element_resist": "dark",
+    "drop_table": [],
+    "xp_reward": 500,
+    "gil_reward": 800,
+    "sprite_prompt": "Towering armored ancient being, glowing eyes, dark ornate armor, watercolor style",
+    "is_boss": true
+  },
+  {
+    "id": "kuja_trance",
+    "name": "Trance Kuja",
+    "description": "Kuja transformed by Trance, radiating devastating power. Red fur and wild energy surround him.",
+    "stats": {
+      "hp": 1200,
+      "mp": 300,
+      "strength": 28,
+      "magic": 35,
+      "defense": 20,
+      "spirit": 22,
+      "speed": 16,
+      "level": 28
+    },
+    "abilities": [
+      {
+        "name": "Flare Star",
+        "description": "Massive fire explosion",
+        "mp_cost": 30,
+        "power": 70,
+        "element": "fire",
+        "target": "all_enemies",
+        "learn_level": 1
+      },
+      {
+        "name": "Ultima",
+        "description": "Ultimate destruction magic",
+        "mp_cost": 60,
+        "power": 120,
+        "element": "none",
+        "target": "all_enemies",
+        "learn_level": 1
+      }
+    ],
+    "element_weak": "none",
+    "element_resist": "none",
+    "drop_table": [],
+    "xp_reward": 0,
+    "gil_reward": 0,
+    "sprite_prompt": "Transformed sorcerer with red fur, wild energy aura, devastating power, floating in air, watercolor style",
+    "is_boss": true
+  },
+  {
+    "id": "necron",
+    "name": "Necron",
+    "description": "A cosmic entity of oblivion. A massive skeletal being wreathed in dark energy at the core of existence.",
+    "stats": {
+      "hp": 1500,
+      "mp": 500,
+      "strength": 30,
+      "magic": 38,
+      "defense": 22,
+      "spirit": 24,
+      "speed": 12,
+      "level": 30
+    },
+    "abilities": [
+      {
+        "name": "Grand Cross",
+        "description": "Inflicts random status ailments on all party members",
+        "mp_cost": 40,
+        "power": 45,
+        "element": "dark",
+        "target": "all_enemies",
+        "learn_level": 1
+      },
+      {
+        "name": "Neutron Ring",
+        "description": "Massive dark energy wave",
+        "mp_cost": 50,
+        "power": 90,
+        "element": "dark",
+        "target": "all_enemies",
+        "learn_level": 1
+      }
+    ],
+    "element_weak": "holy",
+    "element_resist": "dark",
+    "drop_table": [],
+    "xp_reward": 0,
+    "gil_reward": 0,
+    "sprite_prompt": "Massive cosmic skeletal entity, dark energy wreathing, floating in void, terrifying, watercolor style",
+    "is_boss": true
+  }
+]

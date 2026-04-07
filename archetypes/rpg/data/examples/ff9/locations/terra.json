@@ -1,0 +1,102 @@
+{
+  "id": "terra",
+  "name": "Terra",
+  "type": "special",
+  "description": "An alien world bathed in blue light. Crystalline structures and empty Genome vessels line silent streets. Beautiful but lifeless — a dying civilization preserved in stasis.",
+
+  "layout": {
+    "width": 950,
+    "height": 700,
+    "ground_color": [0.1, 0.1, 0.25],
+    "entrance": {"x": 100, "y": 500, "from": "west"},
+    "areas": [
+      {"name": "Arrival Platform", "x": 200, "y": 500, "w": 200, "h": 150, "ground_color": [0.12, 0.12, 0.28]},
+      {"name": "Genome Street", "x": 400, "y": 400, "w": 250, "h": 200, "ground_color": [0.1, 0.1, 0.3]},
+      {"name": "Crystal Atrium", "x": 650, "y": 300, "w": 200, "h": 200, "ground_color": [0.08, 0.08, 0.35]},
+      {"name": "Pandemonium Gate", "x": 450, "y": 150, "w": 250, "h": 180, "ground_color": [0.12, 0.1, 0.32]},
+      {"name": "Garland's Throne", "x": 750, "y": 100, "w": 180, "h": 180, "ground_color": [0.06, 0.06, 0.38]}
+    ]
+  },
+
+  "exits": [
+    {"target": "outer_continent", "x": 30, "y": 500, "direction": "west", "label": "Back to Outer Continent"},
+    {"target": "crystal_world", "x": 900, "y": 100, "direction": "northeast", "label": "To the Crystal World"}
+  ],
+
+  "props": [
+    {"type": "crystal_spire", "x": 250, "y": 450, "label": "", "color": [0.3, 0.3, 0.8]},
+    {"type": "crystal_spire", "x": 650, "y": 280, "label": "", "color": [0.3, 0.3, 0.8]},
+    {"type": "crystal_spire", "x": 500, "y": 180, "label": "", "color": [0.25, 0.25, 0.9]},
+    {"type": "genome_pod", "x": 350, "y": 380, "label": "Empty Genome Vessel", "color": [0.4, 0.4, 0.6]},
+    {"type": "genome_pod", "x": 420, "y": 420, "label": "", "color": [0.4, 0.4, 0.6]},
+    {"type": "genome_pod", "x": 480, "y": 380, "label": "", "color": [0.4, 0.4, 0.6]},
+    {"type": "blue_lamp", "x": 300, "y": 500, "label": "", "color": [0.2, 0.3, 0.9]},
+    {"type": "blue_lamp", "x": 550, "y": 350, "label": "", "color": [0.2, 0.3, 0.9]},
+    {"type": "blue_lamp", "x": 700, "y": 200, "label": "", "color": [0.2, 0.3, 0.9]},
+    {"type": "alien_arch", "x": 450, "y": 200, "label": "Gate to Pandemonium", "color": [0.35, 0.3, 0.7]},
+    {"type": "soul_stream", "x": 600, "y": 400, "label": "Stream of Souls", "color": [0.3, 0.5, 0.9, 0.5]},
+    {"type": "dormant_tree", "x": 180, "y": 550, "label": "", "color": [0.15, 0.15, 0.4]},
+    {"type": "throne", "x": 750, "y": 120, "label": "Garland's Seat of Power", "color": [0.2, 0.2, 0.5]}
+  ],
+
+  "story_npcs": [
+    {
+      "id": "garland",
+      "name": "Garland",
+      "x": 740, "y": 140,
+      "color": [0.4, 0.3, 0.6],
+      "dialogues_by_quest": {
+        "default": "You were always destined to return here, Zidane. Terra calls to its children.",
+        "journey_to_terra:0": "Welcome home, Zidane. You are a Genome — created by me, to serve Terra.",
+        "journey_to_terra:1": "You were meant to be the Angel of Death. The catalyst for Terra's rebirth.",
+        "journey_to_terra:2": "Resist if you wish. It changes nothing. Terra's assimilation of Gaia is inevitable.",
+        "journey_to_terra:3": "You dare raise your hand against your creator? Then face the consequences.",
+        "after:journey_to_terra": "...impossible. Defeated by my own creation. Perhaps... I was wrong about you."
+      }
+    }
+  ],
+
+  "ambient_npcs": [
+    {
+      "name": "Dormant Genome",
+      "x": 400,
+      "y": 400,
+      "color": [0.5, 0.5, 0.6],
+      "dialogue": "...                    ...who...am I...?",
+      "patrol": null
+    }
+  ],
+
+  "treasures": [
+    {"item_id": "ether", "item_name": "Ether", "x": 250, "y": 480, "hidden": false},
+    {"item_id": "platinum_mail", "item_name": "Platinum Mail", "x": 700, "y": 350, "hidden": true},
+    {"item_id": "phoenix_down", "item_name": "Phoenix Down", "x": 500, "y": 130, "hidden": false}
+  ],
+
+  "atmosphere": {
+    "bg_color": [0.02, 0.02, 0.12],
+    "ambient_light": [0.3, 0.3, 0.8],
+    "particles": "soul_wisps",
+    "music_mood": "alien_melancholic"
+  },
+
+  "on_enter_events": [
+    {
+      "condition": "first_visit",
+      "type": "narration",
+      "text": "You step into another world. Terra is bathed in cold blue light — crystalline spires rise from silent streets, and rows of empty vessels shaped like people stand motionless in alcoves. The air hums with ancient energy. This is where Zidane was born. This is where the truth waits."
+    },
+    {
+      "condition": "quest_active:journey_to_terra",
+      "type": "dialogue",
+      "dialogue_id": "terra_revelation"
+    }
+  ],
+
+  "connections": ["outer_continent", "crystal_world"],
+  "encounters": [
+    {"trigger": "boss", "enemy_ids": ["garland"], "encounter_rate": 0.0}
+  ],
+  "shop": [],
+  "is_starting_location": false
+}

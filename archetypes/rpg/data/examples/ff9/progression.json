@@ -1,0 +1,67 @@
+{
+  "acts": 3,
+  "story_beats": [
+    {
+      "act": 1,
+      "description": "Kidnap Garnet, escape through Evil Forest and Ice Cavern, discover Dali factory",
+      "location_id": "alexandria_castle",
+      "quest_id": "kidnap_princess"
+    },
+    {
+      "act": 1,
+      "description": "Reach Lindblum, learn of Brahne's war plans",
+      "location_id": "lindblum",
+      "quest_id": "black_mage_factory"
+    },
+    {
+      "act": 2,
+      "description": "Witness the fall of Burmecia and destruction of Cleyra",
+      "location_id": "burmecia",
+      "quest_id": "fall_of_burmecia"
+    },
+    {
+      "act": 2,
+      "description": "Rescue Garnet from Alexandria, Brahne dies",
+      "location_id": "alexandria_harbor",
+      "quest_id": "rescue_garnet"
+    },
+    {
+      "act": 3,
+      "description": "Journey to Terra, learn the truth about Zidane and Kuja",
+      "location_id": "terra",
+      "quest_id": "journey_to_terra"
+    },
+    {
+      "act": 3,
+      "description": "Final confrontation at the Crystal World",
+      "location_id": "crystal_world",
+      "quest_id": "final_battle"
+    }
+  ],
+  "level_curve": [
+    {
+      "act": 1,
+      "expected_level": 5
+    },
+    {
+      "act": 2,
+      "expected_level": 15
+    },
+    {
+      "act": 3,
+      "expected_level": 25
+    }
+  ],
+  "starting_party": [
+    "zidane",
+    "vivi",
+    "steiner"
+  ],
+  "starting_location": "alexandria_castle",
+  "starting_items": [
+    "potion",
+    "potion",
+    "potion",
+    "phoenix_down"
+  ]
+}
