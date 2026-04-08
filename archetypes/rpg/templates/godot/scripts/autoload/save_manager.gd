@@ -17,7 +17,7 @@ func save_game(slot: int) -> void:
 		"inventory": InventoryManager.items,
 		"completed_quests": QuestManager.completed_quests,
 		"active_quests": QuestManager.active_quests,
-		"story": StoryManager.get_save_data() if has_node("/root/StoryManager") else {},
+		"story": StoryManager.get_save_data(),
 	}
 	var file := FileAccess.open(SAVE_PATH % slot, FileAccess.WRITE)
 	if file:
@@ -39,8 +39,7 @@ func load_game(slot: int) -> void:
 	InventoryManager.items = data.get("inventory", [])
 	QuestManager.completed_quests = data.get("completed_quests", [])
 	QuestManager.active_quests = data.get("active_quests", {})
-	if has_node("/root/StoryManager"):
-		StoryManager.load_save_data(data.get("story", {}))
+	StoryManager.load_save_data(data.get("story", {}))
 	var loc: String = data.get("location", "")
 	print("Game loaded from slot ", slot, " — location: ", loc)
 	# Load the saved location

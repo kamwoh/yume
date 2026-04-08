@@ -15,6 +15,13 @@ The standard for density is a classic JRPG like Final Fantasy IX. Every room sho
 
 For EACH location, generate a JSON object with these sections:
 
+## Background Prompt — Generate with the room, not after
+Every location MUST include a `background_prompt` for image generation:
+```json
+"background_prompt": "Dense dark forest path, twisted gnarled trees, bioluminescent mushrooms, thick mist at ground level, spider webs between branches, eerie green light filtering through canopy, watercolor JRPG style, top-down perspective"
+```
+Describe: environment, lighting, key visual elements, mood, art style, camera angle (top-down for gameplay).
+
 ## Layout
 - width/height: playable area size (600-1000 pixels)
 - ground_color: [r, g, b] base color for this location type

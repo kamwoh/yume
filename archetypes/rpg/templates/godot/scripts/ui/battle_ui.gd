@@ -237,13 +237,7 @@ func _show_commands(combatant: Dictionary) -> void:
 				var captured_ability: Dictionary = ability
 				btn.pressed.connect(func():
 					command_panel.visible = false
-					BattleManager.execute_magic(
-						captured_ability.get("name", ""),
-						captured_ability.get("power", 10),
-						captured_ability.get("mp_cost", 0),
-						captured_ability.get("element", "none"),
-						captured_ability.get("target", "single_enemy")
-					)
+					BattleManager.execute_ability(captured_ability)
 				)
 				if UITheme: UITheme.style_button(btn)
 				command_buttons.add_child(btn)

@@ -56,6 +56,8 @@ func play_cutscene(steps: Array) -> void:
 				var fader = _get_fader()
 				if fader:
 					await fader.fade_in(step.get("duration", 0.3))
+			"change_lighting":
+				await _do_change_lighting(step)
 
 	# Unfreeze player
 	if player:
@@ -130,12 +132,18 @@ func _do_npc_walk(step: Dictionary) -> void:
 		return
 
 	var npc_node: Node2D = null
+	var search_names: Array = [
+		"NPC_" + npc_id,
+		"Ambient_" + npc_id,
+		"Ambient_" + npc_id.replace(" ", "_"),
+	]
 	for child in loc_root.get_children():
-		if child.name == "NPC_" + npc_id:
+		if child.name in search_names:
 			npc_node = child as Node2D
 			break
 
 	if not npc_node:
+		push_warning("npc_walk: could not find NPC '" + npc_id + "'")
 		return
 
 	var layout = LocationManager.current_location_data.get("layout", {})
@@ -181,6 +189,51 @@ func _do_screen_shake(step: Dictionary) -> void:
 		elapsed += get_process_delta_time()
 
 	cam.offset = original_offset
+
+func _do_change_lighting(step: Dictionary) -> void:
+	var main = get_tree().current_scene
+	if not main:
+		return
+	var duration: float = step.get("duration", 0.5)
+	var light_type: String = str(step.get("type", "normal"))
+
+	# Tween CanvasModulate
+	var modulate = main.get_node_or_null("CanvasModulate")
+
+	if light_type == "normal" or light_type == "bright":
+		# Remove darkness — tween to white
+		if modulate:
+			var tween = create_tween()
+			tween.tween_property(modulate, "color", Color(1, 1, 1), duration)
+			await tween.finished
+			modulate.queue_free()
+		# Remove player light (no longer needed)
+		var player = main.get_node_or_null("Player")
+		if player:
+			var light = player.get_node_or_null("PlayerLight")
+			if light:
+				light.queue_free()
+	elif light_type == "dim":
+		if modulate:
+			var tween = create_tween()
+			tween.tween_property(modulate, "color", Color(0.4, 0.4, 0.45), duration)
+			await tween.finished
+		else:
+			modulate = CanvasModulate.new()
+			modulate.name = "CanvasModulate"
+			modulate.color = Color(0.4, 0.4, 0.45)
+			main.add_child(modulate)
+	elif light_type == "dark":
+		if modulate:
+			var tween = create_tween()
+			tween.tween_property(modulate, "color", Color(0.15, 0.15, 0.2), duration)
+			await tween.finished
+		else:
+			modulate = CanvasModulate.new()
+			modulate.name = "CanvasModulate"
+			modulate.color = Color(0.15, 0.15, 0.2)
+			main.add_child(modulate)
+
 
 func _get_fader():
 	var main = get_tree().current_scene

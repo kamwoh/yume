@@ -46,6 +46,26 @@ Output: a single JSON object for `game_state.json`.
 }
 ```
 
+## Scene Prompts — Generate Visuals WITH the Story
+
+Every phase MUST include a `scene_prompt` — a detailed image generation prompt for the cutscene's visual. Write this AS you write the cutscene, not after. You're a film director: describe the shot.
+
+```json
+{
+  "id": "find_garnet",
+  "trigger": "reach:courtyard",
+  "scene_prompt": "Castle courtyard at dusk, grand fountain center, theater stage left with red curtains, noble audience in formal dress, warm torchlight, a cloaked princess turning to face camera, watercolor JRPG style, wide establishing shot",
+  "cutscene": [...]
+}
+```
+
+Rules for scene_prompt:
+- Describe the KEY VISUAL MOMENT of the scene (the most dramatic frame)
+- Include: setting, lighting, characters present, camera angle, mood
+- End with art style from meta.json
+- For boss encounters: describe the boss's appearance and the arena
+- For emotional scenes: describe character expressions and body language
+
 ## Phase Types
 
 **Story beat** — reaches a location, cutscene plays, party/quest updates:
@@ -141,5 +161,58 @@ For a 3-act story with ~15 locations:
 {"action": "dialogue", "speaker": "Villain", "text": "I am the villain."},
 {"action": "dialogue", "speaker": "Hero", "text": "We will defeat you."}
 ```
+
+## Cutscene Directing Rules
+
+You are a FILM DIRECTOR, not a script reader. Scenes need PACING:
+
+1. **Pause between beats** — `{"action": "wait", "duration": 0.5}` between emotional shifts
+2. **Actions before words** — describe what happens visually BEFORE characters react
+   ```json
+   {"action": "dialogue", "speaker": "", "text": "A match strikes. A candle flickers to life."},
+   {"action": "wait", "duration": 0.8},
+   {"action": "dialogue", "speaker": "Zidane", "text": "There we go."}
+   ```
+3. **Characters ENTER** — don't start with everyone present. Describe arrivals:
+   ```json
+   {"action": "dialogue", "speaker": "", "text": "The door creaks open. Three figures step into the light."},
+   {"action": "dialogue", "speaker": "Blank", "text": "You sure are late!"}
+   ```
+4. **Screen effects punctuate** — `screen_shake` for impacts, `camera_to` for reveals
+5. **Comedy needs timing** — setup → wait → punchline
+6. **Build the scene** — silence → small action → bigger action → climax → resolution
+
+A 20-step cutscene with pauses feels SHORTER than an 8-step wall of text.
+
+## Immersion — Make the Player BE the Character
+
+You are not writing a summary. You are putting the player INSIDE the scene.
+
+**Sensory details** — smell, touch, sound, not just sight:
+```json
+{"action": "dialogue", "speaker": "", "text": "Darkness. The smell of sawdust and engine oil. The floor sways beneath your feet."}
+```
+NOT: `"You are in a dark room on a ship."`
+
+**Internal monologue** — the character THINKS:
+```json
+{"action": "dialogue", "speaker": "Zidane", "text": "(Damn, who blew out the candle? Can't see a thing...)"}
+```
+
+**Delayed reveals** — feel before see:
+```json
+{"action": "dialogue", "speaker": "", "text": "Your hand finds the table. Fingers brush something waxy. A candle."},
+{"action": "wait", "duration": 0.5},
+{"action": "dialogue", "speaker": "", "text": "Scratch. A tiny flame catches—"},
+{"action": "change_lighting", "type": "dim", "duration": 1.5}
+```
+
+**Sound words** — CRASH, CRACK, scratch. Impact through text.
+
+**Forward momentum** — end every scene with desire:
+```json
+{"action": "dialogue", "speaker": "", "text": "Through the window, Alexandria Castle fills the sky. The adventure begins."}
+```
+NOT: `"Go to the next area."`
 
 Return ONLY valid JSON.

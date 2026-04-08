@@ -151,6 +151,25 @@ func _fire_phase(phase: Dictionary) -> void:
 		await get_tree().create_timer(0.3).timeout
 		await CutsceneManager.play_cutscene(cutscene_steps)
 
+	# Start boss fight if phase defines one
+	var boss_id = phase.get("boss")
+	if boss_id != null and _s(boss_id) != "":
+		var enemy_id: String = _s(boss_id)
+		# Find boss enemy IDs from location encounters, or use directly
+		var loc_data = LocationManager.current_location_data
+		var boss_enemies: Array = [enemy_id]
+		if loc_data:
+			for enc in loc_data.get("encounters", []):
+				if enc.get("is_boss", false):
+					boss_enemies = enc.get("enemies", [enemy_id])
+					break
+		# Start the battle — player fights the boss
+		await get_tree().create_timer(0.5).timeout
+		LocationManager.start_encounter(boss_enemies)
+		# Wait for battle to end
+		await BattleManager.battle_ended
+		# Boss defeat trigger fires automatically via BattleManager → on_boss_defeated
+
 	# Unfreeze player
 	if player:
 		player.can_move = true

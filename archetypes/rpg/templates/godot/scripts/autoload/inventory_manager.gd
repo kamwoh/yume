@@ -12,10 +12,15 @@ func _ready() -> void:
 			for item in data:
 				item_db[item["id"]] = item
 
-	# Add starting items
-	var starting := ["potion", "potion", "potion", "phoenix_down"] as Array
-	for item_id in starting:
-		add_item(item_id)
+	# Add starting items from progression.json (NOT hardcoded)
+	var prog_file := FileAccess.open("res://data/progression.json", FileAccess.READ)
+	if prog_file:
+		var prog = JSON.parse_string(prog_file.get_as_text())
+		if prog is Dictionary:
+			var starting = prog.get("starting_items", [])
+			if starting is Array:
+				for item_id in starting:
+					add_item(str(item_id))
 
 func add_item(item_id: String, qty: int = 1) -> void:
 	for slot in items:

@@ -11,8 +11,13 @@ func _ready() -> void:
 			for c in data:
 				all_characters[c["id"]] = c
 
-	# Initialize starting party
-	var starting := ["zidane", "vivi", "steiner"] as Array
+	# Initialize starting party from progression.json (NOT hardcoded)
+	var starting: Array = []
+	var prog_file := FileAccess.open("res://data/progression.json", FileAccess.READ)
+	if prog_file:
+		var prog = JSON.parse_string(prog_file.get_as_text())
+		if prog is Dictionary:
+			starting = prog.get("starting_party", [])
 	for char_id in starting:
 		if all_characters.has(char_id):
 			var c = all_characters[char_id]

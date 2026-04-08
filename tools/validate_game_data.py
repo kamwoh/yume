@@ -146,7 +146,71 @@ def main(data_dir):
         if enemy.get("is_boss") and not enemy.get("steal_table"):
             warnings.append(f"BOSS NO STEALS: boss '{eid}' has no steal_table")
 
-    # === CHECK 8: Shop placement ===
+    # === CHECK 8: Cutscene-Room Consistency ===
+    print("--- Cutscene-Room Consistency ---")
+    gs_path = data_dir / "game_state.json"
+    if gs_path.exists():
+        gs = load_json(gs_path)
+        for phase in gs.get("phases", []):
+            trigger = phase.get("trigger", "")
+            if trigger.startswith("reach:"):
+                loc_id = trigger.split(":", 1)[1]
+                if loc_id not in locations:
+                    errors.append(f"PHASE '{phase.get('id','')}' triggers on non-existent location '{loc_id}'")
+                else:
+                    # Check: characters mentioned in cutscene should exist in the room
+                    loc = locations[loc_id]
+                    room_npcs = set()
+                    for npc in loc.get("ambient_npcs", []):
+                        room_npcs.add(npc.get("name", "").lower())
+                    for npc in loc.get("story_npcs", []):
+                        room_npcs.add(npc.get("name", "").lower())
+
+                    for step in phase.get("cutscene", []):
+                        speaker = step.get("speaker", "")
+                        text = step.get("text", "")
+                        if speaker and speaker not in ("", "???"):
+                            # Check if speaker is a party member (they're always "present")
+                            party_names = set()
+                            for c in characters.values():
+                                if c.get("role") == "party_member":
+                                    party_names.add(c.get("id", "").lower())
+                                    party_names.add(c.get("name", "").lower())
+                                    # Also add first name (e.g. "Adelbert Steiner" → "steiner")
+                                    for part in c.get("name", "").lower().split():
+                                        party_names.add(part)
+                            is_party = speaker.lower() in party_names
+                            is_in_room = speaker.lower() in room_npcs
+                            if not is_party and not is_in_room:
+                                warnings.append(f"CUTSCENE-ROOM MISMATCH: Phase '{phase.get('id','')}' has speaker '{speaker}' but they're not in room '{loc_id}' and not a party member")
+
+    # === CHECK 9: Hardcoded values in progression ===
+    print("--- Data Consistency ---")
+    if progression:
+        sp = progression.get("starting_party", [])
+        sl = progression.get("starting_location", "")
+        if sl and sl not in locations:
+            errors.append(f"starting_location '{sl}' not in locations")
+        for cid in sp:
+            if cid not in characters:
+                errors.append(f"starting_party member '{cid}' not in characters")
+        if len(sp) > 1:
+            warnings.append(f"starting_party has {len(sp)} members — should party members join via game_state phases instead?")
+
+    # === CHECK 10: Dialog ownership ===
+    print("--- Dialog Ownership ---")
+    dlg_path = data_dir / "dialogues.json"
+    if dlg_path.exists():
+        dlgs = load_json(dlg_path)
+        if isinstance(dlgs, list):
+            for d in dlgs:
+                trigger = d.get("trigger_condition", "")
+                if trigger == "auto":
+                    errors.append(f"DIALOG OWNERSHIP: '{d.get('id','')}' has trigger_condition='auto' — this should be in game_state.json, not dialogues.json")
+                elif trigger.startswith("quest:"):
+                    errors.append(f"DIALOG OWNERSHIP: '{d.get('id','')}' has quest trigger — this should be in game_state.json, not dialogues.json")
+
+    # === CHECK 11: Shop placement ===
     print("--- Shop Coverage ---")
     regions_with_shops = set()
     for loc_id, loc in locations.items():

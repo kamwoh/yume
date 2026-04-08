@@ -18,10 +18,20 @@ var return_location: String = ""
 
 var enemy_db: Dictionary = {}
 
-const ATB_FILL_RATE := 100.0
-const VARIANCE := 0.15
+var ATB_FILL_RATE: float = 100.0
+var VARIANCE: float = 0.15
 
 func _ready() -> void:
+	# Load battle config from meta.json
+	var meta_file := FileAccess.open("res://data/meta.json", FileAccess.READ)
+	if meta_file:
+		var meta = JSON.parse_string(meta_file.get_as_text())
+		if meta is Dictionary:
+			var battle: Dictionary = meta.get("battle", {})
+			if battle is Dictionary:
+				ATB_FILL_RATE = battle.get("atb_fill_rate", ATB_FILL_RATE)
+				VARIANCE = battle.get("variance", VARIANCE)
+
 	var file := FileAccess.open("res://data/enemies.json", FileAccess.READ)
 	if file:
 		var data = JSON.parse_string(file.get_as_text())
@@ -108,32 +118,170 @@ func execute_attack(target: Dictionary) -> void:
 	combatant_acted.emit(current_actor, "Attack", target, damage)
 	_end_turn(current_actor)
 
-func execute_magic(ability_name: String, power: int, mp_cost: int, element: String, target_type: String) -> void:
+## Generic ability execution — driven by ability data, NOT hardcoded names.
+## Ability JSON: {name, type, power, mp_cost, element, target, stat, multiplier, duration, status}
+## Types: damage, heal, steal, buff, debuff, taunt, status, drain
+func execute_ability(ability: Dictionary) -> void:
 	if current_actor.is_empty(): return
+	var mp_cost: int = ability.get("mp_cost", 0)
 	if current_actor["mp"] < mp_cost: return
 	current_actor["mp"] -= mp_cost
 
+	var ability_name: String = ability.get("name", "Attack")
+	var ability_type: String = ability.get("type", "damage")
+	var power: int = ability.get("power", 0)
+	var element: String = ability.get("element", "none")
+	var target_type: String = ability.get("target", "single_enemy")
+
+	match ability_type:
+		"steal":
+			_do_steal(ability_name)
+		"heal":
+			_do_heal(ability_name, power, target_type)
+		"buff":
+			_do_buff(ability_name, ability)
+		"debuff":
+			_do_debuff(ability_name, ability)
+		"taunt":
+			_do_taunt(ability_name, ability)
+		"drain":
+			_do_drain(ability_name, power, element)
+		"status":
+			_do_status(ability_name, ability)
+		_:  # "damage" or unknown — default to damage
+			_do_damage(ability_name, power, element, target_type)
+
+	_end_turn(current_actor)
+
+
+func _do_damage(ability_name: String, power: int, element: String, target_type: String) -> void:
 	if target_type == "all_enemies":
 		for enemy in enemy_combatants:
 			if enemy["hp"] > 0:
 				var dmg: int = _calc_magical(current_actor["magic"], power, enemy["spirit"])
-				if enemy.get("element_weak", "none") == element: dmg *= 2
+				if enemy.get("element_weak", "none") == element and element != "none":
+					dmg *= 2
 				_apply_damage(enemy, dmg)
 				combatant_acted.emit(current_actor, ability_name, enemy, dmg)
-	elif target_type.begins_with("single_ally") or target_type.begins_with("all_all"):
-		for ally in party_combatants:
-			if ally["hp"] > 0:
-				var heal_amt: int = int(current_actor["magic"] * power / 10.0)
-				ally["hp"] = min(ally["hp"] + heal_amt, ally["max_hp"])
-				combatant_acted.emit(current_actor, ability_name, ally, -heal_amt)
 	else:
 		var target: Dictionary = _first_alive_enemy()
 		if not target.is_empty():
 			var dmg: int = _calc_magical(current_actor["magic"], power, target["spirit"])
-			if target.get("element_weak", "none") == element: dmg *= 2
+			if target.get("element_weak", "none") == element and element != "none":
+				dmg *= 2
 			_apply_damage(target, dmg)
 			combatant_acted.emit(current_actor, ability_name, target, dmg)
-	_end_turn(current_actor)
+
+
+func _do_heal(ability_name: String, power: int, target_type: String) -> void:
+	var targets: Array = []
+	if target_type == "all_allies" or target_type == "all_all":
+		targets = party_combatants
+	elif target_type == "self":
+		targets = [current_actor]
+	else:
+		# Single ally — heal lowest HP party member
+		var lowest = {}
+		for ally in party_combatants:
+			if ally["hp"] > 0:
+				if lowest.is_empty() or ally["hp"] < lowest["hp"]:
+					lowest = ally
+		if not lowest.is_empty():
+			targets = [lowest]
+
+	for ally in targets:
+		if ally["hp"] > 0:
+			var heal_amt: int = max(1, int(current_actor["magic"] * power / 10.0))
+			ally["hp"] = min(ally["hp"] + heal_amt, ally["max_hp"])
+			combatant_acted.emit(current_actor, ability_name, ally, -heal_amt)
+
+
+func _do_steal(ability_name: String) -> void:
+	var target: Dictionary = _first_alive_enemy()
+	if target.is_empty(): return
+
+	var enemy_id: String = target.get("id", "")
+	var steal_table: Array = []
+	if enemy_db.has(enemy_id):
+		steal_table = enemy_db[enemy_id].get("steal_table", [])
+
+	var stolen: bool = false
+	for item in steal_table:
+		var chance: float = item.get("chance", 0.3)
+		if randf() < chance:
+			var item_id: String = item.get("item_id", "")
+			if item_id != "":
+				InventoryManager.add_item(item_id)
+				combatant_acted.emit(current_actor, "Stole " + item_id + "!", target, 0)
+				stolen = true
+				break
+	if not stolen:
+		combatant_acted.emit(current_actor, "Couldn't steal anything!", target, 0)
+
+
+func _do_buff(ability_name: String, ability: Dictionary) -> void:
+	var stat: String = ability.get("stat", "strength")
+	var multiplier: float = ability.get("multiplier", 1.5)
+	var target_type: String = ability.get("target", "self")
+
+	var targets: Array = []
+	if target_type == "all_allies":
+		targets = party_combatants
+	elif target_type == "self":
+		targets = [current_actor]
+	else:
+		targets = [current_actor]
+
+	for t in targets:
+		if t["hp"] > 0:
+			var original: int = t.get(stat, 10)
+			t[stat] = int(original * multiplier)
+			combatant_acted.emit(current_actor, ability_name + " (" + stat + " UP!)", t, 0)
+
+
+func _do_debuff(ability_name: String, ability: Dictionary) -> void:
+	var stat: String = ability.get("stat", "defense")
+	var multiplier: float = ability.get("multiplier", 0.5)
+	var target: Dictionary = _first_alive_enemy()
+	if not target.is_empty():
+		var original: int = target.get(stat, 10)
+		target[stat] = int(original * multiplier)
+		combatant_acted.emit(current_actor, ability_name + " (" + stat + " DOWN!)", target, 0)
+
+
+func _do_taunt(ability_name: String, ability: Dictionary) -> void:
+	current_actor["is_taunting"] = true
+	combatant_acted.emit(current_actor, ability_name + " (Drawing attacks!)", current_actor, 0)
+
+
+func _do_drain(ability_name: String, power: int, element: String) -> void:
+	var target: Dictionary = _first_alive_enemy()
+	if not target.is_empty():
+		var dmg: int = _calc_magical(current_actor["magic"], power, target["spirit"])
+		if target.get("element_weak", "none") == element and element != "none":
+			dmg *= 2
+		_apply_damage(target, dmg)
+		# Heal caster for portion of damage
+		var heal: int = dmg / 2
+		current_actor["hp"] = min(current_actor["hp"] + heal, current_actor["max_hp"])
+		combatant_acted.emit(current_actor, ability_name, target, dmg)
+
+
+func _do_status(ability_name: String, ability: Dictionary) -> void:
+	var status_effect: String = ability.get("status", "")
+	var target: Dictionary = _first_alive_enemy()
+	if not target.is_empty() and status_effect != "":
+		target["status_" + status_effect] = true
+		combatant_acted.emit(current_actor, ability_name + " (" + status_effect + "!)", target, 0)
+
+
+## Legacy wrapper — called by battle_ui.gd
+func execute_magic(ability_name: String, power: int, mp_cost: int, element: String, target_type: String) -> void:
+	# Convert old-style call to new ability system
+	execute_ability({
+		"name": ability_name, "type": "damage", "power": power,
+		"mp_cost": mp_cost, "element": element, "target": target_type
+	})
 
 func execute_item(item_id: String) -> void:
 	if current_actor.is_empty(): return
@@ -253,8 +401,7 @@ func _end_battle(victory: bool, fled: bool) -> void:
 		for e in enemy_combatants:
 			if e.get("is_boss", false):
 				var eid: String = e.get("enemy_id", e.get("id", ""))
-				if has_node("/root/StoryManager"):
-					StoryManager.on_boss_defeated(eid)
+				StoryManager.on_boss_defeated(eid)
 				QuestManager.on_trigger("defeat", eid)
 
 	in_battle = false

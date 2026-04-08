@@ -9,16 +9,49 @@ var current_location_data: Dictionary = {}
 var step_count: int = 0
 var steps_until_encounter: int = 0
 
-const CHAR_COLORS := {
-	"zidane": Color(0, 0.8, 0.8),
-	"garnet": Color(1, 0.6, 0.2),
-	"vivi": Color(0.2, 0.3, 0.8),
-	"steiner": Color(0.7, 0.7, 0.7),
-	"freya": Color(0.8, 0.2, 0.3),
-	"kuja": Color(0.8, 0.5, 0.9),
-	"brahne": Color(0.5, 0.2, 0.5),
-	"garland": Color(0.3, 0.3, 0.3)
-}
+## Character colors loaded from characters.json (not hardcoded)
+var CHAR_COLORS: Dictionary = {}
+
+## Collision sizes — loaded from meta.json "collision" section, or defaults
+var COL_PROP: Vector2 = Vector2(20, 16)
+var COL_NPC: Vector2 = Vector2(30, 30)
+var COL_AMBIENT: Vector2 = Vector2(26, 26)
+var COL_EXIT: Vector2 = Vector2(30, 60)
+var COL_TREASURE: Vector2 = Vector2(28, 28)
+var COL_SHOP: Vector2 = Vector2(30, 30)
+
+func _load_collision_config() -> void:
+	var file := FileAccess.open("res://data/meta.json", FileAccess.READ)
+	if not file: return
+	var data = JSON.parse_string(file.get_as_text())
+	if not data is Dictionary: return
+	var col: Dictionary = data.get("collision", {})
+	if col.is_empty(): return
+	var p = col.get("player")
+	if p is Array and p.size() >= 2: pass  # player collision set in main.tscn
+	var prop = col.get("prop")
+	if prop is Array and prop.size() >= 2: COL_PROP = Vector2(prop[0], prop[1])
+	var npc = col.get("npc")
+	if npc is Array and npc.size() >= 2: COL_NPC = Vector2(npc[0], npc[1])
+	var amb = col.get("ambient_npc")
+	if amb is Array and amb.size() >= 2: COL_AMBIENT = Vector2(amb[0], amb[1])
+	var ex = col.get("exit")
+	if ex is Array and ex.size() >= 2: COL_EXIT = Vector2(ex[0], ex[1])
+	var tr = col.get("treasure")
+	if tr is Array and tr.size() >= 2: COL_TREASURE = Vector2(tr[0], tr[1])
+
+func _load_char_colors() -> void:
+	var file := FileAccess.open("res://data/characters.json", FileAccess.READ)
+	if not file: return
+	var data = JSON.parse_string(file.get_as_text())
+	if data is Array:
+		for c in data:
+			var cid: String = c.get("id", "")
+			var col = c.get("color")
+			if col is Array and col.size() >= 3:
+				CHAR_COLORS[cid] = Color(col[0], col[1], col[2])
+			else:
+				CHAR_COLORS[cid] = Color(0.5, 0.5, 0.5)
 
 const LOC_COLORS := {
 	"town": Color(0.3, 0.4, 0.25),
@@ -41,6 +74,9 @@ func _ready() -> void:
 				if not dialogues_by_location.has(loc_id):
 					dialogues_by_location[loc_id] = []
 				dialogues_by_location[loc_id].append(d)
+
+	_load_char_colors()
+	_load_collision_config()
 
 	# Don't auto-load here — title_screen controls when to load
 	# (prevents race condition with prologue_screen and story_manager)
@@ -89,6 +125,10 @@ func load_location(location_id: String, from_location: String = "") -> void:
 	steps_until_encounter = randi_range(10, 30)
 	_spawn_location(data)
 
+	# Apply lighting BEFORE fade-in (so player never sees bright flash)
+	var atmo: Dictionary = data.get("atmosphere", {})
+	_apply_lighting(atmo)
+
 	if fader:
 		await fader.fade_in(0.3)
 
@@ -99,8 +139,6 @@ func load_location(location_id: String, from_location: String = "") -> void:
 	if hud and hud.has_method("update_location"):
 		hud.update_location(data.get("name", location_id))
 
-	# Play BGM for this location
-	var atmo: Dictionary = data.get("atmosphere", {})
 	var music_mood: String = atmo.get("music_mood", "")
 	AudioManager.play_bgm_for_location(data.get("type", "town"), music_mood)
 
@@ -108,8 +146,7 @@ func load_location(location_id: String, from_location: String = "") -> void:
 	QuestManager.on_trigger("reach", location_id)
 
 	# Fire story phase trigger
-	if Engine.has_singleton("StoryManager") or has_node("/root/StoryManager"):
-		StoryManager.on_location_entered(location_id)
+	StoryManager.on_location_entered(location_id)
 
 	# Check for auto-dialogues (story events tied to quests)
 	var loc_dialogues: Array = dialogues_by_location.get(location_id, [])
@@ -140,7 +177,7 @@ func load_location(location_id: String, from_location: String = "") -> void:
 					await get_tree().create_timer(1.0).timeout
 					DialogueManager.show_simple_message("", "A powerful enemy appears!")
 					await get_tree().create_timer(0.5).timeout
-					_start_encounter(enc_enemies)
+					start_encounter(enc_enemies)
 					# When battle ends, fire the defeat trigger
 					await BattleManager.battle_ended
 					if BattleManager.state != BattleManager.BattleState.DEFEAT:
@@ -271,6 +308,19 @@ func _spawn_rich_location(data: Dictionary) -> void:
 
 		var base_c := Color(pc[0], pc[1], pc[2])
 		_build_prop_visual(prop, prop_type, base_c)
+
+		# Add collision to solid props (player can't walk through)
+		var passthrough_types: Array = ["mist", "light_beam", "frost", "frost_heavy", "prismatic_light", "dark_aura", "sparkles", "carpet", "stone_path"]
+		var is_solid: bool = prop_data.get("solid", not prop_type in passthrough_types)
+		if is_solid:
+			var body := StaticBody2D.new()
+			body.name = "Collision"
+			var col_shape := CollisionShape2D.new()
+			var shape := RectangleShape2D.new()
+			shape.size = COL_PROP
+			col_shape.shape = shape
+			body.add_child(col_shape)
+			prop.add_child(body)
 
 		if prop_label_text != "":
 			var plbl := Label.new()
@@ -414,7 +464,7 @@ func _get_quest_dialogue(dlg_map: Dictionary) -> String:
 		amb_area.name = "InteractArea"
 		var amb_shape := CollisionShape2D.new()
 		var amb_rect := RectangleShape2D.new()
-		amb_rect.size = Vector2(26, 26)
+		amb_rect.size = COL_AMBIENT
 		amb_shape.shape = amb_rect
 		amb_area.add_child(amb_shape)
 		amb_node.add_child(amb_area)
@@ -492,7 +542,7 @@ func interact():
 		area.name = "TriggerArea"
 		var shape := CollisionShape2D.new()
 		var rect := RectangleShape2D.new()
-		rect.size = Vector2(30, 60)
+		rect.size = COL_EXIT
 		shape.shape = rect
 		area.add_child(shape)
 		exit.add_child(area)
@@ -545,7 +595,7 @@ func interact():
 		chest_area.name = "ChestArea"
 		var chest_shape := CollisionShape2D.new()
 		var chest_rect := RectangleShape2D.new()
-		chest_rect.size = Vector2(28, 28)
+		chest_rect.size = COL_TREASURE
 		chest_shape.shape = chest_rect
 		chest_area.add_child(chest_shape)
 		chest.add_child(chest_area)
@@ -600,7 +650,7 @@ func interact():
 		shop_area.name = "InteractArea"
 		var shop_shape := CollisionShape2D.new()
 		var shop_rect := RectangleShape2D.new()
-		shop_rect.size = Vector2(30, 30)
+		shop_rect.size = COL_SHOP
 		shop_shape.shape = shop_rect
 		shop_area.add_child(shop_shape)
 		shop_npc.add_child(shop_area)
@@ -719,6 +769,62 @@ func interact():
 	if has_events and player:
 		player.can_move = true
 
+func _apply_lighting(atmo: Dictionary) -> void:
+	# Remove old lighting
+	var main = get_tree().current_scene
+	if not main:
+		return
+	var old_mod = main.get_node_or_null("CanvasModulate")
+	if old_mod:
+		old_mod.queue_free()
+	var player = main.get_node_or_null("Player")
+	if player:
+		var old_light = player.get_node_or_null("PlayerLight")
+		if old_light:
+			old_light.queue_free()
+
+	var lighting: Dictionary = atmo.get("lighting", {})
+	var light_type: String = str(lighting.get("type", "")) if lighting.has("type") else ""
+
+	if light_type == "dark" or light_type == "dim":
+		# Darken the whole scene
+		var modulate := CanvasModulate.new()
+		modulate.name = "CanvasModulate"
+		if light_type == "dark":
+			modulate.color = Color(0.15, 0.15, 0.2)
+		else:
+			modulate.color = Color(0.4, 0.4, 0.45)
+		main.add_child(modulate)
+
+		# Add a point light on the player
+		if player:
+			var light := PointLight2D.new()
+			light.name = "PlayerLight"
+			var radius: float = lighting.get("radius", 150.0)
+			light.texture = _create_light_texture()
+			light.texture_scale = radius / 256.0
+			light.energy = lighting.get("energy", 1.2)
+			light.color = Color(
+				lighting.get("color", [1.0, 0.9, 0.6])[0],
+				lighting.get("color", [1.0, 0.9, 0.6])[1],
+				lighting.get("color", [1.0, 0.9, 0.6])[2]
+			)
+			player.add_child(light)
+
+
+func _create_light_texture() -> Texture2D:
+	# Create a radial gradient texture for the point light
+	var img := Image.create(512, 512, false, Image.FORMAT_RGBA8)
+	var center := Vector2(256, 256)
+	for x in range(512):
+		for y in range(512):
+			var dist: float = Vector2(x, y).distance_to(center) / 256.0
+			var alpha: float = clampf(1.0 - dist, 0.0, 1.0)
+			alpha = alpha * alpha  # smooth falloff
+			img.set_pixel(x, y, Color(1, 1, 1, alpha))
+	return ImageTexture.create_from_image(img)
+
+
 func _spawn_particles(particle_type: String) -> void:
 	# Simple particle effect using CPUParticles2D
 	var particles := CPUParticles2D.new()
@@ -800,160 +906,6 @@ func _add_wall_collider(parent: Node, pos: Vector2, size: Vector2) -> void:
 func _build_prop_visual(parent: Node2D, prop_type: String, base_c: Color) -> void:
 	if _vh:
 		_vh.create_prop_visual(parent, prop_type, base_c)
-		return
-	# Fallback if visual_helpers not loaded
-	match prop_type:
-		"tree", "gnarled_tree":
-			# Trunk
-			var trunk := ColorRect.new()
-			trunk.size = Vector2(6, 16)
-			trunk.position = Vector2(-3, -4)
-			trunk.color = Color(base_c.r * 0.6, base_c.g * 0.4, base_c.b * 0.3)
-			parent.add_child(trunk)
-			# Canopy (circle-ish: overlapping rects)
-			for i in range(3):
-				var leaf := ColorRect.new()
-				leaf.size = Vector2(14 - i * 2, 10 - i * 2)
-				leaf.position = Vector2(-7 + i, -20 + i * 3)
-				leaf.color = Color(base_c.r + randf_range(-0.05, 0.05), base_c.g + randf_range(-0.05, 0.05), base_c.b, 0.9)
-				parent.add_child(leaf)
-		"fountain":
-			# Base circle (square approximation)
-			var base_shape := ColorRect.new()
-			base_shape.size = Vector2(28, 28)
-			base_shape.position = Vector2(-14, -14)
-			base_shape.color = Color(0.5, 0.5, 0.55)
-			parent.add_child(base_shape)
-			# Water
-			var water := ColorRect.new()
-			water.size = Vector2(20, 20)
-			water.position = Vector2(-10, -10)
-			water.color = Color(0.3, 0.5, 0.8, 0.7)
-			parent.add_child(water)
-			# Center pillar
-			var pillar := ColorRect.new()
-			pillar.size = Vector2(4, 12)
-			pillar.position = Vector2(-2, -10)
-			pillar.color = Color(0.6, 0.6, 0.65)
-			parent.add_child(pillar)
-		"barrel":
-			var body := ColorRect.new()
-			body.size = Vector2(12, 14)
-			body.position = Vector2(-6, -7)
-			body.color = base_c
-			parent.add_child(body)
-			# Metal band
-			var band := ColorRect.new()
-			band.size = Vector2(14, 2)
-			band.position = Vector2(-7, -2)
-			band.color = Color(0.4, 0.4, 0.4)
-			parent.add_child(band)
-		"crate":
-			var body := ColorRect.new()
-			body.size = Vector2(14, 14)
-			body.position = Vector2(-7, -7)
-			body.color = base_c
-			parent.add_child(body)
-			# Cross lines
-			var line1 := ColorRect.new()
-			line1.size = Vector2(14, 1)
-			line1.position = Vector2(-7, 0)
-			line1.color = Color(base_c.r * 0.7, base_c.g * 0.7, base_c.b * 0.7)
-			parent.add_child(line1)
-			var line2 := ColorRect.new()
-			line2.size = Vector2(1, 14)
-			line2.position = Vector2(0, -7)
-			line2.color = Color(base_c.r * 0.7, base_c.g * 0.7, base_c.b * 0.7)
-			parent.add_child(line2)
-		"torch":
-			# Pole
-			var pole := ColorRect.new()
-			pole.size = Vector2(3, 14)
-			pole.position = Vector2(-1, -4)
-			pole.color = Color(0.4, 0.3, 0.2)
-			parent.add_child(pole)
-			# Flame
-			var flame := ColorRect.new()
-			flame.size = Vector2(6, 6)
-			flame.position = Vector2(-3, -10)
-			flame.color = Color(1.0, 0.7, 0.1)
-			parent.add_child(flame)
-			var glow := ColorRect.new()
-			glow.size = Vector2(4, 4)
-			glow.position = Vector2(-2, -9)
-			glow.color = Color(1.0, 0.9, 0.3)
-			parent.add_child(glow)
-		"mushroom":
-			# Stem
-			var stem := ColorRect.new()
-			stem.size = Vector2(3, 6)
-			stem.position = Vector2(-1, -2)
-			stem.color = Color(0.8, 0.8, 0.7)
-			parent.add_child(stem)
-			# Cap
-			var cap := ColorRect.new()
-			cap.size = Vector2(10, 6)
-			cap.position = Vector2(-5, -8)
-			cap.color = base_c
-			parent.add_child(cap)
-		"rock":
-			var r1 := ColorRect.new()
-			r1.size = Vector2(16, 10)
-			r1.position = Vector2(-8, -5)
-			r1.color = base_c
-			parent.add_child(r1)
-			var r2 := ColorRect.new()
-			r2.size = Vector2(10, 8)
-			r2.position = Vector2(-3, -8)
-			r2.color = Color(base_c.r * 0.9, base_c.g * 0.9, base_c.b * 0.9)
-			parent.add_child(r2)
-		"sign":
-			# Post
-			var post := ColorRect.new()
-			post.size = Vector2(3, 16)
-			post.position = Vector2(-1, -6)
-			post.color = Color(0.4, 0.3, 0.2)
-			parent.add_child(post)
-			# Board
-			var board := ColorRect.new()
-			board.size = Vector2(18, 10)
-			board.position = Vector2(-9, -16)
-			board.color = base_c
-			parent.add_child(board)
-		"bench":
-			var seat := ColorRect.new()
-			seat.size = Vector2(24, 4)
-			seat.position = Vector2(-12, -2)
-			seat.color = base_c
-			parent.add_child(seat)
-			var leg1 := ColorRect.new()
-			leg1.size = Vector2(2, 6)
-			leg1.position = Vector2(-10, 0)
-			leg1.color = Color(base_c.r * 0.7, base_c.g * 0.7, base_c.b * 0.7)
-			parent.add_child(leg1)
-			var leg2 := ColorRect.new()
-			leg2.size = Vector2(2, 6)
-			leg2.position = Vector2(8, 0)
-			leg2.color = Color(base_c.r * 0.7, base_c.g * 0.7, base_c.b * 0.7)
-			parent.add_child(leg2)
-		"stage":
-			var floor_r := ColorRect.new()
-			floor_r.size = Vector2(60, 30)
-			floor_r.position = Vector2(-30, -15)
-			floor_r.color = base_c
-			parent.add_child(floor_r)
-			var edge := ColorRect.new()
-			edge.size = Vector2(60, 3)
-			edge.position = Vector2(-30, 12)
-			edge.color = Color(base_c.r * 0.6, base_c.g * 0.6, base_c.b * 0.6)
-			parent.add_child(edge)
-		_:
-			# Default: simple colored rect
-			var sprite := ColorRect.new()
-			sprite.size = Vector2(12, 12)
-			sprite.position = Vector2(-6, -6)
-			sprite.color = base_c
-			parent.add_child(sprite)
 
 func _spawn_simple_location(data: Dictionary) -> void:
 	# Legacy format support — flat ground + objects in a line
@@ -1084,7 +1036,7 @@ func interact():
 		area.name = "TriggerArea"
 		var shape := CollisionShape2D.new()
 		var rect := RectangleShape2D.new()
-		rect.size = Vector2(30, 60)
+		rect.size = COL_EXIT
 		shape.shape = rect
 		area.add_child(shape)
 		exit.add_child(area)
@@ -1139,7 +1091,7 @@ func interact():
 		chest_area.name = "ChestArea"
 		var chest_shape := CollisionShape2D.new()
 		var chest_rect := RectangleShape2D.new()
-		chest_rect.size = Vector2(28, 28)
+		chest_rect.size = COL_TREASURE
 		chest_shape.shape = chest_rect
 		chest_area.add_child(chest_shape)
 		chest.add_child(chest_area)
@@ -1201,7 +1153,7 @@ func interact():
 		amb_area.name = "InteractArea"
 		var amb_shape := CollisionShape2D.new()
 		var amb_rect := RectangleShape2D.new()
-		amb_rect.size = Vector2(26, 26)
+		amb_rect.size = COL_AMBIENT
 		amb_shape.shape = amb_rect
 		amb_area.add_child(amb_shape)
 		amb_node.add_child(amb_area)
@@ -1247,7 +1199,7 @@ func interact():
 		shop_area.name = "InteractArea"
 		var shop_shape := CollisionShape2D.new()
 		var shop_rect := RectangleShape2D.new()
-		shop_rect.size = Vector2(30, 30)
+		shop_rect.size = COL_SHOP
 		shop_shape.shape = shop_rect
 		shop_area.add_child(shop_shape)
 		shop_npc.add_child(shop_area)
@@ -1309,9 +1261,9 @@ func _check_encounter() -> void:
 		steps_until_encounter = randi_range(15, 40)
 		var enemy_ids: Array = enc.get("enemy_ids", [])
 		if enemy_ids.size() > 0:
-			_start_encounter(enemy_ids)
+			start_encounter(enemy_ids)
 
-func _start_encounter(enemy_ids: Array) -> void:
+func start_encounter(enemy_ids: Array) -> void:
 	var player = get_tree().current_scene.get_node_or_null("Player")
 	if player:
 		player.can_move = false
