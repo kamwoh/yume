@@ -52,6 +52,34 @@ All game content is JSON. The Godot engine reads JSON at runtime. Claude generat
 
 **Key: game_state.json controls ALL story logic. Location JSONs are visual only.**
 
+### `/yume capture` — Automated Visual QA (see the game without human)
+
+Runs Godot automatically, captures screenshots from 10 camera angles, Claude analyzes them.
+
+**How to use:**
+1. Ensure project has `scenes/auto_capture.tscn` and `scripts/auto_capture.gd` (from 3D template)
+2. Run:
+```bash
+GODOT="/path/to/godot"
+"$GODOT" --path "project_path" "res://scenes/auto_capture.tscn" --fixed-fps 10
+```
+3. Read captures from `user://captures/` (on Windows: `AppData/Roaming/Godot/app_userdata/{project}/captures/`)
+4. Analyze: check scale, placement, rotation, lighting, collisions
+5. Fix JSON data → re-run → verify
+
+**The visual QA loop:**
+```
+Change JSON data → run auto_capture → read screenshots → analyze → fix → repeat
+```
+
+**Camera positions (auto-generated or from data/capture_config.json):**
+- top_down: bird's eye view of entire room
+- corner_nw/ne/sw/se: 4 corners looking inward
+- eye_south/north/east/west: eye-level from each direction
+- center_close: close-up at room center
+
+**Also used for:** recording training data for world modeling (same captures = training frames).
+
 ### `/yume test` — Test an existing game
 
 ```bash
@@ -125,7 +153,10 @@ Every room must have:
 
 1. **Test after every change:** `yume test` must pass before telling user "done"
 2. **Save lessons after debugging:** `yume learn` after every fix
-3. **Sync engine fixes:** FF9 project → `~/yume/archetypes/rpg/templates/godot/`
-4. **Read prompts before generating:** prompts define quality standards
-5. **Verify with playthrough.json:** checkpoints define the expected experience
-6. **GDScript quirks:** no duplicate var names, explicit types for `:=` with max()/get(), process_mode=ALWAYS for paused UI
+3. **Build in framework first:** all code goes to `~/yume/archetypes/`, then copy to test projects
+4. **NEVER copy game data between projects:** each project gets its OWN data. Use `yume init` or create minimal data manually. Templates = scripts/scenes (shared). Data = project-specific (never shared).
+5. **Nothing hardcoded:** everything from JSON. Run hardcoded audit before claiming done.
+6. **Zero fake rule:** if cutscene text describes an action, the engine must execute it
+7. **Director mindset:** cutscenes match what's on screen. If character speaks, they're in the room.
+8. **Read prompts before generating:** prompts define quality standards
+9. **GDScript quirks:** no `:=` in static/complex expressions, explicit types always, JSON null ≠ missing key
