@@ -73,13 +73,24 @@ func _generate_default_positions() -> Array:
 
 
 func _build_world() -> void:
-	# Load and build the world (reuse world_builder logic)
 	var wb_script = load("res://scripts/world_builder.gd")
 	if wb_script:
 		var wb := Node3D.new()
 		wb.name = "World"
 		wb.set_script(wb_script)
 		add_child(wb)
+
+	# Attach auto-agent to player after world builds
+	await get_tree().create_timer(0.5).timeout
+	var player = get_node_or_null("World/Player")
+	if player:
+		var agent_script = load("res://scripts/auto_agent.gd")
+		if agent_script:
+			var agent := Node.new()
+			agent.name = "AutoAgent"
+			agent.set_script(agent_script)
+			player.add_child(agent)
+			print("[AutoCapture] Agent attached — auto-playing")
 
 
 func _process(_delta: float) -> void:

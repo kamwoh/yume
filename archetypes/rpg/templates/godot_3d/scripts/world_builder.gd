@@ -136,6 +136,11 @@ func _build_location(location_id: String) -> void:
 	current_location = data
 	_build_environment()  # Re-build with location atmosphere
 
+	# Check if room uses grid-based design (modular tiles)
+	if data.has("grid"):
+		_build_grid_room(data)
+		return
+
 	var layout: Dictionary = data.get("layout", {})
 	var scale_factor: float = _w("pixels_to_units", 50.0)
 	var width: float = layout.get("width", 900) / scale_factor
@@ -218,6 +223,78 @@ func _build_location(location_id: String) -> void:
 			_add_capsule(str(npc.get("name", "NPC")), 0.25, 1.0, Vector3(nx, 0.5, nz), npc_color)
 
 	print("[World] Built: ", data.get("name", location_id), " (", props.size(), " props, ", treasures.size(), " chests, ", npcs.size(), " NPCs)")
+
+
+func _build_grid_room(data: Dictionary) -> void:
+	## Build room from modular tiles on a grid.
+	var grid: Dictionary = data.get("grid", {})
+	var tile_size: float = grid.get("tile_size", 1.0)
+	var tile_names: Dictionary = grid.get("tiles", {})
+	var grid_map: Array = grid.get("map", [])
+
+	if grid_map.is_empty():
+		return
+
+	var rows: int = grid_map.size()
+	var cols: int = str(grid_map[0]).length() if rows > 0 else 0
+	var offset_x: float = -cols * tile_size / 2.0
+	var offset_z: float = -rows * tile_size / 2.0
+
+	print("[Grid] Building ", cols, "x", rows, " grid room")
+
+	# Place tiles based on the map
+	for z in range(rows):
+		var row: String = str(grid_map[z])
+		for x in range(cols):
+			if x >= row.length():
+				continue
+			var cell: String = row[x]
+			var world_x: float = offset_x + x * tile_size + tile_size / 2
+			var world_z: float = offset_z + z * tile_size + tile_size / 2
+			var pos := Vector3(world_x, 0, world_z)
+
+			match cell:
+				"F":
+					# Floor tile
+					var floor_model: String = str(tile_names.get("floor", "floor"))
+					_try_load_model(floor_model, pos)
+				"W":
+					# Wall tile (floor + wall on top)
+					var floor_model: String = str(tile_names.get("floor", "floor"))
+					_try_load_model(floor_model, pos)
+					var wall_model: String = str(tile_names.get("wall", "wall"))
+					_try_load_model(wall_model, pos)
+				"D":
+					# Doorway (floor + opening)
+					var floor_model: String = str(tile_names.get("floor", "floor"))
+					_try_load_model(floor_model, pos)
+					var door_model: String = str(tile_names.get("door", "wall-opening"))
+					_try_load_model(door_model, pos)
+				".":
+					pass  # Empty — no tile
+
+	# Place props on grid coordinates
+	var props_on_grid: Array = data.get("props_on_grid", [])
+	for prop in props_on_grid:
+		var gx: int = prop.get("gx", 0)
+		var gz: int = prop.get("gz", 0)
+		var y_off: float = prop.get("y_offset", 0.0)
+		var world_x: float = offset_x + gx * tile_size + tile_size / 2
+		var world_z: float = offset_z + gz * tile_size + tile_size / 2
+		var prop_type: String = str(prop.get("type", "barrel"))
+		_try_load_model(prop_type, Vector3(world_x, y_off, world_z))
+
+	# Place NPCs on grid coordinates
+	var npcs_on_grid: Array = data.get("npcs_on_grid", [])
+	for npc in npcs_on_grid:
+		var gx: int = npc.get("gx", 0)
+		var gz: int = npc.get("gz", 0)
+		var world_x: float = offset_x + gx * tile_size + tile_size / 2
+		var world_z: float = offset_z + gz * tile_size + tile_size / 2
+		var npc_model: String = str(npc.get("model", "character-human"))
+		_try_load_model(npc_model, Vector3(world_x, 0, world_z))
+
+	print("[Grid] Done: ", props_on_grid.size(), " props, ", npcs_on_grid.size(), " NPCs")
 
 
 func _try_load_model(model_name: String, pos: Vector3) -> bool:
