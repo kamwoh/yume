@@ -11,6 +11,14 @@ You receive: the story text + Pass 1 structure (characters, locations, progressi
 
 If a character speaks → it goes in game_state.json, NOT in location events or dialogues.json.
 
+**Level design rules for 3D scenes:**
+- Room minimum 10x character height for camera comfort
+- Three-layer composition: dark foreground, bright focal point, calm background
+- Zebra lighting: alternate light/dark pools, no uniform ambient
+- Props tell stories: who lives here, what they do
+- Asymmetric layouts feel alive, symmetric feels artificial
+- Guide the eye: bright/large objects at destinations, corridors funnel toward focal points
+
 **Before generating, understand the orchestration rhythm:**
 - ARRIVE (cutscene 2-3 min) → EXPLORE (gameplay 5-10 min) → DISCOVER (cutscene 1-2 min) → CHALLENGE (boss 3-5 min) → RESOLVE (cutscene 1-2 min)
 - If a scene is about CHARACTER EMOTION or PLOT REVELATION → cutscene phase

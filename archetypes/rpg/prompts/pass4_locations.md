@@ -15,6 +15,26 @@ The standard for density is a classic JRPG like Final Fantasy IX. Every room sho
 
 For EACH location, generate a JSON object with these sections:
 
+## 3D Level Design Rules (MUST follow)
+
+When generating locations, follow these rules from real game level design:
+
+**Scale:** Character height = 1.8 units. Doorway = 2.3 tall, 1.4 wide. Hallway minimum 3 units wide. Room minimum 10x10 units for third-person camera comfort.
+
+**Composition:** Every camera view needs 3 layers — dark foreground (nearby walls/pillars), bright focal point (treasure/NPC/door), calm background (distant walls/fog).
+
+**Lighting:** Alternate light and dark areas (zebra lighting). Torches create warm pools. Dark = tension, bright = safety. NEVER blue sky for indoor dungeon.
+
+**Story:** Every room answers "who lives here, what do they do?" — hot soup = someone eating, weapons on rack = guard post, broken furniture = battle happened.
+
+**Props:** Against walls (shelves, barrels), in corners (chests, beds), near doors (guards, torches), at center (fountain, table), at dead ends (treasure).
+
+**Shape:** Asymmetric > symmetric. L-shapes, T-junctions, alcoves > perfect rectangles. Offset doorways from center.
+
+**Vertical:** Even small height changes (platforms, sunken areas, stairs) prevent flat boring rooms.
+
+**Grid:** For 3D, use modular tiles on a 1x1 grid. Floor tiles, wall segments at edges, doorway tiles for openings.
+
 ## Background Prompt — Generate with the room, not after
 Every location MUST include a `background_prompt` for image generation:
 ```json
