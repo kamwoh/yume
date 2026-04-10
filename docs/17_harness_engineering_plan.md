@@ -2,89 +2,60 @@
 
 ## Current Score vs Best Practices
 
-| Practice | Current | Target | Priority |
-|----------|---------|--------|----------|
-| CLAUDE.md | ~250 lines, good content | < 200 lines, trim to essentials | MEDIUM |
-| /yume skill | 6 commands, rules, docs refs | Add level design rules, 3D workflow | DONE |
-| Lessons | 90+ lessons, auto-save | Keep growing, deduplicate periodically | ONGOING |
-| Hooks | 3 hooks (JSON validate, hardcode check, session log) | Add pre-commit test, auto-capture after 3D changes | HIGH |
-| Multi-agent | Used once (design team) | Define permanent roles: designer/builder/tester | HIGH |
-| Test automation | 4-layer + auto-capture | Add visual regression (compare captures) | MEDIUM |
+| Practice | Current | Target | Status |
+|----------|---------|--------|--------|
+| CLAUDE.md | 182 lines | < 200 lines | ✅ DONE |
+| /yume skill | 6 commands, rules, docs refs | Add level design rules, 3D workflow | ✅ DONE |
+| Lessons | 101 lessons in ~/.yume/lessons/ | Keep growing, deduplicate periodically | ✅ ONGOING |
+| Hooks | 5 hooks (pre-commit, JSON validate, hardcode check, error-learn, session log) | — | ✅ DONE |
+| Multi-agent | 3 agents (designer/builder/tester) | Use in practice | ✅ DONE |
+| Test automation | 4-layer + auto-capture + visual regression | — | ✅ DONE |
 | Git safety | Manual commits | Auto-commit after passing tests | LOW |
-| Context handoff | progress.md + task_plan.md | Add structured JSON state file | MEDIUM |
+| Context handoff | progress.md + task_plan.md + yume_state.json | — | ✅ DONE |
 
-## Improvement Plan
+## Implementation (All Complete)
 
-### 1. Trim CLAUDE.md (MEDIUM)
-- Audit current line count
-- Move detailed docs/tables to separate files
-- Keep only: stack overview, key commands, design principles, common pitfalls
-- Target: < 200 lines
+### 1. CLAUDE.md ✅
+- 182 lines — under the 200-line target
 
-### 2. Add More Hooks (HIGH)
-```json
-// Pre-commit: ensure tests pass
-{"event": "PreToolUse", "matcher": "Bash",
- "command": "if git commit detected → run yume test first"}
+### 2. Hooks ✅ (5 hooks in .claude/settings.json)
 
-// Auto-capture after 3D location changes
-{"event": "PostToolUse", "matcher": "Write",
- "command": "if location JSON changed → run auto_capture → save screenshots"}
+| Hook | Event | What it does |
+|------|-------|-------------|
+| Pre-commit test | PreToolUse:Bash | Detects `git commit`, runs validate_game_data.py first |
+| Location JSON validate | PostToolUse:Write | Validates location JSON on write |
+| Hardcode check | PostToolUse:Write | Scans GDScript for hardcoded Color/Vector values |
+| Error-learn tracker | PostToolUse:Bash | Tracks failed commands, suggests `yume learn` after 3+ repeats |
+| Session log | Stop | Logs timestamp to session_log.txt |
 
-// Lesson reminder after errors
-{"event": "PostToolUse", "matcher": "Bash",
- "command": "if exit code != 0 → remind to yume learn"}
+### 3. Multi-Agent Pattern ✅ (.claude/agents/)
+
+| Agent | Type | Role |
+|-------|------|------|
+| designer.md | Explore (read-only) | Plans room layouts, camera configs, composition |
+| builder.md | general-purpose | Generates JSON + GDScript from designer plans |
+| tester.md | general-purpose | Runs tests, auto-capture, evaluates visual quality |
+
+### 4. Visual Regression Testing ✅ (tools/visual_regression.py + CLI)
+```bash
+yume visual-regression <captures_dir> --save-baseline  # Save reference
+yume visual-regression <captures_dir>                   # Compare against baseline
+yume visual-regression <captures_dir> --json            # Machine-readable report
 ```
+- Pixel-level diff with configurable threshold (default 5%)
+- Reports: new/missing/changed captures with diff percentages
+- Saves regression_report.json for automation
 
-### 3. Multi-Agent Pattern (HIGH)
-Define 3 agent roles that can work in parallel:
+### 5. Structured State File ✅ (.claude/yume_state.json)
+- Machine-readable: current project, phase, pending fixes, available models
 
-**Designer Agent** (Explore type, read-only):
-- Analyzes requirements, references, design docs
-- Outputs: room layouts, prop placement plans, camera configs
-- Uses: level design rules, reference images, MIT course knowledge
+### 6. Error-Learn Hook ✅
+- Tracks error signatures in .claude/error_log.jsonl
+- After same command fails 3+ times → prints reminder to save lesson
 
-**Builder Agent** (general-purpose):
-- Reads designer output → generates JSON data + GDScript
-- Follows framework templates, no hardcoded values
-- Uses: pass0-5 prompts, asset_config, visual_config
-
-**Tester Agent** (general-purpose):
-- Runs yume test, auto-capture, auto-agent
-- Reads screenshots → evaluates quality
-- Reports: what works, what's broken, what needs redesign
-
-```
-User request → Designer plans → Builder creates → Tester verifies
-                  ↑                                    |
-                  └──── fix feedback ←─────────────────┘
-```
-
-### 4. Visual Regression Testing (MEDIUM)
-- After each auto-capture, save as "baseline"
-- Next capture → compare against baseline
-- Report: "room changed — new objects, different lighting"
-- Catch: accidental regressions (room that looked good now looks broken)
-
-### 5. Structured State File (MEDIUM)
-```json
-// .claude/yume_state.json — machine-readable session state
-{
-  "current_project": "Yume3D",
-  "current_phase": "level_design_study",
-  "active_location": "dungeon_grid",
-  "last_capture_count": 123,
-  "last_test_result": "20 pass, 1 fail",
-  "pending_fixes": ["barrel rotation", "wall textures", "camera distance"],
-  "lessons_this_session": 5
-}
-```
-
-### 6. Auto-Learn from Errors (LOW)
-Hook that detects repeated errors and auto-saves lessons:
-- Same GDScript error 3 times → auto `yume learn`
-- Same JSON validation failure → auto `yume learn`
-- Prevents re-learning the same lesson manually
+### 7. Lessons Knowledge Base ✅
+- 101 lessons in ~/.yume/lessons/ (YAML, organized by archetype/system)
+- CLI: `yume list-lessons`, `yume learn --problem "..." --fix "..."`
 
 ## What Makes Yume Unique as a Harness
 

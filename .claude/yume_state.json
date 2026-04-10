@@ -1,0 +1,40 @@
+{
+  "current_project": "Yume3D",
+  "project_path": "/mnt/c/Users/kamwoh/Documents/Projects/Godot/Yume3D",
+  "godot_path": "/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe",
+  "godot_run_cmd": "timeout 20 \"$GODOT\" --path \"C:/Users/kamwoh/Documents/Projects/Godot/Yume3D\" --rendering-method gl_compatibility",
+  "captures_path": "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume3D/captures",
+  "current_phase": "room_templates",
+  "active_location": "dungeon_guard_post",
+  "last_test_result": "guard post room looks like real dungeon — dark bg, zebra lighting, focal point, auto-agent walking",
+  "pending_fixes": [
+    "wall textures still gray (Kenney colormap not loading)",
+    "wall backs visible outside room boundary",
+    "orc NPC has no AI (just stands)"
+  ],
+  "completed_this_session": [
+    "harness engineering (5 hooks, 3 agents, visual regression, 116 lessons)",
+    "game design study (docs/18, 33 rules, metrics, algorithms)",
+    "first good room (guard_post — L-shape, point lights, zebra lighting, composition)",
+    "point_lights engine support",
+    "spawn_on_grid for grid rooms",
+    "auto-agent attachable from meta.json",
+    "visual QA loop proven working from WSL"
+  ],
+  "available_models": {
+    "characters": ["Knight", "Barbarian", "Mage", "Ranger", "Rogue", "Rogue_Hooded", "character-human", "character-orc"],
+    "dungeon_props": ["barrel", "chest", "column", "rocks", "banner", "stairs", "wall", "floor", "coin", "weapon-sword", "weapon-spear", "shield-round", "gate", "trap"],
+    "town_props": ["cart", "fountain-square", "stall", "fence", "tree"],
+    "furniture": ["armchair", "bed_single_A", "bed_double_A", "book_set", "cabinet_medium", "chair_A", "couch", "lamp_standing", "shelf_A_big", "table_medium", "rug_rectangle_A"],
+    "total_models": 876
+  },
+  "proven_visual_qa": {
+    "clear_cmd": "rm -f /mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume3D/captures/frame_000*.png",
+    "run_cmd": "timeout 20 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe --path C:/Users/kamwoh/Documents/Projects/Godot/Yume3D --rendering-method gl_compatibility",
+    "read_captures": "Read /mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume3D/captures/frame_000XX.png",
+    "note": "NEVER use --headless (no captures). ALWAYS use --rendering-method gl_compatibility."
+  },
+  "lessons_count": 116,
+  "design_rules_doc": "docs/18_game_design_knowledge.md",
+  "harness_plan_doc": "docs/17_harness_engineering_plan.md"
+}

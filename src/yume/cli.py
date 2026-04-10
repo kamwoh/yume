@@ -261,3 +261,35 @@ def learn(
 
     path = store.save(lesson)
     console.print(f"[green]Lesson saved:[/green] {path}")
+
+
+@app.command(name="visual-regression")
+def visual_regression(
+    captures_dir: Path = typer.Argument(..., help="Directory containing captures (screenshots)", exists=True),
+    save_baseline: bool = typer.Option(False, "--save-baseline", help="Save current captures as baseline reference"),
+    baseline_dir: Path | None = typer.Option(None, "--baseline-dir", help="Baseline directory (default: captures_dir/../baseline)"),
+    threshold: float = typer.Option(5.0, "--threshold", "-t", help="Pixel diff % to count as changed"),
+    output_json: bool = typer.Option(False, "--json", help="Output report as JSON"),
+) -> None:
+    """Compare auto-capture screenshots against a saved baseline.
+
+    First run: use --save-baseline to store the current captures as reference.
+    After changes: run without flag to detect visual regressions.
+    """
+    import subprocess
+
+    yume_root = Path(__file__).parent.parent.parent
+    script = yume_root / "tools" / "visual_regression.py"
+
+    cmd = ["python3", str(script), str(captures_dir)]
+    if save_baseline:
+        cmd.append("--save-baseline")
+    if baseline_dir:
+        cmd.extend(["--baseline-dir", str(baseline_dir)])
+    cmd.extend(["--threshold", str(threshold)])
+    if output_json:
+        cmd.append("--json")
+
+    r = subprocess.run(cmd)
+    if r.returncode != 0:
+        raise typer.Exit(1)
