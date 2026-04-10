@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "command": "FILE=\"$TOOL_INPUT_FILE_PATH\"; if echo \"$FILE\" | grep -q '\\.json$' && echo \"$FILE\" | grep -q 'locations/'; then echo '[Hook] Location JSON written — validating...'; cd /home/kamwoh/yume && python3 tools/validate_game_data.py \"$(dirname $(dirname $FILE))\" 2>&1 | tail -3; fi",
+        "description": "Auto-validate when location JSON is written"
+      },
+      {
+        "matcher": "Write",
+        "command": "FILE=\"$TOOL_INPUT_FILE_PATH\"; if echo \"$FILE\" | grep -q '\\.gd$'; then echo '[Hook] GDScript written — checking for hardcoded values...'; grep -n 'Color(\\|Vector2(\\|Vector3(' \"$FILE\" 2>/dev/null | grep -v 'get(\\|config\\|_w(\\|_p(\\|#\\|func\\|var.*:' | head -5; fi",
+        "description": "Check for hardcoded values when GDScript is written"
+      }
+    ],
+    "Stop": [
+      {
+        "command": "echo '[Hook] Session checkpoint — progress saved' >> /home/kamwoh/yume/session_log.txt",
+        "description": "Log session end"
+      }
+    ]
+  }
+}
