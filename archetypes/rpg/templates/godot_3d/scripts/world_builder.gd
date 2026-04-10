@@ -13,7 +13,7 @@ var player_config: Dictionary = {}
 func _ready() -> void:
 	_load_asset_config()
 	_load_meta_config()
-	_build_environment()
+	# Don't build environment here — wait for location data so atmosphere applies correctly
 	_load_and_build_location()
 	_add_frame_capture()
 
@@ -25,6 +25,25 @@ func _add_frame_capture() -> void:
 		capture.name = "FrameCapture"
 		capture.set_script(script)
 		add_child(capture)
+
+
+func _maybe_attach_auto_agent() -> void:
+	var cap_cfg: Dictionary = meta_config.get("capture", {})
+	if not cap_cfg is Dictionary:
+		return
+	if not cap_cfg.get("auto_agent", false):
+		return
+	# Wait for player to be ready
+	await get_tree().create_timer(0.3).timeout
+	var player_node = get_node_or_null("Player")
+	if player_node:
+		var agent_script = load("res://scripts/auto_agent.gd")
+		if agent_script:
+			var agent := Node.new()
+			agent.name = "AutoAgent"
+			agent.set_script(agent_script)
+			player_node.add_child(agent)
+			print("[World] Auto-agent attached to player")
 
 
 func _load_meta_config() -> void:
@@ -62,13 +81,17 @@ func _build_environment() -> void:
 	var bg_color := Color(bg_color_arr[0], bg_color_arr[1], bg_color_arr[2]) if bg_color_arr is Array and bg_color_arr.size() >= 3 else Color(0.4, 0.6, 0.8)
 	var ambient_color := Color(ambient_arr[0], ambient_arr[1], ambient_arr[2]) if ambient_arr is Array and ambient_arr.size() >= 3 else Color(0.3, 0.3, 0.4)
 
-	# Sun — config from meta.json world section
+	# Sun — per-location override via atmosphere.sun_energy, fallback to meta.json
 	var light := DirectionalLight3D.new()
 	light.name = "Sun"
 	var sun_rot = _w("sun_rotation", [-45, 30, 0])
 	if sun_rot is Array and sun_rot.size() >= 3:
 		light.rotation_degrees = Vector3(sun_rot[0], sun_rot[1], sun_rot[2])
-	light.light_energy = _w("sun_energy", 0.8)
+	var atmo_sun = atmo.get("sun_energy", null)
+	if atmo_sun != null:
+		light.light_energy = float(atmo_sun)
+	else:
+		light.light_energy = _w("sun_energy", 0.8)
 	light.shadow_enabled = true
 	add_child(light)
 
@@ -119,6 +142,7 @@ func _load_and_build_location() -> void:
 
 	_build_location(location_id)
 	_spawn_player()
+	# Brain (human/auto_agent/llm) is now attached by player_3d.gd from meta.json
 
 
 func _build_location(location_id: String) -> void:
@@ -273,8 +297,9 @@ func _build_grid_room(data: Dictionary) -> void:
 				".":
 					pass  # Empty — no tile
 
-	# Place props on grid coordinates
+	# Place props on grid coordinates — interactable or static
 	var props_on_grid: Array = data.get("props_on_grid", [])
+	var interactable_count: int = 0
 	for prop in props_on_grid:
 		var gx: int = prop.get("gx", 0)
 		var gz: int = prop.get("gz", 0)
@@ -282,19 +307,43 @@ func _build_grid_room(data: Dictionary) -> void:
 		var world_x: float = offset_x + gx * tile_size + tile_size / 2
 		var world_z: float = offset_z + gz * tile_size + tile_size / 2
 		var prop_type: String = str(prop.get("type", "barrel"))
-		_try_load_model(prop_type, Vector3(world_x, y_off, world_z))
 
-	# Place NPCs on grid coordinates
+		if prop.get("interactable", false):
+			_spawn_interactable(prop, Vector3(world_x, y_off, world_z))
+			interactable_count += 1
+		else:
+			_try_load_model(prop_type, Vector3(world_x, y_off, world_z))
+
+	# Place NPCs as entities with brains
 	var npcs_on_grid: Array = data.get("npcs_on_grid", [])
 	for npc in npcs_on_grid:
 		var gx: int = npc.get("gx", 0)
 		var gz: int = npc.get("gz", 0)
 		var world_x: float = offset_x + gx * tile_size + tile_size / 2
 		var world_z: float = offset_z + gz * tile_size + tile_size / 2
-		var npc_model: String = str(npc.get("model", "character-human"))
-		_try_load_model(npc_model, Vector3(world_x, 0, world_z))
+		_spawn_entity(npc, Vector3(world_x, 0, world_z), offset_x, offset_z, tile_size)
 
-	print("[Grid] Done: ", props_on_grid.size(), " props, ", npcs_on_grid.size(), " NPCs")
+	# Place point lights from JSON
+	var point_lights: Array = data.get("point_lights", [])
+	for pl in point_lights:
+		var gx: int = pl.get("gx", 0)
+		var gz: int = pl.get("gz", 0)
+		var ly: float = pl.get("y", 1.5)
+		var world_x: float = offset_x + gx * tile_size + tile_size / 2
+		var world_z: float = offset_z + gz * tile_size + tile_size / 2
+		var omni := OmniLight3D.new()
+		omni.name = "PointLight_%d_%d" % [gx, gz]
+		omni.position = Vector3(world_x, ly, world_z)
+		var c = pl.get("color", [1.0, 0.9, 0.7])
+		if c is Array and c.size() >= 3:
+			omni.light_color = Color(c[0], c[1], c[2])
+		omni.light_energy = pl.get("energy", 1.5)
+		omni.omni_range = pl.get("range", 5.0)
+		omni.shadow_enabled = true
+		omni.omni_attenuation = 1.5
+		add_child(omni)
+
+	print("[Grid] Done: ", props_on_grid.size(), " props (", interactable_count, " interactable), ", npcs_on_grid.size(), " NPCs, ", point_lights.size(), " lights")
 
 
 func _try_load_model(model_name: String, pos: Vector3) -> bool:
@@ -498,6 +547,151 @@ func _add_capsule(node_name: String, radius: float, height: float, pos: Vector3,
 	add_child(body)
 
 
+func _find_anim_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node
+	for child in node.get_children():
+		var result := _find_anim_player(child)
+		if result:
+			return result
+	return null
+
+
+func _spawn_interactable(config: Dictionary, pos: Vector3) -> void:
+	var prop_type: String = str(config.get("type", "chest"))
+	var interactable_script = load("res://scripts/interactable_3d.gd")
+
+	# Load the model into a StaticBody3D with the interactable script
+	var body := StaticBody3D.new()
+	body.name = "Interactable_" + prop_type + "_%d_%d" % [config.get("gx", 0), config.get("gz", 0)]
+	body.set_script(interactable_script)
+	body.position = pos
+
+	# Load GLB model
+	var model_loaded := false
+	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
+	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
+	var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
+	var model_scale: float = scale_map.get(prop_type, scale_map.get("default", 1.0))
+
+	for base_path in search_paths:
+		if model_loaded:
+			break
+		for ext in extensions:
+			var path: String = str(base_path) + prop_type + "." + str(ext)
+			if ResourceLoader.exists(path):
+				var scene: PackedScene = load(path)
+				if scene:
+					var instance := scene.instantiate()
+					instance.name = "PropModel"
+					instance.scale = Vector3.ONE * model_scale
+					body.add_child(instance)
+					model_loaded = true
+					break
+
+	# Add collision
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.5, 0.5, 0.5)
+	col.shape = box
+	col.position.y = 0.25
+	body.add_child(col)
+
+	add_child(body)
+
+	# Init from JSON and find animations
+	body.init_from_json(config)
+	body.setup_anim_player()
+	print("[Interact] Spawned: ", prop_type, " at (", config.get("gx", 0), ",", config.get("gz", 0), ")")
+
+
+func _spawn_entity(npc_config: Dictionary, pos: Vector3, grid_ox: float, grid_oz: float, tile_sz: float) -> void:
+	var entity_script = load("res://scripts/entity_3d.gd")
+	if not entity_script:
+		# Fallback: just load model without brain
+		var npc_model: String = str(npc_config.get("model", "character-human"))
+		_try_load_model(npc_model, pos)
+		return
+
+	var entity := CharacterBody3D.new()
+	entity.name = "Entity_" + str(npc_config.get("name", "NPC")).replace(" ", "_")
+	entity.set_script(entity_script)
+	entity.position = Vector3(pos.x, 0.5, pos.z)
+	entity.add_to_group("enemy")
+
+	# Load model
+	var npc_model: String = str(npc_config.get("model", "character-human"))
+	var model_loaded := false
+	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
+	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
+	var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
+	var model_scale: float = scale_map.get(npc_model, scale_map.get("default", 1.0))
+
+	for base_path in search_paths:
+		if model_loaded:
+			break
+		for ext in extensions:
+			var path: String = str(base_path) + npc_model + "." + str(ext)
+			if ResourceLoader.exists(path):
+				var scene: PackedScene = load(path)
+				if scene:
+					var instance := scene.instantiate()
+					instance.name = "EntityModel"
+					instance.scale = Vector3.ONE * model_scale
+					# Rotation offset
+					var rot_offset: float = npc_config.get("rotation_offset", 0.0)
+					if rot_offset != 0:
+						instance.rotation_degrees.y = rot_offset
+					entity.add_child(instance)
+					# Find AnimationPlayer (search recursively — may be nested)
+					entity.anim_player = _find_anim_player(instance)
+					model_loaded = true
+					break
+
+	if not model_loaded:
+		# Fallback: colored capsule
+		var capsule := MeshInstance3D.new()
+		capsule.name = "EntityModel"
+		capsule.mesh = CapsuleMesh.new()
+		capsule.mesh.radius = 0.2
+		capsule.mesh.height = 0.8
+		capsule.position.y = 0.4
+		var mat := StandardMaterial3D.new()
+		var c = npc_config.get("color", [0.8, 0.2, 0.2])
+		if c is Array and c.size() >= 3:
+			mat.albedo_color = Color(c[0], c[1], c[2])
+		capsule.material_override = mat
+		entity.add_child(capsule)
+
+	# Add collision shape
+	var col := CollisionShape3D.new()
+	var capsule_shape := CapsuleShape3D.new()
+	capsule_shape.radius = 0.3
+	capsule_shape.height = 0.9
+	col.shape = capsule_shape
+	col.position.y = 0.45
+	entity.add_child(col)
+
+	add_child(entity)
+
+	# Init entity from JSON config
+	entity.init_from_json(npc_config)
+
+	# Attach brain
+	var brain_type: String = str(npc_config.get("brain", "state_machine"))
+	if brain_type == "state_machine":
+		var brain_script = load("res://scripts/brain_state_machine.gd")
+		if brain_script:
+			var brain_node := Node.new()
+			brain_node.name = "Brain"
+			brain_node.set_script(brain_script)
+			entity.add_child(brain_node)
+			entity.brain = brain_node
+			brain_node.init_config(entity.ai_config, grid_ox, grid_oz, tile_sz)
+
+	print("[Entity] Spawned: ", entity.entity_name, " brain=", brain_type, " hp=", entity.max_hp)
+
+
 func _spawn_player() -> void:
 	var player := CharacterBody3D.new()
 	player.name = "Player"
@@ -513,14 +707,28 @@ func _spawn_player() -> void:
 			if c is Array and c.size() >= 3:
 				player_color = Color(c[0], c[1], c[2])
 
-	# Spawn position from layout
-	var layout: Dictionary = current_location.get("layout", {})
-	var entrance: Dictionary = layout.get("entrance", {})
-	var sf: float = _w("pixels_to_units", 50.0)
-	var width: float = layout.get("width", 900) / sf
-	var height: float = layout.get("height", 600) / sf
-	var spawn_x: float = entrance.get("x", 450) / sf - width / 2
-	var spawn_z: float = entrance.get("y", 300) / sf - height / 2
+	# Spawn position — grid rooms use spawn_on_grid, others use layout.entrance
+	var spawn_x: float = 0.0
+	var spawn_z: float = 0.0
+	if current_location.has("spawn_on_grid") and current_location.has("grid"):
+		var sg: Dictionary = current_location.get("spawn_on_grid", {})
+		var grid: Dictionary = current_location.get("grid", {})
+		var grid_map: Array = grid.get("map", [])
+		var tile_size: float = grid.get("tile_size", 1.0)
+		var rows: int = grid_map.size()
+		var cols: int = str(grid_map[0]).length() if rows > 0 else 0
+		var offset_x: float = -cols * tile_size / 2.0
+		var offset_z: float = -rows * tile_size / 2.0
+		spawn_x = offset_x + sg.get("gx", 0) * tile_size + tile_size / 2
+		spawn_z = offset_z + sg.get("gz", 0) * tile_size + tile_size / 2
+	else:
+		var layout: Dictionary = current_location.get("layout", {})
+		var entrance: Dictionary = layout.get("entrance", {})
+		var sf: float = _w("pixels_to_units", 50.0)
+		var width: float = layout.get("width", 900) / sf
+		var height: float = layout.get("height", 600) / sf
+		spawn_x = entrance.get("x", 450) / sf - width / 2
+		spawn_z = entrance.get("y", 300) / sf - height / 2
 	player.position = Vector3(spawn_x, _p("spawn_height", 1.0), spawn_z)
 
 	# Try loading a GLB model for the player
@@ -582,12 +790,30 @@ func _spawn_player() -> void:
 	col.position.y = _p("capsule_height", 1.2) / 2.0
 	player.add_child(col)
 
-	# Camera
+	# Camera — read brain type to decide setup
+	var cam_brain: String = "follow"
+	var cam_cfg_file := FileAccess.open("res://data/meta.json", FileAccess.READ)
+	if cam_cfg_file:
+		var cam_meta = JSON.parse_string(cam_cfg_file.get_as_text())
+		if cam_meta is Dictionary:
+			var cc: Dictionary = cam_meta.get("camera", {})
+			if cc is Dictionary:
+				cam_brain = str(cc.get("brain", "follow"))
+
 	var spring_arm := SpringArm3D.new()
 	spring_arm.name = "CameraArm"
-	spring_arm.position = Vector3(0, _p("camera_height", 1.2), 0)
-	spring_arm.rotation_degrees = Vector3(_p("camera_angle", -20), 0, 0)
-	spring_arm.spring_length = _p("camera_distance", 5.0)
+	spring_arm.position = Vector3(0, _p("camera_height", 1.5), 0)
+	spring_arm.rotation_degrees = Vector3(_p("camera_angle", -25), 0, 0)
+	spring_arm.spring_length = _p("camera_distance", 3.5)
+	spring_arm.margin = 0.3
+
+	# For non-human brains: disable collision to prevent flickering
+	var player_brain: String = str(player_config.get("brain", "human"))
+	if player_brain != "human":
+		spring_arm.shape = null  # No collision shape = no wall detection = no flicker
+		# Also exclude all collision layers
+		spring_arm.collision_mask = 0
+
 	player.add_child(spring_arm)
 
 	var camera := Camera3D.new()
@@ -596,3 +822,11 @@ func _spawn_player() -> void:
 	spring_arm.add_child(camera)
 
 	add_child(player)
+
+	# Attach camera controller (brain system)
+	var cam_script = load("res://scripts/camera_controller_3d.gd")
+	if cam_script:
+		var cam_ctrl := Node3D.new()
+		cam_ctrl.name = "CameraController"
+		cam_ctrl.set_script(cam_script)
+		add_child(cam_ctrl)

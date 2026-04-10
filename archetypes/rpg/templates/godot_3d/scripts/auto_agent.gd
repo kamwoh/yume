@@ -49,10 +49,21 @@ func _ready() -> void:
 			if loc_file:
 				var loc = JSON.parse_string(loc_file.get_as_text())
 				if loc is Dictionary:
-					var layout = loc.get("layout", {})
-					if layout is Dictionary:
-						room_half_w = layout.get("width", 800) / 50.0 / 2 - 1
-						room_half_h = layout.get("height", 800) / 50.0 / 2 - 1
+					# Grid rooms: size from grid map
+					if loc.has("grid"):
+						var grid: Dictionary = loc.get("grid", {})
+						var grid_map: Array = grid.get("map", [])
+						var tile_size: float = grid.get("tile_size", 1.0)
+						if grid_map.size() > 0:
+							var rows: int = grid_map.size()
+							var cols: int = str(grid_map[0]).length()
+							room_half_w = cols * tile_size / 2.0 - 1.5
+							room_half_h = rows * tile_size / 2.0 - 1.5
+					else:
+						var layout = loc.get("layout", {})
+						if layout is Dictionary:
+							room_half_w = layout.get("width", 800) / 50.0 / 2 - 1
+							room_half_h = layout.get("height", 800) / 50.0 / 2 - 1
 
 	_pick_new_target()
 
@@ -74,7 +85,35 @@ func _physics_process(delta: float) -> void:
 
 	var action: String = "idle"
 
-	if distance > 0.5:
+	# Check for nearby enemies — fight if close
+	var enemy_dist: float = 999.0
+	if player.has_method("get_nearest_enemy_distance"):
+		enemy_dist = player.get_nearest_enemy_distance()
+
+	if enemy_dist < 2.5:
+		# Combat mode: approach and attack
+		var nearest_enemy: Node = _find_nearest_enemy()
+		if nearest_enemy:
+			var to_enemy: Vector3 = nearest_enemy.global_position - player.global_position
+			to_enemy.y = 0
+			if to_enemy.length() > 1.5:
+				# Move toward enemy
+				var dir: Vector3 = to_enemy.normalized()
+				player.velocity.x = dir.x * speed
+				player.velocity.z = dir.z * speed
+				var model = player.get_node_or_null("PlayerModel")
+				if model:
+					model.rotation.y = lerp_angle(model.rotation.y, atan2(dir.x, dir.z), 10.0 * delta)
+				_play_anim("walk")
+				action = "chase_enemy"
+			else:
+				# In range — attack
+				player.velocity.x = move_toward(player.velocity.x, 0, speed * delta * 10)
+				player.velocity.z = move_toward(player.velocity.z, 0, speed * delta * 10)
+				if player.has_method("_try_attack"):
+					player._try_attack()
+				action = "attack"
+	elif distance > 0.5:
 		var direction: Vector3 = to_target.normalized()
 		player.velocity.x = direction.x * speed
 		player.velocity.z = direction.z * speed
@@ -119,6 +158,19 @@ func _physics_process(delta: float) -> void:
 			"velocity": [player.velocity.x, player.velocity.y, player.velocity.z],
 			"camera_pos": [cam.global_position.x, cam.global_position.y, cam.global_position.z] if cam else [0, 0, 0],
 		})
+
+
+func _find_nearest_enemy() -> Node:
+	var nearest: Node = null
+	var nearest_dist: float = 999.0
+	for entity in player.get_tree().get_nodes_in_group("enemy"):
+		if entity.get("is_dead"):
+			continue
+		var dist: float = player.global_position.distance_to(entity.global_position)
+		if dist < nearest_dist:
+			nearest_dist = dist
+			nearest = entity
+	return nearest
 
 
 func _pick_new_target() -> void:

@@ -47,9 +47,18 @@ func _generate_default_positions() -> Array:
 			if loc_file:
 				var loc = JSON.parse_string(loc_file.get_as_text())
 				if loc is Dictionary:
-					var layout: Dictionary = loc.get("layout", {})
-					room_w = layout.get("width", 800) / 50.0
-					room_h = layout.get("height", 800) / 50.0
+					# Grid rooms: size from grid map dimensions
+					if loc.has("grid"):
+						var grid: Dictionary = loc.get("grid", {})
+						var grid_map: Array = grid.get("map", [])
+						var tile_size: float = grid.get("tile_size", 1.0)
+						if grid_map.size() > 0:
+							room_h = grid_map.size() * tile_size
+							room_w = str(grid_map[0]).length() * tile_size
+					else:
+						var layout: Dictionary = loc.get("layout", {})
+						room_w = layout.get("width", 800) / 50.0
+						room_h = layout.get("height", 800) / 50.0
 
 	var hw: float = room_w / 2 - 1
 	var hh: float = room_h / 2 - 1
