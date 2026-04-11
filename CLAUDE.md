@@ -19,8 +19,11 @@ Or manually: copy `archetypes/rpg/templates/godot/` into a new Godot project, th
 ```
 yume/
 ├── core/docs/              ← Game dev fundamentals (read first)
+├── archetypes/core/
+│   └── templates/godot_3d/ ← GENERIC 3D engine (shared by all game types)
+│       └── scripts/        ← 13 GDScripts: brain, entity, camera, combat, minimap, etc.
 ├── archetypes/rpg/
-│   ├── templates/godot/    ← WORKING Godot project (copy this)
+│   ├── templates/godot/    ← 2D RPG engine (party, quests, dialogue, ATB combat)
 │   │   ├── scripts/        ← GDScript RPG engine
 │   │   ├── scenes/         ← Main scene
 │   │   └── project.godot   ← Godot config with autoloads
