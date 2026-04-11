@@ -292,8 +292,8 @@ func _build_grid_room_in(data: Dictionary, container: Node3D) -> void:
 					_try_load_model_in(str(tile_names.get("floor", "floor")), pos, container)
 					_try_load_model_in(str(tile_names.get("wall", "wall")), pos, container)
 				"D":
+					# Door = floor only, no wall model. The gap in the wall IS the doorway.
 					_try_load_model_in(str(tile_names.get("floor", "floor")), pos, container)
-					_try_load_model_in(str(tile_names.get("door", "wall-opening")), pos, container)
 				".":
 					pass
 
@@ -547,11 +547,9 @@ func _build_grid_room(data: Dictionary) -> void:
 					var wall_model: String = str(tile_names.get("wall", "wall"))
 					_try_load_model(wall_model, pos)
 				"D":
-					# Doorway (floor + opening)
+					# Door = floor only. Gap in wall IS the doorway.
 					var floor_model: String = str(tile_names.get("floor", "floor"))
 					_try_load_model(floor_model, pos)
-					var door_model: String = str(tile_names.get("door", "wall-opening"))
-					_try_load_model(door_model, pos)
 				".":
 					pass  # Empty — no tile
 
