@@ -342,6 +342,21 @@ func _build_grid_room_in(data: Dictionary, container: Node3D) -> void:
 		container.add_child(omni)
 
 	var room_name: String = str(data.get("name", "Room"))
+	# Bridge floors: extend door tiles 1 tile outward to fill seams between rooms
+	for z_idx in range(rows):
+		var bridge_row: String = str(grid_map[z_idx])
+		for x_idx in range(cols):
+			if x_idx < bridge_row.length() and bridge_row[x_idx] == "D":
+				# Is this an edge door? (first or last row)
+				if z_idx == 0:
+					# North edge door — add floor 1 tile north
+					var bpos := Vector3(offset_x + x_idx * tile_size + tile_size / 2, 0, offset_z + z_idx * tile_size - tile_size / 2)
+					_try_load_model_in("floor", bpos, container)
+				if z_idx == rows - 1:
+					# South edge door — add floor 1 tile south
+					var bpos := Vector3(offset_x + x_idx * tile_size + tile_size / 2, 0, offset_z + z_idx * tile_size + tile_size * 1.5)
+					_try_load_model_in("floor", bpos, container)
+
 	print("[Room] ", room_name, ": ", cols, "x", rows, " tiles, ", interactable_count, " interactable")
 
 
