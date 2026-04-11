@@ -297,7 +297,8 @@ func _build_grid_room_in(data: Dictionary, container: Node3D) -> void:
 				".":
 					pass
 
-	# Props
+	# Props — decorations get no collision
+	var no_collision_types: Array = ["banner", "coin", "weapon-sword", "weapon-spear", "shield-round", "shield-rectangle"]
 	var interactable_count: int = 0
 	for prop in data.get("props_on_grid", []):
 		var gx: int = prop.get("gx", 0)
@@ -309,6 +310,8 @@ func _build_grid_room_in(data: Dictionary, container: Node3D) -> void:
 		if prop.get("interactable", false):
 			_spawn_interactable(prop, Vector3(wx, y_off, wz))
 			interactable_count += 1
+		elif prop.get("no_collision", false) or prop_type in no_collision_types:
+			_try_load_model_no_collision(prop_type, Vector3(wx, y_off, wz), container)
 		else:
 			_try_load_model_in(prop_type, Vector3(wx, y_off, wz), container)
 
@@ -358,6 +361,34 @@ func _build_grid_room_in(data: Dictionary, container: Node3D) -> void:
 					_try_load_model_in("floor", bpos, container)
 
 	print("[Room] ", room_name, ": ", cols, "x", rows, " tiles, ", interactable_count, " interactable")
+
+
+func _try_load_model_no_collision(model_name: String, pos: Vector3, container: Node3D) -> bool:
+	## Load model as pure visual — no collision. For decorations like banners, weapons on display.
+	var prop_map: Dictionary = asset_config.get("prop_model_map", {})
+	var resolved: String = str(prop_map.get(model_name, model_name))
+	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
+	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
+	var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
+	var model_scale: float = scale_map.get(resolved, scale_map.get(model_name, scale_map.get("default", 1.0)))
+	var y_offset_map: Dictionary = asset_config.get("prop_y_offset_map", {})
+	var y_offset: float = y_offset_map.get(resolved, y_offset_map.get(model_name, 0.0))
+
+	for base_path in search_paths:
+		for ext in extensions:
+			var path: String = str(base_path) + resolved + "." + str(ext)
+			if ResourceLoader.exists(path):
+				var scene: PackedScene = load(path)
+				if scene:
+					var node := Node3D.new()
+					node.name = "Decor_" + resolved
+					node.position = Vector3(pos.x, pos.y + y_offset, pos.z)
+					var instance := scene.instantiate()
+					instance.scale = Vector3.ONE * model_scale
+					node.add_child(instance)
+					container.add_child(node)
+					return true
+	return false
 
 
 func _try_load_model_in(model_name: String, pos: Vector3, container: Node3D) -> bool:
