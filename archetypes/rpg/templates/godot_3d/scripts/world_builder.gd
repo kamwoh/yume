@@ -348,12 +348,22 @@ func _try_load_model_in(model_name: String, pos: Vector3, container: Node3D) -> 
 					var instance := scene.instantiate()
 					instance.scale = Vector3.ONE * model_scale
 					body.add_child(instance)
-					# Auto-generate collision from mesh
+					# Auto-generate collision — flat for floors, box for walls/props
 					var col := CollisionShape3D.new()
 					var box := BoxShape3D.new()
-					box.size = Vector3(0.8, 0.8, 0.8) * model_scale
+					if resolved == "floor" or resolved == "floor-detail":
+						# Floor: flat collision at surface level
+						box.size = Vector3(1.0, 0.2, 1.0) * model_scale
+						col.position.y = -0.1 * model_scale
+					elif resolved == "wall" or resolved == "wall-half" or resolved == "wall-opening" or resolved == "wall-narrow":
+						# Walls: tall collision
+						box.size = Vector3(1.0, 2.0, 1.0) * model_scale
+						col.position.y = 1.0 * model_scale
+					else:
+						# Props: medium collision
+						box.size = Vector3(0.8, 0.8, 0.8) * model_scale
+						col.position.y = 0.4 * model_scale
 					col.shape = box
-					col.position.y = 0.4 * model_scale
 					body.add_child(col)
 					container.add_child(body)
 					return true
