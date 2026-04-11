@@ -14,6 +14,7 @@ var attack_range: float = 2.0
 var attack_damage: float = 25.0
 var room_half_w: float = 6.0
 var room_half_h: float = 5.0
+var _heading_to_exit: bool = false
 
 # Recording
 var action_log: Array = []
@@ -29,6 +30,30 @@ func init_config(config: Dictionary) -> void:
 
 
 func _load_room_bounds() -> void:
+	# Check for dungeon.json — seamless mode has larger bounds
+	var dungeon_file := FileAccess.open("res://data/dungeon.json", FileAccess.READ)
+	if dungeon_file:
+		var dungeon = JSON.parse_string(dungeon_file.get_as_text())
+		if dungeon is Dictionary and dungeon.has("rooms"):
+			# Calculate total bounds from all rooms + offsets
+			var min_x: float = -10.0
+			var max_x: float = 10.0
+			var min_z: float = -40.0
+			var max_z: float = 10.0
+			for room in dungeon.get("rooms", []):
+				var offset: Dictionary = room.get("offset", {})
+				var ox: float = offset.get("x", 0.0)
+				var oz: float = offset.get("z", 0.0)
+				min_x = min(min_x, ox - 10)
+				max_x = max(max_x, ox + 10)
+				min_z = min(min_z, oz - 10)
+				max_z = max(max_z, oz + 10)
+			room_half_w = (max_x - min_x) / 2.0 - 1
+			room_half_h = (max_z - min_z) / 2.0 - 1
+			print("[AutoAgent] Seamless bounds: w=", room_half_w, " h=", room_half_h)
+			return
+
+	# Single room mode
 	var prog_file := FileAccess.open("res://data/progression.json", FileAccess.READ)
 	if not prog_file:
 		return
@@ -113,14 +138,27 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 			result = {"action": "attack"}
 			action_name = "attack"
 	else:
-		# Explore mode: wander to random targets
+		# Explore mode: wander, then head to exit after exploring
 		var to_target: Vector3 = current_target - entity.global_position
 		to_target.y = 0
 
+		# After exploring for a while, look for exits
+		if frame > 120 and not _heading_to_exit:
+			var exit_node = _find_nearest_exit(entity)
+			if exit_node:
+				current_target = exit_node.global_position
+				_heading_to_exit = true
+				action_name = "heading_to_exit"
+
 		if to_target.length() > 0.5:
 			result = {"action": "move_to", "target": current_target}
-			action_name = "explore"
+			if action_name == "":
+				action_name = "explore"
 		else:
+			if _heading_to_exit:
+				# Reached exit — should trigger transition automatically via Area3D
+				_heading_to_exit = false
+				frame = 0  # Reset explore timer for new room
 			_pick_new_target()
 			result = {"action": "idle"}
 			action_name = "idle"
@@ -148,6 +186,17 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 		})
 
 	return result
+
+
+func _find_nearest_exit(entity: CharacterBody3D) -> Node:
+	var nearest: Node = null
+	var nearest_dist: float = 999.0
+	for exit_zone in entity.get_tree().get_nodes_in_group("exit_zone"):
+		var dist: float = entity.global_position.distance_to(exit_zone.global_position)
+		if dist < nearest_dist:
+			nearest_dist = dist
+			nearest = exit_zone
+	return nearest
 
 
 func _pick_new_target() -> void:

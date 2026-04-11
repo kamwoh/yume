@@ -116,7 +116,17 @@ func _build_environment() -> void:
 
 
 func _load_and_build_location() -> void:
-	# Load starting location from progression.json
+	# Check for dungeon.json — seamless multi-room mode
+	var dungeon_file := FileAccess.open("res://data/dungeon.json", FileAccess.READ)
+	if dungeon_file:
+		var dungeon = JSON.parse_string(dungeon_file.get_as_text())
+		if dungeon is Dictionary and dungeon.has("rooms"):
+			_build_seamless_dungeon(dungeon)
+			_spawn_player()
+			# Brain is attached by player_3d.gd from meta.json
+			return
+
+	# Single room fallback — load from progression.json
 	var prog_file := FileAccess.open("res://data/progression.json", FileAccess.READ)
 	var location_id := ""
 	if prog_file:
@@ -125,7 +135,6 @@ func _load_and_build_location() -> void:
 			location_id = str(prog.get("starting_location", ""))
 
 	if location_id == "":
-		# Fallback: load first JSON in locations/
 		var dir := DirAccess.open("res://data/locations/")
 		if dir:
 			dir.list_dir_begin()
@@ -143,6 +152,212 @@ func _load_and_build_location() -> void:
 	_build_location(location_id)
 	_spawn_player()
 	# Brain (human/auto_agent/llm) is now attached by player_3d.gd from meta.json
+
+
+func _build_seamless_dungeon(dungeon: Dictionary) -> void:
+	## Build all rooms simultaneously with world-space offsets.
+	## Doors align physically — player walks through continuously.
+	var rooms: Array = dungeon.get("rooms", [])
+	var starting_room: String = str(dungeon.get("starting_room", ""))
+
+	print("[Dungeon] Building seamless dungeon with ", rooms.size(), " rooms")
+
+	# Build environment from starting room's atmosphere
+	if starting_room != "":
+		var start_path: String = "res://data/locations/" + starting_room + ".json"
+		var start_file := FileAccess.open(start_path, FileAccess.READ)
+		if start_file:
+			var start_data = JSON.parse_string(start_file.get_as_text())
+			if start_data is Dictionary:
+				current_location = start_data
+				_build_environment()
+
+	# Build each room with its offset
+	for room in rooms:
+		var loc_id: String = str(room.get("location", ""))
+		var offset: Dictionary = room.get("offset", {})
+		var world_offset := Vector3(offset.get("x", 0.0), 0, offset.get("z", 0.0))
+
+		var path: String = "res://data/locations/" + loc_id + ".json"
+		var file := FileAccess.open(path, FileAccess.READ)
+		if not file:
+			push_warning("[Dungeon] Room not found: " + loc_id)
+			continue
+
+		var data = JSON.parse_string(file.get_as_text())
+		if not data is Dictionary:
+			continue
+
+		# Build room inside a container node at the offset position
+		var room_container := Node3D.new()
+		room_container.name = "Room_" + loc_id
+		room_container.position = world_offset
+		add_child(room_container)
+
+		_build_grid_room_in(data, room_container)
+		print("[Dungeon] Built: ", loc_id, " at offset (", world_offset.x, ", ", world_offset.z, ")")
+
+	# Spawn player at starting room spawn
+	var spawn_cfg: Dictionary = dungeon.get("spawn_on_grid", {})
+	if spawn_cfg.is_empty() and starting_room != "":
+		# Use starting room's spawn
+		var sr_path: String = "res://data/locations/" + starting_room + ".json"
+		var sr_file := FileAccess.open(sr_path, FileAccess.READ)
+		if sr_file:
+			var sr_data = JSON.parse_string(sr_file.get_as_text())
+			if sr_data is Dictionary:
+				spawn_cfg = sr_data.get("spawn_on_grid", {})
+
+	# Convert spawn grid coords to world coords (in starting room's space)
+	if not spawn_cfg.is_empty() and starting_room != "":
+		var sr_path2: String = "res://data/locations/" + starting_room + ".json"
+		var sr_file2 := FileAccess.open(sr_path2, FileAccess.READ)
+		if sr_file2:
+			var sr2 = JSON.parse_string(sr_file2.get_as_text())
+			if sr2 is Dictionary and sr2.has("grid"):
+				var grid: Dictionary = sr2.get("grid", {})
+				var grid_map: Array = grid.get("map", [])
+				var tile_size: float = grid.get("tile_size", 1.0)
+				var rows: int = grid_map.size()
+				var cols: int = str(grid_map[0]).length() if rows > 0 else 0
+				var gox: float = -cols * tile_size / 2.0
+				var goz: float = -rows * tile_size / 2.0
+				# Starting room offset
+				var room0_offset := Vector3.ZERO
+				for r in rooms:
+					if str(r.get("location", "")) == starting_room:
+						var ro: Dictionary = r.get("offset", {})
+						room0_offset = Vector3(ro.get("x", 0.0), 0, ro.get("z", 0.0))
+						break
+				player_config["_spawn_x"] = room0_offset.x + gox + spawn_cfg.get("gx", 0) * tile_size + tile_size / 2
+				player_config["_spawn_z"] = room0_offset.z + goz + spawn_cfg.get("gz", 0) * tile_size + tile_size / 2
+
+
+func _build_grid_room_in(data: Dictionary, container: Node3D) -> void:
+	## Build grid room inside a container node (for seamless multi-room).
+	var grid: Dictionary = data.get("grid", {})
+	var tile_size: float = grid.get("tile_size", 1.0)
+	var tile_names: Dictionary = grid.get("tiles", {})
+	var grid_map: Array = grid.get("map", [])
+
+	if grid_map.is_empty():
+		return
+
+	var rows: int = grid_map.size()
+	var cols: int = str(grid_map[0]).length() if rows > 0 else 0
+	var offset_x: float = -cols * tile_size / 2.0
+	var offset_z: float = -rows * tile_size / 2.0
+
+	# Place tiles
+	for z in range(rows):
+		var row: String = str(grid_map[z])
+		for x in range(cols):
+			if x >= row.length():
+				continue
+			var cell: String = row[x]
+			var world_x: float = offset_x + x * tile_size + tile_size / 2
+			var world_z: float = offset_z + z * tile_size + tile_size / 2
+			var pos := Vector3(world_x, 0, world_z)
+
+			match cell:
+				"F":
+					_try_load_model_in(str(tile_names.get("floor", "floor")), pos, container)
+				"W":
+					_try_load_model_in(str(tile_names.get("floor", "floor")), pos, container)
+					_try_load_model_in(str(tile_names.get("wall", "wall")), pos, container)
+				"D":
+					_try_load_model_in(str(tile_names.get("floor", "floor")), pos, container)
+					_try_load_model_in(str(tile_names.get("door", "wall-opening")), pos, container)
+				".":
+					pass
+
+	# Props
+	var interactable_count: int = 0
+	for prop in data.get("props_on_grid", []):
+		var gx: int = prop.get("gx", 0)
+		var gz: int = prop.get("gz", 0)
+		var y_off: float = prop.get("y_offset", 0.0)
+		var wx: float = offset_x + gx * tile_size + tile_size / 2
+		var wz: float = offset_z + gz * tile_size + tile_size / 2
+		var prop_type: String = str(prop.get("type", "barrel"))
+		if prop.get("interactable", false):
+			_spawn_interactable(prop, Vector3(wx, y_off, wz))
+			interactable_count += 1
+		else:
+			_try_load_model_in(prop_type, Vector3(wx, y_off, wz), container)
+
+	# NPCs
+	for npc in data.get("npcs_on_grid", []):
+		var gx: int = npc.get("gx", 0)
+		var gz: int = npc.get("gz", 0)
+		var wx: float = offset_x + gx * tile_size + tile_size / 2
+		var wz: float = offset_z + gz * tile_size + tile_size / 2
+		# Spawn entity at container-relative position → world position
+		var world_pos := container.position + Vector3(wx, 0, wz)
+		_spawn_entity(npc, world_pos, container.position.x + offset_x, container.position.z + offset_z, tile_size)
+
+	# Point lights
+	for pl in data.get("point_lights", []):
+		var gx: int = pl.get("gx", 0)
+		var gz: int = pl.get("gz", 0)
+		var ly: float = pl.get("y", 1.5)
+		var wx: float = offset_x + gx * tile_size + tile_size / 2
+		var wz: float = offset_z + gz * tile_size + tile_size / 2
+		var omni := OmniLight3D.new()
+		omni.name = "Light_%d_%d" % [gx, gz]
+		omni.position = Vector3(wx, ly, wz)
+		var c = pl.get("color", [1.0, 0.9, 0.7])
+		if c is Array and c.size() >= 3:
+			omni.light_color = Color(c[0], c[1], c[2])
+		omni.light_energy = pl.get("energy", 1.5)
+		omni.omni_range = pl.get("range", 5.0)
+		omni.shadow_enabled = true
+		omni.omni_attenuation = 1.5
+		container.add_child(omni)
+
+	var room_name: String = str(data.get("name", "Room"))
+	print("[Room] ", room_name, ": ", cols, "x", rows, " tiles, ", interactable_count, " interactable")
+
+
+func _try_load_model_in(model_name: String, pos: Vector3, container: Node3D) -> bool:
+	## Load model into a specific container node (not self).
+	var prop_map: Dictionary = asset_config.get("prop_model_map", {})
+	var char_map: Dictionary = asset_config.get("character_model_map", {})
+	var resolved: String = model_name
+	if prop_map.has(model_name):
+		resolved = str(prop_map[model_name])
+	elif char_map.has(model_name):
+		resolved = str(char_map[model_name])
+
+	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
+	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
+	var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
+	var model_scale: float = scale_map.get(resolved, scale_map.get(model_name, scale_map.get("default", 1.0)))
+	var y_offset_map: Dictionary = asset_config.get("prop_y_offset_map", {})
+	var y_offset: float = y_offset_map.get(resolved, y_offset_map.get(model_name, 0.0))
+
+	for base_path in search_paths:
+		for ext in extensions:
+			var path: String = str(base_path) + resolved + "." + str(ext)
+			if ResourceLoader.exists(path):
+				var scene: PackedScene = load(path)
+				if scene:
+					var body := StaticBody3D.new()
+					body.name = "M_" + resolved
+					body.position = Vector3(pos.x, pos.y + y_offset, pos.z)
+					var instance := scene.instantiate()
+					instance.scale = Vector3.ONE * model_scale
+					body.add_child(instance)
+					# Auto-generate collision from mesh
+					var col := CollisionShape3D.new()
+					var box := BoxShape3D.new()
+					box.size = Vector3(0.8, 0.8, 0.8) * model_scale
+					col.shape = box
+					col.position.y = 0.4 * model_scale
+					body.add_child(col)
+					container.add_child(body)
+					return true
+	return false
 
 
 func _build_location(location_id: String) -> void:
@@ -343,7 +558,17 @@ func _build_grid_room(data: Dictionary) -> void:
 		omni.omni_attenuation = 1.5
 		add_child(omni)
 
-	print("[Grid] Done: ", props_on_grid.size(), " props (", interactable_count, " interactable), ", npcs_on_grid.size(), " NPCs, ", point_lights.size(), " lights")
+	# Place exit zones
+	var exits_on_grid: Array = data.get("exits_on_grid", [])
+	for ex in exits_on_grid:
+		var gx: int = ex.get("gx", 0)
+		var gz: int = ex.get("gz", 0)
+		var world_x: float = offset_x + gx * tile_size + tile_size / 2
+		var world_z: float = offset_z + gz * tile_size + tile_size / 2
+		var target: String = str(ex.get("target_location", ""))
+		_spawn_exit_zone(Vector3(world_x, 0.5, world_z), target, ex)
+
+	print("[Grid] Done: ", props_on_grid.size(), " props (", interactable_count, " interactable), ", npcs_on_grid.size(), " NPCs, ", point_lights.size(), " lights, ", exits_on_grid.size(), " exits")
 
 
 func _try_load_model(model_name: String, pos: Vector3) -> bool:
@@ -547,6 +772,106 @@ func _add_capsule(node_name: String, radius: float, height: float, pos: Vector3,
 	add_child(body)
 
 
+var _transitioning: bool = false
+
+func _spawn_exit_zone(pos: Vector3, target_location: String, config: Dictionary) -> void:
+	var area := Area3D.new()
+	area.name = "Exit_" + target_location
+	area.position = pos
+	area.set_meta("target_location", target_location)
+	area.set_meta("exit_config", config)
+	area.add_to_group("exit_zone")
+
+	# Collision shape — player-sized box
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.5, 2.0, 1.5)
+	col.shape = box
+	area.add_child(col)
+
+	# Visual indicator — gate model or glowing marker
+	var gate_loaded := false
+	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
+	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
+	for base_path in search_paths:
+		if gate_loaded:
+			break
+		for ext in extensions:
+			var path: String = str(base_path) + "gate." + str(ext)
+			if ResourceLoader.exists(path):
+				var scene: PackedScene = load(path)
+				if scene:
+					var instance := scene.instantiate()
+					instance.name = "GateModel"
+					var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
+					instance.scale = Vector3.ONE * scale_map.get("gate", 1.0)
+					area.add_child(instance)
+					gate_loaded = true
+					break
+
+	# Connect signal — when player body enters, transition
+	area.body_entered.connect(_on_exit_zone_entered.bind(area))
+	add_child(area)
+	print("[Exit] Spawned: → ", target_location, " at (", config.get("gx", 0), ",", config.get("gz", 0), ")")
+
+
+func _on_exit_zone_entered(body: Node3D, area: Area3D) -> void:
+	if _transitioning:
+		return
+	if not body.is_in_group("player"):
+		return
+	var target: String = str(area.get_meta("target_location"))
+	if target == "":
+		return
+	print("[Exit] Player entered exit → transitioning to: ", target)
+	_transition_to_room(target)
+
+
+func _transition_to_room(location_id: String) -> void:
+	_transitioning = true
+
+	# Fade out (simple: just load immediately for now)
+	# Remove all current room objects (everything except Player and CameraController)
+	var player_node = get_node_or_null("Player")
+	var cam_ctrl = get_node_or_null("CameraController")
+
+	for child in get_children():
+		if child == player_node or child == cam_ctrl:
+			continue
+		if child.name == "FrameCapture":
+			continue
+		child.queue_free()
+
+	# Wait for cleanup
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# Build new room
+	_build_location(location_id)
+
+	# Re-build environment for new room
+	_build_environment()
+
+	# Move player to new room's spawn point
+	if player_node and current_location.has("spawn_on_grid") and current_location.has("grid"):
+		var sg: Dictionary = current_location.get("spawn_on_grid", {})
+		var grid: Dictionary = current_location.get("grid", {})
+		var grid_map: Array = grid.get("map", [])
+		var tile_size: float = grid.get("tile_size", 1.0)
+		var rows: int = grid_map.size()
+		var cols: int = str(grid_map[0]).length() if rows > 0 else 0
+		var ox: float = -cols * tile_size / 2.0
+		var oz: float = -rows * tile_size / 2.0
+		player_node.position = Vector3(
+			ox + sg.get("gx", 0) * tile_size + tile_size / 2,
+			0.5,
+			oz + sg.get("gz", 0) * tile_size + tile_size / 2
+		)
+
+	_transitioning = false
+	print("[Transition] Now in: ", location_id)
+
+
 func _find_anim_player(node: Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
 		return node
@@ -707,10 +1032,14 @@ func _spawn_player() -> void:
 			if c is Array and c.size() >= 3:
 				player_color = Color(c[0], c[1], c[2])
 
-	# Spawn position — grid rooms use spawn_on_grid, others use layout.entrance
+	# Spawn position — dungeon mode uses pre-calculated, grid rooms use spawn_on_grid
 	var spawn_x: float = 0.0
 	var spawn_z: float = 0.0
-	if current_location.has("spawn_on_grid") and current_location.has("grid"):
+	if player_config.has("_spawn_x"):
+		# Seamless dungeon mode — pre-calculated world position
+		spawn_x = player_config.get("_spawn_x", 0.0)
+		spawn_z = player_config.get("_spawn_z", 0.0)
+	elif current_location.has("spawn_on_grid") and current_location.has("grid"):
 		var sg: Dictionary = current_location.get("spawn_on_grid", {})
 		var grid: Dictionary = current_location.get("grid", {})
 		var grid_map: Array = grid.get("map", [])
