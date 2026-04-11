@@ -16,6 +16,32 @@ func _ready() -> void:
 	# Don't build environment here — wait for location data so atmosphere applies correctly
 	_load_and_build_location()
 	_add_frame_capture()
+	_add_minimap()
+	_add_hp_bar()
+
+
+func _add_hp_bar() -> void:
+	var script = load("res://scripts/hp_bar.gd")
+	if script:
+		var canvas := CanvasLayer.new()
+		canvas.name = "HUDLayer"
+		var hpbar := Control.new()
+		hpbar.name = "HPBar"
+		hpbar.set_script(script)
+		canvas.add_child(hpbar)
+		add_child(canvas)
+
+
+func _add_minimap() -> void:
+	var script = load("res://scripts/minimap.gd")
+	if script:
+		var canvas := CanvasLayer.new()
+		canvas.name = "MinimapLayer"
+		var minimap := Control.new()
+		minimap.name = "Minimap"
+		minimap.set_script(script)
+		canvas.add_child(minimap)
+		add_child(canvas)
 
 
 func _add_frame_capture() -> void:
