@@ -247,7 +247,7 @@ func _pick_new_target() -> void:
 			var attempts: int = 0
 			target_pos = Vector3(randf_range(-room_half_w, room_half_w), 0, randf_range(-room_half_h, room_half_h))
 			while attempts < 10:
-				var grid_pos := pathfinder.world_to_grid(target_pos)
+				var grid_pos: Vector2i = pathfinder.world_to_grid(target_pos)
 				if pathfinder.is_walkable(grid_pos.x, grid_pos.y):
 					break
 				target_pos = Vector3(randf_range(-room_half_w, room_half_w), 0, randf_range(-room_half_h, room_half_h))
