@@ -179,7 +179,7 @@ def generate_terrain(width: float, height: float, seed: int,
             "x": round(rng.uniform(-width / 2 + 1, width / 2 - 1), 2),
             "z": round(rng.uniform(-height / 2 + 1, height / 2 - 1), 2),
             "color": rng.choice(flower_colors),
-            "size": round(0.05 + rng.random() * 0.06, 3),
+            "size": round(0.1 + rng.random() * 0.1, 3),
         })
 
     return {

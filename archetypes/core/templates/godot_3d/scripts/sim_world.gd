@@ -80,8 +80,18 @@ func _build_environment() -> void:
 
 	var env_node := WorldEnvironment.new()
 	env = Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(bg[0], bg[1], bg[2])
+	# Sky gradient — procedural sky instead of flat color
+	var sky := Sky.new()
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.3, 0.5, 0.9)       # Deep blue at top
+	sky_mat.sky_horizon_color = Color(0.65, 0.75, 0.95) # Light blue at horizon
+	sky_mat.ground_bottom_color = Color(0.35, 0.55, 0.25) # Green ground reflection
+	sky_mat.ground_horizon_color = Color(0.6, 0.7, 0.85)  # Hazy horizon
+	sky_mat.sun_angle_max = 30.0
+	sky_mat.sun_curve = 0.1
+	sky.sky_material = sky_mat
+	env.sky = sky
+	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(amb[0], amb[1], amb[2])
 	env.ambient_light_energy = atmo.get("ambient_energy", 0.7)
