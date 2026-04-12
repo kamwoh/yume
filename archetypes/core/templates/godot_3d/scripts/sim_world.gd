@@ -221,18 +221,84 @@ func _spawn_element(element_id: String, element_def: Dictionary, model_name: Str
 					instance.scale = Vector3.ONE * actual_scale
 					# Random Y rotation for natural feel
 					instance.rotation.y = randf() * TAU
+					# Tint model based on element type
+					_tint_element_model(instance, element_id)
 					body.add_child(instance)
 					model_loaded = true
 					break
 
 	if not model_loaded:
-		# Fallback colored box
+		# Fallback: colored primitive shapes per element type
 		var mesh := MeshInstance3D.new()
-		mesh.mesh = BoxMesh.new()
-		mesh.mesh.size = Vector3(0.5, 1.0, 0.5) * model_scale
-		mesh.position.y = 0.5 * model_scale
 		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.3, 0.6, 0.2) if element_id == "tree" else Color(0.5, 0.5, 0.5)
+
+		match element_id:
+			"tree":
+				# Tall green cylinder + brown trunk
+				var trunk := MeshInstance3D.new()
+				trunk.mesh = CylinderMesh.new()
+				trunk.mesh.top_radius = 0.15
+				trunk.mesh.bottom_radius = 0.2
+				trunk.mesh.height = 2.0
+				trunk.position.y = 1.0
+				var trunk_mat := StandardMaterial3D.new()
+				trunk_mat.albedo_color = Color(0.45, 0.3, 0.15)
+				trunk.material_override = trunk_mat
+				body.add_child(trunk)
+				# Green foliage sphere on top
+				mesh.mesh = SphereMesh.new()
+				mesh.mesh.radius = 0.8
+				mesh.mesh.height = 1.2
+				mesh.position.y = 2.2
+				mat.albedo_color = Color(0.2, 0.55, 0.15)
+			"stone":
+				mesh.mesh = BoxMesh.new()
+				mesh.mesh.size = Vector3(0.8, 0.6, 0.8) * model_scale
+				mesh.position.y = 0.3 * model_scale
+				mat.albedo_color = Color(0.55, 0.52, 0.48)
+			"water":
+				mesh.mesh = BoxMesh.new()
+				mesh.mesh.size = Vector3(1.2, 0.1, 1.2) * model_scale
+				mesh.position.y = -0.05
+				mat.albedo_color = Color(0.2, 0.45, 0.75)
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				mat.albedo_color.a = 0.7
+			"dirt":
+				mesh.mesh = BoxMesh.new()
+				mesh.mesh.size = Vector3(1.0, 0.15, 1.0) * model_scale
+				mesh.position.y = 0.05
+				mat.albedo_color = Color(0.45, 0.32, 0.18)
+			"campfire":
+				mesh.mesh = CylinderMesh.new()
+				mesh.mesh.top_radius = 0.1
+				mesh.mesh.bottom_radius = 0.3
+				mesh.mesh.height = 0.5
+				mesh.position.y = 0.25
+				mat.albedo_color = Color(0.6, 0.3, 0.1)
+				mat.emission_enabled = true
+				mat.emission = Color(1.0, 0.5, 0.1)
+				mat.emission_energy_multiplier = 2.0
+			"shelter":
+				# Simple house shape
+				mesh.mesh = BoxMesh.new()
+				mesh.mesh.size = Vector3(2.0, 1.5, 2.0)
+				mesh.position.y = 0.75
+				mat.albedo_color = Color(0.5, 0.35, 0.2)
+				# Add roof
+				var roof := MeshInstance3D.new()
+				roof.mesh = PrismMesh.new()
+				roof.mesh.size = Vector3(2.2, 0.8, 2.2)
+				roof.position.y = 1.9
+				var roof_mat := StandardMaterial3D.new()
+				roof_mat.albedo_color = Color(0.6, 0.25, 0.1)
+				roof.material_override = roof_mat
+				body.add_child(roof)
+			_:
+				mesh.mesh = BoxMesh.new()
+				mesh.mesh.size = Vector3(0.5, 0.5, 0.5) * model_scale
+				mesh.position.y = 0.25 * model_scale
+				mat.albedo_color = Color(0.5, 0.5, 0.5)
+
 		mesh.material_override = mat
 		body.add_child(mesh)
 
@@ -263,6 +329,35 @@ func _spawn_element(element_id: String, element_def: Dictionary, model_name: Str
 		body.add_child(light)
 
 	add_child(body)
+
+
+func _tint_element_model(node: Node, element_id: String) -> void:
+	## Apply color tint to GLB model based on element type
+	var tint_colors: Dictionary = {
+		"tree": Color(0.6, 0.9, 0.5),
+		"stone": Color(0.75, 0.72, 0.68),
+		"water": Color(0.5, 0.7, 1.0),
+		"dirt": Color(0.7, 0.55, 0.35),
+		"farmland": Color(0.65, 0.5, 0.3),
+		"campfire": Color(1.0, 0.7, 0.4),
+		"shelter": Color(0.8, 0.6, 0.4),
+	}
+	var tint: Color = tint_colors.get(element_id, Color.WHITE)
+	if tint == Color.WHITE:
+		return
+	_apply_tint_recursive(node, tint)
+
+
+func _apply_tint_recursive(node: Node, tint: Color) -> void:
+	if node is MeshInstance3D:
+		var mesh_inst: MeshInstance3D = node
+		# Create tinted material
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = tint
+		mat.roughness = 0.8
+		mesh_inst.material_override = mat
+	for child in node.get_children():
+		_apply_tint_recursive(child, tint)
 
 
 func _spawn_agents() -> void:

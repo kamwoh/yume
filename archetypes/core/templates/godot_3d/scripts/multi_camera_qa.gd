@@ -41,31 +41,31 @@ func _create_cameras() -> void:
 	var hh: float = world_h / 2.0 - 2
 
 	var positions: Array = [
-		# Overview shots
-		{"pos": Vector3(0, 20, 0), "look": Vector3(0, 0, 0), "name": "top_down"},
-		{"pos": Vector3(0, 15, 15), "look": Vector3(0, 0, 0), "name": "south_overview"},
-		{"pos": Vector3(15, 15, 0), "look": Vector3(0, 0, 0), "name": "east_overview"},
-		{"pos": Vector3(-15, 15, -15), "look": Vector3(0, 0, 0), "name": "nw_overview"},
+		# Overview — always look DOWN at ground, not at horizon
+		{"pos": Vector3(0, 15, 1), "look": Vector3(0, 0, 0), "name": "top_down"},
+		{"pos": Vector3(2, 6, hw * 0.3), "look": Vector3(0, 0, -2), "name": "south_overview"},
+		{"pos": Vector3(hw * 0.5, 8, 0), "look": Vector3(-3, 0, 0), "name": "east_overview"},
+		{"pos": Vector3(-hw * 0.4, 8, -hh * 0.4), "look": Vector3(3, 0, 3), "name": "nw_overview"},
 
-		# Corner views — see diagonal across world
-		{"pos": Vector3(-hw, 8, -hh), "look": Vector3(hw, 0, hh), "name": "corner_nw"},
-		{"pos": Vector3(hw, 8, -hh), "look": Vector3(-hw, 0, hh), "name": "corner_ne"},
-		{"pos": Vector3(-hw, 8, hh), "look": Vector3(hw, 0, -hh), "name": "corner_sw"},
-		{"pos": Vector3(hw, 8, hh), "look": Vector3(-hw, 0, -hh), "name": "corner_se"},
+		# Corner views — elevated, looking toward center
+		{"pos": Vector3(-hw * 0.7, 6, -hh * 0.7), "look": Vector3(0, 0, 0), "name": "corner_nw"},
+		{"pos": Vector3(hw * 0.7, 6, -hh * 0.7), "look": Vector3(0, 0, 0), "name": "corner_ne"},
+		{"pos": Vector3(-hw * 0.7, 6, hh * 0.7), "look": Vector3(0, 0, 0), "name": "corner_sw"},
+		{"pos": Vector3(hw * 0.7, 6, hh * 0.7), "look": Vector3(0, 0, 0), "name": "corner_se"},
 
-		# Eye-level views — like walking through
-		{"pos": Vector3(0, 2, hh), "look": Vector3(0, 1, -hh), "name": "eye_south"},
-		{"pos": Vector3(0, 2, -hh), "look": Vector3(0, 1, hh), "name": "eye_north"},
-		{"pos": Vector3(-hw, 2, 0), "look": Vector3(hw, 1, 0), "name": "eye_west"},
-		{"pos": Vector3(hw, 2, 0), "look": Vector3(-hw, 1, 0), "name": "eye_east"},
+		# Eye-level — inside the world, looking ACROSS ground
+		{"pos": Vector3(0, 2, hh * 0.5), "look": Vector3(0, 0.5, -hh * 0.3), "name": "eye_south"},
+		{"pos": Vector3(0, 2, -hh * 0.5), "look": Vector3(0, 0.5, hh * 0.3), "name": "eye_north"},
+		{"pos": Vector3(-hw * 0.5, 2, 0), "look": Vector3(hw * 0.3, 0.5, 0), "name": "eye_west"},
+		{"pos": Vector3(hw * 0.5, 2, 0), "look": Vector3(-hw * 0.3, 0.5, 0), "name": "eye_east"},
 
-		# Close-up center
-		{"pos": Vector3(3, 3, 3), "look": Vector3(0, 0.5, 0), "name": "close_center"},
-		{"pos": Vector3(-5, 2, -3), "look": Vector3(0, 0.5, 0), "name": "close_offset"},
+		# Close-ups — near ground, looking at elements
+		{"pos": Vector3(3, 2, 3), "look": Vector3(0, 0.3, 0), "name": "close_center"},
+		{"pos": Vector3(-5, 1.5, -3), "look": Vector3(-2, 0.3, 0), "name": "close_offset"},
+		{"pos": Vector3(8, 1.5, -5), "look": Vector3(5, 0.3, -2), "name": "close_east"},
 
-		# Cinematic — low angle dramatic
-		{"pos": Vector3(0, 1.5, hw), "look": Vector3(0, 2, -hh), "name": "dramatic_low"},
-		{"pos": Vector3(hw, 1.5, 0), "look": Vector3(-hw, 2, 0), "name": "dramatic_side"},
+		# Cinematic — low angle looking along ground
+		{"pos": Vector3(0, 1.0, hh * 0.4), "look": Vector3(0, 0.5, -hh * 0.2), "name": "dramatic_low"},
 	]
 
 	for p in positions:
