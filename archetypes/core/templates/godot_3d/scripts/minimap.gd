@@ -150,6 +150,53 @@ func _draw_simulation() -> void:
 		var ez: float = (entity.global_position.z + half_h) * pix_scale
 		draw_circle(Vector2(ex, ez), 3.0, color_enemy)
 
+	# Draw active camera + FOV cone
+	var viewport := get_viewport()
+	if viewport:
+		var cam := viewport.get_camera_3d()
+		if cam:
+			var cam_pos := cam.global_position
+			var cx: float = (cam_pos.x + half_w) * pix_scale
+			var cz: float = (cam_pos.z + half_h) * pix_scale
+			var cam_2d := Vector2(cx, cz)
+
+			# Camera icon — small white diamond
+			var diamond_size: float = 4.0
+			var diamond := PackedVector2Array([
+				cam_2d + Vector2(0, -diamond_size),
+				cam_2d + Vector2(diamond_size, 0),
+				cam_2d + Vector2(0, diamond_size),
+				cam_2d + Vector2(-diamond_size, 0),
+			])
+			draw_colored_polygon(diamond, Color(1.0, 1.0, 1.0, 0.9))
+
+			# FOV cone — view direction + spread
+			var cam_forward := -cam.global_transform.basis.z
+			var forward_2d := Vector2(cam_forward.x, cam_forward.z).normalized()
+			if forward_2d.length() > 0.01:
+				var fov_half: float = deg_to_rad(cam.fov / 2.0)
+				var cone_len: float = 25.0 * pix_scale  # Length of cone in minimap pixels
+
+				# Left and right edges of FOV
+				var angle_base: float = atan2(forward_2d.y, forward_2d.x)
+				var left_angle: float = angle_base - fov_half
+				var right_angle: float = angle_base + fov_half
+
+				var left_end := cam_2d + Vector2(cos(left_angle), sin(left_angle)) * cone_len
+				var right_end := cam_2d + Vector2(cos(right_angle), sin(right_angle)) * cone_len
+
+				# Draw cone as semi-transparent triangle
+				var cone := PackedVector2Array([cam_2d, left_end, right_end])
+				draw_colored_polygon(cone, Color(1.0, 1.0, 0.5, 0.15))
+
+				# Draw cone edges
+				draw_line(cam_2d, left_end, Color(1.0, 1.0, 0.5, 0.5), 1.0)
+				draw_line(cam_2d, right_end, Color(1.0, 1.0, 0.5, 0.5), 1.0)
+
+				# Draw center line (look direction)
+				var center_end := cam_2d + forward_2d * cone_len * 0.7
+				draw_line(cam_2d, center_end, Color(1.0, 1.0, 1.0, 0.7), 1.5)
+
 
 func _draw_dungeon() -> void:
 	## Draw dungeon mode — from nav_grid.json
