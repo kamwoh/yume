@@ -241,7 +241,7 @@ func _build_edge_trees() -> void:
 		var ez: float = et.get("z", 0)
 		var ey: float = 0.0
 		if terrain_node and terrain_node.has_method("get_height_at"):
-			ey = terrain_node.get_height_at(ex, ez)
+			ey = terrain_node.get_height_at(ex, ez) - 0.15  # Sink into terrain
 		var node := Node3D.new()
 		node.name = "EdgeTree_" + str(randi() % 10000)
 		node.position = Vector3(ex, ey, ez)
@@ -278,9 +278,9 @@ func _build_camp() -> void:
 
 	for c in camp:
 		var pos := Vector3(c.get("x", 0), 0, c.get("z", 0))
-		# Place on terrain
+		# Place on terrain — sink slightly
 		if terrain_node and terrain_node.has_method("get_height_at"):
-			pos.y = terrain_node.get_height_at(pos.x, pos.z)
+			pos.y = terrain_node.get_height_at(pos.x, pos.z) - 0.1
 		var model: String = str(c.get("model", "_primitive"))
 		var scale: float = c.get("scale", 1.0)
 		var rot_y: float = c.get("rotation_y", 0)
@@ -332,9 +332,9 @@ func _build_elements() -> void:
 		var edef: Dictionary = el_defs.get(eid, {})
 		var obj_type: String = str(edef.get("object_type", "decoration"))
 
-		# Place on terrain surface
+		# Place on terrain surface — sink slightly to avoid floating
 		if terrain_node and terrain_node.has_method("get_height_at"):
-			pos.y = terrain_node.get_height_at(pos.x, pos.z)
+			pos.y = terrain_node.get_height_at(pos.x, pos.z) - 0.1
 
 		# Choose node type based on object_type
 		var node: Node3D
