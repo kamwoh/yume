@@ -283,20 +283,26 @@ func _spawn_element(element_id: String, element_def: Dictionary, model_name: Str
 	body.set_meta("element_id", element_id)
 	body.set_meta("element_data", element_def)
 
-	# Load model — use primitives for natural elements, GLB for structures
+	# Load model — pick from variants if available, primitives as fallback
 	var model_loaded := false
 
-	if model_name != "_primitive":
+	# Check for model_variants — pick a random one
+	var variants: Array = element_def.get("model_variants", [])
+	var actual_model: String = model_name
+	if variants.size() > 0:
+		actual_model = str(variants[randi() % variants.size()])
+
+	if actual_model != "_primitive":
 		var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
 		var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
 		var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
-		var actual_scale: float = scale_map.get(model_name, 1.0) * model_scale
+		var actual_scale: float = scale_map.get(actual_model, 1.0) * model_scale
 
 		for base_path in search_paths:
 			if model_loaded:
 				break
 			for ext in extensions:
-				var path: String = str(base_path) + model_name + "." + str(ext)
+				var path: String = str(base_path) + actual_model + "." + str(ext)
 				if ResourceLoader.exists(path):
 					var scene: PackedScene = load(path)
 					if scene:
@@ -304,7 +310,6 @@ func _spawn_element(element_id: String, element_def: Dictionary, model_name: Str
 						instance.name = "Model"
 						instance.scale = Vector3.ONE * actual_scale
 						instance.rotation.y = randf() * TAU
-						_tint_element_model(instance, element_id)
 						body.add_child(instance)
 						model_loaded = true
 						break
