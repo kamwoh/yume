@@ -519,7 +519,7 @@ func _build_starting_camp() -> void:
 
 
 func _build_dirt_path() -> void:
-	## Draw a dirt-colored path from camp toward resources
+	## Build paths from camp using Kenney Nature Kit path models
 	var center_x: float = 0.0
 	var center_z: float = 0.0
 	var camp: Dictionary = world_config.get("starting_camp", {})
@@ -528,29 +528,85 @@ func _build_dirt_path() -> void:
 		center_x = c.get("gx", 20) - world_w / 2
 		center_z = c.get("gz", 20) - world_h / 2
 
-	# Create path segments radiating from camp
-	var path_dirs: Array = [
-		Vector3(1, 0, 0), Vector3(-1, 0, 0),
-		Vector3(0, 0, 1), Vector3(0.7, 0, 0.7),
-	]
-	for dir in path_dirs:
-		var path_len: int = 5 + randi() % 8
-		for i in range(path_len):
-			var px: float = center_x + dir.x * i * 1.2 + randf_range(-0.2, 0.2)
-			var pz: float = center_z + dir.z * i * 1.2 + randf_range(-0.2, 0.2)
-			var path_tile := MeshInstance3D.new()
-			path_tile.mesh = CylinderMesh.new()
-			path_tile.mesh.top_radius = 0.4 + randf() * 0.2
-			path_tile.mesh.bottom_radius = 0.5 + randf() * 0.2
-			path_tile.mesh.height = 0.02
-			path_tile.position = Vector3(px, 0.01, pz)
-			var pmat := StandardMaterial3D.new()
-			pmat.albedo_color = Color(0.42 + randf() * 0.06, 0.32 + randf() * 0.04, 0.18 + randf() * 0.04)
-			pmat.roughness = 1.0
-			path_tile.material_override = pmat
-			add_child(path_tile)
+	var search_paths: Array = asset_config.get("model_search_paths", [])
+	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
 
-	print("[SimWorld] Dirt paths built from camp")
+	# Path directions from camp — 4 trails radiating outward
+	var trails: Array = [
+		{"dir": Vector3(1, 0, 0), "rot": 90.0, "len_range": [6, 12]},
+		{"dir": Vector3(-1, 0, 0), "rot": 90.0, "len_range": [5, 10]},
+		{"dir": Vector3(0, 0, 1), "rot": 0.0, "len_range": [6, 12]},
+		{"dir": Vector3(0, 0, -1), "rot": 0.0, "len_range": [5, 10]},
+	]
+
+	var path_models: Array = ["ground_pathStraight", "ground_pathOpen", "ground_pathRocks"]
+	var total_tiles: int = 0
+
+	for trail in trails:
+		var dir: Vector3 = trail.get("dir", Vector3.FORWARD)
+		var rot_y: float = trail.get("rot", 0.0)
+		var len_min: int = trail.get("len_range", [5, 10])[0]
+		var len_max: int = trail.get("len_range", [5, 10])[1]
+		var path_len: int = len_min + randi() % (len_max - len_min + 1)
+
+		for i in range(path_len):
+			var px: float = center_x + dir.x * i * 1.0
+			var pz: float = center_z + dir.z * i * 1.0
+			var model_name: String = path_models[randi() % path_models.size()]
+
+			# Try to load GLB path model
+			var loaded := false
+			for base_path in search_paths:
+				if loaded:
+					break
+				for ext in extensions:
+					var path: String = str(base_path) + model_name + "." + str(ext)
+					if ResourceLoader.exists(path):
+						var scene: PackedScene = load(path)
+						if scene:
+							var body := Node3D.new()
+							body.name = "Path_" + str(total_tiles)
+							body.position = Vector3(px, 0.01, pz)
+							body.rotation_degrees.y = rot_y
+							var instance := scene.instantiate()
+							instance.scale = Vector3.ONE * 0.5
+							body.add_child(instance)
+							add_child(body)
+							loaded = true
+							total_tiles += 1
+							break
+
+			# Fallback: brown circle
+			if not loaded:
+				var path_tile := MeshInstance3D.new()
+				path_tile.mesh = CylinderMesh.new()
+				path_tile.mesh.top_radius = 0.45
+				path_tile.mesh.bottom_radius = 0.5
+				path_tile.mesh.height = 0.02
+				path_tile.position = Vector3(px, 0.01, pz)
+				var pmat := StandardMaterial3D.new()
+				pmat.albedo_color = Color(0.42 + randf() * 0.06, 0.32 + randf() * 0.04, 0.18)
+				pmat.roughness = 1.0
+				path_tile.material_override = pmat
+				add_child(path_tile)
+				total_tiles += 1
+
+	# Add path end marker at camp (crossroads)
+	for base_path in search_paths:
+		var cross_path: String = str(base_path) + "ground_pathCross.glb"
+		if ResourceLoader.exists(cross_path):
+			var scene: PackedScene = load(cross_path)
+			if scene:
+				var cross := Node3D.new()
+				cross.name = "PathCross"
+				cross.position = Vector3(center_x, 0.01, center_z)
+				var inst := scene.instantiate()
+				inst.scale = Vector3.ONE * 0.5
+				cross.add_child(inst)
+				add_child(cross)
+				break
+
+	print("[SimWorld] Paths: ", total_tiles, " tiles in 4 directions from camp")
 
 
 func _spawn_agents() -> void:
