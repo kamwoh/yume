@@ -109,31 +109,53 @@ def poisson_scatter(width: float, height: float, count: int, min_spacing: float,
 # TERRAIN GENERATION
 # ============================================================
 
-def generate_terrain(width: float, height: float, seed: int, resolution: int = 64) -> dict:
-    """Generate terrain heightmap + decoration data."""
+def generate_terrain(width: float, height: float, seed: int,
+                     terrain_config: dict | None = None) -> dict:
+    """Generate terrain heightmap + decoration data. All params from config."""
     rng = random.Random(seed)
+    cfg = terrain_config or {}
+
+    resolution = cfg.get("resolution", 128)
+    height_scale = cfg.get("height_scale", 4.0)
+    noise_octaves = cfg.get("noise_octaves", 5)
+    noise_scale = cfg.get("noise_scale", 40.0)
+    noise_persistence = cfg.get("noise_persistence", 0.5)
+    hills_octaves = cfg.get("hills_octaves", 2)
+    hills_scale = cfg.get("hills_scale", 80.0)
+    hills_persistence = cfg.get("hills_persistence", 0.6)
+    hills_amplitude = cfg.get("hills_amplitude", 0.5)
+    camp_flatten_radius = cfg.get("camp_flatten_radius", 20.0)
+    camp_flatten_strength = cfg.get("camp_flatten_strength", 0.9)
+    edge_rise_start = cfg.get("edge_rise_start", 0.7)
+    edge_rise_power = cfg.get("edge_rise_power", 2.0)
+    edge_rise_height = cfg.get("edge_rise_height", 0.6)
 
     # Generate heightmap as flat array [z * resolution + x]
     heights = []
     for z in range(resolution):
         for x in range(resolution):
-            # Convert grid to world coords
             wx = (x / (resolution - 1) - 0.5) * width
             wz = (z / (resolution - 1) - 0.5) * height
 
-            # Multi-octave noise for natural terrain
-            h = multi_octave_noise(wx, wz, seed, octaves=4, scale=30.0, persistence=0.45)
+            # Primary noise
+            h = multi_octave_noise(wx, wz, seed, octaves=noise_octaves,
+                                    scale=noise_scale, persistence=noise_persistence)
 
-            # Flatten center area (camp area)
+            # Rolling hills layer
+            h += multi_octave_noise(wx + 500, wz + 500, seed + 100,
+                                     octaves=hills_octaves, scale=hills_scale,
+                                     persistence=hills_persistence) * hills_amplitude
+
+            # Flatten camp area
             dist_from_center = math.sqrt(wx * wx + wz * wz)
-            camp_flatten = max(0.0, 1.0 - dist_from_center / 15.0)  # Flat within 15 units
-            h *= (1.0 - camp_flatten * 0.8)
+            camp_flatten = max(0.0, 1.0 - dist_from_center / camp_flatten_radius)
+            h *= (1.0 - camp_flatten * camp_flatten_strength)
 
-            # Push edges up slightly (bowl shape — keeps player in)
+            # Edge rise
             edge_dist = max(abs(wx) / (width / 2), abs(wz) / (height / 2))
-            if edge_dist > 0.85:
-                edge_rise = (edge_dist - 0.85) / 0.15
-                h += edge_rise * 0.3
+            if edge_dist > edge_rise_start:
+                edge_t = (edge_dist - edge_rise_start) / (1.0 - edge_rise_start)
+                h += (edge_t ** edge_rise_power) * edge_rise_height
 
             heights.append(round(h, 4))
 
@@ -163,7 +185,7 @@ def generate_terrain(width: float, height: float, seed: int, resolution: int = 6
     return {
         "heightmap": {
             "resolution": resolution,
-            "height_scale": 1.5,
+            "height_scale": height_scale,
             "heights": heights,
         },
         "patches": patches,
@@ -357,12 +379,13 @@ def generate_elements(width: float, height: float, seed: int,
 # MAIN GENERATOR
 # ============================================================
 
-def generate_sim_world(seed: int, width: float = 100, height: float = 100) -> dict:
-    """Generate complete simulation world."""
+def generate_sim_world(seed: int, width: float = 100, height: float = 100,
+                       terrain_config: dict | None = None) -> dict:
+    """Generate complete simulation world. All terrain params from config."""
     camp_x = 0.0
     camp_z = 0.0
 
-    terrain = generate_terrain(width, height, seed)
+    terrain = generate_terrain(width, height, seed, terrain_config)
     edge_trees = generate_edge_trees(width, height, seed)
     paths = generate_paths(camp_x, camp_z, width, height, seed)
     camp = generate_camp(camp_x, camp_z, seed)
@@ -407,7 +430,16 @@ def main():
     sim_dir = data_dir / "sim"
     sim_dir.mkdir(parents=True, exist_ok=True)
 
-    world = generate_sim_world(args.seed, args.size, args.size)
+    # Load terrain config from world_config.json if exists
+    terrain_config = None
+    wc_path = sim_dir / "world_config.json"
+    if wc_path.exists():
+        wc = json.loads(wc_path.read_text())
+        terrain_config = wc.get("terrain", None)
+        if terrain_config:
+            print(f"Terrain config loaded from world_config.json")
+
+    world = generate_sim_world(args.seed, args.size, args.size, terrain_config)
 
     # Save
     output = sim_dir / "generated_world.json"
