@@ -336,41 +336,77 @@ SCATTER_DEFAULTS = [
 ]
 
 
-def generate_elements(width: float, height: float, seed: int,
-                       scatter_config: list | None = None) -> list[dict]:
-    """Scatter all world elements with proper spacing."""
+def generate_elements_from_zones(width: float, height: float, seed: int,
+                                  zones: list) -> list[dict]:
+    """Place elements within defined zones — intentional layout, not random scatter."""
     rng = random.Random(seed)
-    scatter = scatter_config or SCATTER_DEFAULTS
     all_elements = []
-    all_positions = []  # For global spacing check
+    all_positions = []
 
-    # Scale counts by world area relative to 100x100
-    area_scale = (width * height) / 10000.0
+    for zone in zones:
+        zone_id = zone.get("id", "unknown")
+        shape = zone.get("shape", "rect")
+        zone_elements = zone.get("elements", [])
 
-    for sc in scatter:
-        eid = sc["element"]
-        count = int(sc.get("count", 10) * area_scale)
-        min_sp = sc.get("min_spacing", 3)
-        cluster = sc.get("cluster_size", 1)
-        models = ELEMENT_MODELS.get(eid, {"variants": ["_primitive"], "scale_range": [1.0, 1.0]})
+        for sc in zone_elements:
+            eid = sc["element"]
+            count = sc.get("count", 10)
+            min_sp = sc.get("min_spacing", 3)
+            cluster = sc.get("cluster_size", 1)
+            models = ELEMENT_MODELS.get(eid, {"variants": ["_primitive"], "scale_range": [1.0, 1.0]})
 
-        positions = poisson_scatter(width, height, count, min_sp, cluster, rng, all_positions)
+            # Generate positions within zone bounds
+            positions = []
+            for _ in range(count):
+                for _ in range(50):  # attempts
+                    if shape == "circle":
+                        cx, cz = zone.get("center", [0, 0])
+                        r = zone.get("radius", 20)
+                        angle = rng.random() * math.tau
+                        dist = rng.random() * r
+                        x = cx + math.cos(angle) * dist
+                        z = cz + math.sin(angle) * dist
+                    else:  # rect
+                        mn = zone.get("min", [-width/2, -height/2])
+                        mx = zone.get("max", [width/2, height/2])
+                        x = rng.uniform(mn[0], mx[0])
+                        z = rng.uniform(mn[1], mx[1])
 
-        for x, z in positions:
-            variant = rng.choice(models["variants"])
-            sr = models["scale_range"]
-            scale = sr[0] + rng.random() * (sr[1] - sr[0])
+                    # Check bounds
+                    if abs(x) > width / 2 - 2 or abs(z) > height / 2 - 2:
+                        continue
 
-            all_elements.append({
-                "element": eid,
-                "x": round(x, 2),
-                "z": round(z, 2),
-                "model": variant,
-                "scale": round(scale, 2),
-                "rotation_y": round(rng.random() * 360, 1),
-            })
+                    # Check spacing
+                    too_close = False
+                    for px, pz in all_positions:
+                        if (x - px) ** 2 + (z - pz) ** 2 < min_sp ** 2:
+                            too_close = True
+                            break
+                    if too_close:
+                        continue
 
-        all_positions.extend(positions)
+                    # Place + cluster
+                    positions.append((x, z))
+                    for c in range(1, cluster):
+                        cx2 = x + rng.uniform(-1.2, 1.2)
+                        cz2 = z + rng.uniform(-1.2, 1.2)
+                        positions.append((cx2, cz2))
+                    break
+
+            for x, z in positions:
+                variant = rng.choice(models["variants"])
+                sr = models["scale_range"]
+                scale = sr[0] + rng.random() * (sr[1] - sr[0])
+                all_elements.append({
+                    "element": eid,
+                    "x": round(x, 2),
+                    "z": round(z, 2),
+                    "model": variant,
+                    "scale": round(scale, 2),
+                    "rotation_y": round(rng.random() * 360, 1),
+                })
+
+            all_positions.extend(positions)
 
     return all_elements
 
@@ -380,8 +416,9 @@ def generate_elements(width: float, height: float, seed: int,
 # ============================================================
 
 def generate_sim_world(seed: int, width: float = 100, height: float = 100,
-                       terrain_config: dict | None = None) -> dict:
-    """Generate complete simulation world. All terrain params from config."""
+                       terrain_config: dict | None = None,
+                       zones: list | None = None) -> dict:
+    """Generate complete simulation world. All params from config."""
     camp_x = 0.0
     camp_z = 0.0
 
@@ -389,7 +426,18 @@ def generate_sim_world(seed: int, width: float = 100, height: float = 100,
     edge_trees = generate_edge_trees(width, height, seed)
     paths = generate_paths(camp_x, camp_z, width, height, seed)
     camp = generate_camp(camp_x, camp_z, seed)
-    elements = generate_elements(width, height, seed)
+
+    # Use zone-based placement if zones provided, otherwise default scatter
+    if zones:
+        elements = generate_elements_from_zones(width, height, seed, zones)
+    else:
+        # Fallback: convert old scatter config to single zone
+        default_zone = [{
+            "id": "world", "shape": "rect",
+            "min": [-width/2 + 2, -height/2 + 2], "max": [width/2 - 2, height/2 - 2],
+            "elements": SCATTER_DEFAULTS
+        }]
+        elements = generate_elements_from_zones(width, height, seed, default_zone)
 
     world = {
         "seed": seed,
@@ -440,7 +488,15 @@ def main():
         if terrain_config:
             print(f"Terrain config loaded from world_config.json")
 
-    world = generate_sim_world(args.seed, args.size, args.size, terrain_config)
+    # Load zones config
+    zones = None
+    if wc_path.exists():
+        wc2 = json.loads(wc_path.read_text())
+        zones = wc2.get("zones", None)
+        if zones:
+            print(f"Zones loaded: {len(zones)} zones")
+
+    world = generate_sim_world(args.seed, args.size, args.size, terrain_config, zones)
 
     # Save
     output = sim_dir / "generated_world.json"
