@@ -163,7 +163,7 @@ def generate_terrain(width: float, height: float, seed: int, resolution: int = 6
     return {
         "heightmap": {
             "resolution": resolution,
-            "height_scale": 3.0,
+            "height_scale": 1.5,
             "heights": heights,
         },
         "patches": patches,
