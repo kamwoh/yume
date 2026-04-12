@@ -80,22 +80,34 @@ func _build_mesh() -> void:
 			if n2.y < 0:
 				n2 = -n2
 
+			# UV coords for texture tiling
+			var uv00 := Vector2(float(x) / (resolution - 1), float(z) / (resolution - 1))
+			var uv10 := Vector2(float(x + 1) / (resolution - 1), float(z) / (resolution - 1))
+			var uv01 := Vector2(float(x) / (resolution - 1), float(z + 1) / (resolution - 1))
+			var uv11 := Vector2(float(x + 1) / (resolution - 1), float(z + 1) / (resolution - 1))
+
 			# Triangle 1: v00, v10, v01
 			st.set_normal(n1)
 			st.set_color(c00)
+			st.set_uv(uv00)
 			st.add_vertex(v00)
 			st.set_color(c10)
+			st.set_uv(uv10)
 			st.add_vertex(v10)
 			st.set_color(c01)
+			st.set_uv(uv01)
 			st.add_vertex(v01)
 
 			# Triangle 2: v10, v11, v01
 			st.set_normal(n2)
 			st.set_color(c10)
+			st.set_uv(uv10)
 			st.add_vertex(v10)
 			st.set_color(c11)
+			st.set_uv(uv11)
 			st.add_vertex(v11)
 			st.set_color(c01)
+			st.set_uv(uv01)
 			st.add_vertex(v01)
 
 	var mesh := st.commit()
@@ -103,12 +115,25 @@ func _build_mesh() -> void:
 	terrain_mesh.name = "TerrainMesh"
 	terrain_mesh.mesh = mesh
 
-	# Material — vertex colors for terrain variation + green base fallback
+	# Material — grass texture tiled + vertex colors for variation
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
-	mat.albedo_color = base_color  # Fallback if vertex colors don't render
+	mat.albedo_color = base_color
+
+	# Try loading grass texture
+	var grass_tex_path: String = "res://textures/grass.png"
+	if ResourceLoader.exists(grass_tex_path):
+		var tex: Texture2D = load(grass_tex_path)
+		if tex:
+			mat.albedo_texture = tex
+			# Tile the texture across terrain
+			mat.uv1_scale = Vector3(world_w / 4.0, world_h / 4.0, 1.0)
+			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			# Vertex color multiplies with texture
+			mat.vertex_color_use_as_albedo = true
+			print("[Terrain] Grass texture loaded and tiled")
+
 	mat.roughness = 0.9
-	# Default CULL_BACK is fine — don't render underside
 	terrain_mesh.material_override = mat
 	add_child(terrain_mesh)
 
