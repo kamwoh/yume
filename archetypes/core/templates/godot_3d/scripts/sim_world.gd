@@ -139,25 +139,8 @@ func _build_heightmap_terrain() -> void:
 			terrain.build_from_data(hmap, world_w, world_h)
 			terrain_node = terrain
 
-			# Place flowers on terrain surface
-			var flowers: Array = terrain_data.get("flowers", [])
-			for f in flowers:
-				var fx: float = f.get("x", 0)
-				var fz: float = f.get("z", 0)
-				var fh: float = terrain.get_height_at(fx, fz)
-				var flower := MeshInstance3D.new()
-				flower.mesh = SphereMesh.new()
-				flower.mesh.radius = f.get("size", 0.06)
-				flower.mesh.height = f.get("size", 0.06) * 2
-				flower.position = Vector3(fx, fh + 0.05, fz)
-				var fmat := StandardMaterial3D.new()
-				var fc: Dictionary = {"yellow": Color(0.9, 0.85, 0.2), "red": Color(0.9, 0.3, 0.3),
-					"white": Color(0.95, 0.95, 0.9), "purple": Color(0.6, 0.3, 0.8)}
-				fmat.albedo_color = fc.get(str(f.get("color", "white")), Color.WHITE)
-				flower.material_override = fmat
-				add_child(flower)
-
-			print("[SimWorld] Heightmap terrain + ", flowers.size(), " flowers")
+			# Flowers are now handled by element scatter (grass_detail) — no need for separate sphere flowers
+			print("[SimWorld] Heightmap terrain built")
 			return
 
 	# Fallback: flat ground
