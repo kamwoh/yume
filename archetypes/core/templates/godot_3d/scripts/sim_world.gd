@@ -245,6 +245,13 @@ func _build_terrain() -> void:
 
 
 func _build_edge_trees() -> void:
+	# Load tree tint config
+	var tree_tint: Dictionary = {}
+	for edef in elements_config:
+		if str(edef.get("id", "")) == "tree":
+			tree_tint = edef.get("tint", {})
+			break
+
 	var edge_trees: Array = world_data.get("edge_trees", [])
 	for et in edge_trees:
 		var ex: float = et.get("x", 0)
@@ -252,12 +259,13 @@ func _build_edge_trees() -> void:
 		var ey: float = 0.0
 		if terrain_node and terrain_node.has_method("get_height_at"):
 			ey = terrain_node.get_height_at(ex, ez)
-		_load_model_at(
-			str(et.get("model", "tree_default")),
-			Vector3(ex, ey, ez),
-			et.get("scale", 1.0),
-			et.get("rotation_y", 0)
-		)
+		var node := Node3D.new()
+		node.name = "EdgeTree_" + str(randi() % 10000)
+		node.position = Vector3(ex, ey, ez)
+		if _try_add_model(node, str(et.get("model", "tree_default")), et.get("scale", 1.0), et.get("rotation_y", 0)):
+			if tree_tint.get("enabled", false):
+				_apply_tint(node, tree_tint)
+		add_child(node)
 	print("[SimWorld] Edge trees: ", edge_trees.size())
 
 
