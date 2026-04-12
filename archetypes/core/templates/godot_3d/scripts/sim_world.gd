@@ -29,6 +29,8 @@ func _ready() -> void:
 	_build_environment()
 	_build_ground()
 	_scatter_elements()
+	_build_starting_camp()
+	_build_dirt_path()
 	_spawn_agents()
 	_add_ui()
 	_add_frame_capture()
@@ -479,6 +481,76 @@ func _tint_element_model(_node: Node, _element_id: String) -> void:
 	# Tinting overrides the texture with flat color, making everything gray.
 	# Only primitives (fallback) get colored.
 	pass
+
+
+func _build_starting_camp() -> void:
+	var camp: Dictionary = world_config.get("starting_camp", {})
+	if camp.is_empty():
+		return
+	var center: Dictionary = camp.get("center", {})
+	var cx: float = center.get("gx", 20) - world_w / 2
+	var cz: float = center.get("gz", 20) - world_h / 2
+	var camp_elements: Array = camp.get("elements", [])
+
+	for ce in camp_elements:
+		var el_id: String = str(ce.get("element", ""))
+		var off: Dictionary = ce.get("offset", {})
+		var ox: float = off.get("x", 0)
+		var oz: float = off.get("z", 0)
+		var pos := Vector3(cx + ox, 0, cz + oz)
+
+		# Find element def
+		var element_def: Dictionary = {}
+		for el in elements_config:
+			if str(el.get("id", "")) == el_id:
+				element_def = el
+				break
+		if element_def.is_empty():
+			continue
+
+		var model_name: String = str(element_def.get("model", "_primitive"))
+		var variants: Array = element_def.get("model_variants", [])
+		if variants.size() > 0:
+			model_name = str(variants[randi() % variants.size()])
+		var mscale: float = element_def.get("model_scale", 1.0)
+		_spawn_element(el_id, element_def, model_name, mscale, pos)
+
+	print("[SimWorld] Starting camp built at (", cx, ",", cz, ") with ", camp_elements.size(), " elements")
+
+
+func _build_dirt_path() -> void:
+	## Draw a dirt-colored path from camp toward resources
+	var center_x: float = 0.0
+	var center_z: float = 0.0
+	var camp: Dictionary = world_config.get("starting_camp", {})
+	if not camp.is_empty():
+		var c: Dictionary = camp.get("center", {})
+		center_x = c.get("gx", 20) - world_w / 2
+		center_z = c.get("gz", 20) - world_h / 2
+
+	# Create path segments radiating from camp
+	var path_dirs: Array = [
+		Vector3(1, 0, 0), Vector3(-1, 0, 0),
+		Vector3(0, 0, 1), Vector3(0.7, 0, 0.7),
+	]
+	for dir in path_dirs:
+		var path_len: int = 5 + randi() % 8
+		for i in range(path_len):
+			var px: float = center_x + dir.x * i * 1.2 + randf_range(-0.2, 0.2)
+			var pz: float = center_z + dir.z * i * 1.2 + randf_range(-0.2, 0.2)
+			var path_tile := MeshInstance3D.new()
+			path_tile.mesh = CylinderMesh.new()
+			path_tile.mesh.top_radius = 0.4 + randf() * 0.2
+			path_tile.mesh.bottom_radius = 0.5 + randf() * 0.2
+			path_tile.mesh.height = 0.02
+			path_tile.position = Vector3(px, 0.01, pz)
+			var pmat := StandardMaterial3D.new()
+			pmat.albedo_color = Color(0.42 + randf() * 0.06, 0.32 + randf() * 0.04, 0.18 + randf() * 0.04)
+			pmat.roughness = 1.0
+			path_tile.material_override = pmat
+			add_child(path_tile)
+
+	print("[SimWorld] Dirt paths built from camp")
 
 
 func _spawn_agents() -> void:
