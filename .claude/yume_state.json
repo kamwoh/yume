@@ -1,21 +1,34 @@
 {
   "current_project": "Yume3D",
-  "project_path": "/mnt/c/Users/kamwoh/Documents/Projects/Godot/Yume3D",
-  "current_phase": "phase_2_complete",
-  "last_test_result": "3 biome dungeons generated + visual QA verified (dungeon/cave/castle). All shapes working.",
+  "current_phase": "simulation_game_design",
+  "last_session_date": "2026-04-12",
   "completed": [
-    "Phase 1: 3D engine (grid rooms, GLBs, player, camera, collision)",
+    "Phase 1: 3D engine (14 core scripts)",
     "Phase 1.5: Seamless multi-room, minimap, HP bar, A* pathfinding, camera brains",
-    "Phase 2a: Irregular room shapes (rectangle, L, T, cave, circular, alcove)",
-    "Phase 2b: Multi-floor support (--floors N)",
-    "Phase 2c: 6 biomes (dungeon/town/forest/cave/castle/interior) + 7 lighting moods",
-    "Phase 2d: Visual QA verified 3 diverse dungeons"
+    "Phase 2: Procedural gen (6 shapes, 6 biomes, multi-floor, 2D layout)",
+    "Simulation data files (elements, recipes, needs, world_rules, items, world_config)",
+    "brain_needs_driven.gd + inventory.gd",
+    "8 game codebase studies (docs 18-24)",
+    "100+ reference image analysis (docs/25)",
+    "143 lessons in knowledge base"
   ],
   "next_steps": [
-    "Phase 3: Data export (frames + camera + actions + scene graph)",
-    "Phase 7: Level 3 emergent worlds (needs + elements + recipes)",
-    "Phase 7b: LLM brains (claude -p + screenshots)"
+    "Build sim_world.gd — flat green field, scatter elements naturally, day/night cycle",
+    "Wire NeedsDrivenBrain — agent gathers, eats, builds",
+    "World rules engine — ABMs (growth, fire, decay)",
+    "Multi-agent with sentiments and personalities",
+    "Recording + data export"
   ],
-  "generator_command": "python tools/generate_dungeon.py data/ --rooms N --seed S --biome B --floors F",
-  "lessons_count": 141
+  "design_doc": "docs/25_simulation_world_design.md",
+  "reference_images": "/mnt/c/Users/kamwoh/Downloads/ref/ (87+ images)",
+  "codebase_studies": {
+    "veloren": "NPC simulation (rtsim), action composition, sentiments",
+    "openmw": "Stack-based AI, dialogue, schedules",
+    "freedom_hunter": "Godot combat, NavigationAgent3D",
+    "voxelibre": "Minecraft crafting, farming ABMs, mob AI",
+    "luanti": "Modding API, 5 registration systems",
+    "openciv": "Procedural map gen, A*",
+    "opents2": "Needs + autonomy scoring"
+  },
+  "lessons_count": 143
 }
