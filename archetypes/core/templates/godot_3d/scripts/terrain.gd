@@ -10,10 +10,10 @@ var resolution: int = 64
 var world_w: float = 100.0
 var world_h: float = 100.0
 var height_scale: float = 1.0
-var base_color := Color(0.42, 0.62, 0.30)    # Bright grass green
-var slope_color := Color(0.52, 0.44, 0.34)  # Warm brown for steep slopes
-var low_color := Color(0.35, 0.55, 0.25)    # Slightly darker green for valleys
-var high_color := Color(0.48, 0.65, 0.35)   # Lighter green for hilltops
+var base_color := Color(0.45, 0.68, 0.32)    # Vivid grass green
+var slope_color := Color(0.55, 0.48, 0.35)  # Warm brown for steep slopes
+var low_color := Color(0.40, 0.60, 0.28)    # Slightly darker green for valleys
+var high_color := Color(0.52, 0.72, 0.38)   # Lighter green for hilltops
 
 
 func build_from_data(data: Dictionary, w: float, h: float) -> void:
@@ -56,9 +56,14 @@ func _build_mesh() -> void:
 			var c01 := _height_color(v01.y, x, z + 1)
 			var c11 := _height_color(v11.y, x + 1, z + 1)
 
-			# Normal for lighting
+			# Normals — compute from cross product, ensure pointing UP
 			var n1 := (v10 - v00).cross(v01 - v00).normalized()
 			var n2 := (v01 - v11).cross(v10 - v11).normalized()
+			# Flip if pointing down
+			if n1.y < 0:
+				n1 = -n1
+			if n2.y < 0:
+				n2 = -n2
 
 			# Triangle 1: v00, v10, v01
 			st.set_normal(n1)
