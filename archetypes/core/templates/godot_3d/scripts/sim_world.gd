@@ -130,6 +130,26 @@ func _build_ground() -> void:
 	col.position.y = -0.05
 	ground.add_child(col)
 
+	# Terrain bumps — subtle hills to break flat ground
+	for i in range(12):
+		var hill := MeshInstance3D.new()
+		hill.mesh = SphereMesh.new()
+		var hill_r: float = 3.0 + randf() * 5.0
+		var hill_h: float = 0.3 + randf() * 0.7
+		hill.mesh.radius = hill_r
+		hill.mesh.height = hill_h * 2
+		hill.position = Vector3(
+			randf_range(-world_w / 2 + 3, world_w / 2 - 3),
+			-hill_r + hill_h,
+			randf_range(-world_h / 2 + 3, world_h / 2 - 3)
+		)
+		hill.scale = Vector3(1.0, hill_h / hill_r, 1.0)
+		var hill_mat := StandardMaterial3D.new()
+		hill_mat.albedo_color = Color(0.32 + randf() * 0.06, 0.52 + randf() * 0.06, 0.22 + randf() * 0.06)
+		hill_mat.roughness = 1.0
+		hill.material_override = hill_mat
+		ground.add_child(hill)
+
 	add_child(ground)
 
 	# Ground variation — scatter darker/lighter grass patches
