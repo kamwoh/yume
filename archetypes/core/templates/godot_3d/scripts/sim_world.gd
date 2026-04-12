@@ -1,36 +1,33 @@
 extends Node3D
 
-## Simulation World — open field with naturally scattered elements.
-## Reads data/sim/world_config.json for layout.
-## Handles: ground plane, element scattering, lighting, day/night cycle.
-## NOT a dungeon grid — this is an outdoor natural world.
+## Simulation World — reads generated_world.json and renders everything.
+## ALL content comes from JSON. Godot only renders — no random generation here.
+## Use tools/generate_sim_world.py to create the JSON.
 
-var world_config: Dictionary = {}
-var elements_config: Array = []
+var world_data: Dictionary = {}
 var asset_config: Dictionary = {}
 var meta_config: Dictionary = {}
+var world_w: float = 100.0
+var world_h: float = 100.0
 
 # Day/night
 var day_night_enabled: bool = true
 var cycle_seconds: float = 300.0
 var day_ratio: float = 0.7
-var time_of_day: float = 0.3  # 0-1, start at morning
+var time_of_day: float = 0.3
 var sun_node: DirectionalLight3D
 var env: Environment
-
-# World
-var world_w: float = 40.0
-var world_h: float = 40.0
-var tile_size: float = 1.0
 
 
 func _ready() -> void:
 	_load_configs()
 	_build_environment()
 	_build_ground()
-	_scatter_elements()
-	_build_starting_camp()
-	_build_dirt_path()
+	_build_terrain()
+	_build_edge_trees()
+	_build_paths()
+	_build_camp()
+	_build_elements()
 	_spawn_agents()
 	_add_ui()
 	_add_frame_capture()
@@ -38,25 +35,16 @@ func _ready() -> void:
 
 
 func _load_configs() -> void:
-	var wc_file := FileAccess.open("res://data/sim/world_config.json", FileAccess.READ)
-	if wc_file:
-		var data = JSON.parse_string(wc_file.get_as_text())
+	# Load generated world
+	var wf := FileAccess.open("res://data/sim/generated_world.json", FileAccess.READ)
+	if wf:
+		var data = JSON.parse_string(wf.get_as_text())
 		if data is Dictionary:
-			world_config = data
+			world_data = data
 			var ws: Dictionary = data.get("world_size", {})
-			world_w = ws.get("width", 40.0)
-			world_h = ws.get("height", 40.0)
-			tile_size = data.get("tile_size", 1.0)
-			var dn: Dictionary = data.get("day_night", {})
-			day_night_enabled = dn.get("enabled", true)
-			cycle_seconds = dn.get("cycle_seconds", 300.0)
-			day_ratio = dn.get("day_ratio", 0.7)
-
-	var el_file := FileAccess.open("res://data/sim/elements.json", FileAccess.READ)
-	if el_file:
-		var data = JSON.parse_string(el_file.get_as_text())
-		if data is Dictionary:
-			elements_config = data.get("elements", [])
+			world_w = ws.get("width", 100.0)
+			world_h = ws.get("height", 100.0)
+			print("[SimWorld] Loaded generated world: ", world_w, "x", world_h, " seed=", data.get("seed", "?"))
 
 	var ac_file := FileAccess.open("res://data/asset_config.json", FileAccess.READ)
 	if ac_file:
@@ -70,682 +58,406 @@ func _load_configs() -> void:
 		if data is Dictionary:
 			meta_config = data
 
+	var dn: Dictionary = world_data.get("day_night", {})
+	day_night_enabled = dn.get("enabled", true)
+	cycle_seconds = dn.get("cycle_seconds", 300.0)
+	day_ratio = dn.get("day_ratio", 0.7)
+
 
 func _build_environment() -> void:
-	var atmo: Dictionary = world_config.get("atmosphere", {})
-	var bg_arr = atmo.get("bg_color", [0.4, 0.6, 0.8])
-	var amb_arr = atmo.get("ambient_light", [0.4, 0.45, 0.35])
-	var bg_color := Color(bg_arr[0], bg_arr[1], bg_arr[2]) if bg_arr is Array and bg_arr.size() >= 3 else Color(0.4, 0.6, 0.8)
-	var amb_color := Color(amb_arr[0], amb_arr[1], amb_arr[2]) if amb_arr is Array and amb_arr.size() >= 3 else Color(0.4, 0.45, 0.35)
+	var atmo: Dictionary = world_data.get("atmosphere", {})
+	var bg = atmo.get("bg_color", [0.47, 0.65, 1.0])
+	var amb = atmo.get("ambient_light", [0.4, 0.45, 0.35])
+	var sun_col = atmo.get("sun_color", [1.0, 0.9, 0.7])
+	var sun_rot = atmo.get("sun_rotation", [-45, 30, 0])
 
-	# Sun
 	sun_node = DirectionalLight3D.new()
 	sun_node.name = "Sun"
-	sun_node.rotation_degrees = Vector3(-45, 30, 0)
+	sun_node.rotation_degrees = Vector3(sun_rot[0], sun_rot[1], sun_rot[2])
 	sun_node.light_energy = atmo.get("sun_energy", 0.8)
-	sun_node.light_color = Color(1.0, 0.9, 0.7)  # Warmer golden sun
+	sun_node.light_color = Color(sun_col[0], sun_col[1], sun_col[2])
 	sun_node.shadow_enabled = true
 	add_child(sun_node)
 
-	# Environment
 	var env_node := WorldEnvironment.new()
 	env = Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = bg_color
+	env.background_color = Color(bg[0], bg[1], bg[2])
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = amb_color
+	env.ambient_light_color = Color(amb[0], amb[1], amb[2])
 	env.ambient_light_energy = 0.5
-	# Fog — heavier to hide world edges and create depth
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.65, 0.72, 0.82)
-	env.fog_density = 0.02
+	env.fog_light_color = Color(atmo.get("fog_color", [0.65, 0.72, 0.82])[0], atmo.get("fog_color", [0.65, 0.72, 0.82])[1], atmo.get("fog_color", [0.65, 0.72, 0.82])[2])
+	env.fog_density = atmo.get("fog_density", 0.015)
 	env.fog_sky_affect = 0.8
-
-	# Note: tonemap and SSAO not supported in gl_compatibility renderer
 	env_node.environment = env
 	add_child(env_node)
 
-	print("[SimWorld] Environment built: sun=", sun_node.light_energy, " fog=on")
-
 
 func _build_ground() -> void:
-	# Large flat green plane
 	var ground := StaticBody3D.new()
 	ground.name = "Ground"
-
 	var mesh_inst := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(world_w, world_h)
 	mesh_inst.mesh = plane
-
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.35, 0.55, 0.25)  # Grass green
+	mat.albedo_color = Color(0.35, 0.55, 0.25)
 	mat.roughness = 0.9
 	mesh_inst.material_override = mat
 	ground.add_child(mesh_inst)
 
-	# Collision
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(world_w, 0.1, world_h)
 	col.shape = box
 	col.position.y = -0.05
 	ground.add_child(col)
-
-	# Terrain bumps — scaled to world size
-	var num_hills: int = int(world_w * world_h / 120)
-	for i in range(num_hills):
-		var hill := MeshInstance3D.new()
-		hill.mesh = SphereMesh.new()
-		var hill_r: float = 3.0 + randf() * 5.0
-		var hill_h: float = 0.3 + randf() * 0.7
-		hill.mesh.radius = hill_r
-		hill.mesh.height = hill_h * 2
-		hill.position = Vector3(
-			randf_range(-world_w / 2 + 3, world_w / 2 - 3),
-			-hill_r + hill_h,
-			randf_range(-world_h / 2 + 3, world_h / 2 - 3)
-		)
-		hill.scale = Vector3(1.0, hill_h / hill_r, 1.0)
-		var hill_mat := StandardMaterial3D.new()
-		hill_mat.albedo_color = Color(0.32 + randf() * 0.06, 0.52 + randf() * 0.06, 0.22 + randf() * 0.06)
-		hill_mat.roughness = 1.0
-		hill.material_override = hill_mat
-		ground.add_child(hill)
-
 	add_child(ground)
 
-	# Ground variation — scaled to world size
-	var num_patches: int = int(world_w * world_h / 50)
-	for i in range(num_patches):
+	# Ground patches from JSON
+	var patches: Array = world_data.get("terrain", {}).get("patches", [])
+	for p in patches:
 		var patch := MeshInstance3D.new()
 		patch.mesh = CylinderMesh.new()
-		var patch_size: float = 1.5 + randf() * 3.0
-		patch.mesh.top_radius = patch_size
-		patch.mesh.bottom_radius = patch_size * 1.1
+		patch.mesh.top_radius = p.get("radius", 2.0)
+		patch.mesh.bottom_radius = p.get("radius", 2.0) * 1.1
 		patch.mesh.height = 0.02
-		patch.position = Vector3(
-			randf_range(-world_w / 2 + 2, world_w / 2 - 2),
-			0.01,
-			randf_range(-world_h / 2 + 2, world_h / 2 - 2)
-		)
-		var patch_mat := StandardMaterial3D.new()
-		var variation: float = randf() * 0.08
-		if randf() > 0.5:
-			# Lighter grass patch
-			patch_mat.albedo_color = Color(0.38 + variation, 0.58 + variation, 0.28 + variation)
+		patch.position = Vector3(p.get("x", 0), 0.01, p.get("z", 0))
+		var pmat := StandardMaterial3D.new()
+		var shade: String = str(p.get("shade", "lighter"))
+		if shade == "lighter":
+			pmat.albedo_color = Color(0.38, 0.58, 0.28)
 		else:
-			# Darker grass patch
-			patch_mat.albedo_color = Color(0.3 - variation, 0.48 - variation, 0.2 - variation)
-		patch.material_override = patch_mat
+			pmat.albedo_color = Color(0.3, 0.48, 0.2)
+		patch.material_override = pmat
 		ground.add_child(patch)
 
-	# Small flower/detail dots on ground — scaled to world
-	var flower_colors: Array = [
-		Color(0.9, 0.85, 0.2),
-		Color(0.9, 0.3, 0.3),
-		Color(0.95, 0.95, 0.9),
-		Color(0.6, 0.3, 0.8),
-	]
-	var num_flowers: int = int(world_w * world_h / 25)
-	for i in range(num_flowers):
+	# Flowers from JSON
+	var flower_color_map: Dictionary = {
+		"yellow": Color(0.9, 0.85, 0.2),
+		"red": Color(0.9, 0.3, 0.3),
+		"white": Color(0.95, 0.95, 0.9),
+		"purple": Color(0.6, 0.3, 0.8),
+	}
+	var flowers: Array = world_data.get("terrain", {}).get("flowers", [])
+	for f in flowers:
 		var flower := MeshInstance3D.new()
 		flower.mesh = SphereMesh.new()
-		flower.mesh.radius = 0.06 + randf() * 0.06
-		flower.mesh.height = 0.1
-		flower.position = Vector3(
-			randf_range(-world_w / 2 + 1, world_w / 2 - 1),
-			0.05,
-			randf_range(-world_h / 2 + 1, world_h / 2 - 1)
-		)
-		var flower_mat := StandardMaterial3D.new()
-		flower_mat.albedo_color = flower_colors[randi() % flower_colors.size()]
-		flower.material_override = flower_mat
+		flower.mesh.radius = f.get("size", 0.06)
+		flower.mesh.height = f.get("size", 0.06) * 2
+		flower.position = Vector3(f.get("x", 0), 0.05, f.get("z", 0))
+		var fmat := StandardMaterial3D.new()
+		fmat.albedo_color = flower_color_map.get(str(f.get("color", "white")), Color.WHITE)
+		flower.material_override = fmat
 		ground.add_child(flower)
 
-	# Edge trees — scaled to world perimeter
-	var num_edge_trees: int = int((world_w + world_h) * 2 / 1.5)
-	for i in range(num_edge_trees):
-		var angle: float = (float(i) / float(num_edge_trees)) * TAU
-		var radius: float = (world_w / 2.0) - 1.0 + randf() * 2.0
-		var edge_x: float = cos(angle) * radius
-		var edge_z: float = sin(angle) * radius
-		# Only if within world bounds
-		if abs(edge_x) < world_w / 2 and abs(edge_z) < world_h / 2:
-			var edge_tree := MeshInstance3D.new()
-			# Trunk
-			var etrunk := MeshInstance3D.new()
-			etrunk.mesh = CylinderMesh.new()
-			var eth: float = 2.5 + randf() * 1.5
-			etrunk.mesh.top_radius = 0.1
-			etrunk.mesh.bottom_radius = 0.18
-			etrunk.mesh.height = eth
-			etrunk.position = Vector3(edge_x, eth / 2, edge_z)
-			var etrunk_mat := StandardMaterial3D.new()
-			etrunk_mat.albedo_color = Color(0.4, 0.25, 0.12)
-			etrunk.material_override = etrunk_mat
-			ground.add_child(etrunk)
-			# Canopy
-			var ecanopy := MeshInstance3D.new()
-			ecanopy.mesh = SphereMesh.new()
-			var ecr: float = 0.8 + randf() * 0.5
-			ecanopy.mesh.radius = ecr
-			ecanopy.mesh.height = ecr * 1.5
-			ecanopy.position = Vector3(edge_x, eth + ecr * 0.3, edge_z)
-			var ecanopy_mat := StandardMaterial3D.new()
-			ecanopy_mat.albedo_color = Color(0.12 + randf() * 0.08, 0.4 + randf() * 0.1, 0.08 + randf() * 0.05)
-			ecanopy.material_override = ecanopy_mat
-			ground.add_child(ecanopy)
-
-	print("[SimWorld] Ground: ", world_w, "x", world_h, " + patches + flowers + edge trees")
+	print("[SimWorld] Ground: ", world_w, "x", world_h, " + ", patches.size(), " patches + ", flowers.size(), " flowers")
 
 
-func _scatter_elements() -> void:
-	var scatter_config: Array = world_config.get("element_scatter", [])
-	var total_elements: int = 0
-
-	for scatter in scatter_config:
-		var element_id: String = str(scatter.get("element", ""))
-		var count: int = scatter.get("count", 5)
-		var min_spacing: float = scatter.get("min_spacing", 3.0)
-		var cluster_size: int = scatter.get("cluster_size", 1)
-
-		# Find element definition
-		var element_def: Dictionary = {}
-		for el in elements_config:
-			if str(el.get("id", "")) == element_id:
-				element_def = el
-				break
-
-		if element_def.is_empty():
-			continue
-
-		var model_name: String = str(element_def.get("model", "rocks"))
-		var model_scale: float = element_def.get("model_scale", 1.0)
-		var placed_positions: Array = []
-
-		for i in range(count):
-			# Find position with min_spacing from existing
-			var pos := Vector3.ZERO
-			var valid := false
-			for attempt in range(50):
-				pos = Vector3(
-					randf_range(-world_w / 2 + 2, world_w / 2 - 2),
-					0,
-					randf_range(-world_h / 2 + 2, world_h / 2 - 2)
-				)
-				valid = true
-				for existing in placed_positions:
-					if pos.distance_to(existing) < min_spacing:
-						valid = false
-						break
-				if valid:
-					break
-
-			if not valid:
-				continue
-
-			# Place cluster
-			for c in range(cluster_size):
-				var cluster_offset := Vector3(
-					randf_range(-1.0, 1.0) * c,
-					0,
-					randf_range(-1.0, 1.0) * c
-				)
-				var final_pos: Vector3 = pos + cluster_offset
-				_spawn_element(element_id, element_def, model_name, model_scale, final_pos)
-				total_elements += 1
-
-			placed_positions.append(pos)
-
-	print("[SimWorld] Scattered ", total_elements, " elements")
+func _build_terrain() -> void:
+	var hills: Array = world_data.get("terrain", {}).get("hills", [])
+	for h in hills:
+		var hill := MeshInstance3D.new()
+		hill.mesh = SphereMesh.new()
+		var r: float = h.get("radius", 3.0)
+		var height: float = h.get("height", 0.5)
+		hill.mesh.radius = r
+		hill.mesh.height = r * 2
+		hill.position = Vector3(h.get("x", 0), -r + height, h.get("z", 0))
+		hill.scale = Vector3(1.0, height / r, 1.0)
+		var hmat := StandardMaterial3D.new()
+		hmat.albedo_color = Color(0.33, 0.53, 0.23)
+		hmat.roughness = 1.0
+		hill.material_override = hmat
+		add_child(hill)
+	print("[SimWorld] Terrain: ", hills.size(), " hills")
 
 
-func _spawn_element(element_id: String, element_def: Dictionary, model_name: String, model_scale: float, pos: Vector3) -> void:
-	var body := StaticBody3D.new()
-	body.name = "Element_" + element_id + "_" + str(randi() % 10000)
-	body.position = pos
-	body.add_to_group("sim_element")
-	body.set_meta("element_id", element_id)
-	body.set_meta("element_data", element_def)
-
-	# Load model — pick from variants if available, primitives as fallback
-	var model_loaded := false
-
-	# Check for model_variants — pick a random one
-	var variants: Array = element_def.get("model_variants", [])
-	var actual_model: String = model_name
-	if variants.size() > 0:
-		actual_model = str(variants[randi() % variants.size()])
-
-	if actual_model != "_primitive":
-		var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
-		var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
-		var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
-		var actual_scale: float = scale_map.get(actual_model, 1.0) * model_scale
-
-		for base_path in search_paths:
-			if model_loaded:
-				break
-			for ext in extensions:
-				var path: String = str(base_path) + actual_model + "." + str(ext)
-				if ResourceLoader.exists(path):
-					var scene: PackedScene = load(path)
-					if scene:
-						var instance := scene.instantiate()
-						instance.name = "Model"
-						instance.scale = Vector3.ONE * actual_scale
-						instance.rotation.y = randf() * TAU
-						body.add_child(instance)
-						model_loaded = true
-						break
-
-	if not model_loaded:
-		# Fallback: colored primitive shapes per element type
-		var mesh := MeshInstance3D.new()
-		var mat := StandardMaterial3D.new()
-
-		# Random size variation for natural feel
-		var size_var: float = 0.7 + randf() * 0.6  # 0.7 to 1.3
-
-		match element_id:
-			"tree":
-				# Brown trunk
-				var trunk_h: float = 1.5 + randf() * 1.5  # 1.5-3.0 height
-				var trunk := MeshInstance3D.new()
-				trunk.mesh = CylinderMesh.new()
-				trunk.mesh.top_radius = 0.08 * size_var
-				trunk.mesh.bottom_radius = 0.15 * size_var
-				trunk.mesh.height = trunk_h * size_var
-				trunk.position.y = trunk_h * size_var / 2.0
-				var trunk_mat := StandardMaterial3D.new()
-				trunk_mat.albedo_color = Color(0.4 + randf() * 0.1, 0.25 + randf() * 0.1, 0.12)
-				trunk.material_override = trunk_mat
-				body.add_child(trunk)
-				# Green foliage — sphere or slightly squashed
-				var foliage_r: float = (0.6 + randf() * 0.5) * size_var
-				mesh.mesh = SphereMesh.new()
-				mesh.mesh.radius = foliage_r
-				mesh.mesh.height = foliage_r * (1.2 + randf() * 0.6)
-				mesh.position.y = trunk_h * size_var + foliage_r * 0.4
-				var green_var: float = randf() * 0.15
-				mat.albedo_color = Color(0.15 + green_var, 0.45 + green_var + randf() * 0.15, 0.1 + green_var)
-			"stone":
-				# Bigger rocks — visible from distance
-				var sx: float = (0.7 + randf() * 0.8) * size_var
-				var sy: float = (0.4 + randf() * 0.6) * size_var
-				var sz: float = (0.6 + randf() * 0.7) * size_var
-				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(sx, sy, sz)
-				mesh.position.y = sy / 2.0
-				mesh.rotation.y = randf() * TAU
-				var gray: float = 0.45 + randf() * 0.15
-				mat.albedo_color = Color(gray, gray - 0.02, gray - 0.05)
-				mat.roughness = 0.95
-			"water":
-				# Blue translucent flat pool — slightly sunken
-				var pool_size: float = (1.5 + randf() * 1.0) * size_var
-				mesh.mesh = CylinderMesh.new()
-				mesh.mesh.top_radius = pool_size
-				mesh.mesh.bottom_radius = pool_size * 1.1
-				mesh.mesh.height = 0.08
-				mesh.position.y = -0.02
-				mat.albedo_color = Color(0.15, 0.35, 0.7, 0.75)
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				mat.metallic = 0.3
-				mat.roughness = 0.1
-			"dirt":
-				# Brown patch slightly raised
-				mesh.mesh = CylinderMesh.new()
-				mesh.mesh.top_radius = 0.6 * size_var
-				mesh.mesh.bottom_radius = 0.7 * size_var
-				mesh.mesh.height = 0.08
-				mesh.position.y = 0.02
-				mat.albedo_color = Color(0.4 + randf() * 0.1, 0.28 + randf() * 0.08, 0.15)
-				mat.roughness = 1.0
-			"campfire":
-				# Log pile base + glowing ember
-				var log1 := MeshInstance3D.new()
-				log1.mesh = CylinderMesh.new()
-				log1.mesh.top_radius = 0.06
-				log1.mesh.bottom_radius = 0.06
-				log1.mesh.height = 0.6
-				log1.position = Vector3(0, 0.06, 0)
-				log1.rotation.z = PI / 2
-				var log_mat := StandardMaterial3D.new()
-				log_mat.albedo_color = Color(0.35, 0.2, 0.1)
-				log1.material_override = log_mat
-				body.add_child(log1)
-				# Ember glow
-				mesh.mesh = SphereMesh.new()
-				mesh.mesh.radius = 0.15
-				mesh.mesh.height = 0.2
-				mesh.position.y = 0.15
-				mat.albedo_color = Color(1.0, 0.4, 0.05)
-				mat.emission_enabled = true
-				mat.emission = Color(1.0, 0.4, 0.05)
-				mat.emission_energy_multiplier = 3.0
-			"shelter":
-				# Wooden hut — box + triangular roof
-				var hut_w: float = 1.8 * size_var
-				var hut_h: float = 1.2 * size_var
-				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(hut_w, hut_h, hut_w)
-				mesh.position.y = hut_h / 2.0
-				mat.albedo_color = Color(0.5, 0.35, 0.2)
-				mat.roughness = 0.9
-				var roof := MeshInstance3D.new()
-				roof.mesh = PrismMesh.new()
-				roof.mesh.size = Vector3(hut_w + 0.3, 0.7 * size_var, hut_w + 0.3)
-				roof.position.y = hut_h + 0.35 * size_var
-				var roof_mat := StandardMaterial3D.new()
-				roof_mat.albedo_color = Color(0.55 + randf() * 0.1, 0.2, 0.08)
-				roof.material_override = roof_mat
-				body.add_child(roof)
-			_:
-				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(0.5, 0.5, 0.5) * size_var
-				mesh.position.y = 0.25 * size_var
-				mat.albedo_color = Color(0.5, 0.5, 0.5)
-
-		mesh.material_override = mat
-		body.add_child(mesh)
-
-	# Collision (only for solid elements)
-	var groups: Dictionary = element_def.get("groups", {})
-	if groups.get("solid", 0) > 0:
-		var col := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = Vector3(0.8, 1.5, 0.8) * model_scale
-		col.shape = box
-		col.position.y = 0.75 * model_scale
-		body.add_child(col)
-
-	# HP for harvestable elements
-	var hp: float = element_def.get("hp", 0)
-	if hp > 0:
-		body.set_meta("hp", hp)
-		body.set_meta("max_hp", hp)
-
-	# Point light for fire elements
-	if groups.get("fire", 0) > 0 or groups.get("light_source", 0) > 0:
-		var light := OmniLight3D.new()
-		light.light_color = Color(1.0, 0.7, 0.3)
-		light.light_energy = 2.0
-		light.omni_range = 6.0
-		light.position.y = 1.0
-		light.shadow_enabled = true
-		body.add_child(light)
-
-	add_child(body)
+func _build_edge_trees() -> void:
+	var edge_trees: Array = world_data.get("edge_trees", [])
+	for et in edge_trees:
+		_load_model_at(
+			str(et.get("model", "tree_default")),
+			Vector3(et.get("x", 0), 0, et.get("z", 0)),
+			et.get("scale", 1.0),
+			et.get("rotation_y", 0)
+		)
+	print("[SimWorld] Edge trees: ", edge_trees.size())
 
 
-func _tint_element_model(_node: Node, _element_id: String) -> void:
-	# Don't tint GLB models — they have their own colormap textures.
-	# Tinting overrides the texture with flat color, making everything gray.
-	# Only primitives (fallback) get colored.
-	pass
+func _build_paths() -> void:
+	var paths: Array = world_data.get("paths", [])
+	for p in paths:
+		_load_model_at(
+			str(p.get("model", "ground_pathStraight")),
+			Vector3(p.get("x", 0), 0.01, p.get("z", 0)),
+			p.get("scale", 0.5),
+			p.get("rotation_y", 0)
+		)
+	print("[SimWorld] Paths: ", paths.size(), " tiles")
 
 
-func _build_starting_camp() -> void:
-	var camp: Dictionary = world_config.get("starting_camp", {})
-	if camp.is_empty():
-		return
-	var center: Dictionary = camp.get("center", {})
-	var cx: float = center.get("gx", 20) - world_w / 2
-	var cz: float = center.get("gz", 20) - world_h / 2
-	var camp_elements: Array = camp.get("elements", [])
+func _build_camp() -> void:
+	var camp: Array = world_data.get("camp", [])
+	for c in camp:
+		var pos := Vector3(c.get("x", 0), 0, c.get("z", 0))
+		var model: String = str(c.get("model", "_primitive"))
+		var scale: float = c.get("scale", 1.0)
+		var rot_y: float = c.get("rotation_y", 0)
 
-	for ce in camp_elements:
-		var el_id: String = str(ce.get("element", ""))
-		var off: Dictionary = ce.get("offset", {})
-		var ox: float = off.get("x", 0)
-		var oz: float = off.get("z", 0)
-		var pos := Vector3(cx + ox, 0, cz + oz)
+		var body := StaticBody3D.new()
+		body.name = "Camp_" + str(c.get("element", ""))
+		body.position = pos
+		body.add_to_group("sim_element")
+		body.set_meta("element_id", str(c.get("element", "")))
 
-		# Find element def
-		var element_def: Dictionary = {}
-		for el in elements_config:
-			if str(el.get("id", "")) == el_id:
-				element_def = el
-				break
-		if element_def.is_empty():
-			continue
+		if _try_add_model(body, model, scale, rot_y):
+			pass  # Model loaded
+		# Point light for campfire
+		if str(c.get("element", "")) == "campfire":
+			var light := OmniLight3D.new()
+			light.light_color = Color(1.0, 0.7, 0.3)
+			light.light_energy = 2.5
+			light.omni_range = 8.0
+			light.position.y = 1.0
+			light.shadow_enabled = true
+			body.add_child(light)
 
-		var model_name: String = str(element_def.get("model", "_primitive"))
-		var variants: Array = element_def.get("model_variants", [])
-		if variants.size() > 0:
-			model_name = str(variants[randi() % variants.size()])
-		var mscale: float = element_def.get("model_scale", 1.0)
-		_spawn_element(el_id, element_def, model_name, mscale, pos)
-
-	print("[SimWorld] Starting camp built at (", cx, ",", cz, ") with ", camp_elements.size(), " elements")
+		add_child(body)
+	print("[SimWorld] Camp: ", camp.size(), " structures")
 
 
-func _build_dirt_path() -> void:
-	## Build paths from camp using Kenney Nature Kit path models
-	var center_x: float = 0.0
-	var center_z: float = 0.0
-	var camp: Dictionary = world_config.get("starting_camp", {})
-	if not camp.is_empty():
-		var c: Dictionary = camp.get("center", {})
-		center_x = c.get("gx", 20) - world_w / 2
-		center_z = c.get("gz", 20) - world_h / 2
+func _build_elements() -> void:
+	var elements: Array = world_data.get("elements", [])
+	for el in elements:
+		var eid: String = str(el.get("element", ""))
+		var pos := Vector3(el.get("x", 0), 0, el.get("z", 0))
+		var model: String = str(el.get("model", "_primitive"))
+		var scale: float = el.get("scale", 1.0)
+		var rot_y: float = el.get("rotation_y", 0)
 
-	var search_paths: Array = asset_config.get("model_search_paths", [])
+		var body := StaticBody3D.new()
+		body.name = "El_" + eid + "_" + str(randi() % 10000)
+		body.position = pos
+		body.add_to_group("sim_element")
+		body.set_meta("element_id", eid)
+
+		if not _try_add_model(body, model, scale, rot_y):
+			_add_primitive_fallback(body, eid, scale)
+
+		# Collision for solid elements
+		if eid in ["tree", "stone", "shelter"]:
+			var col := CollisionShape3D.new()
+			var box := BoxShape3D.new()
+			box.size = Vector3(0.8, 1.5, 0.8) * scale
+			col.shape = box
+			col.position.y = 0.75 * scale
+			body.add_child(col)
+
+		# Light for fire
+		if eid == "campfire":
+			var light := OmniLight3D.new()
+			light.light_color = Color(1.0, 0.7, 0.3)
+			light.light_energy = 2.0
+			light.omni_range = 6.0
+			light.position.y = 1.0
+			body.add_child(light)
+
+		add_child(body)
+	print("[SimWorld] Elements: ", elements.size())
+
+
+func _load_model_at(model_name: String, pos: Vector3, scale: float, rot_y: float) -> void:
+	"""Load a model as a simple Node3D (no collision, no group)."""
+	var node := Node3D.new()
+	node.name = "M_" + model_name
+	node.position = pos
+	if _try_add_model(node, model_name, scale, rot_y):
+		add_child(node)
+
+
+func _try_add_model(parent: Node3D, model_name: String, scale: float, rot_y: float) -> bool:
+	"""Try loading GLB model. Returns true if loaded."""
+	if model_name.begins_with("_primitive"):
+		return false
+	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
 	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
-
-	# Path directions from camp — 4 trails radiating outward
-	var trails: Array = [
-		{"dir": Vector3(1, 0, 0), "rot": 90.0, "len_range": [6, 12]},
-		{"dir": Vector3(-1, 0, 0), "rot": 90.0, "len_range": [5, 10]},
-		{"dir": Vector3(0, 0, 1), "rot": 0.0, "len_range": [6, 12]},
-		{"dir": Vector3(0, 0, -1), "rot": 0.0, "len_range": [5, 10]},
-	]
-
-	var path_models: Array = ["ground_pathStraight", "ground_pathOpen", "ground_pathRocks"]
-	var total_tiles: int = 0
-
-	for trail in trails:
-		var dir: Vector3 = trail.get("dir", Vector3.FORWARD)
-		var rot_y: float = trail.get("rot", 0.0)
-		var len_min: int = trail.get("len_range", [5, 10])[0]
-		var len_max: int = trail.get("len_range", [5, 10])[1]
-		var path_len: int = len_min + randi() % (len_max - len_min + 1)
-
-		for i in range(path_len):
-			var px: float = center_x + dir.x * i * 1.0
-			var pz: float = center_z + dir.z * i * 1.0
-			var model_name: String = path_models[randi() % path_models.size()]
-
-			# Try to load GLB path model
-			var loaded := false
-			for base_path in search_paths:
-				if loaded:
-					break
-				for ext in extensions:
-					var path: String = str(base_path) + model_name + "." + str(ext)
-					if ResourceLoader.exists(path):
-						var scene: PackedScene = load(path)
-						if scene:
-							var body := Node3D.new()
-							body.name = "Path_" + str(total_tiles)
-							body.position = Vector3(px, 0.01, pz)
-							body.rotation_degrees.y = rot_y
-							var instance := scene.instantiate()
-							instance.scale = Vector3.ONE * 0.5
-							body.add_child(instance)
-							add_child(body)
-							loaded = true
-							total_tiles += 1
-							break
-
-			# Fallback: brown circle
-			if not loaded:
-				var path_tile := MeshInstance3D.new()
-				path_tile.mesh = CylinderMesh.new()
-				path_tile.mesh.top_radius = 0.45
-				path_tile.mesh.bottom_radius = 0.5
-				path_tile.mesh.height = 0.02
-				path_tile.position = Vector3(px, 0.01, pz)
-				var pmat := StandardMaterial3D.new()
-				pmat.albedo_color = Color(0.42 + randf() * 0.06, 0.32 + randf() * 0.04, 0.18)
-				pmat.roughness = 1.0
-				path_tile.material_override = pmat
-				add_child(path_tile)
-				total_tiles += 1
-
-	# Add path end marker at camp (crossroads)
 	for base_path in search_paths:
-		var cross_path: String = str(base_path) + "ground_pathCross.glb"
-		if ResourceLoader.exists(cross_path):
-			var scene: PackedScene = load(cross_path)
-			if scene:
-				var cross := Node3D.new()
-				cross.name = "PathCross"
-				cross.position = Vector3(center_x, 0.01, center_z)
-				var inst := scene.instantiate()
-				inst.scale = Vector3.ONE * 0.5
-				cross.add_child(inst)
-				add_child(cross)
-				break
+		for ext in extensions:
+			var path: String = str(base_path) + model_name + "." + str(ext)
+			if ResourceLoader.exists(path):
+				var scene: PackedScene = load(path)
+				if scene:
+					var instance := scene.instantiate()
+					instance.name = "Model"
+					instance.scale = Vector3.ONE * scale
+					instance.rotation_degrees.y = rot_y
+					parent.add_child(instance)
+					return true
+	return false
 
-	print("[SimWorld] Paths: ", total_tiles, " tiles in 4 directions from camp")
+
+func _add_primitive_fallback(parent: Node3D, element_id: String, scale: float) -> void:
+	"""Fallback primitive shapes when GLB not available."""
+	var mesh := MeshInstance3D.new()
+	var mat := StandardMaterial3D.new()
+	var size_var: float = scale
+
+	match element_id:
+		"tree":
+			var trunk := MeshInstance3D.new()
+			trunk.mesh = CylinderMesh.new()
+			trunk.mesh.top_radius = 0.08 * size_var
+			trunk.mesh.bottom_radius = 0.15 * size_var
+			trunk.mesh.height = 2.0 * size_var
+			trunk.position.y = 1.0 * size_var
+			var tmat := StandardMaterial3D.new()
+			tmat.albedo_color = Color(0.4, 0.25, 0.12)
+			trunk.material_override = tmat
+			parent.add_child(trunk)
+			mesh.mesh = SphereMesh.new()
+			mesh.mesh.radius = 0.7 * size_var
+			mesh.mesh.height = 1.0 * size_var
+			mesh.position.y = 2.2 * size_var
+			mat.albedo_color = Color(0.2, 0.5, 0.15)
+		"stone":
+			mesh.mesh = BoxMesh.new()
+			mesh.mesh.size = Vector3(0.7, 0.5, 0.6) * size_var
+			mesh.position.y = 0.25 * size_var
+			mat.albedo_color = Color(0.5, 0.48, 0.45)
+		"water", "_primitive_water":
+			mesh.mesh = CylinderMesh.new()
+			mesh.mesh.top_radius = 1.5 * size_var
+			mesh.mesh.bottom_radius = 1.6 * size_var
+			mesh.mesh.height = 0.08
+			mesh.position.y = -0.02
+			mat.albedo_color = Color(0.15, 0.35, 0.7, 0.75)
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.metallic = 0.3
+		"campfire":
+			mesh.mesh = SphereMesh.new()
+			mesh.mesh.radius = 0.15
+			mesh.position.y = 0.15
+			mat.albedo_color = Color(1.0, 0.4, 0.05)
+			mat.emission_enabled = true
+			mat.emission = Color(1.0, 0.4, 0.05)
+			mat.emission_energy_multiplier = 3.0
+		_:
+			mesh.mesh = BoxMesh.new()
+			mesh.mesh.size = Vector3(0.5, 0.5, 0.5) * size_var
+			mesh.position.y = 0.25 * size_var
+			mat.albedo_color = Color(0.5, 0.5, 0.5)
+
+	mesh.material_override = mat
+	parent.add_child(mesh)
 
 
 func _spawn_agents() -> void:
-	var agents: Array = world_config.get("agents", [])
-	for agent_config in agents:
-		var agent_name: String = str(agent_config.get("name", "Agent"))
-		var model_name: String = str(agent_config.get("model", "Knight"))
-		var brain_type: String = str(agent_config.get("brain", "needs_driven"))
-		var spawn: Dictionary = agent_config.get("spawn", {})
-		var spawn_x: float = spawn.get("gx", world_w / 2) - world_w / 2
-		var spawn_z: float = spawn.get("gz", world_h / 2) - world_h / 2
+	var spawn: Dictionary = world_data.get("spawn", {})
+	var spawn_x: float = spawn.get("x", 0)
+	var spawn_z: float = spawn.get("z", 0)
 
-		# Create player using player_3d.gd pattern
-		var player := CharacterBody3D.new()
-		player.name = "Player_" + agent_name
-		player.set_script(load("res://scripts/player_3d.gd"))
-		player.position = Vector3(spawn_x, 0.5, spawn_z)
-		player.add_to_group("player")
+	var player := CharacterBody3D.new()
+	player.name = "Player"
+	player.set_script(load("res://scripts/player_3d.gd"))
+	player.position = Vector3(spawn_x, 0.5, spawn_z)
+	player.add_to_group("player")
 
-		# Override brain type in meta temporarily
-		# Player_3d reads from meta.json, but we want needs_driven
-		# For now, store config on the player
-		player.set_meta("sim_brain", brain_type)
-		player.set_meta("sim_config", agent_config)
+	# Load character model
+	var player_model: String = str(meta_config.get("player", {}).get("model", "Knight"))
+	var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
+	var pscale: float = scale_map.get(player_model, 0.4)
+	var search_paths: Array = asset_config.get("model_search_paths", [])
+	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
 
-		# Load character model
-		var model_loaded := false
-		var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
-		var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
-		var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
-		var pscale: float = scale_map.get(model_name, 0.4)
+	for base_path in search_paths:
+		var found := false
+		for ext in extensions:
+			var path: String = str(base_path) + player_model + "." + str(ext)
+			if ResourceLoader.exists(path):
+				var scene: PackedScene = load(path)
+				if scene:
+					var instance := scene.instantiate()
+					instance.name = "PlayerModel"
+					instance.scale = Vector3.ONE * pscale
+					instance.rotation_degrees.y = meta_config.get("player", {}).get("model_rotation_offset", 180)
+					player.add_child(instance)
+					var anim := _find_anim_player(instance)
+					if anim:
+						player.set_meta("anim_player", anim)
+					found = true
+					break
+		if found:
+			break
 
-		for base_path in search_paths:
-			if model_loaded:
-				break
-			for ext in extensions:
-				var path: String = str(base_path) + model_name + "." + str(ext)
-				if ResourceLoader.exists(path):
-					var scene: PackedScene = load(path)
-					if scene:
-						var instance := scene.instantiate()
-						instance.name = "PlayerModel"
-						instance.scale = Vector3.ONE * pscale
-						var rot_offset: float = meta_config.get("player", {}).get("model_rotation_offset", 180)
-						instance.rotation_degrees.y = rot_offset
-						player.add_child(instance)
+	# Capsule
+	var col := CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.2
+	capsule.height = 0.9
+	col.shape = capsule
+	col.position.y = 0.45
+	player.add_child(col)
 
-						# Find AnimationPlayer
-						var anim_player: AnimationPlayer = _find_anim_player_recursive(instance)
-						if anim_player:
-							player.set_meta("anim_player", anim_player)
-						model_loaded = true
-						break
+	# Camera
+	var spring := SpringArm3D.new()
+	spring.name = "CameraArm"
+	spring.position = Vector3(0, 2.0, 0)
+	spring.rotation_degrees = Vector3(-30, 0, 0)
+	spring.spring_length = 8.0
+	spring.collision_mask = 0
+	player.add_child(spring)
+	var cam := Camera3D.new()
+	cam.name = "Camera"
+	cam.current = true
+	spring.add_child(cam)
 
-		# Capsule collision
-		var col := CollisionShape3D.new()
-		var capsule := CapsuleShape3D.new()
-		capsule.radius = 0.2
-		capsule.height = 0.9
-		col.shape = capsule
-		col.position.y = 0.45
-		player.add_child(col)
-
-		# Camera — higher and further back for simulation view
-		var spring_arm := SpringArm3D.new()
-		spring_arm.name = "CameraArm"
-		spring_arm.position = Vector3(0, 2.0, 0)
-		spring_arm.rotation_degrees = Vector3(-30, 0, 0)
-		spring_arm.spring_length = 8.0
-		spring_arm.collision_mask = 0  # No wall clipping in open world
-		player.add_child(spring_arm)
-
-		var camera := Camera3D.new()
-		camera.name = "Camera"
-		camera.current = true
-		spring_arm.add_child(camera)
-
-		add_child(player)
-		print("[SimWorld] Agent: ", agent_name, " model=", model_name, " brain=", brain_type, " at (", spawn_x, ",", spawn_z, ")")
+	add_child(player)
+	print("[SimWorld] Player spawned at (", spawn_x, ",", spawn_z, ")")
 
 
-func _find_anim_player_recursive(node: Node) -> AnimationPlayer:
+func _find_anim_player(node: Node) -> AnimationPlayer:
 	if node is AnimationPlayer:
 		return node
 	for child in node.get_children():
-		var result := _find_anim_player_recursive(child)
-		if result:
-			return result
+		var r := _find_anim_player(child)
+		if r:
+			return r
 	return null
 
 
 func _add_ui() -> void:
-	# Minimap
-	var minimap_script = load("res://scripts/minimap.gd")
-	if minimap_script:
-		var canvas := CanvasLayer.new()
-		canvas.name = "MinimapLayer"
-		var minimap := Control.new()
-		minimap.name = "Minimap"
-		minimap.set_script(minimap_script)
-		canvas.add_child(minimap)
-		add_child(canvas)
-
-	# HP bar
-	var hp_script = load("res://scripts/hp_bar.gd")
-	if hp_script:
-		var canvas := CanvasLayer.new()
-		canvas.name = "HUDLayer"
-		var hud := Control.new()
-		hud.name = "HPBar"
-		hud.set_script(hp_script)
-		canvas.add_child(hud)
-		add_child(canvas)
-
-
-func _add_multi_camera_qa() -> void:
-	# Only add if capture.auto is true (QA mode)
-	var cap: Dictionary = meta_config.get("capture", {})
-	if not cap.get("auto", false):
-		return
-	var script = load("res://scripts/multi_camera_qa.gd")
-	if script:
-		var multi_cam := Node3D.new()
-		multi_cam.name = "MultiCameraQA"
-		multi_cam.set_script(script)
-		add_child(multi_cam)
+	for script_name in ["minimap", "hp_bar"]:
+		var script = load("res://scripts/" + script_name + ".gd")
+		if script:
+			var canvas := CanvasLayer.new()
+			var ctrl := Control.new()
+			ctrl.name = script_name.capitalize()
+			ctrl.set_script(script)
+			canvas.add_child(ctrl)
+			add_child(canvas)
 
 
 func _add_frame_capture() -> void:
 	var script = load("res://scripts/frame_capture.gd")
 	if script:
-		var capture := Node.new()
-		capture.name = "FrameCapture"
-		capture.set_script(script)
-		add_child(capture)
+		var node := Node.new()
+		node.name = "FrameCapture"
+		node.set_script(script)
+		add_child(node)
+
+
+func _add_multi_camera_qa() -> void:
+	var cap: Dictionary = meta_config.get("capture", {})
+	if not cap.get("auto", false):
+		return
+	var script = load("res://scripts/multi_camera_qa.gd")
+	if script:
+		var node := Node3D.new()
+		node.name = "MultiCameraQA"
+		node.set_script(script)
+		add_child(node)
 
 
 func _process(delta: float) -> void:
@@ -758,42 +470,33 @@ func _update_day_night(delta: float) -> void:
 	if time_of_day > 1.0:
 		time_of_day -= 1.0
 
-	# Sun angle follows time: 0=midnight, 0.25=sunrise, 0.5=noon, 0.75=sunset
 	var sun_angle: float = (time_of_day - 0.25) * 360.0
 	sun_node.rotation_degrees.x = -sun_angle
 
-	# Sun energy: bright during day, dark at night
 	var day_start: float = 0.2
 	var day_end: float = day_start + day_ratio
 	var sun_energy: float
 	if time_of_day > day_start and time_of_day < day_end:
-		# Daytime
 		var day_progress: float = (time_of_day - day_start) / (day_end - day_start)
-		sun_energy = sin(day_progress * PI) * 0.8  # Peak at noon
+		sun_energy = sin(day_progress * PI) * 0.8
 	else:
-		sun_energy = 0.05  # Night
+		sun_energy = 0.05
 
 	sun_node.light_energy = sun_energy
 
-	# Sky color shifts
 	if time_of_day > day_start and time_of_day < day_end:
 		var t: float = (time_of_day - day_start) / (day_end - day_start)
 		if t < 0.1:
-			# Sunrise: orange → blue
 			env.background_color = Color(0.8, 0.5, 0.3).lerp(Color(0.47, 0.65, 1.0), t / 0.1)
 		elif t > 0.9:
-			# Sunset: blue → orange
 			env.background_color = Color(0.47, 0.65, 1.0).lerp(Color(0.8, 0.4, 0.2), (t - 0.9) / 0.1)
 		else:
-			# Day: blue sky
 			env.background_color = Color(0.47, 0.65, 1.0)
 		env.ambient_light_energy = 0.4 + sun_energy * 0.3
 	else:
-		# Night: dark blue
 		env.background_color = Color(0.04, 0.04, 0.12)
 		env.ambient_light_energy = 0.1
 
-	# Sun color: warm during sunrise/sunset, white during day
 	if sun_energy > 0.1:
-		var warmth: float = 1.0 - sun_energy  # More warm when low
+		var warmth: float = 1.0 - sun_energy
 		sun_node.light_color = Color(1.0, 0.95 - warmth * 0.3, 0.8 - warmth * 0.4)
