@@ -109,24 +109,33 @@ def poisson_scatter(width: float, height: float, count: int, min_spacing: float,
 # TERRAIN GENERATION
 # ============================================================
 
-def generate_terrain(width: float, height: float, seed: int) -> dict:
-    """Generate terrain data: hills as height samples."""
+def generate_terrain(width: float, height: float, seed: int, resolution: int = 64) -> dict:
+    """Generate terrain heightmap + decoration data."""
     rng = random.Random(seed)
-    hills = []
 
-    # Sample heightmap on a grid
-    sample_step = 2.0
-    samples = []
-    for z in range(int(-height / 2), int(height / 2), int(sample_step)):
-        for x in range(int(-width / 2), int(width / 2), int(sample_step)):
-            h = multi_octave_noise(float(x), float(z), seed, octaves=3, scale=25.0) * 1.5
-            if h > 0.3:  # Only place visible hills
-                hills.append({
-                    "x": float(x) + rng.uniform(-0.5, 0.5),
-                    "z": float(z) + rng.uniform(-0.5, 0.5),
-                    "radius": 2.0 + h * 4.0,
-                    "height": h * 0.8,
-                })
+    # Generate heightmap as flat array [z * resolution + x]
+    heights = []
+    for z in range(resolution):
+        for x in range(resolution):
+            # Convert grid to world coords
+            wx = (x / (resolution - 1) - 0.5) * width
+            wz = (z / (resolution - 1) - 0.5) * height
+
+            # Multi-octave noise for natural terrain
+            h = multi_octave_noise(wx, wz, seed, octaves=4, scale=30.0, persistence=0.45)
+
+            # Flatten center area (camp area)
+            dist_from_center = math.sqrt(wx * wx + wz * wz)
+            camp_flatten = max(0.0, 1.0 - dist_from_center / 15.0)  # Flat within 15 units
+            h *= (1.0 - camp_flatten * 0.8)
+
+            # Push edges up slightly (bowl shape — keeps player in)
+            edge_dist = max(abs(wx) / (width / 2), abs(wz) / (height / 2))
+            if edge_dist > 0.85:
+                edge_rise = (edge_dist - 0.85) / 0.15
+                h += edge_rise * 0.3
+
+            heights.append(round(h, 4))
 
     # Ground patches — subtle color variation
     patches = []
@@ -141,17 +150,25 @@ def generate_terrain(width: float, height: float, seed: int) -> dict:
 
     # Flowers
     flowers = []
-    num_flowers = int(width * height / 20)
+    num_flowers = int(width * height / 25)
     flower_colors = ["yellow", "red", "white", "purple"]
     for _ in range(num_flowers):
         flowers.append({
-            "x": rng.uniform(-width / 2 + 1, width / 2 - 1),
-            "z": rng.uniform(-height / 2 + 1, height / 2 - 1),
+            "x": round(rng.uniform(-width / 2 + 1, width / 2 - 1), 2),
+            "z": round(rng.uniform(-height / 2 + 1, height / 2 - 1), 2),
             "color": rng.choice(flower_colors),
-            "size": 0.05 + rng.random() * 0.06,
+            "size": round(0.05 + rng.random() * 0.06, 3),
         })
 
-    return {"hills": hills, "patches": patches, "flowers": flowers}
+    return {
+        "heightmap": {
+            "resolution": resolution,
+            "height_scale": 3.0,
+            "heights": heights,
+        },
+        "patches": patches,
+        "flowers": flowers,
+    }
 
 
 # ============================================================
@@ -398,12 +415,14 @@ def main():
 
     # Stats
     print(f"World: {args.size}x{args.size}, seed={args.seed}")
-    print(f"  Terrain: {len(world['terrain']['hills'])} hills, {len(world['terrain']['patches'])} patches, {len(world['terrain']['flowers'])} flowers")
+    hmap = world['terrain'].get('heightmap', {})
+    print(f"  Terrain: {hmap.get('resolution', 0)}x{hmap.get('resolution', 0)} heightmap, {len(world['terrain']['patches'])} patches, {len(world['terrain']['flowers'])} flowers")
     print(f"  Edge trees: {len(world['edge_trees'])}")
     print(f"  Paths: {len(world['paths'])} tiles")
     print(f"  Camp: {len(world['camp'])} structures")
     print(f"  Elements: {len(world['elements'])}")
-    print(f"  Total objects: {len(world['terrain']['hills']) + len(world['edge_trees']) + len(world['paths']) + len(world['camp']) + len(world['elements'])}")
+    total = len(world['edge_trees']) + len(world['paths']) + len(world['camp']) + len(world['elements']) + len(world['terrain']['flowers'])
+    print(f"  Total objects: {total}")
     print(f"\nSaved → {output}")
 
 

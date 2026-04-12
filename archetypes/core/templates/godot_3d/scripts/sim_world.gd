@@ -22,8 +22,7 @@ var env: Environment
 func _ready() -> void:
 	_load_configs()
 	_build_environment()
-	_build_ground()
-	_build_terrain()
+	_build_heightmap_terrain()
 	_build_edge_trees()
 	_build_paths()
 	_build_camp()
@@ -94,7 +93,49 @@ func _build_environment() -> void:
 	add_child(env_node)
 
 
-func _build_ground() -> void:
+var terrain_node: Node = null  # Reference to terrain for height queries
+
+func _build_heightmap_terrain() -> void:
+	var terrain_data: Dictionary = world_data.get("terrain", {})
+	var hmap: Dictionary = terrain_data.get("heightmap", {})
+
+	if not hmap.is_empty():
+		# Use real heightmap terrain
+		var script = load("res://scripts/terrain.gd")
+		if script:
+			var terrain := StaticBody3D.new()
+			terrain.name = "Terrain"
+			terrain.set_script(script)
+			add_child(terrain)
+			terrain.build_from_data(hmap, world_w, world_h)
+			terrain_node = terrain
+
+			# Place flowers on terrain surface
+			var flowers: Array = terrain_data.get("flowers", [])
+			for f in flowers:
+				var fx: float = f.get("x", 0)
+				var fz: float = f.get("z", 0)
+				var fh: float = terrain.get_height_at(fx, fz)
+				var flower := MeshInstance3D.new()
+				flower.mesh = SphereMesh.new()
+				flower.mesh.radius = f.get("size", 0.06)
+				flower.mesh.height = f.get("size", 0.06) * 2
+				flower.position = Vector3(fx, fh + 0.05, fz)
+				var fmat := StandardMaterial3D.new()
+				var fc: Dictionary = {"yellow": Color(0.9, 0.85, 0.2), "red": Color(0.9, 0.3, 0.3),
+					"white": Color(0.95, 0.95, 0.9), "purple": Color(0.6, 0.3, 0.8)}
+				fmat.albedo_color = fc.get(str(f.get("color", "white")), Color.WHITE)
+				flower.material_override = fmat
+				add_child(flower)
+
+			print("[SimWorld] Heightmap terrain + ", flowers.size(), " flowers")
+			return
+
+	# Fallback: flat ground
+	_build_flat_ground()
+
+
+func _build_flat_ground() -> void:
 	var ground := StaticBody3D.new()
 	ground.name = "Ground"
 	var mesh_inst := MeshInstance3D.new()
@@ -177,9 +218,14 @@ func _build_terrain() -> void:
 func _build_edge_trees() -> void:
 	var edge_trees: Array = world_data.get("edge_trees", [])
 	for et in edge_trees:
+		var ex: float = et.get("x", 0)
+		var ez: float = et.get("z", 0)
+		var ey: float = 0.0
+		if terrain_node and terrain_node.has_method("get_height_at"):
+			ey = terrain_node.get_height_at(ex, ez)
 		_load_model_at(
 			str(et.get("model", "tree_default")),
-			Vector3(et.get("x", 0), 0, et.get("z", 0)),
+			Vector3(ex, ey, ez),
 			et.get("scale", 1.0),
 			et.get("rotation_y", 0)
 		)
@@ -236,6 +282,10 @@ func _build_elements() -> void:
 		var model: String = str(el.get("model", "_primitive"))
 		var scale: float = el.get("scale", 1.0)
 		var rot_y: float = el.get("rotation_y", 0)
+
+		# Place on terrain surface
+		if terrain_node and terrain_node.has_method("get_height_at"):
+			pos.y = terrain_node.get_height_at(pos.x, pos.z)
 
 		var body := StaticBody3D.new()
 		body.name = "El_" + eid + "_" + str(randi() % 10000)
