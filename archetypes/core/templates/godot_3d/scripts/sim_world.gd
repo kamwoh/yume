@@ -15,7 +15,7 @@ var world_h: float = 100.0
 var day_night_enabled: bool = true
 var cycle_seconds: float = 300.0
 var day_ratio: float = 0.7
-var time_of_day: float = 0.3
+var time_of_day: float = 0.5  # Start at noon (brightest)
 var sun_node: DirectionalLight3D
 var env: Environment
 
@@ -254,7 +254,7 @@ func _build_edge_trees() -> void:
 
 func _build_paths() -> void:
 	var paths: Array = world_data.get("paths", [])
-	var path_tint: Dictionary = {"enabled": true, "color": [0.55, 0.42, 0.25, 1.0]}  # Brown dirt color
+	var path_tint: Dictionary = {"enabled": true, "color": [0.6, 0.48, 0.3, 1.0]}  # Warm natural brown
 	for p in paths:
 		var px: float = p.get("x", 0)
 		var pz: float = p.get("z", 0)
@@ -456,16 +456,21 @@ func _apply_tint(node: Node3D, tint_cfg: Dictionary) -> void:
 
 func _tint_recursive(node: Node, leaf_color: Color, trunk_color: Color) -> void:
 	if node is MeshInstance3D:
-		var mat := StandardMaterial3D.new()
-		# Check if this is bark/trunk by name
 		var node_name: String = node.name.to_lower()
 		var parent_name: String = node.get_parent().name.to_lower() if node.get_parent() else ""
-		if "bark" in node_name or "trunk" in node_name or "wood" in node_name or "bark" in parent_name:
-			mat.albedo_color = trunk_color
+
+		# Skip tinting if this mesh has a specific color name (preserve flower petals)
+		if "color" in node_name and ("red" in node_name or "yellow" in node_name or "purple" in node_name or "blue" in node_name):
+			# Flower petal — keep original color, don't tint
+			pass
 		else:
-			mat.albedo_color = leaf_color
-		mat.roughness = 0.85
-		node.material_override = mat
+			var mat := StandardMaterial3D.new()
+			if "bark" in node_name or "trunk" in node_name or "wood" in node_name or "bark" in parent_name:
+				mat.albedo_color = trunk_color
+			else:
+				mat.albedo_color = leaf_color
+			mat.roughness = 0.85
+			node.material_override = mat
 	for child in node.get_children():
 		_tint_recursive(child, leaf_color, trunk_color)
 
@@ -720,10 +725,11 @@ func _update_day_night(delta: float) -> void:
 			env.background_color = Color(0.47, 0.65, 1.0).lerp(Color(0.8, 0.4, 0.2), (t - 0.9) / 0.1)
 		else:
 			env.background_color = Color(0.47, 0.65, 1.0)
-		env.ambient_light_energy = 0.4 + sun_energy * 0.3
+		var base_ambient: float = world_data.get("atmosphere", {}).get("ambient_energy", 0.7)
+		env.ambient_light_energy = base_ambient * (0.6 + sun_energy * 0.5)
 	else:
 		env.background_color = Color(0.04, 0.04, 0.12)
-		env.ambient_light_energy = 0.1
+		env.ambient_light_energy = 0.12
 
 	if sun_energy > 0.1:
 		var warmth: float = 1.0 - sun_energy
