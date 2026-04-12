@@ -22,16 +22,20 @@ func _ready() -> void:
 			world_w = ws.get("width", 100.0)
 			world_h = ws.get("height", 100.0)
 
+	_create_cameras()
+
+	# Wait for player camera to finish setup, then override it
+	await get_tree().create_timer(0.5).timeout
 	var player = get_tree().get_first_node_in_group("player")
 	if player:
 		var player_cam = player.get_node_or_null("CameraArm/Camera")
 		if player_cam:
 			player_cam.current = false
+			print("[MultiCam] Disabled player camera")
 
-	_create_cameras()
 	if cameras.size() > 0:
 		cameras[0].current = true
-		print("[MultiCam] ", cameras.size(), " purpose cameras. Switching every ", switch_interval, "s")
+		print("[MultiCam] ", cameras.size(), " purpose cameras active. Switching every ", switch_interval, "s")
 
 
 func _create_cameras() -> void:

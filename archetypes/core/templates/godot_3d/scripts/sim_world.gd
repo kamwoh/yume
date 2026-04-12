@@ -498,10 +498,15 @@ func _add_frame_capture() -> void:
 		add_child(node)
 
 
+var _multi_cam_added: bool = false
+
 func _add_multi_camera_qa() -> void:
+	if _multi_cam_added:
+		return
 	var cap: Dictionary = meta_config.get("capture", {})
 	if not cap.get("auto", false):
 		return
+	_multi_cam_added = true
 	var script = load("res://scripts/multi_camera_qa.gd")
 	if script:
 		var node := Node3D.new()
