@@ -341,11 +341,18 @@ func _build_elements() -> void:
 
 		# Load model or build from material config
 		var mat_cfg = edef.get("material", null)
-		if not _try_add_model(node, model, scale, rot_y):
+		var model_loaded := _try_add_model(node, model, scale, rot_y)
+		if not model_loaded:
 			if mat_cfg != null and mat_cfg is Dictionary:
 				_add_from_material_config(node, mat_cfg, scale)
 			else:
 				_add_primitive_fallback(node, eid, scale)
+
+		# Apply tint from JSON if model loaded but needs color correction
+		if model_loaded:
+			var tint_cfg = edef.get("tint", null)
+			if tint_cfg is Dictionary and tint_cfg.get("enabled", false):
+				_apply_tint(node, tint_cfg)
 
 		# Collision from JSON config
 		var col_cfg = edef.get("collision", null)
@@ -419,6 +426,34 @@ func _try_add_model(parent: Node3D, model_name: String, scale: float, rot_y: flo
 					parent.add_child(instance)
 					return true
 	return false
+
+
+func _apply_tint(node: Node3D, tint_cfg: Dictionary) -> void:
+	"""Apply color tint to loaded GLB model from JSON config.
+	Smart tinting: leaves get leaf color, bark gets trunk color."""
+	var leaf_color_arr = tint_cfg.get("color", [0.3, 0.6, 0.25, 1.0])
+	var trunk_color_arr = tint_cfg.get("trunk_color", null)
+	var leaf_color := Color(leaf_color_arr[0], leaf_color_arr[1], leaf_color_arr[2], leaf_color_arr[3] if leaf_color_arr.size() > 3 else 1.0)
+	var trunk_color: Color = leaf_color
+	if trunk_color_arr is Array and trunk_color_arr.size() >= 3:
+		trunk_color = Color(trunk_color_arr[0], trunk_color_arr[1], trunk_color_arr[2], trunk_color_arr[3] if trunk_color_arr.size() > 3 else 1.0)
+	_tint_recursive(node, leaf_color, trunk_color)
+
+
+func _tint_recursive(node: Node, leaf_color: Color, trunk_color: Color) -> void:
+	if node is MeshInstance3D:
+		var mat := StandardMaterial3D.new()
+		# Check if this is bark/trunk by name
+		var node_name: String = node.name.to_lower()
+		var parent_name: String = node.get_parent().name.to_lower() if node.get_parent() else ""
+		if "bark" in node_name or "trunk" in node_name or "wood" in node_name or "bark" in parent_name:
+			mat.albedo_color = trunk_color
+		else:
+			mat.albedo_color = leaf_color
+		mat.roughness = 0.85
+		node.material_override = mat
+	for child in node.get_children():
+		_tint_recursive(child, leaf_color, trunk_color)
 
 
 func _add_from_material_config(parent: Node3D, mat_cfg: Dictionary, scale: float) -> void:
