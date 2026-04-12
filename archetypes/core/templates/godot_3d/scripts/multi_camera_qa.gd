@@ -79,12 +79,11 @@ func _create_cameras() -> void:
 		var cam := Camera3D.new()
 		var cam_name: String = str(p.get("name", ""))
 		cam.name = "QACam_" + cam_name
-		var cam_pos: Vector3 = p.get("pos", Vector3.ZERO)
-		var look_off: Vector3 = p.get("look_offset", Vector3(0, -1, 0))
-		cam.position = cam_pos
-		cam.look_at(cam_pos + look_off)
+		cam.position = p.get("pos", Vector3.ZERO)
 		cam.current = false
-		add_child(cam)
+		add_child(cam)  # Must be in tree BEFORE look_at works
+		var look_off: Vector3 = p.get("look_offset", Vector3(0, -1, 0))
+		cam.look_at(cam.global_position + look_off)
 		cameras.append(cam)
 		camera_names.append(cam_name)
 
