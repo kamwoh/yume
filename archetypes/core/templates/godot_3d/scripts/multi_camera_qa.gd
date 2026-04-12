@@ -43,9 +43,9 @@ func _create_cameras() -> void:
 	var positions: Array = [
 		# Overview — always look DOWN at ground, not at horizon
 		{"pos": Vector3(0, 15, 1), "look": Vector3(0, 0, 0), "name": "top_down"},
-		{"pos": Vector3(2, 6, hw * 0.3), "look": Vector3(0, 0, -2), "name": "south_overview"},
-		{"pos": Vector3(hw * 0.5, 8, 0), "look": Vector3(-3, 0, 0), "name": "east_overview"},
-		{"pos": Vector3(-hw * 0.4, 8, -hh * 0.4), "look": Vector3(3, 0, 3), "name": "nw_overview"},
+		{"pos": Vector3(2, 5, hw * 0.3), "look": Vector3(0, 0, -5), "name": "south_overview"},
+		{"pos": Vector3(hw * 0.4, 5, 2), "look": Vector3(-5, 0, -2), "name": "east_overview"},
+		{"pos": Vector3(-hw * 0.3, 5, -hh * 0.3), "look": Vector3(5, 0, 5), "name": "nw_overview"},
 
 		# Corner views — elevated, looking toward center
 		{"pos": Vector3(-hw * 0.7, 6, -hh * 0.7), "look": Vector3(0, 0, 0), "name": "corner_nw"},

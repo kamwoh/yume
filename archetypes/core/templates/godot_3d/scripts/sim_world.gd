@@ -129,7 +129,32 @@ func _build_ground() -> void:
 	ground.add_child(col)
 
 	add_child(ground)
-	print("[SimWorld] Ground: ", world_w, "x", world_h, " green plane")
+
+	# Ground variation — scatter darker/lighter grass patches
+	for i in range(30):
+		var patch := MeshInstance3D.new()
+		patch.mesh = CylinderMesh.new()
+		var patch_size: float = 1.5 + randf() * 3.0
+		patch.mesh.top_radius = patch_size
+		patch.mesh.bottom_radius = patch_size * 1.1
+		patch.mesh.height = 0.02
+		patch.position = Vector3(
+			randf_range(-world_w / 2 + 2, world_w / 2 - 2),
+			0.01,
+			randf_range(-world_h / 2 + 2, world_h / 2 - 2)
+		)
+		var patch_mat := StandardMaterial3D.new()
+		var variation: float = randf() * 0.08
+		if randf() > 0.5:
+			# Lighter grass patch
+			patch_mat.albedo_color = Color(0.38 + variation, 0.58 + variation, 0.28 + variation)
+		else:
+			# Darker grass patch
+			patch_mat.albedo_color = Color(0.3 - variation, 0.48 - variation, 0.2 - variation)
+		patch.material_override = patch_mat
+		ground.add_child(patch)
+
+	print("[SimWorld] Ground: ", world_w, "x", world_h, " green plane with 30 variation patches")
 
 
 func _scatter_elements() -> void:
