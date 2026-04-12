@@ -474,33 +474,11 @@ func _spawn_element(element_id: String, element_def: Dictionary, model_name: Str
 	add_child(body)
 
 
-func _tint_element_model(node: Node, element_id: String) -> void:
-	## Apply color tint to GLB model based on element type
-	var tint_colors: Dictionary = {
-		"tree": Color(0.6, 0.9, 0.5),
-		"stone": Color(0.75, 0.72, 0.68),
-		"water": Color(0.5, 0.7, 1.0),
-		"dirt": Color(0.7, 0.55, 0.35),
-		"farmland": Color(0.65, 0.5, 0.3),
-		"campfire": Color(1.0, 0.7, 0.4),
-		"shelter": Color(0.8, 0.6, 0.4),
-	}
-	var tint: Color = tint_colors.get(element_id, Color.WHITE)
-	if tint == Color.WHITE:
-		return
-	_apply_tint_recursive(node, tint)
-
-
-func _apply_tint_recursive(node: Node, tint: Color) -> void:
-	if node is MeshInstance3D:
-		var mesh_inst: MeshInstance3D = node
-		# Create tinted material
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = tint
-		mat.roughness = 0.8
-		mesh_inst.material_override = mat
-	for child in node.get_children():
-		_apply_tint_recursive(child, tint)
+func _tint_element_model(_node: Node, _element_id: String) -> void:
+	# Don't tint GLB models — they have their own colormap textures.
+	# Tinting overrides the texture with flat color, making everything gray.
+	# Only primitives (fallback) get colored.
+	pass
 
 
 func _spawn_agents() -> void:
