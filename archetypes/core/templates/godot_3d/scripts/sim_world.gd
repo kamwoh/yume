@@ -255,10 +255,15 @@ func _build_edge_trees() -> void:
 func _build_paths() -> void:
 	var paths: Array = world_data.get("paths", [])
 	for p in paths:
+		var px: float = p.get("x", 0)
+		var pz: float = p.get("z", 0)
+		var py: float = 0.02
+		if terrain_node and terrain_node.has_method("get_height_at"):
+			py = terrain_node.get_height_at(px, pz) + 0.02  # Slightly above terrain
 		_load_model_at(
 			str(p.get("model", "ground_pathStraight")),
-			Vector3(p.get("x", 0), 0.01, p.get("z", 0)),
-			p.get("scale", 0.5),
+			Vector3(px, py, pz),
+			p.get("scale", 1.0),
 			p.get("rotation_y", 0)
 		)
 	print("[SimWorld] Paths: ", paths.size(), " tiles")
@@ -266,8 +271,16 @@ func _build_paths() -> void:
 
 func _build_camp() -> void:
 	var camp: Array = world_data.get("camp", [])
+	# Load element defs for tinting camp elements
+	var el_defs: Dictionary = {}
+	for edef in elements_config:
+		el_defs[str(edef.get("id", ""))] = edef
+
 	for c in camp:
 		var pos := Vector3(c.get("x", 0), 0, c.get("z", 0))
+		# Place on terrain
+		if terrain_node and terrain_node.has_method("get_height_at"):
+			pos.y = terrain_node.get_height_at(pos.x, pos.z)
 		var model: String = str(c.get("model", "_primitive"))
 		var scale: float = c.get("scale", 1.0)
 		var rot_y: float = c.get("rotation_y", 0)
@@ -278,15 +291,24 @@ func _build_camp() -> void:
 		body.add_to_group("sim_element")
 		body.set_meta("element_id", str(c.get("element", "")))
 
-		if _try_add_model(body, model, scale, rot_y):
-			pass  # Model loaded
-		# Point light for campfire
-		if str(c.get("element", "")) == "campfire":
+		_try_add_model(body, model, scale, rot_y)
+
+		# Apply tint if defined
+		var eid: String = str(c.get("element", ""))
+		var edef: Dictionary = el_defs.get(eid, {})
+		var tint_cfg = edef.get("tint", null)
+		if tint_cfg is Dictionary and tint_cfg.get("enabled", false):
+			_apply_tint(body, tint_cfg)
+
+		# Light from JSON element config
+		var light_cfg = edef.get("light", null)
+		if light_cfg is Dictionary:
 			var light := OmniLight3D.new()
-			light.light_color = Color(1.0, 0.7, 0.3)
-			light.light_energy = 2.5
-			light.omni_range = 8.0
-			light.position.y = 1.0
+			var lc = light_cfg.get("color", [1.0, 0.7, 0.3])
+			light.light_color = Color(lc[0], lc[1], lc[2])
+			light.light_energy = light_cfg.get("energy", 2.5)
+			light.omni_range = light_cfg.get("range", 8.0)
+			light.position.y = light_cfg.get("height", 1.0)
 			light.shadow_enabled = true
 			body.add_child(light)
 

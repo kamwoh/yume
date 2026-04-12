@@ -1,40 +1,46 @@
 {
-  "current_project": "Yume3D",
-  "current_phase": "simulation_world_terrain",
+  "current_project": "Yume3D_Simulation",
+  "current_phase": "visual_iteration",
   "last_session_date": "2026-04-12",
-  "session_summary": "Massive session: dungeon → simulation world → visual iteration → proper pipeline",
-  "completed_today": [
-    "Harness engineering (5 hooks, 3 agents, visual regression)",
-    "Game design study (8 codebases: OpenCiv, SAO, Sims, Minecraft, Veloren, OpenMW, Freedom-Hunter, VoxeLibre)",
-    "100+ reference images studied and cataloged (docs/25a)",
+  "visual_grade": "53% honest (harsh reviewer)",
+  "visual_iteration_count": 20,
+  "completed_this_session": [
     "Dungeon: seamless multi-room, combat, interactions, A* pathfinding",
-    "Procedural dungeon generator (shapes, biomes, 2D layout)",
-    "Simulation world: open field, nature kit models, day/night cycle",
-    "Proper pipeline: Python generates JSON → Godot renders",
-    "Multi-camera QA with FOV cone on minimap",
-    "150 lessons in knowledge base"
+    "Simulation: open world with heightmap terrain, 1285 3D models",
+    "Architecture: everything from JSON (material, collision, light, object_type)",
+    "Pipeline: Python generates → JSON → Godot renders (deterministic)",
+    "8 game codebases studied, 100+ reference images cataloged",
+    "Multi-camera QA with purpose cameras + FOV cone on minimap",
+    "Validation tool (logical check before visual QA)",
+    "Green trees (tint from JSON), sky gradient, terrain normals fixed"
   ],
-  "next_immediate": [
-    "BUILD HEIGHTMAP TERRAIN — foundational, applies to all game types",
-    "generate_sim_world.py outputs heightmap data",
-    "sim_world.gd renders subdivided mesh with vertex displacement",
-    "Player walks up/down real slopes",
-    "Then: improve visual quality toward 70%+"
+  "visual_wins": [
+    "10%→25%: primitive trees",
+    "25%→35%: edge tree ring",
+    "35%→45%: real GLB models + texture fix",
+    "45%→50%: 100x100 world",
+    "50%→53%: heightmap terrain + normals fix + sky gradient + green tint"
   ],
-  "terrain_design": {
-    "approach": "Subdivided PlaneMesh with vertex displacement from noise heightmap",
-    "data": "Python generates height samples → JSON array → Godot displaces vertices",
-    "uses": ["outdoor hills", "dungeon multi-level", "building floors", "cliffs", "underwater"],
-    "abstraction": "HeightmapTerrain as core engine component"
+  "remaining_for_60_percent": [
+    "Visible paths (ground_path models too small/wrong position)",
+    "Prominent camp (campfire glow + tents visible from distance)",
+    "Flower models visible (need tint or scale up)",
+    "Ground texture variation (terrain vertex colors need more contrast)",
+    "Water pools more visible (need edge rings or bigger size)"
+  ],
+  "remaining_for_70_percent": [
+    "Clouds in sky",
+    "Animated elements (grass sway, fire flicker)",
+    "Terrain detail texture (not just vertex color)",
+    "Better tree variety (fall colors, dark variants)",
+    "Character clearly visible and identifiable"
+  ],
+  "architecture": {
+    "core_pattern": "JSON defines → Python generates → Godot renders",
+    "object_types": "entity (interactive) / element (static) / decoration (visual only)",
+    "all_from_json": "material, collision, light, tint, model_variants, model_scale"
   },
-  "visual_grade": "50% honest vs references",
-  "visual_log": [
-    "10% gray columns", "25% primitives", "35% edge trees", "38% real GLB",
-    "45% texture fix", "48% nature kit", "50% 100x100 world + JSON pipeline"
-  ],
-  "docs": "18-25a (8 game studies + design + reference catalog)",
-  "scripts": "16 in core framework + sim_world.gd + multi_camera_qa.gd",
-  "models": "1285 total (876 original + 329 nature kit + 80 survival kit)",
-  "lessons_count": 150,
-  "local_commits_ahead": 30
+  "lessons_count": 154,
+  "local_commits": 47,
+  "models_count": 1285
 }

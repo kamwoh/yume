@@ -240,7 +240,7 @@ def generate_paths(camp_x: float, camp_z: float, width: float, height: float,
         (0.7, 0.7, 45.0),
     ]
 
-    path_models = ["ground_pathStraight", "ground_pathOpen", "ground_pathRocks"]
+    path_models = ["ground_pathStraight", "ground_pathStraight", "ground_pathOpen", "ground_pathRocks"]
 
     for dx, dz, rot in directions:
         path_len = rng.randint(8, 20)
@@ -251,18 +251,18 @@ def generate_paths(camp_x: float, camp_z: float, width: float, height: float,
             if abs(px) > width / 2 - 3 or abs(pz) > height / 2 - 3:
                 break
             path_tiles.append({
-                "x": px + rng.uniform(-0.15, 0.15),
-                "z": pz + rng.uniform(-0.15, 0.15),
+                "x": px + rng.uniform(-0.1, 0.1),
+                "z": pz + rng.uniform(-0.1, 0.1),
                 "model": rng.choice(path_models),
                 "rotation_y": rot,
-                "scale": 0.5,
+                "scale": 1.0,
             })
 
     # Crossroads at camp
     path_tiles.append({
         "x": camp_x, "z": camp_z,
         "model": "ground_pathCross",
-        "rotation_y": 0, "scale": 0.5,
+        "rotation_y": 0, "scale": 1.0,
     })
 
     return path_tiles
