@@ -40,35 +40,36 @@ func _create_cameras() -> void:
 	var hw: float = world_w / 2.0 - 2
 	var hh: float = world_h / 2.0 - 2
 
-	# ALL cameras: look DOWN at ground. World fills 70%+ of frame.
+	# Each camera has a PURPOSE. look_at point always on/below ground = never just sky.
 	var positions: Array = [
-		# Top-down — straight down, see entire layout
-		{"pos": Vector3(0, 22, 0), "look": Vector3(0.01, 0, 0.01), "name": "top_down"},
+		# PURPOSE: see overall layout — top-down map view
+		{"pos": Vector3(0, 25, 0.1), "look": Vector3(0, 0, 0), "name": "map_overview"},
 
-		# Isometric overviews — 30-40 degree angle, world fills frame
-		{"pos": Vector3(0, 10, hw * 0.6), "look": Vector3(0, -2, -hw * 0.3), "name": "south_iso"},
-		{"pos": Vector3(hw * 0.6, 10, 0), "look": Vector3(-hw * 0.3, -2, 0), "name": "east_iso"},
-		{"pos": Vector3(0, 10, -hh * 0.6), "look": Vector3(0, -2, hh * 0.3), "name": "north_iso"},
-		{"pos": Vector3(-hw * 0.6, 10, 0), "look": Vector3(hw * 0.3, -2, 0), "name": "west_iso"},
+		# PURPOSE: check camp area — is camp readable?
+		{"pos": Vector3(0, 8, 5), "look": Vector3(0, 0, 0), "name": "camp_above"},
 
-		# Corner overviews — diagonal, lower
-		{"pos": Vector3(-hw * 0.5, 7, -hh * 0.5), "look": Vector3(hw * 0.2, -1, hh * 0.2), "name": "corner_nw"},
-		{"pos": Vector3(hw * 0.5, 7, hh * 0.5), "look": Vector3(-hw * 0.2, -1, -hh * 0.2), "name": "corner_se"},
+		# PURPOSE: check terrain slopes — isometric shows hills
+		{"pos": Vector3(hw * 0.3, 6, hh * 0.3), "look": Vector3(0, 0, 0), "name": "terrain_se"},
+		{"pos": Vector3(-hw * 0.3, 6, -hh * 0.3), "look": Vector3(0, 0, 0), "name": "terrain_nw"},
 
-		# Eye-level walking — character height, look slightly down
-		{"pos": Vector3(0, 2, hh * 0.3), "look": Vector3(0, 0, -3), "name": "eye_south"},
-		{"pos": Vector3(0, 2, -hh * 0.3), "look": Vector3(0, 0, 3), "name": "eye_north"},
-		{"pos": Vector3(-hw * 0.3, 2, 0), "look": Vector3(3, 0, 0), "name": "eye_west"},
-		{"pos": Vector3(hw * 0.3, 2, 0), "look": Vector3(-3, 0, 0), "name": "eye_east"},
+		# PURPOSE: walk through forest — eye level, see tree density
+		{"pos": Vector3(0, 2, 10), "look": Vector3(0, 1, -5), "name": "walk_south"},
+		{"pos": Vector3(10, 2, 0), "look": Vector3(-5, 1, 0), "name": "walk_east"},
+		{"pos": Vector3(-10, 2, -10), "look": Vector3(5, 1, 5), "name": "walk_nw"},
+		{"pos": Vector3(0, 2, -10), "look": Vector3(0, 1, 5), "name": "walk_north"},
 
-		# Close-ups — near ground level, elements in foreground
-		{"pos": Vector3(3, 1.2, 3), "look": Vector3(-1, -0.2, -1), "name": "close_a"},
-		{"pos": Vector3(-5, 1.2, -3), "look": Vector3(2, -0.2, 1), "name": "close_b"},
-		{"pos": Vector3(8, 1.0, -5), "look": Vector3(-2, -0.3, 2), "name": "close_c"},
+		# PURPOSE: close-up elements — can you identify what things are?
+		{"pos": Vector3(3, 1.5, 3), "look": Vector3(0, 0.5, 0), "name": "closeup_camp"},
+		{"pos": Vector3(-8, 1.5, 5), "look": Vector3(-5, 0.5, 3), "name": "closeup_west"},
+		{"pos": Vector3(12, 1.5, -8), "look": Vector3(8, 0.5, -5), "name": "closeup_far"},
 
-		# Ground-level dramatic — very low, ground fills bottom half
-		{"pos": Vector3(0, 0.5, hh * 0.2), "look": Vector3(0, 0.3, -3), "name": "ground_south"},
-		{"pos": Vector3(-5, 0.5, 0), "look": Vector3(3, 0.3, 0), "name": "ground_west"},
+		# PURPOSE: check edge — does tree ring hide world boundary?
+		{"pos": Vector3(0, 3, hh * 0.6), "look": Vector3(0, 1, hh * 0.3), "name": "edge_south"},
+		{"pos": Vector3(hw * 0.6, 3, 0), "look": Vector3(hw * 0.3, 1, 0), "name": "edge_east"},
+
+		# PURPOSE: player eye level — what the actual game feels like
+		{"pos": Vector3(0, 1.2, 5), "look": Vector3(0, 0.8, -3), "name": "player_south"},
+		{"pos": Vector3(5, 1.2, 0), "look": Vector3(-3, 0.8, 0), "name": "player_east"},
 	]
 
 	for p in positions:
@@ -92,15 +93,9 @@ func _process(delta: float) -> void:
 
 	switch_timer += delta
 
-	# Slowly rotate current camera for angle variety
-	var cam: Camera3D = cameras[current_cam]
-	cam.rotate_y(delta * 0.15)  # Gentle rotation during active time
-
 	if switch_timer >= switch_interval:
 		switch_timer = 0.0
 		cameras[current_cam].current = false
-		# Reset rotation before switching
-		var cam_name_str: String = camera_names[current_cam] if current_cam < camera_names.size() else ""
 		current_cam = (current_cam + 1) % cameras.size()
 		cameras[current_cam].current = true
 		# Log camera info for QA analysis
