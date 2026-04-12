@@ -75,13 +75,28 @@ func _create_cameras() -> void:
 		{"pos": Vector3(5, 1.2, 0), "look_offset": Vector3(-5, -0.3, 3), "name": "player_nw"},
 	]
 
+	# Find terrain for height queries
+	var terrain_node: Node = null
+	for child in get_parent().get_children():
+		if child.name == "Terrain" and child.has_method("get_height_at"):
+			terrain_node = child
+			break
+
 	for p in positions:
 		var cam := Camera3D.new()
 		var cam_name: String = str(p.get("name", ""))
 		cam.name = "QACam_" + cam_name
-		cam.position = p.get("pos", Vector3.ZERO)
+		var cam_pos: Vector3 = p.get("pos", Vector3.ZERO)
+
+		# Ensure camera is ABOVE terrain at its position
+		if terrain_node:
+			var terrain_h: float = terrain_node.get_height_at(cam_pos.x, cam_pos.z)
+			if cam_pos.y < terrain_h + 1.0:
+				cam_pos.y = terrain_h + cam_pos.y  # Add requested height ON TOP of terrain
+
+		cam.position = cam_pos
 		cam.current = false
-		add_child(cam)  # Must be in tree BEFORE look_at works
+		add_child(cam)
 		var look_off: Vector3 = p.get("look_offset", Vector3(0, -1, 0))
 		cam.look_at(cam.global_position + look_off)
 		cameras.append(cam)

@@ -10,9 +10,10 @@ var resolution: int = 64
 var world_w: float = 100.0
 var world_h: float = 100.0
 var height_scale: float = 1.0
-var base_color := Color(0.38, 0.58, 0.28)    # Bright grass green
-var slope_color := Color(0.48, 0.42, 0.32)  # Warm brown for slopes
-var low_color := Color(0.32, 0.50, 0.22)    # Slightly darker green for valleys
+var base_color := Color(0.42, 0.62, 0.30)    # Bright grass green
+var slope_color := Color(0.52, 0.44, 0.34)  # Warm brown for steep slopes
+var low_color := Color(0.35, 0.55, 0.25)    # Slightly darker green for valleys
+var high_color := Color(0.48, 0.65, 0.35)   # Lighter green for hilltops
 
 
 func build_from_data(data: Dictionary, w: float, h: float) -> void:
@@ -82,10 +83,12 @@ func _build_mesh() -> void:
 	terrain_mesh.name = "TerrainMesh"
 	terrain_mesh.mesh = mesh
 
-	# Material — use vertex colors
+	# Material — vertex colors for terrain variation + green base fallback
 	var mat := StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
+	mat.albedo_color = base_color  # Fallback if vertex colors don't render
 	mat.roughness = 0.9
+	# Default CULL_BACK is fine — don't render underside
 	terrain_mesh.material_override = mat
 	add_child(terrain_mesh)
 
@@ -144,12 +147,17 @@ func _height_color(h: float, gx: int, gz: int) -> Color:
 		var h_down: float = float(heightmap[idx + resolution]) if idx + resolution < heightmap.size() else 0.0
 		slope += abs(h_down - h_up)
 
-	# Blend: grass for flat, brown for steep — subtle, not dramatic
+	# Blend based on height + slope
 	var grass_factor: float = clamp(1.0 - slope * 2.0, 0.0, 1.0)
-	var height_factor: float = clamp(normalized_h + 0.5, 0.3, 1.0)  # Never too dark
 
-	var color := base_color.lerp(slope_color, (1.0 - grass_factor) * 0.5)
-	color = color.lerp(low_color, clamp(0.3 - height_factor * 0.2, 0.0, 0.2))
+	# Start with base green
+	var color := base_color
+	# Hilltops: lighter green
+	color = color.lerp(high_color, clamp(normalized_h * 0.8, 0.0, 0.5))
+	# Valleys: darker green
+	color = color.lerp(low_color, clamp((0.5 - normalized_h) * 0.5, 0.0, 0.3))
+	# Steep slopes: brown
+	color = color.lerp(slope_color, (1.0 - grass_factor) * 0.6)
 
 	# Subtle variation
 	var noise_var: float = (float((gx * 374761 + gz * 668265) & 0xFF) / 255.0 - 0.5) * 0.04
