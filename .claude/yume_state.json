@@ -1,34 +1,40 @@
 {
   "current_project": "Yume3D",
-  "current_phase": "simulation_game_design",
+  "current_phase": "simulation_world_terrain",
   "last_session_date": "2026-04-12",
-  "completed": [
-    "Phase 1: 3D engine (14 core scripts)",
-    "Phase 1.5: Seamless multi-room, minimap, HP bar, A* pathfinding, camera brains",
-    "Phase 2: Procedural gen (6 shapes, 6 biomes, multi-floor, 2D layout)",
-    "Simulation data files (elements, recipes, needs, world_rules, items, world_config)",
-    "brain_needs_driven.gd + inventory.gd",
-    "8 game codebase studies (docs 18-24)",
-    "100+ reference image analysis (docs/25)",
-    "143 lessons in knowledge base"
+  "session_summary": "Massive session: dungeon → simulation world → visual iteration → proper pipeline",
+  "completed_today": [
+    "Harness engineering (5 hooks, 3 agents, visual regression)",
+    "Game design study (8 codebases: OpenCiv, SAO, Sims, Minecraft, Veloren, OpenMW, Freedom-Hunter, VoxeLibre)",
+    "100+ reference images studied and cataloged (docs/25a)",
+    "Dungeon: seamless multi-room, combat, interactions, A* pathfinding",
+    "Procedural dungeon generator (shapes, biomes, 2D layout)",
+    "Simulation world: open field, nature kit models, day/night cycle",
+    "Proper pipeline: Python generates JSON → Godot renders",
+    "Multi-camera QA with FOV cone on minimap",
+    "150 lessons in knowledge base"
   ],
-  "next_steps": [
-    "Build sim_world.gd — flat green field, scatter elements naturally, day/night cycle",
-    "Wire NeedsDrivenBrain — agent gathers, eats, builds",
-    "World rules engine — ABMs (growth, fire, decay)",
-    "Multi-agent with sentiments and personalities",
-    "Recording + data export"
+  "next_immediate": [
+    "BUILD HEIGHTMAP TERRAIN — foundational, applies to all game types",
+    "generate_sim_world.py outputs heightmap data",
+    "sim_world.gd renders subdivided mesh with vertex displacement",
+    "Player walks up/down real slopes",
+    "Then: improve visual quality toward 70%+"
   ],
-  "design_doc": "docs/25_simulation_world_design.md",
-  "reference_images": "/mnt/c/Users/kamwoh/Downloads/ref/ (87+ images)",
-  "codebase_studies": {
-    "veloren": "NPC simulation (rtsim), action composition, sentiments",
-    "openmw": "Stack-based AI, dialogue, schedules",
-    "freedom_hunter": "Godot combat, NavigationAgent3D",
-    "voxelibre": "Minecraft crafting, farming ABMs, mob AI",
-    "luanti": "Modding API, 5 registration systems",
-    "openciv": "Procedural map gen, A*",
-    "opents2": "Needs + autonomy scoring"
+  "terrain_design": {
+    "approach": "Subdivided PlaneMesh with vertex displacement from noise heightmap",
+    "data": "Python generates height samples → JSON array → Godot displaces vertices",
+    "uses": ["outdoor hills", "dungeon multi-level", "building floors", "cliffs", "underwater"],
+    "abstraction": "HeightmapTerrain as core engine component"
   },
-  "lessons_count": 143
+  "visual_grade": "50% honest vs references",
+  "visual_log": [
+    "10% gray columns", "25% primitives", "35% edge trees", "38% real GLB",
+    "45% texture fix", "48% nature kit", "50% 100x100 world + JSON pipeline"
+  ],
+  "docs": "18-25a (8 game studies + design + reference catalog)",
+  "scripts": "16 in core framework + sim_world.gd + multi_camera_qa.gd",
+  "models": "1285 total (876 original + 329 nature kit + 80 survival kit)",
+  "lessons_count": 150,
+  "local_commits_ahead": 30
 }
