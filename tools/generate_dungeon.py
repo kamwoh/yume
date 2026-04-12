@@ -679,6 +679,42 @@ def generate_room(room_id: str, story_role: str, doors: dict, biome_name: str,
     return room
 
 
+def _find_door_center(grid_map: list[str], width: int, height: int, side: str) -> tuple[float, float]:
+    """Find the center position of door tiles on the given side."""
+    door_positions = []
+    for z, row in enumerate(grid_map):
+        for x, cell in enumerate(row):
+            if cell != "D":
+                continue
+            if side == "north" and z == 0:
+                door_positions.append((x + 0.5, z + 0.5))
+            elif side == "south" and z == height - 1:
+                door_positions.append((x + 0.5, z + 0.5))
+            elif side == "east" and x == len(row) - 1:
+                door_positions.append((x + 0.5, z + 0.5))
+            elif side == "west" and x == 0:
+                door_positions.append((x + 0.5, z + 0.5))
+
+    if door_positions:
+        avg_x = sum(p[0] for p in door_positions) / len(door_positions)
+        avg_z = sum(p[1] for p in door_positions) / len(door_positions)
+        return avg_x, avg_z
+
+    # Fallback: center of that side
+    if side == "north":
+        return width / 2.0, 0.5
+    elif side == "south":
+        return width / 2.0, height - 0.5
+    elif side == "east":
+        return width - 0.5, height / 2.0
+    else:
+        return 0.5, height / 2.0
+
+
+def _opposite_dir(direction: str) -> str:
+    return {"north": "south", "south": "north", "east": "west", "west": "east"}.get(direction, direction)
+
+
 # ============================================================
 # DUNGEON LAYOUT — 2D placement with optional multi-floor
 # ============================================================
@@ -769,18 +805,82 @@ def generate_dungeon(num_rooms: int, seed: int, sequence: list[str] | None = Non
             floor_rooms.append(room)
             all_rooms.append(room)
 
-        # Calculate offsets for this floor
-        max_w = max(max(len(r) for r in rm["grid"]["map"]) for rm in floor_rooms) + 2
-        max_h = max(len(rm["grid"]["map"]) for rm in floor_rooms) + 2
+        # Calculate offsets by placing rooms so doors are adjacent
+        # Room center in world = offset. Grid is centered: local x=0 is at grid col w/2
+        room_offsets = {0: (0.0, 0.0)}
+
+        for i in range(1, len(floor_rooms)):
+            gx, gz, connect_dir = room_positions[i]
+            room = floor_rooms[i]
+            room_grid = room["grid"]["map"]
+            room_w = max(len(r) for r in room_grid)
+            room_h = len(room_grid)
+
+            # I moved in connect_dir to get here, so my parent is BEHIND me
+            # E.g., connect_dir=east means I went east, parent is to my west
+            opp = _opposite_dir(connect_dir)
+            dir_deltas = {"north": (0, -1), "south": (0, 1), "east": (1, 0), "west": (-1, 0)}
+            pdx, pdz = dir_deltas[opp]
+            parent_pos = (gx + pdx, gz + pdz)
+
+            parent_idx = placed.get(parent_pos)
+            if parent_idx is None or parent_idx not in room_offsets:
+                room_offsets[i] = (0.0, 0.0)
+                continue
+
+            parent = floor_rooms[parent_idx]
+            p_grid = parent["grid"]["map"]
+            p_w = max(len(r) for r in p_grid)
+            p_h = len(p_grid)
+            p_ox, p_oz = room_offsets[parent_idx]
+
+            # Parent's door toward me is on the side FACING me (connect_dir)
+            # I went east → parent's east door faces me, my west door faces parent
+            p_door_x, p_door_z = _find_door_center(p_grid, p_w, p_h, connect_dir)
+            my_door_side = _opposite_dir(connect_dir)
+            my_door_x, my_door_z = _find_door_center(room_grid, room_w, room_h, my_door_side)
+
+            # Align door x-centers (or z-centers for east/west connections)
+            if connect_dir in ("north", "south"):
+                # Rooms stack vertically (z-axis). Align x-centers of doors.
+                # Parent door world-x = p_ox + (p_door_x - p_w/2)
+                p_door_world_x = p_ox + (p_door_x - p_w / 2.0)
+                # My door local-x = my_door_x - room_w/2
+                my_door_local_x = my_door_x - room_w / 2.0
+                ox = p_door_world_x - my_door_local_x
+
+                # Z: place my room so my door row is adjacent to parent's door row
+                if connect_dir == "south":
+                    # Parent is south of me. Parent's south door is at their last row.
+                    # My north door is at my first row.
+                    # Parent's south edge world-z = p_oz + p_h/2
+                    # My north edge world-z = oz - room_h/2
+                    # Adjacent: my north edge = parent south edge
+                    oz = p_oz + p_h / 2.0 + room_h / 2.0
+                else:  # north
+                    oz = p_oz - p_h / 2.0 - room_h / 2.0
+
+            else:  # east or west
+                # Rooms stack horizontally (x-axis). Align z-centers of doors.
+                p_door_world_z = p_oz + (p_door_z - p_h / 2.0)
+                my_door_local_z = my_door_z - room_h / 2.0
+                oz = p_door_world_z - my_door_local_z
+
+                if connect_dir == "east":
+                    ox = p_ox + p_w / 2.0 + room_w / 2.0
+                else:  # west
+                    ox = p_ox - p_w / 2.0 - room_w / 2.0
+
+            room_offsets[i] = (ox, oz)
 
         for i, room in enumerate(floor_rooms):
-            gx, gz, _ = room_positions[i]
+            ox, oz = room_offsets.get(i, (0.0, 0.0))
             dungeon_rooms.append({
                 "location": room["id"],
                 "offset": {
-                    "x": float(gx * max_w),
+                    "x": ox,
                     "y": float(floor_num * floor_y_spacing),
-                    "z": float(gz * max_h),
+                    "z": oz,
                 },
                 "floor": floor_num,
             })
