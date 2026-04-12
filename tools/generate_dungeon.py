@@ -106,32 +106,7 @@ LIGHTING_MOODS = {
 DEFAULT_SEQUENCE = ["guard_post", "corridor", "treasure_vault", "corridor", "boss_arena"]
 
 
-def generate_grid(width: int, height: int, door_north: bool, door_south: bool) -> list[str]:
-    """Generate a room grid with walls, floors, and doors."""
-    rows = []
-    for z in range(height):
-        if z == 0:
-            # North wall — door if connected
-            row = list("W" * width)
-            if door_north:
-                mid = width // 2
-                for dx in range(-1, 2):
-                    if 0 <= mid + dx < width:
-                        row[mid + dx] = "D"
-            rows.append("".join(row))
-        elif z == height - 1:
-            # South wall — door if connected
-            row = list("W" * width)
-            if door_south:
-                mid = width // 2
-                for dx in range(-1, 2):
-                    if 0 <= mid + dx < width:
-                        row[mid + dx] = "D"
-            rows.append("".join(row))
-        else:
-            # Interior — floor with wall borders
-            rows.append("W" + "F" * (width - 2) + "W")
-    return rows
+# generate_grid replaced by generate_grid_4dir (supports north/south/east/west doors)
 
 
 def generate_props(width: int, height: int, template: dict, rng: random.Random) -> list[dict]:
@@ -336,53 +311,218 @@ def generate_room(room_id: str, story_role: str, has_north_door: bool, has_south
     return room
 
 
+def generate_grid_4dir(width: int, height: int, doors: dict) -> list[str]:
+    """Generate room grid with doors on any side: north/south/east/west."""
+    rows = []
+    for z in range(height):
+        row = list("W" if (z == 0 or z == height - 1 or True) else "F" for _ in range(width))
+        # Fill interior
+        for x in range(width):
+            if z == 0 or z == height - 1:
+                row[x] = "W"
+            elif x == 0 or x == width - 1:
+                row[x] = "W"
+            else:
+                row[x] = "F"
+
+        # North door (z=0)
+        if z == 0 and doors.get("north"):
+            mid = width // 2
+            for dx in range(-1, 2):
+                if 0 <= mid + dx < width:
+                    row[mid + dx] = "D"
+
+        # South door (z=height-1)
+        if z == height - 1 and doors.get("south"):
+            mid = width // 2
+            for dx in range(-1, 2):
+                if 0 <= mid + dx < width:
+                    row[mid + dx] = "D"
+
+        # East door (x=width-1)
+        if doors.get("east") and z == height // 2:
+            row[width - 1] = "D"
+            if height // 2 - 1 >= 0:
+                rows_to_fix = [height // 2 - 1, height // 2, height // 2 + 1]
+            else:
+                rows_to_fix = [height // 2]
+            # We'll fix east doors after all rows are built
+
+        # West door (x=0)
+        if doors.get("west") and z == height // 2:
+            row[0] = "D"
+
+        rows.append("".join(row))
+
+    # Fix east/west doors — need 3 tiles tall for passage
+    if doors.get("east"):
+        mid_z = height // 2
+        for dz in range(-1, 2):
+            z = mid_z + dz
+            if 0 < z < height - 1:
+                r = list(rows[z])
+                r[width - 1] = "D"
+                rows[z] = "".join(r)
+
+    if doors.get("west"):
+        mid_z = height // 2
+        for dz in range(-1, 2):
+            z = mid_z + dz
+            if 0 < z < height - 1:
+                r = list(rows[z])
+                r[0] = "D"
+                rows[z] = "".join(r)
+
+    return rows
+
+
+def generate_room(room_id: str, story_role: str, doors: dict, rng: random.Random) -> dict:
+    """Generate a complete room JSON. doors = {"north": bool, "south": bool, "east": bool, "west": bool}"""
+    template = ROOM_TEMPLATES.get(story_role, ROOM_TEMPLATES["guard_post"])
+    mood_name = template.get("lighting_mood", "warm")
+    mood = LIGHTING_MOODS.get(mood_name, LIGHTING_MOODS["warm"])
+
+    width = rng.randint(template["min_w"], template["max_w"])
+    height = rng.randint(template["min_h"], template["max_h"])
+
+    grid_map = generate_grid_4dir(width, height, doors)
+    props = generate_props(width, height, template, rng)
+    enemies = generate_enemies(width, height, template, rng)
+    lights = generate_lights(width, height, template, rng)
+
+    # Spawn near whichever door is the "entrance"
+    if doors.get("south"):
+        spawn_gx, spawn_gz = width // 2, height - 3
+    elif doors.get("west"):
+        spawn_gx, spawn_gz = 2, height // 2
+    elif doors.get("east"):
+        spawn_gx, spawn_gz = width - 3, height // 2
+    else:
+        spawn_gx, spawn_gz = width // 2, height // 2
+
+    room = {
+        "id": room_id,
+        "name": template.get("description", story_role).split(".")[0],
+        "type": "dungeon",
+        "description": template.get("description", ""),
+        "story_role": story_role,
+        "grid": {
+            "tile_size": 1.0,
+            "tiles": {"floor": "floor", "wall": "wall", "door": "wall-opening"},
+            "map": grid_map,
+        },
+        "spawn_on_grid": {"gx": spawn_gx, "gz": spawn_gz},
+        "props_on_grid": props,
+        "npcs_on_grid": enemies,
+        "point_lights": lights,
+        "atmosphere": {
+            "bg_color": mood["bg_color"],
+            "ambient_light": mood["ambient_light"],
+            "sun_energy": 0.0,
+            "lighting": {"type": "dark"},
+        },
+        "layout": {
+            "width": width * 50, "height": height * 50,
+            "ground_color": [0.2, 0.18, 0.15],
+            "entrance": {"x": spawn_gx * 50, "y": spawn_gz * 50},
+        },
+        "exits": [], "props": [], "story_npcs": [], "ambient_npcs": [],
+        "treasures": [], "encounters": [], "shop": [], "connections": [],
+    }
+
+    return room
+
+
 def generate_dungeon(num_rooms: int, seed: int, sequence: list[str] | None = None) -> tuple[list[dict], dict]:
-    """Generate a complete dungeon: N rooms + dungeon.json layout."""
+    """Generate a dungeon with 2D layout — rooms connect in varied directions."""
     rng = random.Random(seed)
 
     if sequence is None:
-        # Default: cycle through templates
         sequence = DEFAULT_SEQUENCE
-
-    # Extend or trim sequence to match num_rooms
     while len(sequence) < num_rooms:
         sequence.append(rng.choice(list(ROOM_TEMPLATES.keys())))
     sequence = sequence[:num_rooms]
 
-    rooms = []
-    dungeon_rooms = []
-    current_z_offset = 0.0
+    # Plan 2D layout — place rooms on a grid
+    # Each cell = (grid_x, grid_z) in room-space
+    placed = {}  # (gx, gz) → room_index
+    room_positions = []  # [(gx, gz, connect_dir)] per room
+    directions = {
+        "north": (0, -1, "south"),   # my north connects to their south
+        "south": (0, 1, "north"),
+        "east": (1, 0, "west"),
+        "west": (-1, 0, "east"),
+    }
 
+    # Place first room at origin
+    cx, cz = 0, 0
+    placed[(cx, cz)] = 0
+    room_positions.append((cx, cz, None))
+
+    for i in range(1, num_rooms):
+        # Pick a random direction from current position
+        dir_options = list(directions.keys())
+        rng.shuffle(dir_options)
+
+        placed_ok = False
+        for dir_name in dir_options:
+            dx, dz, _ = directions[dir_name]
+            nx, nz = cx + dx, cz + dz
+            if (nx, nz) not in placed:
+                placed[(nx, nz)] = i
+                room_positions.append((nx, nz, dir_name))
+                cx, cz = nx, nz
+                placed_ok = True
+                break
+
+        if not placed_ok:
+            # All neighbors occupied — try from any placed room
+            for pos, idx in list(placed.items()):
+                for dir_name in dir_options:
+                    dx, dz, _ = directions[dir_name]
+                    nx, nz = pos[0] + dx, pos[1] + dz
+                    if (nx, nz) not in placed:
+                        placed[(nx, nz)] = i
+                        room_positions.append((nx, nz, dir_name))
+                        cx, cz = nx, nz
+                        placed_ok = True
+                        break
+                if placed_ok:
+                    break
+
+    # Generate rooms with correct doors
+    rooms = []
     for i, story_role in enumerate(sequence):
         room_id = f"gen_room_{i+1:03d}"
-        has_north_door = i < num_rooms - 1  # Not last room
-        has_south_door = i > 0  # Not first room
+        gx, gz, _ = room_positions[i]
 
-        room = generate_room(room_id, story_role, has_north_door, has_south_door, rng)
+        # Check which neighbors exist
+        doors = {
+            "north": (gx, gz - 1) in placed,
+            "south": (gx, gz + 1) in placed,
+            "east": (gx + 1, gz) in placed,
+            "west": (gx - 1, gz) in placed,
+        }
+
+        room = generate_room(room_id, story_role, doors, rng)
         rooms.append(room)
 
-        grid_map = room["grid"]["map"]
-        room_height = len(grid_map)
-        room_width = len(grid_map[0])
+    # Calculate world-space offsets
+    # Each room is placed at its grid position × room size
+    # Use max room size for spacing to prevent overlap
+    max_w = max(len(r["grid"]["map"][0]) for r in rooms) + 2
+    max_h = max(len(r["grid"]["map"]) for r in rooms) + 2
 
-        # Calculate offset — stack rooms vertically (north = negative Z)
-        if i == 0:
-            z_offset = 0.0
-        else:
-            # Previous room's north door aligns with this room's south door
-            prev_room = rooms[i - 1]
-            prev_height = len(prev_room["grid"]["map"])
-            # Offset so south door of this room aligns with north door of previous
-            z_offset = current_z_offset - (prev_height / 2.0 + room_height / 2.0)
-
-        current_z_offset = z_offset
-
+    dungeon_rooms = []
+    for i, room in enumerate(rooms):
+        gx, gz, _ = room_positions[i]
+        offset_x = gx * max_w
+        offset_z = gz * max_h
         dungeon_rooms.append({
-            "location": room_id,
-            "offset": {"x": 0.0, "z": z_offset},
+            "location": room["id"],
+            "offset": {"x": float(offset_x), "z": float(offset_z)},
         })
 
-    # Dungeon layout
     dungeon = {
         "starting_room": rooms[0]["id"],
         "spawn_on_grid": rooms[0]["spawn_on_grid"],
