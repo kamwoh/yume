@@ -81,7 +81,7 @@ func _build_environment() -> void:
 	sun_node.name = "Sun"
 	sun_node.rotation_degrees = Vector3(-45, 30, 0)
 	sun_node.light_energy = atmo.get("sun_energy", 0.8)
-	sun_node.light_color = Color(1.0, 0.95, 0.8)
+	sun_node.light_color = Color(1.0, 0.9, 0.7)  # Warmer golden sun
 	sun_node.shadow_enabled = true
 	add_child(sun_node)
 
@@ -93,11 +93,13 @@ func _build_environment() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = amb_color
 	env.ambient_light_energy = 0.5
-	# Fog for world edges
+	# Fog — heavier to hide world edges and create depth
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.7, 0.75, 0.8)
-	env.fog_density = 0.01
-	env.fog_sky_affect = 0.5
+	env.fog_light_color = Color(0.65, 0.72, 0.82)
+	env.fog_density = 0.02
+	env.fog_sky_affect = 0.8
+
+	# Note: tonemap and SSAO not supported in gl_compatibility renderer
 	env_node.environment = env
 	add_child(env_node)
 
@@ -154,7 +156,62 @@ func _build_ground() -> void:
 		patch.material_override = patch_mat
 		ground.add_child(patch)
 
-	print("[SimWorld] Ground: ", world_w, "x", world_h, " green plane with 30 variation patches")
+	# Small flower/detail dots on ground
+	var flower_colors: Array = [
+		Color(0.9, 0.85, 0.2),  # Yellow
+		Color(0.9, 0.3, 0.3),   # Red
+		Color(0.95, 0.95, 0.9), # White
+		Color(0.6, 0.3, 0.8),   # Purple
+	]
+	for i in range(60):
+		var flower := MeshInstance3D.new()
+		flower.mesh = SphereMesh.new()
+		flower.mesh.radius = 0.06 + randf() * 0.06
+		flower.mesh.height = 0.1
+		flower.position = Vector3(
+			randf_range(-world_w / 2 + 1, world_w / 2 - 1),
+			0.05,
+			randf_range(-world_h / 2 + 1, world_h / 2 - 1)
+		)
+		var flower_mat := StandardMaterial3D.new()
+		flower_mat.albedo_color = flower_colors[randi() % flower_colors.size()]
+		flower.material_override = flower_mat
+		ground.add_child(flower)
+
+	# Edge trees — ring of trees around world border to hide the edge
+	for i in range(50):
+		var angle: float = (float(i) / 50.0) * TAU
+		var radius: float = (world_w / 2.0) - 1.0 + randf() * 2.0
+		var edge_x: float = cos(angle) * radius
+		var edge_z: float = sin(angle) * radius
+		# Only if within world bounds
+		if abs(edge_x) < world_w / 2 and abs(edge_z) < world_h / 2:
+			var edge_tree := MeshInstance3D.new()
+			# Trunk
+			var etrunk := MeshInstance3D.new()
+			etrunk.mesh = CylinderMesh.new()
+			var eth: float = 2.5 + randf() * 1.5
+			etrunk.mesh.top_radius = 0.1
+			etrunk.mesh.bottom_radius = 0.18
+			etrunk.mesh.height = eth
+			etrunk.position = Vector3(edge_x, eth / 2, edge_z)
+			var etrunk_mat := StandardMaterial3D.new()
+			etrunk_mat.albedo_color = Color(0.4, 0.25, 0.12)
+			etrunk.material_override = etrunk_mat
+			ground.add_child(etrunk)
+			# Canopy
+			var ecanopy := MeshInstance3D.new()
+			ecanopy.mesh = SphereMesh.new()
+			var ecr: float = 0.8 + randf() * 0.5
+			ecanopy.mesh.radius = ecr
+			ecanopy.mesh.height = ecr * 1.5
+			ecanopy.position = Vector3(edge_x, eth + ecr * 0.3, edge_z)
+			var ecanopy_mat := StandardMaterial3D.new()
+			ecanopy_mat.albedo_color = Color(0.12 + randf() * 0.08, 0.4 + randf() * 0.1, 0.08 + randf() * 0.05)
+			ecanopy.material_override = ecanopy_mat
+			ground.add_child(ecanopy)
+
+	print("[SimWorld] Ground: ", world_w, "x", world_h, " + patches + flowers + edge trees")
 
 
 func _scatter_elements() -> void:
@@ -283,10 +340,10 @@ func _spawn_element(element_id: String, element_def: Dictionary, model_name: Str
 				var green_var: float = randf() * 0.15
 				mat.albedo_color = Color(0.15 + green_var, 0.45 + green_var + randf() * 0.15, 0.1 + green_var)
 			"stone":
-				# Irregular-ish rock — squashed box with slight variation
-				var sx: float = (0.5 + randf() * 0.6) * size_var
-				var sy: float = (0.3 + randf() * 0.4) * size_var
-				var sz: float = (0.5 + randf() * 0.5) * size_var
+				# Bigger rocks — visible from distance
+				var sx: float = (0.7 + randf() * 0.8) * size_var
+				var sy: float = (0.4 + randf() * 0.6) * size_var
+				var sz: float = (0.6 + randf() * 0.7) * size_var
 				mesh.mesh = BoxMesh.new()
 				mesh.mesh.size = Vector3(sx, sy, sz)
 				mesh.position.y = sy / 2.0
