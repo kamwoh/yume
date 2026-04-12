@@ -70,12 +70,17 @@ func _create_cameras() -> void:
 
 	for p in positions:
 		var cam := Camera3D.new()
-		cam.name = "QACam_" + str(p.get("name", ""))
+		var cam_name: String = str(p.get("name", ""))
+		cam.name = "QACam_" + cam_name
 		cam.position = p.get("pos", Vector3.ZERO)
 		cam.look_at(p.get("look", Vector3.ZERO))
 		cam.current = false
 		add_child(cam)
 		cameras.append(cam)
+		camera_names.append(cam_name)
+
+
+var camera_names: Array = []
 
 
 func _process(delta: float) -> void:
@@ -85,8 +90,16 @@ func _process(delta: float) -> void:
 	switch_timer += delta
 	if switch_timer >= switch_interval:
 		switch_timer = 0.0
-		# Deactivate current
 		cameras[current_cam].current = false
-		# Next camera
 		current_cam = (current_cam + 1) % cameras.size()
 		cameras[current_cam].current = true
+		# Log camera info for QA analysis
+		var cam: Camera3D = cameras[current_cam]
+		var cam_name: String = camera_names[current_cam] if current_cam < camera_names.size() else "unknown"
+		print("[QACam] #", current_cam, " '", cam_name, "' pos=(",
+			snapped(cam.global_position.x, 0.1), ",",
+			snapped(cam.global_position.y, 0.1), ",",
+			snapped(cam.global_position.z, 0.1), ") looking_at=(",
+			snapped(-cam.global_transform.basis.z.x, 0.1), ",",
+			snapped(-cam.global_transform.basis.z.y, 0.1), ",",
+			snapped(-cam.global_transform.basis.z.z, 0.1), ")")
