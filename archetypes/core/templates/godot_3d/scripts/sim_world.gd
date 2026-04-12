@@ -201,102 +201,138 @@ func _spawn_element(element_id: String, element_def: Dictionary, model_name: Str
 	body.set_meta("element_id", element_id)
 	body.set_meta("element_data", element_def)
 
-	# Load model
+	# Load model — use primitives for natural elements, GLB for structures
 	var model_loaded := false
-	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
-	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
-	var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
-	var actual_scale: float = scale_map.get(model_name, 1.0) * model_scale
 
-	for base_path in search_paths:
-		if model_loaded:
-			break
-		for ext in extensions:
-			var path: String = str(base_path) + model_name + "." + str(ext)
-			if ResourceLoader.exists(path):
-				var scene: PackedScene = load(path)
-				if scene:
-					var instance := scene.instantiate()
-					instance.name = "Model"
-					instance.scale = Vector3.ONE * actual_scale
-					# Random Y rotation for natural feel
-					instance.rotation.y = randf() * TAU
-					# Tint model based on element type
-					_tint_element_model(instance, element_id)
-					body.add_child(instance)
-					model_loaded = true
-					break
+	if model_name != "_primitive":
+		var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
+		var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
+		var scale_map: Dictionary = asset_config.get("prop_scale_map", {})
+		var actual_scale: float = scale_map.get(model_name, 1.0) * model_scale
+
+		for base_path in search_paths:
+			if model_loaded:
+				break
+			for ext in extensions:
+				var path: String = str(base_path) + model_name + "." + str(ext)
+				if ResourceLoader.exists(path):
+					var scene: PackedScene = load(path)
+					if scene:
+						var instance := scene.instantiate()
+						instance.name = "Model"
+						instance.scale = Vector3.ONE * actual_scale
+						instance.rotation.y = randf() * TAU
+						_tint_element_model(instance, element_id)
+						body.add_child(instance)
+						model_loaded = true
+						break
 
 	if not model_loaded:
 		# Fallback: colored primitive shapes per element type
 		var mesh := MeshInstance3D.new()
 		var mat := StandardMaterial3D.new()
 
+		# Random size variation for natural feel
+		var size_var: float = 0.7 + randf() * 0.6  # 0.7 to 1.3
+
 		match element_id:
 			"tree":
-				# Tall green cylinder + brown trunk
+				# Brown trunk
+				var trunk_h: float = 1.5 + randf() * 1.5  # 1.5-3.0 height
 				var trunk := MeshInstance3D.new()
 				trunk.mesh = CylinderMesh.new()
-				trunk.mesh.top_radius = 0.15
-				trunk.mesh.bottom_radius = 0.2
-				trunk.mesh.height = 2.0
-				trunk.position.y = 1.0
+				trunk.mesh.top_radius = 0.08 * size_var
+				trunk.mesh.bottom_radius = 0.15 * size_var
+				trunk.mesh.height = trunk_h * size_var
+				trunk.position.y = trunk_h * size_var / 2.0
 				var trunk_mat := StandardMaterial3D.new()
-				trunk_mat.albedo_color = Color(0.45, 0.3, 0.15)
+				trunk_mat.albedo_color = Color(0.4 + randf() * 0.1, 0.25 + randf() * 0.1, 0.12)
 				trunk.material_override = trunk_mat
 				body.add_child(trunk)
-				# Green foliage sphere on top
+				# Green foliage — sphere or slightly squashed
+				var foliage_r: float = (0.6 + randf() * 0.5) * size_var
 				mesh.mesh = SphereMesh.new()
-				mesh.mesh.radius = 0.8
-				mesh.mesh.height = 1.2
-				mesh.position.y = 2.2
-				mat.albedo_color = Color(0.2, 0.55, 0.15)
+				mesh.mesh.radius = foliage_r
+				mesh.mesh.height = foliage_r * (1.2 + randf() * 0.6)
+				mesh.position.y = trunk_h * size_var + foliage_r * 0.4
+				var green_var: float = randf() * 0.15
+				mat.albedo_color = Color(0.15 + green_var, 0.45 + green_var + randf() * 0.15, 0.1 + green_var)
 			"stone":
+				# Irregular-ish rock — squashed box with slight variation
+				var sx: float = (0.5 + randf() * 0.6) * size_var
+				var sy: float = (0.3 + randf() * 0.4) * size_var
+				var sz: float = (0.5 + randf() * 0.5) * size_var
 				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(0.8, 0.6, 0.8) * model_scale
-				mesh.position.y = 0.3 * model_scale
-				mat.albedo_color = Color(0.55, 0.52, 0.48)
+				mesh.mesh.size = Vector3(sx, sy, sz)
+				mesh.position.y = sy / 2.0
+				mesh.rotation.y = randf() * TAU
+				var gray: float = 0.45 + randf() * 0.15
+				mat.albedo_color = Color(gray, gray - 0.02, gray - 0.05)
+				mat.roughness = 0.95
 			"water":
-				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(1.2, 0.1, 1.2) * model_scale
-				mesh.position.y = -0.05
-				mat.albedo_color = Color(0.2, 0.45, 0.75)
-				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-				mat.albedo_color.a = 0.7
-			"dirt":
-				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(1.0, 0.15, 1.0) * model_scale
-				mesh.position.y = 0.05
-				mat.albedo_color = Color(0.45, 0.32, 0.18)
-			"campfire":
+				# Blue translucent flat pool — slightly sunken
+				var pool_size: float = (1.5 + randf() * 1.0) * size_var
 				mesh.mesh = CylinderMesh.new()
-				mesh.mesh.top_radius = 0.1
-				mesh.mesh.bottom_radius = 0.3
-				mesh.mesh.height = 0.5
-				mesh.position.y = 0.25
-				mat.albedo_color = Color(0.6, 0.3, 0.1)
+				mesh.mesh.top_radius = pool_size
+				mesh.mesh.bottom_radius = pool_size * 1.1
+				mesh.mesh.height = 0.08
+				mesh.position.y = -0.02
+				mat.albedo_color = Color(0.15, 0.35, 0.7, 0.75)
+				mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+				mat.metallic = 0.3
+				mat.roughness = 0.1
+			"dirt":
+				# Brown patch slightly raised
+				mesh.mesh = CylinderMesh.new()
+				mesh.mesh.top_radius = 0.6 * size_var
+				mesh.mesh.bottom_radius = 0.7 * size_var
+				mesh.mesh.height = 0.08
+				mesh.position.y = 0.02
+				mat.albedo_color = Color(0.4 + randf() * 0.1, 0.28 + randf() * 0.08, 0.15)
+				mat.roughness = 1.0
+			"campfire":
+				# Log pile base + glowing ember
+				var log1 := MeshInstance3D.new()
+				log1.mesh = CylinderMesh.new()
+				log1.mesh.top_radius = 0.06
+				log1.mesh.bottom_radius = 0.06
+				log1.mesh.height = 0.6
+				log1.position = Vector3(0, 0.06, 0)
+				log1.rotation.z = PI / 2
+				var log_mat := StandardMaterial3D.new()
+				log_mat.albedo_color = Color(0.35, 0.2, 0.1)
+				log1.material_override = log_mat
+				body.add_child(log1)
+				# Ember glow
+				mesh.mesh = SphereMesh.new()
+				mesh.mesh.radius = 0.15
+				mesh.mesh.height = 0.2
+				mesh.position.y = 0.15
+				mat.albedo_color = Color(1.0, 0.4, 0.05)
 				mat.emission_enabled = true
-				mat.emission = Color(1.0, 0.5, 0.1)
-				mat.emission_energy_multiplier = 2.0
+				mat.emission = Color(1.0, 0.4, 0.05)
+				mat.emission_energy_multiplier = 3.0
 			"shelter":
-				# Simple house shape
+				# Wooden hut — box + triangular roof
+				var hut_w: float = 1.8 * size_var
+				var hut_h: float = 1.2 * size_var
 				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(2.0, 1.5, 2.0)
-				mesh.position.y = 0.75
+				mesh.mesh.size = Vector3(hut_w, hut_h, hut_w)
+				mesh.position.y = hut_h / 2.0
 				mat.albedo_color = Color(0.5, 0.35, 0.2)
-				# Add roof
+				mat.roughness = 0.9
 				var roof := MeshInstance3D.new()
 				roof.mesh = PrismMesh.new()
-				roof.mesh.size = Vector3(2.2, 0.8, 2.2)
-				roof.position.y = 1.9
+				roof.mesh.size = Vector3(hut_w + 0.3, 0.7 * size_var, hut_w + 0.3)
+				roof.position.y = hut_h + 0.35 * size_var
 				var roof_mat := StandardMaterial3D.new()
-				roof_mat.albedo_color = Color(0.6, 0.25, 0.1)
+				roof_mat.albedo_color = Color(0.55 + randf() * 0.1, 0.2, 0.08)
 				roof.material_override = roof_mat
 				body.add_child(roof)
 			_:
 				mesh.mesh = BoxMesh.new()
-				mesh.mesh.size = Vector3(0.5, 0.5, 0.5) * model_scale
-				mesh.position.y = 0.25 * model_scale
+				mesh.mesh.size = Vector3(0.5, 0.5, 0.5) * size_var
+				mesh.position.y = 0.25 * size_var
 				mat.albedo_color = Color(0.5, 0.5, 0.5)
 
 		mesh.material_override = mat
