@@ -6,8 +6,10 @@ extends Node
 ## Also records action log for training data export.
 
 var current_target: Vector3 = Vector3.ZERO
+var current_path: Array = []  # A* waypoints
+var path_index: int = 0
 var wander_timer: float = 0.0
-var wander_interval: float = 2.0
+var wander_interval: float = 3.0
 var attack_timer: float = 0.0
 var attack_cooldown: float = 0.5
 var attack_range: float = 2.0
@@ -15,6 +17,9 @@ var attack_damage: float = 25.0
 var room_half_w: float = 6.0
 var room_half_h: float = 5.0
 var _heading_to_exit: bool = false
+
+# Pathfinding
+var pathfinder: Node = null
 
 # Recording
 var action_log: Array = []
@@ -26,7 +31,23 @@ func init_config(config: Dictionary) -> void:
 	attack_range = config.get("attack_range", 2.0)
 	attack_damage = config.get("attack_damage", 25.0)
 	_load_room_bounds()
+	_setup_pathfinder()
 	_pick_new_target()
+
+
+func _setup_pathfinder() -> void:
+	var script = load("res://scripts/pathfinding_astar.gd")
+	if script:
+		pathfinder = Node.new()
+		pathfinder.name = "Pathfinder"
+		pathfinder.set_script(script)
+		add_child(pathfinder)
+		# Wait for it to load
+		await get_tree().process_frame
+		if pathfinder.is_loaded():
+			print("[AutoAgent] A* pathfinding ready")
+		else:
+			print("[AutoAgent] A* failed to load — falling back to random walk")
 
 
 func _load_room_bounds() -> void:
@@ -138,38 +159,39 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 			result = {"action": "attack"}
 			action_name = "attack"
 	else:
-		# Explore mode: wander, then head to exit after exploring
-		var to_target: Vector3 = current_target - entity.global_position
-		to_target.y = 0
+		# Explore mode: follow A* path, pick new targets when reached
+		if current_path.size() > 0 and path_index < current_path.size():
+			# Follow current path
+			var waypoint: Vector3 = current_path[path_index]
+			var to_wp: Vector3 = waypoint - entity.global_position
+			to_wp.y = 0
 
-		# After exploring for a while, look for exits
-		if frame > 120 and not _heading_to_exit:
-			var exit_node = _find_nearest_exit(entity)
-			if exit_node:
-				current_target = exit_node.global_position
-				_heading_to_exit = true
-				action_name = "heading_to_exit"
-
-		if to_target.length() > 0.5:
-			result = {"action": "move_to", "target": current_target}
-			if action_name == "":
-				action_name = "explore"
+			if to_wp.length() > 0.5:
+				result = {"action": "move_to", "target": waypoint}
+				action_name = "follow_path"
+			else:
+				# Reached waypoint — advance to next
+				path_index += 1
+				if path_index >= current_path.size():
+					# Path complete — pick new target
+					_pick_new_target()
+				result = {"action": "idle"}
+				action_name = "waypoint_reached"
 		else:
-			if _heading_to_exit:
-				# Reached exit — should trigger transition automatically via Area3D
-				_heading_to_exit = false
-				frame = 0  # Reset explore timer for new room
+			# No path — pick new target
 			_pick_new_target()
 			result = {"action": "idle"}
 			action_name = "idle"
 
 		# Stuck detection
-		if wander_timer > wander_interval + 3.0:
+		wander_timer += dt
+		if wander_timer > 5.0:
 			_pick_new_target()
 
-		# Random jump
-		if randf() < 0.005 and entity.is_on_floor():
-			result = {"action": "jump", "direction": to_target.normalized() if to_target.length() > 0.1 else Vector3.FORWARD}
+		# Random jump occasionally
+		if randf() < 0.003 and entity.is_on_floor():
+			var to_t: Vector3 = current_target - entity.global_position
+			result = {"action": "jump", "direction": to_t.normalized() if to_t.length() > 0.1 else Vector3.FORWARD}
 			action_name = "jump"
 
 	# Record action log every 3 frames
@@ -200,12 +222,50 @@ func _find_nearest_exit(entity: CharacterBody3D) -> Node:
 
 
 func _pick_new_target() -> void:
-	current_target = Vector3(
-		randf_range(-room_half_w, room_half_w),
-		0,
-		randf_range(-room_half_h, room_half_h)
-	)
 	wander_timer = 0.0
+	path_index = 0
+	current_path = []
+
+	var entity = get_parent()
+	if not entity:
+		return
+
+	# Strategy: cycle between exploring, fighting, interacting
+	var roll: float = randf()
+
+	if pathfinder and pathfinder.is_loaded():
+		var target_pos: Vector3
+
+		if roll < 0.3:
+			# Find nearest interactable (type 6)
+			target_pos = pathfinder.find_nearest_of_type(entity.global_position, 6)
+		elif roll < 0.5:
+			# Find nearest enemy (type 5)
+			target_pos = pathfinder.find_nearest_of_type(entity.global_position, 5)
+		else:
+			# Random walkable position
+			var attempts: int = 0
+			target_pos = Vector3(randf_range(-room_half_w, room_half_w), 0, randf_range(-room_half_h, room_half_h))
+			while attempts < 10:
+				var grid_pos := pathfinder.world_to_grid(target_pos)
+				if pathfinder.is_walkable(grid_pos.x, grid_pos.y):
+					break
+				target_pos = Vector3(randf_range(-room_half_w, room_half_w), 0, randf_range(-room_half_h, room_half_h))
+				attempts += 1
+
+		# Find A* path to target
+		current_path = pathfinder.find_path(entity.global_position, target_pos)
+		if current_path.size() > 0:
+			current_target = current_path[current_path.size() - 1]
+		else:
+			current_target = target_pos
+	else:
+		# Fallback: random walk (no pathfinder)
+		current_target = Vector3(
+			randf_range(-room_half_w, room_half_w),
+			0,
+			randf_range(-room_half_h, room_half_h)
+		)
 
 
 func save_log() -> void:
