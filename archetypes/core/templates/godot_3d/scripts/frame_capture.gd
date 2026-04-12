@@ -57,6 +57,7 @@ func _capture_frame() -> void:
 	var path: String = capture_dir + filename
 	img.save_png(path)
 	frame_count += 1
+	print("[Capture] Screenshot #", frame_count, " → ", filename)
 
 
 ## Get the latest capture path (for external tools to read)

@@ -91,9 +91,16 @@ func _process(delta: float) -> void:
 		return
 
 	switch_timer += delta
+
+	# Slowly rotate current camera for angle variety
+	var cam: Camera3D = cameras[current_cam]
+	cam.rotate_y(delta * 0.15)  # Gentle rotation during active time
+
 	if switch_timer >= switch_interval:
 		switch_timer = 0.0
 		cameras[current_cam].current = false
+		# Reset rotation before switching
+		var cam_name_str: String = camera_names[current_cam] if current_cam < camera_names.size() else ""
 		current_cam = (current_cam + 1) % cameras.size()
 		cameras[current_cam].current = true
 		# Log camera info for QA analysis
