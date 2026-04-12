@@ -7,6 +7,7 @@ extends Node3D
 var world_data: Dictionary = {}
 var asset_config: Dictionary = {}
 var meta_config: Dictionary = {}
+var elements_config: Array = []
 var world_w: float = 100.0
 var world_h: float = 100.0
 
@@ -45,6 +46,13 @@ func _load_configs() -> void:
 			world_h = ws.get("height", 100.0)
 			print("[SimWorld] Loaded generated world: ", world_w, "x", world_h, " seed=", data.get("seed", "?"))
 
+	# Load element definitions
+	var el_file := FileAccess.open("res://data/sim/elements.json", FileAccess.READ)
+	if el_file:
+		var data = JSON.parse_string(el_file.get_as_text())
+		if data is Dictionary:
+			elements_config = data.get("elements", [])
+
 	var ac_file := FileAccess.open("res://data/asset_config.json", FileAccess.READ)
 	if ac_file:
 		var data = JSON.parse_string(ac_file.get_as_text())
@@ -80,15 +88,26 @@ func _build_environment() -> void:
 
 	var env_node := WorldEnvironment.new()
 	env = Environment.new()
-	# Sky gradient — procedural sky instead of flat color
+	# Sky from JSON config (elements.json → sky section)
+	var sky_cfg: Dictionary = {}
+	var el_file2 := FileAccess.open("res://data/sim/elements.json", FileAccess.READ)
+	if el_file2:
+		var el_data2 = JSON.parse_string(el_file2.get_as_text())
+		if el_data2 is Dictionary:
+			sky_cfg = el_data2.get("sky", {})
+
 	var sky := Sky.new()
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.3, 0.5, 0.9)       # Deep blue at top
-	sky_mat.sky_horizon_color = Color(0.65, 0.75, 0.95) # Light blue at horizon
-	sky_mat.ground_bottom_color = Color(0.35, 0.55, 0.25) # Green ground reflection
-	sky_mat.ground_horizon_color = Color(0.6, 0.7, 0.85)  # Hazy horizon
-	sky_mat.sun_angle_max = 30.0
-	sky_mat.sun_curve = 0.1
+	var st = sky_cfg.get("top_color", [0.3, 0.5, 0.9])
+	var sh = sky_cfg.get("horizon_color", [0.65, 0.75, 0.95])
+	var gb = sky_cfg.get("ground_bottom_color", [0.35, 0.55, 0.25])
+	var gh = sky_cfg.get("ground_horizon_color", [0.6, 0.7, 0.85])
+	sky_mat.sky_top_color = Color(st[0], st[1], st[2])
+	sky_mat.sky_horizon_color = Color(sh[0], sh[1], sh[2])
+	sky_mat.ground_bottom_color = Color(gb[0], gb[1], gb[2])
+	sky_mat.ground_horizon_color = Color(gh[0], gh[1], gh[2])
+	sky_mat.sun_angle_max = sky_cfg.get("sun_angle_max", 30.0)
+	sky_mat.sun_curve = sky_cfg.get("sun_curve", 0.1)
 	sky.sky_material = sky_mat
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
@@ -286,46 +305,90 @@ func _build_camp() -> void:
 
 func _build_elements() -> void:
 	var elements: Array = world_data.get("elements", [])
+	# Load element definitions for material/collision/light config
+	var el_defs: Dictionary = {}
+	for edef in elements_config:
+		el_defs[str(edef.get("id", ""))] = edef
+
 	for el in elements:
 		var eid: String = str(el.get("element", ""))
 		var pos := Vector3(el.get("x", 0), 0, el.get("z", 0))
 		var model: String = str(el.get("model", "_primitive"))
 		var scale: float = el.get("scale", 1.0)
 		var rot_y: float = el.get("rotation_y", 0)
+		var edef: Dictionary = el_defs.get(eid, {})
+		var obj_type: String = str(edef.get("object_type", "decoration"))
 
 		# Place on terrain surface
 		if terrain_node and terrain_node.has_method("get_height_at"):
 			pos.y = terrain_node.get_height_at(pos.x, pos.z)
 
-		var body := StaticBody3D.new()
-		body.name = "El_" + eid + "_" + str(randi() % 10000)
-		body.position = pos
-		body.add_to_group("sim_element")
-		body.set_meta("element_id", eid)
+		# Choose node type based on object_type
+		var node: Node3D
+		if obj_type == "entity" or obj_type == "element":
+			var body := StaticBody3D.new()
+			body.name = "El_" + eid + "_" + str(randi() % 10000)
+			node = body
+		else:
+			# Decoration — just a Node3D, no physics
+			node = Node3D.new()
+			node.name = "Decor_" + eid + "_" + str(randi() % 10000)
 
-		if not _try_add_model(body, model, scale, rot_y):
-			_add_primitive_fallback(body, eid, scale)
+		node.position = pos
+		node.add_to_group("sim_element")
+		node.set_meta("element_id", eid)
+		node.set_meta("object_type", obj_type)
 
-		# Collision for solid elements
-		if eid in ["tree", "stone", "shelter"]:
+		# Load model or build from material config
+		var mat_cfg = edef.get("material", null)
+		if not _try_add_model(node, model, scale, rot_y):
+			if mat_cfg != null and mat_cfg is Dictionary:
+				_add_from_material_config(node, mat_cfg, scale)
+			else:
+				_add_primitive_fallback(node, eid, scale)
+
+		# Collision from JSON config
+		var col_cfg = edef.get("collision", null)
+		if col_cfg != null and col_cfg is Dictionary and node is StaticBody3D:
 			var col := CollisionShape3D.new()
-			var box := BoxShape3D.new()
-			box.size = Vector3(0.8, 1.5, 0.8) * scale
-			col.shape = box
-			col.position.y = 0.75 * scale
-			body.add_child(col)
+			var col_type: String = str(col_cfg.get("type", "box"))
+			if col_type == "box":
+				var box := BoxShape3D.new()
+				var s = col_cfg.get("size", [0.8, 1.5, 0.8])
+				box.size = Vector3(s[0], s[1], s[2]) * scale
+				col.shape = box
+			col.position.y = col_cfg.get("offset_y", 0.5) * scale
+			node.add_child(col)
 
-		# Light for fire
-		if eid == "campfire":
+		# Light from JSON config
+		var light_cfg = edef.get("light", null)
+		if light_cfg != null and light_cfg is Dictionary:
 			var light := OmniLight3D.new()
-			light.light_color = Color(1.0, 0.7, 0.3)
-			light.light_energy = 2.0
-			light.omni_range = 6.0
-			light.position.y = 1.0
-			body.add_child(light)
+			var lc = light_cfg.get("color", [1.0, 0.7, 0.3])
+			light.light_color = Color(lc[0], lc[1], lc[2])
+			light.light_energy = light_cfg.get("energy", 2.0)
+			light.omni_range = light_cfg.get("range", 6.0)
+			light.position.y = light_cfg.get("height", 1.0)
+			light.shadow_enabled = true
+			node.add_child(light)
 
-		add_child(body)
-	print("[SimWorld] Elements: ", elements.size())
+		# Store HP for entities
+		if edef.has("hp"):
+			node.set_meta("hp", edef.get("hp"))
+			node.set_meta("max_hp", edef.get("hp"))
+
+		add_child(node)
+
+	var entity_count: int = 0
+	var element_count: int = 0
+	var decor_count: int = 0
+	for el in elements:
+		var eid2: String = str(el.get("element", ""))
+		var t: String = str(el_defs.get(eid2, {}).get("object_type", "decoration"))
+		if t == "entity": entity_count += 1
+		elif t == "element": element_count += 1
+		else: decor_count += 1
+	print("[SimWorld] Elements: ", elements.size(), " (", entity_count, " entities, ", element_count, " elements, ", decor_count, " decorations)")
 
 
 func _load_model_at(model_name: String, pos: Vector3, scale: float, rot_y: float) -> void:
@@ -356,6 +419,56 @@ func _try_add_model(parent: Node3D, model_name: String, scale: float, rot_y: flo
 					parent.add_child(instance)
 					return true
 	return false
+
+
+func _add_from_material_config(parent: Node3D, mat_cfg: Dictionary, scale: float) -> void:
+	"""Build mesh from JSON material properties — no hardcoded values."""
+	var mesh := MeshInstance3D.new()
+	var mat := StandardMaterial3D.new()
+
+	# Color
+	var c = mat_cfg.get("color", [0.5, 0.5, 0.5, 1.0])
+	if c is Array:
+		mat.albedo_color = Color(c[0], c[1], c[2], c[3] if c.size() > 3 else 1.0)
+
+	# Material physics
+	mat.metallic = mat_cfg.get("metallic", 0.0)
+	mat.roughness = mat_cfg.get("roughness", 0.8)
+	if str(mat_cfg.get("transparency", "")) == "alpha":
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+
+	# Emission
+	var em = mat_cfg.get("emission", null)
+	if em != null and em is Array:
+		mat.emission_enabled = true
+		mat.emission = Color(em[0], em[1], em[2])
+		mat.emission_energy_multiplier = mat_cfg.get("emission_energy", 1.0)
+
+	# Shape from config
+	var shape: String = str(mat_cfg.get("shape", "sphere"))
+	var size_var: float = scale * (0.8 + randf() * 0.4)
+
+	match shape:
+		"cylinder":
+			mesh.mesh = CylinderMesh.new()
+			mesh.mesh.top_radius = mat_cfg.get("shape_radius", 1.0) * size_var
+			mesh.mesh.bottom_radius = mat_cfg.get("shape_radius", 1.0) * size_var * 1.1
+			mesh.mesh.height = mat_cfg.get("shape_height", 0.1) * size_var
+		"sphere":
+			mesh.mesh = SphereMesh.new()
+			mesh.mesh.radius = mat_cfg.get("shape_radius", 0.5) * size_var
+			mesh.mesh.height = mat_cfg.get("shape_radius", 0.5) * size_var * 2
+		"box":
+			mesh.mesh = BoxMesh.new()
+			var bsize: float = mat_cfg.get("shape_radius", 0.5) * size_var
+			mesh.mesh.size = Vector3(bsize, mat_cfg.get("shape_height", bsize), bsize)
+		_:
+			mesh.mesh = SphereMesh.new()
+			mesh.mesh.radius = 0.3 * size_var
+
+	mesh.position.y = mat_cfg.get("offset_y", 0.0) * size_var
+	mesh.material_override = mat
+	parent.add_child(mesh)
 
 
 func _add_primitive_fallback(parent: Node3D, element_id: String, scale: float) -> void:

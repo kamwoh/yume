@@ -10,10 +10,10 @@ var resolution: int = 64
 var world_w: float = 100.0
 var world_h: float = 100.0
 var height_scale: float = 1.0
-var base_color := Color(0.45, 0.68, 0.32)    # Vivid grass green
-var slope_color := Color(0.55, 0.48, 0.35)  # Warm brown for steep slopes
-var low_color := Color(0.40, 0.60, 0.28)    # Slightly darker green for valleys
-var high_color := Color(0.52, 0.72, 0.38)   # Lighter green for hilltops
+var base_color := Color(0.45, 0.68, 0.32)
+var slope_color := Color(0.55, 0.48, 0.35)
+var low_color := Color(0.40, 0.60, 0.28)
+var high_color := Color(0.52, 0.72, 0.38)
 
 
 func build_from_data(data: Dictionary, w: float, h: float) -> void:
@@ -22,6 +22,21 @@ func build_from_data(data: Dictionary, w: float, h: float) -> void:
 	heightmap = data.get("heights", [])
 	resolution = data.get("resolution", 64)
 	height_scale = data.get("height_scale", 3.0)
+
+	# Load terrain colors from elements.json
+	var el_file := FileAccess.open("res://data/sim/elements.json", FileAccess.READ)
+	if el_file:
+		var el_data = JSON.parse_string(el_file.get_as_text())
+		if el_data is Dictionary:
+			var tc: Dictionary = el_data.get("terrain_material", {})
+			var bc = tc.get("base_color", [0.45, 0.68, 0.32])
+			var sc = tc.get("slope_color", [0.55, 0.48, 0.35])
+			var lc = tc.get("low_color", [0.40, 0.60, 0.28])
+			var hc = tc.get("high_color", [0.52, 0.72, 0.38])
+			base_color = Color(bc[0], bc[1], bc[2])
+			slope_color = Color(sc[0], sc[1], sc[2])
+			low_color = Color(lc[0], lc[1], lc[2])
+			high_color = Color(hc[0], hc[1], hc[2])
 
 	if heightmap.is_empty():
 		push_warning("[Terrain] No heightmap data")
