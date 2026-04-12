@@ -388,13 +388,14 @@ func _add_primitive_fallback(parent: Node3D, element_id: String, scale: float) -
 			mat.albedo_color = Color(0.5, 0.48, 0.45)
 		"water", "_primitive_water":
 			mesh.mesh = CylinderMesh.new()
-			mesh.mesh.top_radius = 1.5 * size_var
-			mesh.mesh.bottom_radius = 1.6 * size_var
-			mesh.mesh.height = 0.08
-			mesh.position.y = -0.02
-			mat.albedo_color = Color(0.15, 0.35, 0.7, 0.75)
+			mesh.mesh.top_radius = 2.0 * size_var
+			mesh.mesh.bottom_radius = 2.2 * size_var
+			mesh.mesh.height = 0.15
+			mesh.position.y = -0.05
+			mat.albedo_color = Color(0.15, 0.4, 0.75, 0.8)
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			mat.metallic = 0.3
+			mat.metallic = 0.4
+			mat.roughness = 0.05
 		"campfire":
 			mesh.mesh = SphereMesh.new()
 			mesh.mesh.radius = 0.15
