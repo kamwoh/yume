@@ -13,10 +13,8 @@ venv/
 .idea/
 *.swp
 
-# Project planning (dev only)
-task_plan.md
+# Project planning (findings/progress are session-specific)
 findings.md
-progress.md
 
 # Generated output
 output/
