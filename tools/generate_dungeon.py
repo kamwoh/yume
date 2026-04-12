@@ -322,10 +322,10 @@ def _add_doors(grid: list[list[str]], doors: dict) -> None:
 
 BIOMES = {
     "dungeon": {
-        "props": ["barrel", "column", "weapon-sword", "weapon-spear", "shield-round", "banner", "chest", "rocks"],
+        "props": ["barrel", "column", "barrel", "column", "rocks", "banner"],
         "enemies": ["character-orc"],
         "lighting_moods": ["warm", "dark", "dramatic"],
-        "shapes": ["rectangle", "L", "cave", "alcove"],
+        "shapes": ["rectangle"],
     },
     "town": {
         "props": ["barrel", "cart", "fountain-center", "fence", "banner-red", "banner-green", "chest"],
@@ -366,20 +366,20 @@ BIOMES = {
 ROOM_TEMPLATES = {
     "guard_post": {
         "min_w": 12, "max_w": 18, "min_h": 10, "max_h": 16,
-        "enemy_count": [1, 2], "prop_density": 0.08,
+        "enemy_count": [0, 0], "prop_density": 0.08,
         "ai_default": "guard",
         "description": "A guard station with weapons and watchful sentries.",
     },
     "corridor": {
         "min_w": 5, "max_w": 8, "min_h": 14, "max_h": 22,
-        "enemy_count": [0, 1], "prop_density": 0.03,
+        "enemy_count": [0, 0], "prop_density": 0.03,
         "interactables": [{"type": "trap", "chance": 0.5}],
         "description": "A narrow stone passage connecting chambers.",
         "force_shape": "rectangle",
     },
     "treasure_vault": {
         "min_w": 10, "max_w": 14, "min_h": 8, "max_h": 12,
-        "enemy_count": [1, 1], "prop_density": 0.05,
+        "enemy_count": [0, 0], "prop_density": 0.05,
         "interactables": [
             {"type": "chest", "count": [2, 4], "contents": ["gold_coin", "potion"]},
             {"type": "coin", "count": [2, 5]},
@@ -389,14 +389,14 @@ ROOM_TEMPLATES = {
     },
     "boss_arena": {
         "min_w": 16, "max_w": 22, "min_h": 16, "max_h": 22,
-        "enemy_count": [1, 1], "prop_density": 0.03,
+        "enemy_count": [0, 0], "prop_density": 0.03,
         "enemy_stats": {"hp": 120, "damage": 15, "speed": 2.5},
         "ai_default": "guard",
         "description": "A grand arena. Something dangerous awaits.",
     },
     "living_quarters": {
         "min_w": 8, "max_w": 12, "min_h": 8, "max_h": 12,
-        "enemy_count": [0, 1], "prop_density": 0.1,
+        "enemy_count": [0, 0], "prop_density": 0.1,
         "description": "Cramped quarters with personal belongings.",
     },
 }
@@ -460,7 +460,7 @@ LIGHTING_MOODS = {
     },
 }
 
-DEFAULT_SEQUENCE = ["guard_post", "corridor", "treasure_vault", "corridor", "boss_arena"]
+DEFAULT_SEQUENCE = ["guard_post", "corridor", "living_quarters", "corridor", "treasure_vault"]
 
 
 # ============================================================

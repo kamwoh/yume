@@ -15,8 +15,8 @@
       },
       {
         "matcher": "Write",
-        "command": "FILE=\"$TOOL_INPUT_FILE_PATH\"; if echo \"$FILE\" | grep -q '\\.gd$'; then echo '[Hook] GDScript written — checking for hardcoded values...'; grep -n 'Color(\\|Vector2(\\|Vector3(' \"$FILE\" 2>/dev/null | grep -v 'get(\\|config\\|_w(\\|_p(\\|#\\|func\\|var.*:' | head -5; fi",
-        "description": "Check for hardcoded values when GDScript is written"
+        "command": "FILE=\"$TOOL_INPUT_FILE_PATH\"; if echo \"$FILE\" | grep -q '\\.gd$'; then grep -n ':=' \"$FILE\" 2>/dev/null | grep -v 'String\\|float\\|int\\|bool\\|Vector\\|Array\\|Dictionary\\|Color\\|#' | head -3 | while read line; do echo \"[Hook] WARNING: := type inference may fail — use explicit type: $line\"; done; grep -n 'Color(\\|Vector2(\\|Vector3(' \"$FILE\" 2>/dev/null | grep -v 'get(\\|config\\|_w(\\|_p(\\|#\\|func\\|var.*:' | head -3; fi",
+        "description": "Check for := type inference and hardcoded values in GDScript"
       },
       {
         "matcher": "Bash",

@@ -1,47 +1,21 @@
 {
   "current_project": "Yume3D",
   "project_path": "/mnt/c/Users/kamwoh/Documents/Projects/Godot/Yume3D",
-  "godot_path": "/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe",
-  "captures_path": "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume3D/captures",
-  "current_phase": "phase_1.5_perfect_scene",
-  "active_location": "dungeon_guard_post",
-  "last_test_result": "guard post with combat + interactions working — sentry guards door, chest opens, coins collect, trap triggers",
-  "completed_today": [
-    "harness engineering (5 hooks, 3 agents, visual regression, 116 lessons)",
-    "game design study (docs/18, 33 rules, metrics, algorithms)",
-    "first good room (dark bg, zebra lighting, focal point, L-shape)",
-    "point_lights from JSON (OmniLight3D)",
-    "entity + brain abstraction (entity_3d.gd, brain_state_machine.gd)",
-    "unified player brains (brain_human.gd, brain_auto_agent.gd)",
-    "guard state (sentry guards door, charges on detect, returns to post)",
-    "interaction system (chest open with anim, coins collect, traps trigger, barrels break)",
-    "spawn_on_grid + auto-agent from meta.json",
-    "visual QA loop proven (gl_compatibility, NOT headless)"
+  "current_phase": "phase_2_complete",
+  "last_test_result": "3 biome dungeons generated + visual QA verified (dungeon/cave/castle). All shapes working.",
+  "completed": [
+    "Phase 1: 3D engine (grid rooms, GLBs, player, camera, collision)",
+    "Phase 1.5: Seamless multi-room, minimap, HP bar, A* pathfinding, camera brains",
+    "Phase 2a: Irregular room shapes (rectangle, L, T, cave, circular, alcove)",
+    "Phase 2b: Multi-floor support (--floors N)",
+    "Phase 2c: 6 biomes (dungeon/town/forest/cave/castle/interior) + 7 lighting moods",
+    "Phase 2d: Visual QA verified 3 diverse dungeons"
   ],
   "next_steps": [
-    "camera brain abstraction (follow, free, cinematic, orbital, random_smooth)",
-    "multi-room dungeon (5 rooms connected with door transitions)",
-    "room template library (6 story_roles x 2-3 variants)",
-    "procedural room generator (BSP → story roles → templates → content variation)",
-    "data export pipeline (frames + camera_poses + actions + scene_graph)"
+    "Phase 3: Data export (frames + camera + actions + scene graph)",
+    "Phase 7: Level 3 emergent worlds (needs + elements + recipes)",
+    "Phase 7b: LLM brains (claude -p + screenshots)"
   ],
-  "architecture": {
-    "player_brain": "Swappable via meta.json player.brain: human | auto_agent | llm",
-    "entity_brain": "Swappable via location JSON brain field: state_machine | behavior_tree | llm",
-    "camera_brain": "TODO: Swappable camera controller: follow | free | cinematic | orbital | random_smooth",
-    "interactables": "Props with interactable:true in JSON get animations (chest open, trap show, coin collect)"
-  },
-  "proven_visual_qa": {
-    "clear_cmd": "rm -f CAPTURES/frame_000*.png",
-    "run_cmd": "timeout 25 GODOT --path WIN_PROJECT --rendering-method gl_compatibility",
-    "note": "NEVER use --headless. ALWAYS use --rendering-method gl_compatibility."
-  },
-  "available_models": {
-    "characters": ["Knight", "Barbarian", "Mage", "Ranger", "Rogue", "character-human", "character-orc"],
-    "dungeon_animated": {"chest": ["open","close","open-close"], "gate": ["open","close","open-close"], "trap": ["show","hide","show-hide"]},
-    "dungeon_static": ["barrel", "column", "rocks", "banner", "stairs", "wall", "floor", "coin", "weapon-sword", "weapon-spear", "shield-round"],
-    "furniture": ["armchair", "bed_single_A", "table_medium", "chair_A", "shelf_A_big", "lamp_standing"],
-    "total_models": 876
-  },
-  "lessons_count": 116
+  "generator_command": "python tools/generate_dungeon.py data/ --rooms N --seed S --biome B --floors F",
+  "lessons_count": 141
 }
