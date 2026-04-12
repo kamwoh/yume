@@ -280,13 +280,34 @@ def generate_camp(camp_x: float, camp_z: float, seed: int) -> list[dict]:
          "model": rng.choice(["campfire_stones", "campfire_logs"]), "scale": 1.0},
         {"element": "shelter", "x": camp_x - 3, "z": camp_z - 2,
          "model": "tent", "scale": 1.5, "rotation_y": rng.random() * 30},
-        {"element": "shelter", "x": camp_x + 3, "z": camp_z - 1,
+        {"element": "shelter", "x": camp_x + 3, "z": camp_z - 2,
          "model": "tent-canvas", "scale": 1.5, "rotation_y": 180 + rng.random() * 30},
-        {"element": "stone", "x": camp_x - 2, "z": camp_z + 2,
+        {"element": "stone", "x": camp_x - 2, "z": camp_z + 3,
          "model": "rock_smallA", "scale": 0.8},
-        {"element": "stone", "x": camp_x + 2, "z": camp_z + 2,
+        {"element": "stone", "x": camp_x + 2, "z": camp_z + 3,
          "model": "rock_smallB", "scale": 0.8},
     ]
+
+    # Fence ring around camp
+    fence_radius = 5.0
+    fence_count = 16
+    gap_dir = (1.0, 0.0)  # Gap facing east (toward farm)
+    for i in range(fence_count):
+        angle = (i / fence_count) * math.tau
+        fx = camp_x + math.cos(angle) * fence_radius
+        fz = camp_z + math.sin(angle) * fence_radius
+        # Skip gap direction
+        dot = math.cos(angle) * gap_dir[0] + math.sin(angle) * gap_dir[1]
+        if dot > 0.7:  # Skip ~60 degree gap
+            continue
+        elements.append({
+            "element": "fence",
+            "x": round(fx, 2), "z": round(fz, 2),
+            "model": "fence",
+            "scale": 1.0,
+            "rotation_y": round(math.degrees(-angle) + 90, 1),
+        })
+
     return elements
 
 
@@ -455,7 +476,7 @@ def generate_sim_world(seed: int, width: float = 100, height: float = 100,
             "sun_energy": 1.4,
             "sun_color": [1.0, 0.93, 0.78],
             "sun_rotation": [-35, 40, 0],
-            "fog_density": 0.012,
+            "fog_density": 0.008,
             "fog_color": [0.72, 0.78, 0.88],
         },
         "day_night": {

@@ -254,19 +254,20 @@ func _build_edge_trees() -> void:
 
 func _build_paths() -> void:
 	var paths: Array = world_data.get("paths", [])
+	var path_tint: Dictionary = {"enabled": true, "color": [0.55, 0.42, 0.25, 1.0]}  # Brown dirt color
 	for p in paths:
 		var px: float = p.get("x", 0)
 		var pz: float = p.get("z", 0)
 		var py: float = 0.02
 		if terrain_node and terrain_node.has_method("get_height_at"):
-			py = terrain_node.get_height_at(px, pz) + 0.02  # Slightly above terrain
-		_load_model_at(
-			str(p.get("model", "ground_pathStraight")),
-			Vector3(px, py, pz),
-			p.get("scale", 1.0),
-			p.get("rotation_y", 0)
-		)
-	print("[SimWorld] Paths: ", paths.size(), " tiles")
+			py = terrain_node.get_height_at(px, pz) + 0.02
+		var node := Node3D.new()
+		node.name = "Path_" + str(randi() % 10000)
+		node.position = Vector3(px, py, pz)
+		if _try_add_model(node, str(p.get("model", "ground_pathStraight")), p.get("scale", 1.0), p.get("rotation_y", 0)):
+			_apply_tint(node, path_tint)  # Brown tint for dirt path
+		add_child(node)
+	print("[SimWorld] Paths: ", paths.size(), " brown tiles")
 
 
 func _build_camp() -> void:
