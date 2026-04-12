@@ -132,8 +132,9 @@ func _build_ground() -> void:
 	col.position.y = -0.05
 	ground.add_child(col)
 
-	# Terrain bumps — subtle hills to break flat ground
-	for i in range(12):
+	# Terrain bumps — scaled to world size
+	var num_hills: int = int(world_w * world_h / 120)
+	for i in range(num_hills):
 		var hill := MeshInstance3D.new()
 		hill.mesh = SphereMesh.new()
 		var hill_r: float = 3.0 + randf() * 5.0
@@ -154,8 +155,9 @@ func _build_ground() -> void:
 
 	add_child(ground)
 
-	# Ground variation — scatter darker/lighter grass patches
-	for i in range(30):
+	# Ground variation — scaled to world size
+	var num_patches: int = int(world_w * world_h / 50)
+	for i in range(num_patches):
 		var patch := MeshInstance3D.new()
 		patch.mesh = CylinderMesh.new()
 		var patch_size: float = 1.5 + randf() * 3.0
@@ -178,14 +180,15 @@ func _build_ground() -> void:
 		patch.material_override = patch_mat
 		ground.add_child(patch)
 
-	# Small flower/detail dots on ground
+	# Small flower/detail dots on ground — scaled to world
 	var flower_colors: Array = [
-		Color(0.9, 0.85, 0.2),  # Yellow
-		Color(0.9, 0.3, 0.3),   # Red
-		Color(0.95, 0.95, 0.9), # White
-		Color(0.6, 0.3, 0.8),   # Purple
+		Color(0.9, 0.85, 0.2),
+		Color(0.9, 0.3, 0.3),
+		Color(0.95, 0.95, 0.9),
+		Color(0.6, 0.3, 0.8),
 	]
-	for i in range(60):
+	var num_flowers: int = int(world_w * world_h / 25)
+	for i in range(num_flowers):
 		var flower := MeshInstance3D.new()
 		flower.mesh = SphereMesh.new()
 		flower.mesh.radius = 0.06 + randf() * 0.06
@@ -200,9 +203,10 @@ func _build_ground() -> void:
 		flower.material_override = flower_mat
 		ground.add_child(flower)
 
-	# Edge trees — ring of trees around world border to hide the edge
-	for i in range(50):
-		var angle: float = (float(i) / 50.0) * TAU
+	# Edge trees — scaled to world perimeter
+	var num_edge_trees: int = int((world_w + world_h) * 2 / 1.5)
+	for i in range(num_edge_trees):
+		var angle: float = (float(i) / float(num_edge_trees)) * TAU
 		var radius: float = (world_w / 2.0) - 1.0 + randf() * 2.0
 		var edge_x: float = cos(angle) * radius
 		var edge_z: float = sin(angle) * radius
