@@ -32,6 +32,7 @@ func _ready() -> void:
 	_spawn_agents()
 	_add_ui()
 	_add_frame_capture()
+	_add_multi_camera_qa()
 
 
 func _load_configs() -> void:
@@ -375,6 +376,19 @@ func _add_ui() -> void:
 		hud.set_script(hp_script)
 		canvas.add_child(hud)
 		add_child(canvas)
+
+
+func _add_multi_camera_qa() -> void:
+	# Only add if capture.auto is true (QA mode)
+	var cap: Dictionary = meta_config.get("capture", {})
+	if not cap.get("auto", false):
+		return
+	var script = load("res://scripts/multi_camera_qa.gd")
+	if script:
+		var multi_cam := Node3D.new()
+		multi_cam.name = "MultiCameraQA"
+		multi_cam.set_script(script)
+		add_child(multi_cam)
 
 
 func _add_frame_capture() -> void:
