@@ -21,141 +21,145 @@ Yume: text → 3D game → unlimited labeled training data
 Each generates: frames + camera poses + action labels + scene graph
 ```
 
-## What Exists
-- 2D engine (complete, pushed to GitHub)
-- game_state.json architecture (story phases, triggers)
-- 6 LLM prompts (generate any game from text)
-- 25 free GLB models (Kenney)
-- 556 more GLBs in /tmp/yume_3d_assets/
-- 4-layer test suite
-- Asset manager UI
+---
 
-## Priority: 3D + Actions first, dialogue secondary
+## Current State (2026-04-15)
 
-### Phase 1: 3D World from JSON ← START HERE
-- [ ] Godot 3D project: floor + walls + props from location JSON
-- [ ] Load GLB models for props (barrel, chest, rock, tree)
-- [ ] CharacterBody3D player with third-person camera
-- [ ] WASD movement, collision, physics
-- [ ] Load ANY location JSON → different 3D room
-- **Goal:** one JSON file = one 3D room with physics
+| Area | State | Visual grade |
+|---|---|---|
+| 3D engine core (entity + brain + camera + HP + minimap + A*) | ✅ working | — |
+| Dungeon world (multi-room, proc-gen, multi-floor) | ✅ playable | ~65% |
+| Simulation world (heightmap + 7 zones + day/night + camp) | 🟡 playable, rough | **~55%** |
+| Fantasy town kit (167 GLBs) | ⚠️ **extracted but unused** | — |
+| Needs-driven brain + recipes + world rules | 🟡 JSON designed, not wired | — |
+| Data export pipeline | ❌ not built | — |
+| LLM brains (`claude -p`) | ❌ not built | — |
 
-### Phase 2: Procedural World Generation
-- [ ] Script: generate N random location JSONs with varied layouts
-- [ ] Different room types: indoor, outdoor, cave, town, dungeon
-- [ ] Different prop sets, lighting, atmosphere per type
-- [ ] Connect rooms via exits → traversable world
-- **Goal:** "generate 100 unique rooms" → instant diverse environments
+**Blocker on visual grade:** village zone places flowers + 5-piece camp only. Town kit is **parts, not buildings** (walls, roofs, doors) — needs a composite layer in the engine to become houses.
 
-### Phase 1.5: Perfect One Scene ✅ DONE
-- [x] Combat (entity + brain abstraction, state machine AI, player attack)
-- [x] Interactions (chest open, coin collect, trap trigger)
-- [x] Seamless multi-room (3 rooms physically adjacent, no loading)
-- [x] Minimap + HP bar UI
-- [x] A* pathfinding (nav_grid.json, auto-agent navigates through doors)
-- [x] Camera brain abstraction (follow, orbital, random_smooth, cinematic)
+---
 
-### Phase 2: Procedural World Generation ← IN PROGRESS
-- [x] Basic generator: 5 room templates, varied sizes, props, enemies, lighting
-- [x] 2D layout: rooms connect N/S/E/W randomly (not just vertical stack)
-- [ ] **Irregular room shapes**: L-shape, T-shape, alcove, plus cellular automata caves
-- [ ] **Multi-floor**: stairs connecting floor 1 → floor 2 → floor 3 (SAO Aincrad style)
-- [ ] **Diagonal/organic connections**: corridors at angles, not just grid-aligned
-- [ ] **Biome variety**: dungeon, town, forest, cave — different model sets + lighting
-- [ ] **Room interior variation**: asymmetric layouts, vertical platforms, water features
-- [ ] Scale test: generate 20, 50, 100 rooms and verify playability
+## Four parallel tracks
 
-### Phase 2a: Irregular Room Shapes
-Room shape is another abstraction: `"shape": "rectangle" | "L" | "T" | "cave" | "circular"`
-- [ ] L-shape: main rectangle + side extension (random direction)
-- [ ] T-shape: main rectangle + branch in the middle
-- [ ] Alcove: rectangle with cut-out section
-- [ ] Cave: cellular automata (40% random walls → iterate → organic shape)
-- [ ] Circular: round room with columns around perimeter
-- Each shape has different gameplay feel and visual variety
+### 🏗️ Track 1 — Fantasy town kit → real villages
 
-### Phase 2b: Multi-Floor (Vertical Dungeon)
-Like SAO's Aincrad — floors stacked vertically with stair connections.
-- [ ] Stairs prop connects floor N to floor N+1
-- [ ] Each floor = separate set of rooms at different Y heights
-- [ ] Floor themes: floor 1 = easy dungeon, floor 2 = harder, floor 3 = boss
-- [ ] Auto-agent navigates stairs (pathfinding in 3D, not just 2D)
-- [ ] Minimap shows current floor only
-- [ ] `dungeon.json` gains `"floors"` array, each with rooms + offsets
+Town kit GLBs are parts, not buildings. Need composite layer.
 
-### Phase 2c: Biome Variety
-Same engine, different model sets + lighting + atmosphere:
-- [ ] Dungeon biome: stone walls, torches, dark — current models
-- [ ] Town biome: buildings, fences, fountains, bright — town/ models (167)
-- [ ] Forest biome: trees, bushes, rocks, natural light — forest_nature/ models (105)
-- [ ] Cave biome: irregular shapes (cellular automata), rocks, dim — dungeon + rocks
-- [ ] Castle biome: castle walls, gates, flags, dramatic — props/ models (72)
-- [ ] Interior biome: furniture, rugs, lamps, warm — furniture/ models (53)
-- Each biome = different `model_set` + `lighting_mood` + `room_shape` preference
+- [ ] **1.1** Add `composite_element` type to `elements.json` schema — element = list of GLB parts with local offsets/rotations
+- [ ] **1.2** Define starter buildings: `house_small`, `house_medium`, `market_stall`, `fountain_plaza`, `windmill`, `watermill`
+- [ ] **1.3** Add `road` tile system to `generate_sim_world.py` — replace tinted-dirt paths with `road.glb` + `road-bend.glb`
+- [ ] **1.4** Rework `village` zone: fountain centerpiece + 4-6 houses + 2-3 stalls, connected by roads
+- [ ] **1.5** Windmill landmark on outskirts, watermill next to lake zone
 
-### Phase 2d: Diagonal & Organic Connections
-Not just grid-aligned rooms:
-- [ ] Corridors at 45° angles connecting rooms
-- [ ] Rooms with fractional offsets (not snapped to grid)
-- [ ] Winding paths (multiple-segment corridors with turns)
-- [ ] Open areas connecting to multiple rooms (hub rooms)
+**Risk:** composite placement on heightmap — parts must snap per-part OR flatten terrain under the building.
 
-### Phase 3: Agent Actions + Recording
-- [x] Player controller records: position, rotation, action per frame (auto_agent.gd)
-- [x] Random agent: walks around rooms automatically (auto_agent.gd)
-- [ ] Action types: move, interact, attack, jump, turn
-- [ ] Export per-episode: {frames[], camera_poses[], actions[], scene_graph}
-- **Goal:** automated data generation without human playing
+**Visual grade target after Track 1:** 70%+
 
-### Phase 4: Camera Control Data
-- [ ] Multiple camera modes: third-person, first-person, top-down, cinematic
-- [ ] Record camera pose per frame (position, rotation, FOV)
-- [ ] Cutscene camera paths from game_state.json = labeled trajectories
-- **Goal:** camera control ground truth for video generation models
+### 🧠 Track 2 — Emergent world (Level 3)
 
-### Phase 5: Diverse Game Types
-- [ ] Action game: combat, enemies, attack patterns
-- [ ] Exploration: navigate rooms, find items
-- [ ] Platformer: jumping, moving platforms (different physics)
-- [ ] Social: NPCs walking, talking, schedules
-- Each type = different action space + physics rules
-- **Goal:** not just RPG — diverse game mechanics in one framework
+- [ ] **2.1** Wire `brain_needs_driven.gd` to a spawned agent
+- [ ] **2.2** Implement `world_rules.json` ABMs in engine (wheat growth, fire spread, need decay)
+- [ ] **2.3** Inventory + recipes applied to agents (chop tree → wood → craft)
+- [ ] **2.4** First emergent loop: agent hungry → finds wheat_mature → eats
+- [ ] **2.5** Multi-agent (5-10) with resource competition
+- [ ] **2.6** Time acceleration (100x) for rapid evolution
 
-### Phase 6: Export Pipeline
-- [ ] Export to WebDataset (standard ML format)
-- [ ] Export to video (mp4 + annotations)
-- [ ] Scene graph per frame (JSON: what objects, where, state)
-- [ ] Action labels per frame (what agent did)
-- **Goal:** plug into any world model training pipeline
+### 🎥 Track 3 — Data export pipeline (the DeepMind pitch)
 
-### Phase 7: Level 3 — Emergent Worlds (The Sims + SAO Alicization)
-The big vision: define elements + rules → agents discover civilization.
-- [ ] Needs system: hunger, energy, safety (decay per second, critical effects)
-- [ ] Object ratings: each object advertises what needs it satisfies
-- [ ] Autonomy scoring: urgency × rating → agent picks best action
-- [ ] Elements: tree, rock, water, fire, seed, wood, ore, metal
-- [ ] Recipes: chop tree → wood, plant seed → food, smelt ore → metal
-- [ ] NeedsDrivenBrain: scans nearby → plans action chain → satisfies most urgent need
-- [ ] Multi-agent: 5-10 agents in same world, competing for resources
-- [ ] Emergent discovery: nobody scripts "farm" — agents discover it from hunger + seeds
-- [ ] Time acceleration: run simulation at 100x for rapid world evolution
-- See: docs/21_emergent_world_vision.md, docs/22_sims_architecture_analysis.md
+- [ ] **3.1** `episode_recorder.gd` — per-frame dump: camera pose, agent action, scene graph
+- [ ] **3.2** Action label schema (move, attack, interact, chop, eat, …)
+- [ ] **3.3** Scene graph format (object IDs, positions, states per frame)
+- [ ] **3.4** Export to WebDataset + mp4 + annotations
+- [ ] **3.5** Benchmark demo: 10 worlds → N hours labeled data
 
-### Phase 7b: LLM Brains
-- [ ] brain_llm.gd: calls `claude -p` + screenshot for decisions
-- [ ] NPC brain: guard "sees" intruder → decides to attack
-- [ ] Player brain: Claude plays the game by looking at screenshots
-- [ ] Camera brain: Claude picks most cinematic angle
-- [ ] World manager brain: Claude decides events, difficulty, weather
+### 🤖 Track 4 — LLM brains
 
-### Phase 8: Open Source Release
-- [ ] Clean README with research positioning
-- [ ] Demo: "10 diverse worlds generated from 10 text prompts"
-- [ ] Benchmark: compare data diversity vs existing datasets
-- [ ] pip install yume && yume generate && yume record && yume export
-- [ ] Blog post / paper draft
+- [ ] **4.1** `brain_llm.gd` — `claude -p` + screenshot → action
+- [ ] **4.2** NPC LLM brain (guard with reasoning)
+- [ ] **4.3** Camera LLM brain (picks cinematic angle)
+- [ ] **4.4** World manager brain (events, difficulty, weather)
 
-## Data Format (what we export)
+---
+
+## Dependency graph
+
+```
+Track 1 (houses + village)
+    ↓ enables
+Track 2 (agents have HOMES, market, places to defend/repair)
+    ↓ enables
+Track 3 (recorded episodes show civilization in a real-looking town)
+    ↓ enables
+Track 4 (LLM brain has rich context: "guard patrolling market at dusk")
+```
+
+Track 1 is the **foundation**. Without it: Track 2 agents wander empty grassland; Track 3 data looks like a tech demo, not a world.
+
+---
+
+## Recommended order
+
+1. **Track 1.1 + 1.2 (partial)** — composite_element system + 1 house + fountain. Validate the pattern. ~45 min.
+2. **Visual QA stop** — user review: right direction?
+3. **Track 1.3–1.5** — roads, village rework, landmarks. → 70% visual.
+4. **Track 2.1 + 2.4** — wire NeedsDrivenBrain, first emergent loop.
+5. **Track 3.1–3.3** — episode recorder + scene graph. Every playthrough = training data.
+6. **Track 2.5 + 2.6** — multi-agent + time acceleration. Emergent civilization.
+7. **Track 4** — LLM brains.
+
+---
+
+## Not doing (deferred)
+
+- Rebuilding dungeon (done, stable)
+- Reworking characters/combat
+- New biomes beyond village sim
+- 3D asset generation from text (use free GLBs first)
+
+---
+
+## Available asset inventory (Kenney + KayKit, 1,285 GLBs total)
+
+| Kit | GLBs | Purpose |
+|---|---|---|
+| assets_library/nature_kit | 329 | Trees, plants, rocks, flowers, terrain |
+| assets_library/survival | 80 | Campfire, tents, tools, resources |
+| **assets_library/town** | **167** | **Fantasy town parts (walls, roofs, fountain, mill)** |
+| assets_library/dungeon | ~100 | Dungeon tiles + props |
+| assets_library/characters | 6 | Knight, Barbarian, Mage, Ranger, Rogue, Orc |
+| assets_library/forest_nature | ~100 | Stylized forest props |
+| assets_library/platformer | ~50 | Platformer kit (deferred) |
+| assets_library/props, furniture, resourcebits | ~80 each | Misc |
+
+---
+
+## Completed history
+
+### 2026-04-08 → 04-09
+- 2D engine complete (FF9 2D archetype)
+- 3D engine: world_builder.gd, player_3d.gd, JSON-driven GLB loading
+- 876 free GLBs organized
+- Auto-capture + auto-agent + visual QA loop proven
+
+### 2026-04-10
+- Harness engineering: 5 hooks, 3 agents, visual regression, 116 lessons
+- Game design study: docs/18, 33 rules, metrics, algorithms
+- First good room: L-shape dungeon_guard_post with point lights + zebra lighting + focal point
+- Visual QA loop proven from WSL via gl_compatibility
+
+### 2026-04-10 → 04-14 (Simulation Phase)
+- Dungeon: multi-room seamless, A*, proc-gen shapes + biomes + multi-floor
+- Simulation: heightmap terrain (SurfaceTool + HeightMapShape3D), 7 zones, day/night cycle
+- Brain abstraction extended: state_machine, human, auto_agent, needs_driven (designed)
+- Elements system: object_type + material + collision + light + tint from JSON
+- Python generator: `generate_sim_world.py` → full JSON world (zero runtime gen)
+- Multi-camera QA with FOV cone on minimap
+- 155+ lessons in ~/.yume/lessons
+- Kenney fantasy-town-kit (167 GLBs) extracted to assets_library/town/
+
+---
+
+## Data Format (export goal)
 
 ```json
 {
@@ -176,6 +180,15 @@ The big vision: define elements + rules → agents discover civilization.
 }
 ```
 
+---
+
+## Visual QA Command (STANDING RULE — never ask human to test)
+```bash
+rm -f /mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume3D/captures/frame_000*.png
+timeout 20 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe --path C:/Users/kamwoh/Documents/Projects/Godot/Yume3D --rendering-method gl_compatibility
+# Then Read frame_*.png captures. NEVER use --headless for visual QA.
+```
+
 ## Why This Wins
 
 | vs Scraping YouTube | vs AAA Game Licensing | vs Minecraft |
@@ -184,27 +197,3 @@ The big vision: define elements + rules → agents discover civilization.
 | Controllable camera | Any game type | Rich physics + diverse aesthetics |
 | Diverse environments | Open source | GLB models, not voxels |
 | Action annotations | Reproducible | Story/NPC/quest structure |
-
-## Completed (2026-04-10)
-- [x] Phase 1: 3D World from JSON (grid rooms, GLBs, player, camera, collision)
-- [x] Harness engineering (5 hooks, 3 agents, visual regression, 116 lessons)
-- [x] Game design study (docs/18, 33 rules, metrics, algorithms)
-- [x] First good room (guard_post — dark bg, zebra lighting, focal point, story props)
-- [x] Point lights from JSON, spawn_on_grid, auto-agent from config
-- [x] Visual QA loop proven (gl_compatibility, auto-capture, Claude reads screenshots)
-
-## Visual QA Command (STANDING RULE — never ask human to test)
-```bash
-rm -f /mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume3D/captures/frame_000*.png
-timeout 20 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe --path C:/Users/kamwoh/Documents/Projects/Godot/Yume3D --rendering-method gl_compatibility
-# Then Read frame_*.png captures. NEVER use --headless.
-```
-
-## 5-Question Reboot Check
-| Question | Answer |
-|----------|--------|
-| Where am I? | First good room done. Design rules proven. Visual QA loop working. |
-| Where am I going? | Templates → procedural gen → agent recording → export → open source |
-| What's the goal? | Generate 100+ diverse rooms that look like real game levels. DeepMind portfolio. |
-| What have I learned? | Dark bg + point lights + focal point + asymmetry + story props = real dungeon. Never ask human to test — use auto-capture. |
-| What have I done? | 2D engine, 3D engine, 116 lessons, harness, design study, first good room, visual QA |

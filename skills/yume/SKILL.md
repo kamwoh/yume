@@ -160,3 +160,4 @@ Every room must have:
 7. **Director mindset:** cutscenes match what's on screen. If character speaks, they're in the room.
 8. **Read prompts before generating:** prompts define quality standards
 9. **GDScript quirks:** no `:=` in static/complex expressions, explicit types always, JSON null ≠ missing key
+10. **Behavioral posture (karpathy-guidelines):** on every non-trivial change — surface assumptions instead of picking silently, write minimum code (no speculative abstractions / features not asked for), touch only what traces to the request, define success criteria up front and loop until verified. See skill `karpathy-guidelines`.

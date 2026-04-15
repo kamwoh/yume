@@ -177,6 +177,17 @@ yume test /path/to/your-game/ -l godot -g /path/to/godot
 
 The playthrough simulator is the most powerful — it literally plays through the game from title to credits, collecting items, fighting bosses, and verifying quest progression.
 
+## Behavioral Posture (karpathy-guidelines)
+
+Apply the four principles from the `karpathy-guidelines` skill on every non-trivial change:
+
+1. **Think Before Coding** — surface assumptions, present alternatives, ask when unclear
+2. **Simplicity First** — minimum code that solves the problem, no speculative abstractions
+3. **Surgical Changes** — touch only what traces to the request, don't drive-by-refactor
+4. **Goal-Driven Execution** — define success criteria up front, loop until verified
+
+These are orthogonal to Yume's domain rules — a behavioral layer above WHAT-to-build. See skill `karpathy-guidelines` for details.
+
 ## Read More
 
 - `core/docs/01_game_dev_cycle.md` — Game development stages

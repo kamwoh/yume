@@ -436,10 +436,59 @@ def generate_elements_from_zones(width: float, height: float, seed: int,
 # MAIN GENERATOR
 # ============================================================
 
+def generate_bare_world(width: float = 20, height: float = 20,
+                        element_id: str | None = None) -> dict:
+    """Minimal world for element-testing labs: flat terrain, no zones/camp/edge
+    trees/paths/flowers. Optionally drops one composite element at origin.
+    Same JSON schema as the real sim world so sim_world.gd renders it identically.
+    """
+    resolution = 32
+    heights = [0.0] * (resolution * resolution)
+    elements: list[dict] = []
+    if element_id:
+        elements.append({
+            "element": element_id,
+            "x": 0.0, "z": 0.0,
+            "scale": 1.0, "rotation_y": 0.0,
+        })
+
+    return {
+        "seed": 0,
+        "world_size": {"width": width, "height": height},
+        "spawn": {"x": -3.0, "z": 0.0},
+        "terrain": {
+            "heightmap": {"resolution": resolution, "height_scale": 1.0, "heights": heights},
+            "patches": [],
+            "flowers": [],
+        },
+        "edge_trees": [],
+        "paths": [],
+        "camp": [],
+        "elements": elements,
+        "atmosphere": {
+            "bg_color": [0.55, 0.72, 1.0],
+            "ambient_light": [0.6, 0.6, 0.55],
+            "ambient_energy": 0.9,
+            "sun_energy": 1.2,
+            "sun_color": [1.0, 0.95, 0.88],
+            "sun_rotation": [-45, 30, 0],
+            "fog_density": 0.0,
+            "fog_color": [0.8, 0.85, 0.9],
+        },
+        "day_night": {"enabled": False, "cycle_seconds": 300, "day_ratio": 0.7},
+    }
+
+
 def generate_sim_world(seed: int, width: float = 100, height: float = 100,
                        terrain_config: dict | None = None,
-                       zones: list | None = None) -> dict:
-    """Generate complete simulation world. All params from config."""
+                       zones: list | None = None,
+                       landmarks: list | None = None) -> dict:
+    """Generate complete simulation world. All params from config.
+
+    landmarks: explicit placements for composite elements (houses, fountain, windmill).
+               Each item: {element: id, x, z, rotation_y?}. No random scatter, no model
+               variant pick — composite parts come from elements.json at render time.
+    """
     camp_x = 0.0
     camp_z = 0.0
 
@@ -459,6 +508,20 @@ def generate_sim_world(seed: int, width: float = 100, height: float = 100,
             "elements": SCATTER_DEFAULTS
         }]
         elements = generate_elements_from_zones(width, height, seed, default_zone)
+
+    # Append landmarks (composite elements at explicit positions).
+    # Emitted WITHOUT a `model` field — renderer reads parts[] from elements.json.
+    if landmarks:
+        for lm in landmarks:
+            if "element" not in lm:  # skip _comment-only entries
+                continue
+            elements.append({
+                "element": lm["element"],
+                "x": round(float(lm.get("x", 0)), 2),
+                "z": round(float(lm.get("z", 0)), 2),
+                "scale": float(lm.get("scale", 1.0)),
+                "rotation_y": float(lm.get("rotation_y", 0.0)),
+            })
 
     world = {
         "seed": seed,
@@ -491,36 +554,56 @@ def generate_sim_world(seed: int, width: float = 100, height: float = 100,
 
 def main():
     parser = argparse.ArgumentParser(description="Generate a simulation world")
-    parser.add_argument("data_dir", type=Path, help="Game data directory")
+    parser.add_argument("data_dir", type=Path, help="Game data directory (contains sim/ or labs/<name>/)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--size", type=int, default=100, help="World size (width=height)")
+    parser.add_argument("--bare", action="store_true",
+                        help="Generate a minimal flat world for element labs (no zones/camp/edge trees/paths).")
+    parser.add_argument("--element", type=str, default=None,
+                        help="With --bare: drop this element id at origin (e.g. house_small).")
+    parser.add_argument("--subdir", type=str, default="sim",
+                        help="Subdirectory under data_dir for output (default: sim). Use e.g. 'labs/house' for lab data.")
     args = parser.parse_args()
 
     data_dir = args.data_dir.resolve()
-    sim_dir = data_dir / "sim"
-    sim_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = data_dir / args.subdir
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.bare:
+        world = generate_bare_world(width=args.size, height=args.size,
+                                    element_id=args.element)
+        output = out_dir / "generated_world.json"
+        output.write_text(json.dumps(world, indent=2))
+        print(f"BARE world: {args.size}x{args.size}, element={args.element!r}")
+        print(f"  Elements: {len(world['elements'])}")
+        print(f"\nSaved → {output}")
+        return
 
     # Load terrain config from world_config.json if exists
     terrain_config = None
-    wc_path = sim_dir / "world_config.json"
+    wc_path = out_dir / "world_config.json"
     if wc_path.exists():
         wc = json.loads(wc_path.read_text())
         terrain_config = wc.get("terrain", None)
         if terrain_config:
             print(f"Terrain config loaded from world_config.json")
 
-    # Load zones config
+    # Load zones + landmarks config
     zones = None
+    landmarks = None
     if wc_path.exists():
         wc2 = json.loads(wc_path.read_text())
         zones = wc2.get("zones", None)
+        landmarks = wc2.get("landmarks", None)
         if zones:
             print(f"Zones loaded: {len(zones)} zones")
+        if landmarks:
+            print(f"Landmarks loaded: {len(landmarks)} composite placements")
 
-    world = generate_sim_world(args.seed, args.size, args.size, terrain_config, zones)
+    world = generate_sim_world(args.seed, args.size, args.size, terrain_config, zones, landmarks)
 
     # Save
-    output = sim_dir / "generated_world.json"
+    output = out_dir / "generated_world.json"
     output.write_text(json.dumps(world, indent=2))
 
     # Stats
