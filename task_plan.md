@@ -1,199 +1,152 @@
-# Task Plan: Yume — Procedural Game Generation for World Modeling Data
+# Task Plan: Yume — Autonomous Agent Simulation Engine
 
-## Vision
-Generate UNLIMITED diverse 3D game worlds from text descriptions.
-Each world produces training data: camera trajectories, agent actions, physics, scene graphs.
-Open source → researchers use Yume instead of scraping AAA games.
+## North Star (honest)
 
-Target: DeepMind Genie team. Solve the DATA bottleneck for world models.
+Build a simulation engine where agents — driven by needs, rules, or LLMs —
+actually **live** in a 3D world: hunger decays, crops grow, wood rots, fires
+burn out. Everything data-driven from JSON.
 
-## The Pitch
-```
-World models need: diverse 3D environments + camera control + agent actions + physics
-Currently: scrape YouTube (noisy) or license AAA games (expensive, limited)
-Yume: text → 3D game → unlimited labeled training data
-
-"A medieval town"     → town with NPCs, shops, physics
-"A space station"     → sci-fi corridors, zero-gravity, tech
-"A dungeon crawler"   → procedural rooms, traps, enemies, combat
-"A racing game"       → tracks, vehicles, speed physics
-
-Each generates: frames + camera poses + action labels + scene graph
-```
+Eventual research goal (DeepMind-adjacent training data) is far away. Focus
+stays on the simulation foundation.
 
 ---
 
-## Current State (2026-04-15)
+## Current State (2026-04-16)
 
-| Area | State | Visual grade |
-|---|---|---|
-| 3D engine core (entity + brain + camera + HP + minimap + A*) | ✅ working | — |
-| Dungeon world (multi-room, proc-gen, multi-floor) | ✅ playable | ~65% |
-| Simulation world (heightmap + 7 zones + day/night + camp) | 🟡 playable, rough | **~55%** |
-| Fantasy town kit (167 GLBs) | ⚠️ **extracted but unused** | — |
-| Needs-driven brain + recipes + world rules | 🟡 JSON designed, not wired | — |
-| Data export pipeline | ❌ not built | — |
-| LLM brains (`claude -p`) | ❌ not built | — |
+### ✅ Done — simulation foundation
 
-**Blocker on visual grade:** village zone places flowers + 5-piece camp only. Town kit is **parts, not buildings** (walls, roofs, doors) — needs a composite layer in the engine to become houses.
+| Layer | State |
+|---|---|
+| 3D engine modules | sim_world.gd 135-line orchestrator. WorldEnvironment/Terrain/Elements/Agents/RulesEngine/ModelHelpers as focused files |
+| Tick clock | world_clock.gd. 0.5s default. Drives brains + rules. Movement stays continuous. |
+| Rules engine | Global + per-entity rules. Effects: need_decay/restore, damage, remove, transform, advance_stage, spread, state_add, state_set. Conditions: need_below, nearby_element, agent_near_group, neighbor_group, state_below, state_above |
+| Brain abstraction (4 working) | human, auto_agent, state_machine, needs_driven, llm (claude -p) |
+| Data-driven | elements.json, needs.json, recipes.json, world_rules.json, asset_config.json, meta.json |
+| Composites | Multi-part buildings (house_small, fountain_plaza, windmill) from JSON parts |
+| HUD | Reusable agent_needs_panel auto-creates per agent |
+| Target claim system | Prevents agent-on-agent stacking |
+| Animation pipeline | Kenney rigs → AnimationLibrary |
+| Entity lifecycles | Every object has state + local rules. Water evaporates/rains, seeds grow, wheat rots, campfire burns fuel |
 
----
+### ✅ Validated labs
 
-## Four parallel tracks
+- `data/sim/` — 100×100 real village, 3 agents, 7 zones, 788 elements
+- `labs/house/` — composite pipeline
+- `labs/agent/` — multi-agent
+- `labs/craft/` — crafting chain (mine → craft → chop)
+- `labs/llm/` — claude-driven agent full survival loop
 
-### 🏗️ Track 1 — Fantasy town kit → real villages
+### 🟡 Observed but not fixed
 
-Town kit GLBs are parts, not buildings. Need composite layer.
+- Food scarcity — 4 wheat can't sustain 3 agents
+- Agents don't plant seeds they harvest
+- Rain/evaporation balance net-negative (water slowly drains)
+- Straight-line pathfinding (no A* in sim)
 
-- [ ] **1.1** Add `composite_element` type to `elements.json` schema — element = list of GLB parts with local offsets/rotations
-- [ ] **1.2** Define starter buildings: `house_small`, `house_medium`, `market_stall`, `fountain_plaza`, `windmill`, `watermill`
-- [ ] **1.3** Add `road` tile system to `generate_sim_world.py` — replace tinted-dirt paths with `road.glb` + `road-bend.glb`
-- [ ] **1.4** Rework `village` zone: fountain centerpiece + 4-6 houses + 2-3 stalls, connected by roads
-- [ ] **1.5** Windmill landmark on outskirts, watermill next to lake zone
+### ❌ Not done
 
-**Risk:** composite placement on heightmap — parts must snap per-part OR flatten terrain under the building.
-
-**Visual grade target after Track 1:** 70%+
-
-### 🧠 Track 2 — Emergent world (Level 3)
-
-- [ ] **2.1** Wire `brain_needs_driven.gd` to a spawned agent
-- [ ] **2.2** Implement `world_rules.json` ABMs in engine (wheat growth, fire spread, need decay)
-- [ ] **2.3** Inventory + recipes applied to agents (chop tree → wood → craft)
-- [ ] **2.4** First emergent loop: agent hungry → finds wheat_mature → eats
-- [ ] **2.5** Multi-agent (5-10) with resource competition
-- [ ] **2.6** Time acceleration (100x) for rapid evolution
-
-### 🎥 Track 3 — Data export pipeline (the DeepMind pitch)
-
-- [ ] **3.1** `episode_recorder.gd` — per-frame dump: camera pose, agent action, scene graph
-- [ ] **3.2** Action label schema (move, attack, interact, chop, eat, …)
-- [ ] **3.3** Scene graph format (object IDs, positions, states per frame)
-- [ ] **3.4** Export to WebDataset + mp4 + annotations
-- [ ] **3.5** Benchmark demo: 10 worlds → N hours labeled data
-
-### 🤖 Track 4 — LLM brains
-
-- [ ] **4.1** `brain_llm.gd` — `claude -p` + screenshot → action
-- [ ] **4.2** NPC LLM brain (guard with reasoning)
-- [ ] **4.3** Camera LLM brain (picks cinematic angle)
-- [ ] **4.4** World manager brain (events, difficulty, weather)
+Grid system, A* for sim, async LLM, agent vision, farming behavior, multi-step
+planning, combat in sim, day/night behavior affecting decisions, save/load,
+data export.
 
 ---
 
-## Dependency graph
+## The plan — tiers of work remaining before "foundation complete"
 
-```
-Track 1 (houses + village)
-    ↓ enables
-Track 2 (agents have HOMES, market, places to defend/repair)
-    ↓ enables
-Track 3 (recorded episodes show civilization in a real-looking town)
-    ↓ enables
-Track 4 (LLM brain has rich context: "guard patrolling market at dusk")
-```
+### Tier 1 — SELF-SUSTAINING SIM (required before anything else)
 
-Track 1 is the **foundation**. Without it: Track 2 agents wander empty grassland; Track 3 data looks like a tech demo, not a world.
+Goal: a sim that runs indefinitely without hand-feeding. Agents survive via
+their own production, not hardcoded resource piles.
 
----
+- [ ] **1.1** Farming behavior in brain: `wheat_seed_item` in inventory +
+  near farmland OR bare ground → plant action → wheat_seed element spawned
+- [ ] **1.2** Balance pass: hunger/thirst decay rates, rain vs evaporation,
+  wheat lifespan. Goal: 3 agents survive 10+ min without intervention
+- [ ] **1.3** Bootstrap fix: agent should be able to get both wood AND
+  cobblestone with ONE tool (currently axe ≠ pickaxe blocks crafting loop).
+  Options: punch-tree fallback, or start with both tools
+- [ ] **1.4** Agent reproduction / lifespan? (open question — do we want
+  agents to die + be replaced for true long-term sim? or just survive?)
 
-## Recommended order
+**When done:** can leave the sim running for 30+ min and agents are still alive.
 
-1. **Track 1.1 + 1.2 (partial)** — composite_element system + 1 house + fountain. Validate the pattern. ~45 min.
-2. **Visual QA stop** — user review: right direction?
-3. **Track 1.3–1.5** — roads, village rework, landmarks. → 70% visual.
-4. **Track 2.1 + 2.4** — wire NeedsDrivenBrain, first emergent loop.
-5. **Track 3.1–3.3** — episode recorder + scene graph. Every playthrough = training data.
-6. **Track 2.5 + 2.6** — multi-agent + time acceleration. Emergent civilization.
-7. **Track 4** — LLM brains.
+### Tier 2 — DEPTH (after Tier 1 green)
 
----
+- [ ] **2.1** Day/night affects behavior — agents seek shelter at night
+- [ ] **2.2** Combat in sim — hostile brain entity spawns, agents defend/flee
+- [ ] **2.3** Tile grid refactor (per docs/26_grid_system_proposal.md)
+  — enables real pathfinding, territory, save/load
+- [ ] **2.4** More composites — market stall, watermill, more house variants
+- [ ] **2.5** Stockpiles / containers — agents store food for later
 
-## Not doing (deferred)
+### Tier 3 — POLISH
 
-- Rebuilding dungeon (done, stable)
-- Reworking characters/combat
-- New biomes beyond village sim
-- 3D asset generation from text (use free GLBs first)
+- [ ] **3.1** A* pathfinding for sim agents (via NavigationAgent3D or grid)
+- [ ] **3.2** Agent vision — per-agent viewport capture for LLM brain
+- [ ] **3.3** Async LLM brain — non-blocking `claude -p` via OS.create_process
+- [ ] **3.4** Tune village visual density — more trees/flowers in forest zones
+- [ ] **3.5** Single-cam option for human viewing vs multi-cam for capture
 
----
+### Tier 4 — INFRA (later)
 
-## Available asset inventory (Kenney + KayKit, 1,285 GLBs total)
-
-| Kit | GLBs | Purpose |
-|---|---|---|
-| assets_library/nature_kit | 329 | Trees, plants, rocks, flowers, terrain |
-| assets_library/survival | 80 | Campfire, tents, tools, resources |
-| **assets_library/town** | **167** | **Fantasy town parts (walls, roofs, fountain, mill)** |
-| assets_library/dungeon | ~100 | Dungeon tiles + props |
-| assets_library/characters | 6 | Knight, Barbarian, Mage, Ranger, Rogue, Orc |
-| assets_library/forest_nature | ~100 | Stylized forest props |
-| assets_library/platformer | ~50 | Platformer kit (deferred) |
-| assets_library/props, furniture, resourcebits | ~80 each | Misc |
+- [ ] **4.1** Save/load — snapshot entity state + plan + world rules state
+- [ ] **4.2** Data export — per-frame scene graph + action labels to disk
+- [ ] **4.3** Multi-LLM agents — requires async first
+- [ ] **4.4** Episode recorder for research pipeline
 
 ---
 
-## Completed history
+## Core Principles (enforced)
 
-### 2026-04-08 → 04-09
-- 2D engine complete (FF9 2D archetype)
-- 3D engine: world_builder.gd, player_3d.gd, JSON-driven GLB loading
-- 876 free GLBs organized
-- Auto-capture + auto-agent + visual QA loop proven
+Behavioral posture (karpathy-guidelines skill): think before code, simplicity
+first, surgical changes, goal-driven execution.
 
-### 2026-04-10
-- Harness engineering: 5 hooks, 3 agents, visual regression, 116 lessons
-- Game design study: docs/18, 33 rules, metrics, algorithms
-- First good room: L-shape dungeon_guard_post with point lights + zebra lighting + focal point
-- Visual QA loop proven from WSL via gl_compatibility
-
-### 2026-04-10 → 04-14 (Simulation Phase)
-- Dungeon: multi-room seamless, A*, proc-gen shapes + biomes + multi-floor
-- Simulation: heightmap terrain (SurfaceTool + HeightMapShape3D), 7 zones, day/night cycle
-- Brain abstraction extended: state_machine, human, auto_agent, needs_driven (designed)
-- Elements system: object_type + material + collision + light + tint from JSON
-- Python generator: `generate_sim_world.py` → full JSON world (zero runtime gen)
-- Multi-camera QA with FOV cone on minimap
-- 155+ lessons in ~/.yume/lessons
-- Kenney fantasy-town-kit (167 GLBs) extracted to assets_library/town/
+- **Everything from JSON** — if you write hardcoded numbers in engine scripts,
+  extract to config
+- **No backward-compat scaffolding while in active dev** — fix forward, don't
+  layer defensive defaults
+- **Reusable components** — build per-agent panel, manager composes
+- **Data-first, GD-second** — only touch GDScript when JSON can't express the
+  feature. See: `data_first_gd_second` lesson
+- **Skill before build** — design pattern in skill FIRST, implement following
+  it (e.g. karpathy-guidelines, visual-qa, godot-api)
+- **Visual QA via forked skill** — my self-grading is biased; use visual-qa
+  skill for unbiased reads
+- **Stop framing as DeepMind deliverable** — focus on sim foundation. The
+  research framing is a long-term outcome, not a next-step milestone
 
 ---
 
-## Data Format (export goal)
+## Lessons corpus
 
-```json
-{
-  "episode_id": "medieval_town_ep_042",
-  "world_config": "locations/medieval_town.json",
-  "frames": [
-    {
-      "timestep": 0,
-      "camera": {"pos": [1.2, 2.0, 3.5], "rot": [0, 45, 0], "fov": 75},
-      "agent": {"pos": [1.0, 0, 3.0], "action": "move_forward", "velocity": [0, 0, 1.5]},
-      "objects": [
-        {"id": "barrel_01", "pos": [3, 0, 2], "state": "intact"},
-        {"id": "npc_guard", "pos": [5, 0, 4], "state": "patrol"}
-      ]
-    }
-  ],
-  "metadata": {"game_type": "rpg", "environment": "medieval_town", "duration_sec": 30}
-}
-```
+~/.yume/lessons/rpg/ — 170+ YAML lessons across 3d, assets, architecture,
+workflow, combat, dialogue, etc. Load via lookup when debugging.
 
 ---
 
-## Visual QA Command (STANDING RULE — never ask human to test)
+## Where we were before this session
+
+Session 2026-04-14: Dungeon done, sim world rough (~55%), fantasy town kit
+extracted but unused, needs/recipes/rules designed but not wired.
+
+## Where we are now (2026-04-16)
+
+- Real village runs with 3 named AI agents (Iris, Bjorn, Elara)
+- Entity lifecycle unified across agents and elements
+- 4 brain types working
+- 5 labs validated
+- Campfire burns, water evaporates/rains, seeds grow, wheat rots
+- Agents claim targets — no more stacking
+
+**Honest status: foundation is ~70% complete. Tier 1 missing to call it "done".**
+
+---
+
+## Visual QA Command (standing rule)
+
 ```bash
 rm -f /mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume3D/captures/frame_000*.png
-timeout 20 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe --path C:/Users/kamwoh/Documents/Projects/Godot/Yume3D --rendering-method gl_compatibility
+timeout 20 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe \
+  --path C:/Users/kamwoh/Documents/Projects/Godot/Yume3D --rendering-method gl_compatibility
 # Then Read frame_*.png captures. NEVER use --headless for visual QA.
 ```
-
-## Why This Wins
-
-| vs Scraping YouTube | vs AAA Game Licensing | vs Minecraft |
-|---|---|---|
-| Perfect labels (not noisy) | Free and unlimited | Any environment (not just blocks) |
-| Controllable camera | Any game type | Rich physics + diverse aesthetics |
-| Diverse environments | Open source | GLB models, not voxels |
-| Action annotations | Reproducible | Story/NPC/quest structure |
