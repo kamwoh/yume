@@ -13,17 +13,33 @@ var needs_config: Array = []
 # Recipes
 var known_recipes: Array = []
 
-# Items
+# Items + element definitions
 var items_config: Array = []
+var elements_config: Array = []  # Loaded from elements.json — used to look up drops, groups, hp
 
 # State
 var current_plan: Array = []  # [{action, target, ...}]
 var plan_index: int = 0
 var action_timer: float = 0.0
-var idle_timer: float = 0.0
+
+# Tick-driven re-planning: world_clock sets _should_replan=true on tick.
+# Brain replans on next decide() call when no plan is active.
+var _should_replan: bool = true  # start with true so first decide makes a plan
+var _world_clock: Node = null
 
 # Reference to inventory (attached to entity)
 var inventory: Node = null
+
+
+func _ready() -> void:
+	# Subscribe to world clock so we replan once per tick (not every frame).
+	_world_clock = get_tree().root.find_child("WorldClock", true, false)
+	if _world_clock and _world_clock.has_signal("tick"):
+		_world_clock.tick.connect(_on_world_tick)
+
+
+func _on_world_tick(_n: int) -> void:
+	_should_replan = true
 
 
 func init_config(config: Dictionary) -> void:
@@ -46,6 +62,13 @@ func init_config(config: Dictionary) -> void:
 		var data = JSON.parse_string(recipe_file.get_as_text())
 		if data is Dictionary:
 			known_recipes = data.get("recipes", [])
+
+	# Load element definitions for drop tables / hp lookup
+	var el_file := FileAccess.open("res://data/sim/elements.json", FileAccess.READ)
+	if el_file:
+		var data = JSON.parse_string(el_file.get_as_text())
+		if data is Dictionary:
+			elements_config = data.get("elements", [])
 
 	# Load items config
 	var items_file := FileAccess.open("res://data/sim/items.json", FileAccess.READ)
@@ -77,9 +100,8 @@ func init_config(config: Dictionary) -> void:
 func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 	var dt: float = entity.get_process_delta_time()
 	action_timer -= dt
-	idle_timer += dt
 
-	# If executing a plan, follow it
+	# If executing a plan, advance step-by-step every frame (movement is continuous).
 	if current_plan.size() > 0 and plan_index < current_plan.size():
 		var step: Dictionary = current_plan[plan_index]
 		var result: Dictionary = _execute_step(entity, step, dt)
@@ -90,9 +112,9 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 				plan_index = 0
 		return result
 
-	# No plan — evaluate needs and pick best action
-	if idle_timer > 0.5:  # Re-evaluate every 0.5s
-		idle_timer = 0.0
+	# No plan — replan only when world_clock has ticked (or first call).
+	if _should_replan:
+		_should_replan = false
 		current_plan = _make_plan(entity, world_state)
 		plan_index = 0
 
@@ -101,6 +123,36 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 
 func get_needs_summary() -> Dictionary:
 	return needs.duplicate()
+
+
+func get_status_label() -> String:
+	## One-line description of what this brain is doing right now. Read by HUD.
+	if current_plan.size() > 0 and plan_index < current_plan.size():
+		return _step_to_label(current_plan[plan_index])
+	return "Idle"
+
+
+func _step_to_label(step: Dictionary) -> String:
+	var t: String = str(step.get("type", "?"))
+	match t:
+		"move_to":
+			var tgt = step.get("target", Vector3.ZERO)
+			var x: float = tgt.x if tgt is Vector3 else (float(tgt[0]) if (tgt is Array and tgt.size() >= 1) else 0.0)
+			var z: float = tgt.z if tgt is Vector3 else (float(tgt[2]) if (tgt is Array and tgt.size() >= 3) else 0.0)
+			return "Walking → (%.1f, %.1f)" % [x, z]
+		"interact_element":
+			return "Using " + str(step.get("element_id", "?"))
+		"harvest":
+			return "Harvesting " + str(step.get("element_id", "?"))
+		"consume":
+			return "Eating " + str(step.get("item", "?"))
+		"craft":
+			return "Crafting " + str(step.get("recipe", "?"))
+		"wander":
+			return "Wandering"
+		"idle_rest":
+			return "Resting"
+	return t
 
 
 func update_need(need_id: String, amount: float) -> void:
@@ -122,56 +174,46 @@ func _most_urgent_need() -> String:
 
 
 func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
-	## Evaluate all possible actions, score by urgency × satisfaction, pick best.
+	## Try each satisfier listed in needs.json for the most urgent need.
+	## First achievable satisfier wins. No need-specific hardcoding here —
+	## adding a new need = JSON only.
 	var urgent_need: String = _most_urgent_need()
 	if urgent_need == "":
 		return [{"type": "wander"}]
 
 	var urgency: float = 1.0 - (needs[urgent_need]["current"] / max(needs[urgent_need]["max"], 0.01))
+	print("[Brain] ", entity.name, " urgent=", urgent_need, " urgency=", snapped(urgency, 0.01))
 
-	# If hunger is urgent and we have food → eat
-	if urgent_need == "hunger" and inventory:
-		if inventory.has_item("cooked_food"):
-			return [{"type": "consume", "item": "cooked_food", "need": "hunger", "amount": 60}]
-		if inventory.has_item("food_wheat"):
-			return [{"type": "consume", "item": "food_wheat", "need": "hunger", "amount": 30}]
+	var need_def: Dictionary = _find_need_def(urgent_need)
+	var satisfiers: Array = need_def.get("satisfiers", [])
+	for sat in satisfiers:
+		if not (sat is Dictionary):
+			continue
+		var plan: Array = _try_satisfier(entity, urgent_need, sat)
+		if plan.size() > 0:
+			return plan
 
-	# If thirst is urgent → find water
-	if urgent_need == "thirst":
-		var water_pos: Vector3 = _find_nearest_element_in_world(entity, "water")
-		if water_pos != Vector3.ZERO:
-			return [
-				{"type": "move_to", "target": water_pos},
-				{"type": "interact_element", "need": "thirst", "amount": 50}
-			]
-
-	# If energy is urgent → find shelter or just idle
-	if urgent_need == "energy":
-		var shelter_pos: Vector3 = _find_nearest_element_in_world(entity, "shelter")
-		if shelter_pos != Vector3.ZERO:
-			return [{"type": "move_to", "target": shelter_pos}]
-		else:
-			return [{"type": "idle_rest", "duration": 3.0}]
-
-	# If not urgent → gather resources
+	# If not urgent → gather resources via tools we own
 	if urgency < 0.5:
-		# Have axe? Chop tree for wood
-		if inventory and inventory.has_item("axe"):
-			var tree_pos: Vector3 = _find_nearest_element_in_world(entity, "tree")
-			if tree_pos != Vector3.ZERO:
-				return [
-					{"type": "move_to", "target": tree_pos},
-					{"type": "harvest", "tool": "axe", "time": 2.0}
-				]
-
-		# Have pickaxe? Mine stone
-		if inventory and inventory.has_item("pickaxe"):
-			var stone_pos: Vector3 = _find_nearest_element_in_world(entity, "stone")
-			if stone_pos != Vector3.ZERO:
-				return [
-					{"type": "move_to", "target": stone_pos},
-					{"type": "harvest", "tool": "pickaxe", "time": 3.0}
-				]
+		# Tool → element_id mapping: which world element this tool harvests
+		var tool_targets: Dictionary = {"axe": "tree", "pickaxe": "stone"}
+		for tool_name in tool_targets:
+			if not (inventory and inventory.has_item(tool_name)):
+				continue
+			var target_id: String = tool_targets[tool_name]
+			var pos: Vector3 = _find_nearest_element_in_world(entity, target_id)
+			if pos == Vector3.ZERO:
+				continue
+			# Look up drops from the element def (data-driven, not hardcoded)
+			var edef: Dictionary = _find_element_def(target_id)
+			var drops: Array = edef.get("drop", [])
+			# Look up time/cost from the matching recipe
+			var recipe: Dictionary = _find_recipe_for_tool(tool_name, target_id)
+			var t: float = float(recipe.get("time", 2.0))
+			return [
+				{"type": "move_to", "target": pos},
+				{"type": "harvest", "element_id": target_id, "time": t, "drops": drops},
+			]
 
 		# Can craft something useful?
 		if inventory and inventory.has_items([{"item": "wood", "count": 2}, {"item": "cobblestone", "count": 1}]):
@@ -206,22 +248,27 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 			return {"action": "idle", "step_done": true}
 
 		"harvest":
-			action_timer = step.get("time", 2.0)
-			# Find nearest element in range and "harvest" it
-			var nearest: Node = _find_nearest_harvestable(entity)
-			if nearest and nearest.has_method("take_damage"):
-				nearest.take_damage(10.0)
-				# Collect drops (simplified — add items directly)
-				if inventory:
-					# Check element's drop config
-					var element_data: Dictionary = nearest.get("element_data") if nearest.has_method("get") else {}
-					var drops: Array = element_data.get("drop", [])
-					for d in drops:
-						inventory.add_item(str(d.get("item", "")), d.get("count", 1))
-					if drops.is_empty():
-						inventory.add_item("wood", 1)  # Fallback
-				print("[NeedsBrain] Harvested! Inventory: ", inventory.to_string_summary())
-			return {"action": "attack", "step_done": true}
+			# First call seeds the timer; subsequent calls tick it down.
+			# When timer elapses: drop items + remove the target sim_element.
+			if not step.has("_started"):
+				step["_started"] = true
+				action_timer = float(step.get("time", 2.0))
+				print("[NeedsBrain] ", entity.name, " started harvesting ", step.get("element_id", "?"))
+				return {"action": "attack"}
+			action_timer -= dt
+			if action_timer > 0:
+				return {"action": "attack"}
+			# Done — apply drops + remove target
+			var target_id: String = str(step.get("element_id", ""))
+			var target_node: Node3D = _find_nearest_element_node(entity, target_id) if target_id != "" else null
+			var drops = step.get("drops", [])
+			if inventory and drops is Array:
+				for d in drops:
+					inventory.add_item(str(d.get("item", "")), int(d.get("count", 1)))
+			print("[NeedsBrain] ", entity.name, " harvested ", target_id, " → ", drops, " | inv: ", inventory.to_string_summary() if inventory else "(no inv)")
+			if target_node:
+				target_node.queue_free()
+			return {"action": "idle", "step_done": true}
 
 		"craft":
 			var recipe_id: String = str(step.get("recipe", ""))
@@ -241,6 +288,14 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 			if need_id != "":
 				update_need(need_id, amount)
 				print("[NeedsBrain] Interacted: ", need_id, " +", amount)
+			# Optionally remove the target element (e.g. eating wheat consumes it)
+			if step.get("remove", false):
+				var target_id: String = str(step.get("element_id", ""))
+				if target_id != "":
+					var target_node: Node3D = _find_nearest_element_node(entity, target_id)
+					if target_node:
+						print("[NeedsBrain] Removing ", target_id, " at ", target_node.global_position)
+						target_node.queue_free()
 			return {"action": "idle", "step_done": true}
 
 		"idle_rest":
@@ -261,17 +316,122 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 	return {"action": "idle", "step_done": true}
 
 
+func _find_need_def(need_id: String) -> Dictionary:
+	for n in needs_config:
+		if str(n.get("id", "")) == need_id:
+			return n
+	return {}
+
+
+func _find_element_def(element_id: String) -> Dictionary:
+	for e in elements_config:
+		if str(e.get("id", "")) == element_id:
+			return e
+	return {}
+
+
+func _find_recipe_for_tool(tool_name: String, element_id: String) -> Dictionary:
+	## Return the recipe whose tool matches AND whose target_group is in the
+	## element's groups (e.g. axe + tree's "choppable" group → chop_tree recipe).
+	var edef: Dictionary = _find_element_def(element_id)
+	var el_groups = edef.get("groups", {})
+	for r in known_recipes:
+		if str(r.get("tool", "")) != tool_name:
+			continue
+		var tgt_group: String = str(r.get("target_group", ""))
+		if tgt_group != "" and el_groups is Dictionary and el_groups.has(tgt_group):
+			return r
+	return {}
+
+
+func _try_satisfier(entity: CharacterBody3D, need_id: String, sat: Dictionary) -> Array:
+	## Translate one satisfier descriptor into a concrete plan, or [] if not achievable now.
+	var amount: float = float(sat.get("amount", 0))
+	var remove: bool = sat.get("remove", false)
+
+	# 1. Inventory item — eat directly
+	if sat.has("item") and inventory:
+		var item_id: String = str(sat["item"])
+		if inventory.has_item(item_id):
+			return [{"type": "consume", "item": item_id, "need": need_id, "amount": amount}]
+
+	# 2. World element by id — walk to it, interact
+	if sat.has("element_id"):
+		var eid: String = str(sat["element_id"])
+		var pos: Vector3 = _find_nearest_element_in_world(entity, eid)
+		if pos != Vector3.ZERO:
+			return [
+				{"type": "move_to", "target": pos},
+				{"type": "interact_element", "element_id": eid,
+				 "need": need_id, "amount": amount, "remove": remove},
+			]
+
+	# 3. World element by group — walk to first match, interact
+	if sat.has("element_group"):
+		var grp: String = str(sat["element_group"])
+		var hit: Dictionary = _find_nearest_element_with_group(entity, grp)
+		if hit.has("pos"):
+			# For passive satisfiers (like energy near structure): just go there + idle.
+			# A separate world rule handles the actual restoration over time.
+			if sat.get("passive", false):
+				return [
+					{"type": "move_to", "target": hit["pos"]},
+					{"type": "idle_rest", "duration": 4.0},
+				]
+			return [
+				{"type": "move_to", "target": hit["pos"]},
+				{"type": "interact_element", "element_id": str(hit.get("id", "")),
+				 "need": need_id, "amount": amount, "remove": remove},
+			]
+
+	return []
+
+
+func _find_nearest_element_with_group(entity: CharacterBody3D, group_name: String) -> Dictionary:
+	## Returns {pos, id} of the nearest sim_element whose `groups` meta contains group_name.
+	var best_dist: float = 999.0
+	var best: Dictionary = {}
+	for node in entity.get_tree().get_nodes_in_group("sim_element"):
+		if not node.has_meta("groups"):
+			continue
+		var grps = node.get_meta("groups")
+		if not (grps is Dictionary) or not grps.has(group_name):
+			continue
+		var d: float = entity.global_position.distance_to(node.global_position)
+		if d < best_dist:
+			best_dist = d
+			best = {"pos": node.global_position, "id": str(node.get_meta("element_id", ""))}
+	return best
+
+
 func _find_nearest_element_in_world(entity: CharacterBody3D, element_id: String) -> Vector3:
-	## Find nearest world element by id
+	## Find nearest world element by id. element_id is stored as meta by sim_world.gd.
 	var nearest_dist: float = 999.0
 	var nearest_pos: Vector3 = Vector3.ZERO
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
-		if str(node.get("element_id")) == element_id:
+		if not node.has_meta("element_id"):
+			continue
+		if str(node.get_meta("element_id")) == element_id:
 			var dist: float = entity.global_position.distance_to(node.global_position)
 			if dist < nearest_dist:
 				nearest_dist = dist
 				nearest_pos = node.global_position
 	return nearest_pos
+
+
+func _find_nearest_element_node(entity: CharacterBody3D, element_id: String) -> Node3D:
+	## Like above but returns the Node so we can remove it after interaction.
+	var nearest_dist: float = 999.0
+	var nearest_node: Node3D = null
+	for node in entity.get_tree().get_nodes_in_group("sim_element"):
+		if not node.has_meta("element_id"):
+			continue
+		if str(node.get_meta("element_id")) == element_id:
+			var dist: float = entity.global_position.distance_to(node.global_position)
+			if dist < nearest_dist:
+				nearest_dist = dist
+				nearest_node = node
+	return nearest_node
 
 
 func _find_nearest_harvestable(entity: CharacterBody3D) -> Node:

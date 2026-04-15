@@ -68,31 +68,58 @@ func _die() -> void:
 	tw.tween_callback(queue_free)
 
 
-## Maps generic states to animation names. Tries multiple naming conventions.
-var _anim_map: Dictionary = {
-	"idle": ["idle", "Idle_A", "Idle"],
-	"walk": ["walk", "Walking_A", "Walk"],
-	"run": ["sprint", "Running_A", "Run"],
-	"attack": ["attack-melee-right", "Hit_A", "Attack"],
-	"hit": ["hit", "Hit_A", "Hurt"],
-	"death": ["die", "Death_A", "Death"],
-	"jump": ["jump", "Jump_Idle", "Jump"],
-}
+## Maps generic states (idle/walk/...) to animation names. Loaded from
+## asset_config.json animation_config.state_map at first play_anim() call.
+## Each value is an array of fallback names tried in order — first match wins.
+var _anim_map: Dictionary = {}
+var _blend_time: float = 0.2
+var _anim_config_loaded: bool = false
+
+
+func _load_anim_config() -> void:
+	if _anim_config_loaded:
+		return
+	_anim_config_loaded = true
+	var f := FileAccess.open("res://data/asset_config.json", FileAccess.READ)
+	if not f:
+		return
+	var data = JSON.parse_string(f.get_as_text())
+	if not (data is Dictionary):
+		return
+	var cfg: Dictionary = data.get("animation_config", {})
+	_blend_time = float(cfg.get("blend_time", _blend_time))
+	var sm: Dictionary = cfg.get("state_map", {})
+	for state in sm:
+		var v = sm[state]
+		if v is Array:
+			_anim_map[state] = v
+		elif v is String:
+			_anim_map[state] = [v]
 
 func play_anim(state: String, force: bool = false) -> void:
 	if not anim_player:
+		if not has_meta("_warned_no_anim"):
+			set_meta("_warned_no_anim", true)
+			push_warning("[Anim] " + name + " has no anim_player — animations off")
 		return
 	if is_dead and state != "death":
 		return
+	_load_anim_config()
 
-	# Try each naming convention for this state
 	var candidates: Array = _anim_map.get(state, [state])
+	var any_match := false
 	for candidate in candidates:
 		if anim_player.has_animation(candidate):
+			any_match = true
 			if force or current_anim != candidate:
-				anim_player.play(candidate, 0.2)
+				anim_player.play(candidate, _blend_time)
 				current_anim = candidate
 				return
+			return  # already playing the right one, no-op
+	if not any_match and not has_meta("_warned_anim_" + state):
+		set_meta("_warned_anim_" + state, true)
+		var available: PackedStringArray = anim_player.get_animation_list()
+		push_warning("[Anim] " + name + " has no anim for state '" + state + "'. Available: " + str(available))
 
 
 func get_world_state() -> Dictionary:

@@ -14,15 +14,34 @@ var world_h: float = 100.0
 
 
 func _ready() -> void:
-	var wc_file := FileAccess.open("res://data/sim/world_config.json", FileAccess.READ)
+	# Resolve data_root from meta.json (same pattern as sim_world.gd).
+	var data_root: String = "res://data/sim/"
+	var meta_file := FileAccess.open("res://data/meta.json", FileAccess.READ)
+	if meta_file:
+		var meta = JSON.parse_string(meta_file.get_as_text())
+		if meta is Dictionary:
+			var dr: String = str(meta.get("data_root", data_root))
+			if not dr.ends_with("/"):
+				dr += "/"
+			data_root = dr
+
+	# Load world_config.json from data_root — optional; defaults kick in if missing.
+	var json_cameras: Array = []
+	var wc_file := FileAccess.open(data_root + "world_config.json", FileAccess.READ)
 	if wc_file:
 		var data = JSON.parse_string(wc_file.get_as_text())
 		if data is Dictionary:
 			var ws: Dictionary = data.get("world_size", {})
 			world_w = ws.get("width", 100.0)
 			world_h = ws.get("height", 100.0)
+			switch_interval = float(data.get("camera_switch_interval", switch_interval))
+			json_cameras = data.get("cameras", [])
 
-	_create_cameras()
+	if json_cameras.size() > 0:
+		_create_cameras_from_json(json_cameras)
+		print("[MultiCam] ", cameras.size(), " cameras from JSON (data_root=", data_root, ")")
+	else:
+		_create_cameras()
 
 	# Wait for player camera to finish setup, then override it
 	await get_tree().create_timer(0.5).timeout
@@ -36,6 +55,29 @@ func _ready() -> void:
 	if cameras.size() > 0:
 		cameras[0].current = true
 		print("[MultiCam] ", cameras.size(), " purpose cameras active. Switching every ", switch_interval, "s")
+
+
+func _create_cameras_from_json(json_cameras: Array) -> void:
+	"""Build cameras from world_config.json cameras[] array.
+	Schema per entry: {name, pos:[x,y,z], look_at:[x,y,z], fov?}."""
+	for c in json_cameras:
+		if not (c is Dictionary):
+			continue
+		var cam := Camera3D.new()
+		var cn: String = str(c.get("name", "cam"))
+		cam.name = "QACam_" + cn
+		var pos_arr = c.get("pos", [0, 2, 5])
+		var look_arr = c.get("look_at", [0, 1, 0])
+		var cam_pos := Vector3(float(pos_arr[0]), float(pos_arr[1]), float(pos_arr[2]))
+		var look_pt := Vector3(float(look_arr[0]), float(look_arr[1]), float(look_arr[2]))
+		cam.position = cam_pos
+		cam.current = false
+		if c.has("fov"):
+			cam.fov = float(c["fov"])
+		add_child(cam)
+		cam.look_at(cam.global_position + (look_pt - cam_pos))
+		cameras.append(cam)
+		camera_names.append(cn)
 
 
 func _create_cameras() -> void:
