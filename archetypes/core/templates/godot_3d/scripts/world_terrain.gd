@@ -140,16 +140,25 @@ static func build_camp(parent: Node3D, world_data: Dictionary, terrain_node: Nod
 		var scale: float = c.get("scale", 1.0)
 		var rot_y: float = c.get("rotation_y", 0)
 
+		var eid: String = str(c.get("element", ""))
+		var edef: Dictionary = el_defs.get(eid, {})
+
 		var body := StaticBody3D.new()
-		body.name = "Camp_" + str(c.get("element", ""))
+		body.name = "Camp_" + eid
 		body.position = pos
 		body.add_to_group("sim_element")
-		body.set_meta("element_id", str(c.get("element", "")))
+		body.set_meta("element_id", eid)
+		# Same state/groups meta as WorldElements so the rules engine can tick
+		# per-entity rules on camp structures too (e.g. campfire fuel decay).
+		var groups_cfg = edef.get("groups", null)
+		if groups_cfg is Dictionary:
+			body.set_meta("groups", groups_cfg)
+		var state_cfg = edef.get("state", null)
+		if state_cfg is Dictionary:
+			body.set_meta("state", state_cfg.duplicate(true))
 
 		ModelHelpers.try_add_model(body, model, scale, rot_y, asset_config)
 
-		var eid: String = str(c.get("element", ""))
-		var edef: Dictionary = el_defs.get(eid, {})
 		var tint_cfg = edef.get("tint", null)
 		if tint_cfg is Dictionary and tint_cfg.get("enabled", false):
 			ModelHelpers.apply_tint(body, tint_cfg)

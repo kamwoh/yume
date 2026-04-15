@@ -5,10 +5,17 @@ extends Node
 ## Agent scans nearby elements, evaluates which action best satisfies urgent needs.
 ## Scoring: urgency(need) × satisfaction(action) → pick best.
 ## Same decide() interface as all other brains.
+##
+## State unification (2026-04-15): need current values live in entity.meta.state
+## (same pattern as elements). Brain reads/writes via entity meta. needs_config
+## stays brain-local because it has schema (max, critical_threshold, satisfiers).
 
-# Needs
-var needs: Dictionary = {}  # need_id → {current, max, critical_threshold}
+# Schema (loaded from needs.json) — shared across all agents using this brain.
 var needs_config: Array = []
+# Quick lookup: need_id → {max, critical, satisfiers}
+var _need_schema: Dictionary = {}
+# Cached entity reference (parent). Entity's meta.state holds the current values.
+var _entity: Node = null
 
 # Recipes
 var known_recipes: Array = []
@@ -43,18 +50,30 @@ func _on_world_tick(_n: int) -> void:
 
 
 func init_config(config: Dictionary) -> void:
-	# Load needs
+	# Need schema (shared). State lives on the entity.
 	var needs_file := FileAccess.open("res://data/sim/needs.json", FileAccess.READ)
 	if needs_file:
 		var data = JSON.parse_string(needs_file.get_as_text())
 		if data is Dictionary:
 			needs_config = data.get("needs", [])
-			for need in needs_config:
-				needs[str(need.get("id", ""))] = {
-					"current": need.get("start", 100.0),
-					"max": need.get("max", 100.0),
-					"critical": need.get("critical_threshold", 10.0),
-				}
+
+	_entity = get_parent()
+	var state: Dictionary = _entity.get_meta("state", {}) if _entity and _entity.has_meta("state") else {}
+	for need in needs_config:
+		var nid: String = str(need.get("id", ""))
+		if nid == "":
+			continue
+		_need_schema[nid] = {
+			"max": float(need.get("max", 100.0)),
+			"critical": float(need.get("critical_threshold", 10.0)),
+			"satisfiers": need.get("satisfiers", []),
+		}
+		# Seed entity state with the starting value unless it already has one
+		# (e.g. loaded from a saved game or per-agent override).
+		if not state.has(nid):
+			state[nid] = float(need.get("start", 100.0))
+	if _entity:
+		_entity.set_meta("state", state)
 
 	# Load recipes
 	var recipe_file := FileAccess.open("res://data/sim/recipes.json", FileAccess.READ)
@@ -94,7 +113,7 @@ func init_config(config: Dictionary) -> void:
 			if inventory:
 				inventory.add_item(str(si.get("item", "")), si.get("count", 1))
 
-	print("[NeedsBrain] Initialized: ", needs.keys(), " | Recipes: ", known_recipes.size())
+	print("[NeedsBrain] Initialized: ", _need_schema.keys(), " | Recipes: ", known_recipes.size())
 
 
 func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
@@ -122,7 +141,18 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 
 
 func get_needs_summary() -> Dictionary:
-	return needs.duplicate()
+	## Synthesize old-shape {need_id: {current, max, critical}} by joining
+	## state (current values on entity) with schema (max/critical from JSON).
+	var out: Dictionary = {}
+	var state: Dictionary = _entity.get_meta("state", {}) if _entity and _entity.has_meta("state") else {}
+	for nid in _need_schema:
+		var schema: Dictionary = _need_schema[nid]
+		out[nid] = {
+			"current": float(state.get(nid, 0.0)),
+			"max": schema.get("max", 100.0),
+			"critical": schema.get("critical", 10.0),
+		}
+	return out
 
 
 func get_status_label() -> String:
@@ -156,17 +186,24 @@ func _step_to_label(step: Dictionary) -> String:
 
 
 func update_need(need_id: String, amount: float) -> void:
-	if needs.has(need_id):
-		var n: Dictionary = needs[need_id]
-		n["current"] = clamp(n["current"] + amount, 0.0, n["max"])
+	if not _entity or not _need_schema.has(need_id):
+		return
+	var state: Dictionary = _entity.get_meta("state", {})
+	var max_val: float = float(_need_schema[need_id].get("max", 100.0))
+	var current: float = float(state.get(need_id, max_val))
+	state[need_id] = clamp(current + amount, 0.0, max_val)
+	_entity.set_meta("state", state)
 
 
 func _most_urgent_need() -> String:
 	var worst_id: String = ""
 	var worst_pct: float = 2.0
-	for need_id in needs:
-		var n: Dictionary = needs[need_id]
-		var pct: float = n["current"] / max(n["max"], 0.01)
+	var state: Dictionary = _entity.get_meta("state", {}) if _entity and _entity.has_meta("state") else {}
+	for need_id in _need_schema:
+		var schema: Dictionary = _need_schema[need_id]
+		var max_val: float = float(schema.get("max", 100.0))
+		var current: float = float(state.get(need_id, max_val))
+		var pct: float = current / max(max_val, 0.01)
 		if pct < worst_pct:
 			worst_pct = pct
 			worst_id = need_id
@@ -181,7 +218,11 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 	if urgent_need == "":
 		return [{"type": "wander"}]
 
-	var urgency: float = 1.0 - (needs[urgent_need]["current"] / max(needs[urgent_need]["max"], 0.01))
+	var state: Dictionary = _entity.get_meta("state", {}) if _entity and _entity.has_meta("state") else {}
+	var schema: Dictionary = _need_schema.get(urgent_need, {})
+	var max_val: float = float(schema.get("max", 100.0))
+	var current: float = float(state.get(urgent_need, max_val))
+	var urgency: float = 1.0 - (current / max(max_val, 0.01))
 	print("[Brain] ", entity.name, " urgent=", urgent_need, " urgency=", snapped(urgency, 0.01))
 
 	var need_def: Dictionary = _find_need_def(urgent_need)

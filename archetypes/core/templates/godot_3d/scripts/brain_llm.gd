@@ -18,9 +18,9 @@ var plan_index: int = 0
 var action_timer: float = 0.0
 var inventory: Node = null
 
-# Needs tracking (so the rules engine can decay them, and prompt can include them).
-# Loaded from needs.json on init.
-var needs: Dictionary = {}
+# Need schema (max/critical per need). Values live on entity.meta.state.
+var _need_schema: Dictionary = {}
+var _entity: Node = null
 
 # LLM state
 var _world_clock: Node = null
@@ -48,17 +48,25 @@ func init_config(config: Dictionary) -> void:
 	if prefix is Array:
 		_claude_prefix_args = prefix
 
-	# Load needs schema from needs.json so rules engine can decay this brain's needs.
+	# Load need schema. State lives on the entity (meta.state).
+	_entity = get_parent()
+	var state: Dictionary = _entity.get_meta("state", {}) if _entity and _entity.has_meta("state") else {}
 	var nf := FileAccess.open("res://data/sim/needs.json", FileAccess.READ)
 	if nf:
 		var nd = JSON.parse_string(nf.get_as_text())
 		if nd is Dictionary:
 			for need in nd.get("needs", []):
-				needs[str(need.get("id", ""))] = {
-					"current": float(need.get("start", 100.0)),
+				var nid: String = str(need.get("id", ""))
+				if nid == "":
+					continue
+				_need_schema[nid] = {
 					"max": float(need.get("max", 100.0)),
 					"critical": float(need.get("critical_threshold", 10.0)),
 				}
+				if not state.has(nid):
+					state[nid] = float(need.get("start", 100.0))
+	if _entity:
+		_entity.set_meta("state", state)
 
 	# Inventory setup (same pattern as brain_needs_driven)
 	var entity = get_parent()
@@ -79,13 +87,26 @@ func init_config(config: Dictionary) -> void:
 
 
 func get_needs_summary() -> Dictionary:
-	return needs.duplicate()
+	var out: Dictionary = {}
+	var state: Dictionary = _entity.get_meta("state", {}) if _entity and _entity.has_meta("state") else {}
+	for nid in _need_schema:
+		var schema: Dictionary = _need_schema[nid]
+		out[nid] = {
+			"current": float(state.get(nid, 0.0)),
+			"max": schema.get("max", 100.0),
+			"critical": schema.get("critical", 10.0),
+		}
+	return out
 
 
 func update_need(need_id: String, amount: float) -> void:
-	if needs.has(need_id):
-		var n: Dictionary = needs[need_id]
-		n["current"] = clamp(n["current"] + amount, 0.0, n["max"])
+	if not _entity or not _need_schema.has(need_id):
+		return
+	var state: Dictionary = _entity.get_meta("state", {})
+	var max_val: float = float(_need_schema[need_id].get("max", 100.0))
+	var current: float = float(state.get(need_id, max_val))
+	state[need_id] = clamp(current + amount, 0.0, max_val)
+	_entity.set_meta("state", state)
 
 
 func get_status_label() -> String:
@@ -215,8 +236,9 @@ func _build_prompt(entity: CharacterBody3D) -> String:
 			})
 
 	var needs_brief: Dictionary = {}
-	for nid in needs:
-		needs_brief[nid] = "%d/%d" % [int(needs[nid].get("current", 0)), int(needs[nid].get("max", 100))]
+	var state: Dictionary = _entity.get_meta("state", {}) if _entity and _entity.has_meta("state") else {}
+	for nid in _need_schema:
+		needs_brief[nid] = "%d/%d" % [int(state.get(nid, 0)), int(_need_schema[nid].get("max", 100))]
 
 	var lines: Array = [
 		_llm_context,

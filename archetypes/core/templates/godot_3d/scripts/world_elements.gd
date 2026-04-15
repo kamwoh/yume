@@ -68,6 +68,12 @@ static func _build_one(parent: Node3D, el: Dictionary, el_defs: Dictionary, terr
 	var groups_cfg = edef.get("groups", null)
 	if groups_cfg is Dictionary:
 		node.set_meta("groups", groups_cfg)
+	# Per-entity mutable state (duplicated so each instance has its own).
+	# Read/written by the rules engine's state_add/state_set effects and
+	# state_below/state_above conditions.
+	var state_cfg = edef.get("state", null)
+	if state_cfg is Dictionary:
+		node.set_meta("state", state_cfg.duplicate(true))
 
 	var mat_cfg = edef.get("material", null)
 	var model_loaded := false

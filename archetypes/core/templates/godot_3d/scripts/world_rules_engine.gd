@@ -70,8 +70,8 @@ func _ready() -> void:
 
 
 func _on_world_tick(tick_count: int) -> void:
-	## Iterate all rules; fire those where (tick % interval == 0).
-	## Interval is now in TICKS (not seconds).
+	## Global rules (world_rules.json): fire on (tick % interval == 0).
+	## Interval is in TICKS (not seconds).
 	for rule in rules:
 		if not (rule is Dictionary):
 			continue
@@ -80,6 +80,40 @@ func _on_world_tick(tick_count: int) -> void:
 			continue
 		if tick_count % interval == 0:
 			_fire_rule(rule)
+
+	# Per-entity rules (defined on each element in elements.json under "rules").
+	# Each sim_element can carry its own lifecycle rules (e.g. campfire fuel decay).
+	_fire_entity_rules(tick_count)
+
+
+func _fire_entity_rules(tick_count: int) -> void:
+	# Build element_id → def lookup once per tick for O(1) access
+	var el_defs: Dictionary = {}
+	for edef in elements_config:
+		el_defs[str(edef.get("id", ""))] = edef
+
+	for node in get_tree().get_nodes_in_group("sim_element"):
+		if not is_instance_valid(node) or not node.has_meta("element_id"):
+			continue
+		var eid: String = str(node.get_meta("element_id"))
+		var edef: Dictionary = el_defs.get(eid, {})
+		var local_rules = edef.get("rules", [])
+		if not (local_rules is Array):
+			continue
+		for rule in local_rules:
+			if not (rule is Dictionary):
+				continue
+			var interval: int = int(rule.get("interval", 1))
+			if interval <= 0 or tick_count % interval != 0:
+				continue
+			var chance: float = float(rule.get("chance", 1.0))
+			if randf() > chance:
+				continue
+			if not _conditions_met(node, rule.get("conditions", null)):
+				continue
+			var effect: Dictionary = rule.get("effect", {})
+			var effect_type: String = str(effect.get("type", ""))
+			_apply_effect(node, effect_type, effect, str(rule.get("id", "?")))
 
 
 func _fire_rule(rule: Dictionary) -> void:
@@ -178,6 +212,22 @@ func _conditions_met(candidate: Node, conds) -> bool:
 		if not found:
 			return false
 
+	# state_below / state_above — check candidate's own meta.state field value
+	if conds.has("state_below"):
+		var sb: Dictionary = conds["state_below"]
+		var field: String = str(sb.get("field", ""))
+		var threshold: float = float(sb.get("threshold", 0))
+		var state: Dictionary = candidate.get_meta("state", {}) if candidate.has_meta("state") else {}
+		if field == "" or float(state.get(field, 0)) >= threshold:
+			return false
+	if conds.has("state_above"):
+		var sa: Dictionary = conds["state_above"]
+		var field: String = str(sa.get("field", ""))
+		var threshold: float = float(sa.get("threshold", 0))
+		var state: Dictionary = candidate.get_meta("state", {}) if candidate.has_meta("state") else {}
+		if field == "" or float(state.get(field, 0)) <= threshold:
+			return false
+
 	# neighbor_group — for spread rules: candidate has a flammable neighbor in radius
 	if conds.has("neighbor_group"):
 		# Two schemas seen: legacy "neighbor_group: G" with sibling "radius",
@@ -263,6 +313,23 @@ func _apply_effect(candidate: Node, effect_type: String, effect: Dictionary, rul
 			var dist: float = 1.5 + randf()
 			var pos: Vector3 = origin + Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 			_spawn_element(spread_id, pos, rule_id, "spread")
+		"state_add", "state_set":
+			# Per-entity mutable state. Used by element lifecycle rules
+			# (e.g. campfire fuel decay: state_add field=fuel amount=-1).
+			if not candidate.has_meta("state"):
+				candidate.set_meta("state", {})
+			var state: Dictionary = candidate.get_meta("state")
+			var field: String = str(effect.get("field", ""))
+			var amount: float = float(effect.get("amount", 0))
+			if field == "":
+				return
+			var old: float = float(state.get(field, 0))
+			if effect_type == "state_add":
+				state[field] = old + amount
+			else:
+				state[field] = amount
+			candidate.set_meta("state", state)
+			print("[Rules] ", rule_id, " → ", candidate.name, " ", field, "=", state[field])
 		_:
 			pass
 
