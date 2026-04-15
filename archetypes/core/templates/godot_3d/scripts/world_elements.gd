@@ -44,17 +44,32 @@ static func _build_one(parent: Node3D, el: Dictionary, el_defs: Dictionary, terr
 	var edef: Dictionary = el_defs.get(eid, {})
 	var obj_type: String = str(edef.get("object_type", "decoration"))
 
-	# Place on terrain. Composites are ground-aligned; non-composites get a
-	# slight sink to avoid z-fighting / floating.
+	# Place on terrain. ground_mode decides how to sample under the footprint:
+	#   "center" (default)  — single sample at center. Fine for small/thin objects.
+	#   "min"               — sample 4 corners + center, use lowest. Good for
+	#                         buildings on slopes (foundation sinks to lowest point).
+	# Composites default to "min" so houses don't float over slopes.
 	if terrain_node and terrain_node.has_method("get_height_at"):
-		var terrain_h: float = terrain_node.get_height_at(pos.x, pos.z)
+		var mode: String = str(edef.get("ground_mode", "min" if obj_type == "composite" else "center"))
+		var terrain_h: float = _sample_ground(terrain_node, pos, edef, mode, scale)
+		# Composites sit directly on ground; other types get a small sink to
+		# avoid z-fighting.
 		pos.y = terrain_h if obj_type == "composite" else terrain_h - 0.1
 
+	## Physics opt-in. Default: static (most things don't move). Override via
+	##   elements.json field  "physics": "static" | "dynamic" | "kinematic"
+	## Only objects that need gravity or are pushed around should be dynamic.
+	var physics: String = str(edef.get("physics", "static"))
 	var node: Node3D
 	if obj_type == "entity" or obj_type == "element" or obj_type == "composite":
-		var body := StaticBody3D.new()
-		body.name = "El_" + eid + "_" + str(randi() % 10000)
-		node = body
+		match physics:
+			"dynamic":
+				node = RigidBody3D.new()  # falls, settles, can be pushed
+			"kinematic":
+				node = CharacterBody3D.new()  # manual velocity, inherits gravity in script
+			_:
+				node = StaticBody3D.new()  # doesn't move (trees, buildings, rocks)
+		node.name = "El_" + eid + "_" + str(randi() % 10000)
 	else:
 		node = Node3D.new()
 		node.name = "Decor_" + eid + "_" + str(randi() % 10000)
@@ -156,6 +171,54 @@ static func _add_composite_parts(parent: Node3D, edef: Dictionary, scale: float,
 		else:
 			push_warning("[SimWorld] Composite part failed to load: " + part_model)
 	return loaded_any
+
+
+static func _sample_ground(terrain_node: Node, pos: Vector3, edef: Dictionary, mode: String, scale: float) -> float:
+	## Sample terrain under the element's footprint and return the height to
+	## place it at, per `mode`:
+	##   "center" — single sample at pos (fast, thin objects)
+	##   "min"    — sample 4 corners of footprint, return lowest (buildings)
+	##   "max"    — sample 4 corners, return highest (rarely useful; floats over dips)
+	##   "avg"    — average of 4 corners (compromise)
+	if mode == "center" or not terrain_node.has_method("get_height_at"):
+		return terrain_node.get_height_at(pos.x, pos.z)
+
+	# Use `size` or `footprint` for the XZ extent. Fallback to 1u if neither.
+	var fp = edef.get("footprint", null)
+	var sz = edef.get("size", null)
+	var hw: float = 0.5
+	var hd: float = 0.5
+	if fp is Array and fp.size() >= 2:
+		hw = float(fp[0]) * 0.5 * scale
+		hd = float(fp[1]) * 0.5 * scale
+	elif sz is Array and sz.size() >= 3:
+		hw = float(sz[0]) * 0.5 * scale
+		hd = float(sz[2]) * 0.5 * scale
+
+	var samples: Array[float] = [
+		terrain_node.get_height_at(pos.x, pos.z),
+		terrain_node.get_height_at(pos.x - hw, pos.z - hd),
+		terrain_node.get_height_at(pos.x + hw, pos.z - hd),
+		terrain_node.get_height_at(pos.x - hw, pos.z + hd),
+		terrain_node.get_height_at(pos.x + hw, pos.z + hd),
+	]
+	match mode:
+		"min":
+			var lo: float = samples[0]
+			for s in samples:
+				if s < lo: lo = s
+			return lo
+		"max":
+			var hi: float = samples[0]
+			for s in samples:
+				if s > hi: hi = s
+			return hi
+		"avg":
+			var sum: float = 0.0
+			for s in samples:
+				sum += s
+			return sum / samples.size()
+	return samples[0]  # fallback
 
 
 static func _print_summary(elements: Array, el_defs: Dictionary) -> void:

@@ -29,6 +29,10 @@ var current_plan: Array = []  # [{action, target, ...}]
 var plan_index: int = 0
 var action_timer: float = 0.0
 
+# Nodes this brain has claimed (marked meta "claimed_by"=our entity_id).
+# Released on replan or when plan completes so other agents can target them.
+var _claimed_nodes: Array = []
+
 # Tick-driven re-planning: world_clock sets _should_replan=true on tick.
 # Brain replans on next decide() call when no plan is active.
 var _should_replan: bool = true  # start with true so first decide makes a plan
@@ -47,6 +51,20 @@ func _ready() -> void:
 
 func _on_world_tick(_n: int) -> void:
 	_should_replan = true
+
+
+func _claim(node: Node, entity: CharacterBody3D) -> void:
+	if not is_instance_valid(node):
+		return
+	node.set_meta("claimed_by", entity.get_instance_id())
+	_claimed_nodes.append(node)
+
+
+func _release_claims() -> void:
+	for n in _claimed_nodes:
+		if is_instance_valid(n) and n.has_meta("claimed_by"):
+			n.remove_meta("claimed_by")
+	_claimed_nodes.clear()
 
 
 func init_config(config: Dictionary) -> void:
@@ -129,11 +147,13 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 			if plan_index >= current_plan.size():
 				current_plan = []
 				plan_index = 0
+				_release_claims()
 		return result
 
 	# No plan — replan only when world_clock has ticked (or first call).
 	if _should_replan:
 		_should_replan = false
+		_release_claims()  # old claims released so we re-evaluate freely
 		current_plan = _make_plan(entity, world_state)
 		plan_index = 0
 
@@ -234,26 +254,67 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 		if plan.size() > 0:
 			return plan
 
-	# If not urgent → gather resources via tools we own
+	# Not urgent? → prefer planting seeds we have, then gathering.
+	# Rationale: seeds in inventory are useless unless planted; planting near
+	# water (where growth is fast) closes the food loop.
+	if urgency < 0.5 and inventory and inventory.has_item("wheat_seed_item"):
+		# Walk to nearest water (so seed grows), plant there.
+		var water_pos: Vector3 = _find_nearest_element_in_world(entity, "water")
+		if water_pos != Vector3.ZERO:
+			# Slight offset from water itself so seed lands beside the pool.
+			var plant_pos: Vector3 = water_pos + Vector3(randf_range(-2.0, 2.0), 0, randf_range(-2.0, 2.0))
+			return [
+				{"type": "move_to", "target": plant_pos},
+				{"type": "plant", "item": "wheat_seed_item", "seed_element": "wheat_seed"},
+			]
+		# No water? Plant near self — seed won't grow without water but
+		# we're recycling inventory space.
+		return [{"type": "plant", "item": "wheat_seed_item", "seed_element": "wheat_seed"}]
+
+	# If not urgent → gather resources.
 	if urgency < 0.5:
-		# Tool → element_id mapping: which world element this tool harvests
-		var tool_targets: Dictionary = {"axe": "tree", "pickaxe": "stone"}
-		for tool_name in tool_targets:
+		# Tool → (element_id, bare_hands_time, bare_hands_drop_count)
+		var tool_table: Dictionary = {
+			"axe":     {"target": "tree",  "punch_time": 6.0, "punch_count": 1},
+			"pickaxe": {"target": "stone", "punch_time": 9.0, "punch_count": 1},
+		}
+		# First priority: use tools we own (normal harvest, faster, full drops).
+		for tool_name in tool_table:
 			if not (inventory and inventory.has_item(tool_name)):
 				continue
-			var target_id: String = tool_targets[tool_name]
-			var pos: Vector3 = _find_nearest_element_in_world(entity, target_id)
-			if pos == Vector3.ZERO:
+			var target_id: String = tool_table[tool_name]["target"]
+			var node: Node3D = _find_nearest_element_node(entity, target_id)
+			if not node:
 				continue
-			# Look up drops from the element def (data-driven, not hardcoded)
+			_claim(node, entity)
 			var edef: Dictionary = _find_element_def(target_id)
 			var drops: Array = edef.get("drop", [])
-			# Look up time/cost from the matching recipe
 			var recipe: Dictionary = _find_recipe_for_tool(tool_name, target_id)
 			var t: float = float(recipe.get("time", 2.0))
 			return [
-				{"type": "move_to", "target": pos},
+				{"type": "move_to", "target": node.global_position},
 				{"type": "harvest", "element_id": target_id, "time": t, "drops": drops},
+			]
+
+		# Bootstrap fallback: no tools yet but can craft one if we had materials.
+		# Punch tree/stone by hand — slow, 1 yield, no tool needed.
+		for tool_name in tool_table:
+			var target_id: String = tool_table[tool_name]["target"]
+			var node: Node3D = _find_nearest_element_node(entity, target_id)
+			if not node:
+				continue
+			_claim(node, entity)
+			var edef: Dictionary = _find_element_def(target_id)
+			var drops_full: Array = edef.get("drop", [])
+			# Take just the first drop, count 1 (bare-hands is inefficient).
+			var drops: Array = []
+			if drops_full is Array and drops_full.size() > 0:
+				var d0: Dictionary = drops_full[0]
+				drops = [{"item": d0.get("item", ""), "count": tool_table[tool_name]["punch_count"]}]
+			return [
+				{"type": "move_to", "target": node.global_position},
+				{"type": "harvest", "element_id": target_id,
+				 "time": float(tool_table[tool_name]["punch_time"]), "drops": drops},
 			]
 
 		# Can craft something useful?
@@ -329,12 +390,25 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 			if need_id != "":
 				update_need(need_id, amount)
 				print("[NeedsBrain] Interacted: ", need_id, " +", amount)
-			# Optionally remove the target element (e.g. eating wheat consumes it)
+			# When remove=true, collect the element's drops (if any) + remove it.
+			# Lets agents get seed_items from wheat they eat → enables farming.
 			if step.get("remove", false):
 				var target_id: String = str(step.get("element_id", ""))
 				if target_id != "":
 					var target_node: Node3D = _find_nearest_element_node(entity, target_id)
 					if target_node:
+						var edef: Dictionary = _find_element_def(target_id)
+						var drops = edef.get("drop", [])
+						if drops is Array and inventory:
+							for d in drops:
+								# Skip the main food_item if need is hunger (avoids doubling —
+								# we already satisfied hunger directly by eating, don't ALSO
+								# put food_wheat in inventory). Take only secondary drops (seeds).
+								var item_id: String = str(d.get("item", ""))
+								if need_id == "hunger" and item_id == "food_wheat":
+									continue
+								inventory.add_item(item_id, int(d.get("count", 1)))
+							print("[NeedsBrain] ", entity.name, " picked up drops from ", target_id, " | inv: ", inventory.to_string_summary())
 						print("[NeedsBrain] Removing ", target_id, " at ", target_node.global_position)
 						target_node.queue_free()
 			return {"action": "idle", "step_done": true}
@@ -353,6 +427,20 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 			var rx: float = entity.global_position.x + randf_range(-8, 8)
 			var rz: float = entity.global_position.z + randf_range(-8, 8)
 			return {"action": "move_to", "target": Vector3(rx, 0, rz), "step_done": true}
+
+		"plant":
+			# Consume one seed_item from inventory, spawn a seed element at
+			# agent's feet (with small random offset so agents don't stack seeds
+			# on the same exact spot during a farming batch).
+			var item_id: String = str(step.get("item", "wheat_seed_item"))
+			var seed_id: String = str(step.get("seed_element", "wheat_seed"))
+			if inventory and inventory.remove_item(item_id):
+				var offset := Vector3(randf_range(-0.8, 0.8), 0, randf_range(-0.8, 0.8))
+				var sim = entity.get_tree().current_scene
+				if sim and sim.has_method("spawn_element_at"):
+					sim.spawn_element_at(seed_id, entity.global_position + offset)
+					print("[NeedsBrain] ", entity.name, " planted ", seed_id, " at ", entity.global_position + offset)
+			return {"action": "idle", "step_done": true}
 
 	return {"action": "idle", "step_done": true}
 
@@ -396,24 +484,27 @@ func _try_satisfier(entity: CharacterBody3D, need_id: String, sat: Dictionary) -
 		if inventory.has_item(item_id):
 			return [{"type": "consume", "item": item_id, "need": need_id, "amount": amount}]
 
-	# 2. World element by id — walk to it, interact
+	# 2. World element by id — walk to it, interact (claim so others don't target)
 	if sat.has("element_id"):
 		var eid: String = str(sat["element_id"])
-		var pos: Vector3 = _find_nearest_element_in_world(entity, eid)
-		if pos != Vector3.ZERO:
+		var node: Node3D = _find_nearest_element_node(entity, eid)
+		if node:
+			_claim(node, entity)
 			return [
-				{"type": "move_to", "target": pos},
+				{"type": "move_to", "target": node.global_position},
 				{"type": "interact_element", "element_id": eid,
 				 "need": need_id, "amount": amount, "remove": remove},
 			]
 
-	# 3. World element by group — walk to first match, interact
+	# 3. World element by group — walk to first match, interact (claim)
 	if sat.has("element_group"):
 		var grp: String = str(sat["element_group"])
 		var hit: Dictionary = _find_nearest_element_with_group(entity, grp)
 		if hit.has("pos"):
-			# For passive satisfiers (like energy near structure): just go there + idle.
-			# A separate world rule handles the actual restoration over time.
+			var target_node = hit.get("node", null)
+			if target_node is Node3D:
+				_claim(target_node, entity)
+			# Passive satisfiers (energy near structure): go + idle, world rule restores.
 			if sat.get("passive", false):
 				return [
 					{"type": "move_to", "target": hit["pos"]},
@@ -428,12 +519,21 @@ func _try_satisfier(entity: CharacterBody3D, need_id: String, sat: Dictionary) -
 	return []
 
 
+func _is_claimed_by_other(node: Node, entity: CharacterBody3D) -> bool:
+	## True if node is claimed by a DIFFERENT agent. Own claims are fine
+	## (we replan; same agent can re-pick its own target).
+	if not node.has_meta("claimed_by"):
+		return false
+	var claimer_id = node.get_meta("claimed_by")
+	return claimer_id != entity.get_instance_id()
+
+
 func _find_nearest_element_with_group(entity: CharacterBody3D, group_name: String) -> Dictionary:
-	## Returns {pos, id} of the nearest sim_element whose `groups` meta contains group_name.
+	## Returns {pos, id, node} of the nearest un-claimed sim_element whose `groups` meta contains group_name.
 	var best_dist: float = 999.0
 	var best: Dictionary = {}
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
-		if not node.has_meta("groups"):
+		if not node.has_meta("groups") or _is_claimed_by_other(node, entity):
 			continue
 		var grps = node.get_meta("groups")
 		if not (grps is Dictionary) or not grps.has(group_name):
@@ -441,16 +541,17 @@ func _find_nearest_element_with_group(entity: CharacterBody3D, group_name: Strin
 		var d: float = entity.global_position.distance_to(node.global_position)
 		if d < best_dist:
 			best_dist = d
-			best = {"pos": node.global_position, "id": str(node.get_meta("element_id", ""))}
+			best = {"pos": node.global_position, "id": str(node.get_meta("element_id", "")), "node": node}
 	return best
 
 
 func _find_nearest_element_in_world(entity: CharacterBody3D, element_id: String) -> Vector3:
-	## Find nearest world element by id. element_id is stored as meta by sim_world.gd.
+	## Skips elements already claimed by other agents so multiple agents don't
+	## all pile onto the same wheat.
 	var nearest_dist: float = 999.0
 	var nearest_pos: Vector3 = Vector3.ZERO
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
-		if not node.has_meta("element_id"):
+		if not node.has_meta("element_id") or _is_claimed_by_other(node, entity):
 			continue
 		if str(node.get_meta("element_id")) == element_id:
 			var dist: float = entity.global_position.distance_to(node.global_position)
@@ -461,11 +562,11 @@ func _find_nearest_element_in_world(entity: CharacterBody3D, element_id: String)
 
 
 func _find_nearest_element_node(entity: CharacterBody3D, element_id: String) -> Node3D:
-	## Like above but returns the Node so we can remove it after interaction.
+	## Same logic as above but returns the node. Respects claims.
 	var nearest_dist: float = 999.0
 	var nearest_node: Node3D = null
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
-		if not node.has_meta("element_id"):
+		if not node.has_meta("element_id") or _is_claimed_by_other(node, entity):
 			continue
 		if str(node.get_meta("element_id")) == element_id:
 			var dist: float = entity.global_position.distance_to(node.global_position)

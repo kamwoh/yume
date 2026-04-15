@@ -33,6 +33,7 @@ func _ready() -> void:
 	WorldTerrain.build_camp(self, world_data, terrain_node, elements_config, asset_config)
 	WorldElements.build_all(self, world_data, terrain_node, elements_config, asset_config)
 	WorldAgents.spawn_player(self, world_data, meta_config, asset_config)
+	_start_population_manager()
 	_start_world_rules()
 	_add_ui()
 	_add_frame_capture()
@@ -96,6 +97,27 @@ func _build_environment_module() -> void:
 	env_node.set_script(load("res://scripts/world_environment.gd"))
 	add_child(env_node)
 	env_node.build(self, world_data, sky_config)
+
+
+func _start_population_manager() -> void:
+	## Respawns agents when they die so the sim keeps running. Opt-in.
+	var pop_cfg: Dictionary = meta_config.get("population", {})
+	if pop_cfg.get("respawn_enabled", true) == false:
+		return
+	var initial: Array = world_data.get("agents", [])
+	if initial.is_empty():
+		return
+	var mgr := Node.new()
+	mgr.name = "PopulationManager"
+	mgr.set_script(load("res://scripts/population_manager.gd"))
+	add_child(mgr)
+	mgr.setup(self, initial)
+
+
+func spawn_element_at(element_id: String, pos: Vector3) -> Node:
+	## Public helper — any script (brain, rule, command) can create a new
+	## sim_element at a position. Used by farming/planting, rule spawns, etc.
+	return WorldElements.spawn_one(self, element_id, pos, terrain_node, elements_config, asset_config)
 
 
 func _start_world_rules() -> void:
