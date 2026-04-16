@@ -9,6 +9,20 @@ burn out. Everything data-driven from JSON.
 Eventual research goal (DeepMind-adjacent training data) is far away. Focus
 stays on the simulation foundation.
 
+## Current frontier (2026-04-16)
+
+**Tier 1 complete. Sim self-sustains.** But it's AIMLESS — just homeostasis
+forever. User observation: "feels kind of empty, we should have a game goal".
+
+See `docs/27_game_goal_discussion.md` for the 4 candidate directions:
+- **(a) Survive the night** ⭐ recommended — low effort, high drama, ~1-2 hours
+- (b) Build a village — medium effort, slow progression
+- (c) Tech tree — high effort, stat progression
+- (d) Agent individuality — medium-high effort, story-driven
+
+Next session: pick a direction from (a-d) and build toward the feeling, not
+the mechanic.
+
 ---
 
 ## Current State (2026-04-16)
