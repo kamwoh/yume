@@ -52,8 +52,6 @@ static func _build_one(parent: Node3D, el: Dictionary, el_defs: Dictionary, terr
 	if terrain_node and terrain_node.has_method("get_height_at"):
 		var mode: String = str(edef.get("ground_mode", "min" if obj_type == "composite" else "center"))
 		var terrain_h: float = _sample_ground(terrain_node, pos, edef, mode, scale)
-		# Composites sit directly on ground; other types get a small sink to
-		# avoid z-fighting.
 		pos.y = terrain_h if obj_type == "composite" else terrain_h - 0.1
 
 	## Physics opt-in. Default: static (most things don't move). Override via
