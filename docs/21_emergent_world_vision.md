@@ -1,5 +1,13 @@
 # Yume Level 3: Emergent World Vision
 
+> **STATUS (2026-04-19): Historical vision doc.** Substrate (Phases A–C —
+> elements, properties, rules, needs, NeedsDrivenBrain) is built. Phases
+> D (multi-agent: trade, cooperation, conflict) and E (time acceleration,
+> recording) have been folded into the active roadmap at
+> `~/yume/task_plan.md` (Tier 2 and Tier 4). Read this doc for the
+> conceptual ladder and original framing; read `task_plan.md` for what's
+> actually being worked on.
+
 ## The Insight
 
 The creator defines **elements and rules**, not behaviors. Agents discover how to combine them.
