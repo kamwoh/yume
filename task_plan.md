@@ -1,6 +1,6 @@
 # Yume — Autonomous Agent Simulation Engine
 
-_Last updated: 2026-04-19_
+_Last updated: 2026-04-22_
 
 ---
 
@@ -60,19 +60,47 @@ and a driver that creates arc (Tier 2 below).
 
 ---
 
-## Current Objective (2026-04-19)
+## Current Objective (2026-04-22) — 2D-FIRST PIVOT
 
-**Tier 1 is done.** The sim self-sustains. But user observation stands:
-_"feels empty — what am I simulating?"_ Homeostasis alone has no arc.
+**Tier 1 is done.** The sim self-sustains. But the world feels empty —
+homeostasis alone has no arc. We need a driver.
 
-**Next objective: give the sim a driver.** Pick one direction from the game
-goal discussion (`docs/27_game_goal_discussion.md`) and ship the _feeling_,
-not just the mechanic. The leading candidate — from the recent discussion —
-is **multi-agent cooperation + per-agent cameras + VLM observation**, which
-combines drama (agents doing things together), observability (you can see
-through their eyes), and sets up the long-horizon capability ladder.
+**Strategic decision (2026-04-21 night → 2026-04-22):** Pivot to **2D-first**
+algorithmic iteration. 3D friction (Kenney pivot bugs, terrain ground
+sampling, composite assembly, model loading) was eating cycles that
+should go into the driver. 3D becomes a renderer skin — same simulation
+substrate runs in either dimension.
 
-See "Tier 2 — Driver & Depth" below.
+**Done since pivot:**
+- `SimPos` adapter (`scripts/sim_pos.gd`) — top-down `Vector2` is the
+  contract for all simulation logic. Renderers convert at the boundary.
+- All brains, rules engine, and entity facades refactored to emit/consume
+  `Vector2`. Internal Vector3 in some brains (auto_agent, state_machine,
+  human) is acceptable — they emit the right contract on output.
+- Framework template restructured: `archetypes/core/templates/godot/`
+  (was `godot_3d/`), with `scripts/` for dimension-agnostic code and
+  `scripts/renderer_3d/` for 3D-specific renderers. `renderer_2d/` will
+  slot in alongside.
+- 3D sim verified clean post-restructure (commits `63c59c7`, `bd140ad`).
+
+**Per-agent cameras + VLM dropped in priority** — 2D has no first-person
+view. Move that idea back to "later" until 2D produces emergent behavior
+worth observing.
+
+**Next concrete step: build the 2D spike.**
+
+- [ ] Add `scripts/renderer_2d/` to the framework template
+- [ ] `entity_2d.gd` (CharacterBody2D consuming `Vector2` move_to contract)
+- [ ] Minimal 2D world spawner (or generalize `world_elements.gd` —
+  currently in renderer_3d/, may need a 2D twin)
+- [ ] `scenes/sim_2d.tscn` with TileMap + Camera2D
+- [ ] Test data: 1 agent + 1 wheat — prove `brain_needs_driven` transplants
+  unchanged
+- [ ] Verify in Yume3D test instance (or a new 2D test scene wired into Yume3D)
+- [ ] Decide migration path: parallel tracks, fresh Yume2D, or 2D primary
+
+**After 2D spike succeeds:** pick game-goal driver (leading candidate
+**survive-the-night** — lowest effort, highest drama) and ship it in 2D.
 
 ---
 
@@ -136,40 +164,51 @@ multi-agent cooperation, host/client multiplayer.
 
 ## Roadmap
 
-### Tier 2 — DRIVER & DEPTH (current focus)
+### Tier 2 — 2D SPIKE + DRIVER (current focus)
 
-Goal: break the "empty" feeling. Give agents a reason to do things, and
-give the observer something to watch.
+Goal: prove the dimension-agnostic refactor works in 2D, then ship a
+driver in 2D. Camera/VLM observation deferred until 2D produces
+emergent behavior worth observing.
 
-**Game goal direction** — pick one from `docs/27_game_goal_discussion.md`:
+**2D spike (immediate)**
 
-- [ ] **2.0** Pick and ship a driver. Leading candidate (from recent
-  discussion): **multi-agent cooperation + per-agent cameras + VLM feed**.
-  Alternatives: (a) survive the night (lowest effort, highest drama),
-  (b) build a village, (c) tech tree, (d) agent individuality.
+- [ ] **2.0a** `scripts/renderer_2d/entity_2d.gd` — CharacterBody2D, same
+  Vector2 move_to contract as entity_3d.
+- [ ] **2.0b** 2D world spawner (generalize `world_elements.gd` or
+  twin it). Static-image elements (wheat, tree, water) on a TileMap.
+- [ ] **2.0c** `scenes/sim_2d.tscn` with TileMap + Camera2D + 1 agent
+  + 1 wheat. Goal: `brain_needs_driven` transplants unchanged.
+- [ ] **2.0d** Wire into Yume3D test instance (or branch a Yume2D).
+  Decide based on iteration speed.
 
-**Multi-agent + per-agent observation (the direction user likes)**
+**Driver (after 2D spike)**
 
-- [ ] **2.1** Per-agent `SubViewport` + `Camera3D` attached to entity head.
-  Eye-level view, capturable to disk or into a VLM prompt. Pattern similar
-  to ViZDoom's multi-buffer observation.
-- [ ] **2.2** Labels buffer (ViZDoom pattern): render mask tagging nearby
-  entities with their `element_id`, so a VLM call can be grounded ("there's
-  a `wheat_mature` 3m ahead") without the model having to guess.
-- [ ] **2.3** Cooperative task primitives: shared plan slot on entities
-  (`meta.shared_goal`), so two agents can commit to "build a house" or
-  "hunt the deer" together. Driver for the brain's action selection.
-- [ ] **2.4** Host/client multiplayer scaffold (ViZDoom pattern, using
-  Godot's `MultiplayerAPI`). Not for humans joining — for decoupling
-  brain processes from the sim process so LLM/VLM brains can run out of
-  band without blocking ticks.
-- [ ] **2.4a** Trade primitive (from L3 vision phase D): agent A has
-  surplus food, agent B has surplus wood → swap. Brain reads inventory
-  + nearby agents' inventory, proposes exchange. Foundation for emergent
-  economy.
-- [ ] **2.4b** Conflict primitive: resource competition when scarcity
-  hits. Hostile claim — steal from another agent's stockpile, or fight
-  over the last wheat patch. Pairs with combat (2.6).
+- [ ] **2.1** Pick driver. Leading candidate: **survive the night** —
+  cold/dark damages exposed agents; agents must build/find shelter
+  before nightfall. Lowest effort, highest drama, exercises existing
+  rules (`damage` effect + `agent_near_group` condition).
+- [ ] **2.2** Stockpiles / containers — agents store food for later
+  instead of eating at source. Required for any "prepare before X"
+  loop.
+- [ ] **2.3** Day/night drives behavior — agents seek shelter at night.
+  `world_environment.gd` already has the cycle.
+
+**Multi-agent depth (after driver)**
+
+- [ ] **2.4a** Trade primitive: agent A surplus food + agent B surplus
+  wood → swap. Brain reads inventories, proposes exchange. Foundation
+  for emergent economy.
+- [ ] **2.4b** Conflict primitive: resource competition under scarcity.
+  Steal from stockpile or fight over last wheat patch. Pairs with combat.
+- [ ] **2.5** Cooperative task primitives: shared plan slot on entities
+  (`meta.shared_goal`), so two agents commit to "build a house" or "hunt
+  the deer" together.
+
+**Deferred until 2D produces interesting behavior**
+
+- Per-agent `SubViewport` + `Camera3D` for VLM observation (was 2.1)
+- Labels buffer / ViZDoom multi-buffer observation (was 2.2)
+- Host/client multiplayer scaffold for out-of-band brains (was 2.4)
 
 **Depth items (independent of game goal)**
 
@@ -256,8 +295,45 @@ timeout 20 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.
 
 ## Honest status
 
-Foundation is **~75% complete**. Tier 1 is green — sim self-sustains, farming
-loop closed, population respawns, entities share a unified state model. What
-it lacks is a _driver_: a reason for the world to have arc, stakes, or
-visible accumulation. That's Tier 2. Everything else (grid, save/load,
-research export) sits behind that wall.
+Foundation is **~80% complete**. Tier 1 is green — sim self-sustains, farming
+loop closed, population respawns, entities share a unified state model.
+Dimension-agnostic refactor landed (2026-04-22) — same simulation runs in
+2D or 3D. What's still missing is a _driver_: a reason for the world to have
+arc, stakes, or visible accumulation. That's Tier 2. Everything else (grid,
+save/load, research export) sits behind that wall.
+
+## Framework structure (post-restructure 2026-04-22)
+
+```
+~/yume/
+├── archetypes/
+│   ├── core/templates/godot/         ← active sim track
+│   │   ├── scenes/                    (empty — scenes live downstream in test instances)
+│   │   └── scripts/
+│   │       ├── (dimension-agnostic, top-level)
+│   │       │   ├── sim_pos.gd         ← Vector2 ↔ Vector3 adapter
+│   │       │   ├── world_clock.gd
+│   │       │   ├── world_rules_engine.gd
+│   │       │   ├── brain_*.gd         (5 brains; some still have Vector3 internals)
+│   │       │   ├── inventory.gd, hp_bar.gd, needs_hud.gd, agent_needs_panel.gd
+│   │       │   ├── pathfinding_astar.gd, minimap.gd
+│   │       │   └── ... 14 files
+│   │       ├── renderer_3d/           ← 3D-specific (17 files)
+│   │       │   ├── entity_3d.gd, player_3d.gd, sim_world.gd
+│   │       │   ├── world_terrain.gd, world_elements.gd, world_agents.gd
+│   │       │   ├── camera_controller_3d.gd, model_helpers.gd, terrain.gd
+│   │       │   └── frame_capture.gd, multi_camera_qa.gd, ...
+│   │       └── renderer_2d/           ← TBD (the spike target)
+│   │
+│   └── rpg/templates/godot/          ← legacy 2D RPG track (FF9-style)
+│
+└── (CLI scaffold + tools)
+
+Test instance:
+~/.../Yume3D/                          ← downstream sandbox (NOT git-tracked)
+                                          mirrors framework template; we sync
+                                          framework → here, then run Godot to test.
+```
+
+**Dev loop:** edit framework → `cp` to Yume3D → run Godot via
+`gl_compatibility` → check console + captured frame → iterate.
