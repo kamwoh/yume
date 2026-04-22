@@ -1,5 +1,7 @@
 extends Node
 
+const SimPos = preload("res://scripts/sim_pos.gd")
+
 ## LLM brain — calls `claude -p` to decide next action.
 ##
 ## Same decide() interface as other brains. Synchronous OS.execute for v1
@@ -7,7 +9,7 @@ extends Node
 ## LLM every `call_interval_ticks` ticks (default 6 = ~3s at 0.5s/tick).
 ##
 ## Response format expected from claude: a JSON action object. Examples:
-##   {"type": "move_to", "target": [4, 0, 0]}
+##   {"type": "move_to", "target": [4, 0]}     — top-down [x, z]
 ##   {"type": "interact_element", "element_id": "wheat_mature",
 ##    "need": "hunger", "amount": 40, "remove": true}
 ##   {"type": "wander"}
@@ -125,10 +127,8 @@ func _step_to_label(step: Dictionary) -> String:
 	var t: String = str(step.get("type", "?"))
 	match t:
 		"move_to":
-			var tgt = step.get("target", Vector3.ZERO)
-			var x: float = tgt.x if tgt is Vector3 else (float(tgt[0]) if (tgt is Array and tgt.size() >= 1) else 0.0)
-			var z: float = tgt.z if tgt is Vector3 else (float(tgt[2]) if (tgt is Array and tgt.size() >= 3) else 0.0)
-			return "Walking → (%.1f, %.1f)" % [x, z]
+			var tgt = step.get("target", Vector2.ZERO)
+			return "Walking → (%.1f, %.1f)" % [tgt.x, tgt.y]
 		"interact_element":
 			return "Using " + str(step.get("element_id", "?"))
 		"wander":
@@ -138,7 +138,7 @@ func _step_to_label(step: Dictionary) -> String:
 	return t
 
 
-func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
+func decide(entity: Node, world_state: Dictionary) -> Dictionary:
 	var dt: float = entity.get_process_delta_time()
 	action_timer -= dt
 
@@ -167,7 +167,7 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 # LLM call
 # ---------------------------------------------------------------------------
 
-func _call_llm(entity: CharacterBody3D) -> Array:
+func _call_llm(entity: Node) -> Array:
 	_calling = true
 	var prompt: String = _build_prompt(entity)
 	print("[LLM] ", entity.name, " calling claude...")
@@ -219,19 +219,18 @@ func _call_llm(entity: CharacterBody3D) -> Array:
 	return [action]
 
 
-func _build_prompt(entity: CharacterBody3D) -> String:
-	var pos: Vector3 = entity.global_position
+func _build_prompt(entity: Node) -> String:
+	var pos: Vector2 = SimPos.of(entity)
 	var inv_str: String = inventory.to_string_summary() if inventory else "(empty)"
 
 	var nearby: Array = []
 	for el in entity.get_tree().get_nodes_in_group("sim_element"):
-		if not (el is Node3D):
-			continue
-		var d: float = pos.distance_to(el.global_position)
+		var el_pos: Vector2 = SimPos.of(el)
+		var d: float = pos.distance_to(el_pos)
 		if d < 12.0:
 			nearby.append({
 				"id": str(el.get_meta("element_id", "?")),
-				"pos": [snapped(el.global_position.x, 0.1), snapped(el.global_position.y, 0.1), snapped(el.global_position.z, 0.1)],
+				"pos": [snapped(el_pos.x, 0.1), snapped(el_pos.y, 0.1)],
 				"dist": snapped(d, 0.1),
 			})
 
@@ -244,13 +243,13 @@ func _build_prompt(entity: CharacterBody3D) -> String:
 		_llm_context,
 		"",
 		"STATE",
-		"Position: %s" % JSON.stringify([snapped(pos.x, 0.1), snapped(pos.y, 0.1), snapped(pos.z, 0.1)]),
+		"Position: %s" % JSON.stringify([snapped(pos.x, 0.1), snapped(pos.y, 0.1)]),
 		"Needs (lower = more urgent): " + JSON.stringify(needs_brief),
 		"Inventory: " + inv_str,
 		"Nearby objects (within 12u): " + JSON.stringify(nearby),
 		"",
 		"AVAILABLE ACTIONS",
-		'{"type": "move_to", "target": [x, y, z]}    — walk toward a position',
+		'{"type": "move_to", "target": [x, z]}       — walk toward a top-down ground position',
 		'{"type": "interact_element", "element_id": "ID", "need": "hunger|thirst|energy", "amount": N, "remove": true|false}',
 		'{"type": "wander"}                          — pick a random nearby spot',
 		'{"type": "idle_rest", "duration": 2.0}      — wait',
@@ -264,17 +263,21 @@ func _build_prompt(entity: CharacterBody3D) -> String:
 # Step execution — minimal subset of brain_needs_driven actions.
 # ---------------------------------------------------------------------------
 
-func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dictionary:
+func _execute_step(entity: Node, step: Dictionary, dt: float) -> Dictionary:
 	var step_type: String = str(step.get("type", "idle"))
 	match step_type:
 		"move_to":
-			var tgt = step.get("target", entity.global_position)
-			var t_vec: Vector3 = entity.global_position
-			if tgt is Array and tgt.size() >= 3:
-				t_vec = Vector3(float(tgt[0]), float(tgt[1]), float(tgt[2]))
-			elif tgt is Vector3:
+			var here: Vector2 = SimPos.of(entity)
+			var tgt = step.get("target", here)
+			var t_vec: Vector2 = here
+			if tgt is Array and tgt.size() >= 2:
+				# JSON arrays come as [x, z] (skip y if a 3-tuple — LLM may emit either)
+				var ax: float = float(tgt[0])
+				var az: float = float(tgt[2]) if tgt.size() >= 3 else float(tgt[1])
+				t_vec = Vector2(ax, az)
+			elif tgt is Vector2:
 				t_vec = tgt
-			var dist: float = entity.global_position.distance_to(Vector3(t_vec.x, entity.global_position.y, t_vec.z))
+			var dist: float = here.distance_to(t_vec)
 			if dist > 1.5:
 				return {"action": "move_to", "target": t_vec}
 			return {"action": "idle", "step_done": true}
@@ -287,15 +290,16 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 			if step.get("remove", false):
 				var target_id: String = str(step.get("element_id", ""))
 				if target_id != "":
-					var target_node: Node3D = _find_nearest_element_node(entity, target_id)
+					var target_node: Node = _find_nearest_element_node(entity, target_id)
 					if target_node:
 						target_node.queue_free()
 			return {"action": "idle", "step_done": true}
 
 		"wander":
-			var rx: float = entity.global_position.x + randf_range(-6, 6)
-			var rz: float = entity.global_position.z + randf_range(-6, 6)
-			return {"action": "move_to", "target": Vector3(rx, 0, rz), "step_done": true}
+			var here: Vector2 = SimPos.of(entity)
+			var rx: float = here.x + randf_range(-6, 6)
+			var ry: float = here.y + randf_range(-6, 6)
+			return {"action": "move_to", "target": Vector2(rx, ry), "step_done": true}
 
 		"idle_rest":
 			var duration: float = float(step.get("duration", 2.0))
@@ -308,15 +312,16 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 	return {"action": "idle", "step_done": true}
 
 
-func _find_nearest_element_node(entity: CharacterBody3D, element_id: String) -> Node3D:
+func _find_nearest_element_node(entity: Node, element_id: String) -> Node:
+	var here: Vector2 = SimPos.of(entity)
 	var best_dist: float = 999.0
-	var best: Node3D = null
+	var best: Node = null
 	for n in entity.get_tree().get_nodes_in_group("sim_element"):
 		if not n.has_meta("element_id"):
 			continue
 		if str(n.get_meta("element_id")) != element_id:
 			continue
-		var d: float = entity.global_position.distance_to(n.global_position)
+		var d: float = here.distance_to(SimPos.of(n))
 		if d < best_dist:
 			best_dist = d
 			best = n

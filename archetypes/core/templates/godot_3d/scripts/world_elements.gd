@@ -19,8 +19,8 @@ static func build_all(parent: Node3D, world_data: Dictionary, terrain_node: Node
 	_print_summary(elements, el_defs)
 
 
-static func spawn_one(parent: Node3D, element_id: String, pos: Vector3, terrain_node: Node, elements_config: Array, asset_config: Dictionary) -> Node:
-	## Spawn a single element of the given id at the given position.
+static func spawn_one(parent: Node3D, element_id: String, pos: Vector2, terrain_node: Node, elements_config: Array, asset_config: Dictionary) -> Node:
+	## Spawn a single element of the given id at the given position (top-down XZ).
 	## Used by world_rules_engine for advance_stage / transform / spread effects.
 	## Returns the spawned node, or null if element_id not found.
 	var el_defs: Dictionary = {}
@@ -29,7 +29,7 @@ static func spawn_one(parent: Node3D, element_id: String, pos: Vector3, terrain_
 	if not el_defs.has(element_id):
 		push_warning("[WorldElements] spawn_one: element_id not in defs: " + element_id)
 		return null
-	var el := {"element": element_id, "x": pos.x, "z": pos.z, "scale": 1.0, "rotation_y": 0.0}
+	var el := {"element": element_id, "x": pos.x, "z": pos.y, "scale": 1.0, "rotation_y": 0.0}
 	_build_one(parent, el, el_defs, terrain_node, asset_config)
 	# Return the just-added child (last in parent's children)
 	return parent.get_child(parent.get_child_count() - 1)

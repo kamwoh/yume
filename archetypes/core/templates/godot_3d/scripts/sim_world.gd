@@ -114,9 +114,9 @@ func _start_population_manager() -> void:
 	mgr.setup(self, initial)
 
 
-func spawn_element_at(element_id: String, pos: Vector3) -> Node:
+func spawn_element_at(element_id: String, pos: Vector2) -> Node:
 	## Public helper — any script (brain, rule, command) can create a new
-	## sim_element at a position. Used by farming/planting, rule spawns, etc.
+	## sim_element at a top-down XZ position. Used by farming/planting, rule spawns, etc.
 	return WorldElements.spawn_one(self, element_id, pos, terrain_node, elements_config, asset_config)
 
 

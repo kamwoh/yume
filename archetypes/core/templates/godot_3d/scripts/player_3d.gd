@@ -1,5 +1,7 @@
 extends CharacterBody3D
 
+const SimPos = preload("res://scripts/sim_pos.gd")
+
 ## Player Controller — uses brain abstraction for input.
 ## Brain is swappable: human (keyboard), auto_agent (AI), llm (future).
 ## Set via meta.json player.brain field.
@@ -172,18 +174,19 @@ func _execute_decision(decision: Dictionary, delta: float) -> void:
 
 		"move_to":
 			# AutoAgentBrain: target position
-			var target = decision.get("target", global_position)
-			if target is Vector3:
-				var dir: Vector3 = (target - global_position)
-				dir.y = 0
-				if dir.length() > 0.3:
-					dir = dir.normalized()
-					velocity.x = dir.x * speed
-					velocity.z = dir.z * speed
-					_rotate_model(dir, delta)
+			var target = decision.get("target", SimPos.of(self))
+			if target is Vector2:
+				var here_2d: Vector2 = SimPos.of(self)
+				var dir_2d: Vector2 = target - here_2d
+				if dir_2d.length() > 0.3:
+					dir_2d = dir_2d.normalized()
+					velocity.x = dir_2d.x * speed
+					velocity.z = dir_2d.y * speed
+					var dir3 := Vector3(dir_2d.x, 0, dir_2d.y)
+					_rotate_model(dir3, delta)
 					# Rotate player BODY too so camera follows behind character
 					if brain_type != "human":
-						var body_angle: float = atan2(dir.x, dir.z)
+						var body_angle: float = atan2(dir_2d.x, dir_2d.y)
 						rotation.y = lerp_angle(rotation.y, body_angle, 3.0 * delta)
 				else:
 					velocity.x = move_toward(velocity.x, 0, speed * delta * 10)

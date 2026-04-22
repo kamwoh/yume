@@ -1,5 +1,7 @@
 extends Node
 
+const SimPos = preload("res://scripts/sim_pos.gd")
+
 ## StateMachineBrain — simple AI: patrol → detect → chase → attack → flee
 ## All parameters from JSON ai_config. Swappable with BehaviorTreeBrain or LLMBrain.
 ## Implements: decide(entity, world_state) -> Dictionary
@@ -137,11 +139,12 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 
 		State.GUARD:
 			# Stand at guard position, face guard direction
-			var dist_to_post: float = entity.global_position.distance_to(
-				Vector3(guard_position.x, entity.global_position.y, guard_position.z))
+			var here: Vector2 = SimPos.of(entity)
+			var post_2d := Vector2(guard_position.x, guard_position.z)
+			var dist_to_post: float = here.distance_to(post_2d)
 			if dist_to_post > 0.5:
 				# Walk back to guard post
-				return {"action": "move_to", "target": guard_position}
+				return {"action": "move_to", "target": post_2d}
 			else:
 				# At post — face guard direction
 				return {"action": "face_direction", "direction": guard_facing}
@@ -150,16 +153,18 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 			if patrol_points.is_empty():
 				return {"action": "idle"}
 			var target: Vector3 = patrol_points[patrol_index]
-			var dist: float = entity.global_position.distance_to(Vector3(target.x, entity.global_position.y, target.z))
+			var target_2d := Vector2(target.x, target.z)
+			var dist: float = SimPos.of(entity).distance_to(target_2d)
 			if dist < 0.5:
 				patrol_index = (patrol_index + 1) % patrol_points.size()
 				state_timer = 0.0
 				return {"action": "idle"}
-			return {"action": "move_to", "target": target}
+			return {"action": "move_to", "target": target_2d}
 
 		State.CHASE:
 			var player_pos = world_state.get("player_pos", entity.global_position)
-			return {"action": "move_to", "target": player_pos}
+			var chase_2d: Vector2 = player_pos if player_pos is Vector2 else Vector2(player_pos.x, player_pos.z)
+			return {"action": "move_to", "target": chase_2d}
 
 		State.ATTACK:
 			var did_attack: bool = false
@@ -171,7 +176,8 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 
 		State.FLEE:
 			var player_pos = world_state.get("player_pos", entity.global_position)
-			return {"action": "flee", "target": player_pos}
+			var flee_2d: Vector2 = player_pos if player_pos is Vector2 else Vector2(player_pos.x, player_pos.z)
+			return {"action": "flee", "target": flee_2d}
 
 	return {"action": "idle"}
 

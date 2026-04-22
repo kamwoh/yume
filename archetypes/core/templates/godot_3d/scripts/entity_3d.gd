@@ -1,5 +1,7 @@
 extends CharacterBody3D
 
+const SimPos = preload("res://scripts/sim_pos.gd")
+
 ## Entity — base for all NPCs, enemies, companions.
 ## Has: model, stats, brain (AI controller).
 ## Brain is swappable: state_machine today, LLM tomorrow.
@@ -165,18 +167,18 @@ func _execute_decision(decision: Dictionary, delta: float) -> void:
 
 	match action:
 		"move_to":
-			var target_pos = decision.get("target", global_position)
-			if target_pos is Vector3:
-				var direction: Vector3 = (target_pos - global_position)
-				direction.y = 0
-				if direction.length() > 0.3:
-					direction = direction.normalized()
-					velocity.x = direction.x * move_speed
-					velocity.z = direction.z * move_speed
+			var target_pos = decision.get("target", SimPos.of(self))
+			if target_pos is Vector2:
+				var here: Vector2 = SimPos.of(self)
+				var direction_2d: Vector2 = target_pos - here
+				if direction_2d.length() > 0.3:
+					direction_2d = direction_2d.normalized()
+					velocity.x = direction_2d.x * move_speed
+					velocity.z = direction_2d.y * move_speed
 					# Face movement direction
 					var model = get_node_or_null("EntityModel")
 					if model:
-						var angle: float = atan2(direction.x, direction.z)
+						var angle: float = atan2(direction_2d.x, direction_2d.y)
 						model.rotation.y = lerp_angle(model.rotation.y, angle, 10.0 * delta)
 					play_anim("walk")
 				else:
@@ -212,12 +214,12 @@ func _execute_decision(decision: Dictionary, delta: float) -> void:
 			play_anim("idle")
 
 		"flee":
-			var away_from = decision.get("target", global_position)
-			if away_from is Vector3:
-				var direction: Vector3 = (global_position - away_from)
-				direction.y = 0
-				if direction.length() > 0.1:
-					direction = direction.normalized()
-					velocity.x = direction.x * move_speed * 1.2
-					velocity.z = direction.z * move_speed * 1.2
+			var away_from = decision.get("target", SimPos.of(self))
+			if away_from is Vector2:
+				var here: Vector2 = SimPos.of(self)
+				var direction_2d: Vector2 = here - away_from
+				if direction_2d.length() > 0.1:
+					direction_2d = direction_2d.normalized()
+					velocity.x = direction_2d.x * move_speed * 1.2
+					velocity.z = direction_2d.y * move_speed * 1.2
 					play_anim("run")

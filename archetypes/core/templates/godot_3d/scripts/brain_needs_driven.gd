@@ -1,5 +1,7 @@
 extends Node
 
+const SimPos = preload("res://scripts/sim_pos.gd")
+
 ## NeedsDrivenBrain — The Sims meets Minecraft.
 ## Agent has needs (hunger, thirst, energy). Needs decay over time.
 ## Agent scans nearby elements, evaluates which action best satisfies urgent needs.
@@ -53,7 +55,7 @@ func _on_world_tick(_n: int) -> void:
 	_should_replan = true
 
 
-func _claim(node: Node, entity: CharacterBody3D) -> void:
+func _claim(node: Node, entity: Node) -> void:
 	if not is_instance_valid(node):
 		return
 	node.set_meta("claimed_by", entity.get_instance_id())
@@ -134,7 +136,7 @@ func init_config(config: Dictionary) -> void:
 	print("[NeedsBrain] Initialized: ", _need_schema.keys(), " | Recipes: ", known_recipes.size())
 
 
-func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
+func decide(entity: Node, world_state: Dictionary) -> Dictionary:
 	var dt: float = entity.get_process_delta_time()
 	action_timer -= dt
 
@@ -186,10 +188,8 @@ func _step_to_label(step: Dictionary) -> String:
 	var t: String = str(step.get("type", "?"))
 	match t:
 		"move_to":
-			var tgt = step.get("target", Vector3.ZERO)
-			var x: float = tgt.x if tgt is Vector3 else (float(tgt[0]) if (tgt is Array and tgt.size() >= 1) else 0.0)
-			var z: float = tgt.z if tgt is Vector3 else (float(tgt[2]) if (tgt is Array and tgt.size() >= 3) else 0.0)
-			return "Walking → (%.1f, %.1f)" % [x, z]
+			var tgt = step.get("target", Vector2.ZERO)
+			return "Walking → (%.1f, %.1f)" % [tgt.x, tgt.y]
 		"interact_element":
 			return "Using " + str(step.get("element_id", "?"))
 		"harvest":
@@ -230,7 +230,7 @@ func _most_urgent_need() -> String:
 	return worst_id
 
 
-func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
+func _make_plan(entity: Node, _world_state: Dictionary) -> Array:
 	## Try each satisfier listed in needs.json for the most urgent need.
 	## First achievable satisfier wins. No need-specific hardcoding here —
 	## adding a new need = JSON only.
@@ -259,10 +259,10 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 	# water (where growth is fast) closes the food loop.
 	if urgency < 0.5 and inventory and inventory.has_item("wheat_seed_item"):
 		# Walk to nearest water (so seed grows), plant there.
-		var water_pos: Vector3 = _find_nearest_element_in_world(entity, "water")
-		if water_pos != Vector3.ZERO:
+		var water_pos: Vector2 = _find_nearest_element_in_world(entity, "water")
+		if water_pos != Vector2.ZERO:
 			# Slight offset from water itself so seed lands beside the pool.
-			var plant_pos: Vector3 = water_pos + Vector3(randf_range(-2.0, 2.0), 0, randf_range(-2.0, 2.0))
+			var plant_pos: Vector2 = water_pos + Vector2(randf_range(-2.0, 2.0), randf_range(-2.0, 2.0))
 			return [
 				{"type": "move_to", "target": plant_pos},
 				{"type": "plant", "item": "wheat_seed_item", "seed_element": "wheat_seed"},
@@ -283,7 +283,7 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 			if not (inventory and inventory.has_item(tool_name)):
 				continue
 			var target_id: String = tool_table[tool_name]["target"]
-			var node: Node3D = _find_nearest_element_node(entity, target_id)
+			var node: Node = _find_nearest_element_node(entity, target_id)
 			if not node:
 				continue
 			_claim(node, entity)
@@ -292,7 +292,7 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 			var recipe: Dictionary = _find_recipe_for_tool(tool_name, target_id)
 			var t: float = float(recipe.get("time", 2.0))
 			return [
-				{"type": "move_to", "target": node.global_position},
+				{"type": "move_to", "target": SimPos.of(node)},
 				{"type": "harvest", "element_id": target_id, "time": t, "drops": drops},
 			]
 
@@ -300,7 +300,7 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 		# Punch tree/stone by hand — slow, 1 yield, no tool needed.
 		for tool_name in tool_table:
 			var target_id: String = tool_table[tool_name]["target"]
-			var node: Node3D = _find_nearest_element_node(entity, target_id)
+			var node: Node = _find_nearest_element_node(entity, target_id)
 			if not node:
 				continue
 			_claim(node, entity)
@@ -312,7 +312,7 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 				var d0: Dictionary = drops_full[0]
 				drops = [{"item": d0.get("item", ""), "count": tool_table[tool_name]["punch_count"]}]
 			return [
-				{"type": "move_to", "target": node.global_position},
+				{"type": "move_to", "target": SimPos.of(node)},
 				{"type": "harvest", "element_id": target_id,
 				 "time": float(tool_table[tool_name]["punch_time"]), "drops": drops},
 			]
@@ -326,14 +326,14 @@ func _make_plan(entity: CharacterBody3D, _world_state: Dictionary) -> Array:
 	return [{"type": "wander"}]
 
 
-func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dictionary:
+func _execute_step(entity: Node, step: Dictionary, dt: float) -> Dictionary:
 	var step_type: String = str(step.get("type", "idle"))
 
 	match step_type:
 		"move_to":
-			var target = step.get("target", entity.global_position)
-			if target is Vector3:
-				var dist: float = entity.global_position.distance_to(Vector3(target.x, entity.global_position.y, target.z))
+			var target = step.get("target", SimPos.of(entity))
+			if target is Vector2:
+				var dist: float = SimPos.of(entity).distance_to(target)
 				if dist > 1.5:
 					return {"action": "move_to", "target": target}
 				else:
@@ -362,7 +362,7 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 				return {"action": "attack"}
 			# Done — apply drops + remove target
 			var target_id: String = str(step.get("element_id", ""))
-			var target_node: Node3D = _find_nearest_element_node(entity, target_id) if target_id != "" else null
+			var target_node: Node = _find_nearest_element_node(entity, target_id) if target_id != "" else null
 			var drops = step.get("drops", [])
 			if inventory and drops is Array:
 				for d in drops:
@@ -395,7 +395,7 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 			if step.get("remove", false):
 				var target_id: String = str(step.get("element_id", ""))
 				if target_id != "":
-					var target_node: Node3D = _find_nearest_element_node(entity, target_id)
+					var target_node: Node = _find_nearest_element_node(entity, target_id)
 					if target_node:
 						var edef: Dictionary = _find_element_def(target_id)
 						var drops = edef.get("drop", [])
@@ -409,7 +409,7 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 									continue
 								inventory.add_item(item_id, int(d.get("count", 1)))
 							print("[NeedsBrain] ", entity.name, " picked up drops from ", target_id, " | inv: ", inventory.to_string_summary())
-						print("[NeedsBrain] Removing ", target_id, " at ", target_node.global_position)
+						print("[NeedsBrain] Removing ", target_id, " at ", SimPos.of(target_node))
 						target_node.queue_free()
 			return {"action": "idle", "step_done": true}
 
@@ -424,9 +424,10 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 
 		"wander":
 			# Random target
-			var rx: float = entity.global_position.x + randf_range(-8, 8)
-			var rz: float = entity.global_position.z + randf_range(-8, 8)
-			return {"action": "move_to", "target": Vector3(rx, 0, rz), "step_done": true}
+			var here: Vector2 = SimPos.of(entity)
+			var rx: float = here.x + randf_range(-8, 8)
+			var ry: float = here.y + randf_range(-8, 8)
+			return {"action": "move_to", "target": Vector2(rx, ry), "step_done": true}
 
 		"plant":
 			# Consume one seed_item from inventory, spawn a seed element at
@@ -435,11 +436,12 @@ func _execute_step(entity: CharacterBody3D, step: Dictionary, dt: float) -> Dict
 			var item_id: String = str(step.get("item", "wheat_seed_item"))
 			var seed_id: String = str(step.get("seed_element", "wheat_seed"))
 			if inventory and inventory.remove_item(item_id):
-				var offset := Vector3(randf_range(-0.8, 0.8), 0, randf_range(-0.8, 0.8))
+				var offset := Vector2(randf_range(-0.8, 0.8), randf_range(-0.8, 0.8))
+				var spawn_pos: Vector2 = SimPos.of(entity) + offset
 				var sim = entity.get_tree().current_scene
 				if sim and sim.has_method("spawn_element_at"):
-					sim.spawn_element_at(seed_id, entity.global_position + offset)
-					print("[NeedsBrain] ", entity.name, " planted ", seed_id, " at ", entity.global_position + offset)
+					sim.spawn_element_at(seed_id, spawn_pos)
+					print("[NeedsBrain] ", entity.name, " planted ", seed_id, " at ", spawn_pos)
 			return {"action": "idle", "step_done": true}
 
 	return {"action": "idle", "step_done": true}
@@ -473,7 +475,7 @@ func _find_recipe_for_tool(tool_name: String, element_id: String) -> Dictionary:
 	return {}
 
 
-func _try_satisfier(entity: CharacterBody3D, need_id: String, sat: Dictionary) -> Array:
+func _try_satisfier(entity: Node, need_id: String, sat: Dictionary) -> Array:
 	## Translate one satisfier descriptor into a concrete plan, or [] if not achievable now.
 	var amount: float = float(sat.get("amount", 0))
 	var remove: bool = sat.get("remove", false)
@@ -487,11 +489,11 @@ func _try_satisfier(entity: CharacterBody3D, need_id: String, sat: Dictionary) -
 	# 2. World element by id — walk to it, interact (claim so others don't target)
 	if sat.has("element_id"):
 		var eid: String = str(sat["element_id"])
-		var node: Node3D = _find_nearest_element_node(entity, eid)
+		var node: Node = _find_nearest_element_node(entity, eid)
 		if node:
 			_claim(node, entity)
 			return [
-				{"type": "move_to", "target": node.global_position},
+				{"type": "move_to", "target": SimPos.of(node)},
 				{"type": "interact_element", "element_id": eid,
 				 "need": need_id, "amount": amount, "remove": remove},
 			]
@@ -502,7 +504,7 @@ func _try_satisfier(entity: CharacterBody3D, need_id: String, sat: Dictionary) -
 		var hit: Dictionary = _find_nearest_element_with_group(entity, grp)
 		if hit.has("pos"):
 			var target_node = hit.get("node", null)
-			if target_node is Node3D:
+			if target_node:
 				_claim(target_node, entity)
 			# Passive satisfiers (energy near structure): go + idle, world rule restores.
 			if sat.get("passive", false):
@@ -519,7 +521,7 @@ func _try_satisfier(entity: CharacterBody3D, need_id: String, sat: Dictionary) -
 	return []
 
 
-func _is_claimed_by_other(node: Node, entity: CharacterBody3D) -> bool:
+func _is_claimed_by_other(node: Node, entity: Node) -> bool:
 	## True if node is claimed by a DIFFERENT agent. Own claims are fine
 	## (we replan; same agent can re-pick its own target).
 	if not node.has_meta("claimed_by"):
@@ -528,8 +530,9 @@ func _is_claimed_by_other(node: Node, entity: CharacterBody3D) -> bool:
 	return claimer_id != entity.get_instance_id()
 
 
-func _find_nearest_element_with_group(entity: CharacterBody3D, group_name: String) -> Dictionary:
+func _find_nearest_element_with_group(entity: Node, group_name: String) -> Dictionary:
 	## Returns {pos, id, node} of the nearest un-claimed sim_element whose `groups` meta contains group_name.
+	var here: Vector2 = SimPos.of(entity)
 	var best_dist: float = 999.0
 	var best: Dictionary = {}
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
@@ -538,49 +541,54 @@ func _find_nearest_element_with_group(entity: CharacterBody3D, group_name: Strin
 		var grps = node.get_meta("groups")
 		if not (grps is Dictionary) or not grps.has(group_name):
 			continue
-		var d: float = entity.global_position.distance_to(node.global_position)
+		var node_pos: Vector2 = SimPos.of(node)
+		var d: float = here.distance_to(node_pos)
 		if d < best_dist:
 			best_dist = d
-			best = {"pos": node.global_position, "id": str(node.get_meta("element_id", "")), "node": node}
+			best = {"pos": node_pos, "id": str(node.get_meta("element_id", "")), "node": node}
 	return best
 
 
-func _find_nearest_element_in_world(entity: CharacterBody3D, element_id: String) -> Vector3:
+func _find_nearest_element_in_world(entity: Node, element_id: String) -> Vector2:
 	## Skips elements already claimed by other agents so multiple agents don't
 	## all pile onto the same wheat.
+	var here: Vector2 = SimPos.of(entity)
 	var nearest_dist: float = 999.0
-	var nearest_pos: Vector3 = Vector3.ZERO
+	var nearest_pos: Vector2 = Vector2.ZERO
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
 		if not node.has_meta("element_id") or _is_claimed_by_other(node, entity):
 			continue
 		if str(node.get_meta("element_id")) == element_id:
-			var dist: float = entity.global_position.distance_to(node.global_position)
+			var node_pos: Vector2 = SimPos.of(node)
+			var dist: float = here.distance_to(node_pos)
 			if dist < nearest_dist:
 				nearest_dist = dist
-				nearest_pos = node.global_position
+				nearest_pos = node_pos
 	return nearest_pos
 
 
-func _find_nearest_element_node(entity: CharacterBody3D, element_id: String) -> Node3D:
+func _find_nearest_element_node(entity: Node, element_id: String) -> Node:
 	## Same logic as above but returns the node. Respects claims.
+	var here: Vector2 = SimPos.of(entity)
 	var nearest_dist: float = 999.0
-	var nearest_node: Node3D = null
+	var nearest_node: Node = null
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
 		if not node.has_meta("element_id") or _is_claimed_by_other(node, entity):
 			continue
 		if str(node.get_meta("element_id")) == element_id:
-			var dist: float = entity.global_position.distance_to(node.global_position)
+			var dist: float = here.distance_to(SimPos.of(node))
 			if dist < nearest_dist:
 				nearest_dist = dist
 				nearest_node = node
 	return nearest_node
 
 
-func _find_nearest_harvestable(entity: CharacterBody3D) -> Node:
+func _find_nearest_harvestable(entity: Node) -> Node:
+	var here: Vector2 = SimPos.of(entity)
 	var nearest: Node = null
 	var nearest_dist: float = 3.0  # Must be close
 	for node in entity.get_tree().get_nodes_in_group("sim_element"):
-		var dist: float = entity.global_position.distance_to(node.global_position)
+		var dist: float = here.distance_to(SimPos.of(node))
 		if dist < nearest_dist:
 			nearest_dist = dist
 			nearest = node

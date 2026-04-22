@@ -1,5 +1,7 @@
 extends Node
 
+const SimPos = preload("res://scripts/sim_pos.gd")
+
 ## AutoAgentBrain — AI that explores rooms and fights enemies.
 ## Same interface as HumanBrain and StateMachineBrain.
 ## Implements: decide(entity, world_state) -> Dictionary
@@ -137,7 +139,7 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 	if nearest_interactable and not nearest_interactable.get("auto_trigger") and enemy_dist > 5.0:
 		if nearest_interactable.has_method("can_interact") and nearest_interactable.can_interact(entity):
 			if interact_dist > 1.5:
-				result = {"action": "move_to", "target": nearest_interactable.global_position}
+				result = {"action": "move_to", "target": SimPos.of(nearest_interactable)}
 				action_name = "approach_interact"
 			else:
 				nearest_interactable.interact(entity)
@@ -148,7 +150,7 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 	elif nearest_enemy and enemy_dist < 8.0:
 		if enemy_dist > attack_range:
 			# Chase
-			result = {"action": "move_to", "target": nearest_enemy.global_position}
+			result = {"action": "move_to", "target": SimPos.of(nearest_enemy)}
 			action_name = "chase_enemy"
 		else:
 			# Attack
@@ -167,7 +169,7 @@ func decide(entity: CharacterBody3D, world_state: Dictionary) -> Dictionary:
 			to_wp.y = 0
 
 			if to_wp.length() > 0.5:
-				result = {"action": "move_to", "target": waypoint}
+				result = {"action": "move_to", "target": Vector2(waypoint.x, waypoint.z)}
 				action_name = "follow_path"
 			else:
 				# Reached waypoint — advance to next
