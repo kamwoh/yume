@@ -1,10 +1,11 @@
-class_name WorldElements
 extends RefCounted
 
 ## Static helpers for spawning sim_elements (entities, elements, decorations,
 ## composites). Reads from world_data.elements + element definitions in
 ## elements_config. Stamps element_id, object_type, groups as meta on the
 ## spawned node so the rules engine can find/match them.
+
+const ModelHelpers = preload("res://scripts/renderer_3d/model_helpers.gd")
 
 
 static func build_all(parent: Node3D, world_data: Dictionary, terrain_node: Node, elements_config: Array, asset_config: Dictionary) -> void:

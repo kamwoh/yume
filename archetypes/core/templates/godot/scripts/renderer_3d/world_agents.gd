@@ -1,9 +1,10 @@
-class_name WorldAgents
 extends RefCounted
 
 ## Static helpers for spawning the human-controlled player and AI agents.
 ## Player config from meta.json.player. Agent config from world_data.agents[].
 ## Brain script chosen via "brain" field — looks up "res://scripts/brain_<type>.gd".
+
+const ModelHelpers = preload("res://scripts/renderer_3d/model_helpers.gd")
 
 
 static func spawn_player(parent: Node3D, world_data: Dictionary, meta_config: Dictionary, asset_config: Dictionary) -> void:
@@ -20,7 +21,7 @@ static func spawn_player(parent: Node3D, world_data: Dictionary, meta_config: Di
 
 	var player := CharacterBody3D.new()
 	player.name = "Player"
-	player.set_script(load("res://scripts/player_3d.gd"))
+	player.set_script(load("res://scripts/renderer_3d/player_3d.gd"))
 	player.position = Vector3(spawn_x, 0.5, spawn_z)
 	player.add_to_group("player")
 
@@ -85,7 +86,7 @@ static func spawn_ai_agents(parent: Node3D, world_data: Dictionary, meta_config:
 	if agents.is_empty():
 		return
 
-	var entity_script = load("res://scripts/entity_3d.gd")
+	var entity_script = load("res://scripts/renderer_3d/entity_3d.gd")
 	var search_paths: Array = asset_config.get("model_search_paths", ["res://models/"])
 	var extensions: Array = asset_config.get("model_extensions", ["glb", "gltf"])
 	var scale_map: Dictionary = asset_config.get("prop_scale_map", {})

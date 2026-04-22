@@ -1,4 +1,3 @@
-class_name ModelHelpers
 extends RefCounted
 
 ## Shared helpers used by element / agent / terrain spawning code.

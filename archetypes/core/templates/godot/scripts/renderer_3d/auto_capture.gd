@@ -82,7 +82,7 @@ func _generate_default_positions() -> Array:
 
 
 func _build_world() -> void:
-	var wb_script = load("res://scripts/world_builder.gd")
+	var wb_script = load("res://scripts/renderer_3d/world_builder.gd")
 	if wb_script:
 		var wb := Node3D.new()
 		wb.name = "World"
@@ -93,7 +93,7 @@ func _build_world() -> void:
 	await get_tree().create_timer(0.5).timeout
 	var player = get_node_or_null("World/Player")
 	if player:
-		var agent_script = load("res://scripts/auto_agent.gd")
+		var agent_script = load("res://scripts/renderer_3d/auto_agent.gd")
 		if agent_script:
 			var agent := Node.new()
 			agent.name = "AutoAgent"

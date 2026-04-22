@@ -9,6 +9,7 @@ extends Node
 ##
 ## No respawn delay — fires at most once per tick.
 
+const WorldAgents = preload("res://scripts/renderer_3d/world_agents.gd")
 const RESPAWN_CHECK_INTERVAL_TICKS := 20  # ~10s at 0.5s/tick
 
 var templates: Array = []   # copy of the original agents[] from generated_world

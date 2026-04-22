@@ -45,7 +45,7 @@ func _add_minimap() -> void:
 
 
 func _add_frame_capture() -> void:
-	var script = load("res://scripts/frame_capture.gd")
+	var script = load("res://scripts/renderer_3d/frame_capture.gd")
 	if script:
 		var capture := Node.new()
 		capture.name = "FrameCapture"
@@ -63,7 +63,7 @@ func _maybe_attach_auto_agent() -> void:
 	await get_tree().create_timer(0.3).timeout
 	var player_node = get_node_or_null("Player")
 	if player_node:
-		var agent_script = load("res://scripts/auto_agent.gd")
+		var agent_script = load("res://scripts/renderer_3d/auto_agent.gd")
 		if agent_script:
 			var agent := Node.new()
 			agent.name = "AutoAgent"
@@ -971,7 +971,7 @@ func _find_anim_player(node: Node) -> AnimationPlayer:
 
 func _spawn_interactable(config: Dictionary, pos: Vector3) -> void:
 	var prop_type: String = str(config.get("type", "chest"))
-	var interactable_script = load("res://scripts/interactable_3d.gd")
+	var interactable_script = load("res://scripts/renderer_3d/interactable_3d.gd")
 
 	# Load the model into a StaticBody3D with the interactable script
 	var body := StaticBody3D.new()
@@ -1018,7 +1018,7 @@ func _spawn_interactable(config: Dictionary, pos: Vector3) -> void:
 
 
 func _spawn_entity(npc_config: Dictionary, pos: Vector3, grid_ox: float, grid_oz: float, tile_sz: float) -> void:
-	var entity_script = load("res://scripts/entity_3d.gd")
+	var entity_script = load("res://scripts/renderer_3d/entity_3d.gd")
 	if not entity_script:
 		# Fallback: just load model without brain
 		var npc_model: String = str(npc_config.get("model", "character-human"))
@@ -1107,7 +1107,7 @@ func _spawn_entity(npc_config: Dictionary, pos: Vector3, grid_ox: float, grid_oz
 func _spawn_player() -> void:
 	var player := CharacterBody3D.new()
 	player.name = "Player"
-	player.set_script(load("res://scripts/player_3d.gd"))
+	player.set_script(load("res://scripts/renderer_3d/player_3d.gd"))
 
 	# Read player color from characters.json
 	var player_color := Color(0.2, 0.7, 0.9)
@@ -1240,7 +1240,7 @@ func _spawn_player() -> void:
 	add_child(player)
 
 	# Attach camera controller (brain system)
-	var cam_script = load("res://scripts/camera_controller_3d.gd")
+	var cam_script = load("res://scripts/renderer_3d/camera_controller_3d.gd")
 	if cam_script:
 		var cam_ctrl := Node3D.new()
 		cam_ctrl.name = "CameraController"

@@ -1,9 +1,10 @@
-class_name WorldTerrain
 extends RefCounted
 
 ## Static helpers for building terrain, edge trees, paths, and the starting camp.
 ## Stateless — sim_world owns the terrain_node reference. All these methods take
 ## (parent, world_data, asset_config, ...) and return the terrain node where useful.
+
+const ModelHelpers = preload("res://scripts/renderer_3d/model_helpers.gd")
 
 
 static func build_heightmap(parent: Node3D, world_data: Dictionary, world_w: float, world_h: float) -> Node:
@@ -12,7 +13,7 @@ static func build_heightmap(parent: Node3D, world_data: Dictionary, world_w: flo
 	var hmap: Dictionary = terrain_data.get("heightmap", {})
 
 	if not hmap.is_empty():
-		var script = load("res://scripts/terrain.gd")
+		var script = load("res://scripts/renderer_3d/terrain.gd")
 		if script:
 			var terrain := StaticBody3D.new()
 			terrain.name = "Terrain"

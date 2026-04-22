@@ -29,7 +29,7 @@ var data_root: String = "res://data/sim/"
 
 # Set by sim_world before _ready so we can spawn new elements (advance_stage,
 # transform, spread effects). Read directly from sim_world's state.
-var world_root: Node3D = null
+var world_root: Node = null  # the active sim_world (Node3D today, Node2D later)
 var terrain_node: Node = null
 var elements_config: Array = []
 var asset_config: Dictionary = {}
@@ -333,6 +333,9 @@ func _spawn_element(element_id: String, pos: Vector2, rule_id: String, kind: Str
 	if not world_root:
 		push_warning("[Rules] Cannot spawn — world_root not set")
 		return
-	var node := WorldElements.spawn_one(world_root, element_id, pos, terrain_node, elements_config, asset_config)
+	if not world_root.has_method("spawn_element_at"):
+		push_warning("[Rules] world_root has no spawn_element_at — wrong sim_world type?")
+		return
+	var node = world_root.spawn_element_at(element_id, pos)
 	if node:
 		print("[Rules] ", rule_id, " → ", kind, " spawned ", element_id, " at ", pos)

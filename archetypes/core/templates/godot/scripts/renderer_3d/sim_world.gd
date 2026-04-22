@@ -5,6 +5,10 @@ extends Node3D
 ## Owns shared state (configs, terrain_node ref). All content from JSON; nothing
 ## random or hardcoded happens here.
 
+const WorldTerrain = preload("res://scripts/renderer_3d/world_terrain.gd")
+const WorldElements = preload("res://scripts/renderer_3d/world_elements.gd")
+const WorldAgents = preload("res://scripts/renderer_3d/world_agents.gd")
+
 var world_data: Dictionary = {}
 var asset_config: Dictionary = {}
 var meta_config: Dictionary = {}
@@ -94,7 +98,7 @@ func _start_world_clock() -> void:
 func _build_environment_module() -> void:
 	var env_node := Node.new()
 	env_node.name = "WorldEnvironment"
-	env_node.set_script(load("res://scripts/world_environment.gd"))
+	env_node.set_script(load("res://scripts/renderer_3d/world_environment.gd"))
 	add_child(env_node)
 	env_node.build(self, world_data, sky_config)
 
@@ -109,7 +113,7 @@ func _start_population_manager() -> void:
 		return
 	var mgr := Node.new()
 	mgr.name = "PopulationManager"
-	mgr.set_script(load("res://scripts/population_manager.gd"))
+	mgr.set_script(load("res://scripts/renderer_3d/population_manager.gd"))
 	add_child(mgr)
 	mgr.setup(self, initial)
 
@@ -155,7 +159,7 @@ func _add_ui() -> void:
 
 
 func _add_frame_capture() -> void:
-	var script = load("res://scripts/frame_capture.gd")
+	var script = load("res://scripts/renderer_3d/frame_capture.gd")
 	if script:
 		var node := Node.new()
 		node.name = "FrameCapture"
@@ -167,7 +171,7 @@ func _add_multi_camera_qa() -> void:
 	var cap: Dictionary = meta_config.get("capture", {})
 	if not cap.get("auto", false):
 		return
-	var script = load("res://scripts/multi_camera_qa.gd")
+	var script = load("res://scripts/renderer_3d/multi_camera_qa.gd")
 	if script:
 		var node := Node3D.new()
 		node.name = "MultiCameraQA"
