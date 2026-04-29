@@ -1,0 +1,186 @@
+/* Yume Diary — minimal dark timeline */
+
+:root {
+  --bg: #0e0f12;
+  --bg-card: #161820;
+  --bg-card-hover: #1c1f29;
+  --border: #262a36;
+  --text: #d6d8de;
+  --text-dim: #8b8f9b;
+  --text-muted: #5a5e6b;
+  --accent: #ffb454;
+  --accent-dim: #6f502b;
+  --decision: #6dc1ff;
+  --build:    #95d36a;
+  --discovery:#e687d3;
+  --review:   #ffb454;
+  --commit:   #b294ff;
+  --code-bg: #0a0b0f;
+  --rail: #2c303d;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+header, footer { padding: 32px 24px; max-width: 920px; margin: 0 auto; }
+
+header h1 { margin: 0 0 4px 0; font-weight: 600; letter-spacing: -0.02em; }
+.subtitle { margin: 0 0 16px 0; color: var(--text-dim); }
+.note {
+  margin: 0 0 16px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 3px solid var(--accent-dim);
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.filter-label { color: var(--text-muted); }
+.filter-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  transition: all 0.1s;
+}
+.filter-btn:hover { color: var(--text); background: var(--bg-card); }
+.filter-btn.active { color: var(--accent); border-color: var(--accent-dim); }
+
+main {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 0 24px 64px 24px;
+  position: relative;
+}
+
+main::before {
+  content: '';
+  position: absolute;
+  left: 38px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--rail);
+}
+
+.entry {
+  position: relative;
+  margin: 0 0 24px 56px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+  transition: background 0.1s;
+}
+.entry:hover { background: var(--bg-card-hover); }
+.entry.hidden { display: none; }
+
+.entry::before {
+  content: '';
+  position: absolute;
+  left: -28px;
+  top: 22px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg);
+  z-index: 1;
+}
+
+.entry.t-decision::before  { background: var(--decision); }
+.entry.t-build::before     { background: var(--build); }
+.entry.t-discovery::before { background: var(--discovery); }
+.entry.t-review::before    { background: var(--review); }
+.entry.t-commit::before    { background: var(--commit); }
+
+.entry-head {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.entry-date {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.entry-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+}
+.entry.t-decision  .entry-type { color: var(--decision); }
+.entry.t-build     .entry-type { color: var(--build); }
+.entry.t-discovery .entry-type { color: var(--discovery); }
+.entry.t-review    .entry-type { color: var(--review); }
+.entry.t-commit    .entry-type { color: var(--commit); }
+
+.entry-title {
+  margin: 6px 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.entry-summary {
+  margin: 0 0 10px 0;
+  color: var(--text-dim);
+}
+
+.entry-highlights {
+  margin: 8px 0 0 0;
+  padding: 0 0 0 18px;
+  font-size: 13px;
+  color: var(--text);
+}
+.entry-highlights li { margin: 4px 0; }
+
+.entry-meta {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.entry-meta strong { color: var(--text-dim); font-weight: 500; }
+
+code, kbd {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: var(--code-bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--accent);
+}
+
+footer { color: var(--text-muted); font-size: 12px; }
+footer code { color: var(--text-dim); }

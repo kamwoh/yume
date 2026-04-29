@@ -1,0 +1,17 @@
+{
+  "_comment": "W1.12 proof-of-life: one tick rule incrementing growth on every crop.",
+
+  "rules": [
+    {
+      "id": "crop_grows",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["crop"]},
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "growth",
+        "amount": 1
+      }
+    }
+  ]
+}

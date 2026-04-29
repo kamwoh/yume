@@ -534,6 +534,112 @@ Attack damage uses the holder's weapon via relation traversal:
 
 ---
 
+## Deferred primitives (Tier 3 — flagged, not built)
+
+Two primitives are **anticipated but deferred** to Tier 3 (actors). They are
+documented here so the current 7-primitive design doesn't paint us into a
+corner. Both are agent-side, not world-side — they do not affect runtime
+semantics.
+
+**Motivation:** Feng et al. 2026, *"Environment Maps: Structured Environmental
+Representations for Long-Horizon Agents"* (arxiv 2603.23610). The paper
+shows that LLM agents in long-horizon tasks fail less when they carry a
+structured graph of `(contexts, actions, workflows, tacit knowledge)` rather
+than re-deriving everything from raw traces each turn. WebArena: 28.2% vs
+14.2% baseline; structured graph beats even raw trajectories (23.3%).
+
+Mapping to Yume:
+
+| Env Map component | Yume status |
+|---|---|
+| Contexts (named locations) | Tag convention — no new primitive needed |
+| Actions (parameterized affordances) | Already expressible via input-trigger rules; needs an indexed read API |
+| **Workflows** (multi-step plans) | **No primitive — gap** |
+| **Tacit Knowledge** (declarative facts) | **No primitive — gap** |
+
+The two primitives below close those gaps. They are operational only in
+Tier 3 onward, but their JSON shape is sketched here so Tier 2 design choices
+don't preclude them.
+
+### 8. Plan (deferred)
+
+A multi-step intention an actor pursues across ticks. Sequence of
+`{precondition, intent, bind?}` steps with a goal predicate. Distinct from
+Rule (single-tick reactive) — Plan is multi-tick deliberative.
+
+```json
+{
+  "id": "satisfy_hunger",
+  "goal": {"state": {"hunger_atleast": 80}},
+  "abandon_if": {"state": {"hp_lt": 20}},
+  "steps": [
+    {"intent": "find",     "query": {"tags_all": ["food"]}, "bind": "target"},
+    {"intent": "move_to",  "target": "target"},
+    {"intent": "consume",  "target": "target"}
+  ]
+}
+```
+
+Actors hold an active Plan in `state.active_plan` (or as a `pursuing`
+relation to a plan entity). A plan executor (Tier 3 module) advances steps
+when their preconditions match, abandons when `abandon_if` triggers, completes
+when `goal` matches. Plans compose with Rules: each step ultimately resolves
+to input emissions or queries — no engine changes needed.
+
+**Why deferred:** without actors, no consumer. Building it in Tier 2 would
+add complexity to an engine that doesn't use it.
+
+### 9. Knowledge (deferred)
+
+Declarative facts about the world, distinct from Rules. Where Rules say
+*"when X happens, do Y"*, Knowledge says *"in this world, X is true"*.
+Both LLM actors (Tier 3) and pipeline design agents (Tier 2.5) need this —
+the latter to ground prompts in the game's actual ontology, the former to
+reason without re-deriving causality from rules every tick.
+
+```json
+// knowledge.json
+{
+  "facts": [
+    {"id": "fire_hot",       "claim": "fire has high temperature",
+     "implies_property": {"on": "fire", "property": "temperature_above", "value": 100}},
+    {"id": "water_cools",    "claim": "water reduces temperature on contact",
+     "implies_rule": "fire_extinguished_by_water"},
+    {"id": "wet_resists",    "claim": "wet entities are less flammable",
+     "narrative_hint": "soaking wood before storms"}
+  ],
+  "ontology": {
+    "materials": ["wood", "stone", "iron", "water", "fire"],
+    "categories": ["plant", "animal", "tool", "structure"]
+  }
+}
+```
+
+The runtime engine ignores Knowledge entirely — it's a side-channel that
+agents and tooling read. Critically, Knowledge is **separable from Rules**:
+the same world can be described to a story-writer, a balance designer, and
+an LLM actor at different abstraction levels without rewriting the runtime
+data.
+
+**Why deferred:** consumers (actors, pipeline) are Tier 2.5+. The world
+runs without it. Adding it before there's a reader pollutes the design.
+
+### Note on Context and Affordance
+
+The paper's other two components (Contexts, Actions) **don't require new
+primitives**:
+
+- **Context** = an Entity with `tags: ["context", "context_<name>"]` plus a
+  region query. `World.contexts_containing(entity_id)` is a helper API,
+  not a primitive change.
+- **Affordance** = an indexed view of input-trigger rules that match a
+  given entity/context. Same data as `world_rules.json`, exposed as
+  `World.affordances_for(entity_id)`. Helper, not primitive.
+
+These get added in Tier 3 as helper APIs once Plan and Knowledge land.
+
+---
+
 ## Non-goals (boundaries)
 
 This engine does **not** pretend to cover:

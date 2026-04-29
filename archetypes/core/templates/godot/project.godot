@@ -1,0 +1,23 @@
+; Yume framework template — universal simulation engine.
+; Minimal project config. Downstream games copy from here and customize data/.
+;
+; Contract: docs/30_framework_primitives.md
+; Plan:     task_plan.md
+
+config_version=5
+
+[application]
+
+config/name="Yume Framework"
+config/description="Universal JSON-driven simulation framework"
+config/features=PackedStringArray("4.6")
+run/main_scene="res://scenes/world_2d.tscn"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540

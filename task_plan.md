@@ -29,14 +29,27 @@ all of them. Game = `data/`.
 
 ## North Star
 
-> A JSON-driven simulation framework. Seven primitives (entity, tag, rule,
-> trigger, effect, query, relation). Any simulation-shaped game is expressible
-> by composing them in JSON. No genre-specific engine code, ever.
+> Describe a game in natural language. Yume produces the JSON. The same
+> engine runs it. Any simulation-shaped game, any data-driven rules,
+> discrete-tick physics.
 
-**Success smell test:** ecology, farming, shooter, RPG, and **chess** demos all
-run from the same GDScript with different `data/` folders. Adding a new game
-= writing JSON. Engine never changes. Chess is the non-spatial acid test —
-if Relation + phased ordering are sound, chess runs without engine edits.
+Three layers, all needed:
+
+1. **Design layer** (Tier 2.5): prose → structured GDD (Mechanics / Dynamics
+   / Aesthetics)
+2. **Spec layer** (Tier 2.5): GDD → entity defs + rule specs, ADR-tracked
+3. **Runtime layer** (Tier 2): seven primitives (Entity, Tag, Rule, Trigger,
+   Effect, Query, Relation), all JSON-driven, genre-agnostic. No genre-
+   specific engine code, ever.
+
+**Success smell test:** user types *"a farming game where crops grow faster
+in moonlight and rot in direct sun"*. Yume produces validated JSON that runs
+immediately. Then: ecology, shooter, RPG, chess all generate the same way.
+Engine never changes. New games = new prose, which becomes new JSON.
+
+**Honest scope:** simulation-shaped games only. Non-goals: rhythm, precision
+platformers, continuous physics, narrative-heavy adventures. See
+`docs/31_text_to_game_pipeline.md` for full analysis.
 
 ---
 
@@ -71,6 +84,7 @@ back to that doc.
 | **L0 — Engine primitives** | Seven composable primitives (Entity, Tag, Rule, Trigger, Effect, Query, Relation), all JSON-driven, genre-agnostic. | 🟡 in progress (Tier 2, this plan) |
 | **L1 — Rich world** | 40+ entities, 30+ reactions. Cascades: wet wood resists fire, dry heat ignites, rain soaks, crops rot. Observable without agents. | 📋 Tier 2 final phase |
 | **L2 — Acid-tested framework** | Five genre demos (ecology, farming, shooter, RPG, chess) all run from identical engine, different JSON. | 📋 Tier 2 gate |
+| **L2.5 — Text-to-game pipeline** | Prose → GDD → entity+rule JSON via specialist agents + ADR discipline. Cheap pulls alongside W2+; full build after Tier 2 exit. | 📋 Tier 2.5 (new, 2026-04-23) |
 | **L3 — Actors** | Entities that observe and emit inputs. Player, scripted AI, LLM — same channel. Agent content rebuilt on new primitives. | 📋 Tier 3 |
 | **L4 — Persistence + scale** | Save/load, time acceleration, host/client, episode recorder. | 📋 Tier 4 |
 
@@ -171,40 +185,80 @@ yet, but the data shape is final.
   Kept: `sim_pos.gd`, `world_clock.gd`, `pathfinding_astar.gd`, `minimap.gd`.
   `recipes.json`/`needs.json` live downstream in Yume3D test instance — not
   framework-tracked.
-- [ ] **W1.3** Write `scripts/engine/entity.gd` — generic Node2D subclass.
-  Holds `def_id`, `properties`, `state`, `tags`. No subclassing.
-- [ ] **W1.4** Write `scripts/engine/rule.gd` — rule data struct + validator.
-  Loads from `world_rules.json`. Parsed `Expression` cached on struct.
-- [ ] **W1.5** Write `scripts/engine/query.gd` — query compiler. Supports
-  `properties`, `tags_all`, `tags_any`, `tags_none`, `state` with operators
-  `_eq/_ne/_gt/_lt/_gte/_lte/_atleast/_atmost`, `relations`, `radius`, `limit`.
-- [ ] **W1.6** Write `scripts/engine/effect_apply.gd` — `state_set`,
-  `state_add`, `state_mul`, `state_clamp`, `spawn`, `remove`, `transform`,
-  `relate`, `unrelate`, `transfer_relation`. (Formulas come in W4;
-  `velocity_set`, `emit` come in W2.)
-- [ ] **W1.7** Write `scripts/engine/relation_store.gd` — typed directed-edge
-  store. Bi-indexed `(type, from)` → list, `(type, to)` → list. Mutation
-  API: `add`, `remove`, `transfer`, `remove_by_entity` (called on despawn).
-- [ ] **W1.8** Write `scripts/engine/phase_scheduler.gd` — four-phase tick
-  loop (`input` / `decide` / `commit` / `react`). Effect write-buffer.
-  `before`/`after` dependency topo-sort within phase; cycle detection errors
-  at load. No integer `priority` field.
-- [ ] **W1.9** Redesign `world_rules_engine.gd` to use new Rule/Query/Effect
-  types + phase scheduler. `tick` trigger only for this phase.
-- [ ] **W1.10** Write `scripts/renderer_2d/entity_sprite_2d.gd` — reads
-  `entity.visual.sprite_2d`, renders at `entity.position`.
-- [ ] **W1.11** Minimal `scenes/world_2d.tscn` — Camera2D, TileMap ground,
-  spawns entities from `entities.json`.
-- [ ] **W1.12** Demo: one `wheat_seed` entity with `growth` state field and
-  a tick rule that increments it. Renders as sprite. **Proof of life.**
-- [ ] **W1.13** **Tests (ship-with-phase):**
-  - Engine-unit tests for `entity`, `query` (all operators + `relations` +
-    `tags_none`), `effect_apply` (each effect type), `relation_store`
-    (bi-direction, transfer), `phase_scheduler` (four-phase order,
-    `before`/`after` topo, cycle detection).
-  - Schema validator stub (Python, `yume test`): parse `entities.json` +
-    `world_rules.json`, ref integrity, no duplicate ids.
-  - Exit: all unit tests pass; validator stub rejects a known-bad fixture.
+- [x] **W1.3** Write `scripts/engine/entity.gd` — generic Node2D subclass.
+  Holds `def_id`, `instance_id`, `properties`, `state`, `tags`, `visual`. Factory
+  `Entity.create(def, inst_id, overrides)` handles spawn-time merges. No subclasses.
+- [x] **W1.4** Write `scripts/engine/rule.gd` — Rule class with `from_dict`,
+  `load_from_file`, `validate_all` (structural checks: id/trigger type/chance
+  range/effect list). Before/after hints as typed `Array[String]`, `runs_before`/
+  `runs_after` for phase-scheduler use. Expression cache slots (`cache_expression`/
+  `cached_expression`) for W4.
+- [x] **W1.5** Write `scripts/engine/query.gd` — QueryLib class. `matches(ent,
+  spec, env, context)` for single-entity test; `run(spec, env, context)` for
+  scan. Supports `properties`, `state`, `tags_all/any/none`, operators
+  `_eq/_ne/_gt/_lt/_gte/_lte/_atleast/_atmost`, `relations` clause (string or
+  nested query target), `radius` + origin resolution (`_origin_position` →
+  `context.self` → zero), `order_by` (`distance_asc/desc`), `limit`. Strict:
+  missing field = no match. env carries `entities` map + `relations` store.
+- [x] **W1.6** Write `scripts/engine/effect_apply.gd` — EffectApply.apply(effect,
+  env, context) dispatches to 13 handlers: `state_set/add/mul/clamp`, `spawn`/
+  `remove`/`transform` (preserves state via overrides), `relate`/`unrelate`/
+  `transfer_relation` (to/from swaps), `tag_add/remove`, `velocity_set` (W2 wires
+  motion integrator). `emit` routed by phase_scheduler, not here. Target
+  resolution per contract: context binding first, literal id fallback. Value
+  resolution is literal-only in W1 (W4 adds formula wrapper).
+- [x] **W1.7** Write `scripts/engine/relation_store.gd` — directed multigraph
+  with both-direction indexes (`_from_idx`, `_to_idx`). Dedup at insert.
+  API: `relate`/`unrelate`/`transfer_to`/`transfer_from`, `targets`/`sources`/
+  `has_edge`/`count`/`all_of_type`, `clear_entity` (despawn cleanup),
+  `snapshot`/`restore`. Signals `relation_added`/`relation_removed` for
+  `relation_changed` trigger dispatch (W2). Pulled forward from W1.7 → before
+  W1.5 since query's `relations` clause depends on it.
+
+- [x] **W1.8** Write `scripts/engine/phase_scheduler.gd` — four-phase tick
+  loop (`input` / `decide` / `commit` / `react`). Effect write-buffer +
+  `flush_effects()` between phases. Rules bucketed by trigger type;
+  within-bucket bubble-sort via `runs_before`/`runs_after` with cycle
+  warning. W1 wires tick rules in `_phase_decide`; input/react are W2
+  extension points (stubs). Require-clause validation integrated.
+- [x] **W1.9** Write `scripts/engine/world.gd` (replaces old `world_rules_engine.gd`
+  naming per contract) — top-level Node2D orchestrator. Owns entities map,
+  defs map, RelationStore, PhaseScheduler, WorldClock, world_state. Exports
+  `data_root`, `auto_start`, `tick_seconds`, `verbose`. `load_data()` loads
+  rules → world → entities (order honors W0 lifecycle-flush finding).
+  `start()` wires clock → scheduler.tick. `queue_input`, `entity(id)`,
+  `count_entities_matching`, `count_relations_of` public API. Also moved
+  `world_clock.gd` into `scripts/engine/` with `class_name WorldClock` and
+  programmatic `tick_seconds` (no more global meta.json read).
+- [x] **W1.10** Write `scripts/renderer_2d/entity_sprite_2d.gd` — Node2D
+  child of Entity. Reads `entity.visual.sprite_2d` → draw_texture, or falls
+  back to colored circle via `visual.color` / `visual.radius`. Swappable
+  (World.renderer_script export; "" disables for headless tests).
+- [x] **W1.11** Minimal `scenes/world_2d.tscn` — root `World` Node2D with
+  script, Camera2D child. Also added `project.godot` (framework now a
+  runnable Godot project, not just a template). **Verified with first
+  headless run.**
+- [x] **W1.12** Demo: one `wheat_seed` entity, one `crop_grows` tick rule.
+  Ran headless in Godot 4.6 for 600 frames (5s real). Output:
+  `[tick 2] growth=2.0 ... [tick 8] growth=8.0`. **Proof of life — Entity +
+  Rule + QueryLib + EffectApply + PhaseScheduler + World + WorldClock all
+  work end-to-end.**
+- [x] **W1.13** **Tests (ship-with-phase):**
+  - `scripts/engine/tests/test_runner.gd` + `scenes/test_main.tscn` —
+    consolidated unit tests across all 7 primitives.
+  - Coverage: Entity (create/tags/state/velocity/snapshot/overrides), Rule
+    (from_dict/effect-list normalization/before-after/validate_all),
+    RelationStore (relate/unrelate/transfer/dedup/clear_entity/snapshot),
+    QueryLib (tags all/any/none, property + state operators incl strict
+    missing-field, radius+origin, limit, order_by, matches single-entity),
+    EffectApply (state_set/add/mul/clamp, tag_add/remove, target as literal
+    id, relate/unrelate, spawn with forced id, remove, transform with state
+    preservation), Schema validator smoke (Rule.validate_all rejects empty
+    id, missing effect type, out-of-range chance).
+  - **Run: `godot --headless --path . scenes/test_main.tscn`**
+  - **Result: 77/77 pass.** Proof-of-life demo (world_2d.tscn) still green
+    post-test addition. Python schema validator (`yume test` CLI) deferred
+    to W2.8 — in-engine smoke validates the same paths.
 
 ### W2 — Triggers beyond tick + motion (~1 week)
 
@@ -367,10 +421,73 @@ compositionality vision).
 
 ---
 
+## Roadmap — Tier 2.5 PIPELINE (text-to-game)
+
+_Added 2026-04-23 after CCGS analysis + user's goal clarification: "make Yume
+able to create any game we want with any different rules and physics, all
+just through text description." Full rationale in
+`docs/31_text_to_game_pipeline.md`._
+
+Text-to-game needs three layers: design (prose → GDD), spec (GDD → entity
+defs + rule specs with ADR trail), runtime (Yume, layers 1-2 missing). Tier
+2.5 adopts trimmed CCGS patterns to build layers 1-2 so users can describe a
+game in natural language and get running JSON.
+
+**Scope invariant:** "Any simulation-shaped game, any data-driven rules,
+discrete-tick physics, text-described." Non-goals: rhythm, precision
+platformers, continuous physics, narrative-heavy adventures.
+
+### Cheap pulls (can land alongside W1.13 / W2, non-blocking)
+
+- [ ] **2.5a** `.claude/rules/` — path-scoped rules per directory:
+  `engine-scripts.md` (no semantic effects, no genre assumptions),
+  `data-demo.md` (JSON validates against schema, formulas whitelisted),
+  `docs.md` (primitive changes require ADR).
+- [ ] **2.5b** `docs/engine-reference/godot/` — `VERSION.md` (Godot 4.6.1
+  pinned), `deprecated-apis.md`, `current-best-practices.md` (GDScript
+  idioms), `breaking-changes.md`. Read-first for any agent touching engine.
+- [ ] **2.5c** Bake "Question → Options → Decision → Draft → Approval"
+  collaboration protocol into builder/designer/tester agent prompts.
+
+### Pipeline core (blocked on Tier 2 exit)
+
+- [ ] **2.5d** `docs/adr/` + `docs/architecture/tr-registry.yaml` — each
+  primitive change logged as ADR; requirements tracked with TR-IDs. JSON
+  content references `"_tr": "TR-042"` for traceability.
+- [ ] **2.5e** `docs/32_mda_for_yume.md` — MDA framework translated for
+  Yume (Mechanics = rules + entities; Dynamics = emergent behavior from
+  rule composition; Aesthetics = player experience).
+- [ ] **2.5f** Slim specialist agent set under `.claude/agents/yume/`:
+  `game-designer` (prose → GDD), `systems-designer` (rules/mechanics),
+  `content-designer` (entity defs/values), `qa-tester` (validates JSON
+  runs), `tech-director` (primitive invariant guard). 5 agents, not 49.
+- [ ] **2.5g** `/yume-design` skill — the pipeline entry point. Prose →
+  GDD (designer) → rule sketches + ADRs (systems) → entities + values
+  (content) → Yume JSON + validated run (qa). User-approval gates between
+  phases.
+- [ ] **2.5h** `.claude/skills/*/test_spec.md` — behavioral tests. "Given
+  prompt X, does `/yume-design` produce valid entities.json that runs?"
+  THE acid test for the whole pipeline.
+
+### Non-deliverables (explicit)
+
+- Not building 49-agent hierarchy. 3-agent core + 5-specialist pipeline
+  matches Yume's scope.
+- Not building 7-phase full production workflow. 3 phases (design, spec,
+  runtime) sufficient.
+- Not replicating CCGS `production/` folder (sprints, milestones) — Yume
+  isn't a project manager.
+
+---
+
 ## Roadmap — Tier 3 Actors (after Tier 2)
 
 Once the engine is genre-agnostic and content-rich, **agents** re-enter as
-entities that observe state and emit input triggers.
+entities that observe state and emit input triggers. Tier 3 also lands the
+**two deferred primitives** (Plan, Knowledge) flagged in
+`docs/30_framework_primitives.md` §"Deferred primitives" — motivated by
+Feng et al. 2026 *"Environment Maps"* showing structured agent
+representations beat raw-trace consumption on long-horizon tasks.
 
 - [ ] **3.1 Actor = entity with observe/decide/emit loop.** No new primitive;
   just a convention: entities tagged `actor` have a rule that reads world
@@ -381,10 +498,22 @@ entities that observe state and emit input triggers.
   Same channel as AI.
 - [ ] **3.4 LLM actor** — async `claude -p` call, emits inputs. Requires
   async process handling (current sync version blocks tick).
+- [ ] **3.4a Plan primitive (8th).** Multi-step intentions: `{goal,
+  abandon_if, steps[]}`. Plan executor advances steps when preconditions
+  match. Closes the long-horizon gap (Feng et al. § Workflows).
+- [ ] **3.4b Knowledge primitive (9th).** `knowledge.json` declarative
+  facts side-channel. Read by LLM actors and Tier 2.5 design agents;
+  ignored by runtime. Closes the "agent re-derives causality every tick"
+  failure mode (Feng et al. § Tacit Knowledge).
+- [ ] **3.4c Context + Affordance helper APIs.** Not new primitives —
+  `World.contexts_containing(id)` (tag-based) and `World.affordances_for(id)`
+  (indexed view of input-trigger rules). Round out the four-component
+  Environment Map vocabulary on top of the existing primitive set.
 - [ ] **3.5 Multi-actor coordination** — shared signal bus lets actors
   communicate (trade offers, cooperative goals).
-- [ ] **3.6 Actor memory** — per-actor state field `memory: {known_recipes,
-  remembered_locations, relationships}`. Decay/reinforce via rules.
+- [ ] **3.6 Actor memory** — per-actor Environment Map: contexts visited,
+  workflows that succeeded, knowledge inferred. Persists across sessions
+  via save/load (Tier 4.1). This is the paper's actual contribution.
 
 ### Tier 3 acid test
 

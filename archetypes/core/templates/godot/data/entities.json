@@ -1,0 +1,26 @@
+{
+  "_comment": "W1.12 proof-of-life demo: one wheat_seed entity with a growth state field.",
+
+  "definitions": [
+    {
+      "id": "wheat_seed",
+      "tags": ["plant", "crop"],
+      "properties": {
+        "material": "plant",
+        "mass": 0.1
+      },
+      "state_init": {
+        "growth": 0.0,
+        "age": 0
+      },
+      "visual": {
+        "color": "#d4b54a",
+        "radius": 6.0
+      }
+    }
+  ],
+
+  "initial_instances": [
+    {"def": "wheat_seed", "id": "seed_1", "position": [0, 0]}
+  ]
+}

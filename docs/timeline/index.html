@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yume Diary — Universal Simulation Framework</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Yume Diary</h1>
+    <p class="subtitle">Universal simulation framework — design log</p>
+    <p class="note">
+      ES modules require a local server. Run <code>python -m http.server</code>
+      from <code>docs/timeline/</code> and open <code>http://localhost:8000</code>.
+    </p>
+    <nav class="filters">
+      <span class="filter-label">Filter:</span>
+      <button class="filter-btn active" data-type="all">all</button>
+      <button class="filter-btn" data-type="decision">decision</button>
+      <button class="filter-btn" data-type="build">build</button>
+      <button class="filter-btn" data-type="discovery">discovery</button>
+      <button class="filter-btn" data-type="review">review</button>
+      <button class="filter-btn" data-type="commit">commit</button>
+    </nav>
+  </header>
+
+  <main id="timeline"></main>
+
+  <footer>
+    <p>
+      Lives in <code>docs/timeline/</code>. Each entry is a JS module under
+      <code>entries/</code>; add a new one by writing a file and importing it
+      from <code>entries/_index.js</code>.
+    </p>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
