@@ -26,6 +26,28 @@ config over a single GDScript engine. No genre-specific engine code.
 7. **Relations are first-class.** Inventory, ownership, containment, parent/child,
    party membership are typed directed edges between entities — queryable,
    mutatable, traversable in formulas. Never a dict-in-state.
+8. **Engine = primitives + interpreter.** This generalizes invariants 1, 2, 4.
+   For every domain Yume touches — rules, shapes, audio, asset binding, AI
+   prompts — the engine ships a **fixed primitive vocabulary** (effect types,
+   draw operations, audio operations, query operators, formula helpers). All
+   **compositions** of those primitives — specific rules, specific shapes,
+   specific bindings — live in JSON. Adding a new vocabulary item should
+   require new engine code; adding a new composition should require only JSON.
+   This is the same insight the Environment Maps paper applies to agent
+   memory: structured representations beat hardcoded behavior — they're
+   queryable, editable, and incrementally refinable.
+
+   | Domain | Engine primitives (code) | JSON composition |
+   |---|---|---|
+   | Rules | `state_set`, `state_add`, `spawn`, `relate`, `transform`, ... | `world_rules.json` |
+   | Shapes | `circle`, `rect`, `polygon`, `line`, `text`, `texture` | `shapes.json` |
+   | Audio | `play`, `loop`, `fade`, `stop` | `audio_catalog.json` |
+   | Asset binding | (none — pure data lookup) | `asset_catalog.json` |
+   | Formulas | math helpers, query helpers | inline strings on rules |
+
+   When adding a new layer (e.g., animation in Tier 4): identify its primitive
+   vocabulary, ship that in code, push everything else into JSON. If a layer
+   resists this split, that's a sign the layer is wrong — re-decompose.
 
 ---
 

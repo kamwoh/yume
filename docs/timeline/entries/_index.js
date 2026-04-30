@@ -13,8 +13,11 @@ import { entry09 } from "./09_proof_of_life.js";
 import { entry10 } from "./10_ccgs_analysis.js";
 import { entry11 } from "./11_environment_maps.js";
 import { entry12 } from "./12_w1_complete.js";
+import { entry13 } from "./13_asset_layer.js";
+import { entry14 } from "./14_asset_pipeline.js";
+import { entry15 } from "./15_two_phase_assets.js";
 
 export const entries = [
   entry00, entry01, entry02, entry03, entry04, entry05, entry06,
-  entry07, entry08, entry09, entry10, entry11, entry12,
+  entry07, entry08, entry09, entry10, entry11, entry12, entry13, entry14, entry15,
 ];

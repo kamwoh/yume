@@ -281,6 +281,31 @@ yet, but the data shape is final.
 - [ ] **W2.7** Demo: player entity with input-driven velocity. WASD moves a
   sprite. Press Space emits signal; a rule listens and spawns a particle.
   **Proof of universal input/signal channel.**
+- [ ] **W2.7a** Config-driven shape/mesh libraries + three-tier fallback.
+  Engine learns **draw primitives only**:
+  - 2D: `circle`, `rect`, `polygon`, `line`, `text`, `texture`
+  - 3D (when renderer_3d lands in Tier 4): `box`, `sphere`, `cylinder`,
+    `capsule`, `plane`, `prism`, `torus`, `quad` — Godot's built-in
+    `PrimitiveMesh` types
+  Compositions in JSON: `data/shapes.json` (2D) and `data/meshes.json` (3D).
+  Each entry is a sequence of primitives with `$param` substitution.
+
+  **Three-tier fallback** the renderer applies in order:
+  1. `entity.visual.sprite_2d` / `model_3d` exists → load file
+  2. `entity.visual.shape` / `mesh` named in catalog → compose primitives
+  3. Nothing → bare colored circle (2D) or colored cube (3D) sized from
+     `entity.visual.size`, colored from `entity.visual.color`
+
+  **The bare fallback is always available** — every entity always renders
+  to something. Lets dev iteration on rules + balance happen long before
+  any real or composite assets are wired up.
+  - `scripts/engine/shape_lib.gd` — loads `shapes.json`, `get(name) → ShapeDef`
+  - `scripts/engine/mesh_lib.gd` — loads `meshes.json` (Tier 4 wiring)
+  - `scripts/renderer_2d/entity_sprite_2d.gd` — interpreter: try sprite,
+    then shape, then bare circle
+  - `data/shapes.json` — initial library (tree, rock, person, water, fire,
+    building, weapon, food, square, triangle). Author-extendable.
+  - `data/meshes.json` — same intent for 3D, populated when Tier 4 lands.
 - [ ] **W2.8** **Tests (ship-with-phase):**
   - Integration fixture per new trigger type: `signal_roundtrip/`,
     `input_velocity/`, `spawn_despawn_hook/`, `relation_changed_fires/`.
@@ -460,7 +485,7 @@ platformers, continuous physics, narrative-heavy adventures.
 - [ ] **2.5f** Slim specialist agent set under `.claude/agents/yume/`:
   `game-designer` (prose → GDD), `systems-designer` (rules/mechanics),
   `content-designer` (entity defs/values), `qa-tester` (validates JSON
-  runs), `tech-director` (primitive invariant guard). 5 agents, not 49.
+  runs), `tech-director` (primitive invariant guard). 5 core agents.
 - [ ] **2.5g** `/yume-design` skill — the pipeline entry point. Prose →
   GDD (designer) → rule sketches + ADRs (systems) → entities + values
   (content) → Yume JSON + validated run (qa). User-approval gates between
@@ -468,6 +493,99 @@ platformers, continuous physics, narrative-heavy adventures.
 - [ ] **2.5h** `.claude/skills/*/test_spec.md` — behavioral tests. "Given
   prompt X, does `/yume-design` produce valid entities.json that runs?"
   THE acid test for the whole pipeline.
+
+### Asset layer (4th channel — added 2026-04-30, revised same day)
+
+Pipeline produces four parallel JSON channels: `world_rules.json`,
+`entities.json`, `entity.visual`, `entity.audio`. **Each follows invariant
+#8** — engine ships primitive vocabularies (draw ops, audio ops, matcher
+operators); all specifics (which assets, which shapes, which prompts)
+live in JSON. Asset-designer specialist composes channels; nothing
+specialist-specific gets baked into the engine.
+
+- [ ] **2.5i** `asset-designer` specialist (6th agent) — reads GDD aesthetics
+  + entity list. Picks ONE strategy per project upfront so style stays
+  consistent. Outputs JSON only — no engine edits permitted:
+    - **Library lookup** → fills `entity.visual.sprite_2d` from catalog
+    - **AI-gen** → fills `entity.visual.sprite_prompt` (resolved by tool later)
+    - **Code-draw** → fills `entity.visual.shape` referencing `shapes.json`
+- [ ] **2.5j** Asset-catalog **format** (engine knows nothing about Kenney) —
+  `data/asset_catalog.json` is a list of matchers + paths:
+  ```json
+  {"match": {"tags_all": ["plant", "crop"]}, "sprite_2d": "..."}
+  ```
+  Engine just runs the matcher (uses existing QueryLib). A Kenney catalog,
+  a custom catalog, an AI-gen output — all interchangeable JSON files. Tool:
+  `yume assets resolve <data_root>` walks the catalog and populates
+  `entity.visual` paths.
+- [ ] **2.5k** AI-gen pipeline — four-step flow: prompt builder → hash check
+  → backend dispatcher → file saver. All config-driven via `data/asset_gen.json`
+  (style templates + backend registry). Per-entity prompts in
+  `entity.visual.sprite_2d_prompt` / `model_3d_prompt` / `audio.*_prompt`.
+  Manifest at `data/asset_manifest.json` records (entity, prompt-hash,
+  backend, params, cost) for idempotent re-runs.
+
+  **Default mode is INTERACTIVE one-by-one with approval.** Prompts are
+  guesses — user must verify intent before committing. Especially for 3D
+  ($0.40 + 60s per model, blasting 12 entities = $5 + 12 minutes — wrong
+  default).
+
+  CLI session shape (`yume assets generate <data_root>`):
+  ```
+  [1/12] wheat_mature.sprite_2d_prompt
+         Style:    "pixel art, 32x32, vibrant"
+         Entity:   "golden wheat stalk with full grain heads"
+         Backend:  fal_flux_schnell ($0.003 est)
+         (g) generate  (e) edit prompt  (b) backend  (s) skip > g
+         generating... [1.4s, $0.003]
+         saved: assets/generated/wheat_mature_a3f9b2.png
+         (image opened in default viewer)
+         (y) accept  (r) regen, new seed  (R) regen+edit  (b) backend  (s) skip > y
+         ✓ accepted. moving to [2/12]...
+  ```
+
+  CLI subcommands:
+  - `yume assets generate <data_root>` — interactive, default
+  - `yume assets generate --batch --auto-accept` — non-interactive (CI, full regen)
+  - `yume assets generate --only wheat,tree` — selective
+  - `yume assets generate --since-prompt-changed` — only entities with edited prompts
+  - `yume assets review <data_root>` — re-show last generation, regenerate any
+  - `yume assets cost <data_root>` — total spend across runs
+  - `yume assets clean <data_root>` — remove orphaned files
+- [ ] **2.5k.1** Backend abstraction — three adapter classes cover the
+  shapes: `SyncImageAdapter` (FLUX, DALL-E, SD), `AsyncJobAdapter`
+  (Meshy, Tripo — submit, poll, retrieve), `StreamingAudioAdapter`
+  (ElevenLabs, Stable Audio). Each backend's config block declares
+  `type` + `endpoint` + `auth_env` + `params` + optional `polling: true`.
+  Adding a new API = JSON entry; new shape = ~50 LOC adapter.
+- [ ] **2.5k.2** Post-processing hooks — per-style `postprocess` config:
+  `{"resize": [32, 32], "quantize_palette": 16}` for pixel art;
+  `{"format_convert": "glb"}` for 3D. Pillow + trimesh handle most cases.
+  Out of MVP scope: UV cleanup, LOD generation.
+- [ ] **2.5k.3** Cost guardrails — optional `max_cost_usd` in `asset_gen.json`;
+  tool stops + asks user before exceeding. Per-API cost tracked in manifest.
+- [ ] **2.5k.4** Review/preview UX. Per-entity preview surfaces:
+  - **MVP:** save file + dispatch to default viewer via `xdg-open` /
+    `open` / `start` (cross-platform). User clicks back to terminal to
+    accept.
+  - **Nice:** `yume assets review --serve` — serves a localhost HTML page
+    with thumbnail grid, click-to-regenerate, accept/skip buttons. Better
+    UX for batches of 20+ entities.
+  - **Diff mode:** when prompt changed but old asset exists, show old vs
+    new side-by-side; user picks.
+  - **Generation history:** every accepted asset's predecessor attempts
+    move to `assets/generated/.history/`; never lose a "good enough"
+    fallback when iterating.
+- [ ] **2.5l** Audio renderer + audio catalog. Same shape:
+  `scripts/renderer_2d/sound_player_2d.gd` learns audio primitives (`play`,
+  `loop`, `fade`, `stop`); compositions live in `data/audio_catalog.json`
+  + per-entity `audio.{sfx_loop, sfx_on_signal, bgm}` fields. Library /
+  AI-gen / silent fallback — JSON-selectable.
+
+**Why this matters:** swapping from Kenney pixel-art to custom AI-gen 3D is
+swapping JSON files, not rewriting Yume. Going silent is deleting one JSON
+file. Adding a new shape is editing `shapes.json`. **The engine is ignorant
+of every specific asset, shape, sound, or prompt by design.**
 
 ### Non-deliverables (explicit)
 
