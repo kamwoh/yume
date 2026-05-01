@@ -912,16 +912,20 @@ Tier 3 (actors). Prerequisite for any autonomous LLM workflow.
   - Reports pass/fail per test case
   - CI-runnable
 
-- [ ] **2.6c** **Tool registry auto-generation.** Replace hand-edited
+- [x] **2.6c** **Tool registry auto-generation.** Replaced hand-edited
   effect/trigger/operator lists in agent prompts with auto-generated
   manifests:
-  - `docs/engine-reference/api-manifest.json` — generated from
-    `Rule.VALID_TRIGGERS`, `EffectApply.apply` match arms, query
-    operators, formula bindings
-  - Build step (Godot scene + GDScript) emits this on demand
-  - Agents reference the manifest, not hand-maintained docs
-  - Adding a primitive automatically updates the manifest → agents
-    pick up new vocabulary without prompt edits
+  - [x] `docs/engine-reference/api-manifest.json` — Python regex over
+    GDScript source extracts `Rule.VALID_TRIGGERS`, `EffectApply.apply`
+    match arms, `QueryLib.OPERATOR_SUFFIXES`, `query.gd` clause names,
+    `engine_error.gd` constants. Sanity check fails loudly on parse drift.
+  - [x] Companion `api-manifest.md` for human readers (auto-rendered).
+  - [x] `tools/gen_api_manifest.py` runs on demand (no Godot dep).
+  - [x] Agents reference the manifest: pointers added to
+    content-designer.md, systems-designer.md, tech-director.md.
+  - Landed 2026-05-01: 14 effects, 8 triggers, 9 query clauses, 8
+    operator suffixes, 26 error codes, 6 formula roles — all derived
+    from source. Build step is `python tools/gen_api_manifest.py`.
 
 - [ ] **2.6d** **Persistent workflow state.** `production/session-state/`
   (CCGS-pattern) — current `/yume-design` run state survives session

@@ -118,7 +118,8 @@ Things you couldn't pin down without seeing actual data:
 
 6. **Apply path-scoped rules** (`.claude/rules/data-demo.md`). Especially:
    no semantic effect types (`damage`, `need_decay`, `gain_xp`) — use
-   `state_add` with field naming.
+   `state_add` with field naming. The valid-effect list is in
+   `docs/engine-reference/api-manifest.json` (`effects`).
 
 7. **Apply collaboration protocol.** If the rule design has
    ambiguities, surface them before handing off. Better to ask

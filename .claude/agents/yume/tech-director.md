@@ -43,6 +43,11 @@ grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|a
   archetypes/core/templates/godot/scripts/engine/
 ```
 
+The canonical list of allowed effect types lives in
+`docs/engine-reference/api-manifest.json` (`effects`). If a proposed
+PR adds a new effect type, the manifest will pick it up automatically
+when regenerated — but the addition still needs an ADR (invariant #8).
+
 ### Invariant #3: No entity-class hierarchy
 
 Forbidden: `extends Entity`, `class_name Agent extends Node`,

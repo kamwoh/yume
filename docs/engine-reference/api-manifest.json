@@ -1,0 +1,243 @@
+{
+  "version": "1",
+  "generated_at": "2026-05-01T23:14:13+00:00",
+  "generated_from": "archetypes/core/templates/godot/scripts/engine",
+  "primitives": [
+    "Entity",
+    "Tag",
+    "Rule",
+    "Trigger",
+    "Effect",
+    "Query",
+    "Relation"
+  ],
+  "deferred_primitives": [
+    "Plan",
+    "Knowledge"
+  ],
+  "triggers": [
+    "tick",
+    "contact",
+    "signal",
+    "input",
+    "spawn",
+    "despawn",
+    "relation_changed",
+    "scheduled"
+  ],
+  "effects": [
+    {
+      "type": "state_set",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "state_add",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "state_mul",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "state_clamp",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "spawn",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "remove",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transform",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "relate",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "unrelate",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transfer_relation",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "tag_add",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "tag_remove",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "velocity_set",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "emit",
+      "source": "effect_apply.gd"
+    }
+  ],
+  "query_clauses": [
+    "tags_all",
+    "tags_any",
+    "tags_none",
+    "properties",
+    "state",
+    "relations",
+    "radius",
+    "order_by",
+    "limit"
+  ],
+  "query_operator_suffixes": [
+    "_eq",
+    "_ne",
+    "_gt",
+    "_lt",
+    "_gte",
+    "_lte",
+    "_atleast",
+    "_atmost"
+  ],
+  "formula_entity_roles": [
+    "self",
+    "target",
+    "a",
+    "b",
+    "source",
+    "world"
+  ],
+  "formula_math_helpers": [
+    "sin",
+    "cos",
+    "tan",
+    "sqrt",
+    "pow",
+    "abs",
+    "floor",
+    "ceil",
+    "round",
+    "clamp",
+    "min",
+    "max",
+    "lerp",
+    "randf"
+  ],
+  "error_codes": [
+    {
+      "constant": "RULE_FILE_MISSING",
+      "code": "rule.file_missing"
+    },
+    {
+      "constant": "RULE_INVALID_JSON",
+      "code": "rule.invalid_json"
+    },
+    {
+      "constant": "RULE_LIST_NOT_ARRAY",
+      "code": "rule.list_not_array"
+    },
+    {
+      "constant": "RULE_NOT_INSTANCE",
+      "code": "rule.not_instance"
+    },
+    {
+      "constant": "RULE_MISSING_ID",
+      "code": "rule.missing_id"
+    },
+    {
+      "constant": "RULE_DUPLICATE_ID",
+      "code": "rule.duplicate_id"
+    },
+    {
+      "constant": "RULE_TRIGGER_MISSING",
+      "code": "rule.trigger_missing"
+    },
+    {
+      "constant": "RULE_TRIGGER_INVALID",
+      "code": "rule.trigger_invalid"
+    },
+    {
+      "constant": "RULE_EFFECT_EMPTY",
+      "code": "rule.effect_empty"
+    },
+    {
+      "constant": "RULE_EFFECT_NOT_DICT",
+      "code": "rule.effect_not_dict"
+    },
+    {
+      "constant": "RULE_EFFECT_MISSING_TYPE",
+      "code": "rule.effect_missing_type"
+    },
+    {
+      "constant": "RULE_CHANCE_OUT_OF_RANGE",
+      "code": "rule.chance_out_of_range"
+    },
+    {
+      "constant": "EFFECT_UNKNOWN_TYPE",
+      "code": "effect.unknown_type"
+    },
+    {
+      "constant": "EFFECT_SPAWN_NO_DEF",
+      "code": "effect.spawn_no_def"
+    },
+    {
+      "constant": "EFFECT_TRANSFORM_NO_DEF",
+      "code": "effect.transform_no_def"
+    },
+    {
+      "constant": "EFFECT_EMIT_NO_BUFFER",
+      "code": "effect.emit_no_buffer"
+    },
+    {
+      "constant": "FORMULA_PARSE_FAILED",
+      "code": "formula.parse_failed"
+    },
+    {
+      "constant": "FORMULA_EXEC_FAILED",
+      "code": "formula.exec_failed"
+    },
+    {
+      "constant": "WORLD_ENTITIES_MISSING",
+      "code": "world.entities_missing"
+    },
+    {
+      "constant": "WORLD_ENTITIES_INVALID",
+      "code": "world.entities_invalid_json"
+    },
+    {
+      "constant": "WORLD_DEF_UNKNOWN",
+      "code": "world.def_unknown"
+    },
+    {
+      "constant": "SHAPE_FILE_MISSING",
+      "code": "shape.file_missing"
+    },
+    {
+      "constant": "SHAPE_INVALID_JSON",
+      "code": "shape.invalid_json"
+    },
+    {
+      "constant": "MESH_FILE_MISSING",
+      "code": "mesh.file_missing"
+    },
+    {
+      "constant": "MESH_INVALID_JSON",
+      "code": "mesh.invalid_json"
+    },
+    {
+      "constant": "SCHEDULER_TOPO_CYCLE",
+      "code": "scheduler.topo_cycle"
+    }
+  ],
+  "reserved_state_fields": [
+    "position",
+    "velocity",
+    "age"
+  ],
+  "invariants_count": 8
+}

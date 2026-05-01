@@ -122,12 +122,16 @@ Before declaring done, run mental schema validation:
 
 | Check | How |
 |---|---|
-| All trigger types valid | Cross-ref `Rule.VALID_TRIGGERS` |
-| Every effect has a `type` | Walk effect arrays |
+| All trigger types valid | Cross-ref `docs/engine-reference/api-manifest.json` (`triggers`) |
+| Every effect has a `type` | Walk effect arrays; valid set in manifest (`effects`) |
 | No duplicate ids | Sort `initial_instances` ids |
 | Tag references match definitions | Cross-ref tags between defs and queries |
 | Formula syntax | Try parsing — most syntax errors visible by eye |
 | Positions in scene-bounds | Assume ±240 px for 2D demos |
+
+The api-manifest is auto-generated from engine source — it's the
+canonical list of what verbs the engine supports. Hand-edited lists in
+this prompt may drift; the manifest does not.
 
 ## What good looks like
 
