@@ -107,6 +107,14 @@ func count(type: String) -> int:
 			n += (_from_idx[key] as Array).size()
 	return n
 
+
+## Total edges across all types. Diagnostic / display.
+func count_total() -> int:
+	var n := 0
+	for key in _from_idx.keys():
+		n += (_from_idx[key] as Array).size()
+	return n
+
 ## All edges of `type` as [{from, to}, ...]. For iteration/snapshot.
 func all_of_type(type: String) -> Array:
 	var out: Array = []

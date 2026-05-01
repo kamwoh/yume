@@ -246,21 +246,22 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 # ============================================================
 
 ## Push a signal onto env.signal_buffer for the scheduler to dispatch.
-## Payload values can reference context entries — e.g. `{recipient: "self"}`
-## resolves to `context.self`'s id.
+## Payload values are resolved like effect numeric fields:
+##   - bare context name → context lookup (e.g. `"self"` → ctx["self"])
+##   - formula string → Formula.evaluate (e.g. `"self.state.xp_value"`)
+##   - literal → pass through
 static func _emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var name := str(e.get("signal", ""))
 	if name == "": return
-	var payload: Dictionary = (e.get("payload", {}) as Dictionary).duplicate()
-	# Resolve any string values that match context keys
-	for k in payload.keys():
-		if payload[k] is String and ctx.has(str(payload[k])):
-			payload[k] = ctx[str(payload[k])]
+	var raw_payload: Dictionary = (e.get("payload", {}) as Dictionary)
+	var resolved_payload: Dictionary = {}
+	for k in raw_payload.keys():
+		resolved_payload[k] = _value(raw_payload[k], ctx, env)
 	var buf: Array = env.get("signal_buffer", null)
 	if buf == null:
 		push_warning("emit: env has no signal_buffer — scheduler may be uninitialized")
 		return
-	buf.append({"name": name, "payload": payload})
+	buf.append({"name": name, "payload": resolved_payload})
 
 
 # ============================================================
@@ -313,8 +314,11 @@ static func _value(v, ctx: Dictionary, env: Dictionary = {}):
 static func _formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 	var out: Dictionary = {}
 	var entities: Dictionary = env.get("entities", {})
-	# Common entity bindings: id string → Entity object
-	var entity_roles: Array[String] = ["self", "target", "a", "b", "source"]
+	# Common entity bindings: id string → Entity object. `from`/`to` are
+	# typically set by relation_changed dispatch (W2.4) and signal payloads
+	# carrying entity refs.
+	var entity_roles: Array[String] = ["self", "target", "a", "b", "source",
+		"from", "to", "piece", "from_sq", "to_sq"]
 	for role in entity_roles:
 		if ctx.has(role):
 			var id: String = str(ctx[role])

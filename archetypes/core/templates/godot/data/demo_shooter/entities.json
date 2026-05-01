@@ -1,0 +1,52 @@
+{
+  "_comment": "W5.3 top-down shooter demo. Player WASD-moves, IJKL-fires bullets in cardinal directions. Enemies pursue player via contact-pair AI. Bullets do damage on contact, then despawn. Score counter tracks kills.",
+
+  "definitions": [
+    {
+      "id": "player",
+      "tags": ["player", "actor"],
+      "state_init": {"velocity": [0, 0], "hp": 100, "kills": 0},
+      "visual": {"shape": "person", "params": {"shirt": "#5b9bff", "skin": "#e0b094"}}
+    },
+    {
+      "id": "enemy",
+      "tags": ["enemy"],
+      "state_init": {"velocity": [0, 0], "hp": 30},
+      "visual": {"shape": "person", "params": {"shirt": "#d94c1a", "skin": "#a05a1c"}}
+    },
+    {
+      "id": "bullet",
+      "tags": ["bullet", "projectile"],
+      "state_init": {"velocity": [0, 0], "lifespan": 30, "damage": 12},
+      "visual": {"shape": "food", "params": {"body": "#ffe066", "highlight": "#fff7d6"}}
+    },
+    {
+      "id": "wall",
+      "tags": ["decor"],
+      "visual": {"shape": "rock", "params": {"stone": "#5a5a5a"}}
+    },
+    {
+      "id": "score_ui",
+      "tags": ["score", "ui"],
+      "state_init": {"kills": 0},
+      "visual": {"shape": "marker", "params": {"mark": "#444"}}
+    }
+  ],
+
+  "initial_instances": [
+    {"def": "player",   "id": "player_1", "position": [0, 0]},
+    {"def": "score_ui", "id": "score",    "position": [-220, -130]},
+
+    {"def": "enemy",    "id": "enemy_1",  "position": [180, 100]},
+    {"def": "enemy",    "id": "enemy_2",  "position": [-180, 100]},
+    {"def": "enemy",    "id": "enemy_3",  "position": [180, -100]},
+    {"def": "enemy",    "id": "enemy_4",  "position": [-180, -100]},
+    {"def": "enemy",    "id": "enemy_5",  "position": [0, 130]},
+    {"def": "enemy",    "id": "enemy_6",  "position": [0, -130]},
+
+    {"def": "wall",     "id": "wall_1",   "position": [80, 0]},
+    {"def": "wall",     "id": "wall_2",   "position": [-80, 0]},
+    {"def": "wall",     "id": "wall_3",   "position": [0, 60]},
+    {"def": "wall",     "id": "wall_4",   "position": [0, -60]}
+  ]
+}

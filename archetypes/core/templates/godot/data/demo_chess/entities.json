@@ -1,0 +1,86 @@
+{
+  "_comment": "W5.5 chess demo — 4x4 mini-chess. Non-spatial acid test for the framework. 16 squares (a1-d4), 6 pieces (1 king + 2 pawns each side), 1 game_state. Movement via input → unrelate/relate on_square + flip turn. NO continuous motion, NO ticks driving game logic — pure signal/relation flow. Full 8x8 is straightforward content extension; 4x4 proves the framework supports board-graph games on Relation + require + signal.",
+
+  "definitions": [
+    {
+      "id": "square_light",
+      "tags": ["square", "light"],
+      "properties": {"file": 0, "rank": 0},
+      "visual": {"shape": "square", "params": {"origin": [-15, -15], "size": [30, 30], "color": "#e0d0a8"}}
+    },
+    {
+      "id": "square_dark",
+      "tags": ["square", "dark"],
+      "properties": {"file": 0, "rank": 0},
+      "visual": {"shape": "square", "params": {"origin": [-15, -15], "size": [30, 30], "color": "#7a5a3a"}}
+    },
+    {
+      "id": "pawn_white",
+      "tags": ["piece", "white", "pawn"],
+      "visual": {"shape": "person", "params": {"shirt": "#f0f0f0", "skin": "#e0c080"}}
+    },
+    {
+      "id": "pawn_black",
+      "tags": ["piece", "black", "pawn"],
+      "visual": {"shape": "person", "params": {"shirt": "#202020", "skin": "#604030"}}
+    },
+    {
+      "id": "king_white",
+      "tags": ["piece", "white", "king"],
+      "visual": {"shape": "weapon", "params": {"blade": "#f0f0f0", "guard": "#c0a040", "grip": "#604030"}}
+    },
+    {
+      "id": "king_black",
+      "tags": ["piece", "black", "king"],
+      "visual": {"shape": "weapon", "params": {"blade": "#202020", "guard": "#806020", "grip": "#302010"}}
+    },
+    {
+      "id": "game_state",
+      "tags": ["game_state"],
+      "state_init": {"turn": "white", "move_count": 0},
+      "visual": {"shape": "marker", "params": {"mark": "#444"}}
+    }
+  ],
+
+  "initial_instances": [
+    {"def": "square_light", "id": "sq_a1", "properties": {"file": 0, "rank": 0}, "position": [-90, 90]},
+    {"def": "square_dark",  "id": "sq_b1", "properties": {"file": 1, "rank": 0}, "position": [-30, 90]},
+    {"def": "square_light", "id": "sq_c1", "properties": {"file": 2, "rank": 0}, "position": [30, 90]},
+    {"def": "square_dark",  "id": "sq_d1", "properties": {"file": 3, "rank": 0}, "position": [90, 90]},
+
+    {"def": "square_dark",  "id": "sq_a2", "properties": {"file": 0, "rank": 1}, "position": [-90, 30]},
+    {"def": "square_light", "id": "sq_b2", "properties": {"file": 1, "rank": 1}, "position": [-30, 30]},
+    {"def": "square_dark",  "id": "sq_c2", "properties": {"file": 2, "rank": 1}, "position": [30, 30]},
+    {"def": "square_light", "id": "sq_d2", "properties": {"file": 3, "rank": 1}, "position": [90, 30]},
+
+    {"def": "square_light", "id": "sq_a3", "properties": {"file": 0, "rank": 2}, "position": [-90, -30]},
+    {"def": "square_dark",  "id": "sq_b3", "properties": {"file": 1, "rank": 2}, "position": [-30, -30]},
+    {"def": "square_light", "id": "sq_c3", "properties": {"file": 2, "rank": 2}, "position": [30, -30]},
+    {"def": "square_dark",  "id": "sq_d3", "properties": {"file": 3, "rank": 2}, "position": [90, -30]},
+
+    {"def": "square_dark",  "id": "sq_a4", "properties": {"file": 0, "rank": 3}, "position": [-90, -90]},
+    {"def": "square_light", "id": "sq_b4", "properties": {"file": 1, "rank": 3}, "position": [-30, -90]},
+    {"def": "square_dark",  "id": "sq_c4", "properties": {"file": 2, "rank": 3}, "position": [30, -90]},
+    {"def": "square_light", "id": "sq_d4", "properties": {"file": 3, "rank": 3}, "position": [90, -90]},
+
+    {"def": "king_white",   "id": "wk",    "position": [-30, 90]},
+    {"def": "pawn_white",   "id": "wp1",   "position": [30, 90]},
+    {"def": "pawn_white",   "id": "wp2",   "position": [-90, 90]},
+
+    {"def": "king_black",   "id": "bk",    "position": [-30, -90]},
+    {"def": "pawn_black",   "id": "bp1",   "position": [30, -90]},
+    {"def": "pawn_black",   "id": "bp2",   "position": [-90, -90]},
+
+    {"def": "game_state",   "id": "game",  "position": [-200, 130]}
+  ],
+
+  "initial_relations": [
+    {"type": "on_square", "from": "wk",  "to": "sq_b1"},
+    {"type": "on_square", "from": "wp1", "to": "sq_c1"},
+    {"type": "on_square", "from": "wp2", "to": "sq_a1"},
+
+    {"type": "on_square", "from": "bk",  "to": "sq_b4"},
+    {"type": "on_square", "from": "bp1", "to": "sq_c4"},
+    {"type": "on_square", "from": "bp2", "to": "sq_a4"}
+  ]
+}

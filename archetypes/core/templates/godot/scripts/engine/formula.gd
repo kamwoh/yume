@@ -163,6 +163,21 @@ static func _resolve_path(root, path: String):
 			else:
 				return 0
 			continue
+		# Vector2/Vector3 component access — needed for formulas like
+		# `a.state.position.x` in contact-pair AI rules.
+		if cur is Vector2:
+			match p:
+				"x": cur = (cur as Vector2).x
+				"y": cur = (cur as Vector2).y
+				_: return 0
+			continue
+		if cur is Vector3:
+			match p:
+				"x": cur = (cur as Vector3).x
+				"y": cur = (cur as Vector3).y
+				"z": cur = (cur as Vector3).z
+				_: return 0
+			continue
 		# Cannot drill further into a scalar
 		return 0
 	return cur

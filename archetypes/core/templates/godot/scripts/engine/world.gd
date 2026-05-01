@@ -21,12 +21,15 @@ class_name World
 ## attaches one instance as a child of the Entity. Set empty to disable (useful
 ## for headless tests).
 @export_file("*.gd") var renderer_script: String = "res://scripts/renderer_2d/entity_sprite_2d.gd"
-## Input actions to poll each frame and convert to engine input triggers.
-## For each action in this list, if it's pressed/just-pressed, queue an
-## input event. The `actor` payload resolves to the first entity tagged
-## with `actor_tag` (W2 minimum — extensible to multi-actor later).
-@export var input_actions: PackedStringArray = PackedStringArray([
-	"move_north", "move_south", "move_east", "move_west", "spark",
+## Input actions polled while HELD — fire every frame the key is down.
+## Suitable for continuous things (movement, charge meters).
+@export var input_actions_hold: PackedStringArray = PackedStringArray([
+	"move_north", "move_south", "move_east", "move_west",
+])
+## Input actions polled on PRESS edge — fire once per keypress, not every frame.
+## Suitable for discrete events (spawn bullet, toggle, dialog advance).
+@export var input_actions_press: PackedStringArray = PackedStringArray([
+	"spark", "fire_north", "fire_south", "fire_east", "fire_west",
 ])
 @export var actor_tag: String = "player"
 ## "stop" action queued when no movement keys pressed (lets velocity_set
@@ -83,7 +86,7 @@ func load_data() -> void:
 	scheduler.flush_effects()
 	if verbose:
 		print("[World] loaded: %d defs, %d entities, %d relations" % [
-			defs.size(), entities.size(), relations.count("_total_")
+			defs.size(), entities.size(), relations.count_total()
 		])
 
 
@@ -193,26 +196,26 @@ func _process(delta: float) -> void:
 	_integrate_motion(delta)
 
 
-## Poll Input.is_action_pressed for each configured input action; if pressed,
-## queue an input event with `actor` resolved to first entity tagged
-## `actor_tag`. Also queues `stop_action_on_idle` when no movement is pressed
-## (lets velocity_set zero out cleanly).
+## Poll input actions and queue them on the scheduler. HOLD actions queue
+## every frame the key is pressed; PRESS actions queue once per keypress
+## (just_pressed edge). Both resolve `actor` to first entity tagged
+## `actor_tag`. `stop_action_on_idle` queues when no movement keys are held.
 func _poll_input() -> void:
-	if input_actions.is_empty(): return
 	var actor_id := _find_actor_id()
 	if actor_id == "": return
 	var any_movement_pressed := false
-	for action in input_actions:
-		if Input.is_action_just_pressed(action) or Input.is_action_pressed(action):
+	# HOLD actions — fire every frame while held
+	for action in input_actions_hold:
+		if Input.is_action_pressed(action):
 			scheduler.queue_input(action, {"actor": actor_id})
-			# Heuristic: any move_* action counts as movement. Keep simple.
 			if (action as String).begins_with("move_"):
 				any_movement_pressed = true
+	# PRESS actions — fire once on press-edge
+	for action in input_actions_press:
+		if Input.is_action_just_pressed(action):
+			scheduler.queue_input(action, {"actor": actor_id})
+	# Stop action when no movement held (idempotent zero-velocity_set)
 	if stop_action_on_idle != "" and not any_movement_pressed:
-		# Only queue stop ONCE per "no movement" period. Use just_released-like
-		# heuristic: queue stop when previously something was pressed and now nothing.
-		# For W2 minimum, just queue every frame — the velocity_set is idempotent.
-		# Skip if all velocity-changing rules already set zero last frame.
 		var actor_ent = entities.get(actor_id, null)
 		if actor_ent is Entity:
 			var v = (actor_ent as Entity).get_velocity()

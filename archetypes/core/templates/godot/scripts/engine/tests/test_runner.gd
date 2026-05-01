@@ -34,6 +34,9 @@ func _ready() -> void:
 	test_formulas()
 	test_mesh_lib()
 	test_renderer_parity()
+	test_shooter_cascade()
+	test_rpg_cascade()
+	test_chess_cascade()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -815,3 +818,324 @@ func test_renderer_parity() -> void:
 
 	(ents1["e1"] as Entity).queue_free()
 	(ents2["e1"] as Entity).queue_free()
+
+
+# ============================================================
+# SHOOTER CASCADE (W5.3) — input → spawn → motion → contact → damage → death
+# ============================================================
+
+func test_shooter_cascade() -> void:
+	_section("shooter_cascade (W5.3)")
+	# Build a tiny shooter: player + 1 stationary enemy, fire input → bullet → kill
+	var defs: Dictionary = {
+		"player": {"id": "player", "tags": ["player"], "state_init": {"velocity": [0, 0]}},
+		"enemy":  {"id": "enemy",  "tags": ["enemy"],  "state_init": {"velocity": [0, 0], "hp": 30}},
+		"bullet": {"id": "bullet", "tags": ["bullet", "projectile"],
+		           "state_init": {"velocity": [0, 0], "lifespan": 30, "damage": 12}},
+	}
+	var entities: Dictionary = {}
+	var p := Entity.create(defs.player, "p1"); p.set_position(Vector2(0, 0))
+	var e := Entity.create(defs.enemy, "e1");  e.set_position(Vector2(50, 0))
+	entities["p1"] = p; entities["e1"] = e
+
+	var rs := RelationStore.new()
+	var sx := SpatialIndex.new()
+	for id in entities:
+		sx.update_entity(id, (entities[id] as Entity).get_planar_position())
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs, "spatial_index": sx,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+
+	var rules: Array = [
+		Rule.from_dict({
+			"id": "fire_east",
+			"trigger": {"type": "input", "action": "fire_east"},
+			"effect": {"type": "spawn", "template": "bullet", "position": "actor",
+			           "overrides": {"state": {"velocity": [200, 0]}}},
+		}),
+		Rule.from_dict({
+			"id": "bullet_hits_enemy",
+			"trigger": {"type": "contact"},
+			"query": {
+				"a": {"tags_all": ["bullet"]},
+				"b": {"tags_all": ["enemy"]},
+				"radius": 60.0,
+			},
+			"effect": [
+				{"type": "state_add", "target": "b", "field": "hp", "amount": "-a.state.damage"},
+				{"type": "remove", "target": "a"},
+			],
+		}),
+		Rule.from_dict({
+			"id": "enemy_dies",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["enemy"], "state": {"hp_lte": 0}},
+			"effect": {"type": "remove", "target": "self"},
+		}),
+	]
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(rules)
+
+	# Initial state
+	expect_eq(QueryLib.run({"tags_all": ["bullet"]}, env).size(), 0, "no bullets initially")
+	expect_eq(QueryLib.run({"tags_all": ["enemy"]}, env).size(), 1, "1 enemy initially")
+	expect_eq(int(e.get_state("hp")), 30, "enemy hp = 30")
+
+	# Fire bullet east. Bullet spawns at player (0,0); enemy at (50,0) is
+	# within contact radius 60 → bullet hits + removed in same react phase.
+	sched.queue_input("fire_east", {"actor": "p1"})
+	sched.tick()
+	# After 1 tick the bullet is consumed (spawn → contact → remove all in
+	# same tick — input phase spawns, react phase contacts). Verify outcome.
+	expect_eq(int(e.get_state("hp")), 18, "enemy took 12 damage from bullet (formula -a.state.damage)")
+	expect_eq(QueryLib.run({"tags_all": ["bullet"]}, env).size(), 0, "bullet consumed by contact same tick")
+
+	# Fire again — total damage 24 → hp 6. Still alive.
+	sched.queue_input("fire_east", {"actor": "p1"})
+	sched.tick()
+	expect_eq(int(e.get_state("hp")), 6, "second hit: hp = 6 (alive)")
+
+	# Fire third time — damage 12, hp -6 → enemy_dies tick rule kills it
+	sched.queue_input("fire_east", {"actor": "p1"})
+	sched.tick()  # bullet hits, hp = -6
+	# Need another tick for enemy_dies to fire (it's a tick rule reading state)
+	sched.tick()
+	expect_eq(QueryLib.run({"tags_all": ["enemy"]}, env).size(), 0, "enemy removed after hp <= 0")
+
+	# Cleanup
+	for ent in entities.values(): (ent as Entity).queue_free()
+
+
+# ============================================================
+# RPG CASCADE (W5.4) — attack → kill → xp gain → level up
+# ============================================================
+
+func test_rpg_cascade() -> void:
+	_section("rpg_cascade (W5.4)")
+	var defs: Dictionary = {
+		"player": {"id": "player", "tags": ["player"],
+		           "state_init": {"hp": 100, "hp_max": 100, "xp": 0, "level": 1}},
+		"goblin": {"id": "goblin", "tags": ["enemy", "goblin"],
+		           "state_init": {"hp": 20, "xp_value": 60}},
+		"swing":  {"id": "swing", "tags": ["weapon", "transient"],
+		           "state_init": {"lifespan": 2, "damage": 25}},
+	}
+	var entities: Dictionary = {}
+	var p := Entity.create(defs.player, "p1"); p.set_position(Vector2(0, 0))
+	var g1 := Entity.create(defs.goblin, "g1"); g1.set_position(Vector2(20, 0))
+	var g2 := Entity.create(defs.goblin, "g2"); g2.set_position(Vector2(-20, 0))
+	entities["p1"] = p; entities["g1"] = g1; entities["g2"] = g2
+
+	var rs := RelationStore.new()
+	var sx := SpatialIndex.new()
+	for id in entities:
+		sx.update_entity(id, (entities[id] as Entity).get_planar_position())
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs, "spatial_index": sx,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+
+	var rules: Array = [
+		Rule.from_dict({
+			"id": "attack",
+			"trigger": {"type": "input", "action": "spark"},
+			"effect": {"type": "spawn", "template": "swing", "position": "actor"},
+		}),
+		Rule.from_dict({
+			"id": "swing_hits_enemy",
+			"trigger": {"type": "contact"},
+			"query": {
+				"a": {"tags_all": ["weapon"]},
+				"b": {"tags_all": ["enemy"]},
+				"radius": 50.0,
+			},
+			"effect": {"type": "state_add", "target": "b", "field": "hp",
+			           "amount": "-a.state.damage"},
+		}),
+		Rule.from_dict({
+			"id": "swing_dies_after_lifespan",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["weapon"]},
+			"effect": [
+				{"type": "state_add", "target": "self", "field": "lifespan", "amount": -1},
+			],
+		}),
+		Rule.from_dict({
+			"id": "swing_remove",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["weapon"], "state": {"lifespan_lte": 0}},
+			"effect": {"type": "remove", "target": "self"},
+		}),
+		Rule.from_dict({
+			"id": "enemy_dies",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["enemy"], "state": {"hp_lte": 0}},
+			"effect": [
+				{"type": "emit", "signal": "killed",
+				 "payload": {"xp_value": "self.state.xp_value"}},
+				{"type": "remove", "target": "self"},
+			],
+		}),
+		Rule.from_dict({
+			"id": "player_gains_xp",
+			"trigger": {"type": "signal", "name": "killed"},
+			"query": {"tags_all": ["player"]},
+			"effect": {"type": "state_add", "target": "self", "field": "xp",
+			           "amount": "xp_value"},
+		}),
+		Rule.from_dict({
+			"id": "level_up",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["player"], "state": {"xp_gte": 100}},
+			"effect": [
+				{"type": "state_add", "target": "self", "field": "level", "amount": 1},
+				{"type": "state_add", "target": "self", "field": "xp", "amount": -100},
+				{"type": "state_mul", "target": "self", "field": "hp_max", "amount": 1.1},
+				{"type": "state_set", "target": "self", "field": "hp",
+				 "value": "self.state.hp_max"},
+			],
+		}),
+	]
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(rules)
+
+	# Initial — player level 1, no xp, both goblins alive
+	expect_eq(int(p.get_state("level")), 1, "player starts at level 1")
+	expect_eq(int(p.get_state("xp")), 0, "player starts at 0 xp")
+	expect_eq(QueryLib.run({"tags_all": ["enemy"]}, env).size(), 2, "2 goblins alive")
+
+	# Attack 1: spawn swing → contacts both goblins (both within radius 50 of player)
+	# Both goblins take 25 damage, hp 20→-5, both at lethal hp.
+	# Same tick: swing ages (lifespan 2→1).
+	# Goblins die in next tick (tick rule reading state). Their kill emits xp_value=60 each.
+	# Signal fires → player gains 60 xp → tick rule level_up_check fires → level up!
+	sched.queue_input("spark", {"actor": "p1"})
+	sched.tick()  # swing spawns + contact applies damage in react
+
+	# After tick 1: goblins should be at hp -5 each (still in entities)
+	expect_eq(int(g1.get_state("hp")), -5, "goblin 1 took 25 damage")
+	expect_eq(int(g2.get_state("hp")), -5, "goblin 2 took 25 damage")
+
+	sched.tick()  # tick rule sees hp<=0 → emit killed (with xp_value) + remove
+	# Signals from this tick's react drain into NEXT tick
+	expect_eq(QueryLib.run({"tags_all": ["enemy"]}, env).size(), 0, "goblins removed")
+
+	sched.tick()  # signal handler runs: player gains 60 xp from each (120 total)
+	# But level_up rule (tick) fires when xp >= 100. So same tick: xp=120 → level up
+	expect_eq(int(p.get_state("level")), 2, "player leveled up to 2")
+	expect_eq(int(p.get_state("xp")), 20, "leftover xp: 120 - 100 = 20")
+	expect(p.get_state("hp_max") > 100, "hp_max increased after level up")
+	expect_eq(int(p.get_state("hp")), int(p.get_state("hp_max")), "hp restored to hp_max on level up")
+
+	# Cleanup
+	for ent in entities.values():
+		if is_instance_valid(ent): (ent as Entity).queue_free()
+
+
+# ============================================================
+# CHESS CASCADE (W5.5) — non-spatial acid test
+# ============================================================
+
+func test_chess_cascade() -> void:
+	_section("chess_cascade (W5.5)")
+	# Minimal chess: 4 squares, 2 pieces, 1 game_state.
+	# Demonstrates Relation + signal-based turn flow + require validation.
+	var defs: Dictionary = {
+		"square":     {"id": "square", "tags": ["square"]},
+		"pawn_white": {"id": "pawn_white", "tags": ["piece", "white", "pawn"]},
+		"pawn_black": {"id": "pawn_black", "tags": ["piece", "black", "pawn"]},
+		"game_state": {"id": "game_state", "tags": ["game_state"],
+		               "state_init": {"turn": "white", "move_count": 0}},
+	}
+	var entities: Dictionary = {}
+	entities["sq_a1"] = Entity.create(defs.square, "sq_a1")
+	entities["sq_a2"] = Entity.create(defs.square, "sq_a2")
+	entities["sq_b1"] = Entity.create(defs.square, "sq_b1")
+	entities["sq_b2"] = Entity.create(defs.square, "sq_b2")
+	entities["wp"]    = Entity.create(defs.pawn_white, "wp")
+	entities["bp"]    = Entity.create(defs.pawn_black, "bp")
+	entities["game"]  = Entity.create(defs.game_state, "game")
+
+	var rs := RelationStore.new()
+	rs.relate("on_square", "wp", "sq_a1")
+	rs.relate("on_square", "bp", "sq_a2")
+
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+
+	var rules: Array = [
+		Rule.from_dict({
+			"id": "white_move",
+			"trigger": {"type": "input", "action": "move"},
+			"query": {"tags_all": ["game_state"], "state": {"turn_eq": "white"}},
+			"require": {
+				"piece": {"tags_all": ["white", "piece"]},
+				"from_sq": {"tags_all": ["square"]},
+				"to_sq": {"tags_all": ["square"]},
+			},
+			"effect": [
+				{"type": "unrelate", "relation": "on_square", "from": "piece", "to": "from_sq"},
+				{"type": "relate",   "relation": "on_square", "from": "piece", "to": "to_sq"},
+				{"type": "state_set", "target": "self", "field": "turn", "value": "black"},
+				{"type": "state_add", "target": "self", "field": "move_count", "amount": 1},
+			],
+		}),
+		Rule.from_dict({
+			"id": "black_move",
+			"trigger": {"type": "input", "action": "move"},
+			"query": {"tags_all": ["game_state"], "state": {"turn_eq": "black"}},
+			"require": {
+				"piece": {"tags_all": ["black", "piece"]},
+				"from_sq": {"tags_all": ["square"]},
+				"to_sq": {"tags_all": ["square"]},
+			},
+			"effect": [
+				{"type": "unrelate", "relation": "on_square", "from": "piece", "to": "from_sq"},
+				{"type": "relate",   "relation": "on_square", "from": "piece", "to": "to_sq"},
+				{"type": "state_set", "target": "self", "field": "turn", "value": "white"},
+				{"type": "state_add", "target": "self", "field": "move_count", "amount": 1},
+			],
+		}),
+	]
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(rules)
+
+	# Initial state
+	var game = entities["game"] as Entity
+	expect_eq(str(game.get_state("turn")), "white", "starts on white's turn")
+	expect_eq(int(game.get_state("move_count")), 0, "starts at 0 moves")
+	expect_eq(rs.targets("on_square", "wp"), ["sq_a1"], "white pawn on a1")
+
+	# White's move: a1 → b1 (legal — it's white's turn, piece is white)
+	sched.queue_input("move", {"piece": "wp", "from_sq": "sq_a1", "to_sq": "sq_b1"})
+	sched.tick()
+	expect_eq(rs.targets("on_square", "wp"), ["sq_b1"], "white pawn moved to b1")
+	expect_eq(str(game.get_state("turn")), "black", "turn flipped to black")
+	expect_eq(int(game.get_state("move_count")), 1, "move count incremented")
+
+	# Try a white move on black's turn (illegal — should be rejected)
+	sched.queue_input("move", {"piece": "wp", "from_sq": "sq_b1", "to_sq": "sq_b2"})
+	sched.tick()
+	expect_eq(rs.targets("on_square", "wp"), ["sq_b1"], "illegal white-on-black-turn rejected — pawn stays")
+	expect_eq(str(game.get_state("turn")), "black", "turn unchanged")
+	expect_eq(int(game.get_state("move_count")), 1, "move count unchanged")
+
+	# Try black moving a white piece (illegal — require fails on color tag)
+	sched.queue_input("move", {"piece": "wp", "from_sq": "sq_b1", "to_sq": "sq_b2"})
+	sched.tick()
+	expect_eq(rs.targets("on_square", "wp"), ["sq_b1"], "black-rule rejects white piece via require")
+	expect_eq(str(game.get_state("turn")), "black", "still black's turn")
+
+	# Black's legal move
+	sched.queue_input("move", {"piece": "bp", "from_sq": "sq_a2", "to_sq": "sq_b2"})
+	sched.tick()
+	expect_eq(rs.targets("on_square", "bp"), ["sq_b2"], "black pawn moved")
+	expect_eq(str(game.get_state("turn")), "white", "turn flipped back to white")
+	expect_eq(int(game.get_state("move_count")), 2, "second move counted")
+
+	# Cleanup
+	for ent in entities.values():
+		if is_instance_valid(ent): (ent as Entity).queue_free()

@@ -1,0 +1,134 @@
+{
+  "_comment": "W5.4 RPG rules. WASD = move (HOLD). Space = attack (PRESS): spawns weapon_swing at player. Swing damages enemy on contact, despawns. Enemy death → emit killed signal with xp_value → player gains xp. xp ≥ threshold → emit level_up → mul hp_max + heal to full. Enemy AI pursues + attacks player on contact.",
+
+  "rules": [
+    {
+      "id": "move_north",
+      "trigger": {"type": "input", "action": "move_north"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": -90}
+    },
+    {
+      "id": "move_south",
+      "trigger": {"type": "input", "action": "move_south"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 90}
+    },
+    {
+      "id": "move_east",
+      "trigger": {"type": "input", "action": "move_east"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 90, "y": 0}
+    },
+    {
+      "id": "move_west",
+      "trigger": {"type": "input", "action": "move_west"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": -90, "y": 0}
+    },
+    {
+      "id": "stop",
+      "trigger": {"type": "input", "action": "stop"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
+    },
+
+    {
+      "id": "attack_swings_weapon",
+      "trigger": {"type": "input", "action": "spark"},
+      "effect": {
+        "type": "spawn",
+        "template": "weapon_swing",
+        "position": "actor"
+      }
+    },
+
+    {
+      "id": "swing_ages",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["weapon", "transient"]},
+      "effect": {"type": "state_add", "target": "self", "field": "lifespan", "amount": -1}
+    },
+    {
+      "id": "swing_dies",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["weapon", "transient"], "state": {"lifespan_lte": 0}},
+      "effect": {"type": "remove", "target": "self"}
+    },
+
+    {
+      "id": "swing_hits_enemy",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["weapon"]},
+        "b": {"tags_all": ["enemy"]},
+        "radius": 45.0
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "b",
+        "field": "hp",
+        "amount": "-a.state.damage"
+      }
+    },
+
+    {
+      "id": "enemy_dies",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["enemy"], "state": {"hp_lte": 0}},
+      "effect": [
+        {"type": "emit", "signal": "enemy_killed", "payload": {"xp_value": "self.state.xp_value"}},
+        {"type": "remove", "target": "self"}
+      ]
+    },
+
+    {
+      "id": "player_gains_xp_on_kill",
+      "trigger": {"type": "signal", "name": "enemy_killed"},
+      "query": {"tags_all": ["player"]},
+      "effect": {"type": "state_add", "target": "self", "field": "xp", "amount": "xp_value"}
+    },
+
+    {
+      "id": "level_up_check",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["player"], "state": {"xp_gte": 100}},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "level", "amount": 1},
+        {"type": "state_add", "target": "self", "field": "xp", "amount": -100},
+        {"type": "state_mul", "target": "self", "field": "hp_max", "amount": 1.1},
+        {"type": "state_set", "target": "self", "field": "hp", "value": "self.state.hp_max"}
+      ]
+    },
+
+    {
+      "id": "player_dies",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["player"], "state": {"hp_lte": 0}},
+      "effect": {"type": "remove", "target": "self"}
+    },
+
+    {
+      "id": "enemy_ai_pursue_player",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["enemy"]},
+        "b": {"tags_all": ["player"]},
+        "radius": 800.0
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "a",
+        "x": "(b.state.position.x - a.state.position.x) * 0.3",
+        "y": "(b.state.position.y - a.state.position.y) * 0.3"
+      }
+    },
+
+    {
+      "id": "enemy_attacks_player",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["enemy"]},
+        "b": {"tags_all": ["player"]},
+        "radius": 28.0
+      },
+      "chance": 0.15,
+      "effect": {"type": "state_add", "target": "b", "field": "hp", "amount": -3}
+    }
+  ]
+}
