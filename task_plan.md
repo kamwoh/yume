@@ -888,15 +888,19 @@ Tier 3 (actors). Prerequisite for any autonomous LLM workflow.
 
 ### Deliverables
 
-- [ ] **2.6a** **Structured engine errors.** Replace `push_error("...")`
+- [x] **2.6a** **Structured engine errors.** Replaced `push_error("...")`
   string calls in engine modules with structured error records:
-  `{rule_id, error_type, expected, got, location, suggestion}`. JSON,
-  not formatted strings. Buffer accumulates in `env.error_buffer`;
-  qa-tester / orchestrator / LLM consumes.
-  - `Rule.validate_all` returns structured records (was: array of strings)
-  - `Formula.evaluate` failures captured with offending formula + binding
-  - `EffectApply.apply` unknown effect types reported with rule context
-  - World load surfaces malformed JSON with byte offset
+  `{code, what, where, hint, severity}`. JSON, not formatted strings.
+  Buffer accumulates in `env.error_buffer`; qa-tester / orchestrator /
+  LLM consumes via `EngineError.drain(env)`. Console fallback preserved.
+  - [x] `Rule.validate_all` returns `Array[Dictionary]` (was: `Array[String]`)
+  - [x] `Formula.evaluate` failures captured with offending formula + rewritten + bindings
+  - [x] `EffectApply.apply` unknown effect types reported with rule context
+  - [x] `World` load surfaces missing/invalid entities + unknown-def
+  - [x] `ShapeLib` / `MeshLib` / `PhaseScheduler` topo-cycle migrated
+  - Landed 2026-05-01: `scripts/engine/engine_error.gd` (helper + 27 stable
+    error codes); 17 call sites migrated; rule attribution flows via
+    `_rule_id` stamped by `phase_scheduler._enqueue`. Tests: 169 → 188.
 
 - [ ] **2.6b** **Programmatic test runner for skills.** `tests/spec.md`
   cases become executable. Python tool that:

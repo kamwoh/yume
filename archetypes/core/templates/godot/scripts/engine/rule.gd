@@ -61,19 +61,32 @@ static func from_dict(d: Dictionary) -> Rule:
 
 
 ## Load a list of Rule objects from a world_rules.json file.
-static func load_from_file(path: String) -> Array[Rule]:
+##
+## Pass `env` to capture load-time errors as structured records in
+## `env.error_buffer`. Without env, errors only hit the dev console.
+static func load_from_file(path: String, env: Dictionary = {}) -> Array[Rule]:
 	var out: Array[Rule] = []
 	if not FileAccess.file_exists(path):
-		push_error("Rules file not found: " + path)
+		EngineError.raise(env, EngineError.RULE_FILE_MISSING,
+			"Rules file not found: %s" % path,
+			{"file": path},
+			"Check that the path exists relative to res:// and is spelled correctly.")
 		return out
 	var f := FileAccess.open(path, FileAccess.READ)
-	var data = JSON.parse_string(f.get_as_text())
+	var raw_text := f.get_as_text()
+	var data = JSON.parse_string(raw_text)
 	if not (data is Dictionary):
-		push_error("Invalid JSON: " + path)
+		EngineError.raise(env, EngineError.RULE_INVALID_JSON,
+			"Rules file is not valid JSON: %s" % path,
+			{"file": path},
+			"Run the file through a JSON linter — top-level must be an object with a 'rules' array.")
 		return out
 	var list = data.get("rules", [])
 	if not (list is Array):
-		push_error("%s: 'rules' must be an array" % path)
+		EngineError.raise(env, EngineError.RULE_LIST_NOT_ARRAY,
+			"%s: 'rules' must be an array" % path,
+			{"file": path, "field": "rules", "got_type": _type_name(list)},
+			"Wrap your rule entries in an array: { \"rules\": [ {...}, {...} ] }.")
 		return out
 	for entry in list:
 		if entry is Dictionary:
@@ -85,8 +98,12 @@ static func load_from_file(path: String) -> Array[Rule]:
 # VALIDATION
 # ============================================================
 
-## Validate a list of loaded rules. Returns [] if valid, otherwise error strings.
-## Each error is phrased to identify the offending rule by id + field.
+## Validate a list of loaded rules. Returns [] if valid, otherwise an array
+## of structured error records (`EngineError.make`-shaped dicts).
+##
+## 2.6a change: return type is `Array[Dictionary]` (was `Array[String]`) so
+## downstream agents can match on `record.code`. Use `record.what` for the
+## human-readable summary.
 ##
 ## Scope: structural checks only (id uniqueness, trigger type, chance range,
 ## effect list has type). Deeper checks live elsewhere:
@@ -94,39 +111,66 @@ static func load_from_file(path: String) -> Array[Rule]:
 ##   - effect type validity → effect_apply.gd (W1.6)
 ##   - formula parseability → formula.gd (W4)
 ##   - ref integrity        → schema validator (W1.13)
-static func validate_all(rules: Array) -> Array[String]:
-	var errors: Array[String] = []
+static func validate_all(rules: Array) -> Array[Dictionary]:
+	var errors: Array[Dictionary] = []
 	var seen: Dictionary = {}
 	for i in range(rules.size()):
 		var r = rules[i]
 		if not (r is Rule):
-			errors.append("Entry %d is not a Rule instance" % i)
+			errors.append(EngineError.make(EngineError.RULE_NOT_INSTANCE,
+				"Entry %d is not a Rule instance" % i,
+				{"index": i, "got_type": _type_name(r)},
+				"Use Rule.from_dict() before passing to validate_all."))
 			continue
 		var rule: Rule = r
 		if rule.id == "":
-			errors.append("Rule at index %d has no id" % i)
+			errors.append(EngineError.make(EngineError.RULE_MISSING_ID,
+				"Rule at index %d has no id" % i,
+				{"index": i, "field": "id"},
+				"Add a unique 'id' string to this rule."))
 			continue
 		if seen.has(rule.id):
-			errors.append("Duplicate rule id: %s" % rule.id)
+			errors.append(EngineError.make(EngineError.RULE_DUPLICATE_ID,
+				"Duplicate rule id: %s" % rule.id,
+				{"rule_id": rule.id, "index": i, "field": "id"},
+				"Rename one of the duplicates so every rule has a unique id."))
 		seen[rule.id] = true
 
 		var tt := rule.trigger_type()
 		if tt == "":
-			errors.append("Rule '%s': trigger.type missing" % rule.id)
+			errors.append(EngineError.make(EngineError.RULE_TRIGGER_MISSING,
+				"Rule '%s': trigger.type missing" % rule.id,
+				{"rule_id": rule.id, "field": "trigger.type"},
+				"Add a trigger object: e.g. {\"type\": \"tick\", \"interval\": 1}."))
 		elif not (tt in VALID_TRIGGERS):
-			errors.append("Rule '%s': invalid trigger type '%s' (valid: %s)" % [rule.id, tt, VALID_TRIGGERS])
+			errors.append(EngineError.make(EngineError.RULE_TRIGGER_INVALID,
+				"Rule '%s': invalid trigger type '%s'" % [rule.id, tt],
+				{"rule_id": rule.id, "field": "trigger.type", "got": tt, "valid": VALID_TRIGGERS},
+				"Use one of: %s." % ", ".join(VALID_TRIGGERS)))
 
 		if rule.effects.is_empty():
-			errors.append("Rule '%s': effect list is empty" % rule.id)
+			errors.append(EngineError.make(EngineError.RULE_EFFECT_EMPTY,
+				"Rule '%s': effect list is empty" % rule.id,
+				{"rule_id": rule.id, "field": "effect"},
+				"Add at least one effect dict, e.g. {\"type\": \"state_set\", ...}."))
 		for j in range(rule.effects.size()):
 			var eff = rule.effects[j]
 			if not (eff is Dictionary):
-				errors.append("Rule '%s' effect[%d] is not a dictionary" % [rule.id, j])
+				errors.append(EngineError.make(EngineError.RULE_EFFECT_NOT_DICT,
+					"Rule '%s' effect[%d] is not a dictionary" % [rule.id, j],
+					{"rule_id": rule.id, "field": "effect", "index": j, "got_type": _type_name(eff)},
+					"Each effect entry must be a JSON object with a 'type' field."))
 			elif not eff.has("type") or str(eff["type"]) == "":
-				errors.append("Rule '%s' effect[%d] missing 'type'" % [rule.id, j])
+				errors.append(EngineError.make(EngineError.RULE_EFFECT_MISSING_TYPE,
+					"Rule '%s' effect[%d] missing 'type'" % [rule.id, j],
+					{"rule_id": rule.id, "field": "effect.type", "index": j},
+					"Add a 'type' field naming one of the supported effects (state_set, spawn, ...)."))
 
 		if rule.chance < 0.0 or rule.chance > 1.0:
-			errors.append("Rule '%s': chance %.2f out of [0.0, 1.0]" % [rule.id, rule.chance])
+			errors.append(EngineError.make(EngineError.RULE_CHANCE_OUT_OF_RANGE,
+				"Rule '%s': chance %.2f out of [0.0, 1.0]" % [rule.id, rule.chance],
+				{"rule_id": rule.id, "field": "chance", "got": rule.chance},
+				"Set 'chance' to a value between 0.0 and 1.0 (default 1.0)."))
 	return errors
 
 
@@ -181,3 +225,16 @@ static func _as_string_array(v) -> Array[String]:
 		for s in v:
 			out.append(str(s))
 	return out
+
+## Human-readable type label for error reports. Used in 2.6a structured
+## errors so an LLM reader sees "Array" instead of "5" (TYPE_ARRAY).
+static func _type_name(v) -> String:
+	if v == null: return "null"
+	if v is String: return "String"
+	if v is int: return "int"
+	if v is float: return "float"
+	if v is bool: return "bool"
+	if v is Array: return "Array"
+	if v is Dictionary: return "Dictionary"
+	if v is Rule: return "Rule"
+	return type_string(typeof(v))

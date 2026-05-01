@@ -25,15 +25,22 @@ class_name MeshLib
 
 var meshes: Dictionary = {}            # name → {primitives: Array, params: Dictionary}
 
-static func load_from_file(path: String) -> MeshLib:
+static func load_from_file(path: String, env: Dictionary = {}) -> MeshLib:
 	var lib := MeshLib.new()
 	if not FileAccess.file_exists(path):
-		push_warning("MeshLib: no file at " + path)
+		EngineError.raise(env, EngineError.MESH_FILE_MISSING,
+			"MeshLib: no file at %s" % path,
+			{"file": path},
+			"Drop a meshes.json file at this path, or omit the mesh lib if you want bare cubes.",
+			"warning")
 		return lib
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
-		push_error("MeshLib: invalid JSON in " + path)
+		EngineError.raise(env, EngineError.MESH_INVALID_JSON,
+			"MeshLib: invalid JSON in %s" % path,
+			{"file": path},
+			"Top-level must be a JSON object: {\"meshes\": {\"name\": {\"primitives\": [...]}}}.")
 		return lib
 	var raw: Dictionary = data.get("meshes", {})
 	for k in raw.keys():

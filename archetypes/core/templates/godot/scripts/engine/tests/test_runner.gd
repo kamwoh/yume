@@ -37,6 +37,7 @@ func _ready() -> void:
 	test_shooter_cascade()
 	test_rpg_cascade()
 	test_chess_cascade()
+	test_engine_error()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1139,3 +1140,66 @@ func test_chess_cascade() -> void:
 	# Cleanup
 	for ent in entities.values():
 		if is_instance_valid(ent): (ent as Entity).queue_free()
+
+
+# ============================================================
+# ENGINE ERRORS (Tier 2.6a)
+# ============================================================
+
+func test_engine_error() -> void:
+	_section("engine_error (Tier 2.6a)")
+
+	# Record shape: make() returns a JSON-shaped dict.
+	var rec := EngineError.make("test.code", "what happened",
+		{"file": "x.json", "rule_id": "r1"}, "do this", "warning")
+	expect_eq(str(rec.get("code")), "test.code", "record carries code")
+	expect_eq(str(rec.get("what")), "what happened", "record carries what")
+	expect_eq(str(rec.get("severity")), "warning", "severity preserved")
+	expect_eq(str((rec.get("where") as Dictionary).get("rule_id")), "r1", "where carries rule_id")
+
+	# Buffer accumulation: report() appends to env.error_buffer.
+	var env: Dictionary = {"error_buffer": []}
+	EngineError.raise(env, "test.a", "first", {}, "")
+	EngineError.raise(env, "test.b", "second", {}, "", "warning")
+	var buf: Array = env["error_buffer"]
+	expect_eq(buf.size(), 2, "buffer accumulated 2 records")
+	expect_eq(str(buf[0].code), "test.a", "first record code")
+	expect_eq(str(buf[1].severity), "warning", "second record severity")
+
+	# Drain: reads + resets.
+	var drained := EngineError.drain(env)
+	expect_eq(drained.size(), 2, "drain returned all records")
+	expect_eq((env["error_buffer"] as Array).size(), 0, "buffer reset after drain")
+
+	# Validate_all returns structured records (was strings pre-2.6a).
+	var bad := [
+		Rule.from_dict({"id": "", "trigger": {"type": "tick"}, "effect": {"type": "state_set"}}),
+		Rule.from_dict({"id": "x", "trigger": {"type": "wat"}, "effect": {"type": "state_set"}}),
+	]
+	var errs := Rule.validate_all(bad)
+	expect(errs.size() >= 2, "validate_all returns at least 2 records (got %d)" % errs.size())
+	expect(errs[0] is Dictionary, "validate_all entry is a Dictionary")
+	expect(errs[0].has("code"), "validate_all record has code field")
+	expect(errs[0].has("hint"), "validate_all record has hint field")
+
+	# Integration: unknown effect type via EffectApply lands in env.error_buffer.
+	var env2: Dictionary = {
+		"entities": {}, "defs": {}, "relations": RelationStore.new(),
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"error_buffer": [],
+	}
+	EffectApply.apply({"type": "totally_made_up"}, env2, {"_rule_id": "r_unknown"})
+	var ebuf: Array = env2["error_buffer"]
+	expect_eq(ebuf.size(), 1, "unknown effect type produced 1 error record")
+	expect_eq(str(ebuf[0].code), EngineError.EFFECT_UNKNOWN_TYPE, "effect.unknown_type code")
+	expect_eq(str((ebuf[0].where as Dictionary).get("rule_id")), "r_unknown", "rule_id attribution")
+
+	# Integration: Formula parse failure lands in env.error_buffer with rule_id.
+	var env3: Dictionary = {"error_buffer": []}
+	# Syntactically broken — Expression will reject this.
+	Formula.evaluate("self.state.x +++ )", {"_rule_id": "r_formula"}, env3)
+	var fbuf: Array = env3["error_buffer"]
+	expect(fbuf.size() >= 1, "formula parse failure produced at least 1 record")
+	if fbuf.size() >= 1:
+		expect_eq(str(fbuf[0].code), EngineError.FORMULA_PARSE_FAILED, "formula.parse_failed code")
+		expect_eq(str((fbuf[0].where as Dictionary).get("rule_id")), "r_formula", "formula rule_id attribution")

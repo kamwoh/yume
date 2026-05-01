@@ -48,6 +48,10 @@ var scheduler: PhaseScheduler = null
 var world_state: Dictionary = {}              # global "world.*" bindings
 var next_id_seq: Dictionary = {"_": 0}        # shared counter for spawns
 var _clock: WorldClock = null
+## Tier 2.6a — accumulating buffer of structured engine errors. Shared
+## by reference into `env.error_buffer`; readable by qa-tester / VQA /
+## LLM agents. Drain with `EngineError.drain(env)` between scenarios.
+var error_buffer: Array = []
 
 
 # ============================================================
@@ -91,11 +95,11 @@ func load_data() -> void:
 
 
 func _load_rules_file(path: String) -> void:
-	var rules := Rule.load_from_file(path)
+	var env := _build_env()
+	var rules := Rule.load_from_file(path, env)
 	var errors := Rule.validate_all(rules)
-	if not errors.is_empty():
-		for e in errors:
-			push_error("[Rules] " + e)
+	for record in errors:
+		EngineError.report(env, record)
 	scheduler.register_rules(rules)
 	if verbose:
 		print("[World] %d rules registered" % rules.size())
@@ -110,12 +114,22 @@ func _load_world_file(path: String) -> void:
 
 
 func _load_entities_file(path: String) -> void:
+	var env := _build_env()
 	if not FileAccess.file_exists(path):
-		push_warning("No entities file: " + path); return
+		EngineError.raise(env, EngineError.WORLD_ENTITIES_MISSING,
+			"No entities file: %s" % path,
+			{"file": path},
+			"Create an entities.json under data_root with {\"definitions\": [...], \"initial_instances\": [...]}.",
+			"warning")
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
-		push_error("Invalid JSON: " + path); return
+		EngineError.raise(env, EngineError.WORLD_ENTITIES_INVALID,
+			"Invalid JSON: %s" % path,
+			{"file": path},
+			"Top-level must be a JSON object with 'definitions' / 'initial_instances' / 'initial_relations'.")
+		return
 	for def in data.get("definitions", []):
 		if def is Dictionary:
 			defs[str(def.get("id", ""))] = def
@@ -134,7 +148,11 @@ func _load_entities_file(path: String) -> void:
 func _spawn_initial(inst: Dictionary) -> void:
 	var def_id := str(inst.get("def", ""))
 	if not defs.has(def_id):
-		push_error("Unknown def: " + def_id); return
+		EngineError.raise(_build_env(), EngineError.WORLD_DEF_UNKNOWN,
+			"Unknown def: %s" % def_id,
+			{"file": "entities.json", "field": "initial_instances.def", "got": def_id, "known_defs": defs.keys()},
+			"Add a definition with id '%s' under 'definitions', or fix the typo in the instance's 'def' field." % def_id)
+		return
 	var count := int(inst.get("count", 1))
 	for i in range(count):
 		var overrides: Dictionary = (inst.get("overrides", {}) as Dictionary).duplicate(true)
@@ -318,4 +336,5 @@ func _build_env() -> Dictionary:
 		"world": world_state,
 		"parent": self,
 		"next_id": next_id_seq,
+		"error_buffer": error_buffer,
 	}

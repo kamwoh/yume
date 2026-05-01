@@ -47,7 +47,10 @@ static var _last_error: String = ""    # for diagnostics
 ## Pass-through for non-string values: literal numbers / vectors / arrays
 ## return unchanged. Lets callers use this as a universal "resolve numeric
 ## field" helper without checking type first.
-static func evaluate(formula, context: Dictionary):
+##
+## 2.6a: pass `env` to capture parse / exec failures as structured records
+## in `env.error_buffer`. Without env, errors only hit the dev console.
+static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	# Pass-through for non-string
 	if not (formula is String):
 		return formula
@@ -90,14 +93,20 @@ static func evaluate(formula, context: Dictionary):
 		var err := expr.parse(rewritten, input_names)
 		if err != OK:
 			_last_error = "parse error in '%s' → '%s': %s" % [s, rewritten, expr.get_error_text()]
-			push_error("[Formula] " + _last_error)
+			EngineError.raise(env, EngineError.FORMULA_PARSE_FAILED,
+				"Formula parse error: '%s' → '%s' — %s" % [s, rewritten, expr.get_error_text()],
+				{"rule_id": context.get("_rule_id", ""), "formula": s, "rewritten": rewritten, "godot_error": expr.get_error_text()},
+				"Check formula syntax. Allowed: bindings (self.state.X, target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow/floor/ceil/lerp/randf), arithmetic, ternary, comparison.")
 			return 0.0
 		_cache[key] = expr
 
 	var result = expr.execute(input_values)
 	if expr.has_execute_failed():
 		_last_error = "exec failed for '%s'" % s
-		push_error("[Formula] " + _last_error)
+		EngineError.raise(env, EngineError.FORMULA_EXEC_FAILED,
+			"Formula exec failed: '%s'" % s,
+			{"rule_id": context.get("_rule_id", ""), "formula": s, "rewritten": rewritten, "input_values": input_values},
+			"A binding may have resolved to an unexpected type — check that all referenced fields exist on the bound entities.")
 		return 0.0
 	return result
 

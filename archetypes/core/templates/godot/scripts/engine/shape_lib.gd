@@ -30,15 +30,22 @@ class_name ShapeLib
 
 var shapes: Dictionary = {}     # name → {primitives: Array, params: Dictionary}
 
-static func load_from_file(path: String) -> ShapeLib:
+static func load_from_file(path: String, env: Dictionary = {}) -> ShapeLib:
 	var lib := ShapeLib.new()
 	if not FileAccess.file_exists(path):
-		push_warning("ShapeLib: no file at " + path)
+		EngineError.raise(env, EngineError.SHAPE_FILE_MISSING,
+			"ShapeLib: no file at %s" % path,
+			{"file": path},
+			"Drop a shapes.json file at this path, or omit the shape lib if you want plain colored circles.",
+			"warning")
 		return lib
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
-		push_error("ShapeLib: invalid JSON in " + path)
+		EngineError.raise(env, EngineError.SHAPE_INVALID_JSON,
+			"ShapeLib: invalid JSON in %s" % path,
+			{"file": path},
+			"Top-level must be a JSON object: {\"shapes\": {\"name\": {\"primitives\": [...]}}}.")
 		return lib
 	var raw: Dictionary = data.get("shapes", {})
 	for k in raw.keys():

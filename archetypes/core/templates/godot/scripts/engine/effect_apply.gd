@@ -53,7 +53,12 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"tag_remove":        _tag_remove(effect, env, context)
 		"velocity_set":      _velocity_set(effect, env, context)
 		"emit":              _emit(effect, env, context)
-		_:                   push_warning("Unknown effect type: %s" % type)
+		_:
+			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
+				"Unknown effect type: '%s'" % type,
+				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, emit.",
+				"warning")
 	return {}
 
 
@@ -100,7 +105,11 @@ static func _spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionar
 	var defs: Dictionary = env.get("defs", {})
 	var template := str(e.get("template", ""))
 	if not defs.has(template):
-		push_error("spawn: no def '%s'" % template); return {}
+		EngineError.raise(env, EngineError.EFFECT_SPAWN_NO_DEF,
+			"spawn: no def '%s'" % template,
+			{"rule_id": ctx.get("_rule_id", ""), "field": "effect.template", "got": template, "known_defs": defs.keys()},
+			"Add a definition with id '%s' to entities.json, or fix the spawn template name." % template)
+		return {}
 	var def: Dictionary = defs[template]
 	var overrides: Dictionary = (e.get("overrides", {}) as Dictionary).duplicate(true)
 	if e.has("position"):
@@ -163,7 +172,11 @@ static func _transform(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dicti
 	var to_def := str(e.get("to", ""))
 	var defs: Dictionary = env.get("defs", {})
 	if not defs.has(to_def):
-		push_error("transform: no def '%s'" % to_def); return {}
+		EngineError.raise(env, EngineError.EFFECT_TRANSFORM_NO_DEF,
+			"transform: no def '%s'" % to_def,
+			{"rule_id": ctx.get("_rule_id", ""), "field": "effect.to", "got": to_def, "known_defs": defs.keys()},
+			"Add a definition with id '%s' to entities.json, or fix the transform target." % to_def)
+		return {}
 	var preserved_state: Dictionary = ent.state.duplicate(true)
 	# Remove old
 	_remove({"type": "remove", "target": e.get("target", "self")}, env, ctx)
@@ -259,7 +272,11 @@ static func _emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 		resolved_payload[k] = _value(raw_payload[k], ctx, env)
 	var buf: Array = env.get("signal_buffer", null)
 	if buf == null:
-		push_warning("emit: env has no signal_buffer — scheduler may be uninitialized")
+		EngineError.raise(env, EngineError.EFFECT_EMIT_NO_BUFFER,
+			"emit: env has no signal_buffer — scheduler may be uninitialized",
+			{"rule_id": ctx.get("_rule_id", ""), "field": "effect.signal", "got": name},
+			"This usually means an effect ran outside a phase scheduler. Wire env via PhaseScheduler.new(env).",
+			"warning")
 		return
 	buf.append({"name": name, "payload": resolved_payload})
 
@@ -302,7 +319,11 @@ static func _value(v, ctx: Dictionary, env: Dictionary = {}):
 		if ctx.has(s): return ctx[s]
 		# Formula? Evaluate with entity-object context.
 		if Formula.looks_like_formula(s):
-			return Formula.evaluate(s, _formula_context(ctx, env))
+			var fctx := _formula_context(ctx, env)
+			# Carry rule attribution into formula context for 2.6a error reporting.
+			if ctx.has("_rule_id"):
+				fctx["_rule_id"] = ctx["_rule_id"]
+			return Formula.evaluate(s, fctx, env)
 		# Literal string
 		return s
 	return v

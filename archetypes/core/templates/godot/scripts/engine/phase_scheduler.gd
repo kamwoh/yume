@@ -122,7 +122,11 @@ func _topo_sort_bucket(bucket: Array) -> void:
 				changed = true
 		pass_count += 1
 	if changed and not _topo_cycle_warned:
-		push_warning("PhaseScheduler: before/after hints may contain a cycle")
+		EngineError.raise(env, EngineError.SCHEDULER_TOPO_CYCLE,
+			"PhaseScheduler: before/after hints may contain a cycle",
+			{"trigger_type": "tick"},
+			"Audit rules' before/after lists for circular references; the engine fell back to JSON definition order.",
+			"warning")
 		_topo_cycle_warned = true
 
 
@@ -414,9 +418,13 @@ func _require_ok(req: Dictionary, ctx: Dictionary) -> bool:
 # ============================================================
 
 func _enqueue(effect: Dictionary, ctx: Dictionary, from_rule: String) -> void:
+	# 2.6a: stamp the rule id into the context so EffectApply can attribute
+	# downstream errors to the rule that queued them.
+	var ctx_copy: Dictionary = ctx.duplicate()
+	ctx_copy["_rule_id"] = from_rule
 	effect_buffer.append({
 		"effect": effect,
-		"context": ctx.duplicate(),
+		"context": ctx_copy,
 		"from_rule": from_rule,
 	})
 
