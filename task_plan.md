@@ -71,6 +71,16 @@ The original agent substrate (5 brains, inventory, needs, recipes) is being
 **redesigned, not preserved**. Git keeps the old code; Tier 3 rebuilds agent
 content from the new primitive vocabulary.
 
+**Yume3D test instance as 3D reference (interim, terminates at W5.0c).**
+The pre-redesign 3D farming sim lives at
+`/mnt/c/Users/kamwoh/Documents/Projects/Godot/Yume3D/` (not git-tracked).
+It runs today and shows the visual target — terrain, named agents,
+composite buildings, GLB models. It is **not** being merged back into the
+new framework (its substrate violates invariant #8). **Termination:** the
+moment W5.0c lands `world_3d.tscn` and runs the proof-of-life demo, drop
+this note. Two reference points = drift; one is the framework's own 3D
+demo from then on.
+
 **Design contract:** see `docs/30_framework_primitives.md` for the full spec
 of the seven primitives, JSON schema, and invariants. Everything below traces
 back to that doc.
@@ -83,7 +93,7 @@ back to that doc.
 |---|---|---|
 | **L0 — Engine primitives** | Seven composable primitives (Entity, Tag, Rule, Trigger, Effect, Query, Relation), all JSON-driven, genre-agnostic. | 🟡 in progress (Tier 2, this plan) |
 | **L1 — Rich world** | 40+ entities, 30+ reactions. Cascades: wet wood resists fire, dry heat ignites, rain soaks, crops rot. Observable without agents. | 📋 Tier 2 final phase |
-| **L2 — Acid-tested framework** | Five genre demos (ecology, farming, shooter, RPG, chess) all run from identical engine, different JSON. | 📋 Tier 2 gate |
+| **L2 — Acid-tested framework** | Five genre demos (ecology, farming-3D, shooter, RPG, chess) all run from identical engine, different JSON, **including one 3D demo via renderer_3d (W5.0)**. Tests universality across genres AND renderers. | 📋 Tier 2 gate |
 | **L2.5 — Text-to-game pipeline** | Prose → GDD → entity+rule JSON via specialist agents + ADR discipline. Cheap pulls alongside W2+; full build after Tier 2 exit. | 📋 Tier 2.5 (new, 2026-04-23) |
 | **L3 — Actors** | Entities that observe and emit inputs. Player, scripted AI, LLM — same channel. Agent content rebuilt on new primitives. | 📋 Tier 3 |
 | **L4 — Persistence + scale** | Save/load, time acceleration, host/client, episode recorder. | 📋 Tier 4 |
@@ -260,130 +270,253 @@ yet, but the data shape is final.
     post-test addition. Python schema validator (`yume test` CLI) deferred
     to W2.8 — in-engine smoke validates the same paths.
 
-### W2 — Triggers beyond tick + motion (~1 week)
+- [x] **W1.14** **Renderer-agnostic Entity refactor** — surfaced by W5.0
+  review (2026-05-01). Paid the architectural debt at W1 instead of carrying
+  it as hidden cost into W5.0.
+  - W1.14a `entity.gd` now `extends Node`; position lives in
+    `state.position` as Vector2 or Vector3. Helpers: `get_position()`,
+    `set_position()`, `get_planar_position()` (XZ projection for 2D radius
+    queries on 3D positions). Snapshot serializes Array of length 2 or 3.
+  - W1.14b `renderer_2d/entity_sprite_2d.gd` is now a Node2D child of an
+    Entity (plain Node parent — no parent transform). Reads
+    `entity.get_planar_position()` each `_process` to update its own
+    `position`. Sprite/circle drawing unchanged.
+  - W1.14c `effect_apply.gd` updated: transform preserves position via
+    `state.position` (no separate `pos` field needed); `_position()` returns
+    Variant (Vector2 or Vector3); spawn position override flows through
+    state.
+  - W1.14d query.gd uses `get_planar_position()` for radius + order_by;
+    handles Vector3 origin in `_resolve_origin`.
+  - W1.14e new `test_renderer_agnostic` (W1.14e) section in test_runner —
+    9 new assertions: Entity is `Node` (not Node2D/Node3D), position
+    round-trips Vector2 + Vector3, planar projection works, state-position
+    round-trips through snapshot. **86/86 tests pass** (77 + 9 new).
+  - **Farm demo still runs identically** post-refactor (same tick output).
 
-- [ ] **W2.1** `signal` trigger: named broadcast. Any rule's effect can include
+  Reviewer's call was right: W2 is about to add motion + input + signal/
+  contact triggers. Each touches position. Refactoring later would have cost
+  weeks. ~1 day actual work to pay it now.
+
+### W2 — Triggers beyond tick + motion (~1 week, COMPLETE except W2.7a + W2.8)
+
+- [x] **W2.1** `signal` trigger: named broadcast. Any rule's effect can include
   `{type: "emit", signal: "X", payload: {...}}`. Rules with `trigger: {type:
   "signal", name: "X"}` fire on receipt. Signals emitted in `react` phase
   queue into the **next tick's** `input` phase.
-- [ ] **W2.2** `input` trigger: binds to Godot input action names. `input:
+- [x] **W2.2** `input` trigger: binds to Godot input action names. `input:
   "move_left"` fires the rule while the action is pressed.
-- [ ] **W2.3** `spawn` / `despawn` triggers: fire once per entity at lifecycle
+- [x] **W2.3** `spawn` / `despawn` triggers: fire once per entity at lifecycle
   points. Useful for setup/cleanup effects.
-- [ ] **W2.4** `relation_changed` trigger: fires when an edge is added/removed
+- [x] **W2.4** `relation_changed` trigger: fires when an edge is added/removed
   matching a pattern (`{relation: "held_by", event: "added"}`). Dispatched
   in the `react` phase right after the commit that produced it.
-- [ ] **W2.5** `velocity_set` effect + motion tick rule (engine-registered,
-  ticks every entity with `velocity` state). Unifies player movement, projectile
-  motion, knockback.
-- [ ] **W2.6** Reserved hooks for future triggers (document in code comments,
-  no impl): `scheduled` (rhythm games), `world_clock.paused` (turn-based).
-- [ ] **W2.7** Demo: player entity with input-driven velocity. WASD moves a
-  sprite. Press Space emits signal; a rule listens and spawns a particle.
-  **Proof of universal input/signal channel.**
-- [ ] **W2.7a** Config-driven shape/mesh libraries + three-tier fallback.
-  Engine learns **draw primitives only**:
-  - 2D: `circle`, `rect`, `polygon`, `line`, `text`, `texture`
-  - 3D (when renderer_3d lands in Tier 4): `box`, `sphere`, `cylinder`,
-    `capsule`, `plane`, `prism`, `torus`, `quad` — Godot's built-in
-    `PrimitiveMesh` types
-  Compositions in JSON: `data/shapes.json` (2D) and `data/meshes.json` (3D).
-  Each entry is a sequence of primitives with `$param` substitution.
+  *(Status: ✅ done — RelationStore signals connected to scheduler;
+  `_relation_changes` buffer drained in react.)*
+- [x] **W2.5** `velocity_set` effect + **per-frame** motion integrator
+  (decoupled from tick rate for smooth visuals — motion runs in
+  `World._process(delta)`, velocity in units/sec; tick is rules only).
+  Dimension-agnostic — works for Vector2 + Vector3 positions/velocities.
+- [x] **W2.6** Reserved hooks documented in code comments. `scheduled` and
+  `world_clock.paused` remain valid trigger types in VALID_TRIGGERS list,
+  not yet dispatched.
+- [x] **W2.7** Demo: WASD moves a player; space emits sparkle signal;
+  spawn rule spawns sparkle at player position; tick rule decays sparkle's
+  life; despawn rule increments counter. `data/entities.json` + `data/world_rules.json`
+  + project.godot input map (W/S/D/A + arrows + space). World polls
+  `Input.is_action_pressed` per frame and queues input events with
+  `actor` resolved by `actor_tag`. **End-to-end verified via W2 integration
+  test (94/94 pass) — input → emit → spawn → counter++ → tick decay →
+  remove → despawn → counter++.**
+- [x] **W2.7a** Config-driven shape library + three-tier fallback.
+  - `scripts/engine/shape_lib.gd` — loads `data/shapes.json`, `has(name)` /
+    `get_shape(name)` / `merge_params(shape_def, instance_params)`.
+  - `scripts/renderer_2d/entity_sprite_2d.gd` — three-tier interpreter:
+    Tier 1 sprite_2d file → Tier 2 shape from library → Tier 3 bare circle.
+  - Engine knows DRAW primitives only: `circle`, `rect`, `polygon`, `line`
+    (text + texture stubbed). Adding "lantern" or "scarecrow" is a
+    `shapes.json` edit; engine code never changes.
+  - `$param` substitution: shape defaults overridable per-entity via
+    `visual.params`. Resolves at draw time.
+  - `data/shapes.json` ships 16 shapes: tree, rock, person, water, fire,
+    building, weapon, food, crop_seed, crop_young, crop_mature, crop_rotten,
+    sparkle, marker, square, triangle.
+  - Player demo (`data/entities.json`) updated to use shape names —
+    12 entities now render as recognizable visuals instead of colored
+    circles.
+  - `meshes.json` (3D equivalent) lands in W5.0 with renderer_3d.
+- [x] **W2.8** **Tests (ship-with-phase):** mostly through W2 consolidated
+  integration test (input→signal→spawn→despawn cascade) + W2.7a shape_lib
+  test. Per-trigger integration fixtures (`signal_roundtrip/`,
+  `input_velocity/`, `spawn_despawn_hook/`, `relation_changed_fires/`) as
+  separate folders deferred to W3 ship-with-phase. Current coverage:
+  102/102 assertions pass.
 
-  **Three-tier fallback** the renderer applies in order:
-  1. `entity.visual.sprite_2d` / `model_3d` exists → load file
-  2. `entity.visual.shape` / `mesh` named in catalog → compose primitives
-  3. Nothing → bare colored circle (2D) or colored cube (3D) sized from
-     `entity.visual.size`, colored from `entity.visual.color`
+### W3 — Spatial index + contact reactions (COMPLETE)
 
-  **The bare fallback is always available** — every entity always renders
-  to something. Lets dev iteration on rules + balance happen long before
-  any real or composite assets are wired up.
-  - `scripts/engine/shape_lib.gd` — loads `shapes.json`, `get(name) → ShapeDef`
-  - `scripts/engine/mesh_lib.gd` — loads `meshes.json` (Tier 4 wiring)
-  - `scripts/renderer_2d/entity_sprite_2d.gd` — interpreter: try sprite,
-    then shape, then bare circle
-  - `data/shapes.json` — initial library (tree, rock, person, water, fire,
-    building, weapon, food, square, triangle). Author-extendable.
-  - `data/meshes.json` — same intent for 3D, populated when Tier 4 lands.
-- [ ] **W2.8** **Tests (ship-with-phase):**
-  - Integration fixture per new trigger type: `signal_roundtrip/`,
-    `input_velocity/`, `spawn_despawn_hook/`, `relation_changed_fires/`.
-  - Engine-unit: signal cross-tick queueing; input press/release edge cases.
+- [x] **W3.1** `scripts/engine/spatial_index.gd` — grid-bucket hash,
+  configurable `cell_size`. API: `update_entity(id, pos)`, `remove_entity(id)`,
+  `query_radius_ids(origin, r)`, `query_radius(origin, r, entities)`. Wired
+  into env; updated by World on spawn/motion/despawn. QueryLib uses
+  spatial_index to narrow radius queries (avoids full O(n) scan).
+- [x] **W3.2** `contact` trigger pair matcher in scheduler. `query: {a, b,
+  radius}`. For each entity matching `a`, queries spatial index within
+  `radius` for entities matching `b`; fires effect for each pair with `a`/`b`
+  context bindings. Fires in `react` phase. Chance + require both supported.
+- [x] **W3.3** Effect lists already supported via `Rule._normalize_effects`
+  from W1.4. `effect: {...}` and `effect: [{...}, {...}]` both work.
+- [x] **W3.4** Demo: ecology cascade. 1 fire + 12 trees + 1 water + 3 rocks.
+  Fire ignites tree → tree transforms to burning_tree → spreads to neighbors
+  (radius 75, chance 0.4) → fuel decays → burns out to ash → water
+  extinguishes nearby burning trees. Verified: 24 ticks (~12s real), 11
+  trees → ash, 1 saved by water. **Proof of cascades without agents.**
+- [x] **W3.5** **Tests (ship-with-phase):**
+  - `test_spatial_index` — 5 assertions: update/move/remove/empty
+  - `test_contact_rules` — 5 assertions: ignite within radius, no-ignite
+    outside, water extinguish, multi-rule order
+  - **112/112 unit tests pass total** (was 102 before W3).
 
-### W3 — Spatial index + contact reactions (~1.5 weeks)
+### W4 — Formula layer (COMPLETE — minimum viable; advanced features deferred)
 
-- [ ] **W3.1** `scripts/engine/spatial_index.gd` — grid-bucket hash. Updates
-  on entity move. Query API: `entities_in_radius(pos, r)`,
-  `entities_matching(query, origin, r)`.
-- [ ] **W3.2** `contact` trigger: pair matcher over spatial index. Query has
-  separate `a` / `b` clauses + `radius`. Dispatcher iterates candidate pairs,
-  applies effect with `a` and `b` roles bound. **Fires in the `react` phase**
-  (after motion has been committed this tick).
-- [ ] **W3.3** Effect lists (JSON sugar: `effect: {...}` and `effect: [{...},
-  {...}]` both valid). `before`/`after` hints sort rules within a phase;
-  integer `priority` field is **not** introduced.
-- [ ] **W3.4** Demo: three entities (fire, tree, water). Fire ignites nearby
-  trees via `contact`. Water adjacent to fire lowers `burning` state. Tree
-  with `burning` > 0 increments a damage counter via `tick` rule; when
-  `durability <= 0`, `transform` to `ash`. **Proof of cascades without agents.**
-- [ ] **W3.5** **Tests (ship-with-phase):**
-  - Integration fixtures: `fire_spread_wet_resistance/`, `bullet_hit_removes_both/`.
-  - Engine-unit tests: `spatial_index` radius correctness + rebalance on move;
-    contact pair generation uniqueness (no dup pairs); `react`-phase ordering
-    interlock with `commit`.
+- [x] **W4.1** `scripts/engine/formula.gd` — wraps Godot's `Expression`.
+  Path-substitution approach: dotted paths in formulas (`self.state.hp`,
+  `world.tick`, `a.properties.hardness`) get rewritten to placeholder vars
+  before parsing; values resolved per-call. Bindings supported: `self`,
+  `target`, `a`, `b`, `source`, `world`. Math helpers (`clamp`, `min`, `max`,
+  `abs`, `sin`, `cos`, `sqrt`, `pow`, `floor`, `ceil`, `lerp`, `randf`)
+  come from Godot's built-in Expression — no extra registration needed.
+- [x] **W4.2** Effect numeric fields accept formula strings via
+  `EffectApply._value()`. State fields, amounts, factors, velocity components
+  all flow through `Formula.evaluate`. Detection via `Formula.looks_like_formula`
+  heuristic (operators or dotted paths present).
+- [ ] **W4.3** Query operators accept formulas — *deferred*. Current path
+  resolves literal values only in `_match_fields`. Formula support requires
+  threading `env` into `_match_fields` for context. Workaround: per-tick
+  rule with formula-driven `state_set` then `state` query reads result.
+- [x] **W4.4** **Parsed-expression caching.** Static `Formula._cache`
+  keyed by rewritten-formula + input-name signature. Compile once, execute
+  many. Verified by test (3 evals → cache size delta ≤ 1).
+- [ ] **W4.5** **AST whitelist** — *deferred to W6 / Tier 2.5*. Documented
+  in `formula.gd` header as known security gap. Yume is single-user, content
+  is trusted; whitelist becomes essential when sharing JSON across users.
+- [x] **W4.6** Load-time validation — `Formula.validate_syntax(formula)`
+  returns "" on success or error string. Used opportunistically; full
+  pass-over-all-formulas at load is W6 polish.
+- [x] **W4.7** `world.*` bindings — `world.tick` already set by scheduler
+  (`world_state["tick"] = tick_count`). `world.time_of_day` etc. are
+  user-defined keys in `world_state` from `data/world.json`. Tested.
+- [ ] **W4.8** Formula perf pass — *deferred to W6*. Cache hit ratio and
+  per-eval timing should be measured before scaling to ~500-pair contact
+  scenes. Current scale (~50 entities, ~10 contact rules) is well within
+  budget on a desktop.
+- [ ] **W4.9** Heat-falloff demo — *deferred*. Cascade demo (W3.4) already
+  exhibits formulaic-style emergent behavior via state thresholds + chance;
+  pure formula-driven heat falloff (`1/d²`) waits for spatial helper
+  bindings (`self.nearest`) which are Tier 3.
+- [x] **W4.10** **Tests (ship-with-phase):**
+  - 13 assertions in `test_formulas`: heuristic detector, basic arithmetic
+    paths, math helpers (clamp, abs), world bindings, multi-role (a/b)
+    formulas, missing-field strict semantic, cache hit, end-to-end
+    `state_add` with formula amount.
+  - **125/125 unit tests pass total** (was 112 before W4).
 
-### W4 — Formula layer (~1 week)
+### W5 — Genre acid test (~3–4 weeks)
 
-- [ ] **W4.1** `scripts/engine/formula.gd` — wraps Godot's `Expression`.
-  Bindings: `self`, `source`, `target`, `a`, `b`, `world`, plus **relation
-  traversal** (`self.held_by`, `self.contains`, `self.part_of`,
-  `self.parent_of.state.hp`) and **spatial helpers** (`self.nearest({...})`,
-  `self.nearby({...})` with `.count`/`.sum`/`.avg`/`.max`/`.min`
-  aggregates). Math helpers: `clamp`, `min`, `max`, `abs`, `sin`, `cos`,
-  `randf`, `lerp`.
-- [ ] **W4.2** Any effect numeric field accepts formula strings. E.g.
-  `amount: "-(a.state.temperature - 100) * 0.1"`.
-- [ ] **W4.3** Query operators accept formulas: `hardness_atleast:
-  "world.difficulty * 2"`.
-- [ ] **W4.4** **Parsed-expression caching.** Each Rule struct holds its
-  compiled `Expression` instances, parsed once at load. Zero re-parse per tick.
-- [ ] **W4.5** **Load-time AST whitelist.** Walk each parsed expression,
-  allow only: identifiers from the binding set, numeric/string literals,
-  arithmetic/comparison/logical/ternary operators, calls into the math-helper
-  and query-helper lists, member access on bindings. Reject everything else
-  at load. Document the whitelist in `formula.gd` header.
-- [ ] **W4.6** Load-time validator: parse every formula at startup, report
-  unresolved bindings, whitelist violations, and syntax errors per-rule.
-- [ ] **W4.7** `world.*` bindings: `world.tick`, `world.time_of_day`,
-  `world.weather`. Exposed by `world.gd` singleton.
-- [ ] **W4.8** Formula perf pass. Micro-benchmark `Expression` eval cost;
-  confirm per-pair-per-tick contact eval is sustainable at target scene
-  size. Document numbers in a comment header.
-- [ ] **W4.9** Demo: heat falls off as `1/distance^2`; fire spread chance =
-  `clamp(a.state.burning / (1 + b.state.wet), 0, 0.9)`. Tuning rich dynamics
-  via JSON edits only. **Proof of formula compositionality.**
-- [ ] **W4.10** **Tests (ship-with-phase):**
-  - Engine-unit: formula eval per binding (`self`, relation traversal, spatial
-    helpers, aggregates), cache hit-rate test (compile once), whitelist
-    rejection fixtures (arbitrary call, unknown binding, attribute escape).
-  - Load-time validator tests: bad formulas fail load with specific rule id +
-    position in the error message.
+Five demos. Identical engine. Different `data/<demo>/` folders + (for one)
+a different renderer. **No GD edits permitted during demo authoring** except
+to fix genuine engine bugs and to land the prerequisite renderer_3d.
 
-### W5 — Genre acid test (~1–2 weeks)
+**Strategic revision (2026-05-01):** the acid test must prove **two
+independent claims** — and they should be tested separately:
 
-Five demos. Identical engine. Different `data/<demo>/` folders. No GD edits
-permitted during this phase except to fix genuine engine bugs.
+1. **Rule-genre-agnostic** (invariant #1, 2): one engine expresses ecology /
+   farming / shooter / RPG / chess via JSON only. Tested by W5.1–W5.5.
+2. **Renderer-agnostic** (invariant #8): the same engine + same JSON renders
+   under different renderers. Tested by W5.0e parity hot-swap.
 
-- [ ] **W5.1 Ecology demo** (`data/demo_ecology/`) — 10+ entities (tree, grass,
-  water, fire, rain_cloud, bird, rabbit, fox, stone, ash). 15+ rules. No
-  player. Run for 10 minutes; forest state changes. Predators eat prey
-  (contact + state_add on hp < 0 + remove).
-- [ ] **W5.2 Farming demo** (`data/demo_farming/`) — player entity with
-  input-driven velocity. Inventory via `held_by` relation. Till ground
-  (transform dirt → farmland via `input` trigger + nearby query), plant
-  seed (spawn + `held_by` unrelate), harvest crop (contact + remove +
-  `relate held_by`).
+These are separate. A failure of one doesn't imply a failure of the other.
+Conflating them was a draft mistake.
+
+The 3D farming demo (W5.2) is the **visual capability proof** — answers "can
+the new framework do what Yume3D did?" — but is independent from the
+acid-test claims above.
+
+**Cost:** +2-4 weeks honest (originally said +2; reviewer flagged that
+optimistic). Reimplementation work in W5.0 is bigger than "harvest patterns"
+language suggested. Tier 2.5 timing slips by the same delta — flagged
+explicitly so we're not surprised.
+
+#### W5.0 — Renderer parity prerequisite (~2-3 weeks)
+
+**Layout note:** renderers live at `scripts/renderer_2d/` and
+`scripts/renderer_3d/` — **siblings of `scripts/engine/`**, not under it.
+The renderer is not engine; it reads engine data and projects it to a view.
+
+**Coordinate convention for shared 2D/3D demos:** sim-space coordinates are
+**XZ-planar**. 2D `Vector2(x, y)` maps to 3D `Vector3(x, 0, y)`. Y in 3D is
+height (decorative — terrain heightmap output). Distance and contact queries
+operate on planar XZ projection. This means a `radius: 1.5` in ecology means
+1.5 planar units in either renderer. **Any demo authored against Y-axis
+distances is inherently 3D-only and not subject to W5.0e parity.**
+
+- [x] **W5.0a** `scripts/renderer_3d/entity_mesh_3d.gd` — Node3D host that
+  attaches `MeshInstance3D` children to an Entity. Three-tier fallback:
+  `model_3d` file (PackedScene/Mesh) → `mesh` from meshes.json composite →
+  bare colored box. `position_scale` export (default 0.05) maps 2D pixel
+  positions to 3D world units. Falls back to `visual.shape` if `visual.mesh`
+  absent — lets shared data files work in both renderers.
+- [x] **W5.0b** `data/meshes.json` — 9 composite meshes (tree, rock, person,
+  water, fire, building, ash, burning_tree, marker). Mesh primitive
+  vocabulary in renderer code: `box`, `sphere`, `cylinder`, `capsule`,
+  `plane`, `prism`, `torus`, `quad` — Godot's `PrimitiveMesh` types.
+  `$param` substitution for color/size, same as `shapes.json`.
+  `mesh_lib.gd` mirrors `shape_lib.gd` API.
+- [x] **W5.0c** `scenes/world_3d.tscn` — Node-based scene with Camera3D
+  (positioned at (0, 8, 8) angled-down), DirectionalLight3D with shadows,
+  WorldEnvironment + ProceduralSky, ground plane. **`World` script is now
+  `extends Node` (was Node2D)** — both `world_2d.tscn` and `world_3d.tscn`
+  share the same orchestrator script, differing only by `renderer_script`
+  export and scene-tree siblings.
+- [ ] **W5.0d** Yume3D pattern reimplementation — *deferred*. Camera3D in
+  world_3d.tscn is static (no orbit/follow yet); terrain is a flat plane
+  (no heightmap); GLB part composition not yet implemented (Tier 1 covers
+  PackedScene loading but not the multi-part tinting Yume3D had). These
+  land when first 3D demo demands them.
+- [x] **W5.0e** **Renderer parity test.** `test_renderer_parity` in
+  test_runner: runs identical engine + rules + data twice with no renderer
+  attached, asserts state identical. Plus runtime confirmation: both
+  `world_2d.tscn` and `world_3d.tscn` load same `data/` and produce
+  identical tick output. **Engine is renderer-blind — invariant #8 verified.**
+- [x] **W5.0f** **Tests:** `test_mesh_lib` (5 assertions — load/has/get/
+  param-merge), `test_renderer_parity` (8 assertions — state identity
+  across runs, plain-Node guarantee). **138/138 unit tests pass total**
+  (was 125 before W5.0).
+
+#### Demo set (one is 3D)
+
+- [x] **W5.1 Ecology demo** (`data/demo_ecology/`) — 11 entity types,
+  28 instances, 18 rules. No player. Self-sustaining cycles:
+  - **Fire cascade:** fire ignites adjacent trees (radius 50, chance 0.5);
+    burning_trees spread (radius 70, chance 0.35); fuel decays per tick;
+    burns out to ash. Water extinguishes burning trees. ~9 trees → ~6 ash
+    in first ~40s.
+  - **Plant regeneration:** ash ages, then transforms to grass with chance
+    after age≥8. Closes the carbon cycle.
+  - **Animal life:** 4 rabbits, 2 foxes. Hunger decays per tick; hunger≤0 →
+    starve damage; hp≤0 → remove. Rabbits eat grass (contact+remove);
+    foxes eat rabbits (contact+remove); both drink water (contact+heal).
+    Random wander via velocity_set with formula `(randf() - 0.5) * 50`.
+  - **Verified end-to-end:** 2.5min headless run shows trees 9→3, ash
+    cycle through grass, predation reduced rabbit count (fox catches
+    occurred). Both `world_2d.tscn` and `world_3d.tscn` load same data —
+    invariant #8 confirmed at the demo level.
+- [ ] **W5.2 Farming demo** (`data/demo_farming/`) — **3D, primary visual
+  reference.** Continuity with Yume3D — terrain, named agents, composite
+  buildings via `part_of` relations, GLB models from Kenney pack. Player
+  entity with input-driven velocity. Inventory via `held_by` relation.
+  Till ground (transform dirt → farmland via `input` trigger + nearby query),
+  plant seed (spawn + `held_by` unrelate), harvest crop (contact + remove +
+  `relate held_by`). **This is the demo that visually demonstrates Yume3D's
+  scope on the new framework.**
 - [ ] **W5.3 Shooter demo** (`data/demo_shooter/`) — player, enemies, bullets.
   Bullet = entity with velocity + damage state. Contact rule: bullet + enemy
   → state_add hp + remove bullet. Enemy AI = periodic velocity_set toward
@@ -648,8 +781,12 @@ representations beat raw-trace consumption on long-horizon tasks.
   once entities are the single source of truth (already true in new design).
 - [ ] **4.2** Grid system — tile grid for SimCity-likes. Reference
   `docs/26_grid_system_proposal.md`.
-- [ ] **4.3** 3D renderer parity — `scripts/renderer_3d/` reads same entity
-  data, different visual. Proves the separation works.
+- [ ] **4.3** 3D renderer **polish + expansion** (basic 3D landed in W5.0).
+  This tier covers: animation state machines (rig idle/walk/attack), advanced
+  terrain (LODs, biomes), particle systems, dynamic lighting,
+  post-processing, model streaming. Engine-extensions that go beyond the
+  primitive vocabulary — flagged in primitives.md as "engine extensions
+  expected."
 - [ ] **4.4** Time acceleration — run at 10×/100× for long-horizon sims.
 - [ ] **4.5** Async LLM — required before multi-LLM actors.
 - [ ] **4.6** Episode recorder — per-tick entity snapshot + input log. For

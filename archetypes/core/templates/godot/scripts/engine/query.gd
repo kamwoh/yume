@@ -75,8 +75,12 @@ static func matches(entity: Entity, spec: Dictionary, env: Dictionary, context: 
 	return true
 
 
-## Scan all entities, return those matching `spec`. Applies `radius`,
+## Scan entities, return those matching `spec`. Applies `radius`,
 ## `order_by`, and `limit` after the match filter.
+##
+## If `spec` includes `radius` and `env.spatial_index` exists, the candidate
+## set is narrowed via the spatial index (W3.1) — avoids O(n) over all
+## entities. Without radius, full scan as before.
 static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> Array:
 	var all: Dictionary = env.get("entities", {})
 	var out: Array = []
@@ -84,19 +88,32 @@ static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> 
 	var radius: float = float(spec.get("radius", 0))
 	var origin: Vector2 = _resolve_origin(spec, env, context)
 
-	for id in all.keys():
-		var ent = all[id]
+	# Narrow candidate set via spatial index when radius + index present.
+	var candidates: Array = []
+	if has_radius:
+		var sx = env.get("spatial_index", null)
+		if sx != null and sx.has_method("query_radius_ids"):
+			var ids: Array = sx.query_radius_ids(origin, radius)
+			for id in ids:
+				if all.has(id): candidates.append(all[id])
+		else:
+			# fallback: scan all
+			candidates = all.values()
+	else:
+		candidates = all.values()
+
+	for ent in candidates:
 		if not (ent is Entity): continue
 		if not matches(ent, spec, env, context): continue
-		if has_radius and ent.position.distance_to(origin) > radius: continue
+		if has_radius and (ent as Entity).get_planar_position().distance_to(origin) > radius: continue
 		out.append(ent)
 
 	if spec.has("order_by"):
 		var ob: String = str(spec["order_by"])
 		if ob == "distance_asc":
-			out.sort_custom(func(a, b): return (a as Entity).position.distance_to(origin) < (b as Entity).position.distance_to(origin))
+			out.sort_custom(func(a, b): return (a as Entity).get_planar_position().distance_to(origin) < (b as Entity).get_planar_position().distance_to(origin))
 		elif ob == "distance_desc":
-			out.sort_custom(func(a, b): return (a as Entity).position.distance_to(origin) > (b as Entity).position.distance_to(origin))
+			out.sort_custom(func(a, b): return (a as Entity).get_planar_position().distance_to(origin) > (b as Entity).get_planar_position().distance_to(origin))
 
 	if spec.has("limit"):
 		var n: int = int(spec["limit"])
@@ -182,19 +199,20 @@ static func _check_single_relation(entity: Entity, rel_type: String, target, sto
 	return false
 
 
-## For `radius` queries, find the spatial origin.
+## For `radius` queries, find the spatial origin in planar (XZ) space.
 ## Priority:
-##   1. context._origin_position (explicit)
-##   2. context.self → entity.position
+##   1. context._origin_position (explicit Vector2 or Array)
+##   2. context.self → entity.get_planar_position()
 ##   3. Vector2.ZERO (no origin; radius filter effectively useless)
 static func _resolve_origin(spec: Dictionary, env: Dictionary, context: Dictionary) -> Vector2:
 	if context.has("_origin_position"):
 		var p = context["_origin_position"]
 		if p is Vector2: return p
+		if p is Vector3: return Vector2(p.x, p.z)
 		if p is Array and (p as Array).size() >= 2: return Vector2(float(p[0]), float(p[1]))
 	if context.has("self"):
 		var sid := str(context["self"])
 		var all: Dictionary = env.get("entities", {})
 		if all.has(sid) and all[sid] is Entity:
-			return (all[sid] as Entity).position
+			return (all[sid] as Entity).get_planar_position()
 	return Vector2.ZERO

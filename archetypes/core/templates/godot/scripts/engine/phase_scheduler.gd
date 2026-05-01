@@ -50,6 +50,37 @@ var _topo_cycle_warned: bool = false
 
 func _init(environment: Dictionary) -> void:
 	env = environment
+	# Buffers consumed by the scheduler. effect_apply pushes to these via env.
+	if not env.has("signal_buffer"):
+		env["signal_buffer"] = []
+	# Lifecycle dispatch: inline callable. effect_apply._spawn / _remove call
+	# this synchronously so spawn-rules see the new entity and despawn-rules
+	# see the dying entity *before* it's gone from env.entities.
+	env["dispatch_lifecycle"] = Callable(self, "_dispatch_lifecycle_inline")
+	# Subscribe to relation_changed events from the relation store, if present.
+	var rs = env.get("relations", null)
+	if rs != null and rs.has_signal("relation_added"):
+		rs.relation_added.connect(_on_relation_added)
+		rs.relation_removed.connect(_on_relation_removed)
+
+
+func _dispatch_lifecycle_inline(kind: String, entity_id: String) -> void:
+	var rules_lc: Array = rules_by_trigger.get(kind, [])
+	for r in rules_lc:
+		_fire_lifecycle_rule(r, entity_id, "commit")
+
+
+# ============================================================
+# RELATION EVENT BUFFERS (W2.4)
+# ============================================================
+
+var _relation_changes: Array = []  # [{change, type, from, to}, ...]
+
+func _on_relation_added(type: String, from_id: String, to_id: String) -> void:
+	_relation_changes.append({"change": "added", "type": type, "from": from_id, "to": to_id})
+
+func _on_relation_removed(type: String, from_id: String, to_id: String) -> void:
+	_relation_changes.append({"change": "removed", "type": type, "from": from_id, "to": to_id})
 
 
 # ============================================================
@@ -112,21 +143,25 @@ func tick() -> void:
 	var world_state: Dictionary = env.get("world", {})
 	world_state["tick"] = tick_count
 
+	# PHASE 1: input
 	_phase_input()
 	flush_effects()
+	_drain_signals_into("decide")  # signals from input visible in decide
 
+	# PHASE 2: decide
 	_phase_decide()
-
-	# PHASE 3: commit — effects queued in decide apply here. Signals emitted
-	# during commit go into commit_phase_signals to be consumed in react.
 	flush_effects()
+	_drain_signals_into("react")
 
+	# Motion is now integrated per-frame by World (see world.gd._process),
+	# NOT per-tick. velocity is a state field updated at tick rate; position
+	# advances continuously between ticks for smooth visuals.
+
+	# PHASE 4: react
 	_phase_react()
 	flush_effects()
-
-	# Rotate: react emits → next tick's input queue (as synthetic inputs)
-	# For W1 we just discard; signal trigger dispatch lands in W2.
-	react_phase_signals.clear()
+	# Any signals emitted during react flow to NEXT tick's input phase
+	# (signal_buffer is naturally carried across ticks by being persistent in env).
 
 
 func run_ticks(n: int) -> void:
@@ -138,12 +173,24 @@ func run_ticks(n: int) -> void:
 # PHASES (W1 stubs for input/react; decide + commit active)
 # ============================================================
 
+## Phase 1 (W2.2): drain input queue, fire matching `input` rules.
+## Each input event becomes a rule context with flattened payload params.
 func _phase_input() -> void:
-	# W2 extension: drain input_queue, match against "input"-trigger rules,
-	# enqueue effects with flattened input params as context.
-	pass
+	if input_queue.is_empty(): return
+	var events := input_queue.duplicate()
+	input_queue.clear()
+	var input_rules: Array = rules_by_trigger.get("input", [])
+	for ev in events:
+		var action := str(ev.get("action", ""))
+		var params: Dictionary = (ev.get("params", {}) as Dictionary).duplicate()
+		for r in input_rules:
+			var rule: Rule = r
+			if str(rule.trigger_param("action", "")) != action: continue
+			_fire_payload_rule(rule, params, "input")
 
 
+## Phase 2 (W1 + W2.1): tick rules + signal rules whose trigger fired before
+## decide (signals queued during prior tick's react, or this tick's input).
 func _phase_decide() -> void:
 	# Tick rules
 	var tick_rules: Array = rules_by_trigger.get("tick", [])
@@ -154,14 +201,121 @@ func _phase_decide() -> void:
 		if tick_count % interval != 0: continue
 		_fire_scan_rule(rule)
 
-	# W2 extension: signal rules for pre-tick signals.
 
-
+## Phase 4 (W2.3, W2.4, W3.2): contact + lifecycle + relation_changed dispatch.
+## Signal dispatch already happened in _drain_signals_into("react").
 func _phase_react() -> void:
-	# W2 extension: drain commit_phase_signals → fire signal rules.
-	# W3 extension: fire contact rules against post-commit state.
-	# Lifecycle relation_changed triggers also land in W2.
-	pass
+	# W3.2 — contact rules (pair matching via spatial index)
+	var contact_rules: Array = rules_by_trigger.get("contact", [])
+	for r in contact_rules:
+		_fire_contact_rule(r)
+
+	# Drain relation_changed events that occurred since last drain.
+	if not _relation_changes.is_empty():
+		var changes := _relation_changes.duplicate()
+		_relation_changes.clear()
+		var rules_rc: Array = rules_by_trigger.get("relation_changed", [])
+		for ch in changes:
+			for rr in rules_rc:
+				var rule: Rule = rr
+				if rule.trigger.has("relation") and str(rule.trigger["relation"]) != ch["type"]: continue
+				if rule.trigger.has("change") and str(rule.trigger["change"]) != ch["change"]: continue
+				var ctx := {"from": ch["from"], "to": ch["to"], "self": ch["from"]}
+				_fire_payload_rule(rule, ctx, "react")
+
+
+## Fire a contact rule (W3.2). Query has `a`, `b`, `radius`. For each entity
+## matching `a`, find entities within `radius` matching `b`. Effects queued
+## with `a`/`b` context bindings.
+##
+## Optimization: spatial index narrows the per-`a` lookup. Without index,
+## falls back to O(n²) pair scan.
+func _fire_contact_rule(rule: Rule) -> void:
+	var query = rule.query
+	if not (query is Dictionary): return
+	if not (query.has("a") and query.has("b")): return
+	var a_spec: Dictionary = query["a"]
+	var b_spec: Dictionary = query["b"]
+	var radius: float = float(query.get("radius", 1.0))
+	var chance: float = rule.chance
+
+	# Find all 'a' candidates (full scan — entities matching a's filters)
+	var a_candidates: Array = QueryLib.run(a_spec, env, {})
+	for a_ent in a_candidates:
+		if not (a_ent is Entity): continue
+		var a_pos: Vector2 = (a_ent as Entity).get_planar_position()
+		# Find b's near a, filtered by b_spec
+		var ctx_for_b := {"_origin_position": a_pos, "self": (a_ent as Entity).instance_id}
+		var b_spec_with_radius: Dictionary = b_spec.duplicate()
+		b_spec_with_radius["radius"] = radius
+		var b_candidates: Array = QueryLib.run(b_spec_with_radius, env, ctx_for_b)
+		for b_ent in b_candidates:
+			if not (b_ent is Entity): continue
+			if a_ent == b_ent: continue
+			if chance < 1.0 and randf() > chance: continue
+			var ctx: Dictionary = {
+				"a": (a_ent as Entity).instance_id,
+				"b": (b_ent as Entity).instance_id,
+				"a_entity": a_ent,
+				"b_entity": b_ent,
+				"_phase": "react",
+			}
+			if rule.require is Dictionary and not _require_ok(rule.require, ctx):
+				continue
+			for e in rule.effects:
+				_enqueue(e, ctx, rule.id)
+
+
+# ============================================================
+# SIGNAL & LIFECYCLE DISPATCH (W2.1, W2.3)
+# ============================================================
+
+## Drain env.signal_buffer; fire matching signal-trigger rules. `into_phase`
+## is the phase tag for the resulting rule contexts ("decide" or "react").
+func _drain_signals_into(into_phase: String) -> void:
+	var buf: Array = env.get("signal_buffer", [])
+	if buf.is_empty(): return
+	var sigs := buf.duplicate()
+	buf.clear()
+	var signal_rules: Array = rules_by_trigger.get("signal", [])
+	for sig in sigs:
+		var name := str(sig.get("name", ""))
+		var payload: Dictionary = (sig.get("payload", {}) as Dictionary).duplicate()
+		for r in signal_rules:
+			var rule: Rule = r
+			if str(rule.trigger_param("name", "")) != name: continue
+			_fire_payload_rule(rule, payload, into_phase)
+
+
+## (Lifecycle dispatch is now inline via env.dispatch_lifecycle callable; see
+## _dispatch_lifecycle_inline above. Buffer-based drain was removed because
+## despawn events would drain AFTER the entity was already removed.)
+
+
+# ============================================================
+# MOTION INTEGRATOR (W2.5) — engine built-in, not a rule
+# ============================================================
+
+## After commit phase, advance every entity with non-zero velocity.
+## state.position += state.velocity. Dimension-agnostic — works for Vector2 + Vector3.
+func _apply_motion() -> void:
+	var entities: Dictionary = env.get("entities", {})
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		var v = (ent as Entity).get_velocity()
+		if v == null: continue
+		# Skip if zero (cheap)
+		if v is Vector2 and v == Vector2.ZERO: continue
+		if v is Vector3 and v == Vector3.ZERO: continue
+		var p = (ent as Entity).get_position()
+		if p is Vector2 and v is Vector2:
+			(ent as Entity).set_position((p as Vector2) + v)
+		elif p is Vector3 and v is Vector3:
+			(ent as Entity).set_position((p as Vector3) + v)
+		elif p is Vector2 and v is Vector3:
+			# Mixed: project velocity to planar XZ
+			(ent as Entity).set_position(p + Vector2(v.x, v.z))
 
 
 # ============================================================
@@ -190,6 +344,54 @@ func _fire_scan_rule(rule: Rule) -> void:
 			return
 		for e in rule.effects:
 			_enqueue(e, base_ctx, rule.id)
+
+
+## Fire a rule whose context is supplied by an event payload (input, signal,
+## relation_changed). Different from _fire_scan_rule: no entity scan — the
+## rule operates on whatever is in the payload, optionally validated by
+## `require`. If `query` is present, scan and bind self per match (rare for
+## payload-driven rules but allowed).
+func _fire_payload_rule(rule: Rule, payload: Dictionary, phase: String) -> void:
+	if rule.chance < 1.0 and randf() > rule.chance: return
+	var base_ctx: Dictionary = payload.duplicate()
+	base_ctx["_phase"] = phase
+
+	if rule.require is Dictionary and not _require_ok(rule.require, base_ctx):
+		return
+
+	if rule.query is Dictionary:
+		var matches: Array = QueryLib.run(rule.query, env, base_ctx)
+		for ent in matches:
+			if not (ent is Entity): continue
+			var ctx := base_ctx.duplicate()
+			ctx["self"] = (ent as Entity).instance_id
+			ctx["self_entity"] = ent
+			for e in rule.effects:
+				_enqueue(e, ctx, rule.id)
+	else:
+		for e in rule.effects:
+			_enqueue(e, base_ctx, rule.id)
+
+
+## Fire a lifecycle rule (spawn/despawn) — the rule's `self` is the
+## spawning/despawning entity. Optional `query` filters by that entity's
+## tags/state.
+func _fire_lifecycle_rule(rule: Rule, entity_id: String, phase: String) -> void:
+	var entities: Dictionary = env.get("entities", {})
+	if not entities.has(entity_id): return
+	var ent: Entity = entities[entity_id]
+	var ctx: Dictionary = {"self": entity_id, "self_entity": ent, "_phase": phase}
+
+	# Filter mode: query treated as condition on the spawning/despawning entity
+	if rule.query is Dictionary:
+		if not QueryLib.matches(ent, rule.query, env, ctx): return
+
+	if rule.require is Dictionary and not _require_ok(rule.require, ctx): return
+
+	if rule.chance < 1.0 and randf() > rule.chance: return
+
+	for e in rule.effects:
+		_enqueue(e, ctx, rule.id)
 
 
 ## Validate every named context entity against its require-spec.

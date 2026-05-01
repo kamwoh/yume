@@ -1,17 +1,55 @@
 {
-  "_comment": "W1.12 proof-of-life: one tick rule incrementing growth on every crop.",
+  "_comment": "W3.4 ecology cascade rules. Fire ignites flammable neighbors via CONTACT trigger (W3.2 + spatial index). Burning trees deplete fuel; when out, turn to ash. Water adjacent to burning trees extinguishes them. Demonstrates spatial radius reactions + state-driven transform chains.",
 
   "rules": [
     {
-      "id": "crop_grows",
+      "id": "fire_ignites_tree",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["heat_source"]},
+        "b": {"tags_all": ["tree", "flammable"], "tags_none": ["burning_tree"]},
+        "radius": 50.0
+      },
+      "chance": 0.5,
+      "effect": {"type": "transform", "target": "b", "to": "burning_tree"}
+    },
+
+    {
+      "id": "burning_tree_spreads_fire",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["burning_tree"]},
+        "b": {"tags_all": ["tree", "flammable"], "tags_none": ["burning_tree"]},
+        "radius": 75.0
+      },
+      "chance": 0.4,
+      "effect": {"type": "transform", "target": "b", "to": "burning_tree"}
+    },
+
+    {
+      "id": "fuel_decays",
       "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["crop"]},
-      "effect": {
-        "type": "state_add",
-        "target": "self",
-        "field": "growth",
-        "amount": 1
-      }
+      "query": {"tags_all": ["burning_tree"]},
+      "effect": {"type": "state_add", "target": "self", "field": "fuel", "amount": -1}
+    },
+
+    {
+      "id": "tree_burns_out",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["burning_tree"], "state": {"fuel_lte": 0}},
+      "effect": {"type": "transform", "target": "self", "to": "ash"}
+    },
+
+    {
+      "id": "water_extinguishes_burning_tree",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["water"]},
+        "b": {"tags_all": ["burning_tree"]},
+        "radius": 60.0
+      },
+      "chance": 0.4,
+      "effect": {"type": "transform", "target": "b", "to": "tree"}
     }
   ]
 }

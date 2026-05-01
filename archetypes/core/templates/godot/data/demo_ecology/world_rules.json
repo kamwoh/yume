@@ -1,0 +1,189 @@
+{
+  "_comment": "W5.1 ecology demo rules. 18 rules — fire spread, animal hunger/death, predator-prey, plant regrowth via ash. Pure tick + contact triggers. Demonstrates emergent equilibrium under random animal motion + spatial reactions.",
+
+  "rules": [
+    {
+      "id": "fire_ignites_tree",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["heat_source"]},
+        "b": {"tags_all": ["tree", "flammable"], "tags_none": ["burning_tree"]},
+        "radius": 50.0
+      },
+      "chance": 0.5,
+      "effect": {"type": "transform", "target": "b", "to": "burning_tree"}
+    },
+
+    {
+      "id": "burning_tree_spreads",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["burning_tree"]},
+        "b": {"tags_all": ["tree", "flammable"], "tags_none": ["burning_tree"]},
+        "radius": 70.0
+      },
+      "chance": 0.35,
+      "effect": {"type": "transform", "target": "b", "to": "burning_tree"}
+    },
+
+    {
+      "id": "fuel_decays",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["burning_tree"]},
+      "effect": {"type": "state_add", "target": "self", "field": "fuel", "amount": -1}
+    },
+
+    {
+      "id": "tree_burns_out",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["burning_tree"], "state": {"fuel_lte": 0}},
+      "effect": {"type": "transform", "target": "self", "to": "ash"}
+    },
+
+    {
+      "id": "water_extinguishes_burning_tree",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["water"]},
+        "b": {"tags_all": ["burning_tree"]},
+        "radius": 80.0
+      },
+      "chance": 0.5,
+      "effect": {"type": "transform", "target": "b", "to": "tree"}
+    },
+
+    {
+      "id": "ash_ages",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["ash"]},
+      "effect": {"type": "state_add", "target": "self", "field": "age", "amount": 1}
+    },
+
+    {
+      "id": "ash_becomes_grass",
+      "trigger": {"type": "tick", "interval": 10},
+      "query": {"tags_all": ["ash"], "state": {"age_gte": 8}},
+      "chance": 0.4,
+      "effect": {"type": "transform", "target": "self", "to": "grass"}
+    },
+
+    {
+      "id": "rabbit_hunger_decay",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["rabbit"]},
+      "effect": {"type": "state_add", "target": "self", "field": "hunger", "amount": -2}
+    },
+
+    {
+      "id": "fox_hunger_decay",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["fox"]},
+      "effect": {"type": "state_add", "target": "self", "field": "hunger", "amount": -1}
+    },
+
+    {
+      "id": "starve_damage",
+      "trigger": {"type": "tick", "interval": 6},
+      "query": {"tags_all": ["animal"], "state": {"hunger_lte": 0}},
+      "effect": {"type": "state_add", "target": "self", "field": "hp", "amount": -3}
+    },
+
+    {
+      "id": "animal_dies",
+      "trigger": {"type": "tick", "interval": 2},
+      "query": {"tags_all": ["animal"], "state": {"hp_lte": 0}},
+      "effect": {"type": "remove", "target": "self"}
+    },
+
+    {
+      "id": "rabbit_eats_grass",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["rabbit"]},
+        "b": {"tags_all": ["grass"]},
+        "radius": 22.0
+      },
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "hunger", "amount": 35},
+        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+
+    {
+      "id": "fox_eats_rabbit",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["fox"]},
+        "b": {"tags_all": ["rabbit"]},
+        "radius": 24.0
+      },
+      "chance": 0.6,
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "hunger", "amount": 60},
+        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+
+    {
+      "id": "rabbit_wanders",
+      "trigger": {"type": "tick", "interval": 3},
+      "query": {"tags_all": ["rabbit"]},
+      "effect": {
+        "type": "velocity_set",
+        "target": "self",
+        "x": "(randf() - 0.5) * 50",
+        "y": "(randf() - 0.5) * 50"
+      }
+    },
+
+    {
+      "id": "fox_wanders",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["fox"]},
+      "effect": {
+        "type": "velocity_set",
+        "target": "self",
+        "x": "(randf() - 0.5) * 60",
+        "y": "(randf() - 0.5) * 60"
+      }
+    },
+
+    {
+      "id": "rabbit_drinks_water",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["rabbit"]},
+        "b": {"tags_all": ["water"]},
+        "radius": 30.0
+      },
+      "chance": 0.4,
+      "effect": {"type": "state_add", "target": "a", "field": "hp", "amount": 2}
+    },
+
+    {
+      "id": "fox_drinks_water",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["fox"]},
+        "b": {"tags_all": ["water"]},
+        "radius": 32.0
+      },
+      "chance": 0.4,
+      "effect": {"type": "state_add", "target": "a", "field": "hp", "amount": 2}
+    },
+
+    {
+      "id": "water_extinguishes_fire",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["water"]},
+        "b": {"tags_all": ["heat_source"]},
+        "radius": 60.0
+      },
+      "chance": 0.3,
+      "effect": {"type": "remove", "target": "b"}
+    }
+  ]
+}

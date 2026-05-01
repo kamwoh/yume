@@ -1,23 +1,30 @@
-extends Node2D
+extends Node
 class_name Entity
 
 ## Primitive #1 — Entity.
 ##
 ## Contract: `docs/30_framework_primitives.md` §1
 ##
-## A single, generic node type. No subclasses. Agent / Item / Projectile / Square
-## distinctions emerge from tags and property combinations, never from a class.
+## A single, generic node type. Renderer-agnostic — does NOT extend Node2D or
+## Node3D. Position lives in `state.position` as Vector2 or Vector3 (pure data).
+## Renderer attaches a positioned child node (Sprite2D / MeshInstance3D) and
+## syncs from `state.position` each frame.
+##
+## Why no inheritance from Node2D/Node3D: invariant #3 (no entity-class
+## hierarchy). Adding Entity2D vs Entity3D would re-introduce the very
+## anti-pattern we deleted (Agent / Item / Projectile classes). One Entity;
+## renderer chooses the view. Refactor surfaced by W5.0 review (2026-05-01).
 ##
 ## Data layout:
 ##   properties  — static typed values set at spawn, never mutated by rules
-##   state       — dynamic typed values, mutated by rules (hp, hunger, temperature…)
+##   state       — dynamic typed values, mutated by rules (hp, hunger, position…)
 ##   tags        — flat string membership set (no hierarchy, no inheritance)
 ##   visual      — renderer-specific payload (sprite_2d, model_3d, …); engine
 ##                 itself ignores this, renderers read it
 ##
 ## Reserved state fields (engine-recognized, not hardcoded):
-##   position  — Node2D.position (engine reads/writes directly, not via state)
-##   velocity  — Vector2; engine's motion phase applies to position each tick
+##   position  — Vector2 or Vector3. Engine reads via get_position().
+##   velocity  — Vector2 or Vector3. Engine motion phase adds this to position.
 ##   age       — convention: tick-incrementable; nothing special-cases it
 
 # ============================================================
@@ -27,7 +34,7 @@ class_name Entity
 var def_id: String = ""             # template definition id from entities.json
 var instance_id: String = ""        # unique per spawn; set by world loader
 var properties: Dictionary = {}     # static
-var state: Dictionary = {}          # dynamic
+var state: Dictionary = {}          # dynamic (includes position + velocity)
 var tags: Array[String] = []
 var visual: Dictionary = {}
 
@@ -41,7 +48,7 @@ var visual: Dictionary = {}
 ##   state      — merged onto state_init (shallow)
 ##   properties — merged onto properties (shallow)
 ##   tags       — appended (deduped)
-##   position   — Vector2 or [x, y] array
+##   position   — Vector2/Vector3 or [x, y]/[x, y, z] array → goes into state.position
 ##   visual     — merged (shallow)
 static func create(def: Dictionary, inst_id: String, overrides: Dictionary = {}) -> Entity:
 	var e := Entity.new()
@@ -53,6 +60,14 @@ static func create(def: Dictionary, inst_id: String, overrides: Dictionary = {})
 	for t in def.get("tags", []):
 		e.tags.append(str(t))
 	e.visual = (def.get("visual", {}) as Dictionary).duplicate(true)
+	# Normalize reserved spatial state fields. JSON loads [0,0] as Array;
+	# we want Vector2/Vector3 throughout for math.
+	if e.state.has("position"):
+		e.state["position"] = _normalize_position(e.state["position"])
+	else:
+		e.state["position"] = Vector2.ZERO
+	if e.state.has("velocity"):
+		e.state["velocity"] = _normalize_position(e.state["velocity"])
 	if not overrides.is_empty():
 		e._apply_overrides(overrides)
 	return e
@@ -74,7 +89,7 @@ func _apply_overrides(overrides: Dictionary) -> void:
 		for k in (overrides["visual"] as Dictionary):
 			visual[k] = overrides["visual"][k]
 	if overrides.has("position"):
-		position = _as_vec2(overrides["position"])
+		state["position"] = _normalize_position(overrides["position"])
 
 
 # ============================================================
@@ -115,17 +130,38 @@ func get_property(field: String, default = null):
 
 
 # ============================================================
-# VELOCITY (reserved state field; position is Node2D.position)
+# POSITION (in state, dimension-agnostic — Vector2 or Vector3)
 # ============================================================
 
-func get_velocity() -> Vector2:
-	var v = state.get("velocity", null)
-	if v == null: return Vector2.ZERO
-	if v is Vector2: return v
-	return _as_vec2(v)
+## Returns whatever's in state.position. Vector2 by default; can be Vector3 in
+## 3D scenes. Renderer reads this each frame to update its visual child node.
+func get_position() -> Variant:
+	return state.get("position", Vector2.ZERO)
 
-func set_velocity(v: Vector2) -> void:
-	state["velocity"] = v
+func set_position(p) -> void:
+	state["position"] = _normalize_position(p)
+
+## Convenience for spatial queries that must reduce to a 2D plane regardless
+## of source dimensionality. Convention (W5.0): Vector3(x, y, z) → Vector2(x, z).
+## XY in 3D = (x, z); Y is height/decorative.
+func get_planar_position() -> Vector2:
+	var p = state.get("position", Vector2.ZERO)
+	if p is Vector2: return p
+	if p is Vector3: return Vector2(p.x, p.z)
+	if p is Array and (p as Array).size() >= 2:
+		return Vector2(float(p[0]), float(p[1]))
+	return Vector2.ZERO
+
+
+# ============================================================
+# VELOCITY (reserved state field, dimension-agnostic)
+# ============================================================
+
+func get_velocity() -> Variant:
+	return state.get("velocity", Vector2.ZERO)
+
+func set_velocity(v) -> void:
+	state["velocity"] = _normalize_position(v)
 
 
 # ============================================================
@@ -134,6 +170,11 @@ func set_velocity(v: Vector2) -> void:
 
 ## Produces a plain-data snapshot. Round-trips through JSON.
 func snapshot() -> Dictionary:
+	var pos = state.get("position", Vector2.ZERO)
+	var pos_serialized: Array
+	if pos is Vector2: pos_serialized = [pos.x, pos.y]
+	elif pos is Vector3: pos_serialized = [pos.x, pos.y, pos.z]
+	else: pos_serialized = [0.0, 0.0]
 	return {
 		"def": def_id,
 		"id": instance_id,
@@ -141,7 +182,7 @@ func snapshot() -> Dictionary:
 		"state": state.duplicate(true),
 		"tags": tags.duplicate(),
 		"visual": visual.duplicate(true),
-		"position": [position.x, position.y],
+		"position": pos_serialized,
 	}
 
 
@@ -149,8 +190,12 @@ func snapshot() -> Dictionary:
 # UTIL
 # ============================================================
 
-func _as_vec2(v) -> Vector2:
-	if v is Vector2: return v
-	if v is Array and (v as Array).size() >= 2:
-		return Vector2(float(v[0]), float(v[1]))
+## Normalize a position-shaped value to a Vector2 or Vector3.
+## Accepts Vector2/Vector3/Array. Array length 2 → Vector2; length 3 → Vector3.
+static func _normalize_position(v) -> Variant:
+	if v is Vector2 or v is Vector3: return v
+	if v is Array:
+		var a := v as Array
+		if a.size() == 2: return Vector2(float(a[0]), float(a[1]))
+		if a.size() == 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
 	return Vector2.ZERO

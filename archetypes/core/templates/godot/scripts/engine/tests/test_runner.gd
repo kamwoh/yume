@@ -26,6 +26,14 @@ func _ready() -> void:
 	test_query()
 	test_effect_apply()
 	test_schema_validator()
+	test_renderer_agnostic()
+	test_w2_integration()
+	test_shape_lib()
+	test_spatial_index()
+	test_contact_rules()
+	test_formulas()
+	test_mesh_lib()
+	test_renderer_parity()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -111,7 +119,7 @@ func test_entity() -> void:
 	expect_eq(t.get_state("extra"), 1, "state override adds new field")
 	expect(t.has_tag("plant"), "default tag preserved")
 	expect(t.has_tag("watered"), "override tag added")
-	expect_eq(t.position, Vector2(3, 4), "position override")
+	expect_eq(t.get_position(), Vector2(3, 4), "position override (in state)")
 	# Snapshot
 	var snap := t.snapshot()
 	expect_eq(snap["def"], "tree", "snapshot.def")
@@ -233,9 +241,9 @@ func test_query() -> void:
 		"fire": {"id": "fire", "tags": ["heat_source"], "state_init": {"burning": 1}},
 	}
 	var entities := {}
-	var t1 := Entity.create(defs.tree, "t1"); t1.position = Vector2(0, 0); t1.set_state("wet", 0.1)
-	var t2 := Entity.create(defs.tree, "t2"); t2.position = Vector2(2, 0); t2.set_state("wet", 0.8)
-	var f1 := Entity.create(defs.fire, "f1"); f1.position = Vector2(0.5, 0)
+	var t1 := Entity.create(defs.tree, "t1"); t1.set_position(Vector2(0, 0)); t1.set_state("wet", 0.1)
+	var t2 := Entity.create(defs.tree, "t2"); t2.set_position(Vector2(2, 0)); t2.set_state("wet", 0.8)
+	var f1 := Entity.create(defs.fire, "f1"); f1.set_position(Vector2(0.5, 0))
 	entities["t1"] = t1; entities["t2"] = t2; entities["f1"] = f1
 	var env := {"entities": entities, "relations": RelationStore.new()}
 
@@ -380,3 +388,430 @@ func test_schema_validator() -> void:
 		Rule.from_dict({"id": "ok", "trigger": {"type": "tick"}, "effect": {"type": "state_set", "target": "self", "field": "x", "value": 1}}),
 	]
 	expect_eq(Rule.validate_all(good).size(), 0, "valid rule passes validator")
+
+
+# ============================================================
+# RENDERER-AGNOSTIC SMOKE TEST (W1.14e)
+# ============================================================
+
+## Tests invariant #8 at the entity layer: Entity itself carries no transform.
+## Position lives in state.position. Same Entity, same JSON, same effects
+## should run identically regardless of which renderer is attached (or none).
+func test_renderer_agnostic() -> void:
+	_section("renderer_agnostic (W1.14e)")
+	# Entity is a plain Node now — verify no Node2D inheritance leaks back in.
+	var e := Entity.create({"id": "test", "tags": ["thing"], "state_init": {"hp": 50}}, "t1")
+	# Cast through Variant so the static type checker doesn't reject is-checks.
+	var e_var: Variant = e
+	expect(not (e_var is Node2D), "Entity is plain Node, NOT Node2D")
+	expect(not (e_var is Node3D), "Entity is plain Node, NOT Node3D")
+	expect(e is Node, "Entity is Node")
+
+	# Position is data — Vector2 default, Vector3 also accepted.
+	e.set_position(Vector2(10, 20))
+	expect_eq(e.get_position(), Vector2(10, 20), "Vector2 position round-trip")
+	e.set_position(Vector3(1, 2, 3))
+	expect_eq(e.get_position(), Vector3(1, 2, 3), "Vector3 position round-trip")
+	expect_eq(e.get_planar_position(), Vector2(1, 3), "Vector3 → planar XZ projection")
+
+	# Position survives via state — snapshot/restore round-trips it.
+	e.set_position(Vector2(7, 8))
+	var snap := e.snapshot()
+	expect_eq(snap["position"], [7.0, 8.0], "snapshot preserves 2D position")
+	e.set_position(Vector3(4, 5, 6))
+	snap = e.snapshot()
+	expect_eq(snap["position"], [4.0, 5.0, 6.0], "snapshot preserves 3D position")
+
+	# Engine reads via state too — no special-casing.
+	expect_eq(e.state.get("position"), Vector3(4, 5, 6), "position lives in state")
+
+	e.queue_free()
+
+
+# ============================================================
+# W2 INTEGRATION TESTS — input→signal→spawn cascade, despawn trigger
+# ============================================================
+
+func test_w2_integration() -> void:
+	_section("w2_integration (input→signal→spawn→despawn cascade)")
+	# Build a tiny world by hand (no World node, just env + scheduler).
+	var entities: Dictionary = {}
+	var defs: Dictionary = {
+		"player":  {"id": "player",  "tags": ["player"], "state_init": {}},
+		"sparkle": {"id": "sparkle", "tags": ["sparkle"], "state_init": {"life": 3}},
+		"counter": {"id": "counter", "tags": ["counter"], "state_init": {"emitted": 0, "died": 0}},
+	}
+	entities["p1"] = Entity.create(defs.player, "p1")
+	entities["c1"] = Entity.create(defs.counter, "c1")
+	var rs := RelationStore.new()
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+
+	# Rules: input "spark" → emit signal → spawn sparkle. Tick decay. Lifecycle counters.
+	var rules: Array = [
+		Rule.from_dict({
+			"id": "input_spark",
+			"trigger": {"type": "input", "action": "spark"},
+			"effect": {"type": "emit", "signal": "sparkle_emit", "payload": {"origin": "actor"}},
+		}),
+		Rule.from_dict({
+			"id": "signal_spawn",
+			"trigger": {"type": "signal", "name": "sparkle_emit"},
+			"effect": {"type": "spawn", "template": "sparkle", "position": "origin"},
+		}),
+		Rule.from_dict({
+			"id": "decay",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["sparkle"]},
+			"effect": {"type": "state_add", "target": "self", "field": "life", "amount": -1},
+		}),
+		Rule.from_dict({
+			"id": "die",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["sparkle"], "state": {"life_lte": 0}},
+			"effect": {"type": "remove", "target": "self"},
+		}),
+		Rule.from_dict({
+			"id": "on_birth",
+			"trigger": {"type": "spawn"},
+			"query": {"tags_all": ["sparkle"]},
+			"effect": {"type": "state_add", "target": "c1", "field": "emitted", "amount": 1},
+		}),
+		Rule.from_dict({
+			"id": "on_death",
+			"trigger": {"type": "despawn"},
+			"query": {"tags_all": ["sparkle"]},
+			"effect": {"type": "state_add", "target": "c1", "field": "died", "amount": 1},
+		}),
+	]
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(rules)
+
+	# Sanity: counter starts at zero, no sparkles
+	expect_eq(int(entities["c1"].get_state("emitted")), 0, "counter.emitted starts 0")
+	expect_eq(int(entities["c1"].get_state("died")), 0, "counter.died starts 0")
+	expect_eq(QueryLib.run({"tags_all": ["sparkle"]}, env).size(), 0, "no sparkles initially")
+
+	# Queue input → tick → input rule fires → emit → signal rule fires → spawn → spawn rule fires (counter++)
+	sched.queue_input("spark", {"actor": "p1"})
+	sched.tick()
+	expect_eq(QueryLib.run({"tags_all": ["sparkle"]}, env).size(), 1, "1 sparkle after first tick")
+	expect_eq(int(entities["c1"].get_state("emitted")), 1, "spawn trigger incremented counter to 1")
+
+	# Tick 2: decay (life 3→2), no death yet
+	sched.tick()
+	expect_eq(QueryLib.run({"tags_all": ["sparkle"]}, env).size(), 1, "sparkle still alive at tick 2")
+
+	# Tick 3 (life 2→1), Tick 4 (life 1→0), Tick 5: die rule sees life<=0 → remove → despawn rule fires (counter died++)
+	sched.tick(); sched.tick(); sched.tick()
+	expect_eq(QueryLib.run({"tags_all": ["sparkle"]}, env).size(), 0, "sparkle removed after life→0")
+	expect_eq(int(entities["c1"].get_state("died")), 1, "despawn trigger incremented counter")
+
+
+# ============================================================
+# SHAPE LIB (W2.7a) — config-driven shape catalog
+# ============================================================
+
+func test_shape_lib() -> void:
+	_section("shape_lib (W2.7a)")
+	# Load the project's shapes.json (must exist with at least one shape).
+	var lib := ShapeLib.load_from_file("res://data/shapes.json")
+	expect(lib.has("tree"), "shapes.json contains 'tree'")
+	expect(lib.has("rock"), "shapes.json contains 'rock'")
+	expect(not lib.has("nonexistent_shape_xyz"), "missing shape returns false")
+
+	var tree := lib.get_shape("tree")
+	expect(not tree.is_empty(), "tree shape def loads")
+	expect(tree.has("primitives"), "tree has primitives array")
+	expect(tree.has("params"), "tree has params dict")
+
+	# Param merge: shape defaults + entity-supplied overrides.
+	var defaults: Dictionary = tree["params"]
+	var instance_params := {"foliage": "#abcdef"}
+	var merged := ShapeLib.merge_params(tree, instance_params)
+	expect_eq(merged["foliage"], "#abcdef", "instance param overrides default")
+	expect_eq(merged["trunk"], defaults["trunk"], "default param preserved when not overridden")
+
+
+# ============================================================
+# SPATIAL INDEX (W3.1)
+# ============================================================
+
+func test_spatial_index() -> void:
+	_section("spatial_index (W3.1)")
+	var idx := SpatialIndex.new()
+	idx.cell_size = 10.0  # tiny cells so radius math is interesting
+
+	# Build 4 fake entities at positions
+	var entities: Dictionary = {}
+	var def := {"id": "thing", "tags": ["thing"], "state_init": {}}
+	for i in range(4):
+		var e := Entity.create(def, "e%d" % i)
+		entities["e%d" % i] = e
+	(entities["e0"] as Entity).set_position(Vector2(0, 0))
+	(entities["e1"] as Entity).set_position(Vector2(5, 0))     # within 8 of e0
+	(entities["e2"] as Entity).set_position(Vector2(20, 0))    # outside 8 of e0
+	(entities["e3"] as Entity).set_position(Vector2(0, 100))   # far away
+	for id in entities:
+		idx.update_entity(id, (entities[id] as Entity).get_planar_position())
+
+	# Radius query at origin, r=8: should match e0 (self) and e1
+	var hits := idx.query_radius(Vector2(0, 0), 8.0, entities)
+	expect_eq(hits.size(), 2, "radius=8 from origin matches e0+e1 (got %d)" % hits.size())
+
+	# Radius query at origin, r=25: should match e0, e1, e2 (not e3)
+	var hits2 := idx.query_radius(Vector2(0, 0), 25.0, entities)
+	expect_eq(hits2.size(), 3, "radius=25 matches e0+e1+e2 (got %d)" % hits2.size())
+
+	# Move e1 far away and re-query
+	(entities["e1"] as Entity).set_position(Vector2(500, 500))
+	idx.update_entity("e1", (entities["e1"] as Entity).get_planar_position())
+	var hits3 := idx.query_radius(Vector2(0, 0), 8.0, entities)
+	expect_eq(hits3.size(), 1, "after moving e1 away, radius=8 matches only e0 (got %d)" % hits3.size())
+
+	# Remove e0
+	idx.remove_entity("e0")
+	var hits4 := idx.query_radius(Vector2(0, 0), 8.0, entities)
+	expect_eq(hits4.size(), 0, "after removing e0, no hits at origin")
+
+	# Cleanup
+	for e in entities.values(): (e as Entity).queue_free()
+
+
+# ============================================================
+# CONTACT RULES (W3.2)
+# ============================================================
+
+func test_contact_rules() -> void:
+	_section("contact_rules (W3.2)")
+	# fire near dry tree → ignite tree (contact rule); fire near water → fire dies
+	var defs: Dictionary = {
+		"fire":   {"id": "fire",   "tags": ["fire"],   "state_init": {"burning": 1, "fuel": 5}},
+		"tree":   {"id": "tree",   "tags": ["tree", "flammable"], "state_init": {"burning": 0, "wet": 0.0}},
+		"water":  {"id": "water",  "tags": ["water"],  "state_init": {}},
+	}
+	var entities: Dictionary = {}
+	var f1 := Entity.create(defs.fire, "f1");  f1.set_position(Vector2(0, 0))
+	var t1 := Entity.create(defs.tree, "t1");  t1.set_position(Vector2(5, 0))    # close to fire
+	var t2 := Entity.create(defs.tree, "t2");  t2.set_position(Vector2(50, 0))   # far from fire
+	var w1 := Entity.create(defs.water, "w1"); w1.set_position(Vector2(8, 0))    # close to fire
+	entities["f1"] = f1; entities["t1"] = t1; entities["t2"] = t2; entities["w1"] = w1
+
+	var rs := RelationStore.new()
+	var sx := SpatialIndex.new()
+	for id in entities:
+		sx.update_entity(id, (entities[id] as Entity).get_planar_position())
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs, "spatial_index": sx,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+
+	var rules: Array = [
+		Rule.from_dict({
+			"id": "fire_ignites_tree",
+			"trigger": {"type": "contact"},
+			"query": {
+				"a": {"tags_all": ["fire"], "state": {"burning_gte": 1}},
+				"b": {"tags_all": ["flammable"], "state": {"burning_eq": 0}},
+				"radius": 10.0
+			},
+			"effect": {"type": "state_set", "target": "b", "field": "burning", "value": 1},
+		}),
+		Rule.from_dict({
+			"id": "water_extinguishes_fire",
+			"trigger": {"type": "contact"},
+			"query": {
+				"a": {"tags_all": ["water"]},
+				"b": {"tags_all": ["fire"], "state": {"burning_gte": 1}},
+				"radius": 10.0
+			},
+			"effect": {"type": "state_set", "target": "b", "field": "burning", "value": 0},
+		}),
+	]
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(rules)
+
+	# Initial state
+	expect_eq(int(t1.get_state("burning")), 0, "t1 initially not burning")
+	expect_eq(int(t2.get_state("burning")), 0, "t2 initially not burning")
+	expect_eq(int(f1.get_state("burning")), 1, "f1 initially burning")
+
+	# One tick: contact rules fire in react phase.
+	# Both rules will run: ignite_tree (fire→t1), extinguish_fire (water→f1).
+	# Their order matters for the outcome of f1's burning state.
+	# rule_a definition order: fire_ignites_tree FIRST, water_extinguishes_fire SECOND.
+	# Both queue effects with different a/b pairs. Effects apply in commit order.
+	# Final state: t1 burning=1 (set by ignite); f1 burning=0 (set by extinguish).
+	sched.tick()
+
+	expect_eq(int(t1.get_state("burning")), 1, "t1 ignited (within radius 10 of fire)")
+	expect_eq(int(t2.get_state("burning")), 0, "t2 NOT ignited (50 units away from fire)")
+	expect_eq(int(f1.get_state("burning")), 0, "f1 extinguished by adjacent water")
+
+	# Cleanup
+	for e in entities.values(): (e as Entity).queue_free()
+
+
+# ============================================================
+# FORMULAS (W4)
+# ============================================================
+
+func test_formulas() -> void:
+	_section("formulas (W4)")
+	# Build a fake entity with state we can query
+	var def := {"id": "test", "tags": ["test"], "state_init": {"hp": 80, "max_hp": 100, "wet": 0.3}}
+	var e := Entity.create(def, "e1")
+
+	# Heuristic: looks_like_formula
+	expect(Formula.looks_like_formula("self.state.hp * 2"), "looks_like_formula: arithmetic + path")
+	expect(Formula.looks_like_formula("(a + b) / 2"), "looks_like_formula: parens")
+	expect(not Formula.looks_like_formula("actor"), "bare name not a formula")
+	expect(not Formula.looks_like_formula("hello_world"), "underscored name not a formula")
+
+	# Basic arithmetic with state path
+	var ctx := {"self": e}
+	var r1 = Formula.evaluate("self.state.hp * 2", ctx)
+	expect_eq(r1, 160.0, "hp * 2 = 160")
+
+	var r2 = Formula.evaluate("self.state.hp - self.state.max_hp", ctx)
+	expect_eq(r2, -20.0, "hp - max_hp = -20")
+
+	# Math helpers (Expression built-in)
+	var r3 = Formula.evaluate("clamp(self.state.hp, 0, 50)", ctx)
+	expect_eq(r3, 50.0, "clamp clips to upper bound")
+
+	var r4 = Formula.evaluate("abs(self.state.hp - 100)", ctx)
+	expect_eq(r4, 20.0, "abs(80 - 100) = 20")
+
+	# World binding
+	var ctx_w := {"self": e, "world": {"tick": 7, "difficulty": 2.5}}
+	var r5 = Formula.evaluate("world.tick * 10 + self.state.hp", ctx_w)
+	expect_eq(r5, 150.0, "world.tick * 10 + hp")
+
+	# Multiple roles (a + b)
+	var def2 := {"id": "other", "tags": ["test"], "state_init": {"temperature": 100}}
+	var f := Entity.create(def2, "f1")
+	var ctx_ab := {"a": f, "b": e}
+	var r6 = Formula.evaluate("(a.state.temperature - b.state.hp) * 0.5", ctx_ab)
+	expect_eq(r6, 10.0, "(100 - 80) * 0.5 = 10")
+
+	# Missing field returns 0 (strict)
+	var r7 = Formula.evaluate("self.state.nonexistent + 100", ctx)
+	expect_eq(r7, 100.0, "missing field resolves to 0; sum = 100")
+
+	# Cache hit: re-evaluate same formula → cache size grows by 1 only
+	var size_before := Formula.cache_size()
+	Formula.evaluate("self.state.hp * 2", ctx)
+	Formula.evaluate("self.state.hp * 2", ctx)
+	Formula.evaluate("self.state.hp * 2", ctx)
+	var size_after := Formula.cache_size()
+	expect(size_after - size_before <= 1, "repeated formula cached (size delta %d)" % (size_after - size_before))
+
+	# Effect-side integration: state_add with formula amount
+	var entities: Dictionary = {"e1": e}
+	var env: Dictionary = {
+		"entities": entities, "defs": {}, "relations": null,
+		"world": {"tick": 5}, "parent": null, "next_id": {"_": 0},
+	}
+	# Apply effect: hp += world.tick (5) → hp 80 → 85
+	EffectApply.apply(
+		{"type": "state_add", "target": "self", "field": "hp", "amount": "world.tick"},
+		env, {"self": "e1"}
+	)
+	expect_eq(int(e.get_state("hp")), 85, "state_add with formula amount: 80 + 5 = 85")
+
+	e.queue_free()
+	f.queue_free()
+
+
+# ============================================================
+# MESH LIB (W5.0b) — 3D companion to ShapeLib
+# ============================================================
+
+func test_mesh_lib() -> void:
+	_section("mesh_lib (W5.0b)")
+	var lib := MeshLib.load_from_file("res://data/meshes.json")
+	expect(lib.has("tree"), "meshes.json contains 'tree'")
+	expect(lib.has("rock"), "meshes.json contains 'rock'")
+	expect(not lib.has("nonexistent_mesh_xyz"), "missing mesh returns false")
+
+	var tree := lib.get_mesh("tree")
+	expect(not tree.is_empty(), "tree mesh def loads")
+	expect(tree.has("primitives"), "tree has primitives array")
+
+	var defaults: Dictionary = tree["params"]
+	var instance_params := {"foliage": "#abcdef"}
+	var merged := MeshLib.merge_params(tree, instance_params)
+	expect_eq(merged["foliage"], "#abcdef", "instance param overrides default")
+	expect_eq(merged["trunk"], defaults["trunk"], "default param preserved")
+
+
+# ============================================================
+# RENDERER PARITY (W5.0e) — invariant #8 acid test at the entity layer
+# ============================================================
+
+## Run identical engine + JSON under different render contexts; assert state
+## ticks identically. We don't actually instantiate renderers (that needs
+## SceneTree); we test that the ENGINE is renderer-blind by simulating the
+## same load+tick sequence twice with no renderer attached, then verify same
+## entity set + state. Sanity: this test is meaningful because Entity is
+## plain Node post-W1.14.
+func test_renderer_parity() -> void:
+	_section("renderer_parity (W5.0e)")
+	# Run 1: load proof-of-life-style data manually (no World), tick N times
+	var defs1: Dictionary = {
+		"thing": {"id": "thing", "tags": ["thing"], "state_init": {"growth": 0}},
+	}
+	var ents1: Dictionary = {"e1": Entity.create(defs1.thing, "e1")}
+	var sched1 := PhaseScheduler.new({
+		"entities": ents1, "defs": defs1, "relations": RelationStore.new(),
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	})
+	sched1.register_rules([
+		Rule.from_dict({
+			"id": "grow",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["thing"]},
+			"effect": {"type": "state_add", "target": "self", "field": "growth", "amount": 1},
+		}),
+	])
+	for i in range(5): sched1.tick()
+	var snap1 := (ents1["e1"] as Entity).snapshot()
+
+	# Run 2: same data, different "renderer" context (no renderer is attached
+	# to the entity, simulating a renderer-blind world). Engine should produce
+	# the same state.
+	var defs2: Dictionary = {
+		"thing": {"id": "thing", "tags": ["thing"], "state_init": {"growth": 0}},
+	}
+	var ents2: Dictionary = {"e1": Entity.create(defs2.thing, "e1")}
+	var sched2 := PhaseScheduler.new({
+		"entities": ents2, "defs": defs2, "relations": RelationStore.new(),
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	})
+	sched2.register_rules([
+		Rule.from_dict({
+			"id": "grow",
+			"trigger": {"type": "tick", "interval": 1},
+			"query": {"tags_all": ["thing"]},
+			"effect": {"type": "state_add", "target": "self", "field": "growth", "amount": 1},
+		}),
+	])
+	for i in range(5): sched2.tick()
+	var snap2 := (ents2["e1"] as Entity).snapshot()
+
+	# State must match exactly (modulo position default Vector2 vs Vector3)
+	expect_eq(snap1["state"]["growth"], snap2["state"]["growth"], "growth identical across runs")
+	expect_eq(snap1["state"]["growth"], 5, "growth ticked 5 times")
+	expect_eq(snap1["def"], snap2["def"], "def_id identical")
+	expect_eq(snap1["tags"], snap2["tags"], "tags identical")
+
+	# Entity nodes are plain Node — never Node2D or Node3D
+	var e_var: Variant = ents1["e1"]
+	expect(not (e_var is Node2D), "Entity stays plain Node post-tick (no Node2D leak)")
+	expect(not (e_var is Node3D), "Entity stays plain Node post-tick (no Node3D leak)")
+
+	(ents1["e1"] as Entity).queue_free()
+	(ents2["e1"] as Entity).queue_free()

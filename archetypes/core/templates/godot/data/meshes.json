@@ -1,0 +1,73 @@
+{
+  "_comment": "3D mesh library (W5.0b). Composes engine MESH PRIMITIVES (box, sphere, cylinder, capsule, plane, prism, torus, quad — Godot's PrimitiveMesh classes). Each entry is a list of primitives with positions + sizes + $param substitution. Same authoring shape as shapes.json.",
+
+  "meshes": {
+    "tree": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.12, "height": 0.8, "color": "$trunk"},
+        {"op": "sphere",   "pos": [0, 1.1, 0], "radius": 0.5,                 "color": "$foliage"}
+      ],
+      "params": {"foliage": "#3a8a3a", "trunk": "#6b3a1a"}
+    },
+
+    "rock": {
+      "primitives": [
+        {"op": "sphere", "pos": [0, 0.3, 0], "radius": 0.35, "color": "$stone"}
+      ],
+      "params": {"stone": "#7a7a7a"}
+    },
+
+    "person": {
+      "primitives": [
+        {"op": "capsule", "pos": [0, 0.6, 0], "radius": 0.2, "height": 1.0, "color": "$shirt"},
+        {"op": "sphere",  "pos": [0, 1.4, 0], "radius": 0.18,                "color": "$skin"}
+      ],
+      "params": {"shirt": "#5b9bff", "skin": "#e0b094"}
+    },
+
+    "water": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.6, "height": 0.1, "color": "$water"}
+      ],
+      "params": {"water": "#3b7fb8"}
+    },
+
+    "fire": {
+      "primitives": [
+        {"op": "sphere", "pos": [0, 0.3, 0], "radius": 0.3, "color": "$flame_outer"},
+        {"op": "sphere", "pos": [0, 0.5, 0], "radius": 0.18, "color": "$flame_inner"}
+      ],
+      "params": {"flame_outer": "#d94c1a", "flame_inner": "#ffe066"}
+    },
+
+    "building": {
+      "primitives": [
+        {"op": "box",   "pos": [0, 0.5, 0], "size": [1.6, 1.0, 1.2], "color": "$wall"},
+        {"op": "prism", "pos": [0, 1.3, 0], "size": [1.8, 0.6, 1.4], "color": "$roof"}
+      ],
+      "params": {"wall": "#b8a98a", "roof": "#7a3a2a"}
+    },
+
+    "ash": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.3, "height": 0.1, "color": "$ash"}
+      ],
+      "params": {"ash": "#2a2618"}
+    },
+
+    "burning_tree": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.12, "height": 0.8, "color": "$char"},
+        {"op": "sphere",   "pos": [0, 1.1, 0], "radius": 0.5,                 "color": "$flame"}
+      ],
+      "params": {"char": "#3a1810", "flame": "#d94c1a"}
+    },
+
+    "marker": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.05, 0], "size": [0.2, 0.1, 0.2], "color": "$mark"}
+      ],
+      "params": {"mark": "#aaaaaa"}
+    }
+  }
+}

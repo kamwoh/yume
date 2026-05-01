@@ -1,0 +1,106 @@
+{
+  "_comment": "W5.1 ecology demo. 11 entity types, ~30 instances. No player, no input. Driven entirely by tick/contact rules. Fire spreads through forest, animals wander, rabbits eat grass, foxes eat rabbits, water extinguishes burning, ash → grass over time. Plays out over ~10 minutes of self-sustaining cycles.",
+
+  "definitions": [
+    {
+      "id": "fire",
+      "tags": ["fire", "heat_source"],
+      "state_init": {"burning": 1},
+      "visual": {"shape": "fire"}
+    },
+    {
+      "id": "tree",
+      "tags": ["tree", "flammable", "plant"],
+      "state_init": {"wet": 0.0},
+      "visual": {"shape": "tree"}
+    },
+    {
+      "id": "burning_tree",
+      "tags": ["tree", "flammable", "burning_tree"],
+      "state_init": {"fuel": 8},
+      "visual": {"shape": "tree", "params": {"foliage": "#d94c1a", "trunk": "#3a1810"}}
+    },
+    {
+      "id": "ash",
+      "tags": ["ash", "decor", "soil"],
+      "state_init": {"age": 0},
+      "visual": {"shape": "rock", "params": {"stone": "#2a2618"}}
+    },
+    {
+      "id": "grass",
+      "tags": ["grass", "plant", "edible"],
+      "visual": {"shape": "food", "params": {"body": "#7eb86b", "highlight": "#a5d68a"}}
+    },
+    {
+      "id": "water_pool",
+      "tags": ["water"],
+      "visual": {"shape": "water"}
+    },
+    {
+      "id": "rock",
+      "tags": ["decor"],
+      "visual": {"shape": "rock"}
+    },
+    {
+      "id": "rabbit",
+      "tags": ["rabbit", "animal", "prey"],
+      "state_init": {"hp": 100, "hunger": 100, "velocity": [0, 0]},
+      "visual": {"shape": "person", "params": {"skin": "#d4b58a", "shirt": "#f4e0c8"}}
+    },
+    {
+      "id": "fox",
+      "tags": ["fox", "animal", "predator"],
+      "state_init": {"hp": 100, "hunger": 80, "velocity": [0, 0]},
+      "visual": {"shape": "person", "params": {"skin": "#d97e2a", "shirt": "#a05a1c"}}
+    },
+    {
+      "id": "tree_oak",
+      "tags": ["tree", "flammable", "plant", "oak"],
+      "state_init": {"wet": 0.0},
+      "visual": {"shape": "tree", "params": {"foliage": "#5fa53d", "trunk": "#6b3a1a"}}
+    },
+    {
+      "id": "tree_pine",
+      "tags": ["tree", "flammable", "plant", "pine"],
+      "state_init": {"wet": 0.0},
+      "visual": {"shape": "tree", "params": {"foliage": "#2d5a2d", "trunk": "#4a2818"}}
+    }
+  ],
+
+  "initial_instances": [
+    {"def": "fire",       "id": "fire_1",   "position": [-220, -80]},
+
+    {"def": "tree_oak",   "id": "tree_a",   "position": [-180, -90]},
+    {"def": "tree_oak",   "id": "tree_b",   "position": [-130, -110]},
+    {"def": "tree_pine",  "id": "tree_c",   "position": [-90, -70]},
+    {"def": "tree_oak",   "id": "tree_d",   "position": [-30, -90]},
+    {"def": "tree_pine",  "id": "tree_e",   "position": [30, -100]},
+    {"def": "tree_oak",   "id": "tree_f",   "position": [80, -75]},
+    {"def": "tree_pine",  "id": "tree_g",   "position": [130, -90]},
+    {"def": "tree_oak",   "id": "tree_h",   "position": [-60, 0]},
+    {"def": "tree_pine",  "id": "tree_i",   "position": [60, 20]},
+
+    {"def": "grass",      "id": "grass_a",  "position": [-150, 60]},
+    {"def": "grass",      "id": "grass_b",  "position": [-90, 80]},
+    {"def": "grass",      "id": "grass_c",  "position": [-20, 70]},
+    {"def": "grass",      "id": "grass_d",  "position": [40, 90]},
+    {"def": "grass",      "id": "grass_e",  "position": [100, 60]},
+    {"def": "grass",      "id": "grass_f",  "position": [-180, 100]},
+    {"def": "grass",      "id": "grass_g",  "position": [150, 100]},
+
+    {"def": "water_pool", "id": "water_1",  "position": [180, -30]},
+
+    {"def": "rabbit",     "id": "rabbit_1", "position": [-30, 60]},
+    {"def": "rabbit",     "id": "rabbit_2", "position": [40, 70]},
+    {"def": "rabbit",     "id": "rabbit_3", "position": [120, 50]},
+    {"def": "rabbit",     "id": "rabbit_4", "position": [-100, 80]},
+
+    {"def": "fox",        "id": "fox_1",    "position": [0, 90]},
+    {"def": "fox",        "id": "fox_2",    "position": [80, 90]},
+
+    {"def": "rock",       "id": "rock_1",   "position": [-200, 80]},
+    {"def": "rock",       "id": "rock_2",   "position": [200, 80]},
+    {"def": "rock",       "id": "rock_3",   "position": [0, 130]},
+    {"def": "rock",       "id": "rock_4",   "position": [-150, 130]}
+  ]
+}
