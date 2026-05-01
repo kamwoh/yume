@@ -270,7 +270,10 @@ func _print_tick_summary(count: int) -> void:
 	var probe_tags := ["seed", "young", "mature", "rotten", "water",
 		"player", "sparkle", "enemy", "projectile", "crop",
 		"fire", "tree", "burning_tree", "ash",
-		"grass", "rabbit", "fox", "animal", "predator", "prey"]
+		"grass", "rabbit", "fox", "animal", "predator", "prey",
+		"bird", "iron_ore", "iron", "copper_ore", "copper",
+		"fertilizer", "mushroom", "seedling", "weather", "bush",
+		"square", "piece"]
 	for t in probe_tags:
 		var n := QueryLib.run({"tags_all": [t]}, _build_env()).size()
 		if n > 0:

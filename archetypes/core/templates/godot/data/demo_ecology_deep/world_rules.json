@@ -1,0 +1,356 @@
+{
+  "_comment": "W6 deep ecology rules. 30+ rules. Material chains: ore + heat → ingot. Wet/dry: rain wets, sun dries. Reproduction: mature tree → seedling spawn. Fertilizer: ash + age → fertilizer. Berries: bush ripens → berries → birds eat. Self-sustaining cycles over 10+ minutes.",
+
+  "rules": [
+    {
+      "id": "fire_ignites_tree",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["heat_source"]},
+        "b": {"tags_all": ["tree", "flammable"], "tags_none": ["burning_tree", "seedling"], "state": {"wet_lt": 0.5}},
+        "radius": 75.0
+      },
+      "chance": 0.5,
+      "effect": {"type": "transform", "target": "b", "to": "burning_tree"}
+    },
+
+    {
+      "id": "burning_tree_spreads",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["burning_tree"]},
+        "b": {"tags_all": ["tree", "flammable"], "tags_none": ["burning_tree", "seedling"], "state": {"wet_lt": 0.5}},
+        "radius": 75.0
+      },
+      "chance": 0.4,
+      "effect": {"type": "transform", "target": "b", "to": "burning_tree"}
+    },
+
+    {
+      "id": "fuel_decays",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["burning_tree"]},
+      "effect": {"type": "state_add", "target": "self", "field": "fuel", "amount": -1}
+    },
+
+    {
+      "id": "tree_burns_out",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["burning_tree"], "state": {"fuel_lte": 0}},
+      "effect": {"type": "transform", "target": "self", "to": "ash"}
+    },
+
+    {
+      "id": "small_fire_consumes_fuel",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["small_fire"]},
+      "effect": {"type": "state_add", "target": "self", "field": "fuel", "amount": -1}
+    },
+    {
+      "id": "small_fire_dies",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["small_fire"], "state": {"fuel_lte": 0}},
+      "effect": {"type": "remove", "target": "self"}
+    },
+
+    {
+      "id": "water_extinguishes_burning_tree",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["water"]},
+        "b": {"tags_all": ["burning_tree"]},
+        "radius": 80.0
+      },
+      "chance": 0.5,
+      "effect": {"type": "transform", "target": "b", "to": "tree_oak"}
+    },
+
+    {
+      "id": "ash_ages",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["ash"]},
+      "effect": {"type": "state_add", "target": "self", "field": "age", "amount": 1}
+    },
+
+    {
+      "id": "ash_becomes_grass",
+      "trigger": {"type": "tick", "interval": 10},
+      "query": {"tags_all": ["ash"], "state": {"age_gte": 6}},
+      "chance": 0.3,
+      "effect": {"type": "transform", "target": "self", "to": "grass"}
+    },
+
+    {
+      "id": "ash_becomes_fertilizer",
+      "trigger": {"type": "tick", "interval": 10},
+      "query": {"tags_all": ["ash"], "state": {"age_gte": 12}},
+      "chance": 0.2,
+      "effect": {"type": "transform", "target": "self", "to": "fertilizer"}
+    },
+
+    {
+      "id": "fertilizer_spawns_mushroom",
+      "trigger": {"type": "tick", "interval": 15},
+      "query": {"tags_all": ["fertilizer"]},
+      "chance": 0.3,
+      "effect": {"type": "transform", "target": "self", "to": "mushroom"}
+    },
+
+    {
+      "id": "iron_ore_smelts",
+      "_comment": "Adjacent to heat source long enough → smelts to iron ingot. Demonstrates material reaction chain.",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["heat_source"]},
+        "b": {"tags_all": ["iron_ore"]},
+        "radius": 90.0
+      },
+      "chance": 0.04,
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "smelted", "amount": 1}
+      ]
+    },
+    {
+      "id": "iron_ore_becomes_ingot",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["iron_ore"], "state": {"smelted_gte": 5}},
+      "effect": {"type": "transform", "target": "self", "to": "iron_ingot"}
+    },
+
+    {
+      "id": "copper_ore_smelts",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["heat_source"]},
+        "b": {"tags_all": ["copper_ore"]},
+        "radius": 90.0
+      },
+      "chance": 0.05,
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "smelted", "amount": 1}
+      ]
+    },
+    {
+      "id": "copper_ore_becomes_ingot",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["copper_ore"], "state": {"smelted_gte": 4}},
+      "effect": {"type": "transform", "target": "self", "to": "copper_ingot"}
+    },
+
+    {
+      "id": "rain_wets_flammable",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["weather"], "state": {"raining_eq": 1}},
+        "b": {"tags_all": ["flammable"]},
+        "radius": 80.0
+      },
+      "effect": {"type": "state_add", "target": "b", "field": "wet", "amount": 0.1}
+    },
+    {
+      "id": "wet_clamps",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["flammable"]},
+      "effect": {"type": "state_clamp", "target": "self", "field": "wet", "min": 0, "max": 1.5}
+    },
+    {
+      "id": "things_dry_out",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["flammable"], "state": {"wet_gt": 0}},
+      "effect": {"type": "state_add", "target": "self", "field": "wet", "amount": -0.05}
+    },
+
+    {
+      "id": "rain_cloud_drains",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["weather"]},
+      "effect": {"type": "state_add", "target": "self", "field": "fuel", "amount": -1}
+    },
+    {
+      "id": "rain_cloud_dissipates",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["weather"], "state": {"fuel_lte": 0}},
+      "effect": {"type": "remove", "target": "self"}
+    },
+    {
+      "id": "rain_cloud_drifts",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["weather"]},
+      "effect": {"type": "velocity_set", "target": "self", "x": 30, "y": "(randf() - 0.5) * 20"}
+    },
+
+    {
+      "id": "tree_oak_ages",
+      "trigger": {"type": "tick", "interval": 8},
+      "query": {"tags_all": ["tree"], "tags_none": ["burning_tree", "seedling"]},
+      "effect": {"type": "state_add", "target": "self", "field": "age", "amount": 1}
+    },
+
+    {
+      "id": "mature_tree_drops_seed",
+      "_comment": "Old trees occasionally spawn a seedling nearby — closes the forest life cycle.",
+      "trigger": {"type": "tick", "interval": 30},
+      "query": {"tags_all": ["tree"], "tags_none": ["burning_tree", "seedling"], "state": {"age_gte": 4}},
+      "chance": 0.15,
+      "effect": {"type": "spawn", "template": "seedling", "position": "self"}
+    },
+
+    {
+      "id": "seedling_grows",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["seedling"]},
+      "effect": {"type": "state_add", "target": "self", "field": "age", "amount": 1}
+    },
+    {
+      "id": "seedling_becomes_tree",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["seedling"], "state": {"age_gte": 30}},
+      "effect": {"type": "transform", "target": "self", "to": "tree_oak"}
+    },
+
+    {
+      "id": "berry_bush_ripens",
+      "trigger": {"type": "tick", "interval": 8},
+      "query": {"tags_all": ["bush"], "state": {"berries_lt": 5}},
+      "effect": {"type": "state_add", "target": "self", "field": "berries", "amount": 1}
+    },
+
+    {
+      "id": "bird_eats_berries",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["bird"]},
+        "b": {"tags_all": ["bush"], "state": {"berries_gte": 1}},
+        "radius": 25.0
+      },
+      "chance": 0.5,
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "berries", "amount": -1},
+        {"type": "state_add", "target": "a", "field": "hunger", "amount": 25}
+      ]
+    },
+
+    {
+      "id": "rabbit_hunger_decay",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["rabbit"]},
+      "effect": {"type": "state_add", "target": "self", "field": "hunger", "amount": -2}
+    },
+    {
+      "id": "fox_hunger_decay",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["fox"]},
+      "effect": {"type": "state_add", "target": "self", "field": "hunger", "amount": -1}
+    },
+    {
+      "id": "bird_hunger_decay",
+      "trigger": {"type": "tick", "interval": 6},
+      "query": {"tags_all": ["bird"]},
+      "effect": {"type": "state_add", "target": "self", "field": "hunger", "amount": -1}
+    },
+
+    {
+      "id": "starve_damage",
+      "trigger": {"type": "tick", "interval": 6},
+      "query": {"tags_all": ["animal"], "state": {"hunger_lte": 0}},
+      "effect": {"type": "state_add", "target": "self", "field": "hp", "amount": -3}
+    },
+    {
+      "id": "animal_dies",
+      "trigger": {"type": "tick", "interval": 2},
+      "query": {"tags_all": ["animal"], "state": {"hp_lte": 0}},
+      "effect": {"type": "remove", "target": "self"}
+    },
+
+    {
+      "id": "rabbit_eats_grass",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["rabbit"]},
+        "b": {"tags_all": ["grass"]},
+        "radius": 22.0
+      },
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "hunger", "amount": 35},
+        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+    {
+      "id": "rabbit_eats_mushroom",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["rabbit"]},
+        "b": {"tags_all": ["mushroom"]},
+        "radius": 22.0
+      },
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "hunger", "amount": 25},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+
+    {
+      "id": "fox_eats_rabbit",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["fox"]},
+        "b": {"tags_all": ["rabbit"]},
+        "radius": 24.0
+      },
+      "chance": 0.6,
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "hunger", "amount": 60},
+        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+
+    {
+      "id": "rabbit_wanders",
+      "trigger": {"type": "tick", "interval": 3},
+      "query": {"tags_all": ["rabbit"]},
+      "effect": {
+        "type": "velocity_set",
+        "target": "self",
+        "x": "(randf() - 0.5) * 50",
+        "y": "(randf() - 0.5) * 50"
+      }
+    },
+    {
+      "id": "fox_wanders",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["fox"]},
+      "effect": {
+        "type": "velocity_set",
+        "target": "self",
+        "x": "(randf() - 0.5) * 60",
+        "y": "(randf() - 0.5) * 60"
+      }
+    },
+    {
+      "id": "bird_wanders",
+      "trigger": {"type": "tick", "interval": 2},
+      "query": {"tags_all": ["bird"]},
+      "effect": {
+        "type": "velocity_set",
+        "target": "self",
+        "x": "(randf() - 0.5) * 80",
+        "y": "(randf() - 0.5) * 80"
+      }
+    },
+
+    {
+      "id": "torch_burns_fuel",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["torch"]},
+      "effect": {"type": "state_add", "target": "self", "field": "fuel", "amount": -1}
+    },
+    {
+      "id": "torch_dies",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["torch"], "state": {"fuel_lte": 0}},
+      "effect": {"type": "remove", "target": "self"}
+    }
+  ]
+}
