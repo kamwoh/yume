@@ -188,6 +188,43 @@ Apply the four principles from the `karpathy-guidelines` skill on every non-triv
 
 These are orthogonal to Yume's domain rules — a behavioral layer above WHAT-to-build. See skill `karpathy-guidelines` for details.
 
+## Collaboration protocol (Tier 2.5)
+
+When making non-trivial changes, follow **Question → Options → Decision → Draft → Approval**:
+
+1. **Question.** State what's being decided in one sentence. Include known constraints.
+2. **Options.** Present 2-3 alternatives. For each: cost, blast radius, tradeoff.
+3. **Decision.** State which one and why. Brief.
+4. **Draft.** Show the change — file paths, key snippets, the diff shape. Don't apply yet.
+5. **Approval.** Wait for explicit go-ahead before writing files / running destructive commands.
+
+Apply selectively: trivial edits (typo, single-line fix) skip 1-3. New primitives, deletions, schema changes, infra moves require all five.
+
+Why: this kills the "Claude wrote 200 lines of the wrong thing" failure mode. Adapted from CCGS pattern (`docs/31_text_to_game_pipeline.md`).
+
+## Path-scoped rules (Tier 2.5)
+
+When editing files matching certain globs, **read the corresponding rule first**:
+
+| File pattern | Rule file |
+|---|---|
+| `archetypes/core/templates/godot/scripts/engine/**` | `.claude/rules/engine-scripts.md` |
+| `archetypes/core/templates/godot/data/**` | `.claude/rules/data-demo.md` |
+| `docs/**` | `.claude/rules/docs.md` |
+| `archetypes/core/templates/godot/scripts/engine/tests/**` | `.claude/rules/tests.md` |
+
+Rules encode invariants like "no semantic effect types in engine," "JSON formulas use only whitelisted bindings," "primitive changes need ADRs." See `.claude/rules/README.md` for the index.
+
+## Godot API reference (pinned)
+
+When proposing GDScript code, verify against `docs/engine-reference/godot/`:
+
+- `VERSION.md` — pinned to Godot 4.6.1.stable
+- `current-best-practices.md` — observed working idioms (class_name, Expression, RegEx, etc.)
+- `deprecated-apis.md` — Godot 3 → 4 migration hazards + LLM-cutoff trip-wires
+
+If proposed code uses `Reference` (gone — use `RefCounted`), `connect("foo", self, ...)` (gone — use `signal.connect(callable)`), or `OS.get_ticks_msec()` (use `Time.*`), it's wrong for 4.6.
+
 ## Read More
 
 - `core/docs/01_game_dev_cycle.md` — Game development stages

@@ -693,37 +693,82 @@ game in natural language and get running JSON.
 discrete-tick physics, text-described." Non-goals: rhythm, precision
 platformers, continuous physics, narrative-heavy adventures.
 
-### Cheap pulls (can land alongside W1.13 / W2, non-blocking)
+### Cheap pulls (Tier 2.5 — landed 2026-05-01)
 
-- [ ] **2.5a** `.claude/rules/` — path-scoped rules per directory:
-  `engine-scripts.md` (no semantic effects, no genre assumptions),
-  `data-demo.md` (JSON validates against schema, formulas whitelisted),
-  `docs.md` (primitive changes require ADR).
-- [ ] **2.5b** `docs/engine-reference/godot/` — `VERSION.md` (Godot 4.6.1
-  pinned), `deprecated-apis.md`, `current-best-practices.md` (GDScript
-  idioms), `breaking-changes.md`. Read-first for any agent touching engine.
-- [ ] **2.5c** Bake "Question → Options → Decision → Draft → Approval"
-  collaboration protocol into builder/designer/tester agent prompts.
+- [x] **2.5a** `.claude/rules/` — 4 path-scoped rule files:
+  - `engine-scripts.md` — no semantic effects, no entity-class hierarchy,
+    no hardcoded ids in engine code, no genre-specific functions
+  - `data-demo.md` — schema discipline, formula whitelist, cross-renderer
+    coordinates, tag conventions
+  - `docs.md` — primitive changes require ADR, contract is invariant-bearing
+  - `tests.md` — ship-with-phase, no test framework dependency, build
+    self-contained env dicts
+  - Plus `README.md` indexing them.
+- [x] **2.5b** `docs/engine-reference/godot/` — Godot 4.6.1 pinned with
+  three reference docs:
+  - `VERSION.md` — exact build pin + verification command
+  - `current-best-practices.md` — class_name patterns, type-inference
+    pitfalls, Expression API, signals, input polling, RegEx, headless
+    conventions
+  - `deprecated-apis.md` — Godot 3 → 4 trip-wires (Reference→RefCounted,
+    OS→Time, connect-by-name → typed Callable, etc.) + common LLM-cutoff
+    mistakes against 4.6 specifically
+- [x] **2.5c** Collaboration protocol baked into project `CLAUDE.md`:
+  Question → Options → Decision → Draft → Approval. Plus path-scoped rules
+  index + engine reference pointer. Applied selectively (trivial edits
+  skip 1-3; primitive changes / deletions require all 5).
 
-### Pipeline core (blocked on Tier 2 exit)
+### Pipeline core
 
-- [ ] **2.5d** `docs/adr/` + `docs/architecture/tr-registry.yaml` — each
-  primitive change logged as ADR; requirements tracked with TR-IDs. JSON
-  content references `"_tr": "TR-042"` for traceability.
-- [ ] **2.5e** `docs/32_mda_for_yume.md` — MDA framework translated for
-  Yume (Mechanics = rules + entities; Dynamics = emergent behavior from
-  rule composition; Aesthetics = player experience).
-- [ ] **2.5f** Slim specialist agent set under `.claude/agents/yume/`:
-  `game-designer` (prose → GDD), `systems-designer` (rules/mechanics),
-  `content-designer` (entity defs/values), `qa-tester` (validates JSON
-  runs), `tech-director` (primitive invariant guard). 5 core agents.
-- [ ] **2.5g** `/yume-design` skill — the pipeline entry point. Prose →
-  GDD (designer) → rule sketches + ADRs (systems) → entities + values
-  (content) → Yume JSON + validated run (qa). User-approval gates between
-  phases.
-- [ ] **2.5h** `.claude/skills/*/test_spec.md` — behavioral tests. "Given
-  prompt X, does `/yume-design` produce valid entities.json that runs?"
-  THE acid test for the whole pipeline.
+- [x] **2.5d** `docs/adr/` scaffolding — `README.md` (format + when-to-write
+  + index) + 2 retroactive ADRs:
+  - **ADR 0001** — Seven primitives + invariant #8 (the foundational
+    architectural decision, accepted 2026-04-22)
+  - **ADR 0002** — Entity extends Node (renderer-agnostic) — captures the
+    W5.0-review decision that landed as W1.14 refactor.
+  TR-registry deferred — start with ADR-only; if/when content scales
+  enough that traceability needs tags, add the YAML registry then.
+- [x] **2.5e** `docs/32_mda_for_yume.md` — MDA framework translated for
+  Yume vocabulary. Mechanics = JSON (entities + rules + relations).
+  Dynamics = emergent behavior (cascades, equilibria, phase transitions,
+  chains). Aesthetics = LeBlanc's 8 categories with Yume-mechanism
+  examples. Includes "how the design agent should use this" section
+  showing the prose → aesthetics → dynamics → mechanics decomposition
+  pattern. **Foundational doc for Tier 2.5 specialist agents.**
+- [x] **2.5f** Slim specialist agent set at `.claude/agents/yume/` —
+  6 agents (5 core + asset-designer):
+  - **game-designer** — prose → GDD via MDA decomposition
+  - **systems-designer** — GDD → rule sketches; flags new-primitive
+    requirements + proposes ADR
+  - **content-designer** — sketches → entities.json + world_rules.json
+    with specific values
+  - **asset-designer** — GDD aesthetics → visual/audio fields, picks
+    library / AI-gen / code-draw strategy
+  - **qa-tester** — loads JSON in Godot headless, verifies cascades
+    against GDD intent, reports
+  - **tech-director** — guards primitive invariants, runs regression
+    suite, gates engine changes
+  Each agent has YAML frontmatter (name, description, tools, model)
+  + system prompt body documenting role, inputs, outputs, references,
+  and explicit DO/DON'T lists. README.md indexes them.
+- [x] **2.5g** `/yume-design` skill at `.claude/skills/yume-design/SKILL.md`.
+  7-phase orchestrator: setup → GDD → sketches → content → assets → QA → wrap.
+  Each phase invokes the appropriate yume-* specialist agent (Tool: Agent),
+  presents output to user, waits for approval. Failure modes documented:
+  user rejection at any gate, primitive missing (escalate to tech-director),
+  schema validation errors, cascade failures. Honest non-goal handling
+  (rhythm games, soft-body physics, narrative-heavy adventures rejected
+  at Phase 0 with concrete redirect).
+- [x] **2.5h** Behavioral test spec at `.claude/skills/yume-design/tests/
+  spec.md` — 5 test cases:
+  - TC-01 simple farming sim (happy path through all 6 stages)
+  - TC-02 rhythm game (out-of-scope rejection at Phase 0)
+  - TC-03 extension to existing demo (modifies in place, no regression)
+  - TC-04 ambiguous prose (clarification gate at Phase 1)
+  - TC-05 invariant-violation attempt (tech-director rejection)
+  Each lists expected outputs, schema checks, cascade verification, pass
+  criteria. **Manual execution today**; automation deferred — the spec
+  IS the contract for what "good output" looks like.
 
 ### Asset layer (4th channel — added 2026-04-30, revised same day)
 

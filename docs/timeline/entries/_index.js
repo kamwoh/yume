@@ -18,8 +18,11 @@ import { entry14 } from "./14_asset_pipeline.js";
 import { entry15 } from "./15_two_phase_assets.js";
 import { entry16 } from "./16_renderer_3d_promoted.js";
 import { entry17 } from "./17_renderer_3d_review_fixes.js";
+import { entry18 } from "./18_tier_25_cheap_pulls.js";
+import { entry19 } from "./19_specialist_agents.js";
+import { entry20 } from "./20_yume_design_skill.js";
 
 export const entries = [
   entry00, entry01, entry02, entry03, entry04, entry05, entry06,
-  entry07, entry08, entry09, entry10, entry11, entry12, entry13, entry14, entry15, entry16, entry17,
+  entry07, entry08, entry09, entry10, entry11, entry12, entry13, entry14, entry15, entry16, entry17, entry18, entry19, entry20,
 ];
