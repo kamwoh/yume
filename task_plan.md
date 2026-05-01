@@ -874,6 +874,103 @@ of every specific asset, shape, sound, or prompt by design.**
 
 ---
 
+## Roadmap — Tier 2.6 HARNESS ENGINEERING (proposed)
+
+_Added 2026-05-01. See ADR 0003 for the full rationale._
+
+Honest evaluation of Yume **as a harness for autonomous LLM agents**
+(not just human-supervised authoring) surfaces gaps that Tier 2.5 didn't
+address. Aggregate harness grade today: B- — works with human approval
+gates, derails on first error in autonomous mode.
+
+Tier 2.6 closes the harness loop. Lands between Tier 2.5 (pipeline) and
+Tier 3 (actors). Prerequisite for any autonomous LLM workflow.
+
+### Deliverables
+
+- [ ] **2.6a** **Structured engine errors.** Replace `push_error("...")`
+  string calls in engine modules with structured error records:
+  `{rule_id, error_type, expected, got, location, suggestion}`. JSON,
+  not formatted strings. Buffer accumulates in `env.error_buffer`;
+  qa-tester / orchestrator / LLM consumes.
+  - `Rule.validate_all` returns structured records (was: array of strings)
+  - `Formula.evaluate` failures captured with offending formula + binding
+  - `EffectApply.apply` unknown effect types reported with rule context
+  - World load surfaces malformed JSON with byte offset
+
+- [ ] **2.6b** **Programmatic test runner for skills.** `tests/spec.md`
+  cases become executable. Python tool that:
+  - Invokes `/yume-design` with a fixture prompt (via Claude Code SDK
+    or scripted Bash)
+  - Captures generated files
+  - Runs schema validation + headless qa
+  - Diffs against expected file shape (not byte-exact — semantic match)
+  - Reports pass/fail per test case
+  - CI-runnable
+
+- [ ] **2.6c** **Tool registry auto-generation.** Replace hand-edited
+  effect/trigger/operator lists in agent prompts with auto-generated
+  manifests:
+  - `docs/engine-reference/api-manifest.json` — generated from
+    `Rule.VALID_TRIGGERS`, `EffectApply.apply` match arms, query
+    operators, formula bindings
+  - Build step (Godot scene + GDScript) emits this on demand
+  - Agents reference the manifest, not hand-maintained docs
+  - Adding a primitive automatically updates the manifest → agents
+    pick up new vocabulary without prompt edits
+
+- [ ] **2.6d** **Persistent workflow state.** `production/session-state/`
+  (CCGS-pattern) — current `/yume-design` run state survives session
+  boundaries:
+  - `active.md` — what game we're working on, what stage, last
+    user-approved artifact
+  - Pre-compact / post-compact hook integration so session state
+    survives Claude Code context compaction
+  - `/yume-design --resume` continues from last checkpoint
+
+- [ ] **2.6e** **VQA integration as default.** Generated games have
+  visual output; orchestrator can't see them. Wire the existing
+  `visual-qa` skill so qa-tester captures frames + reads them:
+  - Auto-screenshot at 5s, 30s, 60s of headless run
+  - VQA reads screenshots + GDD aesthetic intent
+  - Reports "does this match the intended look?"
+  - Closes the visual loop without human eyeballs
+
+- [ ] **2.6f** **Typed agent message contracts.** Agents handing off
+  artifacts pass typed messages, not "the file path is at /games/foo/X":
+  - `MessageGameDesignerOutput { gdd_path, aesthetic_target,
+    open_questions }`
+  - `MessageSystemsDesignerOutput { rules_sketch_path, primitives_used,
+    adrs_proposed }`
+  - Orchestrator validates handoff types before invoking next agent
+  - Failures fast, with concrete error
+  - YAML or JSON schema, lives in `.claude/agents/yume/contracts/`
+
+### Non-deliverables (explicit)
+
+- Cost/time metering — flagged as nice-to-have but not blocking. Could
+  add to 2.6 if cheap or defer to Tier 4.
+- Full retry orchestration — partial via 2.6a + 2.6b (errors structured,
+  test runner can re-invoke). True LLM-driven retry loop is harder and
+  may need Tier 3 integration.
+- Replacement of Claude Code as harness — Yume operates inside Claude
+  Code's harness; Tier 2.6 improves Yume's substrate, not Claude
+  Code itself.
+
+### Why this tier matters
+
+Tier 3 (actors) needs structured observations + retry feedback to do
+any meaningful LLM-as-actor work. Without 2.6a (structured errors), the
+LLM actor sees engine failures as opaque text and can't recover.
+Without 2.6b (programmatic test runner), we can't validate Tier 3's
+own behavior. Without 2.6c (tool registry), the LLM actor's API
+documentation drifts.
+
+Without Tier 2.6, Tier 3 builds on a foundation where every gap is
+felt. With it, Tier 3 builds on a closed-loop substrate.
+
+---
+
 ## Roadmap — Tier 3 Actors (after Tier 2)
 
 Once the engine is genre-agnostic and content-rich, **agents** re-enter as

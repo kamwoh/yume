@@ -35,6 +35,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 |---|---|---|---|
 | [0001](./0001-seven-primitives.md) | Seven primitives + Engine = Primitives + Interpreter | accepted | 2026-04-22 |
 | [0002](./0002-renderer-agnostic-entity.md) | Entity extends Node (renderer-agnostic) | accepted | 2026-05-01 |
+| [0003](./0003-harness-engineering-tier-26.md) | Harness engineering as Tier 2.6 | proposed | 2026-05-01 |
 
 ADRs land alongside the contract change they justify. PR review is the
 gate. If a PR's diff materially changes engine vocabulary or pipeline
