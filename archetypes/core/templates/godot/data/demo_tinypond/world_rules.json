@@ -3,7 +3,7 @@
 
   "rules": [
     {
-      "_comment": "Time advances every tick. Cycle = 500 ticks per pond-day (50s at tick_seconds=0.1). Long enough for player to feel day vs night phases. (world.tick * 0.002) - floor(...) gives 0..1 modulo.",
+      "_comment": "Time advances every tick. Cycle = 500 ticks per pond-day (50s at tick_seconds=0.1). Offset 0.25 so the game STARTS AT NOON — plants grow immediately rather than waiting through 12s of dawn.",
       "id": "clock_advance_time",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["clock"]},
@@ -11,7 +11,7 @@
         "type": "state_set",
         "target": "self",
         "field": "time_of_day",
-        "value": "(world.tick * 0.002) - floor(world.tick * 0.002)"
+        "value": "(world.tick * 0.002 + 0.25) - floor(world.tick * 0.002 + 0.25)"
       }
     },
 
@@ -160,10 +160,10 @@
     },
 
     {
-      "_comment": "Pond bounds — every tick, clamp player position to fit visible pond. Uses Vector2() constructor inside formula.",
-      "id": "player_bounds",
+      "_comment": "Pond bounds — clamp ALL creatures (player + ambient fish) to fit visible pond. Uses Vector2() constructor inside formula. Was player-only; ambient fish wandered off.",
+      "id": "creature_bounds",
       "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["player"]},
+      "query": {"tags_all": ["creature"]},
       "effect": {
         "type": "state_set",
         "target": "self",

@@ -12,7 +12,9 @@
   "bounds": {
     "min": [-320, -220],
     "max": [320, 220],
-    "floor_color": "#142d40",
+    "floor_color_day":   "#1f5878",
+    "floor_color_night": "#070b18",
+    "floor_tint_binding": "clock.sunlight",
     "border_color": "#4d8aa6",
     "border_width": 6
   }

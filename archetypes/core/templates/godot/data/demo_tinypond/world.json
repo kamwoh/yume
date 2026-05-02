@@ -3,7 +3,7 @@
 
   "state": {
     "tick": 0,
-    "time_of_day": 0.0,
-    "sunlight": 0.0
+    "time_of_day": 0.25,
+    "sunlight": 1.0
   }
 }
