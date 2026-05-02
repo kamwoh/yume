@@ -168,15 +168,15 @@
     },
 
     {
-      "_comment": "Pond bounds — clamp ALL creatures (player + ambient fish) to fit visible pond. Uses Vector2() constructor inside formula. Was player-only; ambient fish wandered off.",
-      "id": "creature_bounds",
+      "_comment": "Pond bounds — clamp creatures + plants every tick. Plants need clamping because plant_seeding and eat-drops-seed spawn at parent ±50px; plants near the edge can overshoot. tags_any matches if entity has EITHER tag.",
+      "id": "entity_bounds",
       "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["creature"]},
+      "query": {"tags_any": ["creature", "plant"]},
       "effect": {
         "type": "state_set",
         "target": "self",
         "field": "position",
-        "value": "Vector2(clamp(self.state.position.x, -320, 320), clamp(self.state.position.y, -220, 220))"
+        "value": "Vector2(clamp(self.state.position.x, -310, 310), clamp(self.state.position.y, -210, 210))"
       }
     },
 
