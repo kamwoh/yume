@@ -44,11 +44,11 @@
       }
     },
     {
-      "_comment": "Mature kelp/seaweed — full underwater plant with flowing fronds. Has 'edible' tag so fish-eat rule fires.",
+      "_comment": "Mature kelp/seaweed — full underwater plant with flowing fronds. Has 'edible' tag so fish-eat rule fires. sunlight is broadcast from clock; gates the seeding rule (no reproduction at night).",
       "id": "water_plant_mature",
       "tags": ["plant", "mature", "edible"],
       "properties": {},
-      "state_init": {},
+      "state_init": {"sunlight": 1.0},
       "visual": {
         "shape": "tinypond_plant_mature",
         "params": {"base": "#1a3826", "stem": "#2c5a3a", "frond": "#3d7a4d", "frond_d": "#2c5a3a", "tip": "#6db86d"}
