@@ -84,10 +84,10 @@
     },
 
     {
-      "_comment": "Mature plants slowly seed nearby DURING DAY only (state.sunlight > 0.3, propagated via clock contact). Plants don't reproduce at night. Interval 60 + chance 0.05.",
+      "_comment": "Mature plants slowly seed nearby (anytime — even at night). The new seeds won't GROW until sunlight returns; that gate is in plant_seed_grows_in_sun. Interval 60 + chance 0.05.",
       "id": "plant_seeding",
       "trigger": {"type": "tick", "interval": 60},
-      "query": {"tags_all": ["plant", "mature"], "state": {"sunlight_gt": 0.3}},
+      "query": {"tags_all": ["plant", "mature"]},
       "chance": 0.05,
       "effect": {
         "type": "spawn",
@@ -114,11 +114,11 @@
     },
 
     {
-      "_comment": "Creature eats mature plant DURING DAYTIME (creature.time_of_day < 0.5). Drops a seed nearby — eat-and-regrow keeps the ecosystem balanced when the sun is out.",
-      "id": "creature_eats_mature_plant_day",
+      "_comment": "Creature eats mature plant — works day OR night, always drops a seed. The seed exists but won't GROW until sunlight returns (gated by plant_seed_grows_in_sun). Night is a 'dormant pond' phase: seeds wait for sun to mature. Honest ecosystem: planting happens anytime, growth waits for sun.",
+      "id": "creature_eats_mature_plant",
       "trigger": {"type": "contact"},
       "query": {
-        "a": {"tags_all": ["creature"], "state": {"time_of_day_lt": 0.5}},
+        "a": {"tags_all": ["creature"]},
         "b": {"tags_all": ["plant", "mature"]},
         "radius": 50
       },
@@ -127,23 +127,6 @@
           "b.state.position.x + (randf() - 0.5) * 80",
           "b.state.position.y + (randf() - 0.5) * 80"
         ]},
-        {"type": "remove", "target": "b"},
-        {"type": "state_add", "target": "a", "field": "hunger", "amount": -30},
-        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
-        {"type": "state_add", "target": "a", "field": "score", "amount": 1}
-      ]
-    },
-
-    {
-      "_comment": "Same but AT NIGHT (creature.time_of_day >= 0.5) — no seed drop. Night is depletion: eat from the existing pond, no new growth until sunrise. Tactical: stockpile during day to survive long nights.",
-      "id": "creature_eats_mature_plant_night",
-      "trigger": {"type": "contact"},
-      "query": {
-        "a": {"tags_all": ["creature"], "state": {"time_of_day_gte": 0.5}},
-        "b": {"tags_all": ["plant", "mature"]},
-        "radius": 50
-      },
-      "effect": [
         {"type": "remove", "target": "b"},
         {"type": "state_add", "target": "a", "field": "hunger", "amount": -30},
         {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
