@@ -24,11 +24,39 @@ restructured as a skill (Tier 2.6 finding from harvestcore QA).
 
 Files in `archetypes/core/templates/godot/data/<game-name>/`:
 
-- `entities.json` — entity definitions + initial instances + initial relations
+- `entities/` — directory of per-def JSON files (preferred) OR a single
+  monolithic `entities.json` (legacy, still supported). Each per-def file
+  contains `{"definitions": [{...one def...}]}`. A `zz_instances.json`
+  file (sorts last) holds `initial_instances` + `initial_relations`.
 - `world_rules.json` — rules that drive the simulation
 - `world.json` (optional) — global world state initial values
 - `scene.json` — camera follow tag, bounds, tick rate (read by GameShell)
 - `hud.json` — HUD layout, win/lose conditions (read by GameShell)
+
+### Per-def file pattern (preferred for new games)
+
+Each entity blueprint goes in its own file under `entities/`:
+
+```
+data/demo_<game>/
+├── entities/
+│   ├── pond_clock.json          # one def per file
+│   ├── fish.json
+│   ├── water_plant_mature.json
+│   └── zz_instances.json         # initial_instances + relations (sorts last)
+├── world_rules.json
+├── scene.json
+└── hud.json
+```
+
+**Why per-def:** smaller focused files = easier LLM editing (less context
+per agent call, less chance of accidentally rewriting unrelated content).
+Diffs are clean. Adding a new entity is one new file, not editing a 100-line
+JSON. (Tier 2.6 finding from tinypond polish session.)
+
+**Engine support:** `World.load_data` checks for both `entities.json` AND
+`entities/`. Two-phase load: all defs registered first, then instances
++ relations. File order doesn't matter for correctness.
 
 **`shapes.json` is NOT per-game.** It lives at `data/shapes.json` (root) and
 is shared. New shapes append there. Per-game `shapes.json` files are dead

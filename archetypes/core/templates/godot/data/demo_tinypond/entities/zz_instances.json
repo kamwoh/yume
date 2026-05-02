@@ -1,0 +1,46 @@
+{
+  "_comment": "Initial entity placements + relations for tinypond. Filename prefix 'zz_' sorts after all def files so engine loads defs first, then spawns instances. (Engine actually does two-phase load regardless, but the alphabetic ordering is a clear convention for human readers.)",
+
+  "initial_instances": [
+    {"def": "pond_clock", "id": "clock_1", "position": [0, -260]},
+
+    {"def": "lily_pad", "id": "lily_1", "position": [-260,   80]},
+    {"def": "lily_pad", "id": "lily_2", "position": [ 240,  -80]},
+    {"def": "lily_pad", "id": "lily_3", "position": [-100,  180]},
+    {"def": "lily_pad", "id": "lily_4", "position": [ 180,  150]},
+    {"def": "lily_pad", "id": "lily_5", "position": [   0, -180]},
+    {"def": "lily_pad", "id": "lily_6", "position": [-220, -120]},
+
+    {"def": "water_plant_mature", "id": "plant_m_1",  "position": [-220,  -50]},
+    {"def": "water_plant_mature", "id": "plant_m_2",  "position": [-150,  -150]},
+    {"def": "water_plant_mature", "id": "plant_m_3",  "position": [ -80,   -80]},
+    {"def": "water_plant_mature", "id": "plant_m_4",  "position": [  20,  -130]},
+    {"def": "water_plant_mature", "id": "plant_m_5",  "position": [ 100, -110]},
+    {"def": "water_plant_mature", "id": "plant_m_6",  "position": [ 200,  -60]},
+    {"def": "water_plant_mature", "id": "plant_m_7",  "position": [ 270,    0]},
+    {"def": "water_plant_mature", "id": "plant_m_8",  "position": [-280,    0]},
+    {"def": "water_plant_mature", "id": "plant_m_9",  "position": [-180,   80]},
+    {"def": "water_plant_mature", "id": "plant_m_10", "position": [ -60,   90]},
+    {"def": "water_plant_mature", "id": "plant_m_11", "position": [  60,  100]},
+    {"def": "water_plant_mature", "id": "plant_m_12", "position": [ 160,   60]},
+    {"def": "water_plant_mature", "id": "plant_m_13", "position": [ 250,  120]},
+    {"def": "water_plant_mature", "id": "plant_m_14", "position": [-220,  170]},
+    {"def": "water_plant_mature", "id": "plant_m_15", "position": [  20,  170]},
+    {"def": "water_plant_mature", "id": "plant_m_16", "position": [ 110,  -30]},
+
+    {"def": "water_plant_seed",   "id": "plant_s_1", "position": [-180,   20]},
+    {"def": "water_plant_seed",   "id": "plant_s_2", "position": [ -20,    0]},
+    {"def": "water_plant_seed",   "id": "plant_s_3", "position": [ 100,   30]},
+    {"def": "water_plant_seed",   "id": "plant_s_4", "position": [ 220,   60]},
+    {"def": "water_plant_seed",   "id": "plant_s_5", "position": [-100,  130]},
+    {"def": "water_plant_seed",   "id": "plant_s_6", "position": [ 200,  180]},
+    {"def": "water_plant_seed",   "id": "plant_s_7", "position": [-260,   60]},
+    {"def": "water_plant_seed",   "id": "plant_s_8", "position": [ -40,  -40]},
+
+    {"def": "player_fish",        "id": "player",    "position": [   0,    0]},
+    {"def": "fish",               "id": "fish_1",    "position": [-130,    0]},
+    {"def": "fish",               "id": "fish_2",    "position": [ 130,    0]}
+  ],
+
+  "initial_relations": []
+}

@@ -1,0 +1,15 @@
+{
+  "_comment": "Decorative lily pad — purely visual anchor so the pond doesn't look like void.",
+  "definitions": [
+    {
+      "id": "lily_pad",
+      "tags": ["decor"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "shape": "tinypond_pond_water",
+        "params": {"pad_dark": "#1f4538", "pad": "#3d7a5e", "flower": "#f5b8d4", "flower_core": "#fff4cc"}
+      }
+    }
+  ]
+}

@@ -102,7 +102,10 @@ func load_data() -> void:
 	var root := data_root.rstrip("/")
 	_load_rules_file(root + "/world_rules.json")
 	_load_world_file(root + "/world.json")
-	_load_entities_file(root + "/entities.json")
+	# Entities can come from a single entities.json OR a per-def entities/
+	# directory (each .json file = one entity blueprint). Both work; if both
+	# exist they merge — directory load is additive on top.
+	_load_entities_path(root)
 	# Flush any effects queued by spawn triggers during initial load
 	# (actual spawn-trigger dispatch lands in W2; flush is a no-op for W1).
 	scheduler.flush_effects()
@@ -110,6 +113,78 @@ func load_data() -> void:
 		print("[World] loaded: %d defs, %d entities, %d relations" % [
 			defs.size(), entities.size(), relations.count_total()
 		])
+
+
+## Load entity data from `<root>/entities.json` and/or `<root>/entities/`.
+## Two-phase: collect all dicts first, then process (a) definitions before
+## (b) initial_instances + initial_relations so spawn-time def lookups work
+## regardless of file order.
+func _load_entities_path(root: String) -> void:
+	var env := _build_env()
+	var dicts: Array[Dictionary] = []
+
+	var single := root + "/entities.json"
+	if FileAccess.file_exists(single):
+		var d := _read_entities_json(single, env)
+		if not d.is_empty(): dicts.append(d)
+
+	var dir_path := root + "/entities"
+	if DirAccess.dir_exists_absolute(dir_path):
+		var dir := DirAccess.open(dir_path)
+		if dir != null:
+			var files: Array[String] = []
+			dir.list_dir_begin()
+			var fname := dir.get_next()
+			while fname != "":
+				if not dir.current_is_dir() and fname.ends_with(".json"):
+					files.append(fname)
+				fname = dir.get_next()
+			files.sort()
+			for f in files:
+				var d2 := _read_entities_json(dir_path + "/" + f, env)
+				if not d2.is_empty(): dicts.append(d2)
+
+	if dicts.is_empty():
+		EngineError.raise(env, EngineError.WORLD_ENTITIES_MISSING,
+			"No entities found at %s (checked entities.json + entities/)" % root,
+			{"file": root},
+			"Create entities.json or an entities/ directory with one JSON file per def.",
+			"warning")
+		return
+
+	# Phase 1: register all definitions
+	for d in dicts:
+		for def in d.get("definitions", []):
+			if def is Dictionary:
+				defs[str(def.get("id", ""))] = def
+	# Phase 2: process initial instances + relations
+	for d in dicts:
+		for inst in d.get("initial_instances", []):
+			if inst is Dictionary:
+				_spawn_initial(inst)
+		for rel in d.get("initial_relations", []):
+			if rel is Dictionary:
+				relations.relate(
+					str(rel.get("type", "")),
+					str(rel.get("from", "")),
+					str(rel.get("to", "")),
+				)
+
+
+## Read one entities JSON file. Returns {} on missing/malformed; reports
+## structured errors via env.error_buffer. Public-ish — used by the
+## directory walker and the legacy single-file path.
+func _read_entities_json(path: String, env: Dictionary) -> Dictionary:
+	if not FileAccess.file_exists(path): return {}
+	var f := FileAccess.open(path, FileAccess.READ)
+	var data = JSON.parse_string(f.get_as_text())
+	if not (data is Dictionary):
+		EngineError.raise(env, EngineError.WORLD_ENTITIES_INVALID,
+			"Invalid JSON: %s" % path,
+			{"file": path},
+			"Top-level must be a JSON object with 'definitions' / 'initial_instances' / 'initial_relations'.")
+		return {}
+	return data as Dictionary
 
 
 func _load_rules_file(path: String) -> void:
@@ -129,38 +204,6 @@ func _load_world_file(path: String) -> void:
 	var data = JSON.parse_string(f.get_as_text())
 	if data is Dictionary:
 		world_state = (data.get("state", {}) as Dictionary).duplicate(true)
-
-
-func _load_entities_file(path: String) -> void:
-	var env := _build_env()
-	if not FileAccess.file_exists(path):
-		EngineError.raise(env, EngineError.WORLD_ENTITIES_MISSING,
-			"No entities file: %s" % path,
-			{"file": path},
-			"Create an entities.json under data_root with {\"definitions\": [...], \"initial_instances\": [...]}.",
-			"warning")
-		return
-	var f := FileAccess.open(path, FileAccess.READ)
-	var data = JSON.parse_string(f.get_as_text())
-	if not (data is Dictionary):
-		EngineError.raise(env, EngineError.WORLD_ENTITIES_INVALID,
-			"Invalid JSON: %s" % path,
-			{"file": path},
-			"Top-level must be a JSON object with 'definitions' / 'initial_instances' / 'initial_relations'.")
-		return
-	for def in data.get("definitions", []):
-		if def is Dictionary:
-			defs[str(def.get("id", ""))] = def
-	for inst in data.get("initial_instances", []):
-		if inst is Dictionary:
-			_spawn_initial(inst)
-	for rel in data.get("initial_relations", []):
-		if rel is Dictionary:
-			relations.relate(
-				str(rel.get("type", "")),
-				str(rel.get("from", "")),
-				str(rel.get("to", "")),
-			)
 
 
 func _spawn_initial(inst: Dictionary) -> void:
