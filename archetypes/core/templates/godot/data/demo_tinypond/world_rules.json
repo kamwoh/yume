@@ -1,0 +1,121 @@
+{
+  "_comment": "TinyPond rules. 9 total. Day/night oscillation drives plant growth; fish drift + eat. Sunlight broadcast via contact between pond_clock and plants (radius 1000). All formulas use Python-style ternary.",
+
+  "rules": [
+    {
+      "_comment": "Time advances every tick. time_of_day = (world.tick * 0.01) - floor(world.tick * 0.01) gives a 0..1 modulo cycle of 100 ticks per pond-day.",
+      "id": "clock_advance_time",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"]},
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "time_of_day",
+        "value": "(world.tick * 0.01) - floor(world.tick * 0.01)"
+      }
+    },
+
+    {
+      "_comment": "Sunlight = max(0, sin(time_of_day * 2*pi)). Smooth ramp up to 1 at midday, 0 at midnight. Stored on pond_clock; plants read via contact rule.",
+      "id": "clock_update_sunlight",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"]},
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "sunlight",
+        "value": "max(0, sin(self.state.time_of_day * 6.28318))"
+      }
+    },
+
+    {
+      "_comment": "Plant seeds receive sunlight broadcast from pond_clock. Contact within radius 1000 = entire pond. Each tick, copy clock's sunlight to seed's sunlight state.",
+      "id": "plant_receive_sunlight",
+      "trigger": {"type": "contact", "tags_a": ["clock"], "tags_b": ["plant", "seed"], "radius": 1000},
+      "effect": {
+        "type": "state_set",
+        "target": "b",
+        "field": "sunlight",
+        "value": "a.state.sunlight"
+      }
+    },
+
+    {
+      "_comment": "Plant grows when its sunlight state > 0.3. Growth amount = grow_rate (5) when sunlit, 0 otherwise. Python-style ternary required (Godot Expression doesn't parse C-style).",
+      "id": "plant_seed_grows_in_sun",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["plant", "seed"]},
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "growth",
+        "amount": "self.properties.grow_rate if self.state.sunlight > 0.3 else 0"
+      }
+    },
+
+    {
+      "_comment": "Seed → mature when growth crosses 100. Transform preserves position; new entity gains 'edible' tag from def.",
+      "id": "plant_seed_to_mature",
+      "trigger": {"type": "tick", "interval": 2},
+      "query": {"tags_all": ["plant", "seed"], "state": {"growth_gte": 100}},
+      "effect": {"type": "transform", "target": "self", "to": "water_plant_mature"}
+    },
+
+    {
+      "_comment": "Mature plants occasionally seed nearby. Spawns water_plant_seed at parent's position (will overlap visually, but functional). Interval 30 + chance 0.3 = ~1 seed per mature per 5 pond-days.",
+      "id": "plant_seeding",
+      "trigger": {"type": "tick", "interval": 30},
+      "query": {"tags_all": ["plant", "mature"]},
+      "chance": 0.3,
+      "effect": {
+        "type": "spawn",
+        "template": "water_plant_seed",
+        "position": "self"
+      }
+    },
+
+    {
+      "_comment": "Fish drift in random walk. Velocity changes ~once per 10 ticks (chance 0.4 per 4-tick interval). x and y are independent randf-derived values in [-30, 30] px/sec.",
+      "id": "fish_random_movement",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["fish"]},
+      "chance": 0.4,
+      "effect": {
+        "type": "velocity_set",
+        "target": "self",
+        "x": "(randf() - 0.5) * 60",
+        "y": "(randf() - 0.5) * 60"
+      }
+    },
+
+    {
+      "_comment": "Fish-plant contact = plant removed + fish hunger decreases. Three effects in array (commit phase). Clamp prevents negative hunger.",
+      "id": "fish_eats_mature_plant",
+      "trigger": {"type": "contact", "tags_a": ["fish"], "tags_b": ["plant", "mature"], "radius": 16},
+      "effect": [
+        {"type": "remove", "target": "b"},
+        {"type": "state_add", "target": "a", "field": "hunger", "amount": -30},
+        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100}
+      ]
+    },
+
+    {
+      "_comment": "Fish hunger creeps up. +1 per 5 ticks, clamped to [0, 100]. Without food, fish hits max hunger in ~500 ticks.",
+      "id": "fish_hunger_rises",
+      "trigger": {"type": "tick", "interval": 5},
+      "query": {"tags_all": ["fish"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "hunger", "amount": 1},
+        {"type": "state_clamp", "target": "self", "field": "hunger", "min": 0, "max": 100}
+      ]
+    },
+
+    {
+      "_comment": "Mark hungry fish so asset-designer can render them visually distinct. No remove rule — once hungry, stays tagged. Acceptable for v1.",
+      "id": "fish_hungry_tag",
+      "trigger": {"type": "tick", "interval": 10},
+      "query": {"tags_all": ["fish"], "tags_none": ["hungry"], "state": {"hunger_gt": 70}},
+      "effect": {"type": "tag_add", "target": "self", "tag": "hungry"}
+    }
+  ]
+}

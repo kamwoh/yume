@@ -1,0 +1,9 @@
+{
+  "_comment": "TinyPond initial world state. world.tick is auto-incremented by scheduler. Other fields are initial-only (game logic mutates pond_clock entity state, not this dict).",
+
+  "state": {
+    "tick": 0,
+    "time_of_day": 0.0,
+    "sunlight": 0.0
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "_comment": "TinyPond shapes — minimal code-draw catalog. Each shape uses primitive ops with $param substitution.",
+
+  "shapes": {
+    "invisible_marker": {
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": 1, "color": "$color"}
+      ],
+      "params": {"color": "#00000000"}
+    },
+
+    "tinypond_plant_seed": {
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": 3, "color": "$sprout"}
+      ],
+      "params": {"sprout": "#7ab85a"}
+    },
+
+    "tinypond_plant_mature": {
+      "primitives": [
+        {"op": "rect",   "pos": [-1,  0],  "size": [2, 8],  "color": "$stem"},
+        {"op": "circle", "pos": [-3, -3], "radius": 4, "color": "$leaf"},
+        {"op": "circle", "pos": [ 3, -3], "radius": 4, "color": "$leaf"},
+        {"op": "circle", "pos": [ 0, -7], "radius": 5, "color": "$leaf"}
+      ],
+      "params": {"stem": "#3a8a3a", "leaf": "#7eb85a"}
+    },
+
+    "tinypond_fish": {
+      "primitives": [
+        {"op": "circle",  "pos": [0, 0], "radius": 6, "color": "$body"},
+        {"op": "rect",    "pos": [-9, -2], "size": [4, 4], "color": "$fin"}
+      ],
+      "params": {"body": "#d8a040", "fin": "#a07020"}
+    }
+  }
+}
