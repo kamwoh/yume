@@ -94,9 +94,30 @@ shot, surfacing only on hard failure or at the final wrap. Default
 
 ### Phase 5 — qa-tester (verify)
 
-18. Create the scene file at
-    `archetypes/core/templates/godot/scenes/<name>_2d.tscn` (copy from
-    existing demo scene, change `data_root`).
+18. Write the scene file `scenes/<name>_2d.tscn` from the standard
+    template — JSON-driven games never hand-edit this. Use this exact
+    body, replacing only `<name>`:
+
+    ```
+    [gd_scene load_steps=3 format=3]
+    [ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
+    [ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
+    [node name="World" type="Node"]
+    script = ExtResource("1")
+    data_root = "res://data/demo_<name>"
+    auto_start = true
+    verbose = true
+    renderer_script = "res://scripts/renderer_2d/entity_sprite_2d.gd"
+    [node name="GameShell" type="Node" parent="."]
+    script = ExtResource("2")
+    [node name="Camera2D" type="Camera2D" parent="."]
+    position = Vector2(0, 0)
+    ```
+
+    No game-specific code; only data_root differs from other games.
+    The universal `scenes/play.tscn` (with `--game=` cmdline arg) also
+    works — but generating a per-game stub gives a cleaner UX:
+    `godot --path . scenes/<name>_2d.tscn`.
 19. Invoke `yume-qa-tester` skill. Tool:
     `Skill(skill="yume-qa-tester", args=<data folder + scene path + GDD path>)`.
 20. Skill runs Godot headless, drains `env.error_buffer`, produces

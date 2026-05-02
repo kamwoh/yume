@@ -62,6 +62,11 @@ func _ready() -> void:
 	relations = RelationStore.new()
 	spatial_index = SpatialIndex.new()
 	scheduler = PhaseScheduler.new(_build_env())
+	# If data_root is empty, look for `--game=<name>` cmdline arg.
+	# Lets one universal scene file (scenes/play.tscn) drive any game:
+	#   godot --path . scenes/play.tscn -- --game=demo_tinypond
+	if data_root == "":
+		_resolve_data_root_from_cmdline()
 	if auto_start:
 		start()
 
@@ -70,6 +75,19 @@ func start() -> void:
 	if data_root != "":
 		load_data()
 	_start_clock()
+
+
+## Look for `--game=<name>` in user args. The user-args separator `--`
+## is required so Godot doesn't try to interpret these as engine flags.
+## Game names are folder names under `res://data/` (e.g. `demo_tinypond`).
+func _resolve_data_root_from_cmdline() -> void:
+	for arg in OS.get_cmdline_user_args():
+		var s := str(arg)
+		if s.begins_with("--game="):
+			data_root = "res://data/" + s.substr(7)
+			if verbose:
+				print("[World] resolved data_root from cmdline: ", data_root)
+			return
 
 
 # ============================================================

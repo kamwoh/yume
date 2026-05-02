@@ -1,0 +1,27 @@
+[gd_scene load_steps=3 format=3]
+
+; Universal Yume launcher. Pass `--game=<folder>` to select which game
+; under res://data/ to load. Example:
+;
+;   godot --path . scenes/play.tscn -- --game=demo_tinypond
+;   godot --path . scenes/play.tscn -- --game=demo_harvestcore
+;
+; Per-game scene stubs (e.g. scenes/tinypond_2d.tscn) are still
+; supported as a shorthand, but new games can run from this single
+; scene without any per-game .tscn file.
+
+[ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
+
+[node name="World" type="Node"]
+script = ExtResource("1")
+data_root = ""
+auto_start = true
+verbose = true
+renderer_script = "res://scripts/renderer_2d/entity_sprite_2d.gd"
+
+[node name="GameShell" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(0, 0)
