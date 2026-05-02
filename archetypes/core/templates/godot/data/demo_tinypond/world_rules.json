@@ -114,7 +114,7 @@
     },
 
     {
-      "_comment": "Creature-plant contact = plant removed + eater hunger decreases + score increments. 'creature' tag matches both ambient fish and player_fish. Bumped radius 16→50 so visible overlap = real eat.",
+      "_comment": "Creature-plant contact = plant removed + eater hunger decreases + score increments + a seed scatters nearby (regrowth). The dropped seed re-balances the ecosystem: each eat creates new growth potential, so the pond doesn't collapse.",
       "id": "creature_eats_mature_plant",
       "trigger": {"type": "contact"},
       "query": {
@@ -123,6 +123,10 @@
         "radius": 50
       },
       "effect": [
+        {"type": "spawn", "template": "water_plant_seed", "position": [
+          "b.state.position.x + (randf() - 0.5) * 80",
+          "b.state.position.y + (randf() - 0.5) * 80"
+        ]},
         {"type": "remove", "target": "b"},
         {"type": "state_add", "target": "a", "field": "hunger", "amount": -30},
         {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
