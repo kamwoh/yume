@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-01T23:14:13+00:00",
+  "generated_at": "2026-05-02T21:00:30+00:00",
   "generated_from": "archetypes/core/templates/godot/scripts/engine",
   "primitives": [
     "Entity",

@@ -1,0 +1,296 @@
+{
+  "_comment": "HarvestCore shape definitions. Strategy: code-draw (Strategy C). All shapes compose from circle, rect, polygon draw primitives — no asset files required. Stardew aesthetic target: warm earth tones, soft greens, friendly pixel-art feel. Shapes sized for a 32px grid (entity positions on 32px steps). Composite shapes give each entity a recognisable silhouette even at small scale.",
+
+  "shapes": {
+
+    "_comment_meta": "Meta / UI entities — tiny debug icons. Positioned off-screen in world so they don't clutter the farm view.",
+
+    "world_clock": {
+      "_comment": "Singleton meta entity. Tiny sun icon for debug visibility — not visible in normal play.",
+      "primitives": [
+        {"op": "circle", "pos": [0, 0],  "radius": 4, "color": "$sun"},
+        {"op": "rect",   "pos": [-1, -8], "size": [2, 4], "color": "$ray"},
+        {"op": "rect",   "pos": [-1,  4], "size": [2, 4], "color": "$ray"},
+        {"op": "rect",   "pos": [-8, -1], "size": [4, 2], "color": "$ray"},
+        {"op": "rect",   "pos": [ 4, -1], "size": [4, 2], "color": "$ray"}
+      ],
+      "params": {"sun": "#ffd34a", "ray": "#f4b830"}
+    },
+
+    "farm_ledger": {
+      "_comment": "Singleton economy tracker. Gold coin icon for debug visibility.",
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": 5, "color": "$coin"},
+        {"op": "circle", "pos": [0, 0], "radius": 3, "color": "$inner"},
+        {"op": "circle", "pos": [-1, -1], "radius": 1, "color": "$shine"}
+      ],
+      "params": {"coin": "#d4a030", "inner": "#e8c050", "shine": "#fff0a0"}
+    },
+
+    "_comment_ground": "Ground tiles are 28×28 squares (slightly smaller than 32px grid step to show gaps between tiles).",
+
+    "dirt_tile": {
+      "_comment": "Untilled ground. Warm tan-brown, slightly mottled with a darker patch to suggest earth texture.",
+      "primitives": [
+        {"op": "rect",   "pos": [-14, -14], "size": [28, 28], "color": "$base"},
+        {"op": "rect",   "pos": [-6, -4],   "size": [5,  4],  "color": "$patch"},
+        {"op": "rect",   "pos": [ 4,  3],   "size": [4,  3],  "color": "$patch"}
+      ],
+      "params": {"base": "#c0955a", "patch": "#a87840"}
+    },
+
+    "tilled_soil": {
+      "_comment": "Tilled soil — darker rich brown with horizontal furrow lines to show it has been worked.",
+      "primitives": [
+        {"op": "rect", "pos": [-14, -14], "size": [28, 28], "color": "$soil"},
+        {"op": "rect", "pos": [-10, -7],  "size": [20, 2],  "color": "$furrow"},
+        {"op": "rect", "pos": [-10,  0],  "size": [20, 2],  "color": "$furrow"},
+        {"op": "rect", "pos": [-10,  7],  "size": [20, 2],  "color": "$furrow"}
+      ],
+      "params": {"soil": "#7a4e1e", "furrow": "#5a3610"}
+    },
+
+    "_comment_crops": "Crop stage shapes — shared across all crop types. Visual progression: seed (tiny dot) → young (small sprout) → mature (full plant). Color params can be overridden per instance for crop-type variety.",
+
+    "crop_seed": {
+      "_comment": "Freshly planted seed — small round dot on soil. Subtle so it reads as 'something is here'.",
+      "primitives": [
+        {"op": "circle", "pos": [0,  2], "radius": 3, "color": "$seed"},
+        {"op": "circle", "pos": [-1, 1], "radius": 1, "color": "$seed_hi"}
+      ],
+      "params": {"seed": "#7a5030", "seed_hi": "#a07050"}
+    },
+
+    "crop_young": {
+      "_comment": "Young sprout — small stem with a pair of cotyledon leaves. Fresh green.",
+      "primitives": [
+        {"op": "rect",   "pos": [-1,  2], "size": [2, 8],  "color": "$stem"},
+        {"op": "circle", "pos": [-3, -1], "radius": 3,     "color": "$leaf"},
+        {"op": "circle", "pos": [ 3, -1], "radius": 3,     "color": "$leaf"},
+        {"op": "circle", "pos": [ 0, -4], "radius": 2,     "color": "$tip"}
+      ],
+      "params": {"stem": "#5a8a3a", "leaf": "#6db85a", "tip": "#8ed870"}
+    },
+
+    "crop_mature": {
+      "_comment": "Mature harvestable crop — tall stem with full leafy head. Warm golden-green to signal readiness.",
+      "primitives": [
+        {"op": "rect",   "pos": [-1,  2],  "size": [2, 14], "color": "$stem"},
+        {"op": "circle", "pos": [-4, -4],  "radius": 4,     "color": "$foliage"},
+        {"op": "circle", "pos": [ 4, -4],  "radius": 4,     "color": "$foliage"},
+        {"op": "circle", "pos": [ 0, -10], "radius": 5,     "color": "$head"},
+        {"op": "circle", "pos": [ 0, -9],  "radius": 2,     "color": "$head_hi"}
+      ],
+      "params": {"stem": "#5a8a3a", "foliage": "#7eb85a", "head": "#c8b030", "head_hi": "#e8d050"}
+    },
+
+    "dead_crop": {
+      "_comment": "Out-of-season withered crop. Muted grey-brown, drooping. Visual cue to hoe it back.",
+      "primitives": [
+        {"op": "rect",   "pos": [-1,  2], "size": [2, 8], "color": "$stalk"},
+        {"op": "circle", "pos": [ 0, -1], "radius": 3,    "color": "$husk"},
+        {"op": "rect",   "pos": [-3,  0], "size": [3, 1], "color": "$droop"},
+        {"op": "rect",   "pos": [ 1,  2], "size": [3, 1], "color": "$droop"}
+      ],
+      "params": {"stalk": "#5a4a38", "husk": "#7a6a58", "droop": "#6a5848"}
+    },
+
+    "_comment_produce": "Produce item shapes. Each crop type + animal output has a distinct silhouette and color. Sized ~10-12px wide to read clearly when held or on ground.",
+
+    "produce_radish": {
+      "_comment": "Round pink-red root with bright green leaf tuft.",
+      "primitives": [
+        {"op": "circle", "pos": [0,  2],  "radius": 5,    "color": "$body"},
+        {"op": "circle", "pos": [0,  3],  "radius": 3,    "color": "$body_lo"},
+        {"op": "rect",   "pos": [-2, -8], "size": [2, 6], "color": "$leaf"},
+        {"op": "rect",   "pos": [ 1, -7], "size": [2, 5], "color": "$leaf"},
+        {"op": "rect",   "pos": [-1, -5], "size": [3, 1], "color": "$leaf_hi"}
+      ],
+      "params": {"body": "#d94c7a", "body_lo": "#b83060", "leaf": "#5fa53d", "leaf_hi": "#7ec858"}
+    },
+
+    "produce_corn": {
+      "_comment": "Corn cob — tall yellow rectangle with green husk wrapping.",
+      "primitives": [
+        {"op": "rect",   "pos": [-3, -5], "size": [6, 12], "color": "$cob"},
+        {"op": "rect",   "pos": [-4, -8], "size": [4, 6],  "color": "$husk"},
+        {"op": "rect",   "pos": [ 1, -7], "size": [3, 5],  "color": "$husk"},
+        {"op": "rect",   "pos": [-1, -4], "size": [2, 2],  "color": "$kernel"}
+      ],
+      "params": {"cob": "#f4d060", "husk": "#7eb86b", "kernel": "#e0a830"}
+    },
+
+    "produce_pumpkin": {
+      "_comment": "Round orange pumpkin with ribbing detail and short brown stem.",
+      "primitives": [
+        {"op": "circle", "pos": [0,  2],  "radius": 7,    "color": "$body"},
+        {"op": "rect",   "pos": [-1, -1], "size": [2, 5],  "color": "$rib"},
+        {"op": "rect",   "pos": [ 2, -1], "size": [1, 5],  "color": "$rib"},
+        {"op": "rect",   "pos": [-3, -1], "size": [1, 5],  "color": "$rib"},
+        {"op": "rect",   "pos": [-1, -9], "size": [2, 4],  "color": "$stem"}
+      ],
+      "params": {"body": "#e07820", "rib": "#c06010", "stem": "#5a3a18"}
+    },
+
+    "produce_turnip": {
+      "_comment": "Round purple-white turnip with a crown of small leaves.",
+      "primitives": [
+        {"op": "circle", "pos": [0,  2],  "radius": 5,    "color": "$body"},
+        {"op": "circle", "pos": [0,  4],  "radius": 3,    "color": "$body_lo"},
+        {"op": "rect",   "pos": [-3, -8], "size": [2, 5], "color": "$leaf"},
+        {"op": "rect",   "pos": [ 0, -9], "size": [2, 6], "color": "$leaf"},
+        {"op": "rect",   "pos": [ 2, -7], "size": [2, 4], "color": "$leaf"}
+      ],
+      "params": {"body": "#b850a0", "body_lo": "#d880c8", "leaf": "#5fa53d"}
+    },
+
+    "produce_potato": {
+      "_comment": "Lumpy tan-brown potato with eye spots.",
+      "primitives": [
+        {"op": "circle", "pos": [ 0,  0], "radius": 5, "color": "$body"},
+        {"op": "circle", "pos": [ 3,  2], "radius": 4, "color": "$body"},
+        {"op": "circle", "pos": [-2,  2], "radius": 3, "color": "$body"},
+        {"op": "circle", "pos": [-2, -2], "radius": 2, "color": "$eye"},
+        {"op": "circle", "pos": [ 3, -1], "radius": 2, "color": "$eye"}
+      ],
+      "params": {"body": "#c89858", "eye": "#8a6030"}
+    },
+
+    "produce_egg": {
+      "_comment": "White egg with subtle warm highlight.",
+      "primitives": [
+        {"op": "circle", "pos": [0,  1],  "radius": 5,   "color": "$shell"},
+        {"op": "circle", "pos": [0, -1],  "radius": 4,   "color": "$shell_top"},
+        {"op": "circle", "pos": [-1, -2], "radius": 1.5, "color": "$highlight"}
+      ],
+      "params": {"shell": "#f0e8c8", "shell_top": "#f8f4e0", "highlight": "#fffaf0"}
+    },
+
+    "produce_milk": {
+      "_comment": "Milk bucket — wooden bucket body with white milk visible at top.",
+      "primitives": [
+        {"op": "rect",   "pos": [-4,  0],  "size": [8,  8], "color": "$bucket"},
+        {"op": "rect",   "pos": [-5, -1],  "size": [10, 2], "color": "$rim"},
+        {"op": "rect",   "pos": [-3, -3],  "size": [6,  4], "color": "$milk"},
+        {"op": "rect",   "pos": [-5,  0],  "size": [1,  7], "color": "$handle"},
+        {"op": "rect",   "pos": [ 4,  0],  "size": [1,  7], "color": "$handle"}
+      ],
+      "params": {"bucket": "#a87840", "rim": "#c09850", "milk": "#f4f0e0", "handle": "#7a5828"}
+    },
+
+    "produce_wool": {
+      "_comment": "Fluffy wool bundle — overlapping circles to suggest cloudlike texture.",
+      "primitives": [
+        {"op": "circle", "pos": [ 0,  1],  "radius": 6, "color": "$wool"},
+        {"op": "circle", "pos": [-4, -1],  "radius": 4, "color": "$wool_hi"},
+        {"op": "circle", "pos": [ 4, -1],  "radius": 4, "color": "$wool_hi"},
+        {"op": "circle", "pos": [ 0, -4],  "radius": 4, "color": "$wool_hi"},
+        {"op": "circle", "pos": [ 0,  0],  "radius": 2, "color": "$wool_top"}
+      ],
+      "params": {"wool": "#dcdcd8", "wool_hi": "#f0f0ec", "wool_top": "#ffffff"}
+    },
+
+    "_comment_animals": "Animal shapes. Friendly, chunky silhouettes — pixel-art farm aesthetic.",
+
+    "chicken": {
+      "_comment": "Chicken — round cream body, small round head, yellow beak triangle, red comb.",
+      "primitives": [
+        {"op": "circle",  "pos": [ 0, -2],  "radius": 6,             "color": "$body"},
+        {"op": "circle",  "pos": [ 0, -10], "radius": 4,             "color": "$head"},
+        {"op": "polygon", "points": [[1,-8],[4,-6],[1,-6]],           "color": "$beak"},
+        {"op": "polygon", "points": [[-1,-14],[0,-12],[1,-14],[0,-13]],"color": "$comb"},
+        {"op": "rect",    "pos": [-2,  3],  "size": [2, 4],          "color": "$leg"},
+        {"op": "rect",    "pos": [ 1,  3],  "size": [2, 4],          "color": "$leg"}
+      ],
+      "params": {"body": "#e8d8a8", "head": "#e8d8a8", "beak": "#d4a030", "comb": "#c83028", "leg": "#d4a030"}
+    },
+
+    "cow": {
+      "_comment": "Cow — wide rectangular body, round head, stubby legs, brown-white colouring with spot.",
+      "primitives": [
+        {"op": "rect",   "pos": [-10, -5], "size": [18, 11], "color": "$body"},
+        {"op": "circle", "pos": [ 4, -1],  "radius": 5,      "color": "$spot"},
+        {"op": "circle", "pos": [ 9, -3],  "radius": 6,      "color": "$head"},
+        {"op": "rect",   "pos": [12, -4],  "size": [4, 3],   "color": "$snout"},
+        {"op": "rect",   "pos": [-9,  5],  "size": [3, 5],   "color": "$leg"},
+        {"op": "rect",   "pos": [-4,  5],  "size": [3, 5],   "color": "$leg"},
+        {"op": "rect",   "pos": [ 2,  5],  "size": [3, 5],   "color": "$leg"},
+        {"op": "rect",   "pos": [ 7,  5],  "size": [3, 5],   "color": "$leg"}
+      ],
+      "params": {"body": "#e8e0d0", "spot": "#6a4828", "head": "#e0d8c8", "snout": "#d8c0a8", "leg": "#c0a888"}
+    },
+
+    "sheep": {
+      "_comment": "Sheep — fluffy wool body (overlapping circles), small face, stubby dark legs.",
+      "primitives": [
+        {"op": "circle", "pos": [-3,  -3], "radius": 8,  "color": "$wool"},
+        {"op": "circle", "pos": [ 4,  -4], "radius": 5,  "color": "$wool"},
+        {"op": "circle", "pos": [ 0,  -8], "radius": 4,  "color": "$wool_hi"},
+        {"op": "circle", "pos": [-6,  -5], "radius": 4,  "color": "$wool_hi"},
+        {"op": "circle", "pos": [ 9,  -2], "radius": 4,  "color": "$face"},
+        {"op": "rect",   "pos": [-7,   4], "size": [3, 5], "color": "$leg"},
+        {"op": "rect",   "pos": [-2,   4], "size": [3, 5], "color": "$leg"},
+        {"op": "rect",   "pos": [ 4,   4], "size": [3, 5], "color": "$leg"}
+      ],
+      "params": {"wool": "#e8e8e4", "wool_hi": "#f4f4f0", "face": "#d0c0a0", "leg": "#908070"}
+    },
+
+    "_comment_npcs": "NPC and player shapes share the 'person' base from global shapes.json. Each NPC uses color param overrides for visual differentiation. Defined here for reference but the global 'person' shape is used directly.",
+
+    "person": {
+      "_comment": "Shared person shape for player + all NPCs. Head circle on body rect. Shirt color differentiates characters. Hat rect added above head for variety.",
+      "primitives": [
+        {"op": "rect",   "pos": [-4, -4],  "size": [8, 12], "color": "$shirt"},
+        {"op": "circle", "pos": [ 0, -10], "radius": 5,     "color": "$skin"},
+        {"op": "rect",   "pos": [-5, -16], "size": [10, 4], "color": "$hat"},
+        {"op": "rect",   "pos": [-2,  7],  "size": [2, 5],  "color": "$pants"},
+        {"op": "rect",   "pos": [ 1,  7],  "size": [2, 5],  "color": "$pants"}
+      ],
+      "params": {"skin": "#e0b094", "shirt": "#5b9bff", "hat": "#4a3a28", "pants": "#4a5878"}
+    },
+
+    "_comment_structures": "Structure shapes. Barn and farmhouse are larger (±18-20px half-size). sell_chest is small container.",
+
+    "sell_chest": {
+      "_comment": "Wooden chest with a gold latch. Warm wood tones.",
+      "primitives": [
+        {"op": "rect",   "pos": [-10, -4],  "size": [20, 14], "color": "$wood"},
+        {"op": "rect",   "pos": [-10, -8],  "size": [20,  5], "color": "$lid"},
+        {"op": "rect",   "pos": [-10, -4],  "size": [20,  2], "color": "$band"},
+        {"op": "circle", "pos": [  0, -4],  "radius": 2,      "color": "$latch"},
+        {"op": "rect",   "pos": [ -8, -2],  "size": [4, 10],  "color": "$plank"},
+        {"op": "rect",   "pos": [  4, -2],  "size": [4, 10],  "color": "$plank"}
+      ],
+      "params": {"wood": "#9a6a2a", "lid": "#b88040", "band": "#7a5018", "latch": "#d4a030", "plank": "#8a5e22"}
+    },
+
+    "barn": {
+      "_comment": "Red barn with dark roof, wide door at bottom. Larger than farmhouse.",
+      "primitives": [
+        {"op": "rect",    "pos": [-20, -8],  "size": [40, 24], "color": "$wall"},
+        {"op": "polygon", "points": [[-22, -8], [0, -26], [22, -8]], "color": "$roof"},
+        {"op": "rect",    "pos": [ -8,  4],  "size": [16, 12], "color": "$door"},
+        {"op": "rect",    "pos": [ -8,  4],  "size": [1, 12],  "color": "$door_frame"},
+        {"op": "rect",    "pos": [-12, -4],  "size": [6,  5],  "color": "$window"},
+        {"op": "rect",    "pos": [  6, -4],  "size": [6,  5],  "color": "$window"}
+      ],
+      "params": {"wall": "#a03828", "roof": "#501818", "door": "#3a2010", "door_frame": "#5a3018", "window": "#d0e8f8"}
+    },
+
+    "farmhouse": {
+      "_comment": "Cosy farmhouse. Cream walls, warm terracotta roof, door, two windows.",
+      "primitives": [
+        {"op": "rect",    "pos": [-16, -6],  "size": [32, 20], "color": "$wall"},
+        {"op": "polygon", "points": [[-18, -6], [0, -20], [18, -6]], "color": "$roof"},
+        {"op": "rect",    "pos": [ -4,  4],  "size": [8,  10], "color": "$door"},
+        {"op": "rect",    "pos": [-13, -2],  "size": [7,   6], "color": "$window"},
+        {"op": "rect",    "pos": [  6, -2],  "size": [7,   6], "color": "$window"},
+        {"op": "rect",    "pos": [ -1, -2],  "size": [1,   6], "color": "$window_x"},
+        {"op": "rect",    "pos": [-13,  0],  "size": [7,   1], "color": "$window_x"},
+        {"op": "rect",    "pos": [  6,  0],  "size": [7,   1], "color": "$window_x"}
+      ],
+      "params": {"wall": "#d4c4a0", "roof": "#8a4030", "door": "#4a3020", "window": "#b0d8f0", "window_x": "#90b8d0"}
+    }
+
+  }
+}

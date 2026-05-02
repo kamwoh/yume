@@ -96,7 +96,7 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 			EngineError.raise(env, EngineError.FORMULA_PARSE_FAILED,
 				"Formula parse error: '%s' → '%s' — %s" % [s, rewritten, expr.get_error_text()],
 				{"rule_id": context.get("_rule_id", ""), "formula": s, "rewritten": rewritten, "godot_error": expr.get_error_text()},
-				"Check formula syntax. Allowed: bindings (self.state.X, target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow/floor/ceil/lerp/randf), arithmetic, ternary, comparison.")
+				"Check formula syntax. Allowed: bindings (self.state.X, target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow/floor/ceil/lerp/randf), arithmetic, comparison, bitwise, Vector2/Array subscript, Python-style ternary 'a if cond else b' (NOT C-style 'cond ? a : b' — Godot 4.6.1 Expression doesn't parse it).")
 			return 0.0
 		_cache[key] = expr
 

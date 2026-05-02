@@ -24,8 +24,9 @@ import { entry20 } from "./20_yume_design_skill.js";
 import { entry21 } from "./21_harness_grade.js";
 import { entry22 } from "./22_structured_errors.js";
 import { entry23 } from "./23_api_manifest.js";
+import { entry24 } from "./24_harvestcore_first_game.js";
 
 export const entries = [
   entry00, entry01, entry02, entry03, entry04, entry05, entry06,
-  entry07, entry08, entry09, entry10, entry11, entry12, entry13, entry14, entry15, entry16, entry17, entry18, entry19, entry20, entry21, entry22, entry23,
+  entry07, entry08, entry09, entry10, entry11, entry12, entry13, entry14, entry15, entry16, entry17, entry18, entry19, entry20, entry21, entry22, entry23, entry24,
 ];

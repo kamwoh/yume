@@ -38,9 +38,13 @@ no GDScript files belong here.
 - ✅ **Whitelist formula syntax.** Formulas are `Expression` strings.
   Allowed: bindings (`self.state.X`, `target.X`, `world.tick`), math
   helpers (`clamp`, `min`, `max`, `abs`, `sin`, `cos`, `sqrt`, `pow`,
-  `floor`, `ceil`, `lerp`, `randf`), arithmetic, ternary, comparison.
-  No function calls outside these — defer to W4.5 AST whitelist when
-  it lands.
+  `floor`, `ceil`, `lerp`, `randf`), arithmetic, comparison, bitwise
+  (`<<`, `&`, `|`), Vector2/Array subscript (`v[0]`, `a[1]`), and
+  **Python-style ternary `a if cond else b`**. **NOT** C-style
+  `cond ? a : b` — Godot 4.6.1 Expression doesn't parse it
+  (empirically verified during harvestcore QA, 2026-05-02).
+  No function calls outside the math helpers — defer to W4.5 AST
+  whitelist when it lands.
 - ✅ **Keep demos cross-renderer.** If a rule's `radius` only makes sense
   in 2D pixels, document why; same for 3D world units. Default: pick
   values that work both with `position_scale=0.05` for 3D and pixel

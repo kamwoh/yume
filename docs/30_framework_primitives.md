@@ -328,11 +328,14 @@ Rule struct — never re-parsed per tick.
 
 **Whitelist.** At load time, each formula's AST is walked. Allowed:
 identifiers from the binding set, numeric/string literals, arithmetic/
-comparison/logical operators, ternary, and calls to the math helper set and
-the query helpers (`nearest`, `nearby`, traversal-aggregates). **Rejected:**
-any call whose callee is not in the whitelist; attribute access on
-non-bindings; bytecode-level escapes. A formula that fails the whitelist
-errors at load, not at tick.
+comparison/logical operators, **Python-style ternary `a if cond else b`**
+(C-style `cond ? a : b` is NOT supported by Godot 4.6.1 Expression —
+empirically verified during harvestcore QA, 2026-05-02), bitwise ops
+(`<<`, `&`, `|`), Vector2/Array subscript, and calls to the math helper
+set and the query helpers (`nearest`, `nearby`, traversal-aggregates).
+**Rejected:** any call whose callee is not in the whitelist; attribute
+access on non-bindings; bytecode-level escapes. A formula that fails the
+whitelist errors at load, not at tick.
 
 **Perf note.** Formulas inside `contact` triggers evaluate **per candidate
 pair per tick**. With 500 pairs/tick on a busy scene, that is 30 000 evals/s.

@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-05-01T23:14:13+00:00_
+_Generated: 2026-05-02T21:00:30+00:00_
 _Source: `archetypes/core/templates/godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -60,6 +60,14 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 **Math helpers** (Godot Expression built-ins):
 
 `sin`, `cos`, `tan`, `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `clamp`, `min`, `max`, `lerp`, `randf`
+
+**Formula syntax notes** (Godot 4.6.1 quirks):
+
+- Ternary: **Python-style** `a if cond else b`. C-style `cond ? a : b` does NOT parse.
+- Bitwise `<<`, `&`, `|` — supported.
+- Vector2 / Vector3 / Array subscript `v[0]` — supported.
+- Vector2 / Vector3 component access `v.x`, `v.y`, `v.z` — supported via path resolver.
+- Empirically verified during harvestcore QA (2026-05-02).
 
 ## Error codes (Tier 2.6a)
 
