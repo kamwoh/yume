@@ -3,7 +3,7 @@
 
   "definitions": [
     {
-      "_comment": "Singleton meta entity. Owns time_of_day + sunlight state. Plants read sunlight via contact (radius 1000 = entire pond).",
+      "_comment": "Singleton meta entity. Owns time_of_day + sunlight state. Plants read sunlight via contact (radius 1000 = entire pond). Visual = sun marker — static yellow disc at top of screen so player sees there's a 'sky'.",
       "id": "pond_clock",
       "tags": ["clock", "meta"],
       "properties": {},
@@ -12,8 +12,19 @@
         "sunlight": 0.0
       },
       "visual": {
-        "shape": "invisible_marker",
-        "params": {"color": "#00000000"}
+        "shape": "tinypond_sun",
+        "params": {"glow": "#ffd470", "core": "#fff8a0"}
+      }
+    },
+    {
+      "_comment": "Decorative lily pad — purely visual anchor so the pond doesn't look like void.",
+      "id": "lily_pad",
+      "tags": ["decor"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "shape": "tinypond_pond_water",
+        "params": {"pad": "#2a5a4a", "flower": "#e0c8a0"}
       }
     },
     {
@@ -60,7 +71,12 @@
   ],
 
   "initial_instances": [
-    {"def": "pond_clock", "id": "clock_1", "position": [0, 0]},
+    {"def": "pond_clock", "id": "clock_1", "position": [0, -180]},
+
+    {"def": "lily_pad", "id": "lily_1", "position": [-180, 30]},
+    {"def": "lily_pad", "id": "lily_2", "position": [ 170, -30]},
+    {"def": "lily_pad", "id": "lily_3", "position": [ -50, 150]},
+    {"def": "lily_pad", "id": "lily_4", "position": [ 110, 100]},
 
     {"def": "water_plant_mature", "id": "plant_m_1", "position": [-150,  -80]},
     {"def": "water_plant_mature", "id": "plant_m_2", "position": [ -80, -120]},

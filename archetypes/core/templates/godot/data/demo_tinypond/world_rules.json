@@ -91,7 +91,7 @@
     {
       "_comment": "Fish-plant contact = plant removed + fish hunger decreases. Three effects in array (commit phase). Clamp prevents negative hunger.",
       "id": "fish_eats_mature_plant",
-      "trigger": {"type": "contact", "tags_a": ["fish"], "tags_b": ["plant", "mature"], "radius": 16},
+      "trigger": {"type": "contact", "tags_a": ["fish"], "tags_b": ["plant", "mature"], "radius": 30},
       "effect": [
         {"type": "remove", "target": "b"},
         {"type": "state_add", "target": "a", "field": "hunger", "amount": -30},
