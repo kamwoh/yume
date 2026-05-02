@@ -53,6 +53,48 @@ shot, surfacing only on hard failure or at the final wrap. Default
 3. State the plan: paths, phases, autonomous-or-interactive mode.
 4. Interactive mode: wait for explicit go-ahead. Autonomous: proceed.
 
+### Phase 0b — Layout planning (cross-cutting decision)
+
+Before invoking any specialist skill, decide the file layout. All
+downstream skills follow this plan; no skill-by-skill drift. Decisions
+based on prose-estimated scope:
+
+**Entity layout**:
+- Small (estimated ≤ 8 entity defs): single `entities.json`
+- Medium (8-20 defs): `entities/` directory, one file per def, plus
+  `entities/zz_instances.json` for placements
+- Large (20+ defs): `entities/` directory grouped by category subfolder
+  (e.g. `entities/world/`, `entities/creatures/`, `entities/plants/`),
+  with one `entities/zz_instances.json` at the root
+
+**Rules layout**:
+- Small (≤ 15 rules): single `world_rules.json`
+- Medium (15-40): single `world_rules.json`, but ordered by category
+  blocks with `_comment` headers
+- Large (40+): `rules/` directory with category files
+  (e.g. `rules/clock.json`, `rules/movement.json`, `rules/eating.json`)
+
+**Always**:
+- `scene.json`, `hud.json`, `world.json` are single-file (small enough)
+- New shapes append to **`data/shapes.json` root**, NOT per-game
+- Per-game scene `.tscn` is a 12-line template stub (auto-written by
+  orchestrator at Phase 5; see template body in this doc)
+- Universal `scenes/play.tscn` works for any game via `--game=` arg
+
+State the chosen layout to the user (interactive) or proceed with it
+(autonomous). Pass layout to each skill in its arg payload so it
+writes files in the right structure:
+
+```
+LAYOUT CHOSEN:
+- entity_layout: medium → entities/ directory
+- rule_layout: small → single world_rules.json
+- assets: code-draw shapes appended to data/shapes.json root
+```
+
+This step prevents per-skill drift — content-designer and asset-designer
+both follow the orchestrator's chosen plan instead of inventing their own.
+
 ### Phase 1 — game-designer (prose → GDD)
 
 5. Invoke `yume-game-designer` skill. Tool:
