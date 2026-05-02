@@ -368,12 +368,21 @@ static func _formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 ##   "self"/"a"/"b" → copy that entity's state.position (whatever dimension)
 ##   Vector2/Vector3 literal → pass through
 ##   Array length 2 → Vector2; length 3 → Vector3
+##   Each array element runs through _value() so formulas like
+##   "self.state.position.x + (randf()-0.5)*60" resolve. Formula failures
+##   fall back to 0 (per Formula.evaluate convention).
 static func _position(v, env: Dictionary, ctx: Dictionary):
 	if v is Vector2 or v is Vector3: return v
 	if v is Array:
 		var a := v as Array
-		if a.size() == 2: return Vector2(float(a[0]), float(a[1]))
-		if a.size() == 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
+		if a.size() == 2:
+			return Vector2(float(_value(a[0], ctx, env)), float(_value(a[1], ctx, env)))
+		if a.size() == 3:
+			return Vector3(
+				float(_value(a[0], ctx, env)),
+				float(_value(a[1], ctx, env)),
+				float(_value(a[2], ctx, env))
+			)
 	if v is String and ctx.has(str(v)):
 		var ref_id := str(ctx[str(v)])
 		var all: Dictionary = env.get("entities", {})
