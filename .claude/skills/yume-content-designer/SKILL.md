@@ -18,6 +18,11 @@ restructured as a skill (Tier 2.6 finding from harvestcore QA).
 
 - Rule sketches at `docs/games/<game-name>/rules-sketch.md`
 - GDD at `docs/games/<game-name>/GDD.md`
+- World plan at `docs/games/<game-name>/world-plan.md` (Tier 2.6 —
+  produced by yume-game-planner). Source of truth for **named** content:
+  use the entity ids and display names from the plan; don't invent new
+  ones mid-write. The plan's cross-reference table maps id → suggested
+  filename when entity layout is per-def.
 - Optionally: existing demo data to clone-and-modify
 
 ## Outputs you produce

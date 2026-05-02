@@ -1,6 +1,6 @@
 ---
 name: yume-design
-description: Run the Yume text-to-game pipeline. Orchestrates 6 specialist skills (yume-game-designer → systems-designer → content-designer → asset-designer → qa-tester, plus tech-director on demand) with optional user-approval gates. Skills load into orchestrator context (no subagent spawn — Tier 2.6 architecture). Flags - `--autonomous` skips approval gates and runs end-to-end. `--with-assets` invokes AI-gen pipeline. `--style=pixel-art|low-poly-3d|ascii` art-style hint. `--name=<slug>` game folder name.
+description: Run the Yume text-to-game pipeline. Orchestrates 7 specialist skills (yume-game-designer → game-planner → systems-designer → content-designer → asset-designer → qa-tester, plus tech-director on demand) with optional user-approval gates. Skills load into orchestrator context (no subagent spawn — Tier 2.6 architecture). Flags - `--autonomous` skips approval gates and runs end-to-end. `--plan-only` stops after the planning phases (GDD + world-plan) so the user can review before any JSON is committed. `--with-assets` invokes AI-gen pipeline. `--style=pixel-art|low-poly-3d|ascii` art-style hint. `--name=<slug>` game folder name.
 ---
 
 # /yume-design — text-to-game pipeline
@@ -105,6 +105,26 @@ both follow the orchestrator's chosen plan instead of inventing their own.
    Autonomous: produce a 5-line summary internally and proceed; resolve
    any "open questions" the GDD flags by best-judgment and document the
    resolution in my next-phase prompt to systems-designer.
+
+### Phase 1b — game-planner (GDD → world plan)
+
+7a. Invoke `yume-game-planner` skill. Tool:
+    `Skill(skill="yume-game-planner", args=<GDD path>)`.
+7b. Skill produces `docs/games/<name>/world-plan.md` — named NPCs,
+    items, plants, events, town layout, day-1 onboarding flow.
+7c. Interactive: show plan summary (cast count, item categories, key
+    events) — ask user to approve.
+    Autonomous: produce a 5-line summary internally and proceed.
+7d. **If `--plan-only` flag was set**: stop here. Write a final
+    summary listing the GDD path + world-plan path. Tell the user to
+    re-invoke `/yume-design <name> --resume` once they've reviewed the
+    plan to continue from Phase 2.
+
+The world-plan is the single source of truth for named content
+(NPCs, items, plants, events). All downstream skills read it:
+- systems-designer references named entities when sketching rules
+- content-designer wires names directly into entities/*.json
+- asset-designer reads visual hints + applies consistent style
 
 ### Phase 2 — systems-designer (GDD → rule sketches)
 
