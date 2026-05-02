@@ -1,0 +1,30 @@
+{
+  "_comment": "HarvestCore HUD — gold (score), day count, season, weather, current tool. world_clock entity tagged 'world_state'; farm_ledger tagged 'economy'.",
+
+  "panels": [
+    {
+      "anchor": "top-left",
+      "elements": [
+        {"type": "label", "binds": "economy.gold", "format": "💰 Gold: {} / 100", "size": 22},
+        {"type": "spacer", "height": 4},
+        {"type": "label", "binds": "world_state.day", "format": "📅 Day {}", "size": 18},
+        {"type": "label", "binds": "world_state.season",
+         "format_phases": ["🌸 Spring", "☀️ Summer", "🍂 Autumn", "❄️ Winter"], "size": 18},
+        {"type": "label", "binds": "world_state.weather",
+         "format_phases": ["☀️ Sunny", "🌧️ Rainy", "⛈️ Stormy"], "size": 18},
+        {"type": "spacer", "height": 8},
+        {"type": "label", "binds": "player.held_tool",
+         "format_phases": ["🪣 Watering Can", "🛠️ Hoe", "🔪 Scythe"], "size": 18},
+        {"type": "label", "binds": "player.selected_seed",
+         "format_phases": ["🥕 Radish", "🌽 Corn", "🎃 Pumpkin", "🥬 Turnip", "🥔 Potato"], "size": 16}
+      ]
+    }
+  ],
+
+  "controls_hint": "WASD swim/walk • SPACE switch tool\nI/J/K/L use tool",
+
+  "win":  {"binds": "economy.gold", "op": ">=", "value": 100,
+           "message": "🌟 PROSPEROUS FARM! 🌟\nThe pond thrives."},
+  "lose": {"binds": "world_state.day", "op": ">=", "value": 30, "sustained": 1,
+           "message": "📅 SEASON ENDED 📅\nThe year passed by."}
+}

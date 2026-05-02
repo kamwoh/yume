@@ -1,0 +1,26 @@
+{
+  "_comment": "TinyPond HUD config — read by GameShell. All bindings reference entity tags; root 'world' reads world_state dict. Format strings use {} as placeholder. format_phases picks an index from a [0,1) value.",
+
+  "panels": [
+    {
+      "anchor": "top-left",
+      "elements": [
+        {"type": "label", "binds": "player.score", "format": "🌷 Plants eaten: {} / 30", "size": 22},
+        {"type": "spacer", "height": 4},
+        {"type": "label", "binds": "player.hunger", "format": "Hunger: {}", "size": 18},
+        {"type": "progress_bar", "binds": "player.hunger", "max": 100,
+         "color_lerp": ["#33dd33", "#dd3333"]},
+        {"type": "spacer", "height": 8},
+        {"type": "label", "binds": "clock.time_of_day",
+         "format_phases": ["🌅 Dawn", "☀️ Day", "🌇 Dusk", "🌙 Night"], "size": 18}
+      ]
+    }
+  ],
+
+  "controls_hint": "WASD / arrows to swim\nBump 🌿 plants to eat\nDon't starve!",
+
+  "win":  {"binds": "player.score",  "op": ">=", "value": 30,
+           "message": "🌟 YOU WIN! 🌟\nThe pond thrives."},
+  "lose": {"binds": "player.hunger", "op": ">=", "value": 100, "sustained": 200,
+           "message": "💀 STARVED 💀\nThe pond was too quiet."}
+}

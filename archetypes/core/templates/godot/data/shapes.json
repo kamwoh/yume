@@ -135,6 +135,70 @@
          "color": "$color"}
       ],
       "params": {"color": "#888"}
+    },
+
+    "invisible_marker": {
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": 1, "color": "$color"}
+      ],
+      "params": {"color": "#00000000"}
+    },
+
+    "tinypond_pond_water": {
+      "_comment": "Lily pad — round flat disc, pink lotus flower in center.",
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": 24, "color": "$pad_dark"},
+        {"op": "circle", "pos": [0, 0], "radius": 19, "color": "$pad"},
+        {"op": "circle", "pos": [0, 0], "radius": 6, "color": "$flower"},
+        {"op": "circle", "pos": [0, 0], "radius": 3, "color": "$flower_core"}
+      ],
+      "params": {"pad_dark": "#1f4538", "pad": "#3d7a5e", "flower": "#f5b8d4", "flower_core": "#fff4cc"}
+    },
+
+    "tinypond_sun": {
+      "_comment": "Bright sun above the pond — drawn as glowing yellow disc.",
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": 32, "color": "$glow_outer"},
+        {"op": "circle", "pos": [0, 0], "radius": 24, "color": "$glow"},
+        {"op": "circle", "pos": [0, 0], "radius": 18, "color": "$core"}
+      ],
+      "params": {"glow_outer": "#ffe89a", "glow": "#ffd470", "core": "#fff8a0"}
+    },
+
+    "tinypond_plant_seed": {
+      "_comment": "Small water sprout — tiny green tendril just emerging.",
+      "primitives": [
+        {"op": "rect",   "pos": [-2, 0],  "size": [4, 6], "color": "$base"},
+        {"op": "rect",   "pos": [-1, -8], "size": [2, 10], "color": "$stem"},
+        {"op": "circle", "pos": [-3, -10], "radius": 4, "color": "$leaf"},
+        {"op": "circle", "pos": [ 3, -10], "radius": 4, "color": "$leaf"}
+      ],
+      "params": {"base": "#2c5a3a", "stem": "#3d7a4d", "leaf": "#6db86d"}
+    },
+
+    "tinypond_plant_mature": {
+      "_comment": "Mature water plant — kelp/seaweed shape with multiple flowing fronds. No flower (this is underwater). Greens shifted toward blue-teal for aquatic feel.",
+      "primitives": [
+        {"op": "circle", "pos": [0, 12],  "radius": 9, "color": "$base"},
+        {"op": "rect",   "pos": [-2, -12], "size": [4, 24], "color": "$stem"},
+        {"op": "polygon", "points": [[-3, -10], [-15, -22], [-10, -8]],  "color": "$frond"},
+        {"op": "polygon", "points": [[3, -10], [15, -22], [10, -8]],     "color": "$frond"},
+        {"op": "polygon", "points": [[-3, 0], [-18, -8], [-12, 4]],      "color": "$frond_d"},
+        {"op": "polygon", "points": [[3, 0], [18, -8], [12, 4]],         "color": "$frond_d"},
+        {"op": "polygon", "points": [[-2, -16], [-2, -28], [3, -16]],    "color": "$tip"},
+        {"op": "polygon", "points": [[2, -16], [8, -30], [3, -16]],      "color": "$tip"}
+      ],
+      "params": {"base": "#1a3826", "stem": "#2c5a3a", "frond": "#3d7a4d", "frond_d": "#2c5a3a", "tip": "#6db86d"}
+    },
+
+    "tinypond_fish": {
+      "primitives": [
+        {"op": "circle", "pos": [-2, 0], "radius": 14, "color": "$body"},
+        {"op": "rect",   "pos": [-22, -5], "size": [12, 10], "color": "$tail"},
+        {"op": "circle", "pos": [6, -3], "radius": 3, "color": "$eyewhite"},
+        {"op": "circle", "pos": [7, -3], "radius": 1.5, "color": "$pupil"}
+      ],
+      "params": {"body": "#e88030", "tail": "#c06010", "eyewhite": "#ffffff", "pupil": "#000000"}
     }
   }
 }

@@ -1,15 +1,17 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
 data_root = "res://data/demo_tinypond"
 auto_start = true
-tick_seconds = 0.5
 verbose = true
 renderer_script = "res://scripts/renderer_2d/entity_sprite_2d.gd"
 
+[node name="GameShell" type="Node" parent="."]
+script = ExtResource("2")
+
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(0, 0)
-zoom = Vector2(1.5, 1.5)

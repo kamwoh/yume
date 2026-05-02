@@ -32,6 +32,13 @@ var _radius: float = 8.0
 # Entity reference
 var _entity_ref: Entity = null
 
+# Visual flips horizontally when velocity.x is negative. Opt-in via
+# entity.visual.flip_with_velocity. For directional sprites (fish, ships,
+# characters) so they face where they're going.
+var _flip_with_velocity: bool = false
+# Last sign of velocity.x — kept so we don't snap-flip on x=0 (when stopped).
+var _last_facing: int = 1
+
 # Cached shape library (one load per process — re-used across renderers)
 static var _shape_lib_cache: ShapeLib = null
 
@@ -43,6 +50,7 @@ func _ready() -> void:
 		return
 	_entity_ref = ent
 	var visual: Dictionary = ent.visual
+	_flip_with_velocity = bool(visual.get("flip_with_velocity", false))
 
 	# Tier 1 — real sprite asset
 	var sprite_path := str(visual.get("sprite_2d", ""))
@@ -79,11 +87,29 @@ func _ready() -> void:
 
 func _process(_dt: float) -> void:
 	_sync_position()
+	if _flip_with_velocity:
+		_sync_facing()
 
 
 func _sync_position() -> void:
 	if _entity_ref == null: return
 	position = _entity_ref.get_planar_position()
+
+
+## Mirror the sprite horizontally based on velocity.x sign. Hold last
+## non-zero direction so the sprite doesn't snap back to default when
+## the entity stops.
+func _sync_facing() -> void:
+	if _entity_ref == null: return
+	var v = _entity_ref.get_velocity()
+	var vx: float = 0.0
+	if v is Vector2: vx = (v as Vector2).x
+	elif v is Vector3: vx = (v as Vector3).x
+	if absf(vx) > 0.01:
+		_last_facing = 1 if vx >= 0 else -1
+	# scale.x = +1 → default art (assumed facing right); -1 → mirrored.
+	# Convention: art is drawn facing right; flip when moving west.
+	scale.x = float(_last_facing)
 
 
 func _draw() -> void:

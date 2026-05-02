@@ -232,12 +232,16 @@ func _poll_input() -> void:
 	for action in input_actions_press:
 		if Input.is_action_just_pressed(action):
 			scheduler.queue_input(action, {"actor": actor_id})
-	# Stop action when no movement held (idempotent zero-velocity_set)
+	# Stop action when no movement held (idempotent zero-velocity_set).
+	# Type-guard: Vector2 != Vector3 throws in Godot 4.6.1, so check by type.
 	if stop_action_on_idle != "" and not any_movement_pressed:
 		var actor_ent = entities.get(actor_id, null)
 		if actor_ent is Entity:
 			var v = (actor_ent as Entity).get_velocity()
-			if v != null and v != Vector2.ZERO and v != Vector3.ZERO:
+			var v_nonzero: bool = false
+			if v is Vector2: v_nonzero = (v as Vector2) != Vector2.ZERO
+			elif v is Vector3: v_nonzero = (v as Vector3) != Vector3.ZERO
+			if v_nonzero:
 				scheduler.queue_input(stop_action_on_idle, {"actor": actor_id})
 
 

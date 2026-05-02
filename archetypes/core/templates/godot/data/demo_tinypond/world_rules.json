@@ -31,7 +31,12 @@
     {
       "_comment": "Plant seeds receive sunlight broadcast from pond_clock. Contact within radius 1000 = entire pond. Each tick, copy clock's sunlight to seed's sunlight state.",
       "id": "plant_receive_sunlight",
-      "trigger": {"type": "contact", "tags_a": ["clock"], "tags_b": ["plant", "seed"], "radius": 1000},
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["clock"]},
+        "b": {"tags_all": ["plant", "seed"]},
+        "radius": 1000
+      },
       "effect": {
         "type": "state_set",
         "target": "b",
@@ -62,11 +67,11 @@
     },
 
     {
-      "_comment": "Mature plants occasionally seed nearby. Spawns water_plant_seed at parent's position (will overlap visually, but functional). Interval 30 + chance 0.3 = ~1 seed per mature per 5 pond-days.",
+      "_comment": "Mature plants seed nearby — interval 15 + chance 0.4 keeps the pond replenished as fish eat. Spawns at parent position (overlap is OK, fish will eat closest first).",
       "id": "plant_seeding",
-      "trigger": {"type": "tick", "interval": 30},
+      "trigger": {"type": "tick", "interval": 15},
       "query": {"tags_all": ["plant", "mature"]},
-      "chance": 0.3,
+      "chance": 0.4,
       "effect": {
         "type": "spawn",
         "template": "water_plant_seed",
@@ -89,21 +94,27 @@
     },
 
     {
-      "_comment": "Fish-plant contact = plant removed + fish hunger decreases. Three effects in array (commit phase). Clamp prevents negative hunger.",
-      "id": "fish_eats_mature_plant",
-      "trigger": {"type": "contact", "tags_a": ["fish"], "tags_b": ["plant", "mature"], "radius": 30},
+      "_comment": "Creature-plant contact = plant removed + eater hunger decreases + score increments. 'creature' tag matches both ambient fish and player_fish. Bumped radius 16→50 so visible overlap = real eat.",
+      "id": "creature_eats_mature_plant",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["creature"]},
+        "b": {"tags_all": ["plant", "mature"]},
+        "radius": 50
+      },
       "effect": [
         {"type": "remove", "target": "b"},
         {"type": "state_add", "target": "a", "field": "hunger", "amount": -30},
-        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100}
+        {"type": "state_clamp", "target": "a", "field": "hunger", "min": 0, "max": 100},
+        {"type": "state_add", "target": "a", "field": "score", "amount": 1}
       ]
     },
 
     {
-      "_comment": "Fish hunger creeps up. +1 per 5 ticks, clamped to [0, 100]. Without food, fish hits max hunger in ~500 ticks.",
-      "id": "fish_hunger_rises",
-      "trigger": {"type": "tick", "interval": 5},
-      "query": {"tags_all": ["fish"]},
+      "_comment": "Creature hunger creeps up — applies to BOTH player and ambient fish (creature tag). Bumped to +1 per 3 ticks for game tension. Clamped [0,100]. Without food, fish hits max hunger in ~300 ticks.",
+      "id": "creature_hunger_rises",
+      "trigger": {"type": "tick", "interval": 3},
+      "query": {"tags_all": ["creature"]},
       "effect": [
         {"type": "state_add", "target": "self", "field": "hunger", "amount": 1},
         {"type": "state_clamp", "target": "self", "field": "hunger", "min": 0, "max": 100}
@@ -116,6 +127,47 @@
       "trigger": {"type": "tick", "interval": 10},
       "query": {"tags_all": ["fish"], "tags_none": ["hungry"], "state": {"hunger_gt": 70}},
       "effect": {"type": "tag_add", "target": "self", "tag": "hungry"}
+    },
+
+    {
+      "_comment": "Pond bounds — every tick, clamp player position to fit visible pond. Uses Vector2() constructor inside formula.",
+      "id": "player_bounds",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["player"]},
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "position",
+        "value": "Vector2(clamp(self.state.position.x, -320, 320), clamp(self.state.position.y, -220, 220))"
+      }
+    },
+
+    {
+      "_comment": "WASD input rules — target='actor' resolves to entity tagged 'player' (world.gd actor_tag). Velocity in pixels/sec; engine integrates motion per-frame.",
+      "id": "player_move_north",
+      "trigger": {"type": "input", "action": "move_north"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": -120}
+    },
+    {
+      "id": "player_move_south",
+      "trigger": {"type": "input", "action": "move_south"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 120}
+    },
+    {
+      "id": "player_move_east",
+      "trigger": {"type": "input", "action": "move_east"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 120, "y": 0}
+    },
+    {
+      "id": "player_move_west",
+      "trigger": {"type": "input", "action": "move_west"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": -120, "y": 0}
+    },
+    {
+      "_comment": "When no movement key is held, world.gd queues a 'stop' input — set velocity to zero. Without this, fish drifts forever after each keypress.",
+      "id": "player_stop",
+      "trigger": {"type": "input", "action": "stop"},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
     }
   ]
 }
