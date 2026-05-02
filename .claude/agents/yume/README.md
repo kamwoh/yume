@@ -1,4 +1,18 @@
-# Yume specialist agents
+# Yume specialist agents (legacy — see `.claude/skills/yume-*/`)
+
+> **Status: legacy fallback.** As of 2026-05-02, the canonical pipeline
+> uses **skills** at `.claude/skills/yume-<role>/SKILL.md` instead of
+> these subagent files. The skill versions load into the orchestrator's
+> main context, avoiding the org-auth-policy block that subagents hit
+> empirically during harvestcore QA.
+>
+> These `.md` files are kept as a fallback path for users who configure
+> `ANTHROPIC_API_KEY` and want subagent isolation. The body content is
+> mirrored in the skill versions; if you edit a role prompt, edit it in
+> **both** places (or only the skill, and let this drift to deprecation).
+>
+> Long-term: these will be removed once we're confident no one needs the
+> subagent path.
 
 Six specialists that compose into the **text-to-game pipeline**. Each is
 a Claude Code subagent (`.md` file with YAML frontmatter); each has a

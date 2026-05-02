@@ -954,6 +954,26 @@ Tier 3 (actors). Prerequisite for any autonomous LLM workflow.
   - Failures fast, with concrete error
   - YAML or JSON schema, lives in `.claude/agents/yume/contracts/`
 
+- [x] **2.6g** **Skills-as-roles (architectural shift).** Discovered
+  empirically during harvestcore QA (2026-05-02): subagent invocations
+  via `Agent(subagent_type="yume-X")` hit org auth policy blocks
+  ("organization has disabled Claude subscription access"). Converted
+  the 6 yume-* role prompts to skills at `.claude/skills/yume-<role>/SKILL.md`.
+  Skills load into the orchestrator's main context — same role prompts,
+  no auth boundary, lower latency.
+  - [x] 6 new skill files: yume-{game,systems,content,asset}-designer,
+    yume-qa-tester, yume-tech-director
+  - [x] Orchestrator (`/yume-design`) updated: `Skill()` invocations
+    instead of `Agent(subagent_type=)`
+  - [x] `--autonomous` flag explicitly documented for end-to-end runs
+  - [x] Autonomous fix-and-retry loop: orchestrator can apply small
+    mechanical fixes (ternary syntax, typos) inline based on Tier 2.6a
+    structured errors; max 3 retry cycles before surfacing
+  - [x] Legacy `.claude/agents/yume/*.md` kept as fallback for users
+    with `ANTHROPIC_API_KEY` set; README marked legacy
+  - Landed 2026-05-02. Unblocks autonomous Tier 3 actor work — that
+    too will need many in-context skill invocations, not subagent spawns.
+
 ### Non-deliverables (explicit)
 
 - Cost/time metering — flagged as nice-to-have but not blocking. Could

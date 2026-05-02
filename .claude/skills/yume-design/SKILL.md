@@ -1,6 +1,6 @@
 ---
 name: yume-design
-description: Run the Yume text-to-game pipeline. Orchestrates 6 specialist agents (game-designer → systems-designer → content-designer → asset-designer → qa-tester) with user-approval gates between each stage. Optional flags `--with-assets` for AI-gen pipeline, `--style=pixel-art|low-poly-3d|ascii` for art-style hint, `--name=<slug>` for game folder name.
+description: Run the Yume text-to-game pipeline. Orchestrates 6 specialist skills (yume-game-designer → systems-designer → content-designer → asset-designer → qa-tester, plus tech-director on demand) with optional user-approval gates. Skills load into orchestrator context (no subagent spawn — Tier 2.6 architecture). Flags - `--autonomous` skips approval gates and runs end-to-end. `--with-assets` invokes AI-gen pipeline. `--style=pixel-art|low-poly-3d|ascii` art-style hint. `--name=<slug>` game folder name.
 ---
 
 # /yume-design — text-to-game pipeline
@@ -28,69 +28,86 @@ Args (parsed from the user's prompt after `/yume-design`):
 ## What I do when invoked
 
 I am the orchestrator. I do **NOT** write game content directly — I
-delegate to the 6 specialist agents in `.claude/agents/yume/`.
+load the 6 specialist skills in `.claude/skills/yume-<role>/` one at a
+time and execute their role instructions in my own (the orchestrator's)
+context.
 
-### Phase 0 — Setup (in my own context, no agent)
+**Skills, not subagents (Tier 2.6 finding).** Earlier versions of this
+pipeline spawned subagents via `Agent(subagent_type=...)`. Empirical
+test in harvestcore QA (2026-05-02) showed subagent spawns can hit org
+auth policies (`organization has disabled Claude subscription access`).
+Skills load into the orchestrator's main context — same role prompts,
+no auth boundary, lower latency, fewer moving parts.
 
-1. Parse the prose + flags.
+**Autonomous mode.** If the user passes `--autonomous` in the prompt,
+skip the per-phase user-approval gates and walk all phases in one
+shot, surfacing only on hard failure or at the final wrap. Default
+(no flag) is interactive: pause after each phase for user approval.
+
+### Phase 0 — Setup (no skill load)
+
+1. Parse the prose + flags. Detect `--autonomous`, `--name=<slug>`,
+   `--style=<value>`, `--with-assets`.
 2. Auto-suggest a `<name>` slug from the prose (e.g., "moonfarm" for
-   the moonlight farming game).
-3. **Show the user my plan** for the pipeline and confirm:
-   - Game folder: `data/demo_<name>/`
-   - GDD path: `docs/games/<name>/GDD.md`
-   - Stages I'll run + approvals between each
-4. Wait for explicit go-ahead before Phase 1.
+   the moonlight farming game) if `--name=` not given.
+3. State the plan: paths, phases, autonomous-or-interactive mode.
+4. Interactive mode: wait for explicit go-ahead. Autonomous: proceed.
 
 ### Phase 1 — game-designer (prose → GDD)
 
-5. Invoke `yume-game-designer` agent with the prose. Tool:
-   `Agent(subagent_type="yume-game-designer", prompt=<prose>)`.
-6. Agent produces `docs/games/<name>/GDD.md`.
-7. **Show user the GDD path + summary.** Ask: "Approve GDD? (y / edit /
-   reject)"
-8. On approve → Phase 2. On edit → re-invoke game-designer with user
-   feedback. On reject → stop, report.
+5. Invoke `yume-game-designer` skill. Tool:
+   `Skill(skill="yume-game-designer", args=<prose + name>)`.
+6. The skill's instructions load into my context; I execute them and
+   produce `docs/games/<name>/GDD.md`.
+7. Interactive: show GDD summary, ask "Approve? (y / edit / reject)".
+   Autonomous: produce a 5-line summary internally and proceed; resolve
+   any "open questions" the GDD flags by best-judgment and document the
+   resolution in my next-phase prompt to systems-designer.
 
 ### Phase 2 — systems-designer (GDD → rule sketches)
 
-9. Invoke `yume-systems-designer` with the GDD path. Tool:
-   `Agent(subagent_type="yume-systems-designer", prompt=<GDD path + intent>)`.
-10. Agent produces `docs/games/<name>/rules-sketch.md`. May also
-    propose ADRs at `docs/adr/NNNN-*.md` if new primitives needed.
-11. **If ADR proposed → escalate to tech-director:**
-    Invoke `yume-tech-director` with the ADR path.
-    On rejection → systems-designer iterates without the new primitive.
+8. Invoke `yume-systems-designer` skill. Tool:
+   `Skill(skill="yume-systems-designer", args=<GDD path + resolved questions>)`.
+9. Skill produces `docs/games/<name>/rules-sketch.md`. May propose ADRs
+   at `docs/adr/NNNN-*.md` if new primitives needed.
+10. **If ADR proposed → escalate to tech-director:**
+    `Skill(skill="yume-tech-director", args=<ADR path + diff>)`.
+    On rejection → re-invoke systems-designer without the new primitive.
     On accept → ADR status set to `accepted`, proceed.
-12. **Show user the sketch + any ADRs.** Ask: "Approve sketches?"
-13. On approve → Phase 3.
+11. Interactive: show sketch + ADRs, ask approval. Autonomous: proceed.
 
 ### Phase 3 — content-designer (sketches → JSON)
 
-14. Invoke `yume-content-designer` with sketch path + GDD path.
-15. Agent writes:
-    - `archetypes/core/templates/godot/data/demo_<name>/entities.json`
-    - `archetypes/core/templates/godot/data/demo_<name>/world_rules.json`
-16. **Show user the file paths + summary** (counts, key rules).
-    Ask: "Approve content?"
+12. Invoke `yume-content-designer` skill. Tool:
+    `Skill(skill="yume-content-designer", args=<sketch path + GDD path + design decisions>)`.
+13. Skill writes `entities.json`, `world_rules.json`, optional `world.json`,
+    `shapes.json` under `archetypes/core/templates/godot/data/demo_<name>/`.
+14. Interactive: show file summary, ask approval. Autonomous: proceed.
 
 ### Phase 4 — asset-designer (visual + audio fields)
 
-17. Invoke `yume-asset-designer` with GDD + entities path + style flag.
-18. Agent updates `entity.visual.*` fields. If `--with-assets`, also
-    writes `data/demo_<name>/asset_gen.json`.
-19. **Show user the visual choices.** Ask: "Approve assets?"
+15. Invoke `yume-asset-designer` skill. Tool:
+    `Skill(skill="yume-asset-designer", args=<GDD path + entities path + style flag>)`.
+16. Skill updates `entity.visual.*` fields, extends `shapes.json`, and
+    writes `asset_gen.json` if `--with-assets`.
+17. Interactive: show visual choices, ask approval. Autonomous: proceed.
 
 ### Phase 5 — qa-tester (verify)
 
-20. Create scene files for the new game:
-    - `archetypes/core/templates/godot/scenes/<name>_2d.tscn`
-    - `archetypes/core/templates/godot/scenes/<name>_3d.tscn`
-    (Pattern from existing demo scenes — copy + change `data_root`.)
-21. Invoke `yume-qa-tester` with the data folder + GDD + scene paths.
-22. Agent runs Godot headless, reads tick output, produces
+18. Create the scene file at
+    `archetypes/core/templates/godot/scenes/<name>_2d.tscn` (copy from
+    existing demo scene, change `data_root`).
+19. Invoke `yume-qa-tester` skill. Tool:
+    `Skill(skill="yume-qa-tester", args=<data folder + scene path + GDD path>)`.
+20. Skill runs Godot headless, drains `env.error_buffer`, produces
     `docs/games/<name>/qa-report.md`.
-23. **Show user the QA report.** If cascades fail / dead rules / runaway
-    loops → loop back to content-designer or systems-designer.
+21. **Autonomous fix-and-retry**: if qa-tester reports a small mechanical
+    bug (ternary syntax, typo, missing field), the orchestrator may
+    apply the fix inline and re-run. Engine errors via Tier 2.6a make
+    this safe — the structured records identify what to fix. Never
+    invent new logic; only fix what the error report directly identifies.
+    Limit: max 3 retry cycles before surfacing to user.
+22. Interactive: show QA report, ask approval. Autonomous: proceed.
 
 ### Phase 6 — Optional: asset generation (only if --with-assets)
 
@@ -205,6 +222,18 @@ Approve GDD?
 
 ## Status
 
-This skill is the orchestrator (Tier 2.5g). The 6 agents it invokes
-are at `.claude/agents/yume/`. Behavioral tests for this skill are
-Tier 2.5h — see `tests/spec.md`.
+This skill is the orchestrator (Tier 2.5g). The 6 specialist skills it
+invokes are at `.claude/skills/yume-<role>/`:
+
+- `yume-game-designer` — Phase 1 (prose → GDD)
+- `yume-systems-designer` — Phase 2 (GDD → rule sketches)
+- `yume-content-designer` — Phase 3 (sketches → JSON)
+- `yume-asset-designer` — Phase 4 (visual fields)
+- `yume-qa-tester` — Phase 5 (headless verification)
+- `yume-tech-director` — invariant guardian, on-demand
+
+The legacy `.claude/agents/yume/*.md` subagents are kept as fallback
+for users who configure `ANTHROPIC_API_KEY` and prefer subagent
+isolation, but skills are the primary path (Tier 2.6 finding).
+
+Behavioral tests are Tier 2.5h — see `tests/spec.md`.
