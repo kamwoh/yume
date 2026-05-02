@@ -69,6 +69,43 @@ This is what systems-designer will build into rules.
 - What can the player DO?
 - Movement? Attack? Build? Harvest? Trade?
 
+## Goal / Win / Lose
+
+For ANY game with a player verb (not pure ambient sims), specify:
+- **Win condition** — concrete, state-bound (e.g. "score >= 30",
+  "all enemies defeated", "reach end of map"). Required for the HUD
+  to render a win panel + restart loop.
+- **Lose condition** — what fails the player (e.g. "hunger >= 100
+  for 200 ticks", "HP reaches 0", "all crops dead"). Required if
+  the game has tension; can be `null` for non-failable observer games.
+- **Score / progress source** — which entity-state field tracks
+  progress (e.g. `player.score`, `economy.gold`, `farm_ledger.harvested`).
+
+These map directly to `hud.json`'s `win` / `lose` blocks:
+```jsonc
+"win": {"binds": "player.score", "op": ">=", "value": 30,
+        "message": "🌟 YOU WIN! 🌟"}
+"lose": {"binds": "player.hunger", "op": ">=", "value": 100,
+         "sustained": 200, "message": "💀 GAME OVER"}
+```
+
+Without these, the game is a tech demo — there's no answer to "what
+should I be doing." Tinypond shipped without them initially and felt
+dead. Captured as a Tier 2.6h finding.
+
+## Visible feedback for hidden state
+
+Any state field driving game behavior MUST have visible player feedback.
+Examples:
+- Day/night cycle → background tint or fish-slow-at-night (so player
+  can SEE the cycle's mechanical impact)
+- Hunger / mana / HP → progress bar in HUD
+- Score / gold → label in HUD
+- Tool selection → label showing currently held tool
+
+Tinypond shipped with day/night that did nothing visible. Player
+asked "what's the point of the sun?" — a real game-design failure.
+
 ## Honest scope
 
 What this game does NOT cover. Yume's non-goals (per contract):

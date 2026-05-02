@@ -22,11 +22,66 @@ restructured as a skill (Tier 2.6 finding from harvestcore QA).
 ## Outputs you produce
 
 Updates entity defs in place — adds/refines `visual.*` and `audio.*`
-fields. Optionally writes:
+fields. Also writes:
 
+- `data/<game-name>/scene.json` — camera, bounds, tick rate (read by GameShell)
+- `data/<game-name>/hud.json` — HUD layout, win/lose conditions
+- New entries appended to `data/shapes.json` (root, shared library)
+
+Optional:
 - `data/<game-name>/asset_gen.json` — style + backend config (if AI-gen)
 - `data/<game-name>/asset_catalog.json` — matchers for library lookup
-- `data/<game-name>/shapes.json` — code-draw composite recipes
+
+### scene.json schema
+
+```jsonc
+{
+  "tick_seconds": 0.1,           // 0.1 for snappy input games; 0.5 for slow sims
+  "camera": {
+    "follow_tag": "player",      // tag of entity to follow; omit for static camera
+    "lerp": 0.08,                // 0.05-0.15 = smooth; 1.0 = snap
+    "zoom": [1.5, 1.5]
+  },
+  "bounds": {                    // optional — visible play area + clamping target
+    "min": [-320, -220],
+    "max": [320, 220],
+    "floor_color": "#142d40",    // optional rectangle fill
+    "border_color": "#4d8aa6",   // optional outline
+    "border_width": 6
+  }
+}
+```
+
+### hud.json schema
+
+```jsonc
+{
+  "panels": [
+    {
+      "anchor": "top-left",      // top-left | top-right | bottom-left
+      "elements": [
+        {"type": "label", "binds": "player.score",
+         "format": "Score: {} / 30", "size": 22},
+        {"type": "label", "binds": "world_state.season",
+         "format_phases": ["🌸 Spring", "☀️ Summer", "🍂 Autumn", "❄️ Winter"]},
+        {"type": "progress_bar", "binds": "player.hunger", "max": 100,
+         "color_lerp": ["#33dd33", "#dd3333"]},
+        {"type": "spacer", "height": 8}
+      ]
+    }
+  ],
+  "controls_hint": "WASD to move\nSpace to interact",
+  "win":  {"binds": "player.score",  "op": ">=", "value": 30,
+           "message": "🌟 YOU WIN! 🌟"},
+  "lose": {"binds": "player.hunger", "op": ">=", "value": 100,
+           "sustained": 200, "message": "💀 GAME OVER"}
+}
+```
+
+**Bindings: `<entity_tag>.<state_field>`**. The first entity matching
+the tag is read. Special root `world` reads the world_state dict
+(`world.tick`, `world.day`, etc.). For singletons, ensure the entity
+has a unique tag — e.g. `world_clock` tagged `world_state`.
 
 ## Asset strategies (pick ONE per game)
 
@@ -60,6 +115,7 @@ Pure JSON. Each entity references a shape from `data/shapes.json`
   "id": "wheat_mature",
   "visual": {
     "shape": "crop_mature",
+    "flip_with_velocity": true,   // optional — mirror sprite when velocity.x flips sign
     "params": {"grain": "#d4b54a"}
   }
 }
@@ -67,6 +123,26 @@ Pure JSON. Each entity references a shape from `data/shapes.json`
 
 This is the **default fallback strategy** — every entity should at
 minimum have a shape reference. Library / AI-gen are upgrades.
+
+**Critical: shapes.json lives at `data/shapes.json` (root), NOT per-game.**
+The renderer's `shapes_path` is hardcoded to `res://data/shapes.json`.
+A `shapes.json` placed at `data/demo_<game>/shapes.json` is dead — never
+loaded. Add per-game shapes by appending to the root file.
+(Empirically discovered: tinypond shipped a per-game shapes.json that did
+nothing — every entity rendered as a grey circle. Tier 2.6h finding.)
+
+**Visual sizing — use 12-30px range:**
+- Small entities (seeds, tiles): radius 4-8 OK, but 8+ recommended
+- Medium (crops, animals, fish): radius 12-18
+- Large (structures, buildings): 25-40
+- Sun / large decor: 30-50
+- **3-6px is too small** to read at default zoom levels. Tinypond
+  shipped at 3-6px first and was illegible. Default to 12+.
+
+**Directional sprites should opt into `flip_with_velocity: true`.**
+Required for fish, characters, vehicles — anything that visually has
+"front" and "back". Renderer mirrors `scale.x` based on velocity.x sign.
+Convention: art is drawn facing right; flip happens when moving west.
 
 ## How to do your job
 

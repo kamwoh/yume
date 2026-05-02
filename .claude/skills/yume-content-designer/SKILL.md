@@ -22,15 +22,21 @@ restructured as a skill (Tier 2.6 finding from harvestcore QA).
 
 ## Outputs you produce
 
-Two JSON files in `archetypes/core/templates/godot/data/<game-name>/`:
+Files in `archetypes/core/templates/godot/data/<game-name>/`:
 
-- `entities.json` — entity definitions + initial instances + initial
-  relations
+- `entities.json` — entity definitions + initial instances + initial relations
 - `world_rules.json` — rules that drive the simulation
+- `world.json` (optional) — global world state initial values
+- `scene.json` — camera follow tag, bounds, tick rate (read by GameShell)
+- `hud.json` — HUD layout, win/lose conditions (read by GameShell)
 
-Plus optional:
-- `world.json` — global world state initial values
-- `shapes.json` — for code-draw visual fallback
+**`shapes.json` is NOT per-game.** It lives at `data/shapes.json` (root) and
+is shared. New shapes append there. Per-game `shapes.json` files are dead
+weight — the renderer only reads root. (Tier 2.6h finding, harvestcore QA.)
+
+Per-game scene file (`scenes/<game>_2d.tscn`) is a **minimal template**
+that just instantiates `World + GameShell + Camera2D`. No game-specific
+GDScript. All playability config lives in scene.json + hud.json.
 
 ## How to do your job
 
@@ -103,7 +109,7 @@ Plus optional:
 ```
 
 7. **Pick balance values from priors:**
-   - Tick interval 1 = ~0.5s actions (default tick_seconds)
+   - Tick interval 1 = ~0.1-0.5s actions (depends on scene's tick_seconds)
    - Tick interval 4 = ~2s decay events
    - Tick interval 30 = ~15s long-term cycles
    - Contact radius 25-50 = "adjacent" interactions
@@ -111,6 +117,43 @@ Plus optional:
    - Contact radius 800-1000 = "anywhere on map" (for AI tracking)
    - Chance 0.3-0.5 = noticeable but probabilistic
    - Chance 0.04-0.1 = slow accumulation (smelting)
+   - **Reproduction rules**: be careful — exponential growth is real.
+     A `spawn` rule with chance 0.4 / interval 15 on 16 source entities
+     fills the world to 100+ entities in 60s and lags the engine.
+     For a balanced ecosystem: keep new-spawn-per-source-per-second well
+     below the eat/death rate. Empirically tested in tinypond: chance
+     0.05 / interval 60 keeps populations stable around starting size.
+
+7a. **Contact rule format — tags + radius go in `query`, NOT `trigger`:**
+
+```jsonc
+// CORRECT
+{
+  "trigger": {"type": "contact"},
+  "query": {
+    "a": {"tags_all": ["fish"]},
+    "b": {"tags_all": ["plant", "mature"]},
+    "radius": 50
+  },
+  "effect": [...]
+}
+
+// WRONG (engine accepts but rule never fires — hard to debug)
+{
+  "trigger": {"type": "contact", "tags_a": ["fish"], "tags_b": ["plant"], "radius": 50},
+  "effect": [...]
+}
+```
+
+The wrong form was empirically responsible for "rule registered but never
+fires" in tinypond's first run. Verified against existing demo patterns
+(demo_ecology, demo_rpg).
+
+7b. **Position spawn caveat:** `spawn.position` accepts `"self"` (copies
+parent position), `[x, y]` literal, or a context binding name. **It does
+NOT evaluate formulas inside the array** — `[self.x + 10, self.y]` won't
+work. For seeded variation either accept overlap (use `"self"`) or add
+randomness on the spawn target's spawn-trigger rules.
 
 8. **Verify mentally:**
    - Every rule has a trigger.type from manifest's `triggers`

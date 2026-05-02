@@ -3,7 +3,7 @@
 
   "rules": [
     {
-      "_comment": "Time advances every tick. time_of_day = (world.tick * 0.01) - floor(world.tick * 0.01) gives a 0..1 modulo cycle of 100 ticks per pond-day.",
+      "_comment": "Time advances every tick. Cycle = 500 ticks per pond-day (50s at tick_seconds=0.1). Long enough for player to feel day vs night phases. (world.tick * 0.002) - floor(...) gives 0..1 modulo.",
       "id": "clock_advance_time",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["clock"]},
@@ -11,7 +11,7 @@
         "type": "state_set",
         "target": "self",
         "field": "time_of_day",
-        "value": "(world.tick * 0.01) - floor(world.tick * 0.01)"
+        "value": "(world.tick * 0.002) - floor(world.tick * 0.002)"
       }
     },
 
@@ -25,6 +25,23 @@
         "target": "self",
         "field": "sunlight",
         "value": "max(0, sin(self.state.time_of_day * 6.28318))"
+      }
+    },
+
+    {
+      "_comment": "Pond_clock broadcasts sunlight to all creatures via contact (radius 1000 = entire pond). Used by night-slowdown rule below to read 'is it night?'.",
+      "id": "creature_receive_time",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["clock"]},
+        "b": {"tags_all": ["creature"]},
+        "radius": 1000
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "b",
+        "field": "time_of_day",
+        "value": "a.state.time_of_day"
       }
     },
 
@@ -67,11 +84,11 @@
     },
 
     {
-      "_comment": "Mature plants seed nearby — interval 15 + chance 0.4 keeps the pond replenished as fish eat. Spawns at parent position (overlap is OK, fish will eat closest first).",
+      "_comment": "Mature plants slowly seed nearby — interval 60 + chance 0.05 = ~1 spawn/min from full pop. Plants are a LIMITED resource: fish must eat efficiently before they're gone. The slow trickle keeps the game from being trivial.",
       "id": "plant_seeding",
-      "trigger": {"type": "tick", "interval": 15},
+      "trigger": {"type": "tick", "interval": 60},
       "query": {"tags_all": ["plant", "mature"]},
-      "chance": 0.4,
+      "chance": 0.05,
       "effect": {
         "type": "spawn",
         "template": "water_plant_seed",
@@ -127,6 +144,19 @@
       "trigger": {"type": "tick", "interval": 10},
       "query": {"tags_all": ["fish"], "tags_none": ["hungry"], "state": {"hunger_gt": 70}},
       "effect": {"type": "tag_add", "target": "self", "tag": "hungry"}
+    },
+
+    {
+      "_comment": "Night slowdown — when self.state.time_of_day is in night phase (>0.5), halve velocity. Day/night becomes mechanically visible: night = sluggish, day = fast. Combined with plants not growing at night, the player feels real timing pressure.",
+      "id": "creature_slow_at_night",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["creature"], "state": {"time_of_day_gt": 0.5}},
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "velocity",
+        "value": "Vector2(self.state.velocity.x * 0.5, self.state.velocity.y * 0.5)"
+      }
     },
 
     {
