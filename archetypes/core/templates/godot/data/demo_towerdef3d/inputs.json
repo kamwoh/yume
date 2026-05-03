@@ -1,0 +1,10 @@
+{
+  "_comment": "Game-specific input bindings for towerdef3d. Tier 2.6t: registered into Godot's InputMap at world load. project.godot only holds engine-universal actions (movement); game-specific keys live next to the rules that use them.",
+
+  "actions": [
+    {"name": "build_1", "key": "1"},
+    {"name": "build_2", "key": "2"},
+    {"name": "build_3", "key": "3"},
+    {"name": "build_4", "key": "4"}
+  ]
+}

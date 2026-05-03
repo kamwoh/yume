@@ -100,6 +100,9 @@ func _resolve_data_root_from_cmdline() -> void:
 ## entity load (per W0 finding on lifecycle-flush-at-load).
 func load_data() -> void:
 	var root := data_root.rstrip("/")
+	# Tier 2.6t — register per-game input actions from inputs.json (if any).
+	# Lets games own their input vocabulary; project.godot stays generic.
+	InputRegistrar.register_from_data_root(root)
 	_load_rules_file(root + "/world_rules.json")
 	_load_world_file(root + "/world.json")
 	# Entities can come from a single entities.json OR a per-def entities/
