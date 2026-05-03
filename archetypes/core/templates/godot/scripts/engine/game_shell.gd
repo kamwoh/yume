@@ -37,7 +37,8 @@ var _hud_cfg: Dictionary = {}
 
 # Runtime references built in _ready
 var _world: Node = null            # parent (World instance)
-var _camera: Camera2D = null
+var _camera: Camera2D = null       # 2D mode camera (if scene has Camera2D)
+var _camera3d: Camera3D = null     # 3D mode camera (if scene has Camera3D)
 var _hud_layer: CanvasLayer = null
 var _win_panel: Panel = null
 var _win_label: Label = null
@@ -75,6 +76,7 @@ func _ready() -> void:
 		push_error("GameShell must be a child of a World node")
 		return
 	_camera = _world.get_node_or_null("Camera2D")
+	_camera3d = _world.get_node_or_null("Camera3D")
 	_load_configs()
 	# Apply tick_seconds override if specified
 	if _scene_cfg.has("tick_seconds") and _world.get("tick_seconds") != null:
@@ -240,29 +242,53 @@ func _update_floor_tint() -> void:
 
 
 ## Tier 2.6o — camera mode dispatch. scene.json's camera.mode picks one of:
-##   top_down_2d  : Camera2D, optional follow_tag, optional zoom (default)
+##   top_down_2d    : Camera2D, optional follow_tag, optional zoom (default)
 ##   side_scroll_2d : Camera2D, follow x-axis only, y clamped to config
-##   fixed        : Camera2D held at camera.position, no follow
+##   fixed          : Camera2D held at camera.position, no follow
+##   top_down_3d    : Camera3D directly above entity, orthographic
+##   isometric_3d   : Camera3D at 45° angle behind/above, orthographic
+##   third_person_3d: Camera3D offset behind entity, perspective (no mouse)
+##   first_person_3d: Camera3D at entity eye height (Phase 3 — needs mouse)
 ##
 ## Default if unspecified: top_down_2d (preserves prior behavior).
-## 3D modes (top_down_3d, isometric_3d, first_person_3d, third_person_3d)
-## land in Phase 2/3.
+## 3D modes require Camera3D in scene + 3D mesh visual fields on entities.
+## Phase 3 adds mouse-look for first_person_3d and orbit for third_person_3d.
 func _update_camera_follow() -> void:
-	if _camera == null: return
 	var cam_cfg: Dictionary = _scene_cfg.get("camera", {}) as Dictionary
 	if cam_cfg.is_empty(): return
-	# Apply zoom once (idempotent)
-	if cam_cfg.has("zoom"):
+	var mode := str(cam_cfg.get("mode", "top_down_2d"))
+	# 2D modes need Camera2D; 3D modes need Camera3D. If wrong type missing,
+	# silent skip — content responsibility.
+	match mode:
+		"top_down_2d":
+			if _camera != null:
+				_apply_2d_zoom(cam_cfg)
+				_camera_top_down_2d(cam_cfg)
+		"side_scroll_2d":
+			if _camera != null:
+				_apply_2d_zoom(cam_cfg)
+				_camera_side_scroll_2d(cam_cfg)
+		"fixed":
+			if _camera != null:
+				_apply_2d_zoom(cam_cfg)
+				_camera_fixed(cam_cfg)
+		"top_down_3d":
+			if _camera3d != null: _camera_top_down_3d(cam_cfg)
+		"isometric_3d":
+			if _camera3d != null: _camera_isometric_3d(cam_cfg)
+		"third_person_3d":
+			if _camera3d != null: _camera_third_person_3d(cam_cfg)
+		_:
+			# Unknown mode — fall back to top_down_2d
+			if _camera != null:
+				_apply_2d_zoom(cam_cfg)
+				_camera_top_down_2d(cam_cfg)
+
+
+func _apply_2d_zoom(cam_cfg: Dictionary) -> void:
+	if cam_cfg.has("zoom") and _camera != null:
 		var z = _to_vec2(cam_cfg["zoom"])
 		if _camera.zoom != z: _camera.zoom = z
-	var mode := str(cam_cfg.get("mode", "top_down_2d"))
-	match mode:
-		"top_down_2d":   _camera_top_down_2d(cam_cfg)
-		"side_scroll_2d": _camera_side_scroll_2d(cam_cfg)
-		"fixed":         _camera_fixed(cam_cfg)
-		_:
-			# Unknown mode = silent fallback to top_down_2d
-			_camera_top_down_2d(cam_cfg)
 
 
 func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
@@ -299,6 +325,97 @@ func _camera_fixed(cam_cfg: Dictionary) -> void:
 	if cam_cfg.has("position"):
 		var pos := _to_vec2(cam_cfg["position"])
 		if _camera.position != pos: _camera.position = pos
+
+
+# ============================================================
+# 3D CAMERA MODES (Tier 2.6o Phase 2)
+# ============================================================
+#
+# All three look at the followed entity. Set scene.json:
+#   "camera": {
+#     "mode": "top_down_3d" | "isometric_3d" | "third_person_3d",
+#     "follow_tag": "player",
+#     "lerp": 0.1,
+#     "height": 20,         // distance above target (3D world units)
+#     "distance": 12,       // (third_person_3d) distance behind target
+#     "ortho_size": 16      // (top_down_3d, isometric_3d) ortho viewport size
+#   }
+
+
+## Top-down 3D: Camera3D directly above entity, looking down. Orthographic.
+## Stardew-but-3D look. World up is +Y; camera at (target.x, +height, target.z).
+func _camera_top_down_3d(cam_cfg: Dictionary) -> void:
+	var target_v = _follow_target_3d(cam_cfg)
+	if target_v == null: return
+	var target: Vector3 = target_v
+	var height := float(cam_cfg.get("height", 20.0))
+	var lerp_t := float(cam_cfg.get("lerp", 0.1))
+	var desired := target + Vector3(0, height, 0)
+	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
+	_camera3d.look_at(target, Vector3(0, 0, -1))
+	_apply_ortho(cam_cfg, true)
+
+
+## Isometric 3D: Camera3D at 45° angle behind+above target. Orthographic.
+## Tactics-RPG / city-builder look. Convention: 45° rotation around Y, 30° tilt.
+func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
+	var target_v = _follow_target_3d(cam_cfg)
+	if target_v == null: return
+	var target: Vector3 = target_v
+	var distance := float(cam_cfg.get("distance", 16.0))
+	var lerp_t := float(cam_cfg.get("lerp", 0.1))
+	# Standard isometric offset: 45° yaw + 30° pitch from target
+	var offset := Vector3(distance * 0.6, distance * 0.7, distance * 0.6)
+	var desired := target + offset
+	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
+	_camera3d.look_at(target, Vector3.UP)
+	_apply_ortho(cam_cfg, true)
+
+
+## Third-person 3D: Camera3D fixed offset behind entity. Perspective (no
+## mouse-orbit yet — that lands in Phase 3 with mouse-input infrastructure).
+## For now a static camera-behind-player view. Action-adventure / MMO feel.
+func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
+	var target_v = _follow_target_3d(cam_cfg)
+	if target_v == null: return
+	var target: Vector3 = target_v
+	var distance := float(cam_cfg.get("distance", 12.0))
+	var height := float(cam_cfg.get("height", 5.0))
+	var lerp_t := float(cam_cfg.get("lerp", 0.1))
+	# Behind on -Z, above on +Y. Phase 3 adds yaw orbit from mouse.
+	var desired := target + Vector3(0, height, distance)
+	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
+	_camera3d.look_at(target, Vector3.UP)
+	_apply_ortho(cam_cfg, false)
+
+
+## Resolve follow target's 3D position. Entity might store position as Vector2
+## (top-down 2D content) — project onto XZ plane in that case (y=0).
+func _follow_target_3d(cam_cfg: Dictionary):
+	var tag := str(cam_cfg.get("follow_tag", ""))
+	if tag == "": return null
+	var ent := _find_entity_by_tag(tag)
+	if ent == null: return null
+	if not ent.has_method("get_position"): return null
+	var p = ent.get_position()
+	if p is Vector3:
+		return p as Vector3
+	if p is Vector2:
+		# 2D position → XZ plane in 3D world (y=0)
+		return Vector3((p as Vector2).x, 0.0, (p as Vector2).y)
+	return null
+
+
+## Apply orthographic projection if mode wants it. Sets ortho_size from
+## config (default 16). Re-set each frame so config edits take effect live.
+func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
+	if _camera3d == null: return
+	if want_ortho:
+		_camera3d.projection = Camera3D.PROJECTION_ORTHOGONAL
+		_camera3d.size = float(cam_cfg.get("ortho_size", 16.0))
+	else:
+		_camera3d.projection = Camera3D.PROJECTION_PERSPECTIVE
+		_camera3d.fov = float(cam_cfg.get("fov", 75.0))
 
 
 # ============================================================
