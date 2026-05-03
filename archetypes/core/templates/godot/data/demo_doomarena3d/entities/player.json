@@ -1,11 +1,12 @@
 {
-  "_comment": "First-person marine. Vector3 position + velocity for 3D motion. state.facing is updated by mouse-look in GameShell. WASD uses velocity_set_relative for forward-relative motion. drag=8.0 stops infinite slide. hide_for_camera_attach so first-person mesh isn't visible in front of camera.",
+  "_comment": "First-person marine. Vector3 position + velocity for 3D motion. state.facing is updated by mouse-look in GameShell. WASD uses velocity_add_relative for diagonal movement (ADR 0004). drag=8.0 stops infinite slide. hide_for_camera_attach so first-person mesh isn't visible in front of camera. v2.5 adds current_weapon (1/2/3) + weapon_cooldown for the 3-weapon arsenal.",
   "definitions": [
     {
       "id": "player",
       "tags": ["player", "creature", "actor"],
       "properties": {
-        "drag": 8.0
+        "drag": 8.0,
+        "body_radius": 0.4
       },
       "state_init": {
         "hp": 100.0,
@@ -14,6 +15,8 @@
         "facing": 0.0,
         "pitch": 0.0,
         "drag": 8.0,
+        "current_weapon": 1,
+        "weapon_cooldown": 0,
         "velocity": [0, 0, 0]
       },
       "visual": {

@@ -1,109 +1,143 @@
-# DoomArena3D — design review (round 2, 12-axis)
+# DoomArena3D — design review (round 3, 13-axis)
 
 _Date: 2026-05-03_
-_Reviewer: yume-game-reviewer (12-axis)_
-_GDD: docs/games/doomarena3d/GDD.md_
+_Reviewer: yume-game-reviewer (13-axis)_
+_GDD: docs/games/doomarena3d/GDD.md (v2.5)_
 
 ## Verdict
-**accept** (with 3 minor housekeeping notes — not blockers)
+**accept** (with 4 minor housekeeping notes — not blockers)
 
-Round 1 (12-axis) flagged 8 issues across axes 1, 3, 4, 8, 9, 10, 11,
-12. Round-2 GDD addresses all 8 with concrete, well-scoped revisions.
-At the now-honestly-claimed scope (90-second arcade with score-chase
-replay), this GDD is shippable.
+Round 2 (12-axis) accepted v2 with multi-weapons "deferred to v3" — a
+deferral the round-3 reviewer-skill (Axis 1 hardened, Axis 13 added)
+now explicitly forbids when the genre claim is "Doom-style." v2.5
+closes the gap (3-weapon arsenal + functional walls/pillars via ADR
+0004). The GDD now passes all 13 axes.
 
-## Per-axis findings (round 2)
+## Per-axis findings (round 3)
 
 | Axis | Verdict | Notes |
 |---|---|---|
-| 1. Mechanical depth | ✓ PASS | 3 enemy types (imp/demon/ranger) with distinct behaviors + boss. Single weapon noted as v3 deferral (acceptable scope) |
-| 2. Strategic depth | ✓ PASS | Threat prioritization (ranged vs tank vs rush), boss tactical focus |
-| 3. Pacing | ✓ PASS | 3 named beats (Calm/Mixed/Rush) + boss spawn beat. Density variety, not pure escalation |
-| 4. Feedback | ✓ PASS | Audio cues per cascade formalized; 2 new sounds proposed (boss_roar, siren) |
-| 5. Aesthetic match | ✓ PASS | Challenge now real (tactical decisions); Sensation supported (audio + visual juice); Submission via trance loop |
-| 6. Scope honesty | ✓ PASS | v3 deferrals explicit (multi-weapons, arenas, difficulty modes) |
-| 7. Adversarial pokes | ✓ PASS | No passive win; ranger prevents corner-camping; visual remains readable |
-| 8. Content scope | ✓ PASS | 90-second arcade with replay loop honestly framed |
-| 9. Signature moments | ✓ PASS | Boss spawn at score=25 (with roar + slow-mo win), Rush phase siren at t=60s |
-| 10. Theme / identity | ✓ PASS | "Containment Chamber 7 / Last Marine" — concrete fictional context, palette, sound direction |
-| 11. Replay value | ✓ PASS | Best-stats persisted, score/time/boss-speed chase axes |
-| 12. Real-UX | ✓ PASS | Lose screen with R/ESC/Q, <1s restart target, mouse-capture handled |
+| 1. Mechanical depth | ✓ PASS | 4 enemies + 3 weapons. Genre-claim minimum (≥3 enemies, ≥2 weapons for shooter) **finally** met. The deferral trap is closed. |
+| 2. Strategic depth | ✓ PASS | Real decisions emerge: which weapon for which enemy, when to swap mid-fight, ammo budgeting (1/3/5 cost per shot type) |
+| 3. Pacing | ✓ PASS | 3 named beats + boss spawn beat (unchanged from r2) |
+| 4. Feedback | ✓ PASS | Audio cues per cascade + shake + flash + HUD weapon indicator |
+| 5. Aesthetic match | ✓ PASS | Challenge real (weapons + enemies + cover decisions); Sensation supported (effects against real walls now); Submission via score-chase loop |
+| 6. Scope honesty | ✓ PASS | New scope explicit (weapons in v2.5, blocks_motion in v2.5, future deferrals named) |
+| 7. Adversarial pokes | ✓ PASS WITH NOTE | See housekeeping note #1 (rocket-vs-wall frustration) |
+| 8. Content scope | ✓ PASS | Score-chase 90s arcade with weapon-mastery learning curve |
+| 9. Signature moments | ✓ PASS | Boss spawn, Rush siren, slow-mo win, plus emergent "I should have had rocket out" mid-fight moments |
+| 10. Theme / identity | ✓ PASS WITH NOTE | "Plasma bolt" name reads generic for industrial mining colony — minor (note #2) |
+| 11. Replay value | ✓ PASS | Best-stats + score chase + weapon-mastery curve |
+| 12. Real-UX | ✓ PASS WITH NOTE | Weapon-switch keys need controls-hint visibility (note #3) |
+| 13. Spatial design | ✓ PASS | level-design.md is the source of truth; GDD correctly defers spatial detail. blocks_motion now functional. |
 
-All 12 axes meet bar.
+All 13 axes meet bar.
 
 ## Housekeeping notes (not blockers)
 
-1. **Rule inventory not updated for new entities.** The "Rule
-   inventory" section (lines 152-183) still lists the round-1 rule
-   set. New rules need to be added:
-   - `ranger_fire` — tick rule, ranger AI for ranged combat
-   - `boss_spawn_check` — tick rule, score==25 + boss_spawned==0
-     check
-   - `enemy_bullet_hits_player` — contact rule, ranger's projectile
-     damages player
-   - `boss_killed_win` — boss death triggers slow-mo win cascade
-   - `wave_phase_advance` — tick rule that emits `siren` audio at
-     t=60s
-   - `restart_on_death` — input rule for R key on lose screen
-   Designer can add these in a follow-up edit; systems-designer can
-   also fill in during their phase. Not blocking.
+### 1. Rocket-vs-wall frustration vector
 
-2. **Damage numbers not mentioned.** Nice-to-have for "Sensation"
-   delivery. Floating "+1 score" / "-1 HP" text would add visceral
-   feedback. Not critical for v2 ship.
+The GDD says rockets cost 5 ammo and reload in 15 ticks (0.75s).
+With pillars + walls now solid (ADR 0004), a misfired rocket that
+hits a pillar instead of an enemy is a real failure mode — 5 ammo
+gone, weapon on cooldown, target still alive. That can feel cheap.
 
-3. **HUD onboarding spec is implicit.** GDD mentions "controls hint"
-   in scope (line 192-193) but doesn't enumerate what shows. Implicit
-   from past doomarena3d implementation: bottom-left "WASD walk · Mouse
-   aim · SPACE fire · ESC release cursor". Should be made explicit in
-   the Audio + HUD section for content-designer clarity.
+Recommendations (any one is fine):
+- **a)** Make rocket explosion visually impactful when it hits a
+  wall (big spark, screen shake, audio thud) so the player FEELS
+  the wasted shot rather than just seeing it disappear. Acceptance
+  via spectacle.
+- **b)** Future `ignores_obstacles` tag for projectiles, applied
+  only to rockets in v2.5. The GDD already flagged this as v3
+  scope — could be promoted if frustration testing shows it.
+- **c)** Slight ammo refund on wall hit (e.g. -2 instead of -5)
+  via a contact rule. Mechanical but cheap.
 
-These are simple cleanup items. Pipeline can proceed.
+I lean (a) for v2.5 — preserves the design tension ("aim well or
+waste a shot") without engine work.
+
+### 2. Weapon-theme alignment
+
+Theme is "Containment Chamber 7 / corrupted miner-drones in a
+derelict mining colony." Weapon names:
+- **Plasma bolt** — reads generic sci-fi, weak theme tie-in
+- **Shotgun** — fine, fits industrial-blue-collar marine
+- **Rocket** — fine, fits demolition/breach-charge fiction
+
+Minor improvement: rename "plasma bolt" to something that grounds
+in the mining-colony fiction. Suggestions: **rivet gun** (matches
+industrial theme), **induction beam** (mining tool repurposed),
+**arc lance** (energy weapon adapted from welding equipment).
+
+Not blocking — current name is functional. Strengthens identity if
+addressed.
+
+### 3. Controls hint must include weapon keys
+
+The GDD specifies `controls_hint` as "WASD walk · Mouse aim · SPACE
+fire · ESC release cursor · R restart · Q quit." After v2.5, this
+needs the weapon hotkeys: **"1/2/3 swap weapon"** appended.
+
+Without this, players who don't read the GDD will never discover the
+shotgun or rocket exist. New-player onboarding fail.
+
+Trivial fix at content/HUD-config time. Just a reminder.
+
+### 4. Shotgun pellet visual distinction
+
+5 pellets fired simultaneously in a ±15° spread can look noisy
+overlapping with the crosshair. Recommend pellet visual differs from
+plasma bolt: smaller core (radius 0.10 vs 0.18), paler color (off-
+white instead of yellow), shorter trail. So the player can read at
+a glance what they fired.
+
+Not in the GDD — will need to be specified during asset-designer
+phase or content-designer phase.
 
 ## Reasoning summary
 
-Round-1 flagged real depth gaps: 1 weapon + 2 enemies (stat-only
-distinction), pure density escalation, no signature moments, "dark
-sci-fi" as palette-not-theme, no replay framing, no restart UX.
+Round 2 was the ideal "revise → accept" arc (theme + enemies +
+phases addressed round-1 gaps). But round 2 also accepted a "v3
+deferral" of multi-weapons that turned out to be the user's first
+playtest reaction ("where are the weapons? it's a doom game right?").
+That triggered the reviewer-skill update: Axis 1 genre-claim
+minimums declared NOT deferrable. Axis 13 added because the same
+GDD also passed v2 review with no spatial design and shipped as a
+flat void.
 
-Round-2 addresses each with concrete additions:
-- Ranger enemy adds genuine behavioral variety (ranged AI)
-- Boss adds signature moment (spawn at score=25 with audio + slow-mo
-  win)
-- 3 named wave beats turn density curve into shaped tempo
-- "Containment Chamber 7" theme grounds visual + sound choices
-- Score-chase + best-stats turns 90-second loop into replayable arcade
-- R/ESC/Q lose screen UX matches arcade-genre expectation
+Round 3 (this review) verifies that v2.5 closes BOTH gaps. It does:
+3 weapons specified with distinct ballistic profiles + tactical
+roles + ammo costs + cooldowns; walls/pillars now physically
+solid via the ADR 0004 engine primitive. Both changes preserve the
+v2 aesthetic intent (Challenge / Sensation / Submission) while
+deepening the play.
 
-The total content footprint went from "1 weapon + 1 enemy + 1 path =
-demo" to "1 weapon + 4 enemies + 4 phases + replay = real arcade."
-Honest about what's still v3 (multi-weapons, multi-arenas).
+The 4 housekeeping notes are polish not blockers. Designer can ship
+the GDD to systems-designer + content-designer for v2.5
+implementation.
 
-This is a clean round-2 → accept arc. The reviewer-revise loop
-worked: round-1 caught real issues, designer made substantive
-revisions (not just format compliance), round-2 verifies the design
-is now coherent and complete at its claimed scope.
+**Pipeline can proceed**: systems-designer (per-weapon fire rules,
+weapon-switch input rules, fire-cooldown decrement) → content-
+designer (3 bullet entity defs, updated player state, weapon-switch
+input mappings, HUD weapon indicator) → asset-designer (pellet
+visual subtle differentiation per note #4) → qa-tester (scenarios:
+shotgun fires 5 pellets, rocket cooldown enforced, weapon-switch
+state changes).
 
-**Pipeline can proceed** to systems-designer (add the new ranger /
-boss / enemy_bullet rules) → content-designer (JSON for new entities
-+ updated wave_clock state for boss_spawned flag) → asset-designer
-(sounds for boss_roar + siren; meshes for ranger + boss + enemy_bullet)
-→ qa-tester (scenarios for ranger fire, boss spawn at score=25,
-restart UX).
+## What round 3 validates about the reviewer
 
-## What round 2 validates about the reviewer
+This is the case the reviewer-skill update was designed to catch:
+- v2 reviewer accepted with 1 weapon → user playtest reaction caught it
+- Reviewer skill updated → Axis 1 hardened
+- v2.5 GDD revised to add weapons → v3 review verifies fix lands
 
-DoomArena3D is the **revise → accept on round 2** case the skill
-docs anticipate. Round 1 was substantive (8 specific gaps). Round 2
-verifies revisions land cleanly without inventing new objections.
+The deferral trap is now a permanent guardrail. Future GDDs that
+claim genre-X but punt the genre-X minimums will be rejected at the
+text stage instead of being discovered at "where is the {iconic
+genre-X mechanic}?" playtest.
 
-This is the shape of a healthy review cycle. Compare to:
-- **Sokoban**: round 1 light revise → round 2 too-lenient accept →
-  reviewer expanded to 12 axes → round 3 heavy revise → round 4
-  accept (4 rounds because original GDD was thin).
-- **TowerDef3D**: 12-axis lens reveals fundamental aesthetic
-  dishonesty → reject (1 round, redesign required).
-- **DoomArena3D**: 12-axis revise round 1 → revise → accept round 2
-  (this case — the "ideal" iteration arc).
-
-The reviewer is correctly calibrated.
+Compare to history:
+- doomarena3d v1 → revise (12-axis): 8 gaps flagged
+- doomarena3d v2 → accept (12-axis): too lenient on weapon deferral
+- doomarena3d v2.5 → accept (13-axis): the version we should have
+  had at v2 if the reviewer had been correctly calibrated then

@@ -97,7 +97,10 @@ new primitives required.
 | Strafe left  | input `move_west`  (HOLD) | velocity_set_relative strafe=4.5 |
 | Strafe right | input `move_east`  (HOLD) | velocity_set_relative strafe=-4.5 |
 | Look around  | mouse motion (passive)    | GameShell drains env.mouse_delta into player.state.facing |
-| Fire         | input `fire` (PRESS-edge) | spawn bullet at player position with velocity = facing × 22; ammo -1 |
+| Fire         | input `fire` (PRESS-edge) | spawn weapon-specific bullet from current_weapon; ammo -1 |
+| Switch weapon 1 | input `weapon_1` (PRESS-edge) | player.current_weapon = 1 (plasma bolt) |
+| Switch weapon 2 | input `weapon_2` (PRESS-edge) | player.current_weapon = 2 (shotgun) |
+| Switch weapon 3 | input `weapon_3` (PRESS-edge) | player.current_weapon = 3 (rocket) |
 
 Drag (state.drag = 8.0) decelerates the player when no input held —
 weighty motion, no infinite slide. Same Vector3 drag pattern proven
@@ -112,12 +115,33 @@ A `arena_clock` singleton entity with state:
 
 ### Combat loop
 
-- Bullet vs Monster contact → bullet.remove + monster.hp -1; if
-  monster.hp ≤ 0 → 4 sparkles + camera shake + score+1 + remove.
+- Bullet vs Monster contact → bullet.remove + monster.hp -= bullet.damage;
+  if monster.hp ≤ 0 → 4 sparkles + camera shake + score+1 + remove.
 - Monster vs Player contact → monster removed; player.HP -10; emit
   red flash + small shake.
 - Bullet lifetime → 0 → auto-despawn (engine handles via
   `_decrement_lifetimes`).
+
+### Weapons (REV — v2.5 per reviewer Axis 1: shooters need ≥2 weapons)
+
+3 weapons, switchable via `1`/`2`/`3` keys. Each has distinct
+fire-cooldown and ballistic profile.
+
+| ID | Name | Damage | Fire rate | Ballistic | Tactical role |
+|---|---|---|---|---|---|
+| 1 | **Plasma bolt** | 1 | fast (no cooldown) | single bolt, 22 m/s, lifetime 24t | Default — sustained pressure |
+| 2 | **Shotgun** | 1 per pellet | slow (8t cooldown) | 5-pellet horizontal spread (±15°) at 18 m/s, lifetime 12t | Up-close kill — close range pellets stack on one target |
+| 3 | **Rocket** | 3 | very slow (15t cooldown) | single bigger bolt at 14 m/s, lifetime 36t | Boss-killer + tank-popper |
+
+Cooldown is per-weapon: `player.state.fire_cooldown` decrements each
+tick; fire rule requires it ≤ 0 AND ammo > 0 AND weapon-specific
+ammo cost (1 for plasma, 3 for shotgun, 5 for rocket — encourages
+mixing).
+
+`player.state.current_weapon` (1/2/3) starts at 1. Weapon switch is
+PRESS-edge — accidental hold doesn't cycle.
+
+HUD shows current weapon name + cooldown bar.
 
 ### Pickups
 
@@ -196,14 +220,18 @@ In scope:
 - Restart UX: lose screen with "Press R to retry" — fast arcade flow
 - Replay framing: best-stats persisted (best score, best survival
   time) across game sessions
+- **Weapons (v2.5 REV)**: 3 weapons (plasma bolt / shotgun / rocket)
+  with hot-key switching, per-weapon fire cooldown, distinct
+  ballistic profiles, ammo costs that encourage mix-and-match.
+- **Static obstacles (v2.5 REV)**: walls + cover pillars block
+  motion via the `blocks_motion` engine primitive (ADR 0004 landed).
 
 Out of scope (explicitly):
-- Multiple weapons (single bolt fire only — secondary weapon for v3)
 - Jumping / gravity — flat XZ movement (Y stays 0)
-- Real walls (circular bound clamp replaces wall colliders)
 - Multiple arenas / level progression — single chamber, replay via
   score chase
-- Difficulty modes — single fixed difficulty for v2
+- Difficulty modes — single fixed difficulty for v2.5
+- Bullet-blocked-by-wall opt-out (`ignores_obstacles`) — v3 if needed.
 
 ### Replay framing (REV — per Axis 11)
 

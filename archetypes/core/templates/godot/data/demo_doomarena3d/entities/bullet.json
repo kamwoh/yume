@@ -1,10 +1,10 @@
 {
-  "_comment": "Plasma bolt. Spawned by player on shoot. lifetime=24 ticks (auto-despawn). fade_with_lifetime for visible ramp-down. Vector3 velocity set on spawn from player facing.",
+  "_comment": "Player projectiles, v2.5: 3 variants per weapon. Plasma bolt (default), shotgun pellet (5 fired in spread), rocket (slow, high-damage). All carry properties.damage so bullet_kills_monster scales correctly.",
   "definitions": [
     {
       "id": "bullet",
       "tags": ["bullet", "projectile"],
-      "properties": {},
+      "properties": {"damage": 1},
       "state_init": {
         "lifetime": 24,
         "max_lifetime": 24,
@@ -14,6 +14,36 @@
         "mesh": "bolt_3d",
         "fade_with_lifetime": true,
         "params": {"core": "#ffe060", "tail": "#ff8020"}
+      }
+    },
+    {
+      "id": "bullet_pellet",
+      "tags": ["bullet", "projectile", "pellet"],
+      "properties": {"damage": 1},
+      "state_init": {
+        "lifetime": 12,
+        "max_lifetime": 12,
+        "velocity": [0, 0, 0]
+      },
+      "visual": {
+        "mesh": "pellet_3d",
+        "fade_with_lifetime": true,
+        "params": {"core": "#fff8d8", "tail": "#a09870"}
+      }
+    },
+    {
+      "id": "bullet_rocket",
+      "tags": ["bullet", "projectile", "rocket"],
+      "properties": {"damage": 3},
+      "state_init": {
+        "lifetime": 36,
+        "max_lifetime": 36,
+        "velocity": [0, 0, 0]
+      },
+      "visual": {
+        "mesh": "rocket_3d",
+        "fade_with_lifetime": false,
+        "params": {"core": "#ff5020", "tail": "#902020"}
       }
     }
   ]

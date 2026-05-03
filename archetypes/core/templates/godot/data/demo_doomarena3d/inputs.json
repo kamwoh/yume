@@ -1,7 +1,10 @@
 {
-  "_comment": "Game-specific input bindings for doomarena3d. Tier 2.6t: per-game registration. Movement (WASD) is engine-universal so stays in project.godot. SPACE-to-fire is game-specific.",
+  "_comment": "Game-specific input bindings for doomarena3d. Tier 2.6t: per-game registration. Movement (WASD) is engine-universal so stays in project.godot. SPACE-to-fire + 1/2/3 weapon-switch are game-specific.",
 
   "actions": [
-    {"name": "spark", "key": "Space"}
+    {"name": "spark", "key": "Space"},
+    {"name": "weapon_1", "key": "1"},
+    {"name": "weapon_2", "key": "2"},
+    {"name": "weapon_3", "key": "3"}
   ]
 }

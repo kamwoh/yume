@@ -230,6 +230,23 @@
       "primitives": [
         {"op": "box", "pos": [0, -0.05, 0], "size": [44, 0.1, 44], "color": "#1c1c20"}
       ]
+    },
+
+    "pellet_3d": {
+      "primitives": [
+        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.10, "color": "$core"},
+        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.16, "color": "$tail"}
+      ],
+      "params": {"core": "#fff8d8", "tail": "#a09870"}
+    },
+
+    "rocket_3d": {
+      "primitives": [
+        {"op": "capsule",  "pos": [0, 0, 0], "radius": 0.18, "height": 0.5, "color": "$core"},
+        {"op": "sphere",   "pos": [0, 0, 0], "radius": 0.34, "color": "$tail"},
+        {"op": "cylinder", "pos": [0, 0, -0.3], "radius": 0.06, "height": 0.4, "color": "$tail"}
+      ],
+      "params": {"core": "#ff5020", "tail": "#902020"}
     }
   }
 }

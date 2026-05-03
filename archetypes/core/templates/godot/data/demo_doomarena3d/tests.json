@@ -400,6 +400,90 @@
     },
 
     {
+      "name": "weapon_switch_changes_state",
+      "_": "v2.5: pressing weapon_2 sets player.current_weapon = 2.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 1, "position": [0, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "weapon_2"}
+      ],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.current_weapon", "op": "==", "value": 2}
+      ]
+    },
+
+    {
+      "name": "shotgun_fires_5_pellets",
+      "_": "v2.5: with current_weapon=2 and ≥3 ammo, pressing fire spawns 5 bullet_pellet entities. Cooldown set to 8 ticks.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 2, "weapon_cooldown": 0, "position": [0, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "spark"}
+      ],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["pellet"]},
+         "op": "==", "value": 5},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.ammo", "op": "==", "value": 27}
+      ]
+    },
+
+    {
+      "name": "rocket_does_3_damage",
+      "_": "v2.5: rocket vs demon (2 HP). Single hit should kill the demon (3 dmg ≥ 2 HP).",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 3, "weapon_cooldown": 0, "position": [0, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        },
+        "spawn": [
+          {"def": "monster_demon", "id": "test_demon", "position": [0, 0, -3]}
+        ]
+      },
+      "actions": [
+        {"tick": 1, "input": "spark"}
+      ],
+      "ticks": 25,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["demon"]},
+         "op": "==", "value": 0}
+      ]
+    },
+
+    {
+      "name": "weapon_cooldown_blocks_immediate_refire",
+      "_": "v2.5: shotgun cooldown=8 ticks. Fire at tick 1, fire again at tick 2 — second fire blocked because cooldown=8.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 2, "weapon_cooldown": 0, "position": [0, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "spark"},
+        {"tick": 2, "input": "spark"}
+      ],
+      "ticks": 4,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["pellet"]},
+         "op": "==", "value": 5}
+      ]
+    },
+
+    {
       "name": "boss_killed_sets_victory_flag",
       "_": "v2 signature win: spawn boss at low HP, hit it once → hp ≤ 0 → boss_killed_win sets clock.boss_killed=1 → HUD wins.",
       "setup": {
