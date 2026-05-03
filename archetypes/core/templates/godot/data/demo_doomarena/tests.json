@@ -1,0 +1,67 @@
+{
+  "_comment": "Minimal scenarios for doomarena (2D). Pins fire-bullet mechanic and monster homing toward player.",
+
+  "scenarios": [
+    {
+      "name": "fire_north_spawns_bullet",
+      "_": "Press I (fire_north) → bullet spawns above player with upward velocity. ammo decrements. 'fire_north' is registered via inputs.json (Tier 2.6t).",
+      "setup": {
+        "entity_state": {
+          "player": {"hp": 100, "ammo": 10, "score": 0, "velocity": [0, 0],
+                     "position": [0, 0]}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "fire_north"}
+      ],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["bullet"]},
+         "op": ">=", "value": 1},
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.ammo", "op": "==", "value": 9}
+      ]
+    },
+
+    {
+      "name": "fire_blocked_when_no_ammo",
+      "_": "ammo=0 → fire rule's `state.ammo_gt: 0` filter blocks → no bullet.",
+      "setup": {
+        "entity_state": {
+          "player": {"hp": 100, "ammo": 0, "velocity": [0, 0],
+                     "position": [0, 0]}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "fire_north"}
+      ],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["bullet"]},
+         "op": "==", "value": 0}
+      ]
+    },
+
+    {
+      "name": "monster_homes_toward_player",
+      "_": "Spawn imp 100px right of player. Homing rule sets velocity toward player. After 10 ticks, imp should have moved leftward.",
+      "setup": {
+        "entity_state": {
+          "player": {"hp": 100, "ammo": 30, "velocity": [0, 0],
+                     "position": [0, 0]}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "test_imp",
+           "position": [100, 0],
+           "state": {"hp": 99, "velocity": [0, 0]}}
+        ]
+      },
+      "actions": [],
+      "ticks": 10,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "test_imp",
+         "field": "state.position.x", "op": "<", "value": 90}
+      ]
+    }
+  ]
+}

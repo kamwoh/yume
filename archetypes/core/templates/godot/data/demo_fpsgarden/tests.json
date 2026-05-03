@@ -1,0 +1,40 @@
+{
+  "_comment": "Minimal scenarios for fpsgarden. Pins core verbs: orb-collection contact rule, player movement via velocity_set_relative.",
+
+  "scenarios": [
+    {
+      "name": "player_collects_orb",
+      "_": "Place player near an orb. Contact rule (radius 1.2) fires: score++, remove orb.",
+      "setup": {
+        "entity_state": {
+          "player": {"position": [5, 0, 0], "facing": 0, "score": 0,
+                     "velocity": [0, 0, 0]}
+        }
+      },
+      "actions": [],
+      "ticks": 5,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.score", "op": ">=", "value": 1}
+      ]
+    },
+
+    {
+      "name": "forward_input_sets_velocity",
+      "_": "Press move_north (W) → velocity_set_relative forward=4 → player gains forward velocity. At facing=0, forward = -Z (Godot convention).",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "velocity": [0, 0, 0], "position": [0, 0, 0]}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "move_north"}
+      ],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.position.z", "op": "<", "value": -0.05}
+      ]
+    }
+  ]
+}

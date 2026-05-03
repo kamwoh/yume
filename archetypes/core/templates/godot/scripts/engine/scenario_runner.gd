@@ -178,6 +178,7 @@ func _apply_setup(world: World, setup: Dictionary) -> void:
 		var ent = world.scheduler.env.get("entities", {}).get(ent_id, null)
 		if ent is Entity:
 			var fields: Dictionary = es[ent_id]
+			var position_changed := false
 			for k in fields:
 				var v = fields[k]
 				if (str(k) == "position" or str(k) == "velocity") and v is Array:
@@ -186,6 +187,12 @@ func _apply_setup(world: World, setup: Dictionary) -> void:
 					elif v.size() == 3:
 						v = Vector3(float(v[0]), float(v[1]), float(v[2]))
 				ent.state[k] = v
+				if str(k) == "position":
+					position_changed = true
+			# Setup mutating position must also update spatial index, else
+			# contact queries against the new position don't find the entity.
+			if position_changed and world.spatial_index != null:
+				world.spatial_index.update_entity(ent_id, ent.get_planar_position())
 
 
 func _find_actor_id(world: World) -> String:

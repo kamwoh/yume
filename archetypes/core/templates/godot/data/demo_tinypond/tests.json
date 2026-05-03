@@ -1,0 +1,83 @@
+{
+  "_comment": "Game-specific scenarios for tinypond. Tier 2.6t. Locks down core ecology cascades: clock advance, sunlight calc, plant growth, fish-eat-plant, hunger.",
+
+  "scenarios": [
+    {
+      "name": "clock_advances_time",
+      "_": "After 100 ticks, time_of_day should have changed from initial (offset 0.25 = noon).",
+      "setup": {},
+      "actions": [],
+      "ticks": 100,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["clock"]},
+         "field": "state.time_of_day", "op": "!=", "value": 0.25}
+      ]
+    },
+
+    {
+      "name": "sunlight_high_at_noon",
+      "_": "Initial state is 'noon' (offset 0.25 in time_of_day cycle). After ~5 ticks, sunlight should be near 1 (sin(0.25 * 2π) = sin(π/2) = 1).",
+      "setup": {},
+      "actions": [],
+      "ticks": 5,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["clock"]},
+         "field": "state.sunlight", "op": ">", "value": 0.8}
+      ]
+    },
+
+    {
+      "name": "plants_grow_in_sunlight",
+      "_": "Reset plant_s_1 (existing seed) to known sunlit state. After 10 ticks of growing in sunlight, growth has risen but seed hasn't transformed yet (transform at growth >= 100; grow_rate = 5 → 10 ticks = 50, still seed).",
+      "setup": {
+        "entity_state": {
+          "plant_s_1": {"growth": 0, "sunlight": 0.9}
+        }
+      },
+      "actions": [],
+      "ticks": 10,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "plant_s_1",
+         "field": "state.growth", "op": ">", "value": 0}
+      ]
+    },
+
+    {
+      "name": "fish_eats_mature_plant",
+      "_": "Reset existing fish_1 to known state, drop mature plant 5 units away. Contact rule should fire within a few ticks: -30 hunger, +1 score.",
+      "setup": {
+        "entity_state": {
+          "fish_1": {"hunger": 80, "score": 0, "velocity": [0, 0], "position": [-300, -200]}
+        },
+        "spawn": [
+          {"def": "water_plant_mature", "id": "tasty_plant",
+           "position": [-295, -200]}
+        ]
+      },
+      "actions": [],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "fish_1",
+         "field": "state.score", "op": ">=", "value": 1}
+      ]
+    },
+
+    {
+      "name": "fish_hunger_rises_over_time",
+      "_": "Reset fish_1 hunger to 0 and place it where no plants exist (so it can't eat). After 30 ticks (10 fires of creature_hunger_rises every 3 ticks), hunger must have risen.",
+      "setup": {
+        "entity_state": {
+          "fish_1": {"hunger": 0, "velocity": [0, 0], "position": [-300, -300]}
+        }
+      },
+      "actions": [],
+      "ticks": 30,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "fish_1",
+         "field": "state.hunger", "op": ">", "value": 1}
+      ]
+    }
+  ]
+}
