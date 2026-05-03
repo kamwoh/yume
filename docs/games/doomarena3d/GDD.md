@@ -88,23 +88,30 @@ All behavior expressed via Yume's 7 primitives + Round-1 polish
 camera modes (first_person_3d) + Tier 2.6q declarative patterns. No
 new primitives required.
 
+### Movement profile (REV — v2.5 per shooter-reviewer S1)
+
+| Aspect | Value |
+|---|---|
+| Top speed | 3.0 m/s equilibrium (sustained input + drag) |
+| Acceleration | per-tick velocity_add_relative; drag decelerates between |
+| Drag | player.state.drag = 8.0 (factor 0.6 per tick at tick_seconds=0.05) |
+| Equilibrium math | add * (1 − drag*dt) / (drag*dt) = 2.0 * 0.6 / 0.4 = 3.0 m/s |
+| Diagonal | W+A both queue each tick; forward + strafe contributions sum (√2-factor diagonal slightly slower than cardinal — standard FPS feel) |
+| Y-axis | creatures locked at Y=0; pitch-aim free for camera only |
+
 ### Player verbs
 
 | Verb | Trigger | Effect |
 |---|---|---|
-| Walk forward | input `move_north` (HOLD) | velocity_set_relative forward=4.5 (matches fpsgarden weight) |
-| Walk back    | input `move_south` (HOLD) | velocity_set_relative forward=-4.5 |
-| Strafe left  | input `move_west`  (HOLD) | velocity_set_relative strafe=4.5 |
-| Strafe right | input `move_east`  (HOLD) | velocity_set_relative strafe=-4.5 |
+| Walk forward | input `move_north` (HOLD) | velocity_add_relative forward=2.0 |
+| Walk back    | input `move_south` (HOLD) | velocity_add_relative forward=-2.0 |
+| Strafe left  | input `move_west`  (HOLD) | velocity_add_relative strafe=2.0 |
+| Strafe right | input `move_east`  (HOLD) | velocity_add_relative strafe=-2.0 |
 | Look around  | mouse motion (passive)    | GameShell drains env.mouse_delta into player.state.facing |
-| Fire         | input `fire` (PRESS-edge) | spawn weapon-specific bullet from current_weapon; ammo -1 |
+| Fire         | input `fire` (PRESS-edge) | spawn weapon-specific bullet from current_weapon; ammo -cost |
 | Switch weapon 1 | input `weapon_1` (PRESS-edge) | player.current_weapon = 1 (plasma bolt) |
 | Switch weapon 2 | input `weapon_2` (PRESS-edge) | player.current_weapon = 2 (shotgun) |
 | Switch weapon 3 | input `weapon_3` (PRESS-edge) | player.current_weapon = 3 (rocket) |
-
-Drag (state.drag = 8.0) decelerates the player when no input held —
-weighty motion, no infinite slide. Same Vector3 drag pattern proven
-in fpsgarden.
 
 ### World clock
 
@@ -121,6 +128,28 @@ A `arena_clock` singleton entity with state:
   red flash + small shake.
 - Bullet lifetime → 0 → auto-despawn (engine handles via
   `_decrement_lifetimes`).
+
+### Projectile-obstacle policy (REV — v2.5 per shooter-reviewer S5)
+
+- **Player bullets vs walls**: STOP at wall (Doom-feel — aim matters,
+  no shoot-through-cover exploits)
+- **Rocket on wall hit**: removed via lifetime expiration; visual
+  spark feedback so wasted shots are visible (frustration mitigation)
+- **Bullets at altitude > 3m wall-top**: clear walls naturally per
+  ADR 0004's 3D AABB (bullets fired into the sky pass over arena
+  walls — fixes "bullet floats up wall" bug)
+- **Enemy bullets vs walls**: STOP at wall (cover protects player from
+  rangers — supports tactical pillar-flank pattern)
+
+### Y-axis policy (REV — v2.5 per shooter-reviewer S6)
+
+- **Pitch aim**: free, clamped ±π/2 - 0.05
+- **Bullet velocity Y**: `sin(pitch) * weapon.speed` (positive pitch =
+  looking up = +Y component)
+- **Bullets at altitude**: 3D AABB collision means bullets above wall
+  height (3m) clear walls; below wall height they stop
+- **Creatures**: Y locked at 0 via creature_bounds rule
+- **No jumping, no gravity, no falling** — flat XZ combat for v2.5
 
 ### Weapons (REV — v2.5 per reviewer Axis 1: shooters need ≥2 weapons)
 
@@ -261,7 +290,9 @@ Already specified in current implementation; formalizing in GDD:
 
 | Action | Sound (from sounds.json) | Reason |
 |---|---|---|
-| Player fire | `shoot` (square, 880→220 Hz, 0.12s) | Snappy bolt sound |
+| Plasma fire | `shoot` (square, 880→220 Hz, 0.12s) | Snappy energy bolt |
+| Shotgun fire | `shotgun_blast` (NEW v2.5 per S2: noise burst + low square 220→90 Hz, 0.18s) | Industrial thunky blast — distinct from plasma |
+| Rocket fire | `rocket_launch` (NEW v2.5 per S2: rising square 80→200 Hz, 0.30s) | Heavy launch with whoosh tail |
 | Bullet hits enemy | `hit` (noise burst, 0.08s) | Crisp impact |
 | Enemy death | `kill` (low square, 0.35s) | Satisfying drop |
 | Player hurt | `hurt` (noise+low pitch) | Visceral red-flash companion |

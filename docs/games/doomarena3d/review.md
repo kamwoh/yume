@@ -141,3 +141,127 @@ Compare to history:
 - doomarena3d v2 → accept (12-axis): too lenient on weapon deferral
 - doomarena3d v2.5 → accept (13-axis): the version we should have
   had at v2 if the reviewer had been correctly calibrated then
+
+---
+
+## Genre review (shooter, 10-axis)
+
+_Date: 2026-05-03_
+_Reviewer: yume-shooter-reviewer (10-axis FPS-strictest layer)_
+_Generic 13-axis status: ACCEPT (round 3 above)_
+
+### Verdict: **revise** (4 axes need GDD updates — implementation
+already covers most, but the GDD doesn't reflect)
+
+This is a **retroactive** review. The doomarena3d v2.5 GDD predates
+the shooter-reviewer skill. The 10-axis check finds 4 places where
+the GDD is silent or stale on FPS-specific concerns that an FPS-aware
+reviewer would have caught at GDD time. Most of these were fixed
+reactively at runtime (walk speed tune, bullet-stuck-on-wall bug,
+diagonal motion fix). The genre-strict reviewer would have caught
+them at text time.
+
+### Per-axis findings
+
+| Axis | Verdict | Notes |
+|---|---|---|
+| S1. Movement profile | ✗ REVISE | GDD's "Player verbs" table still cites `velocity_set_relative forward=4.5` (the v2.0 design); actual implementation uses `velocity_add_relative forward=2.0` post diagonal-fix + speed-tune. No top-speed equilibrium target stated, no diagonal handling spec. |
+| S2. Weapon distinctness | ✗ REVISE | All 3 weapons emit the same `shoot` audio cue per the audio table (line 264). Plasma + shotgun + rocket are visually different but **acoustically identical** — fails the "weapons must FEEL different" check. |
+| S3. Weapon-enemy matchup | ✓ PASS | Implicit but coherent: rocket→demons/boss (3 dmg vs 2/10 HP), plasma→imps (1 HP), shotgun close-range. Could be made explicit as a matchup table (note for v2.6). |
+| S4. Ammo economy | ✓ PASS WITH NOTE | Numbers are present (start 30, +5/7s, costs 1/3/5) but no math line showing income vs expenditure. Math checks out (income 0.71/s, peak fire ~5/s plasma → tension at ~7s). Add the math line for clarity. |
+| S5. Projectile-obstacle policy | ✗ REVISE | GDD references `blocks_motion` (ADR 0004) for walls + pillars but is **silent on what bullets do at a wall**. Empirically caused the "bullet floats up against wall" bug at v2.5 playtest; engine fix landed (3D AABB) but the GDD still doesn't specify the policy. |
+| S6. Y-axis policy | ✗ REVISE | Y locked at 0 for creatures ✓, pitch-aim documented ✓, bullet Y velocity formula in implementation ✓ — but the GDD doesn't say bullets at altitude clear walls (the 3D-AABB behavior we just shipped). Future readers see "blocks_motion" and assume 2D blocking. |
+| S7. Hit / kill feedback | ✓ PASS | Audio table (line 262) cleanly separates shoot / hit / kill / hurt. Camera shake on kill, red flash on damage, score increment animation. |
+| S8. Sightline + cover | ✓ PASS | Cover handled in `level-design.md`; pillars + walls described as both visual landmarks AND ranger-flank break-cover opportunities. Bullet-vs-pillar interaction implicit (same as walls per S5). |
+| S9. Threat differentiation | ✓ PASS | Ranger has a behaviorally distinct AI (stops + fires) — not just stat-distinct. Imp + demon are stat-distinct (rusher / tank), which is acceptable since ranger + boss provide AI variety. |
+| S10. Restart UX | ✓ PASS | R/ESC/Q lose screen + <1s retry target + best-stats persistence. Standard FPS arcade flow. |
+
+### Concrete revision requests
+
+#### Axis S1 — Movement profile
+
+Replace the "Player verbs" table's movement rows with:
+```
+| Walk forward | input move_north (HOLD) | velocity_add_relative forward=2.0 (per-tick add) |
+| Walk back    | input move_south (HOLD) | velocity_add_relative forward=-2.0 |
+| Strafe right | input move_east  (HOLD) | velocity_add_relative strafe=-2.0 |
+| Strafe left  | input move_west  (HOLD) | velocity_add_relative strafe=2.0 |
+```
+
+Add a "Movement profile" subsection BEFORE Player verbs:
+```
+- **Top speed**: 3.0 m/s equilibrium under sustained input (drag=8.0,
+  tick_seconds=0.05 → eq = add * (1−drag*dt) / (drag*dt) = 2.0 * 1.5 = 3.0)
+- **Diagonal**: W+A both fire each tick; contributions sum
+  (additive); √2-factor diagonal slightly slower than cardinal
+- **Y-axis**: locked at 0 for creatures (no jumping/falling), pitch-aim
+  free for camera (clamped ±π/2 - 0.05)
+```
+
+#### Axis S2 — Weapon audio distinctness
+
+Update audio table (line 262) to assign distinct sounds:
+```
+| Plasma fire | shoot         | snappy energy bolt |
+| Shotgun fire | shotgun_blast (NEW: low-frequency boom, ~120Hz, 0.18s) | thunky industrial blast |
+| Rocket fire | rocket_launch (NEW: rising whoosh + thump, ~80→200Hz, 0.3s) | heavy launch |
+```
+
+Add the 2 new sounds to `data/sounds.json` during implementation.
+
+#### Axis S5 — Projectile-obstacle policy
+
+Add a "Projectile-obstacle policy" subsection in Combat loop:
+```
+- Player bullets vs walls: STOP at wall (Doom-feel — aim matters, no
+  shoot-through-cover exploits)
+- Rocket on wall hit: removed via lifetime expiration; visual
+  spark feedback so wasted shots are visible
+- Bullets at altitude > wall height (3m): clear walls naturally
+  (3D AABB engine behavior per ADR 0004 v2)
+- Enemy bullets vs walls: STOP at wall (cover protects player from
+  rangers — supports tactical pillar-flank pattern)
+```
+
+#### Axis S6 — Y-axis policy
+
+Add a "Y-axis policy" subsection:
+```
+- Pitch aim: free, clamped ±π/2 - 0.05
+- Bullet velocity Y component: sin(pitch) * weapon.speed
+- Bullets at altitude > 3m clear walls (3D AABB blocks_motion check)
+- Creatures: Y locked at 0 (creature_bounds rule)
+- No jumping, no gravity, no falling — flat XZ combat for v2.5
+```
+
+### Reasoning summary
+
+The shooter-reviewer's value-add over the generic 13-axis is
+visible here. Generic accepted v2.5 with 4 latent gaps that all
+became runtime bugs OR will become readability bugs:
+- S1 → diagonal movement reactive fix (engine work)
+- S2 → "all weapons sound the same" — playtest hasn't surfaced yet
+  but will
+- S5 → bullet-stuck-on-wall bug (3D AABB reactive engine fix)
+- S6 → bullet behavior at altitude not documented (future
+  contributors / level designers won't know what to expect)
+
+If shooter-reviewer had run on the v2.5 GDD, all 4 would have been
+caught at text-time. Engine work for #1 and #5 still required, but
+the GDD revision would have flagged the need pre-implementation
+instead of post-playtest.
+
+### What this validates about the genre-strict architecture
+
+This is the empirical case for genre-specific reviewers. The
+generic 13-axis correctly accepted (the GDD passed all 13 generic
+axes). But "shooter" has 10 additional concerns that need a genre-
+aware checker. The 4 REVISE items here are not generic-reviewer
+failures — they're shooter-specific gaps the generic reviewer can't
+see by definition.
+
+The pipeline now has the structure to catch this at GDD time:
+1. yume-game-reviewer (13-axis floor) → accept
+2. yume-shooter-reviewer (10-axis ceiling, strictest) → must also accept
+
+Both layers must accept before systems-designer touches the GDD.

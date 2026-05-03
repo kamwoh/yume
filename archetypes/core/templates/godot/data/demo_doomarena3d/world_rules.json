@@ -238,7 +238,7 @@
          ]}}},
         {"type": "state_add", "target": "self", "field": "ammo", "amount": -3},
         {"type": "state_set", "target": "self", "field": "weapon_cooldown", "value": 8},
-        {"type": "emit_shell_event", "event": "play_sound", "name": "shoot"}
+        {"type": "emit_shell_event", "event": "play_sound", "name": "shotgun_blast"}
       ]
     },
 
@@ -261,7 +261,7 @@
          ]}}},
         {"type": "state_add", "target": "self", "field": "ammo", "amount": -5},
         {"type": "state_set", "target": "self", "field": "weapon_cooldown", "value": 15},
-        {"type": "emit_shell_event", "event": "play_sound", "name": "shoot"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "rocket_launch"},
         {"type": "emit_shell_event", "event": "shake", "intensity": 0.04, "duration": 6}
       ]
     },

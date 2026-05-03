@@ -49,6 +49,14 @@
     "siren": {
       "wave": "sine", "freq_start": 440, "freq_end": 220,
       "duration": 0.9, "attack": 0.03, "decay": 0.15, "volume": 0.5
+    },
+    "shotgun_blast": {
+      "wave": "noise", "freq_start": 220, "freq_end": 90,
+      "duration": 0.18, "attack": 0.005, "decay": 0.55, "volume": 0.5
+    },
+    "rocket_launch": {
+      "wave": "square", "freq_start": 80, "freq_end": 200,
+      "duration": 0.3, "attack": 0.02, "decay": 0.3, "volume": 0.5
     }
   }
 }

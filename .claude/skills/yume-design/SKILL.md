@@ -96,28 +96,81 @@ LAYOUT CHOSEN:
 This step prevents per-skill drift — content-designer and asset-designer
 both follow the orchestrator's chosen plan instead of inventing their own.
 
+### Phase 0c — Genre detection + dispatch
+
+After layout planning, classify the prose's genre. Genre dispatch
+unlocks **strictest-layer** specialist skills (genre-specific
+designer + reviewer) that catch concerns the generic skills can't
+see (FPS movement feel, TD path geometry, sim resource cycles, etc.).
+
+Match keywords from the one-line pitch:
+
+| Genre | Triggers | Designer | Reviewer |
+|---|---|---|---|
+| **shooter** | "shooter", "fps", "doom", "arena shooter", "twin-stick", "first-person" | `yume-shooter-designer` | `yume-shooter-reviewer` |
+| **td** | "tower defense", "td", "bloons", "kingdom rush", "pvz" | (future: yume-td-designer) | (future: yume-td-reviewer) |
+| **sim** | "sim", "ecology", "farming", "stardew", "harvest moon", "life sim" | (future) | (future) |
+| **puzzle** | "puzzle", "sokoban", "match", "block-push", "tile" | (future) | (future) |
+| **roguelike** | "roguelike", "dungeon crawler", "rogue-lite" | (future) | (future) |
+| _(no match)_ | fallback | `yume-game-designer` only | `yume-game-reviewer` only |
+
+State the detected genre to the user (interactive) or proceed
+(autonomous):
+
+```
+GENRE DETECTED: shooter
+- Specialist designer: yume-shooter-designer (FPS-specific GDD sections)
+- Specialist reviewer: yume-shooter-reviewer (10 FPS axes, strictest)
+- Generic floor: yume-game-designer + yume-game-reviewer (13 axes) still apply
+```
+
+If no genre matches, only generic skills run.
+
 ### Phase 1 — game-designer (prose → GDD)
 
-5. Invoke `yume-game-designer` skill. Tool:
-   `Skill(skill="yume-game-designer", args=<prose + name>)`.
-6. The skill's instructions load into my context; I execute them and
-   produce `docs/games/<name>/GDD.md`.
-7. Interactive: show GDD summary, ask "Approve? (y / edit / reject)".
-   Autonomous: proceed to Phase 1b (review).
+5. Invoke the specialist designer if genre detected, else generic:
+   - Shooter: `Skill(skill="yume-shooter-designer", args=<prose + name>)`
+   - TD/sim/puzzle/roguelike (when those skills land): same shape
+   - No genre: `Skill(skill="yume-game-designer", args=<prose + name>)`
+6. Specialist designers PRODUCE the full GDD (generic MDA scaffolding
+   + genre-specific sections). They internalize the generic
+   game-designer's framework so they don't drop generic concerns.
+7. Output: `docs/games/<name>/GDD.md`.
+8. Interactive: show GDD summary, ask "Approve? (y / edit / reject)".
+   Autonomous: proceed to Phase 1b.
 
-### Phase 1b — game-reviewer (adversarial GDD critique)
+### Phase 1b — Generic game-reviewer (13-axis floor)
 
-7a. Invoke `yume-game-reviewer` skill. Tool:
+7a. Invoke `yume-game-reviewer` skill (always — the generic floor).
     `Skill(skill="yume-game-reviewer", args=<GDD path>)`.
 7b. Skill produces `docs/games/<name>/review.md` with verdict.
 7c. **Verdict handling**:
-    - `accept` → proceed to Phase 1c.
-    - `revise` → re-invoke game-designer with revision requests
-      embedded in args. Loop max 3 cycles. After 3, surface to user.
+    - `accept` → proceed to Phase 1b.5 (genre-strict reviewer if any).
+    - `revise` → re-invoke designer with revision requests. Loop
+      max 3 cycles. After 3, surface to user.
     - `reject` → surface to user; pipeline halts.
-7d. Why: reviewer catches shallow GDDs (1 enemy, 1 wave, 1 tower) at
-    the cheapest iteration point — text-only. Without this step, depth
-    issues compound into wasted JSON + scene work later.
+7d. Why: generic 13-axis catches shallow GDDs at cheapest iteration
+    point. Genre-strict review runs after this passes.
+
+### Phase 1b.5 — Genre-strict reviewer (strictest gate)
+
+7e. If a genre was detected in Phase 0c AND a specialist reviewer
+    exists, invoke it:
+    - Shooter: `Skill(skill="yume-shooter-reviewer", args=<GDD path>)`
+7f. Specialist reviewer APPENDS a genre-review section to
+    `review.md` (doesn't replace the generic findings).
+7g. **Verdict handling — same as Phase 1b** but stricter:
+    - `accept` → proceed to Phase 1c.
+    - `revise` → re-invoke specialist designer with genre-specific
+      revision requests. Loop max 3 cycles.
+    - `reject` → surface to user. Genre-claim mismatch is the most
+      common reject reason ("you said FPS but the GDD lacks N FPS
+      requirements").
+7h. Why: generic floor + genre ceiling = both must accept. Genre
+    reviewer is the strictest layer: empirically, doomarena3d v2 +
+    v2.5 needed reactive fixes (walk speed, diagonal, blocks_motion,
+    weapons) that an FPS-aware reviewer would have caught at GDD
+    review.
 
 ### Phase 1c — game-planner (GDD → world plan)
 
