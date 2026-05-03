@@ -1,0 +1,15 @@
+{
+  "_comment": "Ghost marker showing where a tower can be built. Translucent ring on the floor. Removed by build rules when the corresponding numeric key is pressed.",
+  "definitions": [
+    {
+      "id": "slot_ghost",
+      "tags": ["slot_ghost", "decor"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "slot_ghost_mesh",
+        "params": {"glow": "#5050a0"}
+      }
+    }
+  ]
+}

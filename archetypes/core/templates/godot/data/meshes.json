@@ -162,6 +162,14 @@
         {"op": "cylinder", "pos": [0, 0.02, 0], "radius": 0.18, "height": 0.04, "color": "$track"}
       ],
       "params": {"track": "#7050a0"}
+    },
+
+    "slot_ghost_mesh": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.04, 0], "radius": 0.7, "height": 0.08, "color": "$glow"},
+        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.5, "height": 0.02, "color": "#101020"}
+      ],
+      "params": {"glow": "#5050a0"}
     }
   }
 }

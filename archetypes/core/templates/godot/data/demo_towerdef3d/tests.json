@@ -20,13 +20,64 @@
 
     {
       "name": "wave_progression_after_long_run",
-      "_": "After 244 ticks (~24s), verify activity has happened: gold > 100 (kills granted gold) AND base took damage (enemies leaked) — ONE of these proves cascade integrity even though waves may not have fully advanced (depends on tower coverage vs path leakage).",
+      "_": "After 244 ticks (~24s) with NO towers built, all wave 1 enemies leak to base. base.hp should have dropped by at least 3 (full wave 1 leak).",
       "setup": {},
       "actions": [],
       "ticks": 244,
       "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "base_1",
+         "field": "state.hp", "op": "<", "value": 8}
+      ]
+    },
+
+    {
+      "name": "build_tower_at_slot_1",
+      "_": "Press 1 (build_1) on tick 1 → tower_1 spawns at slot 1, ghost_1 removed, gold -=50.",
+      "setup": {},
+      "actions": [{"tick": 1, "input": "build_1"}],
+      "ticks": 3,
+      "assertions": [
         {"type": "entity_field", "select": "by_id", "id": "player",
-         "field": "state.gold", "op": ">", "value": 100}
+         "field": "state.gold", "op": "==", "value": 50},
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.slot_1_built", "op": "==", "value": 1},
+        {"type": "entity_count", "query": {"tags_all": ["tower"]},
+         "op": "==", "value": 1},
+        {"type": "entity_count", "query": {"tags_all": ["slot_ghost"]},
+         "op": "==", "value": 3}
+      ]
+    },
+
+    {
+      "name": "build_blocked_when_no_gold",
+      "_": "Set player gold to 30 (< 50). Pressing build_1 should do nothing — query gold_gte 50 fails.",
+      "setup": {
+        "entity_state": {"player": {"gold": 30}}
+      },
+      "actions": [{"tick": 1, "input": "build_1"}],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["tower"]},
+         "op": "==", "value": 0},
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.gold", "op": "==", "value": 30}
+      ]
+    },
+
+    {
+      "name": "build_blocked_at_same_slot",
+      "_": "Build slot 1 twice in a row. Second press should fail: slot already built.",
+      "setup": {},
+      "actions": [
+        {"tick": 1, "input": "build_1"},
+        {"tick": 2, "input": "build_1"}
+      ],
+      "ticks": 4,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["tower"]},
+         "op": "==", "value": 1},
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.gold", "op": "==", "value": 50}
       ]
     },
 
@@ -62,12 +113,12 @@
 
     {
       "name": "tower_fires_when_enemy_in_range",
-      "_": "Place enemy 3m from tower_a at (-6, 0, -4) — range 6. After 5 ticks, tower has fired and enemy took at least 1 damage.",
+      "_": "Manually spawn a tower at (-6, 0, -4) and an enemy 3m away. After 5 ticks, tower has fired and enemy took at least 1 damage. Towers are no longer pre-placed (player builds them now).",
       "setup": {
-        "entity_state": {
-          "tower_a": {"cooldown": -1.0}
-        },
         "spawn": [
+          {"def": "tower_basic", "id": "test_tower",
+           "position": [-6, 0, -4],
+           "state": {"cooldown": -1.0}},
           {"def": "enemy_grunt", "id": "rogue_enemy",
            "position": [-6, 0, -1],
            "state": {"velocity": [0, 0, 0], "hp": 99}}
@@ -78,21 +129,15 @@
       "assertions": [
         {"type": "entity_field", "select": "by_id", "id": "rogue_enemy",
          "field": "state.hp", "op": "<", "value": 99},
-        {"type": "entity_field", "select": "by_id", "id": "tower_a",
+        {"type": "entity_field", "select": "by_id", "id": "test_tower",
          "field": "state.cooldown", "op": ">", "value": 0.0}
       ]
     },
 
     {
       "name": "enemy_takes_damage_from_projectile",
-      "_": "Place a projectile right next to an enemy (radius 0.6). After 2 ticks, projectile gone, enemy.hp reduced. Set tower cooldown high so towers don't auto-fire and contaminate the projectile count.",
+      "_": "Place a projectile right next to an enemy (radius 0.6). After 2 ticks, projectile gone, enemy.hp reduced. No towers pre-placed in v1.5, so no contamination.",
       "setup": {
-        "entity_state": {
-          "tower_a": {"cooldown": 99},
-          "tower_b": {"cooldown": 99},
-          "tower_c": {"cooldown": 99},
-          "tower_d": {"cooldown": 99}
-        },
         "spawn": [
           {"def": "enemy_grunt", "id": "victim",
            "position": [0, 0, 0], "state": {"velocity": [0, 0, 0]}},

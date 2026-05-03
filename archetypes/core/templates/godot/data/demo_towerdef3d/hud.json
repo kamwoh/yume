@@ -20,7 +20,7 @@
     }
   ],
 
-  "controls_hint": "Watch the towers do the work.\n(Player placement is hand-authored in v1.)",
+  "controls_hint": "Press 1/2/3/4 to build a tower at slot 1-4.\nEach tower costs 50 gold. Survive 10 waves.",
 
   "win":  {"binds": "wave_clock.wave", "op": ">=", "value": 11,
            "message": "🏆 SECTOR HELD 🏆\nAll waves repelled."},

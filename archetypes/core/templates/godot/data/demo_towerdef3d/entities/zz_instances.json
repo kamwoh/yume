@@ -44,11 +44,11 @@
     {"_": "The base — last node on the path. Enemies that contact it deal 1 damage and despawn.",
      "def": "base", "id": "base_1", "position": [9, 0, 0]},
 
-    {"_": "Towers — placed along the path bends for coverage.",
-     "def": "tower_basic", "id": "tower_a", "position": [-6, 0, -4]},
-    {"def": "tower_basic", "id": "tower_b", "position": [0, 0, -3]},
-    {"def": "tower_basic", "id": "tower_c", "position": [6, 0, 4]},
-    {"def": "tower_basic", "id": "tower_d", "position": [0, 0, 4]}
+    {"_": "Build slots — ghost markers showing where the player can place towers. Press 1/2/3/4 to build a tower at the corresponding slot. Each tower costs 50 gold.",
+     "def": "slot_ghost", "id": "ghost_1", "position": [-6, 0, -4]},
+    {"def": "slot_ghost", "id": "ghost_2", "position": [0, 0, -3]},
+    {"def": "slot_ghost", "id": "ghost_3", "position": [6, 0, 4]},
+    {"def": "slot_ghost", "id": "ghost_4", "position": [0, 0, 4]}
   ],
 
   "initial_relations": []

@@ -47,6 +47,64 @@
     },
 
     {
+      "_comment": "=== PLAYER BUILDS — press 1/2/3/4 to drop a tower on a ghost slot. Costs 50 gold; only fires once per slot (slot_X_built gates re-build).",
+      "id": "build_slot_1",
+      "trigger": {"type": "input", "action": "build_1"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 50, "slot_1_built_lte": 0}},
+      "effect": [
+        {"type": "spawn", "template": "tower_basic",
+         "overrides": {"_forced_id": "tower_1"},
+         "position": [-6, 0, -4]},
+        {"type": "remove", "target": "ghost_1"},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "state_set", "target": "self", "field": "slot_1_built", "value": 1}
+      ]
+    },
+    {
+      "id": "build_slot_2",
+      "trigger": {"type": "input", "action": "build_2"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 50, "slot_2_built_lte": 0}},
+      "effect": [
+        {"type": "spawn", "template": "tower_basic",
+         "overrides": {"_forced_id": "tower_2"},
+         "position": [0, 0, -3]},
+        {"type": "remove", "target": "ghost_2"},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "state_set", "target": "self", "field": "slot_2_built", "value": 1}
+      ]
+    },
+    {
+      "id": "build_slot_3",
+      "trigger": {"type": "input", "action": "build_3"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 50, "slot_3_built_lte": 0}},
+      "effect": [
+        {"type": "spawn", "template": "tower_basic",
+         "overrides": {"_forced_id": "tower_3"},
+         "position": [6, 0, 4]},
+        {"type": "remove", "target": "ghost_3"},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "state_set", "target": "self", "field": "slot_3_built", "value": 1}
+      ]
+    },
+    {
+      "id": "build_slot_4",
+      "trigger": {"type": "input", "action": "build_4"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 50, "slot_4_built_lte": 0}},
+      "effect": [
+        {"type": "spawn", "template": "tower_basic",
+         "overrides": {"_forced_id": "tower_4"},
+         "position": [0, 0, 4]},
+        {"type": "remove", "target": "ghost_4"},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "state_set", "target": "self", "field": "slot_4_built", "value": 1}
+      ]
+    },
+
+    {
       "_comment": "=== PATH-FOLLOWING ===",
       "_": "Enemy contacts a waypoint → set velocity to that waypoint's stored next_v. Waypoint encodes the direction to the NEXT waypoint, so the enemy turns at each corner.",
       "id": "enemy_advance_at_waypoint",

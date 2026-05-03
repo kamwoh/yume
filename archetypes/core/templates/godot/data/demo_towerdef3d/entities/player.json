@@ -7,7 +7,11 @@
       "properties": {},
       "state_init": {
         "gold": 100,
-        "score": 0
+        "score": 0,
+        "slot_1_built": 0,
+        "slot_2_built": 0,
+        "slot_3_built": 0,
+        "slot_4_built": 0
       },
       "visual": {"hidden": true}
     }

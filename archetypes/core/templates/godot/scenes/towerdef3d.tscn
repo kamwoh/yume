@@ -34,7 +34,7 @@ data_root = "res://data/demo_towerdef3d"
 auto_start = true
 verbose = true
 renderer_script = "res://scripts/renderer_3d/entity_mesh_3d.gd"
-input_actions_press = PackedStringArray()
+input_actions_press = PackedStringArray("build_1", "build_2", "build_3", "build_4")
 input_actions_hold = PackedStringArray()
 stop_action_on_idle = ""
 
