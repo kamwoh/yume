@@ -102,29 +102,52 @@ both follow the orchestrator's chosen plan instead of inventing their own.
 6. The skill's instructions load into my context; I execute them and
    produce `docs/games/<name>/GDD.md`.
 7. Interactive: show GDD summary, ask "Approve? (y / edit / reject)".
-   Autonomous: produce a 5-line summary internally and proceed; resolve
-   any "open questions" the GDD flags by best-judgment and document the
-   resolution in my next-phase prompt to systems-designer.
+   Autonomous: proceed to Phase 1b (review).
 
-### Phase 1b — game-planner (GDD → world plan)
+### Phase 1b — game-reviewer (adversarial GDD critique)
 
-7a. Invoke `yume-game-planner` skill. Tool:
+7a. Invoke `yume-game-reviewer` skill. Tool:
+    `Skill(skill="yume-game-reviewer", args=<GDD path>)`.
+7b. Skill produces `docs/games/<name>/review.md` with verdict.
+7c. **Verdict handling**:
+    - `accept` → proceed to Phase 1c.
+    - `revise` → re-invoke game-designer with revision requests
+      embedded in args. Loop max 3 cycles. After 3, surface to user.
+    - `reject` → surface to user; pipeline halts.
+7d. Why: reviewer catches shallow GDDs (1 enemy, 1 wave, 1 tower) at
+    the cheapest iteration point — text-only. Without this step, depth
+    issues compound into wasted JSON + scene work later.
+
+### Phase 1c — game-planner (GDD → world plan)
+
+8a. Invoke `yume-game-planner` skill. Tool:
     `Skill(skill="yume-game-planner", args=<GDD path>)`.
-7b. Skill produces `docs/games/<name>/world-plan.md` — named NPCs,
-    items, plants, events, town layout, day-1 onboarding flow.
-7c. Interactive: show plan summary (cast count, item categories, key
+8b. Skill produces `docs/games/<name>/world-plan.md` — named NPCs,
+    items, plants, events, day-1 onboarding flow.
+8c. Interactive: show plan summary (cast count, item categories, key
     events) — ask user to approve.
-    Autonomous: produce a 5-line summary internally and proceed.
-7d. **If `--plan-only` flag was set**: stop here. Write a final
-    summary listing the GDD path + world-plan path. Tell the user to
-    re-invoke `/yume-design <name> --resume` once they've reviewed the
-    plan to continue from Phase 2.
+    Autonomous: proceed.
 
-The world-plan is the single source of truth for named content
-(NPCs, items, plants, events). All downstream skills read it:
-- systems-designer references named entities when sketching rules
-- content-designer wires names directly into entities/*.json
-- asset-designer reads visual hints + applies consistent style
+### Phase 1d — level-designer (spatial layout)
+
+9a. Invoke `yume-level-designer` skill. Tool:
+    `Skill(skill="yume-level-designer", args=<GDD + world-plan paths>)`.
+9b. Skill produces `docs/games/<name>/level-design.md` — concrete
+    coordinates + rationale per placement (path, choke points, tower
+    slots, spawn zones, decoration).
+9c. Interactive: show layout summary (dimensions, key placements) —
+    ask user to approve.
+    Autonomous: proceed.
+9d. **If `--plan-only` flag was set**: stop here. Final summary lists
+    GDD path + review path + world-plan path + level-design path.
+    Tell user to re-invoke with `--resume`.
+
+The plan + level-design are the single sources of truth for downstream:
+- systems-designer references named entities + path lengths when
+  sketching rules (radius / cooldown / speed numbers).
+- content-designer wires named entities into JSON at the EXACT
+  coordinates from level-design.md (no ad-hoc placement decisions).
+- asset-designer reads visual hints + applies consistent style.
 
 ### Phase 2 — systems-designer (GDD → rule sketches)
 
@@ -321,14 +344,18 @@ Approve GDD?
 
 ## Status
 
-This skill is the orchestrator (Tier 2.5g). The 6 specialist skills it
-invokes are at `.claude/skills/yume-<role>/`:
+This skill is the orchestrator (Tier 2.5g, expanded for Tier 2.7
+design-quality phases). The 8 specialist skills it invokes are at
+`.claude/skills/yume-<role>/`:
 
 - `yume-game-designer` — Phase 1 (prose → GDD)
-- `yume-systems-designer` — Phase 2 (GDD → rule sketches)
+- `yume-game-reviewer` — Phase 1b (adversarial GDD critique)
+- `yume-game-planner` — Phase 1c (GDD → world plan, named cast)
+- `yume-level-designer` — Phase 1d (spatial layout + rationale)
+- `yume-systems-designer` — Phase 2 (rule sketches)
 - `yume-content-designer` — Phase 3 (sketches → JSON)
-- `yume-asset-designer` — Phase 4 (visual fields)
-- `yume-qa-tester` — Phase 5 (headless verification)
+- `yume-asset-designer` — Phase 4 (visual + audio fields)
+- `yume-qa-tester` — Phase 5 (headless + visual + scenario QA)
 - `yume-tech-director` — invariant guardian, on-demand
 
 The legacy `.claude/agents/yume/*.md` subagents are kept as fallback
