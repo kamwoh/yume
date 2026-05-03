@@ -1,0 +1,17 @@
+{
+  "_comment": "Med-kit. Red cube with white cross. Spawns randomly via clock pickup_timer. +25 HP on contact.",
+  "definitions": [
+    {
+      "id": "health_pickup",
+      "tags": ["pickup", "pickup_health"],
+      "properties": {},
+      "state_init": {
+        "velocity": [0, 0, 0]
+      },
+      "visual": {
+        "mesh": "med_kit_3d",
+        "params": {"body": "#cc1818", "cross": "#ffffff"}
+      }
+    }
+  ]
+}

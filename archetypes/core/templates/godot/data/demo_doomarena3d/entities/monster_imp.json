@@ -1,0 +1,20 @@
+{
+  "_comment": "Common red enemy. 1 HP. Walks toward player at 3.5 m/s.",
+  "definitions": [
+    {
+      "id": "monster_imp",
+      "tags": ["monster", "enemy", "imp", "creature"],
+      "properties": {
+        "speed": 3.5
+      },
+      "state_init": {
+        "hp": 1,
+        "velocity": [0, 0, 0]
+      },
+      "visual": {
+        "mesh": "imp_3d",
+        "params": {"body": "#a02020", "eye": "#ffd040"}
+      }
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "_comment": "DoomArena3D HUD — same shape as 2D version. Win at 30 kills, lose if HP=0.",
+
+  "panels": [
+    {
+      "anchor": "top-left",
+      "elements": [
+        {"type": "label", "binds": "player.score", "format": "💀 Kills: {} / 30", "size": 22},
+        {"type": "spacer", "height": 4},
+        {"type": "label", "binds": "player.hp", "format": "❤️ HP: {}", "size": 18},
+        {"type": "progress_bar", "binds": "player.hp", "max": 100,
+         "color_lerp": ["#dd3333", "#33dd33"]},
+        {"type": "spacer", "height": 6},
+        {"type": "label", "binds": "player.ammo", "format": "🔫 Ammo: {}", "size": 18},
+        {"type": "spacer", "height": 6},
+        {"type": "label", "binds": "clock.elapsed", "format": "⏱️ {} / 90s", "size": 18}
+      ]
+    }
+  ],
+
+  "controls_hint": "WASD walk · Mouse aim\nSPACE fire · ESC release cursor",
+
+  "win":  {"binds": "player.score", "op": ">=", "value": 30,
+           "message": "🌟 ARENA CLEAR 🌟\nAll hostiles down."},
+  "lose": {"binds": "player.hp", "op": "<=", "value": 0, "sustained": 1,
+           "message": "💀 KIA 💀\nThe arena claims you."}
+}

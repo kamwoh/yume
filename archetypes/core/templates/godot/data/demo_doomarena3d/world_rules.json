@@ -1,0 +1,222 @@
+{
+  "_comment": "DoomArena3D rules (~17). 3D port of demo_doomarena. Categories: clock, input, AI, combat, pickups, bounds. Uses velocity_set_relative + facing-based bullet velocity.",
+
+  "rules": [
+
+    {
+      "_comment": "=== CLOCK ===",
+      "id": "clock_advance",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "elapsed", "amount": 0.05},
+        {"type": "state_add", "target": "self", "field": "spawn_timer", "amount": -0.05},
+        {"type": "state_add", "target": "self", "field": "pickup_timer", "amount": -0.05}
+      ]
+    },
+
+    {
+      "_comment": "Spawn imp at random angle on the spawn ring (radius 14). Interval shortens with elapsed.",
+      "id": "monster_spawn",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"], "state": {"spawn_timer_lt": 0.0}},
+      "effect": [
+        {"type": "spawn",
+         "template": "monster_imp",
+         "position": [
+           "cos(randf() * 6.28318) * 14",
+           0,
+           "sin(randf() * 6.28318) * 14"
+         ]},
+        {"type": "state_set", "target": "self", "field": "spawn_timer",
+         "value": "max(2.0, 4.0 - self.state.elapsed * 0.022)"}
+      ]
+    },
+
+    {
+      "_comment": "Health pickup spawn at random arena position. 50% chance per pickup-timer tick.",
+      "id": "pickup_spawn_health",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
+      "chance": 0.5,
+      "effect": [
+        {"type": "spawn", "template": "health_pickup",
+         "position": ["(randf() - 0.5) * 28", 0.5, "(randf() - 0.5) * 28"]},
+        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
+      ]
+    },
+
+    {
+      "_comment": "Ammo pickup — fires when health didn't (timer reset by either rule keeps cadence).",
+      "id": "pickup_spawn_ammo",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
+      "effect": [
+        {"type": "spawn", "template": "ammo_pickup",
+         "position": ["(randf() - 0.5) * 28", 0.5, "(randf() - 0.5) * 28"]},
+        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
+      ]
+    },
+
+    {
+      "_comment": "=== PLAYER MOVEMENT (velocity_set_relative for forward-relative motion). Drag in player.state.drag handles deceleration.",
+      "id": "move_forward",
+      "trigger": {"type": "input", "action": "move_north"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 4.5, "strafe": 0}
+    },
+    {
+      "id": "move_back",
+      "trigger": {"type": "input", "action": "move_south"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": -4.5, "strafe": 0}
+    },
+    {
+      "id": "strafe_right",
+      "trigger": {"type": "input", "action": "move_east"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": -4.5}
+    },
+    {
+      "id": "strafe_left",
+      "trigger": {"type": "input", "action": "move_west"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": 4.5}
+    },
+
+    {
+      "_comment": "=== PLAYER FIRING — single PRESS-edge rule. Bullet position = player + forward offset; bullet velocity = facing * 22 m/s. Y at eye level (1.4). 'spark' action is already mapped to SPACE in project.godot.",
+      "id": "fire_forward",
+      "trigger": {"type": "input", "action": "spark"},
+      "query": {"tags_all": ["player"], "state": {"ammo_gt": 0}},
+      "effect": [
+        {"type": "spawn", "template": "bullet",
+         "position": [
+           "self.state.position.x + cos(self.state.facing) * 0.6",
+           1.4,
+           "self.state.position.z + sin(self.state.facing) * 0.6"
+         ],
+         "overrides": {"state": {"velocity": [
+           "cos(self.state.facing) * 22",
+           0,
+           "sin(self.state.facing) * 22"
+         ]}}},
+        {"type": "state_add", "target": "self", "field": "ammo", "amount": -1}
+      ]
+    },
+
+    {
+      "_comment": "=== MONSTER AI: home toward player on XZ plane. Same broadcast pattern as 2D doomarena (radius 1000 = always fires). Y kept at 0 (planar combat).",
+      "id": "monster_homing",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["monster"]},
+        "b": {"tags_all": ["player"]},
+        "radius": 1000
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "a",
+        "x": "(b.state.position.x - a.state.position.x) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 1) * a.properties.speed",
+        "y": 0,
+        "z": "(b.state.position.z - a.state.position.z) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 1) * a.properties.speed"
+      }
+    },
+
+    {
+      "_comment": "=== COMBAT: bullet damages monster ===",
+      "id": "bullet_kills_monster",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["bullet"]},
+        "b": {"tags_all": ["monster"]},
+        "radius": 1.2
+      },
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "hp", "amount": -1},
+        {"type": "remove", "target": "a"}
+      ]
+    },
+
+    {
+      "_comment": "Monster death: hp ≤ 0 → 4 sparks (3D outward burst) + camera shake + score+1 + remove monster.",
+      "id": "monster_death",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["monster"], "state": {"hp_lte": 0}},
+      "effect": [
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.8, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [1.5, 1.0, 1.5]}}},
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.8, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [-1.5, 1.0, 1.5]}}},
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.8, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [1.5, 1.0, -1.5]}}},
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.8, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [-1.5, 1.0, -1.5]}}},
+        {"type": "emit_shell_event", "event": "shake", "intensity": 0.06, "duration": 8},
+        {"type": "state_add", "target": "player", "field": "score", "amount": 1},
+        {"type": "remove", "target": "self"}
+      ]
+    },
+
+    {
+      "_comment": "Monster touches player → -10 HP + flash + shake + remove monster (kamikaze).",
+      "id": "monster_hits_player",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["monster"]},
+        "b": {"tags_all": ["player"]},
+        "radius": 1.2
+      },
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "hp", "amount": -10},
+        {"type": "state_clamp", "target": "b", "field": "hp", "min": 0, "max": 100},
+        {"type": "emit_shell_event", "event": "flash", "color": "#ff0000", "duration": 12},
+        {"type": "emit_shell_event", "event": "shake", "intensity": 0.1, "duration": 10},
+        {"type": "remove", "target": "a"}
+      ]
+    },
+
+    {
+      "_comment": "=== PICKUPS ===",
+      "id": "pickup_health_grab",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["player"]},
+        "b": {"tags_all": ["pickup_health"]},
+        "radius": 1.2
+      },
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "hp", "amount": 25},
+        {"type": "state_clamp", "target": "a", "field": "hp", "min": 0, "max": 100},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+
+    {
+      "id": "pickup_ammo_grab",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["player"]},
+        "b": {"tags_all": ["pickup_ammo"]},
+        "radius": 1.2
+      },
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "ammo", "amount": 5},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+
+    {
+      "_comment": "=== BOUNDS — clamp player + monsters to arena (XZ ±15). Y locked to 0 (planar combat).",
+      "id": "creature_bounds",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["creature"]},
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "position",
+        "value": "Vector3(clamp(self.state.position.x, -15, 15), 0, clamp(self.state.position.z, -15, 15))"
+      }
+    }
+  ]
+}

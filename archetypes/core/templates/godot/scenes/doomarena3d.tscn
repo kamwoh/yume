@@ -1,0 +1,57 @@
+[gd_scene load_steps=8 format=3]
+
+; DoomArena3D — first-person arena shooter. Dark sci-fi sky, dark floor,
+; red glowing horizon. Same engine path as fpsgarden but darker materials.
+
+[ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_horizon_color = Color(0.5, 0.1, 0.1, 1)
+ground_horizon_color = Color(0.18, 0.06, 0.08, 1)
+ground_bottom_color = Color(0.06, 0.04, 0.08, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 3
+ambient_light_color = Color(0.6, 0.4, 0.4, 1)
+ambient_light_sky_contribution = 0.4
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_1"]
+size = Vector2(30, 30)
+
+[sub_resource type="StandardMaterial3D" id="GroundMat_1"]
+albedo_color = Color(0.1, 0.08, 0.1, 1)
+metallic = 0.2
+roughness = 0.8
+
+[node name="World" type="Node"]
+script = ExtResource("1")
+data_root = "res://data/demo_doomarena3d"
+auto_start = true
+verbose = true
+renderer_script = "res://scripts/renderer_3d/entity_mesh_3d.gd"
+input_actions_press = PackedStringArray("spark")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.7, -0.3, 0.6, 0, 0.866, 0.5, -0.6, -0.35, 0.7, 0, 5, 0)
+light_color = Color(1, 0.7, 0.6, 1)
+light_energy = 0.8
+shadow_enabled = true
+
+[node name="Ground" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_1")
+material_override = SubResource("GroundMat_1")
+
+[node name="GameShell" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 1.6, 0)

@@ -1,0 +1,18 @@
+{
+  "_comment": "DoomArena3D scene — first-person, planar aim (use_pitch=false). Tick 0.05s for snappy combat. position_scale=1.0 because positions are in world units (meters), not pixels.",
+
+  "tick_seconds": 0.05,
+
+  "renderer": {
+    "position_scale": 1.0
+  },
+
+  "camera": {
+    "mode": "first_person_3d",
+    "follow_tag": "player",
+    "eye_height": 1.6,
+    "mouse_sensitivity": 0.003,
+    "use_pitch": false,
+    "fov": 78
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "_comment": "Invisible singleton. Tracks elapsed time + spawn/pickup countdowns. Tag 'clock' is queried by clock_advance, monster_spawn, and pickup_spawn rules.",
+  "definitions": [
+    {
+      "id": "arena_clock",
+      "tags": ["clock"],
+      "properties": {},
+      "state_init": {
+        "elapsed": 0.0,
+        "spawn_timer": 4.0,
+        "pickup_timer": 7.0
+      },
+      "visual": {
+        "hidden": true
+      }
+    }
+  ]
+}

@@ -68,6 +68,57 @@
         {"op": "box", "pos": [0, 0.05, 0], "size": [0.2, 0.1, 0.2], "color": "$mark"}
       ],
       "params": {"mark": "#aaaaaa"}
+    },
+
+    "imp_3d": {
+      "primitives": [
+        {"op": "sphere", "pos": [0, 0.45, 0], "radius": 0.4, "color": "$body"},
+        {"op": "sphere", "pos": [0.18, 0.6, 0.18], "radius": 0.07, "color": "$eye"},
+        {"op": "sphere", "pos": [-0.18, 0.6, 0.18], "radius": 0.07, "color": "$eye"}
+      ],
+      "params": {"body": "#a02020", "eye": "#ffd040"}
+    },
+
+    "demon_3d": {
+      "primitives": [
+        {"op": "sphere",   "pos": [0, 0.7, 0], "radius": 0.6, "color": "$body"},
+        {"op": "cylinder", "pos": [0.3, 1.2, 0], "radius": 0.06, "height": 0.3, "color": "$horn"},
+        {"op": "cylinder", "pos": [-0.3, 1.2, 0], "radius": 0.06, "height": 0.3, "color": "$horn"}
+      ],
+      "params": {"body": "#601810", "horn": "#3a0a0a"}
+    },
+
+    "bolt_3d": {
+      "primitives": [
+        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.18, "color": "$core"},
+        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.30, "color": "$tail"}
+      ],
+      "params": {"core": "#ffe060", "tail": "#ff8020"}
+    },
+
+    "spark_3d": {
+      "primitives": [
+        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.10, "color": "$glow"},
+        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.05, "color": "$core"}
+      ],
+      "params": {"glow": "#ffe080", "core": "#ffffff"}
+    },
+
+    "med_kit_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.25, 0],  "size": [0.5, 0.5, 0.5], "color": "$body"},
+        {"op": "box", "pos": [0, 0.26, 0.26], "size": [0.3, 0.08, 0.02], "color": "$cross"},
+        {"op": "box", "pos": [0, 0.26, 0.26], "size": [0.08, 0.3, 0.02], "color": "$cross"}
+      ],
+      "params": {"body": "#cc1818", "cross": "#ffffff"}
+    },
+
+    "ammo_box_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.2, 0],  "size": [0.5, 0.4, 0.35], "color": "$body"},
+        {"op": "box", "pos": [0, 0.42, 0], "size": [0.55, 0.04, 0.4], "color": "$band"}
+      ],
+      "params": {"body": "#e8c020", "band": "#806000"}
     }
   }
 }

@@ -1,0 +1,17 @@
+{
+  "_comment": "Ammo box. Yellow cube. Spawns randomly via clock pickup_timer. +5 ammo on contact.",
+  "definitions": [
+    {
+      "id": "ammo_pickup",
+      "tags": ["pickup", "pickup_ammo"],
+      "properties": {},
+      "state_init": {
+        "velocity": [0, 0, 0]
+      },
+      "visual": {
+        "mesh": "ammo_box_3d",
+        "params": {"body": "#e8c020", "band": "#806000"}
+      }
+    }
+  ]
+}

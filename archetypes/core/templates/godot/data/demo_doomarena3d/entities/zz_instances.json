@@ -1,0 +1,10 @@
+{
+  "_comment": "Initial placements — minimal. Player at center (eye-level Y=0; capsule body sits on ground). Clock invisible at origin (won't render). All other entities spawn in via rules.",
+
+  "initial_instances": [
+    {"def": "arena_clock", "id": "clock_1", "position": [0, 0, 0]},
+    {"def": "player",      "id": "player",  "position": [0, 0, 0]}
+  ],
+
+  "initial_relations": []
+}
