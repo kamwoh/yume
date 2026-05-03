@@ -138,7 +138,7 @@
 
     {
       "name": "monster_long_run_reaches_player",
-      "_": "Like live smoke (1200 ticks). Imp at typical spawn (10, 0, 5). Should reach player and trigger contact eventually. After 1200 ticks (60s simulated), monster count should be 0 (consumed by monster_hits_player) AND player.hp should be < 100.",
+      "_": "Like live smoke (1200 ticks). Imp at typical spawn (10, 0, 5). Should reach player and trigger contact eventually. After 1200 ticks (60s simulated), monster count is bounded (v2: demons + rangers spawn after 30s, so cap is more permissive than v1) AND player.hp should be < 100.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
@@ -151,7 +151,7 @@
       "ticks": 1200,
       "assertions": [
         {"type": "entity_count", "query": {"tags_all": ["monster"]},
-         "op": "<=", "value": 5},
+         "op": "<=", "value": 12},
         {"type": "entity_field", "select": "first",
          "query": {"tags_all": ["player"]},
          "field": "state.hp", "op": "<", "value": 100}
@@ -217,6 +217,126 @@
       "assertions": [
         {"type": "entity_count", "query": {"tags_all": ["bullet"]},
          "op": "==", "value": 0}
+      ]
+    },
+
+    {
+      "name": "ranger_fire_damages_player",
+      "_": "v2: spawn a ranger at distance 5 (within fire_range=6). After 80 ticks ranger fires multiple times; bullets travel 8 m/s → reach player; player.hp drops below 100. Tests the full ranger AI loop: cooldown decrement → fire → bullet flies → damage.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "hp": 100},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        },
+        "spawn": [
+          {"def": "monster_ranger", "id": "test_ranger", "position": [5, 0, 0]}
+        ]
+      },
+      "actions": [],
+      "ticks": 80,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.hp", "op": "<", "value": 100}
+      ]
+    },
+
+    {
+      "name": "ranger_holds_position_when_in_range",
+      "_": "v2: ranger AI plants when distance ≤ fire_range. Spawn at distance 5; after 30 ticks ranger should not have crossed into 'kamikaze' territory (still ≥ 4m from player).",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        },
+        "spawn": [
+          {"def": "monster_ranger", "id": "stand_ranger", "position": [5, 0, 0]}
+        ]
+      },
+      "actions": [],
+      "ticks": 30,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "stand_ranger",
+         "field": "state.position.x", "op": ">", "value": 4.0}
+      ]
+    },
+
+    {
+      "name": "enemy_bullet_damages_player",
+      "_": "v2: spawn enemy_bullet on top of player. Contact rule fires → -10 HP. After 3 ticks (one contact pass), player.hp should be ≤ 90.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "hp": 100},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        },
+        "spawn": [
+          {"def": "enemy_bullet", "id": "test_eb", "position": [0.5, 0.5, 0]}
+        ]
+      },
+      "actions": [],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.hp", "op": "<=", "value": 90}
+      ]
+    },
+
+    {
+      "name": "boss_spawns_when_score_reaches_25",
+      "_": "v2 signature moment: set player.score = 25, leave clock.boss_spawned = 0. boss_spawn_check fires on first contact tick → 1 boss exists, clock.boss_spawned latches to 1.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "score": 25},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0, "boss_spawned": 0}
+        }
+      },
+      "actions": [],
+      "ticks": 5,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["boss"]},
+         "op": "==", "value": 1},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["clock"]},
+         "field": "state.boss_spawned", "op": "==", "value": 1}
+      ]
+    },
+
+    {
+      "name": "boss_does_not_spawn_below_score_25",
+      "_": "v2: at score 24, no boss should spawn even after many ticks.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "score": 24},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0, "boss_spawned": 0}
+        }
+      },
+      "actions": [],
+      "ticks": 20,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["boss"]},
+         "op": "==", "value": 0}
+      ]
+    },
+
+    {
+      "name": "boss_killed_sets_victory_flag",
+      "_": "v2 signature win: spawn boss at low HP, hit it once → hp ≤ 0 → boss_killed_win sets clock.boss_killed=1 → HUD wins.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0, "boss_spawned": 1}
+        },
+        "spawn": [
+          {"def": "monster_boss", "id": "doomed_boss", "position": [10, 0, 0], "state": {"hp": 0}}
+        ]
+      },
+      "actions": [],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["clock"]},
+         "field": "state.boss_killed", "op": "==", "value": 1}
       ]
     }
   ]

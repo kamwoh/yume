@@ -1,11 +1,11 @@
 {
-  "_comment": "DoomArena3D HUD — same shape as 2D version. Win at 30 kills, lose if HP=0.",
+  "_comment": "DoomArena3D HUD v2 — score/HP/ammo/time stack + crosshair + bottom-left controls hint. Win latches on clock.boss_killed (boss spawns at score≥25, kill = win). Lose at HP=0.",
 
   "panels": [
     {
       "anchor": "top-left",
       "elements": [
-        {"type": "label", "binds": "player.score", "format": "💀 Kills: {} / 30", "size": 22},
+        {"type": "label", "binds": "player.score", "format": "💀 Kills: {} (Boss @ 25)", "size": 22},
         {"type": "spacer", "height": 4},
         {"type": "label", "binds": "player.hp", "format": "❤️ HP: {}", "size": 18},
         {"type": "progress_bar", "binds": "player.hp", "max": 100,
@@ -25,10 +25,10 @@
     }
   ],
 
-  "controls_hint": "WASD walk · Mouse aim\nSPACE fire · ESC release cursor",
+  "controls_hint": "WASD walk · Mouse aim\nSPACE fire · ESC release cursor\nR restart · Q quit",
 
-  "win":  {"binds": "player.score", "op": ">=", "value": 30,
-           "message": "🌟 ARENA CLEAR 🌟\nAll hostiles down."},
+  "win":  {"binds": "clock.boss_killed", "op": ">=", "value": 1,
+           "message": "🌟 CHAMBER STABILIZED 🌟\nThe Industrial Mover is down.\nLast Marine endures."},
   "lose": {"binds": "player.hp", "op": "<=", "value": 0, "sustained": 1,
-           "message": "💀 KIA 💀\nThe arena claims you."}
+           "message": "💀 KIA 💀\nContainment breach unrecovered.\n[R] retry · [ESC] menu · [Q] quit"}
 }

@@ -39,12 +39,25 @@ no GDScript files belong here.
   Allowed: bindings (`self.state.X`, `target.X`, `world.tick`), math
   helpers (`clamp`, `min`, `max`, `abs`, `sin`, `cos`, `sqrt`, `pow`,
   `floor`, `ceil`, `lerp`, `randf`), arithmetic, comparison, bitwise
-  (`<<`, `&`, `|`), Vector2/Array subscript (`v[0]`, `a[1]`), and
-  **Python-style ternary `a if cond else b`**. **NOT** C-style
-  `cond ? a : b` — Godot 4.6.1 Expression doesn't parse it
-  (empirically verified during harvestcore QA, 2026-05-02).
+  (`<<`, `&`, `|`), Vector2/Array subscript (`v[0]`, `a[1]`).
   No function calls outside the math helpers — defer to W4.5 AST
   whitelist when it lands.
+- ⚠️ **Ternary `a if cond else b` is BROKEN.** Godot 4.6.1's
+  `Expression` parses it without error but **always returns the IF
+  branch**, ignoring the condition. C-style `cond ? a : b` doesn't
+  parse at all. Empirically verified during doomarena3d v2 QA
+  (2026-05-03) — `5.0 if false else 0.0` returns 5.0; `5.0 if true
+  else 0.0` also returns 5.0. **Workaround**: use a clamp-based
+  step function:
+  ```
+  // step = 1 if (x > threshold) else 0
+  clamp((x - threshold) * 1e6, 0, 1)
+  // result = move if (cond) else 0
+  move * clamp((cond_lhs - cond_rhs) * 1e6, 0, 1)
+  ```
+  The `* 1e6` makes the boundary sharp (<1 µunit transition zone).
+  Older demos (harvestcore, tinypond) that use ternary may have
+  silently been taking the IF branch always — audit on next pass.
 - ✅ **Keep demos cross-renderer.** If a rule's `radius` only makes sense
   in 2D pixels, document why; same for 3D world units. Default: pick
   values that work both with `position_scale=0.05` for 3D and pixel

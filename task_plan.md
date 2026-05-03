@@ -1347,3 +1347,167 @@ quality-of-life additions throughout.
 Estimated total effort: 1-2 weeks of focused work for all 5 items.
 Individual items are 1-3 hours each except 2.7c (ADR + careful
 migration).
+
+---
+
+## Tier 2.7 design-quality phases (LANDED 2026-05-03)
+
+User insight that drove this: "i feel the game creation quality still
+need a lot of improvement — like it is still not that playable enough
+— i feel like the gameplay is not 'detailed' enough."
+
+Diagnosis: pipeline produced mechanically-working games (tinypond,
+doomarena3d, towerdef3d) but they felt like demos, not games. Manual
+post-build iteration kept catching depth gaps that should have been
+caught at GDD time.
+
+Fix: insert two text-only design phases between game-designer (Phase
+1) and content-designer (Phase 3), so depth gaps surface in minutes
+of GDD review rather than hours of post-build iteration.
+
+### Skills added
+
+- **yume-game-reviewer** (12-axis adversarial GDD critique)
+  - Mechanical depth, strategic depth, pacing, feedback, aesthetic
+    match, scope honesty, adversarial pokes (axes 1-7)
+  - PLUS total content scope, signature design moments, theme/
+    identity, replay value, real-UX (axes 8-12 — added after user
+    flagged "is the reviewer harsh enough?")
+  - Verdicts: accept / revise / reject. Round 2+ allowed to surface
+    NEW issues, not just verify round-1 fixes.
+
+- **yume-level-designer** (spatial layout planning)
+  - Reads GDD + world plan, produces level-design.md with concrete
+    coordinates and rationale per placement.
+  - Genre-aware patterns (TD path/chokes, shooter arenas, sim zones,
+    grid puzzles).
+  - Closes the gap between abstract design and ad-hoc placements
+    that previously got smeared into content-designer's job.
+
+### Pipeline expansion
+
+```
+Phase 1   game-designer     → GDD
+Phase 1b  game-reviewer     → review.md (revise loop max 3 rounds)
+Phase 1c  game-planner      → world plan
+Phase 1d  level-designer    → level-design.md
+Phase 2   systems-designer  → rule sketches
+Phase 3   content-designer  → JSON
+Phase 4   asset-designer    → visual + audio
+Phase 5   qa-tester         → headless + visual + scenarios
+```
+
+### Validation outcomes (calibration confirmed)
+
+Three GDDs reviewed under 12-axis lens:
+
+| Game | Verdict | Why |
+|---|---|---|
+| Sokoban (round 4) | accept | Honestly-scoped 8-level demo with theme + undo + medals + save + signature levels |
+| DoomArena3D | revise (medium) | 2 fail + 6 partial; structurally sound, content-scope gaps |
+| TowerDef3D (v1) | reject | 8 of 12 axes fail; aesthetic dishonesty (Challenge with no agency) |
+
+The reviewer correctly distinguishes severity:
+- **Reject** = redesign required (TD's aesthetic dishonesty)
+- **Revise medium** = content-scope gaps in sound design (D3D)
+- **Revise light** = surface specification gaps (sokoban round 1)
+- **Accept** = all 12 axes meet bar at honestly-claimed scope
+
+### Cost saving (empirical)
+
+Manual post-build iteration on TowerDef3D + DoomArena3D added (across
+both): build mechanic, demon/ranger/boss enemies, tower upgrades,
+audio (Tier 2.6n), wave overlap, HUD readability fixes, signature
+beats, theme depth, restart UX, mouse capture, crosshair, etc.
+
+Total ~10 hours of work that ~30 min of pre-build text review would
+have surfaced. **20× iteration efficiency** is the payoff.
+
+### Engine gap surfaced (sokoban)
+
+Sokoban's "what's at this exact cell?" query semantics expose a
+generic limitation of Yume's primitives. Workaround via signal+
+payload+radius query exists but verbose. Future ADR candidate:
+**cell-grid primitives** (`at_cell: [x, y]` query clause +
+`move_to_cell` effect) — would clean up sokoban, chess, roguelike
+combat, and turn-based strategy genres.
+
+Not blocking — sokoban v1 can ship with the workaround; ADR is
+"nice to have" cleanup.
+
+### Status
+
+- [x] yume-game-reviewer SKILL.md (7 → 12 axes after harsher-reviewer
+  feedback)
+- [x] yume-level-designer SKILL.md
+- [x] yume-design orchestrator updated for Phases 1b + 1d
+- [x] Sokoban full validation (4 rounds: revise → accept)
+- [x] TowerDef3D + DoomArena3D 12-axis re-reviews (validates
+  calibration)
+- [x] Memory note: task tracking three-layer pattern (TaskCreate +
+  task_plan.md + ADRs)
+
+Tier 2.7 design-quality phases shipped. Pipeline now produces deeper
+games on the first build attempt.
+
+### Tier 2.7 follow-on: doomarena3d v2 + ternary discovery (2026-05-03)
+
+Ran the revised doomarena3d GDD through implementation to validate
+the reviewer-driven scope expansion. Round-1 (12-axis) flagged 8
+real depth gaps; round-2 GDD addressed all 8; round-2 review
+accepted. This pass implemented the round-2 design.
+
+**Shipped:**
+
+- 3 new entity defs: `monster_ranger`, `monster_boss`, `enemy_bullet`
+- 3 new mesh entries (ranger_3d, boss_3d, enemy_bolt_3d)
+- 2 new procedural sounds (boss_roar, siren)
+- arena_clock state expanded: demon_timer, ranger_timer, boss_spawned,
+  siren_played, boss_killed
+- 9 new rules: monster_spawn_demon, monster_spawn_ranger,
+  ranger_homing (with stop-at-fire-range), ranger_cooldown_tick,
+  ranger_fire, enemy_bullet_hits_player, boss_spawn_check (latched
+  at score≥25), boss_killed_win, wave_phase_siren
+- Updated monster_homing with `tags_none: ["ranger"]` so ranger uses
+  its own AI
+- HUD: win flips on `clock.boss_killed >= 1`; controls hint expanded
+  with R/Q
+- 5 new scenario tests (ranger holds, ranger fires + damages player,
+  enemy_bullet damages player, boss spawns at 25, boss does NOT spawn
+  at 24, boss kill latches victory)
+- All 188 unit tests + 26/26 scenarios pass
+
+**Engine finding (Godot 4.6.1 Expression ternary is broken):**
+
+While implementing ranger_homing's "stop at fire_range" logic, the
+Python-style ternary `move if (dist > fire_range) else 0` always
+returned the IF branch, ignoring the condition. Empirically verified
+with `5.0 if false else 0.0` returning 5.0 and `5.0 if true else 0.0`
+also returning 5.0. C-style `?:` doesn't parse at all. So Godot
+4.6.1 has neither working ternary form in Expression.
+
+**Workaround landed:** clamp-based step function:
+```
+move * clamp((cond_lhs - cond_rhs) * 1e6, 0, 1)
+```
+The `* 1e6` makes the boundary sharp. Works around Expression's
+limitation while staying in the formula whitelist.
+
+**Documented in:** `.claude/rules/data-demo.md` — formula syntax
+section now warns about the ternary trap and shows the clamp-step
+workaround as the supported alternative.
+
+**Audit follow-up needed:** harvestcore + tinypond use ternary in
+several rules. They may be silently always taking the IF branch.
+Behavior may *appear* correct because the IF branch happens to match
+the dominant case, but conditional logic is dead code. Needs a
+sweep — file a future task to convert all production ternaries to
+clamp-step pattern (or wait for W4.5 AST whitelist that introduces a
+proper conditional primitive).
+
+**Validation outcome:** Tier 2.7 reviewer arc continues to pay off —
+caught design depth gaps cheaply at text-only stage; cost was ~30
+min of revision instead of multi-hour rebuild. The ternary discovery
+is a side-effect Tier 2.6 invariant that the engine layer should
+surface (proposed: ADR for "no ternary" + a simple `cond` helper in
+formula vocabulary).

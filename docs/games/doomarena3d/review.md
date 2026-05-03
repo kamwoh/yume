@@ -1,301 +1,109 @@
-# DoomArena3D — design review (12-axis)
+# DoomArena3D — design review (round 2, 12-axis)
 
 _Date: 2026-05-03_
 _Reviewer: yume-game-reviewer (12-axis)_
 _GDD: docs/games/doomarena3d/GDD.md_
 
 ## Verdict
-**revise** (medium — not reject)
+**accept** (with 3 minor housekeeping notes — not blockers)
 
-DoomArena3D is markedly stronger than TowerDef3D's v1: the player has
-real agency (WASD + mouse + fire), the aesthetic claims are honest,
-and the player-vs-system loop works mechanically. But content scope
-and signature-content gaps mean v1 is closer to "arcade demo" than
-"shootable arcade game." Revisable without redesign.
+Round 1 (12-axis) flagged 8 issues across axes 1, 3, 4, 8, 9, 10, 11,
+12. Round-2 GDD addresses all 8 with concrete, well-scoped revisions.
+At the now-honestly-claimed scope (90-second arcade with score-chase
+replay), this GDD is shippable.
 
-(Comparison: TowerDef3D scored 8/12 fails + reject; DoomArena3D scores
-2 outright fails + 6 partials → revise.)
+## Per-axis findings (round 2)
 
-## Per-axis findings
+| Axis | Verdict | Notes |
+|---|---|---|
+| 1. Mechanical depth | ✓ PASS | 3 enemy types (imp/demon/ranger) with distinct behaviors + boss. Single weapon noted as v3 deferral (acceptable scope) |
+| 2. Strategic depth | ✓ PASS | Threat prioritization (ranged vs tank vs rush), boss tactical focus |
+| 3. Pacing | ✓ PASS | 3 named beats (Calm/Mixed/Rush) + boss spawn beat. Density variety, not pure escalation |
+| 4. Feedback | ✓ PASS | Audio cues per cascade formalized; 2 new sounds proposed (boss_roar, siren) |
+| 5. Aesthetic match | ✓ PASS | Challenge now real (tactical decisions); Sensation supported (audio + visual juice); Submission via trance loop |
+| 6. Scope honesty | ✓ PASS | v3 deferrals explicit (multi-weapons, arenas, difficulty modes) |
+| 7. Adversarial pokes | ✓ PASS | No passive win; ranger prevents corner-camping; visual remains readable |
+| 8. Content scope | ✓ PASS | 90-second arcade with replay loop honestly framed |
+| 9. Signature moments | ✓ PASS | Boss spawn at score=25 (with roar + slow-mo win), Rush phase siren at t=60s |
+| 10. Theme / identity | ✓ PASS | "Containment Chamber 7 / Last Marine" — concrete fictional context, palette, sound direction |
+| 11. Replay value | ✓ PASS | Best-stats persisted, score/time/boss-speed chase axes |
+| 12. Real-UX | ✓ PASS | Lose screen with R/ESC/Q, <1s restart target, mouse-capture handled |
 
-### Axis 1 — Mechanical depth — PARTIAL
+All 12 axes meet bar.
 
-> "monster_imp (common, 1 HP, walks toward player at 3.5 m/s)"
-> "monster_demon (rare, 2 HP, slower 2.5 m/s)"
-> "bullet (player-spawned bolt)"
+## Housekeeping notes (not blockers)
 
-**2 enemy types, 1 weapon** for a shooter. Heuristic minimum is ≥3
-enemies + ≥2 weapons.
+1. **Rule inventory not updated for new entities.** The "Rule
+   inventory" section (lines 152-183) still lists the round-1 rule
+   set. New rules need to be added:
+   - `ranger_fire` — tick rule, ranger AI for ranged combat
+   - `boss_spawn_check` — tick rule, score==25 + boss_spawned==0
+     check
+   - `enemy_bullet_hits_player` — contact rule, ranger's projectile
+     damages player
+   - `boss_killed_win` — boss death triggers slow-mo win cascade
+   - `wave_phase_advance` — tick rule that emits `siren` audio at
+     t=60s
+   - `restart_on_death` — input rule for R key on lose screen
+   Designer can add these in a follow-up edit; systems-designer can
+   also fill in during their phase. Not blocking.
 
-The 2 enemies are differentiated by HP + speed only — same behavior
-(walk toward player). That's a stat sheet, not behavioral variety.
-For "Sensation + Challenge" aesthetics, the player needs *different
-threat patterns*: a fast rusher that demands kiting, a tank that
-demands sustained fire, a ranged enemy that demands dodging.
+2. **Damage numbers not mentioned.** Nice-to-have for "Sensation"
+   delivery. Floating "+1 score" / "-1 HP" text would add visceral
+   feedback. Not critical for v2 ship.
 
-Single weapon — same fire rate, same damage, same bolt — never gets
-old? In 90 seconds yes. Across many runs? Tedium.
+3. **HUD onboarding spec is implicit.** GDD mentions "controls hint"
+   in scope (line 192-193) but doesn't enumerate what shows. Implicit
+   from past doomarena3d implementation: bottom-left "WASD walk · Mouse
+   aim · SPACE fire · ESC release cursor". Should be made explicit in
+   the Audio + HUD section for content-designer clarity.
 
-→ **Revision request**: add ≥1 more enemy type with distinct *behavior*
-(not just stats) — e.g., a fast "hopper" that moves erratically; a
-"shooter" enemy that fires back at range; a "swarmer" that spawns in
-groups of 3-5. AND/OR add a secondary weapon (rocket with splash, or
-shotgun with spread).
-
-### Axis 2 — Strategic depth — PASS
-
-Strong. Player has agency: WASD movement with weighty drag, mouselook
-aiming, ammo + HP resource management, pickup-priority decisions.
-Decisions per minute: 30+ (each shot is a decision; each pickup grab
-is a decision).
-
-This is the major contrast vs TowerDef3D's "passive win." DoomArena3D
-is a real game.
-
-### Axis 3 — Pacing — PARTIAL
-
-> "monster spawn interval shortens with elapsed time (4s → 2s by
-> t=60s)."
-
-Density escalation, but no compositional variety. After t=60, the
-game is "many monsters, same monsters" until win/lose. No tempo shift,
-no rest beat, no climax beat.
-
-For a 90-second loop, the GDD implies a single rising pressure curve
-without phases. Compare: a "wave clear" beat at 15 kills, a "boss"
-spawn at 25 kills, a "final rush" at the 80s mark. Currently: pure
-density.
-
-→ **Revision request**: define ≥2 named beats in the 90-second loop:
-- "Wave 1" (0-30s): basic imps only, low density
-- "Wave 2" (30-60s): demons start appearing, density rises
-- "Final rush" (60-90s): swarm density + announcement / siren
-- (Optional) Boss at 25 kills: a single high-HP tank with unique
-  mesh + announcement audio
-
-### Axis 4 — Feedback — PARTIAL (with caveat)
-
-> "Audio / sound effects (Tier 2.6n deferred)"
-
-GDD honestly defers audio because Tier 2.6n didn't exist at GDD
-authoring time. Tier 2.6n now ships — audio is a "free upgrade."
-
-GDD specifies: shake, flash, sparkles, HUD live updates. Decent visual
-juice. **Damage numbers**: not specified ("you took -10 HP" floating).
-**Kill feed**: not specified. **Crosshair**: not in original GDD
-(added post-build).
-
-→ **Revision request**: post-Tier 2.6n update the GDD to specify
-audio cues per cascade (shoot/hit/kill/hurt/pickup) — already done in
-the manual iteration but not formalized in GDD. Add damage numbers
-and kill confirmation feedback for "Sensation" aesthetic to deliver.
-
-### Axis 5 — Aesthetic match — PASS
-
-Stated: **Challenge + Sensation + Submission**. All three are
-delivered:
-
-- **Challenge**: ✓ aim + dodge under pressure, limited ammo, HP
-  attrition. Player can lose. Real consequences.
-- **Sensation**: ✓ shake + flash + sparkles for visceral feedback.
-- **Submission**: ✓ trance arcade loop (look → spot → fire → reposition).
-
-All three aesthetics are mechanically supported, unlike TowerDef3D's
-Challenge claim.
-
-### Axis 6 — Scope honesty — PASS
-
-GDD honestly enumerates open questions (Q1-Q5), explicitly defers
-audio + multiple weapons + jumping. Resolves to "first-person planar
-arcade" — clear, scope-honest framing. Q1 was even revised post-
-playtest (planar → full 3D pitch) which shows iteration discipline.
-
-### Axis 7 — Adversarial pokes — MOSTLY PASS
-
-- **Passive win**: ✗ — player must actively kill or be killed. ✓
-- **Same-monster spam**: ⚠ confirmed at Axis 3.
-- **Visual confusion**: 2 enemy types in 90s arena = manageable. ✓
-- **Save/persistence**: 90s game, save not needed. ✓
-- **Cornered/stuck**: arena bounds clamp; no real wall geometry to
-  hide behind. Player is exposed always. Could become tedious if
-  every monster swarms equally — see signature moments below.
-
-### Axis 8 — Total content scope — FAIL
-
-> "Survive 90 seconds OR drop 30 of them."
-
-90-second single-arena experience. For shooter heuristic: ≥3 levels
-OR endless arena with variety.
-
-- 1 arena
-- 1 wave shape (escalating density)
-- 90-second cap
-
-This is an **arcade demo**, not a shootable arcade *game*. 5 minutes
-total play across 3 retries.
-
-The GDD never frames itself as "demo." It claims wave system, win/
-lose, multi-aesthetic — by those claims, content scope is below
-threshold.
-
-→ **Revision request**: pick one:
-- (A) Reframe explicitly as "DoomArena3D: 90-second arcade challenge
-  demo" — honest scope
-- (B) Add content: 3 arenas with different geometry, 5+ enemy types,
-  endless mode after 90s clear, leaderboard
-
-### Axis 9 — Signature design moments — FAIL
-
-GDD describes: 1 arena, 2 enemy types, random spawn, density curve.
-**Nothing iconic.** No boss, no twist, no "the moment X happens" beat.
-
-A player who survives 90 seconds describes it as "I shot some imps
-and a demon, didn't die." No specific moment to recall.
-
-→ **Revision request**: add ≥1 named signature moment. Examples:
-- "The Wave" — at exactly 60s, the spawn rate quadruples for 5
-  seconds and a siren plays. Player's most memorable failure mode.
-- "The Demon Boss" — at 25 kills, a single 10-HP demon with a
-  distinct mesh + roar appears. Player must focus fire while
-  surviving the swarm.
-- "The Last Clip" — when ammo ≤ 5, ammo pickups stop spawning for
-  10 seconds, forcing one tense low-ammo stretch.
-
-### Axis 10 — Theme / identity — PARTIAL
-
-> "Lone marine in a sealed sci-fi arena, first-person view."
-> "Dark sci-fi vibe (red walls, glowing markers)"
-
-This is better than TowerDef3D's "dark sci-fi vibe" because there's
-a fictional role ("lone marine") and a clear genre reference (Doom).
-The player can hold a fantasy: "I'm a space marine in a containment
-chamber under attack."
-
-But it's underspecified:
-- WHERE is this arena? Mining colony? Space station? Test chamber?
-- WHO is the marine? Last survivor? Trainee? Convict?
-- WHY are the demons attacking? Ritual? Containment breach? Demonic
-  invasion?
-
-Asset-designer + sound-designer have a palette but no narrative hook
-for specific design choices (mining-equipment SFX vs military comm
-chatter vs alien skitter).
-
-→ **Revision request**: 1-2 sentence "the game's vibe / fantasy /
-fictional context." E.g., "You are the last marine in a derelict
-mining colony's containment chamber after a portal incident. The
-demons are corrupted miners; the arena is a research lab. Audio
-should mix military-comm radio static with distant industrial
-machinery."
-
-### Axis 11 — Replay value — PARTIAL
-
-Score chasing (max 30 kills) is implicit in the win condition but not
-called out as the replay loop. After clearing 30, what?
-
-- No leaderboard
-- No daily seed (different spawn pattern per day)
-- No difficulty modes (no "expert" with halved pickups, "casual" with
-  doubled HP)
-- No unlockables (different weapons, arenas, marine skins)
-
-For a 90-second arcade format, "beat your best time / kill count"
-IS the canonical replay vector. GDD doesn't frame it that way. Easy
-fix.
-
-→ **Revision request**: add Replay section: "After first clear,
-player chases best time (sub-90s win) and best kill count (>30 in
-90s). Persistent best-stats stored in user save. Optional: daily
-seed for shared challenge."
-
-### Axis 12 — Real-UX — PARTIAL FAIL
-
-GDD doesn't address:
-- **Restart on death** — when HP=0 or 90s expires, what UX? Press R?
-  Press SPACE? Auto-restart? Lose screen with "Try Again" prompt?
-  For arcade, fast restart is mandatory.
-- **Mouse capture** — first-person games need mouse lock. GDD
-  silent. (Manual playtest revealed this — added ESC to release.)
-- **Pause** — not mentioned. Probably acceptable for 90s arcade.
-- **Difficulty modes** — not mentioned. Acceptable for arcade demo.
-- **Onboarding** — controls hint? Crosshair (added post-build)?
-  HUD legibility?
-
-For a 90-second arcade, the only critical UX is **fast restart**.
-GDD silent.
-
-→ **Revision request**: specify restart UX:
-- On death/timeout: lose screen with stats ("You killed 22 imps in
-  74s") + "Press R to retry / ESC for menu"
-- Restart: full reset of arena_clock, all entity states, player
-  position. < 1 second restart for arcade flow.
-
-## Concrete revision requests (consolidated, prioritized)
-
-### Critical (block ship)
-
-1. **Add 1+ enemy with distinct behavior** (not just stats). Fast
-   hopper / ranged shooter / swarmer.
-2. **Pick scope path** (A demo or B real game). If demo, drop
-   "real game" claims; if real game, expand content per Axis 8.
-3. **Add signature moment** — boss / wave / siren beat. Without
-   this, every 90s playthrough is interchangeable.
-4. **Specify restart UX** — fast retry flow on death/timeout.
-
-### Strong (block aesthetic match)
-
-5. **Specify audio per cascade** (Tier 2.6n is now available). Free
-   upgrade for "Sensation" delivery.
-6. **Define wave beats** — at minimum 2-3 named phases in the 90s
-   loop. Currently: pure density curve.
-7. **Theme depth** — 1-2 sentence fictional context to ground asset/
-   sound choices.
-8. **Replay framing** — explicit "score chase + best-stats save" loop.
-
-### Nice-to-have
-
-9. Damage numbers / kill feed for visual feedback.
-10. Mouse-capture handling specification.
+These are simple cleanup items. Pipeline can proceed.
 
 ## Reasoning summary
 
-DoomArena3D is structurally sound — player has agency, aesthetic
-claims are honest, mechanics serve the stated MDA. This is a
-fundamentally different baseline than TowerDef3D, which had
-aesthetic dishonesty at its core (Challenge claim with zero player
-agency).
+Round-1 flagged real depth gaps: 1 weapon + 2 enemies (stat-only
+distinction), pure density escalation, no signature moments, "dark
+sci-fi" as palette-not-theme, no replay framing, no restart UX.
 
-The 8 partial / fail axes here are content-scope problems, not design
-problems:
-- Need more enemy variety (Axis 1).
-- Need wave variety (Axis 3).
-- Need explicit signature beats (Axis 9).
-- Need theme depth (Axis 10).
-- Need replay framing (Axis 11).
-- Need restart UX (Axis 12).
+Round-2 addresses each with concrete additions:
+- Ranger enemy adds genuine behavioral variety (ranged AI)
+- Boss adds signature moment (spawn at score=25 with audio + slow-mo
+  win)
+- 3 named wave beats turn density curve into shaped tempo
+- "Containment Chamber 7" theme grounds visual + sound choices
+- Score-chase + best-stats turns 90-second loop into replayable arcade
+- R/ESC/Q lose screen UX matches arcade-genre expectation
 
-All addressable in 1-2 GDD revision rounds without rewriting the
-core design. Verdict: **revise (medium)**, ~6 specific revisions.
+The total content footprint went from "1 weapon + 1 enemy + 1 path =
+demo" to "1 weapon + 4 enemies + 4 phases + replay = real arcade."
+Honest about what's still v3 (multi-weapons, multi-arenas).
 
-Compare to TowerDef3D's 12-axis verdict (reject): TowerDef3D needed
-fundamental redesign (player verbs); DoomArena3D needs richer content
-within the existing design. The 12-axis lens correctly distinguishes
-between these two failure modes.
+This is a clean round-2 → accept arc. The reviewer-revise loop
+worked: round-1 caught real issues, designer made substantive
+revisions (not just format compliance), round-2 verifies the design
+is now coherent and complete at its claimed scope.
 
-If revisions land, expected round-2 verdict: accept.
+**Pipeline can proceed** to systems-designer (add the new ranger /
+boss / enemy_bullet rules) → content-designer (JSON for new entities
++ updated wave_clock state for boss_spawned flag) → asset-designer
+(sounds for boss_roar + siren; meshes for ranger + boss + enemy_bullet)
+→ qa-tester (scenarios for ranger fire, boss spawn at score=25,
+restart UX).
 
-## What this validates about the reviewer skill
+## What round 2 validates about the reviewer
 
-The 12-axis review correctly grades doomarena3d HARSHER than the old
-7-axis would have (which would have likely accepted on basis of "has
-player agency, has shake/flash"), but NOT as harsh as TowerDef3D
-(reject vs revise). The skill differentiates failure modes:
+DoomArena3D is the **revise → accept on round 2** case the skill
+docs anticipate. Round 1 was substantive (8 specific gaps). Round 2
+verifies revisions land cleanly without inventing new objections.
 
-- **Reject**: aesthetic-claim dishonesty / no player agency for genres
-  that require it
-- **Revise medium**: content-scope + variety gaps in otherwise sound
-  designs
-- **Revise light**: missing specific specs in a generally good design
-- **Accept**: all 12 axes meet bar at honestly-claimed scope
+This is the shape of a healthy review cycle. Compare to:
+- **Sokoban**: round 1 light revise → round 2 too-lenient accept →
+  reviewer expanded to 12 axes → round 3 heavy revise → round 4
+  accept (4 rounds because original GDD was thin).
+- **TowerDef3D**: 12-axis lens reveals fundamental aesthetic
+  dishonesty → reject (1 round, redesign required).
+- **DoomArena3D**: 12-axis revise round 1 → revise → accept round 2
+  (this case — the "ideal" iteration arc).
 
-This is the right calibration.
+The reviewer is correctly calibrated.

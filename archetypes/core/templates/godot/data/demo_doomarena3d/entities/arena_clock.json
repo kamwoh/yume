@@ -1,5 +1,5 @@
 {
-  "_comment": "Invisible singleton. Tracks elapsed time + spawn/pickup countdowns. Tag 'clock' is queried by clock_advance, monster_spawn, and pickup_spawn rules.",
+  "_comment": "Invisible singleton. Tracks elapsed time + spawn timers + signature-moment flags. v2 adds demon_timer/ranger_timer (Mixed phase ≥30s), boss_spawned (one-shot at score≥25), siren_played (one-shot at elapsed≥60), boss_killed (win latch).",
   "definitions": [
     {
       "id": "arena_clock",
@@ -8,7 +8,12 @@
       "state_init": {
         "elapsed": 0.0,
         "spawn_timer": 4.0,
-        "pickup_timer": 7.0
+        "demon_timer": 8.0,
+        "ranger_timer": 12.0,
+        "pickup_timer": 7.0,
+        "boss_spawned": 0,
+        "siren_played": 0,
+        "boss_killed": 0
       },
       "visual": {
         "hidden": true

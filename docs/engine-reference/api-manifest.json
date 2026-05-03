@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-02T21:00:30+00:00",
+  "generated_at": "2026-05-03T18:55:46+00:00",
   "generated_from": "archetypes/core/templates/godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -79,7 +79,19 @@
       "source": "effect_apply.gd"
     },
     {
+      "type": "velocity_lerp",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "velocity_set_relative",
+      "source": "effect_apply.gd"
+    },
+    {
       "type": "emit",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "emit_shell_event",
       "source": "effect_apply.gd"
     }
   ],

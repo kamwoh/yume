@@ -1,5 +1,5 @@
 {
-  "_comment": "DoomArena3D rules (~17). 3D port of demo_doomarena. Categories: clock, input, AI, combat, pickups, bounds. Uses velocity_set_relative + facing-based bullet velocity.",
+  "_comment": "DoomArena3D rules — v2 (Tier 2.7). Categories: clock, input, AI, combat, pickups, bounds, plus v2 additions: ranger AI (stop+fire), enemy bullet, boss spawn at score≥25, boss-killed-win, wave phases, demon/ranger spawn after Mixed phase (≥30s), siren at Rush phase (≥60s).",
 
   "rules": [
 
@@ -11,6 +11,8 @@
       "effect": [
         {"type": "state_add", "target": "self", "field": "elapsed", "amount": 0.05},
         {"type": "state_add", "target": "self", "field": "spawn_timer", "amount": -0.05},
+        {"type": "state_add", "target": "self", "field": "demon_timer", "amount": -0.05},
+        {"type": "state_add", "target": "self", "field": "ranger_timer", "amount": -0.05},
         {"type": "state_add", "target": "self", "field": "pickup_timer", "amount": -0.05}
       ]
     },
@@ -30,6 +32,40 @@
          ]},
         {"type": "state_set", "target": "self", "field": "spawn_timer",
          "value": "max(2.0, 4.0 - self.state.elapsed * 0.022)"}
+      ]
+    },
+
+    {
+      "_comment": "Mixed phase (elapsed ≥ 30s): demons start spawning every 8s.",
+      "id": "monster_spawn_demon",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"], "state": {"demon_timer_lt": 0.0, "elapsed_gte": 30}},
+      "effect": [
+        {"type": "spawn",
+         "template": "monster_demon",
+         "position": [
+           "cos(randf() * 6.28318) * 14",
+           0,
+           "sin(randf() * 6.28318) * 14"
+         ]},
+        {"type": "state_set", "target": "self", "field": "demon_timer", "value": 8.0}
+      ]
+    },
+
+    {
+      "_comment": "Mixed phase: rangers start spawning every 12s. Slower than demons because they're more dangerous (ranged + forces flanking).",
+      "id": "monster_spawn_ranger",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"], "state": {"ranger_timer_lt": 0.0, "elapsed_gte": 30}},
+      "effect": [
+        {"type": "spawn",
+         "template": "monster_ranger",
+         "position": [
+           "cos(randf() * 6.28318) * 14",
+           0,
+           "sin(randf() * 6.28318) * 14"
+         ]},
+        {"type": "state_set", "target": "self", "field": "ranger_timer", "value": 12.0}
       ]
     },
 
@@ -103,11 +139,11 @@
     },
 
     {
-      "_comment": "=== MONSTER AI: home toward player on XZ plane. Same broadcast pattern as 2D doomarena (radius 1000 = always fires). Y kept at 0 (planar combat).",
+      "_comment": "=== MONSTER AI: home toward player on XZ plane. Excludes ranger (uses ranger_homing instead — stops at fire_range). Imps + demons + boss all use this. Y kept at 0 (planar combat).",
       "id": "monster_homing",
       "trigger": {"type": "contact"},
       "query": {
-        "a": {"tags_all": ["monster"]},
+        "a": {"tags_all": ["monster"], "tags_none": ["ranger"]},
         "b": {"tags_all": ["player"]},
         "radius": 1000
       },
@@ -118,6 +154,73 @@
         "y": 0,
         "z": "(b.state.position.z - a.state.position.z) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 1) * a.properties.speed"
       }
+    },
+
+    {
+      "_comment": "=== RANGER AI: home toward player ONLY when farther than fire_range (6m). Inside that radius, velocity → 0 (ranger plants and fires). Uses clamp-based step function (Godot 4.6.1 Expression doesn't honor `if/else` ternary in formulas — it parses but always returns the IF branch).",
+      "id": "ranger_homing",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["ranger"]},
+        "b": {"tags_all": ["player"]},
+        "radius": 1000
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "a",
+        "x": "(b.state.position.x - a.state.position.x) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 0.1) * a.properties.speed * clamp((sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)) - a.properties.fire_range) * 1000, 0, 1)",
+        "y": 0,
+        "z": "(b.state.position.z - a.state.position.z) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 0.1) * a.properties.speed * clamp((sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)) - a.properties.fire_range) * 1000, 0, 1)"
+      }
+    },
+
+    {
+      "_comment": "Decrement ranger fire_cooldown each tick. tick_seconds=0.05 → cooldown reaches 0 in (1.5s / 0.05) = 30 ticks if reset to 1.5.",
+      "id": "ranger_cooldown_tick",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["ranger"]},
+      "effect": {"type": "state_add", "target": "self", "field": "fire_cooldown", "amount": -0.05}
+    },
+
+    {
+      "_comment": "Ranger fires enemy_bullet when player in fire_range AND cooldown ≤ 0. once_per_a prevents duplicate per-pair fires. Bullet velocity = unit-vector toward player × 8 m/s.",
+      "id": "ranger_fire",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["ranger"], "state": {"fire_cooldown_lte": 0.0}},
+        "b": {"tags_all": ["player"]},
+        "radius": 8.0,
+        "once_per_a": true
+      },
+      "effect": [
+        {"type": "spawn", "template": "enemy_bullet",
+         "position": ["a.state.position.x", 1.0, "a.state.position.z"],
+         "overrides": {"state": {"velocity": [
+           "(b.state.position.x - a.state.position.x) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 0.1) * 8.0",
+           0,
+           "(b.state.position.z - a.state.position.z) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 0.1) * 8.0"
+         ]}}},
+        {"type": "state_set", "target": "a", "field": "fire_cooldown", "value": "a.properties.fire_cooldown_max"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "shoot"}
+      ]
+    },
+
+    {
+      "_comment": "Enemy bullet hits player → -10 HP, red flash, hurt sound, bullet removed. Engine auto-decrements lifetime; bullet despawns at 0.",
+      "id": "enemy_bullet_hits_player",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["enemy_bullet"]},
+        "b": {"tags_all": ["player"]},
+        "radius": 1.0
+      },
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "hp", "amount": -10},
+        {"type": "state_clamp", "target": "b", "field": "hp", "min": 0, "max": 100},
+        {"type": "remove", "target": "a"},
+        {"type": "emit_shell_event", "event": "flash", "color": "#ff8040", "duration": 8},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "hurt"}
+      ]
     },
 
     {
@@ -137,7 +240,7 @@
     },
 
     {
-      "_comment": "Monster death: hp ≤ 0 → 4 sparks (3D outward burst) + camera shake + score+1 + remove monster.",
+      "_comment": "Monster death: hp ≤ 0 → 4 sparks (3D outward burst) + camera shake + score+1 + remove monster. Excludes boss (boss_killed_win runs first via 'before').",
       "id": "monster_death",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["monster"], "state": {"hp_lte": 0}},
@@ -209,6 +312,56 @@
         {"type": "state_add", "target": "a", "field": "ammo", "amount": 5},
         {"type": "remove", "target": "b"},
         {"type": "emit_shell_event", "event": "play_sound", "name": "pickup"}
+      ]
+    },
+
+    {
+      "_comment": "=== SIGNATURE MOMENTS (v2) ===",
+      "_": "Boss spawn check: when player.score ≥ 25 AND boss not yet spawned, spawn The Industrial Mover at the spawn ring. once_per_a on clock side; latch via boss_spawned=1.",
+      "id": "boss_spawn_check",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["clock"], "state": {"boss_spawned": 0}},
+        "b": {"tags_all": ["player"], "state": {"score_gte": 25}},
+        "radius": 1000,
+        "once_per_a": true
+      },
+      "effect": [
+        {"type": "spawn", "template": "monster_boss",
+         "position": [
+           "cos(randf() * 6.28318) * 12",
+           0,
+           "sin(randf() * 6.28318) * 12"
+         ]},
+        {"type": "state_set", "target": "a", "field": "boss_spawned", "value": 1},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "boss_roar"},
+        {"type": "emit_shell_event", "event": "shake", "intensity": 0.15, "duration": 20},
+        {"type": "emit_shell_event", "event": "flash", "color": "#400000", "duration": 24}
+      ]
+    },
+
+    {
+      "_comment": "Boss killed → win-state cascade. Runs BEFORE monster_death (which removes the boss); flips clock.boss_killed = 1 so the HUD's win check fires. Slow-mo would be a renderer hint; use shake + win sound for now.",
+      "id": "boss_killed_win",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["boss"], "state": {"hp_lte": 0}},
+      "before": ["monster_death"],
+      "effect": [
+        {"type": "state_set", "target": "clock_1", "field": "boss_killed", "value": 1},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "win"},
+        {"type": "emit_shell_event", "event": "shake", "intensity": 0.3, "duration": 30},
+        {"type": "emit_shell_event", "event": "flash", "color": "#ffffe0", "duration": 30}
+      ]
+    },
+
+    {
+      "_comment": "Rush-phase siren: at elapsed ≥ 60s, play siren once. Latches via siren_played = 1.",
+      "id": "wave_phase_siren",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"], "state": {"elapsed_gte": 60, "siren_played": 0}},
+      "effect": [
+        {"type": "emit_shell_event", "event": "play_sound", "name": "siren"},
+        {"type": "state_set", "target": "self", "field": "siren_played", "value": 1}
       ]
     },
 

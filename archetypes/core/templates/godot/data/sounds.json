@@ -41,6 +41,14 @@
     "lose": {
       "wave": "sawtooth", "freq_start": 330, "freq_end": 80,
       "duration": 0.8, "attack": 0.02, "decay": 0.3, "volume": 0.5
+    },
+    "boss_roar": {
+      "wave": "sawtooth", "freq_start": 110, "freq_end": 55,
+      "duration": 1.2, "attack": 0.05, "decay": 0.25, "volume": 0.6
+    },
+    "siren": {
+      "wave": "sine", "freq_start": 440, "freq_end": 220,
+      "duration": 0.9, "attack": 0.03, "decay": 0.15, "volume": 0.5
     }
   }
 }
