@@ -67,6 +67,7 @@
          "position": [-6, 0, -4]},
         {"type": "remove", "target": "ghost_1"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "build"},
         {"type": "state_set", "target": "self", "field": "slot_1_level", "value": 1}
       ]
     },
@@ -81,6 +82,7 @@
          "position": [0, 0, -3]},
         {"type": "remove", "target": "ghost_2"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "build"},
         {"type": "state_set", "target": "self", "field": "slot_2_level", "value": 1}
       ]
     },
@@ -95,6 +97,7 @@
          "position": [6, 0, 4]},
         {"type": "remove", "target": "ghost_3"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "build"},
         {"type": "state_set", "target": "self", "field": "slot_3_level", "value": 1}
       ]
     },
@@ -109,6 +112,7 @@
          "position": [0, 0, 4]},
         {"type": "remove", "target": "ghost_4"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "build"},
         {"type": "state_set", "target": "self", "field": "slot_4_level", "value": 1}
       ]
     },
@@ -125,6 +129,7 @@
          "overrides": {"_forced_id": "tower_1"},
          "position": [-6, 0, -4]},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "upgrade"},
         {"type": "state_set", "target": "self", "field": "slot_1_level", "value": 2}
       ]
     },
@@ -139,6 +144,7 @@
          "overrides": {"_forced_id": "tower_2"},
          "position": [0, 0, -3]},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "upgrade"},
         {"type": "state_set", "target": "self", "field": "slot_2_level", "value": 2}
       ]
     },
@@ -153,6 +159,7 @@
          "overrides": {"_forced_id": "tower_3"},
          "position": [6, 0, 4]},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "upgrade"},
         {"type": "state_set", "target": "self", "field": "slot_3_level", "value": 2}
       ]
     },
@@ -167,6 +174,7 @@
          "overrides": {"_forced_id": "tower_4"},
          "position": [0, 0, 4]},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "upgrade"},
         {"type": "state_set", "target": "self", "field": "slot_4_level", "value": 2}
       ]
     },
@@ -216,7 +224,8 @@
            0,
            "(b.state.position.z - a.state.position.z) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 1) * 14"
          ]}}},
-        {"type": "state_set", "target": "a", "field": "cooldown", "value": "a.properties.fire_cooldown"}
+        {"type": "state_set", "target": "a", "field": "cooldown", "value": "a.properties.fire_cooldown"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "shoot"}
       ]
     },
 
@@ -231,7 +240,8 @@
       },
       "effect": [
         {"type": "state_add", "target": "b", "field": "hp", "amount": -1},
-        {"type": "remove", "target": "a"}
+        {"type": "remove", "target": "a"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "hit"}
       ]
     },
 
@@ -254,6 +264,7 @@
          "position": ["self.state.position.x", 0.6, "self.state.position.z"],
          "overrides": {"state": {"velocity": [-1.5, 1.0, -1.5]}}},
         {"type": "emit_shell_event", "event": "shake", "intensity": 0.05, "duration": 6},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "kill"},
         {"type": "state_add", "target": "player", "field": "gold", "amount": 5},
         {"type": "state_add", "target": "clock_1", "field": "enemies_alive", "amount": -1},
         {"type": "remove", "target": "self"}
@@ -273,6 +284,7 @@
       "effect": [
         {"type": "state_add", "target": "b", "field": "hp", "amount": -1},
         {"type": "emit_shell_event", "event": "shake", "intensity": 0.08, "duration": 8},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "hurt"},
         {"type": "state_add", "target": "clock_1", "field": "enemies_alive", "amount": -1},
         {"type": "remove", "target": "a"}
       ]

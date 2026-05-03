@@ -223,6 +223,14 @@ func _drain_shell_events() -> void:
 				if not _flash_color.a or _flash_color.a == 0.0:
 					_flash_color.a = 0.5
 				_flash_remaining = int(ev.get("duration", 8))
+			"play_sound":
+				# Tier 2.6n — forward to AudioBus autoload. Silent when
+				# AudioBus isn't loaded (headless/scenario tests).
+				var sound_name := str(ev.get("name", ""))
+				if sound_name == "": continue
+				var bus = get_node_or_null("/root/AudioBus")
+				if bus != null and bus.has_method("play"):
+					bus.play(sound_name)
 
 
 ## Apply current shake offset to camera + flash alpha to overlay. Both

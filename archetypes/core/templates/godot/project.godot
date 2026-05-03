@@ -25,6 +25,7 @@ window/size/viewport_height=540
 [autoload]
 
 CaptureRunner="*res://scripts/engine/capture_runner.gd"
+AudioBus="*res://scripts/engine/audio_bus.gd"
 
 [input]
 

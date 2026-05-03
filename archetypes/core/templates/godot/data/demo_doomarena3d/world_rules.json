@@ -97,7 +97,8 @@
            "sin(self.state.pitch) * 22",
            "-cos(self.state.facing) * cos(self.state.pitch) * 22"
          ]}}},
-        {"type": "state_add", "target": "self", "field": "ammo", "amount": -1}
+        {"type": "state_add", "target": "self", "field": "ammo", "amount": -1},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "shoot"}
       ]
     },
 
@@ -130,7 +131,8 @@
       },
       "effect": [
         {"type": "state_add", "target": "b", "field": "hp", "amount": -1},
-        {"type": "remove", "target": "a"}
+        {"type": "remove", "target": "a"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "hit"}
       ]
     },
 
@@ -153,6 +155,7 @@
          "position": ["self.state.position.x", 0.8, "self.state.position.z"],
          "overrides": {"state": {"velocity": [-1.5, 1.0, -1.5]}}},
         {"type": "emit_shell_event", "event": "shake", "intensity": 0.06, "duration": 8},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "kill"},
         {"type": "state_add", "target": "player", "field": "score", "amount": 1},
         {"type": "remove", "target": "self"}
       ]
@@ -172,6 +175,7 @@
         {"type": "state_clamp", "target": "b", "field": "hp", "min": 0, "max": 100},
         {"type": "emit_shell_event", "event": "flash", "color": "#ff0000", "duration": 12},
         {"type": "emit_shell_event", "event": "shake", "intensity": 0.1, "duration": 10},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "hurt"},
         {"type": "remove", "target": "a"}
       ]
     },
@@ -188,7 +192,8 @@
       "effect": [
         {"type": "state_add", "target": "a", "field": "hp", "amount": 25},
         {"type": "state_clamp", "target": "a", "field": "hp", "min": 0, "max": 100},
-        {"type": "remove", "target": "b"}
+        {"type": "remove", "target": "b"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "pickup"}
       ]
     },
 
@@ -202,7 +207,8 @@
       },
       "effect": [
         {"type": "state_add", "target": "a", "field": "ammo", "amount": 5},
-        {"type": "remove", "target": "b"}
+        {"type": "remove", "target": "b"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "pickup"}
       ]
     },
 

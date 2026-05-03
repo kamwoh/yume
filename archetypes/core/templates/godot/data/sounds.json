@@ -1,0 +1,46 @@
+{
+  "_comment": "Tier 2.6n — engine-shared sound library. Procedural sfxr-style synthesis at AudioBus startup. Mirrors meshes.json + shapes.json — JSON-only, no .ogg files in repo. Each entry's params drive AudioStreamWAV generation. Games reference these by name via emit_shell_event {event: play_sound, name: ...}. Future: when audio/library/<name>.ogg exists (gitignored), AudioBus may prefer the file over procedural.",
+
+  "sounds": {
+    "shoot": {
+      "wave": "square", "freq_start": 880, "freq_end": 220,
+      "duration": 0.12, "attack": 0.005, "decay": 0.7, "volume": 0.35
+    },
+    "hit": {
+      "wave": "noise", "freq_start": 1200, "freq_end": 200,
+      "duration": 0.08, "attack": 0.001, "decay": 0.9, "volume": 0.4
+    },
+    "kill": {
+      "wave": "square", "freq_start": 440, "freq_end": 80,
+      "duration": 0.35, "attack": 0.005, "decay": 0.6, "volume": 0.45
+    },
+    "pickup": {
+      "wave": "sine", "freq_start": 880, "freq_end": 1760,
+      "duration": 0.18, "attack": 0.005, "decay": 0.4, "volume": 0.4
+    },
+    "build": {
+      "wave": "square", "freq_start": 220, "freq_end": 660,
+      "duration": 0.22, "attack": 0.01, "decay": 0.4, "volume": 0.4
+    },
+    "upgrade": {
+      "wave": "sawtooth", "freq_start": 440, "freq_end": 1320,
+      "duration": 0.32, "attack": 0.01, "decay": 0.3, "volume": 0.4
+    },
+    "error": {
+      "wave": "square", "freq_start": 220, "freq_end": 110,
+      "duration": 0.18, "attack": 0.005, "decay": 0.5, "volume": 0.4
+    },
+    "hurt": {
+      "wave": "noise", "freq_start": 400, "freq_end": 80,
+      "duration": 0.25, "attack": 0.005, "decay": 0.6, "volume": 0.4
+    },
+    "win": {
+      "wave": "sine", "freq_start": 660, "freq_end": 1320,
+      "duration": 0.6, "attack": 0.02, "decay": 0.2, "volume": 0.5
+    },
+    "lose": {
+      "wave": "sawtooth", "freq_start": 330, "freq_end": 80,
+      "duration": 0.8, "attack": 0.02, "decay": 0.3, "volume": 0.5
+    }
+  }
+}
