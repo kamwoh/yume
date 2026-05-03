@@ -174,7 +174,8 @@ when entities split into per-def directory.
 - `docs/games/<game-name>/GDD.md` — what to expand
 - `docs/30_framework_primitives.md` — what's expressible
 - `docs/engine-reference/api-manifest.json` — engine vocab
-- `docs/games/harvestcore/GDD.md` — example existing game (harvest-moon-shaped)
+- `docs/games/<existing-game>/GDD.md` — example existing GDD in the
+  same genre, when one exists in `docs/games/`
 
 ## Hand-off
 

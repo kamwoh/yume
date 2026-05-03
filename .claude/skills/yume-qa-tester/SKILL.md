@@ -12,8 +12,9 @@ RUNS and PRODUCES the intended dynamics.
 
 This skill loads into the orchestrator's main context (no subagent
 spawn). Same role prompt as the legacy `.claude/agents/yume/qa-tester.md`,
-restructured as a skill (Tier 2.6 finding from harvestcore QA — the
-subagent path tripped org auth policies; main-context skill bypasses).
+restructured as a skill (Tier 2.6 — skills replace subagents because
+some org auth policies block subagent spawns; main-context skills
+bypass that boundary).
 
 ## Inputs you accept
 

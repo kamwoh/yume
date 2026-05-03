@@ -12,7 +12,9 @@ game has consistent style.
 
 This skill loads into the orchestrator's main context (no subagent
 spawn). Same role prompt as the legacy `.claude/agents/yume/asset-designer.md`,
-restructured as a skill (Tier 2.6 finding from harvestcore QA).
+restructured as a skill (Tier 2.6 architecture: skills load into the
+orchestrator's main context to bypass org auth boundaries on subagent
+spawns).
 
 ## Inputs you accept
 
@@ -128,8 +130,9 @@ minimum have a shape reference. Library / AI-gen are upgrades.
 The renderer's `shapes_path` is hardcoded to `res://data/shapes.json`.
 A `shapes.json` placed at `data/demo_<game>/shapes.json` is dead — never
 loaded. Add per-game shapes by appending to the root file.
-(Empirically discovered: tinypond shipped a per-game shapes.json that did
-nothing — every entity rendered as a grey circle. Tier 2.6h finding.)
+(Empirically discovered: a sim demo once shipped a per-game shapes.json
+that did nothing — every entity rendered as a grey circle. Tier 2.6h
+finding.)
 
 **Visual sizing — use 12-30px range:**
 - Small entities (seeds, tiles): radius 4-8 OK, but 8+ recommended

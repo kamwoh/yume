@@ -139,8 +139,8 @@ matter strategically. Slots that cover only 1 segment are weak.
 
 #### Shooter / arena
 
-- **Closed arena** (doomarena): enemies spawn from edges. Player
-  central.
+- **Closed arena** (FPS / twin-stick): enemies spawn from edges.
+  Player central.
 - **Cover-based**: pillars/walls break sight lines. Encourages flanking.
 - **Multi-tier**: vertical levels for height advantage.
 

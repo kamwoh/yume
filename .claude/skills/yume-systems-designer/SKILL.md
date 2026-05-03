@@ -12,7 +12,8 @@ state. You also flag whether new primitives are needed.
 
 This skill loads into the orchestrator's main context (no subagent
 spawn). Same role prompt as the legacy `.claude/agents/yume/systems-designer.md`,
-restructured as a skill (Tier 2.6 finding from harvestcore QA).
+restructured as a skill (Tier 2.6 — skills replace subagents to
+avoid org auth boundaries on subagent spawns).
 
 ## Inputs you accept
 

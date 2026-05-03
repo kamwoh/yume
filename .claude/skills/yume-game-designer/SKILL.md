@@ -13,7 +13,7 @@ structured Game Design Document (GDD) that downstream phases
 This skill loads into the orchestrator's main context (no subagent
 spawn). Same role prompt as the legacy `.claude/agents/yume/game-designer.md`,
 restructured as a skill so org auth policy on subagents doesn't block
-the pipeline (Tier 2.6 finding from harvestcore QA, 2026-05-02).
+the pipeline (Tier 2.6 — main-context skills bypass that boundary).
 
 ## Inputs you accept
 

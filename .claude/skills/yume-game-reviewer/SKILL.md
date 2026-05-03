@@ -105,6 +105,25 @@ Synergies? Counter-play?
 
 A game with 1 enemy + 1 tower is a tutorial, not a game.
 
+**Hard rule — genre-claim minimums are NOT deferrable.** If the
+GDD claims the genre (one-line pitch says "Doom-style shooter,"
+"Bloons-style TD," "Stardew-style farming"), the minimums above
+are mandatory for v1, not "v3 scope." A "Doom-style shooter" with
+1 weapon is not a Doom-style shooter — it's a single-weapon arcade
+that *uses* shooter mechanics. If the designer wants to ship a
+1-weapon arcade, the GDD's genre framing must drop to "single-bolt
+arena shooter" so the reviewer doesn't apply Doom-genre standards
+to it.
+
+Watch for the deferral trap: round-2 GDD adds enemies (depth) but
+"defers multi-weapons to v3" (gap). Reviewer accepted because the
+fix-list shrunk between rounds. Wrong call — the genre-claim
+minimums apply EVERY ROUND. Reject the v3 deferral OR demand the
+genre claim be downgraded. Concrete pattern: a GDD pitched as a
+"genre-X shooter" with one weapon will produce the playtester
+reaction "where are the weapons? it's a genre-X game right?" —
+exactly what this rule prevents.
+
 ### Axis 2 — Strategic depth
 
 **Question**: What decisions does the player make per minute? Are
@@ -178,7 +197,7 @@ physics (rigid body), networked play, voice acting.
 tech demo?
 
 **Heuristic minimums for "real game"** (genre-dependent):
-- Puzzle (sokoban, etc.): ≥20 levels for "casual game", ≥50 for "real game"
+- Puzzle (box-push, match-N, etc.): ≥20 levels for "casual game", ≥50 for "real game"
 - Roguelike: ≥3 hours of varied runs
 - TD: ≥20 levels OR endless mode with variety
 - Shooter: ≥3 levels OR endless arena with variety
@@ -276,11 +295,11 @@ aesthetic.
 inhabited space? Walls, cover, choke points, sightlines, landmarks,
 floor/ceiling geometry, scale, named regions?
 
-**Why this axis exists**: empirically discovered when DoomArena3D v2
-passed all 12 axes (theme = "Containment Chamber 7", 4 enemy types,
-3 wave phases) and still shipped as a flat void with no walls, cover,
-or arena features — because the GDD never specified them. Theme is
-fiction; spatial design is geometry. They are different axes.
+**Why this axis exists**: a GDD can pass all 12 prior axes (rich
+theme, 4 enemy types, multi-phase pacing) and still ship as a flat
+void with no walls, cover, or arena features — because the GDD
+never specified them. Theme is fiction; spatial design is geometry.
+They are different axes.
 
 **Genre minimums**:
 - **Shooter / arena (FPS, twin-stick)**: arena boundary geometry,
@@ -294,7 +313,7 @@ fiction; spatial design is geometry. They are different axes.
   placement rules (treasure / enemies / hazards / secrets per room).
 - **Sim / ecology**: zones with distinct resources, water/grass/stone
   boundaries, density falloff.
-- **Puzzle (sokoban etc.)**: cell grid dimensions, wall layout,
+- **Puzzle (grid-based)**: cell grid dimensions, wall layout,
   goal positions, lock-out corners — per level.
 - **Platformer**: gap widths, jump heights, hazard density, checkpoint
   spacing.

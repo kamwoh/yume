@@ -12,7 +12,8 @@ field name, every position, every balance value.
 
 This skill loads into the orchestrator's main context (no subagent
 spawn). Same role prompt as the legacy `.claude/agents/yume/content-designer.md`,
-restructured as a skill (Tier 2.6 finding from harvestcore QA).
+restructured as a skill (Tier 2.6 — skills replace subagents to
+avoid org auth boundaries on subagent spawns).
 
 ## Inputs you accept
 
@@ -57,7 +58,7 @@ data/demo_<game>/
 **Why per-def:** smaller focused files = easier LLM editing (less context
 per agent call, less chance of accidentally rewriting unrelated content).
 Diffs are clean. Adding a new entity is one new file, not editing a 100-line
-JSON. (Tier 2.6 finding from tinypond polish session.)
+JSON.
 
 **Engine support:** `World.load_data` checks for both `entities.json` AND
 `entities/`. Two-phase load: all defs registered first, then instances
@@ -65,7 +66,7 @@ JSON. (Tier 2.6 finding from tinypond polish session.)
 
 **`shapes.json` is NOT per-game.** It lives at `data/shapes.json` (root) and
 is shared. New shapes append there. Per-game `shapes.json` files are dead
-weight — the renderer only reads root. (Tier 2.6h finding, harvestcore QA.)
+weight — the renderer only reads root.
 
 Per-game scene file (`scenes/<game>_2d.tscn`) is a **minimal template**
 that just instantiates `World + GameShell + Camera2D`. No game-specific
@@ -154,8 +155,8 @@ GDScript. All playability config lives in scene.json + hud.json.
      A `spawn` rule with chance 0.4 / interval 15 on 16 source entities
      fills the world to 100+ entities in 60s and lags the engine.
      For a balanced ecosystem: keep new-spawn-per-source-per-second well
-     below the eat/death rate. Empirically tested in tinypond: chance
-     0.05 / interval 60 keeps populations stable around starting size.
+     below the eat/death rate. In a small sim demo, chance 0.05 /
+     interval 60 keeps populations stable around starting size.
 
 7a. **Contact rule format — tags + radius go in `query`, NOT `trigger`:**
 
@@ -178,9 +179,9 @@ GDScript. All playability config lives in scene.json + hud.json.
 }
 ```
 
-The wrong form was empirically responsible for "rule registered but never
-fires" in tinypond's first run. Verified against existing demo patterns
-(demo_ecology, demo_rpg).
+The wrong form (tags/radius nested under `trigger`) is the most
+common cause of "rule registered but never fires." Verified against
+existing demo patterns (demo_ecology, demo_rpg).
 
 7b. **Position spawn caveat:** `spawn.position` accepts `"self"` (copies
 parent position), `[x, y]` literal, or a context binding name. **It does
@@ -196,7 +197,9 @@ randomness on the spawn target's spawn-trigger rules.
      `world`, plus payload keys)
    - **Formulas use Python-style ternary `a if cond else b`** — NOT
      C-style `cond ? a : b`. Godot Expression doesn't parse C-style.
-     (Empirically verified during harvestcore QA, 2026-05-02.)
+     (Note: Godot 4.6.1's Expression parses ternary but always returns
+     the IF branch — see `.claude/rules/data-demo.md` for the clamp-step
+     workaround.)
    - All entity ids in `initial_instances` and `initial_relations`
      are unique
 

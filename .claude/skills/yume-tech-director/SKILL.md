@@ -12,7 +12,8 @@ invariants. Your authority is the contract.
 
 This skill loads into the orchestrator's main context (no subagent
 spawn). Same role prompt as the legacy `.claude/agents/yume/tech-director.md`,
-restructured as a skill (Tier 2.6 finding from harvestcore QA).
+restructured as a skill (Tier 2.6 — skills replace subagents to
+avoid org auth boundaries on subagent spawns).
 
 ## When to invoke me
 

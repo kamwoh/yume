@@ -11,7 +11,7 @@ Turn a prose game description into a runnable Yume game.
 
 ```
 /yume-design <prose description of the game>
-/yume-design "a farming sim where moonlight grows crops faster" --style=pixel-art --name=moonfarm
+/yume-design "a farming sim where moonlight grows crops faster" --style=pixel-art --name=<your-game>
 /yume-design "a roguelike where vampires steal HP from light sources" --with-assets
 ```
 
@@ -32,12 +32,13 @@ load the 6 specialist skills in `.claude/skills/yume-<role>/` one at a
 time and execute their role instructions in my own (the orchestrator's)
 context.
 
-**Skills, not subagents (Tier 2.6 finding).** Earlier versions of this
-pipeline spawned subagents via `Agent(subagent_type=...)`. Empirical
-test in harvestcore QA (2026-05-02) showed subagent spawns can hit org
-auth policies (`organization has disabled Claude subscription access`).
-Skills load into the orchestrator's main context — same role prompts,
-no auth boundary, lower latency, fewer moving parts.
+**Skills, not subagents (Tier 2.6 architecture).** Earlier versions
+of this pipeline spawned subagents via `Agent(subagent_type=...)`.
+Some org auth policies disable subscription-backed subagent spawns
+(`organization has disabled Claude subscription access`), which
+breaks the pipeline. Skills load into the orchestrator's main
+context — same role prompts, no auth boundary, lower latency, fewer
+moving parts.
 
 **Autonomous mode.** If the user passes `--autonomous` in the prompt,
 skip the per-phase user-approval gates and walk all phases in one
@@ -48,8 +49,8 @@ shot, surfacing only on hard failure or at the final wrap. Default
 
 1. Parse the prose + flags. Detect `--autonomous`, `--name=<slug>`,
    `--style=<value>`, `--with-assets`.
-2. Auto-suggest a `<name>` slug from the prose (e.g., "moonfarm" for
-   the moonlight farming game) if `--name=` not given.
+2. Auto-suggest a `<name>` slug from the prose (a 1-2 syllable
+   shorthand of the genre + theme) if `--name=` not given.
 3. State the plan: paths, phases, autonomous-or-interactive mode.
 4. Interactive mode: wait for explicit go-ahead. Autonomous: proceed.
 
@@ -316,7 +317,7 @@ spending agent calls.
 > /yume-design "a farming sim where moonlight grows crops faster"
 
 I'll run the Yume text-to-game pipeline. Plan:
-- Game name: 'moonfarm' (from prose). OK?
+- Game name: '<auto-suggested-slug>' (from prose). OK?
 - 6 stages: GDD → sketches → content → assets → QA → wrap
 - Code-draw visuals (no --with-assets flag)
 
@@ -325,7 +326,7 @@ Approval to start?
 > yes
 
 [Phase 1: invoking yume-game-designer...]
-[GDD written: docs/games/moonfarm/GDD.md]
+[GDD written: docs/games/<game>/GDD.md]
 
 GDD summary:
 - Aesthetics: Submission + Sensation
