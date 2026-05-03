@@ -372,16 +372,25 @@ func _integrate_motion(delta: float) -> void:
 		if not (ent is Entity): continue
 		var v = (ent as Entity).get_velocity()
 		if v == null: continue
-		# Apply drag if configured. Skipped if drag = 0 (default).
+		# Apply drag if configured. Skipped if drag = 0 (default). Works for
+		# both Vector2 (2D entities) and Vector3 (3D / FPS entities).
 		var drag_v := float((ent as Entity).get_state("drag", 0.0))
-		if drag_v > 0.0 and v is Vector2:
-			var v2 := v as Vector2
-			if v2 != Vector2.ZERO:
-				v2 *= (1.0 - clamp(drag_v * delta, 0.0, 1.0))
-				if v2.length() < DRAG_REST_EPSILON:
-					v2 = Vector2.ZERO
-				(ent as Entity).set_velocity(v2)
-				v = v2
+		if drag_v > 0.0:
+			var factor: float = 1.0 - clamp(drag_v * delta, 0.0, 1.0)
+			if v is Vector2:
+				var v2: Vector2 = v
+				if v2 != Vector2.ZERO:
+					v2 *= factor
+					if v2.length() < DRAG_REST_EPSILON: v2 = Vector2.ZERO
+					(ent as Entity).set_velocity(v2)
+					v = v2
+			elif v is Vector3:
+				var v3: Vector3 = v
+				if v3 != Vector3.ZERO:
+					v3 *= factor
+					if v3.length() < DRAG_REST_EPSILON * 0.01: v3 = Vector3.ZERO
+					(ent as Entity).set_velocity(v3)
+					v = v3
 		var moved := false
 		if v is Vector2 and v != Vector2.ZERO:
 			var p = (ent as Entity).get_position()

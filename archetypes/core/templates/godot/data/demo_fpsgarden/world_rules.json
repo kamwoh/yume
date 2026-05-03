@@ -3,29 +3,42 @@
 
   "rules": [
     {
-      "_comment": "=== MOVEMENT (forward-relative — uses player.state.facing) ===",
+      "_comment": "=== MOVEMENT (forward-relative — uses player.state.facing). Convention: +forward = toward facing direction. W = +forward (intuitive).",
       "id": "move_forward",
       "trigger": {"type": "input", "action": "move_north"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": -4.0, "strafe": 0}
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 4.0, "strafe": 0}
     },
     {
       "id": "move_back",
       "trigger": {"type": "input", "action": "move_south"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 4.0, "strafe": 0}
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": -4.0, "strafe": 0}
     },
     {
       "id": "strafe_right",
       "trigger": {"type": "input", "action": "move_east"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": 4.0}
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": -4.0}
     },
     {
       "id": "strafe_left",
       "trigger": {"type": "input", "action": "move_west"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": -4.0}
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": 4.0}
     },
 
     {
-      "_comment": "=== ORB COLLECTION === (forward = -4 in velocity_set_relative because the convention is +forward → toward facing's -Z; so negative makes W intuitively 'go forward'.)",
+      "_comment": "=== BOUNDS — clamp player position to garden plane (40x40) so they don't walk off into infinity. Y kept at 0 (no jumping in v1).",
+      "id": "player_bounds_3d",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["player"]},
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "position",
+        "value": "Vector3(clamp(self.state.position.x, -18, 18), 0, clamp(self.state.position.z, -18, 18))"
+      }
+    },
+
+    {
+      "_comment": "=== ORB COLLECTION ===",
       "id": "collect_orb",
       "trigger": {"type": "contact"},
       "query": {
