@@ -261,8 +261,40 @@ func _start_clock() -> void:
 
 func _on_tick(count: int) -> void:
 	scheduler.tick()
+	_decrement_lifetimes()
 	if verbose and count % 4 == 0:
 		_print_tick_summary(count)
+
+
+## Tier 2.6j: entities with state.lifetime > 0 auto-decrement each tick;
+## removed when lifetime reaches 0. Standard pattern for transient entities
+## (bullets, particles, sparkles, "+10" damage numbers).
+##
+## Entities without a lifetime field are unaffected. Lifetime is in TICKS,
+## not seconds — keeps it predictable across tick_seconds settings.
+func _decrement_lifetimes() -> void:
+	var to_remove: Array[String] = []
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		var lf = (ent as Entity).get_state("lifetime", null)
+		if lf == null: continue
+		var lifetime := float(lf)
+		if lifetime <= 0.0: continue
+		lifetime -= 1.0
+		(ent as Entity).set_state("lifetime", lifetime)
+		if lifetime <= 0.0:
+			to_remove.append(str(id))
+	# Remove after iteration so we don't mutate the dict mid-loop.
+	for id in to_remove:
+		var ent: Entity = entities.get(id, null)
+		if ent == null: continue
+		if relations != null:
+			relations.clear_entity(id)
+		if spatial_index != null and spatial_index.has_method("remove_entity"):
+			spatial_index.remove_entity(id)
+		entities.erase(id)
+		ent.queue_free()
 
 
 # ============================================================
@@ -316,12 +348,28 @@ func _find_actor_id() -> String:
 
 ## Integrate velocity → position each frame for smooth motion.
 ## Velocity is in units-per-second; multiply by delta. Updates spatial index.
+##
+## Tier 2.6i: entities with state.drag > 0 decelerate when no input is
+## actively setting velocity. drag is per-second factor (0.0 = no drag,
+## 1.0 = full stop in 1s). Velocity multiplies by (1 - drag * delta) each
+## frame. Below DRAG_REST_EPSILON it snaps to zero.
+const DRAG_REST_EPSILON := 0.5
 func _integrate_motion(delta: float) -> void:
 	for id in entities.keys():
 		var ent = entities[id]
 		if not (ent is Entity): continue
 		var v = (ent as Entity).get_velocity()
 		if v == null: continue
+		# Apply drag if configured. Skipped if drag = 0 (default).
+		var drag_v := float((ent as Entity).get_state("drag", 0.0))
+		if drag_v > 0.0 and v is Vector2:
+			var v2 := v as Vector2
+			if v2 != Vector2.ZERO:
+				v2 *= (1.0 - clamp(drag_v * delta, 0.0, 1.0))
+				if v2.length() < DRAG_REST_EPSILON:
+					v2 = Vector2.ZERO
+				(ent as Entity).set_velocity(v2)
+				v = v2
 		var moved := false
 		if v is Vector2 and v != Vector2.ZERO:
 			var p = (ent as Entity).get_position()

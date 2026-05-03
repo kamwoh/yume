@@ -48,6 +48,15 @@ var _floor_tint_bind: String = ""
 var _floor_color_low: Color = Color.BLACK
 var _floor_color_high: Color = Color.WHITE
 
+# Tier 2.6l — camera shake + screen flash. Rules emit_shell_event into
+# env.shell_event_buffer; we drain each frame and apply to camera/overlay.
+var _shake_remaining: int = 0       # frames left of shake
+var _shake_intensity: float = 0.0   # px offset magnitude
+var _camera_base_pos: Vector2 = Vector2.ZERO
+var _flash_overlay: ColorRect = null
+var _flash_remaining: int = 0
+var _flash_color: Color = Color(1, 0, 0, 0.5)
+
 # Per-element binding state — { Control_node : binding_spec_dict }
 var _bound_elements: Array = []
 
@@ -72,6 +81,13 @@ func _ready() -> void:
 		_world.set("tick_seconds", float(_scene_cfg["tick_seconds"]))
 	_build_bounds()
 	_build_hud()
+	# Wire shell_event_buffer into the world's env so EffectApply._emit_shell_event
+	# has somewhere to push. Scheduler holds the env reference.
+	var sched = _world.get("scheduler")
+	if sched != null and sched.get("env") != null:
+		var env: Dictionary = sched.env
+		if not env.has("shell_event_buffer"):
+			env["shell_event_buffer"] = []
 
 
 func _process(_delta: float) -> void:
@@ -83,6 +99,8 @@ func _process(_delta: float) -> void:
 	_update_camera_follow()
 	_update_bound_elements()
 	_update_floor_tint()
+	_drain_shell_events()
+	_update_shake_and_flash()
 	_check_win_lose()
 
 
@@ -153,6 +171,63 @@ func _build_bounds() -> void:
 # CAMERA FOLLOW
 # ============================================================
 
+## Tier 2.6l — drain shell events that rules emitted via emit_shell_event.
+## Each event is a Dictionary with at least {"event": "shake"|"flash"|...}.
+## Unknown events are silently ignored (forward-compatible).
+func _drain_shell_events() -> void:
+	if _world == null: return
+	var sched = _world.get("scheduler")
+	if sched == null: return
+	var env: Dictionary = sched.env
+	var buf: Array = env.get("shell_event_buffer", [])
+	if buf.is_empty(): return
+	env["shell_event_buffer"] = []
+	for ev in buf:
+		var name := str(ev.get("event", ""))
+		match name:
+			"shake":
+				var intensity := float(ev.get("intensity", 4.0))
+				var duration := int(ev.get("duration", 8))
+				if intensity * duration > _shake_intensity * _shake_remaining:
+					_shake_intensity = intensity
+					_shake_remaining = duration
+			"flash":
+				var color = ev.get("color", "#ff0000")
+				_flash_color = _color(color)
+				if not _flash_color.a or _flash_color.a == 0.0:
+					_flash_color.a = 0.5
+				_flash_remaining = int(ev.get("duration", 8))
+
+
+## Apply current shake offset to camera + flash alpha to overlay. Both
+## decay each frame. No-op when neither is active.
+func _update_shake_and_flash() -> void:
+	if _camera != null:
+		if _shake_remaining > 0:
+			# Snapshot the camera's "base" position only when starting fresh
+			# so we don't accumulate drift.
+			var offset := Vector2(
+				(randf() - 0.5) * 2.0 * _shake_intensity,
+				(randf() - 0.5) * 2.0 * _shake_intensity
+			)
+			_camera.offset = offset
+			_shake_remaining -= 1
+			if _shake_remaining <= 0:
+				_camera.offset = Vector2.ZERO
+		elif _camera.offset != Vector2.ZERO:
+			_camera.offset = Vector2.ZERO
+	if _flash_overlay != null:
+		if _flash_remaining > 0:
+			var t: float = float(_flash_remaining) / 12.0
+			_flash_overlay.color = Color(
+				_flash_color.r, _flash_color.g, _flash_color.b,
+				_flash_color.a * clamp(t, 0.0, 1.0)
+			)
+			_flash_remaining -= 1
+		elif _flash_overlay.color.a > 0.0:
+			_flash_overlay.color = Color(0, 0, 0, 0)
+
+
 ## Lerp the floor color between night (low) and day (high) based on the
 ## binding value (expected 0..1, e.g. clock.sunlight). No-op if no binding
 ## was configured in scene.json.
@@ -215,6 +290,13 @@ func _build_hud() -> void:
 		hl.offset_right = 360
 		_apply_label_style(hl, 14, Color(0.9, 0.95, 1, 0.85))
 		root.add_child(hl)
+
+	# Tier 2.6l — full-screen flash overlay for damage / impact feedback
+	_flash_overlay = ColorRect.new()
+	_flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flash_overlay.color = Color(0, 0, 0, 0)
+	root.add_child(_flash_overlay)
 
 	# Win / lose panel (hidden until triggered)
 	_win_panel = Panel.new()

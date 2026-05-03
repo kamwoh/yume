@@ -39,6 +39,19 @@ var _flip_with_velocity: bool = false
 # Last sign of velocity.x — kept so we don't snap-flip on x=0 (when stopped).
 var _last_facing: int = 1
 
+# Visual rotates to face direction of motion. Opt-in via
+# entity.visual.rotate_with_velocity. Bullets, projectiles, ships.
+# Convention: art is drawn pointing right (+x). Atan2 of velocity gives
+# the rotation needed to point in the direction of motion.
+var _rotate_with_velocity: bool = false
+var _last_rotation: float = 0.0
+
+# Visual fades alpha based on state.lifetime / state.max_lifetime ratio.
+# Opt-in via entity.visual.fade_with_lifetime. Particles/sparkles fade
+# out as their lifetime approaches 0. Pairs with engine's per-tick
+# lifetime decrement.
+var _fade_with_lifetime: bool = false
+
 # Cached shape library (one load per process — re-used across renderers)
 static var _shape_lib_cache: ShapeLib = null
 
@@ -51,6 +64,8 @@ func _ready() -> void:
 	_entity_ref = ent
 	var visual: Dictionary = ent.visual
 	_flip_with_velocity = bool(visual.get("flip_with_velocity", false))
+	_rotate_with_velocity = bool(visual.get("rotate_with_velocity", false))
+	_fade_with_lifetime = bool(visual.get("fade_with_lifetime", false))
 
 	# Tier 1 — real sprite asset
 	var sprite_path := str(visual.get("sprite_2d", ""))
@@ -89,6 +104,10 @@ func _process(_dt: float) -> void:
 	_sync_position()
 	if _flip_with_velocity:
 		_sync_facing()
+	if _rotate_with_velocity:
+		_sync_rotation()
+	if _fade_with_lifetime:
+		_sync_alpha()
 
 
 func _sync_position() -> void:
@@ -110,6 +129,37 @@ func _sync_facing() -> void:
 	# scale.x = +1 → default art (assumed facing right); -1 → mirrored.
 	# Convention: art is drawn facing right; flip when moving west.
 	scale.x = float(_last_facing)
+
+
+## Rotate the sprite to point in the direction of motion. atan2(v.y, v.x)
+## gives the angle. Hold last rotation so the sprite doesn't snap back
+## when the entity stops moving. Convention: art faces +x by default.
+func _sync_rotation() -> void:
+	if _entity_ref == null: return
+	var v = _entity_ref.get_velocity()
+	var vx: float = 0.0
+	var vy: float = 0.0
+	if v is Vector2:
+		vx = (v as Vector2).x
+		vy = (v as Vector2).y
+	elif v is Vector3:
+		vx = (v as Vector3).x
+		vy = (v as Vector3).z
+	if absf(vx) > 0.5 or absf(vy) > 0.5:
+		_last_rotation = atan2(vy, vx)
+	rotation = _last_rotation
+
+
+## Fade alpha based on lifetime / max_lifetime ratio. Particles + transient
+## entities use this so they smoothly fade out instead of snap-disappear.
+## Falls back to no-fade if either field is missing/zero.
+func _sync_alpha() -> void:
+	if _entity_ref == null: return
+	var lf = _entity_ref.get_state("lifetime", null)
+	var max_lf = _entity_ref.get_state("max_lifetime", null)
+	if lf == null or max_lf == null: return
+	var ratio: float = float(lf) / max(float(max_lf), 1.0)
+	modulate.a = clamp(ratio, 0.0, 1.0)
 
 
 func _draw() -> void:

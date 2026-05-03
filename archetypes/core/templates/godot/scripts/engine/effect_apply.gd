@@ -52,12 +52,14 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"tag_add":           _tag_add(effect, env, context)
 		"tag_remove":        _tag_remove(effect, env, context)
 		"velocity_set":      _velocity_set(effect, env, context)
+		"velocity_lerp":     _velocity_lerp(effect, env, context)
 		"emit":              _emit(effect, env, context)
+		"emit_shell_event":  _emit_shell_event(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, emit.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, emit, emit_shell_event.",
 				"warning")
 	return {}
 
@@ -254,6 +256,23 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 	ent.set_velocity(Vector2(vx, vy))
 
 
+## Smoothly approach a target velocity each tick. Lets entities feel weighty —
+## input rules use velocity_lerp instead of velocity_set so movement
+## ramps in/out instead of snapping. `rate` is the per-tick lerp factor
+## (0.0 = no change, 1.0 = snap to target). Typical: 0.10-0.25.
+static func _velocity_lerp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var ent: Entity = _target(e, env, ctx)
+	if ent == null: return
+	var tx := float(_value(e.get("x", 0), ctx, env))
+	var ty := float(_value(e.get("y", 0), ctx, env))
+	var rate: float = clamp(float(_value(e.get("rate", 0.15), ctx, env)), 0.0, 1.0)
+	var current = ent.get_velocity()
+	var current_v: Vector2 = Vector2.ZERO
+	if current is Vector2: current_v = current
+	var lerped: Vector2 = current_v.lerp(Vector2(tx, ty), rate)
+	ent.set_velocity(lerped)
+
+
 # ============================================================
 # SIGNAL EMIT (W2.1)
 # ============================================================
@@ -263,6 +282,31 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 ##   - bare context name → context lookup (e.g. `"self"` → ctx["self"])
 ##   - formula string → Formula.evaluate (e.g. `"self.state.xp_value"`)
 ##   - literal → pass through
+## Fire a generic event to the GameShell layer (camera shake, screen flash,
+## hitstop, etc). Pushes onto env.shell_event_buffer; GameShell drains each
+## frame. Ignored if no GameShell is attached. Decoupled from world.signal
+## (which is sim-time + rule-driven) — shell events are presentation-only.
+##
+## Common events:
+##   {event: "shake", intensity: 0.3, duration: 12}
+##   {event: "flash", color: "#ff0000", duration: 8}
+##   {event: "hitstop", duration: 4}
+static func _emit_shell_event(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var event_name := str(e.get("event", ""))
+	if event_name == "": return
+	var record: Dictionary = {"event": event_name}
+	for k in e.keys():
+		if str(k) == "type" or str(k) == "event": continue
+		record[str(k)] = _value(e[k], ctx, env)
+	var buf: Array = env.get("shell_event_buffer", null)
+	if buf == null:
+		# Lazily create — content rules may fire shell events even before
+		# GameShell wires its own buffer.
+		buf = []
+		env["shell_event_buffer"] = buf
+	buf.append(record)
+
+
 static func _emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var name := str(e.get("signal", ""))
 	if name == "": return
