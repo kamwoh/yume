@@ -18,7 +18,7 @@
     },
 
     {
-      "_comment": "Spawn imp at random angle on the spawn ring (radius 14). Interval shortens with elapsed.",
+      "_comment": "Spawn imp at random angle on the spawn ring (radius 18 — just inside the ±22m walls). Interval shortens with elapsed.",
       "id": "monster_spawn",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["clock"], "state": {"spawn_timer_lt": 0.0}},
@@ -26,9 +26,9 @@
         {"type": "spawn",
          "template": "monster_imp",
          "position": [
-           "cos(randf() * 6.28318) * 14",
+           "cos(randf() * 6.28318) * 18",
            0,
-           "sin(randf() * 6.28318) * 14"
+           "sin(randf() * 6.28318) * 18"
          ]},
         {"type": "state_set", "target": "self", "field": "spawn_timer",
          "value": "max(2.0, 4.0 - self.state.elapsed * 0.022)"}
@@ -44,9 +44,9 @@
         {"type": "spawn",
          "template": "monster_demon",
          "position": [
-           "cos(randf() * 6.28318) * 14",
+           "cos(randf() * 6.28318) * 18",
            0,
-           "sin(randf() * 6.28318) * 14"
+           "sin(randf() * 6.28318) * 18"
          ]},
         {"type": "state_set", "target": "self", "field": "demon_timer", "value": 8.0}
       ]
@@ -61,9 +61,9 @@
         {"type": "spawn",
          "template": "monster_ranger",
          "position": [
-           "cos(randf() * 6.28318) * 14",
+           "cos(randf() * 6.28318) * 18",
            0,
-           "sin(randf() * 6.28318) * 14"
+           "sin(randf() * 6.28318) * 18"
          ]},
         {"type": "state_set", "target": "self", "field": "ranger_timer", "value": 12.0}
       ]
@@ -77,7 +77,7 @@
       "chance": 0.5,
       "effect": [
         {"type": "spawn", "template": "health_pickup",
-         "position": ["(randf() - 0.5) * 28", 0.5, "(randf() - 0.5) * 28"]},
+         "position": ["(randf() - 0.5) * 36", 0.5, "(randf() - 0.5) * 36"]},
         {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
       ]
     },
@@ -89,7 +89,7 @@
       "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
       "effect": [
         {"type": "spawn", "template": "ammo_pickup",
-         "position": ["(randf() - 0.5) * 28", 0.5, "(randf() - 0.5) * 28"]},
+         "position": ["(randf() - 0.5) * 36", 0.5, "(randf() - 0.5) * 36"]},
         {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
       ]
     },
@@ -329,9 +329,9 @@
       "effect": [
         {"type": "spawn", "template": "monster_boss",
          "position": [
-           "cos(randf() * 6.28318) * 12",
+           "cos(randf() * 6.28318) * 16",
            0,
-           "sin(randf() * 6.28318) * 12"
+           "sin(randf() * 6.28318) * 16"
          ]},
         {"type": "state_set", "target": "a", "field": "boss_spawned", "value": 1},
         {"type": "emit_shell_event", "event": "play_sound", "name": "boss_roar"},
@@ -366,7 +366,7 @@
     },
 
     {
-      "_comment": "=== BOUNDS — clamp player + monsters to arena (XZ ±15). Y locked to 0 (planar combat).",
+      "_comment": "=== BOUNDS — clamp player + monsters to arena (XZ ±21 to keep them just inside the wall plane at ±22). Y locked to 0 (planar combat).",
       "id": "creature_bounds",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["creature"]},
@@ -374,7 +374,7 @@
         "type": "state_set",
         "target": "self",
         "field": "position",
-        "value": "Vector3(clamp(self.state.position.x, -15, 15), 0, clamp(self.state.position.z, -15, 15))"
+        "value": "Vector3(clamp(self.state.position.x, -21, 21), 0, clamp(self.state.position.z, -21, 21))"
       }
     }
   ]

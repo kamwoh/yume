@@ -1,6 +1,6 @@
 ---
 name: yume-game-reviewer
-description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 12 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ allowed to surface NEW issues, not just verify round-1 fixes.
+description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 13 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ allowed to surface NEW issues, not just verify round-1 fixes.
 ---
 
 # /yume-game-reviewer
@@ -270,9 +270,73 @@ For the "Submission" aesthetic specifically: undo/rewind is critical.
 A trance-state game broken by an irreversible mistake breaks the
 aesthetic.
 
+### Axis 13 — Spatial design / level layout
+
+**Question**: Beyond a stated theme, does the GDD describe an actual
+inhabited space? Walls, cover, choke points, sightlines, landmarks,
+floor/ceiling geometry, scale, named regions?
+
+**Why this axis exists**: empirically discovered when DoomArena3D v2
+passed all 12 axes (theme = "Containment Chamber 7", 4 enemy types,
+3 wave phases) and still shipped as a flat void with no walls, cover,
+or arena features — because the GDD never specified them. Theme is
+fiction; spatial design is geometry. They are different axes.
+
+**Genre minimums**:
+- **Shooter / arena (FPS, twin-stick)**: arena boundary geometry,
+  ≥3 cover pieces (pillars, crates, low walls), at least one
+  sightline-breaking feature for ranged enemies. "Flat plane with
+  bounds clamp" is not a level.
+- **Tower defense**: path geometry with ≥4 waypoints, ≥2 turns,
+  ≥3 tower slots that each cover ≥2 path segments. "Straight line"
+  is not a level.
+- **Roguelike / dungeon**: room sizes, corridor widths, prop
+  placement rules (treasure / enemies / hazards / secrets per room).
+- **Sim / ecology**: zones with distinct resources, water/grass/stone
+  boundaries, density falloff.
+- **Puzzle (sokoban etc.)**: cell grid dimensions, wall layout,
+  goal positions, lock-out corners — per level.
+- **Platformer**: gap widths, jump heights, hazard density, checkpoint
+  spacing.
+
+**What to check in the GDD**:
+- Are arena dimensions stated (e.g. "30m × 30m" not just "small arena")?
+- Are interior structures listed (walls, cover, doors, pillars)?
+- Are spawn points specified relative to player (ring? edges? specific
+  coordinates)?
+- Are sightline-relevant features called out (especially for genres
+  with ranged enemies / projectiles)?
+- For multi-area games: are areas named, sized, and connected?
+
+**Red flags**:
+- GDD has "theme" section but no "spatial design" section.
+- "Players fight in an arena" with no further geometry.
+- Cover or walls only show up in concept art / aesthetic notes, never
+  in mechanics or content sections.
+- Arena bounds defined only by a clamp rule; player traverses an
+  invisible square in a void.
+- For a TD: no choke points named. For a shooter: no cover named.
+
+**What to push for**: a "Level / spatial design" section of the GDD
+with at least: bounds (with units), enumerated structural features
+(walls, pillars, props), named regions if any, spawn-point convention,
+and 1 sentence on how geometry serves the stated aesthetic (e.g.
+"3 pillars enable flanking around rangers, supporting Challenge by
+making sightline management a real decision").
+
+This axis hands off cleanly to `/yume-level-designer` which produces
+the concrete coordinate-by-coordinate plan. The GDD doesn't need
+coordinates — but it MUST commit to "this game has a level," not
+just "this game has a theme."
+
+**Caveat**: don't double-charge on this axis if the GDD already has
+strong Axis 10 (Theme) AND Axis 1 (Mechanics) coverage that implies
+spatial structure. Use judgment — but if you can't picture the level
+in your head from the GDD, that's a fail signal.
+
 ## Verdict guidelines
 
-- **accept**: All 12 axes meet minimum bar. Game-designer can ship the
+- **accept**: All 13 axes meet minimum bar. Game-designer can ship the
   GDD to game-planner.
 - **revise**: 1-5 axes fail with specific addressable issues. Designer
   fixes; reviewer reviews again.

@@ -258,6 +258,12 @@ func _attach_renderer(ent: Entity) -> void:
 	# entity shows as a pink/grey square at its position. Empirically caught
 	# during towerdef3d capture (2026-05-03).
 	if bool((ent.visual as Dictionary).get("hidden", false)): return
+	# Honor `visual.hide_for_camera_attach=true` — used by first-person
+	# scenes to suppress the player's own mesh (camera is at eye height
+	# but the player capsule/head sphere would otherwise occlude the view
+	# from inside). Empirically caught during doomarena3d level review
+	# (2026-05-03) — the flag was documented in JSON but never read.
+	if bool((ent.visual as Dictionary).get("hide_for_camera_attach", false)): return
 	var script := load(renderer_script)
 	if script == null: return
 	var node = script.new()

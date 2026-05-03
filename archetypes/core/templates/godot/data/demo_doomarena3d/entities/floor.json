@@ -1,0 +1,14 @@
+{
+  "_comment": "Industrial steel-grate floor plate covering the 44×44 m arena. Visual reference so the player doesn't see void below the bounds clamp.",
+  "definitions": [
+    {
+      "id": "floor",
+      "tags": ["floor", "decoration"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "floor_grate"
+      }
+    }
+  ]
+}

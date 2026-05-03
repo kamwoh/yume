@@ -1,0 +1,23 @@
+{
+  "_comment": "Containment Chamber 7 perimeter walls — rusted steel panels with warning stripes. Decorative only in v2 (no projectile/movement blocking — engine doesn't have wall_blocks_* primitives yet). 4 instances frame the arena at ±22m.",
+  "definitions": [
+    {
+      "id": "wall_ns",
+      "tags": ["wall", "structure", "decoration"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "wall_panel_ns"
+      }
+    },
+    {
+      "id": "wall_ew",
+      "tags": ["wall", "structure", "decoration"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "wall_panel_ew"
+      }
+    }
+  ]
+}
