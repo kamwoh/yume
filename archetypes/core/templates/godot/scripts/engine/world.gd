@@ -102,7 +102,16 @@ func load_data() -> void:
 	var root := data_root.rstrip("/")
 	# Tier 2.6t — register per-game input actions from inputs.json (if any).
 	# Lets games own their input vocabulary; project.godot stays generic.
-	InputRegistrar.register_from_data_root(root)
+	# v2.6r: registrar returns press/hold action names so the engine extends
+	# its poll lists. Without this, per-game actions get InputMap entries
+	# but never reach the rule scheduler.
+	var registered: Dictionary = InputRegistrar.register_from_data_root(root)
+	for n in (registered.get("press", []) as Array):
+		if not (input_actions_press as Array).has(str(n)):
+			input_actions_press.append(str(n))
+	for n in (registered.get("hold", []) as Array):
+		if not (input_actions_hold as Array).has(str(n)):
+			input_actions_hold.append(str(n))
 	_load_rules_file(root + "/world_rules.json")
 	_load_world_file(root + "/world.json")
 	# Entities can come from a single entities.json OR a per-def entities/

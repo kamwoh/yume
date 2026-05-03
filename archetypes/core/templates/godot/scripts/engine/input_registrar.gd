@@ -10,13 +10,18 @@ class_name InputRegistrar
 ## Schema:
 ##   {
 ##     "actions": [
-##       {"name": "build_1", "key": "1"},
-##       {"name": "build_2", "keys": ["2", "Numpad2"]}
+##       {"name": "spark", "key": "Space"},
+##       {"name": "build_1", "key": "1", "edge": "press"},
+##       {"name": "charge", "key": "C", "edge": "hold"},
+##       {"name": "weapon_2", "keys": ["2", "Numpad2"]}
 ##     ]
 ##   }
 ##
 ## - `key` — single keycode string (lookup via OS.find_keycode_from_string)
 ## - `keys` — array of keycode strings (multiple bindings for one action)
+## - `edge` — `"press"` (fire once on press-edge, default) or `"hold"`
+##   (fire every frame while held). Engine adds the action to its
+##   `input_actions_press` or `input_actions_hold` poll list automatically.
 ## - At least one of `key` / `keys` is required
 ##
 ## Idempotent: calling register on the same action twice doesn't duplicate
@@ -24,38 +29,50 @@ class_name InputRegistrar
 ##
 ## Used by:
 ##   - World.load_data() — auto-registers per-game inputs at world startup
+##     and extends its poll lists with the returned action names
 ##   - scenario_runner — same hook (test scenarios get the same vocabulary)
 
 
 ## Read inputs.json at the given data root and register all actions.
-## Silent no-op if file doesn't exist — game has no custom inputs.
-static func register_from_data_root(data_root: String) -> void:
+## Returns a Dictionary {"press": [String, ...], "hold": [String, ...]} so
+## the caller can extend its poll lists. Silent no-op (returns empty
+## dict) if the file doesn't exist.
+static func register_from_data_root(data_root: String) -> Dictionary:
+	var out: Dictionary = {"press": [], "hold": []}
 	var path := data_root.rstrip("/") + "/inputs.json"
 	if not FileAccess.file_exists(path):
-		return
+		return out
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		return
+		return out
 	var raw := f.get_as_text()
 	f.close()
 	var json := JSON.new()
 	if json.parse(raw) != OK:
 		push_warning("[InputRegistrar] parse error in %s: %s"
 			% [path, json.get_error_message()])
-		return
+		return out
 	if not (json.data is Dictionary):
-		return
+		return out
 	var spec: Dictionary = json.data
 	for action_def in spec.get("actions", []):
 		if not (action_def is Dictionary):
 			continue
-		_register_one(action_def)
+		var name := _register_one(action_def)
+		if name == "": continue
+		var edge := str((action_def as Dictionary).get("edge", "press"))
+		if edge == "hold":
+			(out["hold"] as Array).append(name)
+		else:
+			(out["press"] as Array).append(name)
+	return out
 
 
-static func _register_one(action_def: Dictionary) -> void:
+## Register one action; returns the action name on success, "" on failure.
+static func _register_one(action_def: Dictionary) -> String:
 	var name := str(action_def.get("name", ""))
 	if name == "":
-		return
+		return ""
 
 	# Collect keycode strings — accept either `key` (single) or `keys` (array).
 	var keys: Array = []
@@ -66,7 +83,7 @@ static func _register_one(action_def: Dictionary) -> void:
 			keys.append(str(k))
 	if keys.is_empty():
 		push_warning("[InputRegistrar] action '%s' has no key bindings" % name)
-		return
+		return ""
 
 	# Idempotent: clear pre-existing events for this action so re-loading
 	# a game's inputs doesn't accumulate duplicate bindings.
@@ -84,3 +101,4 @@ static func _register_one(action_def: Dictionary) -> void:
 		var event := InputEventKey.new()
 		event.physical_keycode = keycode
 		InputMap.action_add_event(name, event)
+	return name
