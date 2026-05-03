@@ -1222,3 +1222,128 @@ the user's stated priority: *"always the best one, doesn't matter the cost."*
 - `cp` to 2D test instance (to be set up in W1.9)
 - Run Godot via `gl_compatibility`
 - Check console + captured frame — use `visual-qa` skill for unbiased reads
+
+---
+
+## Roadmap — Tier 2.7 RECORDING + AGENT-DRIVING SUBSTRATE (proposed)
+
+_Added 2026-05-03. Discussed during doomarena3d post-mortem. Not started._
+
+### Why this tier exists
+
+Tier 2.6s (scenario tests) proved the input-injection seam works:
+`scheduler.queue_input(action, payload)` is the single point where any
+input enters the engine — keyboard, scripted JSON, or future agent
+process. Tier 2.7 generalizes that seam into:
+
+1. **Recording** — capture (tick, action, payload) tuples + per-tick
+   state snapshots + viewport frames. Replay any session deterministically.
+2. **Agent-driving** — external process (Python, RL agent, LLM) reads
+   state, returns actions, drives the game tick-by-tick.
+
+Two seemingly different use cases, one underlying architecture.
+
+### Use case 1 — game recording (record once, replay/share)
+
+- Author plays the game; engine records action stream + state snapshots
+- Replay reads the action JSON and re-injects via the same seam
+- Pixel recording produces watchable video for share/debug
+- **Determinism dependency**: needs seedable RNG (item below) so
+  replay matches original byte-for-byte
+
+### Use case 2 — RL agent / LLM agent / scripted bot
+
+- Engine runs in stepped mode (no clock; external `step(action)` call)
+- Agent process gets `observation` (env state snapshot), returns action
+- Same input seam, just a different driver
+- Useful for: ViZDoom-style RL training, LLM-as-actor experiments,
+  automated regression bots that play the game on every PR
+
+### Deliverables
+
+- [ ] **2.7a** **Action recording.** Instrument `scheduler.queue_input`
+  to append to `env.action_log` when recording is on. Dump to JSON on
+  game end. Replay driver (extends scenario_runner) reads the JSON and
+  re-injects actions at the same tick numbers.
+  - Schema: `{game, seed, tick_seconds, ticks: [{tick, actions:
+    [{action, payload}]}]}`
+  - Trigger: cmdline `--record=path.json` or scene export var
+  - Replay: `--replay=path.json`
+  - First demo: record a doomarena3d run, replay it identically
+
+- [ ] **2.7b** **State snapshots.** Per-N-ticks dump of `env.entities`
+  + `env.relations` + `env.world` to a JSON timeline. Independent of
+  action recording — useful even without replay (debugging cascades).
+  - Schema: `{ticks: [{tick, entities: {id: {state, position, ...}},
+    relations: [...]}]}`
+  - Granularity configurable (every tick / every 4 ticks / on event)
+  - Replay verification: re-run action log + compare snapshots
+    tick-by-tick → fail fast if engine regresses behavior
+
+- [ ] **2.7c** **Deterministic RNG.** Replace `randf()` calls with
+  `env.rng.randf()`. Seed survives in recordings. Without this, replay
+  diverges within ~10 ticks for any game using random spawn/chance.
+  - **Needs ADR**: changes formula whitelist (a contract surface).
+    `randf` is currently a math helper; becomes a stateful binding.
+  - Touches `formula.gd` whitelist + every demo using `randf()`
+  - Migration: existing demos keep working (env.rng wraps default
+    Godot RNG; only difference is it's seeded from world state)
+
+- [ ] **2.7d** **Stepped mode + agent IPC.** Engine runs without
+  WorldClock; an external process drives ticks. Two transports:
+  - **stdio**: line-protocol JSON over stdin/stdout. Simplest; works
+    for Python / any language / shell scripts.
+  - **TCP/ZMQ**: lower-overhead for high-frequency RL training.
+  - Each step: agent sends `{action, payload}`; engine ticks once,
+    sends back `{observation, reward, done, info}` à la OpenAI Gym.
+  - First demo: random-action Python bot survives 5 seconds in
+    doomarena3d.
+
+- [ ] **2.7e** **Pixel recording.** Extend `capture_runner.gd` (Tier
+  2.6r) from one-shot to every-N-ticks. Output PNG sequence to
+  `user://recordings/<timestamp>/frame_NNNN.png`. Pipe through ffmpeg
+  externally for MP4.
+  - Compose with 2.7a action recording → "let me show you the bug
+    that happens on tick 47" with both video and replay-able actions
+
+### Composition matrix
+
+| Goal | 2.7a | 2.7b | 2.7c | 2.7d | 2.7e |
+|---|---|---|---|---|---|
+| Replay a session deterministically | ✓ | | ✓ | | |
+| Verify engine behavior unchanged across versions | ✓ | ✓ | ✓ | | |
+| Share gameplay video | ✓ | | | | ✓ |
+| RL training | ✓ | ✓ | ✓ | ✓ | (optional, for CV agents) |
+| Debug "what happened on tick 47?" | ✓ | ✓ | | | ✓ |
+| Automated regression bots in CI | ✓ | ✓ | ✓ | ✓ | |
+
+### Non-deliverables (explicit)
+
+- Multi-agent / network play — out of scope. Single agent or single
+  human at a time.
+- Compressed recordings — JSON for now. Binary protocol if size
+  becomes a problem in practice.
+- Live streaming — pixel recording produces files, not RTMP. Add later
+  if anyone needs it.
+
+### Suggested order
+
+Start with 2.7a (action recording) — cheapest, highest immediate
+value, doesn't depend on RNG work. Then 2.7c (deterministic RNG —
+ADR-gated) so replay actually replays. Then 2.7d (stepped mode) which
+unlocks RL/LLM-as-actor experiments. 2.7b and 2.7e are independent
+quality-of-life additions throughout.
+
+### Why now (or soon)
+
+- The seam is already proven (scenario_runner.gd, Tier 2.6s)
+- ViZDoom-style experiments were the original ask (doomarena was the
+  test case); without 2.7d we can't actually train an agent
+- Game replay + share is increasingly expected for indie game dev
+  workflows
+- Determinism is cheaper to add now (small surface) than after Tier 3
+  actors land (every actor's behavior would need re-validation)
+
+Estimated total effort: 1-2 weeks of focused work for all 5 items.
+Individual items are 1-3 hours each except 2.7c (ADR + careful
+migration).
