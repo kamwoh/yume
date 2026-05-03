@@ -1,0 +1,7 @@
+{
+  "_comment": "RPG game bindings. SPACE = action button (used for spark / interact / advance).",
+
+  "actions": [
+    {"name": "spark", "key": "Space"}
+  ]
+}

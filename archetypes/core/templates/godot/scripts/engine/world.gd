@@ -370,14 +370,18 @@ func _poll_input() -> void:
 	var actor_id := _find_actor_id()
 	if actor_id == "": return
 	var any_movement_pressed := false
-	# HOLD actions — fire every frame while held
+	# HOLD actions — fire every frame while held. Skip actions not in
+	# InputMap (per-game inputs.json may not register every default —
+	# Tier 2.6t).
 	for action in input_actions_hold:
+		if not InputMap.has_action(action): continue
 		if Input.is_action_pressed(action):
 			scheduler.queue_input(action, {"actor": actor_id})
 			if (action as String).begins_with("move_"):
 				any_movement_pressed = true
 	# PRESS actions — fire once on press-edge
 	for action in input_actions_press:
+		if not InputMap.has_action(action): continue
 		if Input.is_action_just_pressed(action):
 			scheduler.queue_input(action, {"actor": actor_id})
 	# Stop action when no movement held (idempotent zero-velocity_set).

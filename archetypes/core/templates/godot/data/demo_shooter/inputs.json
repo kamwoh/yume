@@ -1,0 +1,10 @@
+{
+  "_comment": "Twin-stick shooting bindings. I/J/K/L for 4-direction fire.",
+
+  "actions": [
+    {"name": "fire_north", "key": "I"},
+    {"name": "fire_south", "key": "K"},
+    {"name": "fire_east",  "key": "L"},
+    {"name": "fire_west",  "key": "J"}
+  ]
+}
