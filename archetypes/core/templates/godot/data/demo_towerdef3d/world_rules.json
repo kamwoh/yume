@@ -31,7 +31,7 @@
     },
 
     {
-      "_comment": "Spawn one enemy per spawn_cooldown tick. Increment enemies_alive (decremented on death/leak — drives wave_advance gate).",
+      "_comment": "Spawn one enemy per spawn_cooldown tick. Increment enemies_alive (decremented on death/leak — drives wave_advance gate). 80% imp; the 20% demon path is the wave_promote_to_demon rule that fires on spawn-trigger.",
       "id": "wave_spawn_one",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["wave_clock"],
@@ -47,60 +47,127 @@
     },
 
     {
-      "_comment": "=== PLAYER BUILDS — press 1/2/3/4 to drop a tower on a ghost slot. Costs 50 gold; only fires once per slot (slot_X_built gates re-build).",
+      "_comment": "20% chance: just-spawned grunt becomes a demon (slower, tankier). Spawn-trigger fires synchronously after spawn effect commits; query 'grunt' tag matches the new entity.",
+      "id": "wave_promote_to_demon",
+      "trigger": {"type": "spawn"},
+      "query": {"tags_all": ["grunt"]},
+      "chance": 0.2,
+      "effect": {"type": "transform", "target": "self", "to": "enemy_demon"}
+    },
+
+    {
+      "_comment": "=== PLAYER BUILDS — press 1/2/3/4 to drop a basic tower. Slot levels: 0=ghost, 1=basic, 2=advanced. Build only fires when slot is at level 0 (ghost still present).",
       "id": "build_slot_1",
       "trigger": {"type": "input", "action": "build_1"},
       "query": {"tags_all": ["player"],
-                "state": {"gold_gte": 50, "slot_1_built_lte": 0}},
+                "state": {"gold_gte": 50, "slot_1_level_lte": 0}},
       "effect": [
         {"type": "spawn", "template": "tower_basic",
          "overrides": {"_forced_id": "tower_1"},
          "position": [-6, 0, -4]},
         {"type": "remove", "target": "ghost_1"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
-        {"type": "state_set", "target": "self", "field": "slot_1_built", "value": 1}
+        {"type": "state_set", "target": "self", "field": "slot_1_level", "value": 1}
       ]
     },
     {
       "id": "build_slot_2",
       "trigger": {"type": "input", "action": "build_2"},
       "query": {"tags_all": ["player"],
-                "state": {"gold_gte": 50, "slot_2_built_lte": 0}},
+                "state": {"gold_gte": 50, "slot_2_level_lte": 0}},
       "effect": [
         {"type": "spawn", "template": "tower_basic",
          "overrides": {"_forced_id": "tower_2"},
          "position": [0, 0, -3]},
         {"type": "remove", "target": "ghost_2"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
-        {"type": "state_set", "target": "self", "field": "slot_2_built", "value": 1}
+        {"type": "state_set", "target": "self", "field": "slot_2_level", "value": 1}
       ]
     },
     {
       "id": "build_slot_3",
       "trigger": {"type": "input", "action": "build_3"},
       "query": {"tags_all": ["player"],
-                "state": {"gold_gte": 50, "slot_3_built_lte": 0}},
+                "state": {"gold_gte": 50, "slot_3_level_lte": 0}},
       "effect": [
         {"type": "spawn", "template": "tower_basic",
          "overrides": {"_forced_id": "tower_3"},
          "position": [6, 0, 4]},
         {"type": "remove", "target": "ghost_3"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
-        {"type": "state_set", "target": "self", "field": "slot_3_built", "value": 1}
+        {"type": "state_set", "target": "self", "field": "slot_3_level", "value": 1}
       ]
     },
     {
       "id": "build_slot_4",
       "trigger": {"type": "input", "action": "build_4"},
       "query": {"tags_all": ["player"],
-                "state": {"gold_gte": 50, "slot_4_built_lte": 0}},
+                "state": {"gold_gte": 50, "slot_4_level_lte": 0}},
       "effect": [
         {"type": "spawn", "template": "tower_basic",
          "overrides": {"_forced_id": "tower_4"},
          "position": [0, 0, 4]},
         {"type": "remove", "target": "ghost_4"},
         {"type": "state_add", "target": "self", "field": "gold", "amount": -50},
-        {"type": "state_set", "target": "self", "field": "slot_4_built", "value": 1}
+        {"type": "state_set", "target": "self", "field": "slot_4_level", "value": 1}
+      ]
+    },
+
+    {
+      "_comment": "=== PLAYER UPGRADES — press 5/6/7/8 to upgrade slot 1-4 from basic to advanced (level 1 → 2). Cost 100 gold. Removes the basic tower and spawns a tower_advanced at the same position.",
+      "id": "upgrade_slot_1",
+      "trigger": {"type": "input", "action": "build_5"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 100, "slot_1_level_eq": 1}},
+      "effect": [
+        {"type": "remove", "target": "tower_1"},
+        {"type": "spawn", "template": "tower_advanced",
+         "overrides": {"_forced_id": "tower_1"},
+         "position": [-6, 0, -4]},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "state_set", "target": "self", "field": "slot_1_level", "value": 2}
+      ]
+    },
+    {
+      "id": "upgrade_slot_2",
+      "trigger": {"type": "input", "action": "build_6"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 100, "slot_2_level_eq": 1}},
+      "effect": [
+        {"type": "remove", "target": "tower_2"},
+        {"type": "spawn", "template": "tower_advanced",
+         "overrides": {"_forced_id": "tower_2"},
+         "position": [0, 0, -3]},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "state_set", "target": "self", "field": "slot_2_level", "value": 2}
+      ]
+    },
+    {
+      "id": "upgrade_slot_3",
+      "trigger": {"type": "input", "action": "build_7"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 100, "slot_3_level_eq": 1}},
+      "effect": [
+        {"type": "remove", "target": "tower_3"},
+        {"type": "spawn", "template": "tower_advanced",
+         "overrides": {"_forced_id": "tower_3"},
+         "position": [6, 0, 4]},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "state_set", "target": "self", "field": "slot_3_level", "value": 2}
+      ]
+    },
+    {
+      "id": "upgrade_slot_4",
+      "trigger": {"type": "input", "action": "build_8"},
+      "query": {"tags_all": ["player"],
+                "state": {"gold_gte": 100, "slot_4_level_eq": 1}},
+      "effect": [
+        {"type": "remove", "target": "tower_4"},
+        {"type": "spawn", "template": "tower_advanced",
+         "overrides": {"_forced_id": "tower_4"},
+         "position": [0, 0, 4]},
+        {"type": "state_add", "target": "self", "field": "gold", "amount": -100},
+        {"type": "state_set", "target": "self", "field": "slot_4_level", "value": 2}
       ]
     },
 
@@ -149,7 +216,7 @@
            0,
            "(b.state.position.z - a.state.position.z) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 1) * 14"
          ]}}},
-        {"type": "state_set", "target": "a", "field": "cooldown", "value": 0.5}
+        {"type": "state_set", "target": "a", "field": "cooldown", "value": "a.properties.fire_cooldown"}
       ]
     },
 

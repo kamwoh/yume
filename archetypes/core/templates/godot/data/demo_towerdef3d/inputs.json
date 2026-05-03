@@ -5,6 +5,10 @@
     {"name": "build_1", "key": "1"},
     {"name": "build_2", "key": "2"},
     {"name": "build_3", "key": "3"},
-    {"name": "build_4", "key": "4"}
+    {"name": "build_4", "key": "4"},
+    {"name": "build_5", "key": "5"},
+    {"name": "build_6", "key": "6"},
+    {"name": "build_7", "key": "7"},
+    {"name": "build_8", "key": "8"}
   ]
 }

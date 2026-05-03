@@ -1,0 +1,22 @@
+{
+  "_comment": "Level-2 upgraded tower. Same range as level 1 but fires almost twice as fast (0.3s cooldown vs 0.5s). Brighter glow visually distinguishes it. Player upgrades by pressing 5/6/7/8 (cost 100 gold) on a slot already holding a level-1 tower.",
+  "definitions": [
+    {
+      "id": "tower_advanced",
+      "tags": ["tower", "tower_advanced"],
+      "properties": {
+        "fire_range": 6.0,
+        "fire_cooldown": 0.3,
+        "damage": 1,
+        "level": 2
+      },
+      "state_init": {
+        "cooldown": 0.0
+      },
+      "visual": {
+        "mesh": "tower_3d",
+        "params": {"base": "#604058", "barrel": "#c0c0d0", "glow": "#80ffe0"}
+      }
+    }
+  ]
+}

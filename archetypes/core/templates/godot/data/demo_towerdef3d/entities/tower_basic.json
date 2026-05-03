@@ -7,7 +7,8 @@
       "properties": {
         "fire_range": 6.0,
         "fire_cooldown": 0.5,
-        "damage": 1
+        "damage": 1,
+        "level": 1
       },
       "state_init": {
         "cooldown": 0.0

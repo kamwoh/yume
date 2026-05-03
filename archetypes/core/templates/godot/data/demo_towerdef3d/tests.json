@@ -40,7 +40,7 @@
         {"type": "entity_field", "select": "by_id", "id": "player",
          "field": "state.gold", "op": "==", "value": 50},
         {"type": "entity_field", "select": "by_id", "id": "player",
-         "field": "state.slot_1_built", "op": "==", "value": 1},
+         "field": "state.slot_1_level", "op": "==", "value": 1},
         {"type": "entity_count", "query": {"tags_all": ["tower"]},
          "op": "==", "value": 1},
         {"type": "entity_count", "query": {"tags_all": ["slot_ghost"]},
@@ -78,6 +78,65 @@
          "op": "==", "value": 1},
         {"type": "entity_field", "select": "by_id", "id": "player",
          "field": "state.gold", "op": "==", "value": 50}
+      ]
+    },
+
+    {
+      "name": "upgrade_slot_1_to_advanced",
+      "_": "Build slot 1 (level 1) then immediately upgrade with key 5 (build_5). Player gold: 100 - 50 build - ... wait, only 50 left, can't upgrade (cost 100). Set gold higher in setup.",
+      "setup": {
+        "entity_state": {"player": {"gold": 200}}
+      },
+      "actions": [
+        {"tick": 1, "input": "build_1"},
+        {"tick": 2, "input": "build_5"}
+      ],
+      "ticks": 4,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.slot_1_level", "op": "==", "value": 2},
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.gold", "op": "==", "value": 50},
+        {"type": "entity_count", "query": {"tags_all": ["tower_advanced"]},
+         "op": "==", "value": 1}
+      ]
+    },
+
+    {
+      "name": "upgrade_blocked_when_no_tower",
+      "_": "Pressing build_5 with no tower at slot 1 (slot_1_level == 0) should fail — query slot_1_level_eq 1 doesn't match.",
+      "setup": {
+        "entity_state": {"player": {"gold": 200}}
+      },
+      "actions": [
+        {"tick": 1, "input": "build_5"}
+      ],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.slot_1_level", "op": "==", "value": 0},
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.gold", "op": "==", "value": 200}
+      ]
+    },
+
+    {
+      "name": "upgrade_blocked_when_already_advanced",
+      "_": "Build then upgrade twice — second upgrade should not fire (slot already at level 2).",
+      "setup": {
+        "entity_state": {"player": {"gold": 500}}
+      },
+      "actions": [
+        {"tick": 1, "input": "build_1"},
+        {"tick": 2, "input": "build_5"},
+        {"tick": 3, "input": "build_5"}
+      ],
+      "ticks": 5,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.gold", "op": "==", "value": 350},
+        {"type": "entity_field", "select": "by_id", "id": "player",
+         "field": "state.slot_1_level", "op": "==", "value": 2}
       ]
     },
 
