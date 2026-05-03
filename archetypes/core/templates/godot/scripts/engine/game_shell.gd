@@ -94,16 +94,40 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	if _won or _lost:
-		# After freeze, only listen for restart
+		# After freeze, only listen for restart or quit
 		if Input.is_action_just_pressed("ui_accept") or Input.is_key_label_pressed(KEY_R):
 			get_tree().reload_current_scene()
+		if Input.is_key_label_pressed(KEY_ESCAPE) or Input.is_key_label_pressed(KEY_Q):
+			get_tree().quit()
 		return
+	_handle_pause_input()
 	_update_camera_follow()
 	_update_bound_elements()
 	_update_floor_tint()
 	_drain_shell_events()
 	_update_shake_and_flash()
 	_check_win_lose()
+
+
+## ESC handling. First press: release captured mouse (so user can click
+## the window's X to close, or alt-tab away). Second press while cursor
+## is already visible: quit the game. Q also quits anytime.
+##
+## Tracked via _esc_was_pressed so we only fire once per keypress, not
+## every frame the key is held.
+var _esc_was_pressed: bool = false
+func _handle_pause_input() -> void:
+	if Input.is_key_label_pressed(KEY_Q):
+		get_tree().quit()
+		return
+	var esc := Input.is_key_label_pressed(KEY_ESCAPE)
+	if esc and not _esc_was_pressed:
+		# Press-edge: toggle cursor capture, or quit if already free
+		if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		else:
+			get_tree().quit()
+	_esc_was_pressed = esc
 
 
 # ============================================================
@@ -399,28 +423,42 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 
 ## First-person 3D: Camera3D at entity eye height, rotated by state.facing.
 ## Mouse-x → facing yaw, mouse-y → optional pitch (clamped). Doom/FPS feel.
-## Uses MOUSE_MODE_CAPTURED to lock cursor to game window.
+## Cursor capture: lock at first frame; ESC releases; click recaptures.
+## (Look loop self-disables when cursor is visible — user is paused.)
 func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
 	if target_v == null: return
 	var target: Vector3 = target_v
+	# Initial capture only — don't fight ESC every frame
+	if not _fp_initial_capture_done:
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		_fp_initial_capture_done = true
+	# Recapture if user clicks back into game while cursor is visible
+	if Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE \
+			and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	var actor = _drain_mouse_facing(cam_cfg)
 	if actor == null: return
-	# Lock cursor for first-person feel (idempotent — safe to call repeatedly)
-	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	var facing := float(actor.get_state("facing", 0.0))
 	var pitch := float(actor.get_state("pitch", 0.0))
 	var eye_height := float(cam_cfg.get("eye_height", 1.7))
-	# Camera at the player's eye, rotated to face yaw + pitch.
 	_camera3d.global_position = target + Vector3(0, eye_height, 0)
 	_camera3d.rotation = Vector3(pitch, facing, 0)
 	_apply_ortho(cam_cfg, false)
 
 
+# Tracks whether we've done the initial cursor capture for first-person.
+# Without this, the FPS camera mode would auto-recapture every frame and
+# fight ESC's release.
+var _fp_initial_capture_done: bool = false
+
+
 ## Drain accumulated mouse motion → update actor.state.facing (yaw) and
 ## optionally state.pitch. Returns the actor entity (or null). Mouse-y
 ## controls pitch only if cam_cfg.use_pitch is true (clamped to ±π/2 - 0.1).
+##
+## When cursor is VISIBLE (user paused via ESC), discard accumulated
+## delta without applying — prevents camera snapping on resume.
 func _drain_mouse_facing(cam_cfg: Dictionary):
 	var tag := str(cam_cfg.get("follow_tag", ""))
 	if tag == "": return null
@@ -429,6 +467,10 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 	var sched = _world.get("scheduler")
 	if sched == null: return actor
 	var env: Dictionary = sched.env
+	# Pause look when cursor is free
+	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
+		env["mouse_delta"] = Vector2.ZERO
+		return actor
 	var delta_v = env.get("mouse_delta", Vector2.ZERO)
 	if not (delta_v is Vector2): delta_v = Vector2.ZERO
 	var delta: Vector2 = delta_v
