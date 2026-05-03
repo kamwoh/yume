@@ -436,9 +436,12 @@ func _find_actor_id() -> String:
 ## oblique angles can tunnel through thin walls. Acceptable for arcade-feel.
 const DRAG_REST_EPSILON := 0.5
 const DEFAULT_BODY_RADIUS := 0.4
+var _pending_remove_ids: Array[String] = []
+
 func _integrate_motion(delta: float) -> void:
 	# ADR 0004: collect blockers once per frame (immovable static obstacles).
 	var blockers: Array = _collect_blockers()
+	_pending_remove_ids = []
 	for id in entities.keys():
 		var ent = entities[id]
 		if not (ent is Entity): continue
@@ -511,16 +514,29 @@ func _integrate_motion(delta: float) -> void:
 						new_p2v = _resolve_motion_2d(p as Vector2, new_p2v, body_r, blockers)
 				(ent as Entity).set_position(new_p2v)
 				moved = true
-		# Projectile that hit a blocker: zero its velocity AND lifetime so
-		# it visibly stops at the wall and despawns next tick (no slide-
-		# along, no infinite hang).
+		# Projectile that hit a blocker: queue for immediate removal so it
+		# doesn't hang at the wall. Collected post-loop to avoid mutating
+		# entities mid-iteration. (Set velocity=0 first as a defensive
+		# guard against late-frame motion before the deferred removal.)
 		if is_projectile and moved:
 			var p_after = (ent as Entity).get_position()
 			if p_after == p:
 				(ent as Entity).set_velocity(Vector3.ZERO if p is Vector3 else Vector2.ZERO)
-				(ent as Entity).set_state("lifetime", 0)
+				_pending_remove_ids.append(str(id))
 		if moved and spatial_index != null:
 			spatial_index.update_entity(id, (ent as Entity).get_planar_position())
+	# Drain queued projectile removals (bullets that hit walls). Runs OUTSIDE
+	# the entities.keys() loop so we don't mutate during iter.
+	for rid in _pending_remove_ids:
+		var rent: Entity = entities.get(rid, null)
+		if rent == null: continue
+		if relations != null:
+			relations.clear_entity(rid)
+		if spatial_index != null and spatial_index.has_method("remove_entity"):
+			spatial_index.remove_entity(rid)
+		entities.erase(rid)
+		rent.queue_free()
+	_pending_remove_ids = []
 
 
 ## ADR 0004: build a snapshot of all `blocks_motion` AABBs for this frame.
