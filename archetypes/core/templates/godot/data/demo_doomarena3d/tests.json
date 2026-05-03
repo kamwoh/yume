@@ -82,6 +82,127 @@
     },
 
     {
+      "name": "five_imps_all_home",
+      "_": "5 imps from different angles. Spawn rules disabled. After 50 ticks (2.5s), each imp should have moved at least 5m closer to origin (started 10m away, speed 3.5 m/s → 8.75m closer in 2.5s, but we test less).",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "pickup_timer": 99999.0}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "imp_a", "position": [10, 0, 0]},
+          {"def": "monster_imp", "id": "imp_b", "position": [-10, 0, 0]},
+          {"def": "monster_imp", "id": "imp_c", "position": [0, 0, 10]},
+          {"def": "monster_imp", "id": "imp_d", "position": [0, 0, -10]},
+          {"def": "monster_imp", "id": "imp_e", "position": [7, 0, 7]}
+        ]
+      },
+      "actions": [],
+      "ticks": 50,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "imp_a",
+         "field": "state.position.x", "op": "<", "value": 8},
+        {"type": "entity_field", "select": "by_id", "id": "imp_b",
+         "field": "state.position.x", "op": ">", "value": -8},
+        {"type": "entity_field", "select": "by_id", "id": "imp_c",
+         "field": "state.position.z", "op": "<", "value": 8},
+        {"type": "entity_field", "select": "by_id", "id": "imp_d",
+         "field": "state.position.z", "op": ">", "value": -8},
+        {"type": "entity_field", "select": "by_id", "id": "imp_e",
+         "field": "state.position.x", "op": "<", "value": 6}
+      ]
+    },
+
+    {
+      "name": "single_monster_long_run",
+      "_": "ONE imp, 200 ticks. No spawn rule pressure. Should walk to player and trigger contact removal.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "pickup_timer": 99999.0}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "lone_imp", "position": [10, 0, 5]}
+        ]
+      },
+      "actions": [],
+      "ticks": 200,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["monster"]},
+         "op": "==", "value": 0},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.hp", "op": "<", "value": 100}
+      ]
+    },
+
+    {
+      "name": "monster_long_run_reaches_player",
+      "_": "Like live smoke (1200 ticks). Imp at typical spawn (10, 0, 5). Should reach player and trigger contact eventually. After 1200 ticks (60s simulated), monster count should be 0 (consumed by monster_hits_player) AND player.hp should be < 100.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "test_imp_long", "position": [10, 0, 5]}
+        ]
+      },
+      "actions": [],
+      "ticks": 1200,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["monster"]},
+         "op": "<=", "value": 5},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.hp", "op": "<", "value": 100}
+      ]
+    },
+
+    {
+      "name": "monster_reaches_and_kills_player",
+      "_": "Run long enough for an imp to walk from x=8 to player at origin (8m / 3.5 m/s = ~2.3s = 46 ticks). After 80 ticks (4s), imp should have hit player → imp removed (monster_hits_player), player HP -10.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "test_imp", "position": [8, 0, 0]}
+        ]
+      },
+      "actions": [],
+      "ticks": 80,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["monster"]},
+         "op": "==", "value": 0},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.hp", "op": "<", "value": 100}
+      ]
+    },
+
+    {
+      "name": "monster_homes_toward_player",
+      "_": "User playtest: 'the bot didn't come to me?' Spawn imp at x=10, player at origin. After 10 ticks (0.5s) imp should move toward player (lower x). Imp speed=3.5 m/s × 0.5s = 1.75 m closer, so x should drop from 10 to ~8.25. Permissive bound x < 9.5.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "test_imp", "position": [10, 0, 0]}
+        ]
+      },
+      "actions": [],
+      "ticks": 10,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["monster"]},
+         "op": "==", "value": 1},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["monster"]},
+         "field": "state.position.x", "op": "<", "value": 9.5}
+      ]
+    },
+
+    {
       "name": "fire_blocked_when_no_ammo",
       "_": "ammo=0 → fire rule's `state.ammo_gt: 0` query fails → no bullet.",
       "setup": {

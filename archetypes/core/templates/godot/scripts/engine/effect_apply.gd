@@ -262,8 +262,16 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 	if ent == null: return
 	var vx := float(_value(e.get("x", 0), ctx, env))
 	var vy := float(_value(e.get("y", 0), ctx, env))
-	# 2D-default velocity. 3D variant would set z too — extend when needed.
-	ent.set_velocity(Vector2(vx, vy))
+	# Presence of `z` decides 2D vs 3D output. Without z, classic Vector2
+	# (top-down 2D games). With z, Vector3 — required for 3D homing,
+	# vertical motion, etc. Empirically caught when doomarena3d's homing
+	# rule on imps with X=0 didn't move them (Z component was silently
+	# dropped).
+	if e.has("z"):
+		var vz := float(_value(e.get("z", 0), ctx, env))
+		ent.set_velocity(Vector3(vx, vy, vz))
+	else:
+		ent.set_velocity(Vector2(vx, vy))
 
 
 ## Tier 2.6o Phase 3 — set velocity in actor's facing-relative frame.

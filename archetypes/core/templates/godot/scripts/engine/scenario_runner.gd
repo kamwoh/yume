@@ -152,6 +152,26 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 # ============================================================
 
 func _apply_setup(world: World, setup: Dictionary) -> void:
+	# spawn: extra entities to inject at scenario start.
+	# Schema: [{def: "monster_imp", id: "test_imp", position: [x, y, z]}]
+	var spawns: Array = setup.get("spawn", [])
+	for spec in spawns:
+		if not (spec is Dictionary): continue
+		var s: Dictionary = spec
+		var template := str(s.get("def", ""))
+		var defs: Dictionary = world.scheduler.env.get("defs", {})
+		if not defs.has(template): continue
+		var override: Dictionary = {}
+		if s.has("position"):
+			override["position"] = s["position"]
+		if s.has("state"):
+			override["state"] = s["state"]
+		var inst_id := str(s.get("id", "%s_setup_%d" % [template, randi()]))
+		var ent := Entity.create(defs[template], inst_id, override)
+		world.scheduler.env.get("entities", {})[inst_id] = ent
+		if world.spatial_index != null:
+			world.spatial_index.update_entity(inst_id, ent.get_planar_position())
+
 	# entity_state: {entity_id: {field: value, ...}}
 	var es: Dictionary = setup.get("entity_state", {})
 	for ent_id in es:
@@ -208,24 +228,37 @@ func _check_entity_count(world: World, a: Dictionary, scenario_name: String) -> 
 
 
 func _check_entity_field(world: World, a: Dictionary, scenario_name: String) -> void:
-	var query: Dictionary = a.get("query", {})
-	var select := str(a.get("select", "first"))  # only "first" supported v1
-	var matches := _query_entities(world, query)
-	if matches.is_empty():
-		_record_fail(scenario_name,
-			"entity_field %s: no entities matched (select=%s)" % [_summarize_query(query), select])
-		return
-	var ent: Entity = matches[0]
+	var select := str(a.get("select", "first"))
+	var ent: Entity = null
+	if select == "by_id":
+		var lookup_id := str(a.get("id", ""))
+		var got_ent = world.scheduler.env.get("entities", {}).get(lookup_id, null)
+		if got_ent is Entity:
+			ent = got_ent
+		else:
+			_record_fail(scenario_name,
+				"entity_field by_id '%s': no such entity" % lookup_id)
+			return
+	else:
+		var query: Dictionary = a.get("query", {})
+		var matches := _query_entities(world, query)
+		if matches.is_empty():
+			_record_fail(scenario_name,
+				"entity_field %s: no entities matched (select=%s)" % [_summarize_query(query), select])
+			return
+		ent = matches[0]
 	var field := str(a.get("field", ""))
 	var got = _resolve_field(ent, field)
 	var op := str(a.get("op", "=="))
 	var expected = a.get("value", 0)
+	var label := "id=%s" % a.get("id", "?") if select == "by_id" \
+		else _summarize_query(a.get("query", {}))
 	if _cmp(got, op, expected):
-		_record_pass("entity_field %s.%s %s %s (got %s)" % [_summarize_query(query), field, op, expected, got])
+		_record_pass("entity_field %s.%s %s %s (got %s)" % [label, field, op, expected, got])
 	else:
 		_record_fail(scenario_name,
 			"entity_field %s.%s: expected %s %s, got %s"
-			% [_summarize_query(query), field, op, expected, got])
+			% [label, field, op, expected, got])
 
 
 # ============================================================
