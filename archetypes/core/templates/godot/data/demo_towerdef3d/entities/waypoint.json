@@ -6,8 +6,8 @@
       "tags": ["waypoint"],
       "properties": {},
       "state_init": {
-        "next_vx": 0.0,
-        "next_vz": 0.0
+        "next_x": 0.0,
+        "next_z": 0.0
       },
       "visual": {
         "mesh": "wp_marker",

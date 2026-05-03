@@ -141,6 +141,29 @@
     },
 
     {
+      "name": "enemy_turns_at_each_waypoint",
+      "_": "After 35 ticks: enemy spawned at wp_1, walked east, turned south near wp_2 via homing. z component of velocity should now be positive (heading south toward wp_3).",
+      "setup": {
+        "entity_state": {
+          "clock_1": {"wave_timer": 99999, "spawn_cooldown": 99999}
+        },
+        "spawn": [
+          {"def": "enemy_grunt", "id": "tracker",
+           "position": [-9, 0, -7],
+           "state": {"velocity": [2.0, 0, 0], "hp": 99}}
+        ]
+      },
+      "actions": [],
+      "ticks": 35,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "tracker",
+         "field": "state.position.z", "op": ">", "value": -7},
+        {"type": "entity_field", "select": "by_id", "id": "tracker",
+         "field": "state.velocity.z", "op": ">", "value": 1.0}
+      ]
+    },
+
+    {
       "name": "lone_enemy_walks_full_path_to_base",
       "_": "Spawn one enemy at wp_1. Disable wave-spawning. Run for 220 ticks (22s — enough to walk all 39m at 2 m/s). Enemy should reach base and trigger -1 base.hp. NO towers built — pure path-following test, isolates path bug from combat.",
       "setup": {

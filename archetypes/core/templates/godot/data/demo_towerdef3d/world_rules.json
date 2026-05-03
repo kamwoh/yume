@@ -190,20 +190,20 @@
 
     {
       "_comment": "=== PATH-FOLLOWING ===",
-      "_": "Enemy contacts a waypoint → set velocity to that waypoint's stored next_v. Waypoint encodes the direction to the NEXT waypoint, so the enemy turns at each corner.",
+      "_": "Enemy near a waypoint (radius 1.2) → velocity is set toward the NEXT waypoint's position (not just an axis direction). Each waypoint stores next_x/next_z = the position of the next node. This is homing — enemies auto-correct perpendicular drift instead of accumulating it. Speed factor 2 = enemy speed (2 m/s). Caught during user playtest: 'enemy forgot to turn' was actually drift accumulation across multiple waypoints.",
       "id": "enemy_advance_at_waypoint",
       "trigger": {"type": "contact"},
       "query": {
         "a": {"tags_all": ["enemy"]},
         "b": {"tags_all": ["waypoint"]},
-        "radius": 0.8
+        "radius": 1.2
       },
       "effect": {
         "type": "velocity_set",
         "target": "a",
-        "x": "b.state.next_vx",
+        "x": "(b.state.next_x - a.state.position.x) / max(sqrt(pow(b.state.next_x - a.state.position.x, 2) + pow(b.state.next_z - a.state.position.z, 2)), 0.1) * 2",
         "y": 0,
-        "z": "b.state.next_vz"
+        "z": "(b.state.next_z - a.state.position.z) / max(sqrt(pow(b.state.next_x - a.state.position.x, 2) + pow(b.state.next_z - a.state.position.z, 2)), 0.1) * 2"
       }
     },
 
