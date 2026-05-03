@@ -76,7 +76,13 @@ static func create(def: Dictionary, inst_id: String, overrides: Dictionary = {})
 func _apply_overrides(overrides: Dictionary) -> void:
 	if overrides.has("state") and overrides["state"] is Dictionary:
 		for k in (overrides["state"] as Dictionary):
-			state[k] = overrides["state"][k]
+			var v = overrides["state"][k]
+			# Normalize spatial fields from JSON arrays to Vector2/Vector3.
+			# Without this, override `state.velocity = [0, -400]` stays an
+			# Array and motion integrator skips it (silent bug).
+			if (str(k) == "position" or str(k) == "velocity") and v is Array:
+				v = _normalize_position(v)
+			state[k] = v
 	if overrides.has("properties") and overrides["properties"] is Dictionary:
 		for k in (overrides["properties"] as Dictionary):
 			properties[k] = overrides["properties"][k]

@@ -18,7 +18,7 @@
     }
   ],
 
-  "controls_hint": "WASD to move\nArrow keys to shoot",
+  "controls_hint": "WASD to move\nI/J/K/L to shoot (up/left/down/right)",
 
   "win":  {"binds": "player.score", "op": ">=", "value": 30,
            "message": "🌟 ARENA CLEAR 🌟\nAll hostiles down."},
