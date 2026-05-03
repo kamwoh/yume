@@ -7,7 +7,7 @@
       "_": "Pressing SPACE (spark) on tick 1 should spawn exactly 1 bullet.",
       "setup": {
         "entity_state": {
-          "player": {"facing": 0, "ammo": 5, "position": [0, 0, 0]}
+          "player": {"facing": 0, "pitch": 0, "ammo": 5, "position": [0, 0, 0]}
         }
       },
       "actions": [
@@ -22,10 +22,10 @@
 
     {
       "name": "bullet_moves_after_fire",
-      "_": "REGRESSION: bullet velocity must be Vector3, not Vector3.ZERO. Player faces +X (facing=0). After 8 ticks at velocity 22 m/s × 8 × 0.05s tick = 8.8 m, bullet should be far from origin. NOTE: motion integrator uses tick_seconds from scene, but here we tick directly, so position uses raw delta. Use a permissive bound (>1.0).",
+      "_": "REGRESSION: bullet velocity must be Vector3, not Vector3.ZERO. Camera convention: at facing=0, pitch=0, forward = -Z. Bullet velocity formula = (-sin(f)*cos(p), -sin(p), -cos(f)*cos(p)) * 22. At facing=pitch=0, that's (0, 0, -22). After 8 ticks at tick_seconds=0.05, bullet should be at z ≈ -0.6 (spawn) - 22*0.05*8 = -9.4.",
       "setup": {
         "entity_state": {
-          "player": {"facing": 0, "ammo": 5, "position": [0, 0, 0]}
+          "player": {"facing": 0, "pitch": 0, "ammo": 5, "position": [0, 0, 0]}
         }
       },
       "actions": [
@@ -37,7 +37,7 @@
          "op": ">=", "value": 1},
         {"type": "entity_field", "select": "first",
          "query": {"tags_all": ["bullet"]},
-         "field": "state.position.x", "op": ">", "value": 1.0}
+         "field": "state.position.z", "op": "<", "value": -1.0}
       ]
     },
 
@@ -46,7 +46,7 @@
       "_": "Each fire reduces ammo by 1. Start at 5, fire 3 times → 2.",
       "setup": {
         "entity_state": {
-          "player": {"facing": 0, "ammo": 5, "position": [0, 0, 0]}
+          "player": {"facing": 0, "pitch": 0, "ammo": 5, "position": [0, 0, 0]}
         }
       },
       "actions": [
@@ -67,7 +67,7 @@
       "_": "ammo=0 → fire rule's `state.ammo_gt: 0` query fails → no bullet.",
       "setup": {
         "entity_state": {
-          "player": {"facing": 0, "ammo": 0, "position": [0, 0, 0]}
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "position": [0, 0, 0]}
         }
       },
       "actions": [

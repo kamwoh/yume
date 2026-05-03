@@ -12,7 +12,7 @@
     "follow_tag": "player",
     "eye_height": 1.6,
     "mouse_sensitivity": 0.003,
-    "use_pitch": false,
+    "use_pitch": true,
     "fov": 78
   }
 }

@@ -81,21 +81,21 @@
     },
 
     {
-      "_comment": "=== PLAYER FIRING — single PRESS-edge rule. Bullet position = player + forward offset; bullet velocity = facing * 22 m/s. Y at eye level (1.4). 'spark' action is already mapped to SPACE in project.godot.",
+      "_comment": "=== PLAYER FIRING — single PRESS-edge rule. Forward direction matches Godot Camera3D convention: facing is Y-rotation, default forward = (-sin(facing), 0, -cos(facing)). At facing=0, bullet flies to -Z (matches camera looking at -Z). With pitch enabled, Y component = -sin(pitch) * 22 and horizontal scaling factor = cos(pitch). 'spark' action is already mapped to SPACE in project.godot.",
       "id": "fire_forward",
       "trigger": {"type": "input", "action": "spark"},
       "query": {"tags_all": ["player"], "state": {"ammo_gt": 0}},
       "effect": [
         {"type": "spawn", "template": "bullet",
          "position": [
-           "self.state.position.x + cos(self.state.facing) * 0.6",
-           1.4,
-           "self.state.position.z + sin(self.state.facing) * 0.6"
+           "self.state.position.x - sin(self.state.facing) * cos(self.state.pitch) * 0.6",
+           "1.4 - sin(self.state.pitch) * 0.6",
+           "self.state.position.z - cos(self.state.facing) * cos(self.state.pitch) * 0.6"
          ],
          "overrides": {"state": {"velocity": [
-           "cos(self.state.facing) * 22",
-           0,
-           "sin(self.state.facing) * 22"
+           "-sin(self.state.facing) * cos(self.state.pitch) * 22",
+           "-sin(self.state.pitch) * 22",
+           "-cos(self.state.facing) * cos(self.state.pitch) * 22"
          ]}}},
         {"type": "state_add", "target": "self", "field": "ammo", "amount": -1}
       ]

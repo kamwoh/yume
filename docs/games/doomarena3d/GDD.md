@@ -152,8 +152,13 @@ Out of scope (explicitly):
 
 ## Open questions (auto-resolved for autonomous mode)
 
-- **Q1 Use mouse-pitch or planar aim?** Resolved: PLANAR (use_pitch=false).
-  Doom-1 style. Bullets fly horizontally at eye-height. Simpler.
+- **Q1 Use mouse-pitch or planar aim?** Originally resolved: PLANAR
+  (use_pitch=false). Revised 2026-05-03 to FULL 3D AIM (use_pitch=true)
+  after user playtest — more natural feel, better matches genre
+  expectations. Bullet velocity formula uses `cos(pitch)` for the XZ
+  component and `-sin(pitch)` for Y. Camera convention: facing is
+  Y-rotation, default forward = -Z. Bullet velocity formula must match:
+  `(-sin(facing)*cos(pitch), -sin(pitch), -cos(facing)*cos(pitch))`.
 - **Q2 Click-to-shoot or space-to-shoot?** Resolved: SPACE — keeps
   mouse free for aim, no click-and-cursor-loss interactions. Single
   PRESS-edge rule.

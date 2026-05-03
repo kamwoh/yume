@@ -12,6 +12,7 @@
         "ammo": 30,
         "score": 0,
         "facing": 0.0,
+        "pitch": 0.0,
         "drag": 8.0,
         "velocity": [0, 0, 0]
       },
