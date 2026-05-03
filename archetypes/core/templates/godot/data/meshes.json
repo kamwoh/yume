@@ -155,6 +155,13 @@
         {"op": "sphere",   "pos": [0, 1.55, 0], "radius": 0.12, "color": "$glow"}
       ],
       "params": {"base": "#404048", "barrel": "#a0a0b0", "glow": "#ffe060"}
+    },
+
+    "path_dot": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.02, 0], "radius": 0.18, "height": 0.04, "color": "$track"}
+      ],
+      "params": {"track": "#7050a0"}
     }
   }
 }

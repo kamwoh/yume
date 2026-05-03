@@ -4,13 +4,17 @@
   "scenarios": [
     {
       "name": "clock_advance_works",
-      "_": "After 50 ticks, wave_timer should be ~3.0 - 50*0.1 = -2. wave_start should have fired and set enemies_to_spawn = 3.",
+      "_": "After 50 ticks: wave_timer was 3.0, ticked down to <0 at t31, wave_advance fired (wave 0→1, enemies_to_spawn=3, wave_timer=8). Then 19 more ticks of decrement: 8 - 1.9 ≈ 6.1.",
       "setup": {},
       "actions": [],
       "ticks": 50,
       "assertions": [
         {"type": "entity_field", "select": "by_id", "id": "clock_1",
-         "field": "state.wave_timer", "op": ">", "value": 50.0}
+         "field": "state.wave", "op": "==", "value": 1},
+        {"type": "entity_field", "select": "by_id", "id": "clock_1",
+         "field": "state.wave_timer", "op": "<", "value": 8.0},
+        {"type": "entity_field", "select": "by_id", "id": "clock_1",
+         "field": "state.wave_timer", "op": ">", "value": 5.0}
       ]
     },
 

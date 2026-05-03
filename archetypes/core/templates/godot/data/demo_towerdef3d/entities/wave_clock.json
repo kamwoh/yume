@@ -6,10 +6,11 @@
       "tags": ["wave_clock"],
       "properties": {},
       "state_init": {
-        "wave": 1,
+        "wave": 0,
         "wave_timer": 3.0,
         "spawn_cooldown": 0.0,
-        "enemies_to_spawn": 0
+        "enemies_to_spawn": 0,
+        "enemies_alive": 0
       },
       "visual": {"hidden": true}
     }

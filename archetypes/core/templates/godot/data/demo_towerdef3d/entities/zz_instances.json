@@ -1,5 +1,27 @@
 {
-  "_comment": "Initial placements. Path is a zigzag from (-12, 0, -10) → (12, 0, 10). Each waypoint stores the velocity to set on enemies that touch it (toward the NEXT waypoint, magnitude = enemy speed = 2 m/s). Final waypoint is the base. Towers placed along bends.",
+  "_comment": "Initial placements. Path is a zigzag fitting the 18m vertical view. Each waypoint stores velocity to set on enemies that touch it (direction to next waypoint, magnitude = enemy speed). Final waypoint is the base. path_dot decor entities visualize the path between waypoints (line patterns, ~7 dots per segment).",
+
+  "patterns": [
+    {"_": "Path visualization — 7 dots evenly spaced between each waypoint pair so the player can see where enemies walk.",
+     "def": "path_dot", "id_prefix": "pd_a",
+     "pattern": "line", "count": 7,
+     "start": [-9, 0.02, -7], "end": [-3, 0.02, -7]},
+    {"def": "path_dot", "id_prefix": "pd_b",
+     "pattern": "line", "count": 7,
+     "start": [-3, 0.02, -7], "end": [-3, 0.02, 0]},
+    {"def": "path_dot", "id_prefix": "pd_c",
+     "pattern": "line", "count": 7,
+     "start": [-3, 0.02, 0], "end": [3, 0.02, 0]},
+    {"def": "path_dot", "id_prefix": "pd_d",
+     "pattern": "line", "count": 7,
+     "start": [3, 0.02, 0], "end": [3, 0.02, 7]},
+    {"def": "path_dot", "id_prefix": "pd_e",
+     "pattern": "line", "count": 7,
+     "start": [3, 0.02, 7], "end": [9, 0.02, 7]},
+    {"def": "path_dot", "id_prefix": "pd_f",
+     "pattern": "line", "count": 7,
+     "start": [9, 0.02, 7], "end": [9, 0.02, 0]}
+  ],
 
   "initial_instances": [
     {"def": "wave_clock", "id": "clock_1", "position": [0, 0, 0]},

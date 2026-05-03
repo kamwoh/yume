@@ -13,7 +13,9 @@
         {"type": "spacer", "height": 6},
         {"type": "label", "binds": "player.gold", "format": "💰 Gold: {}", "size": 18},
         {"type": "spacer", "height": 6},
-        {"type": "label", "binds": "wave_clock.enemies_to_spawn", "format": "👹 Queued: {}", "size": 16}
+        {"type": "label", "binds": "wave_clock.enemies_alive", "format": "👹 On field: {}", "size": 16},
+        {"type": "label", "binds": "wave_clock.enemies_to_spawn", "format": "📥 Queued: {}", "size": 16},
+        {"type": "label", "binds": "wave_clock.wave_timer", "format": "⏳ Next wave in: {}s", "size": 16}
       ]
     }
   ],

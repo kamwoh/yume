@@ -1,0 +1,15 @@
+{
+  "_comment": "Visual track marker — small purple disc on the floor. Placed in lines along the path so the player can SEE where enemies will walk. Pure visual, no rules act on these (no 'path_dot' tag query).",
+  "definitions": [
+    {
+      "id": "path_dot",
+      "tags": ["decor", "path_dot"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "path_dot",
+        "params": {"track": "#7050a0"}
+      }
+    }
+  ]
+}
