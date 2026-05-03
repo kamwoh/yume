@@ -157,7 +157,16 @@ func _load_entities_path(root: String) -> void:
 		for def in d.get("definitions", []):
 			if def is Dictionary:
 				defs[str(def.get("id", ""))] = def
-	# Phase 2: process initial instances + relations
+	# Phase 1.5: expand declarative patterns into concrete instance dicts.
+	# Tier 2.6q — entities/zz_instances.json (and similar) can declare
+	# `patterns: [{def, pattern, count, ...}]` instead of hand-typing
+	# every position. Patterns expand to the same shape as initial_instances.
+	for d in dicts:
+		for p in d.get("patterns", []):
+			if p is Dictionary:
+				for inst in InstancePatterns.expand(p):
+					_spawn_initial(inst)
+	# Phase 2: process hand-coded initial instances + relations
 	for d in dicts:
 		for inst in d.get("initial_instances", []):
 			if inst is Dictionary:
@@ -244,7 +253,32 @@ func _attach_renderer(ent: Entity) -> void:
 	if script == null: return
 	var node = script.new()
 	if node is Node:
+		# Allow per-game override of renderer's position_scale (and similar
+		# exported props) via scene.json's `renderer` block. Tier 2.6q —
+		# fpsgarden authors in world units (radius 13 = 13 meters) and
+		# needs position_scale=1; existing 2D demos use the default 0.05
+		# (200 pixels → 10 world units).
+		_apply_renderer_overrides(node)
 		ent.add_child(node)
+
+
+# Cached scene_cfg renderer block — read from data_root/scene.json once.
+var _renderer_cfg_loaded: bool = false
+var _renderer_cfg: Dictionary = {}
+func _apply_renderer_overrides(node) -> void:
+	if not _renderer_cfg_loaded:
+		_renderer_cfg_loaded = true
+		var scene_path: String = data_root.rstrip("/") + "/scene.json"
+		if FileAccess.file_exists(scene_path):
+			var f := FileAccess.open(scene_path, FileAccess.READ)
+			var data = JSON.parse_string(f.get_as_text())
+			if data is Dictionary:
+				var cfg = (data as Dictionary).get("renderer", {})
+				if cfg is Dictionary: _renderer_cfg = cfg
+	for k in _renderer_cfg.keys():
+		# Only set props the renderer actually exposes
+		if node.get(str(k)) != null or k in node:
+			node.set(str(k), _renderer_cfg[k])
 
 
 # ============================================================

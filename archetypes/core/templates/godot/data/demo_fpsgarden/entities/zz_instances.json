@@ -1,33 +1,31 @@
 {
-  "_comment": "Designed layout, not arbitrary numbers. Concentric rings around the player at (0,0,0): 5 orbs at radius 5 (collectibles in mid-distance), 8 trees at radius 13 (outer perimeter framing), 6 rocks in inner area (close decor). Y=0 for all decor so they sit on the ground. Orbs at y=0.4 so the fire mesh's glow centers at eye-natural height.",
+  "_comment": "Tier 2.6q — declarative placement. Designer writes intent (8-tree perimeter, 5-orb pentagon) instead of computing 8+5+12 hand-typed coordinates. Engine expands at load time via InstancePatterns.",
+
+  "patterns": [
+    {
+      "_comment": "5 orbs evenly spaced on a circle around the player at radius 5",
+      "def": "orb", "id_prefix": "orb",
+      "pattern": "ring",
+      "count": 5, "radius": 5, "y": 0.4
+    },
+    {
+      "_comment": "8 trees forming the perimeter ring at radius 13",
+      "def": "decor_tree", "id_prefix": "tree",
+      "pattern": "ring",
+      "count": 8, "radius": 13, "y": 0
+    },
+    {
+      "_comment": "12 rocks scattered randomly in mid-area with min spacing so they don't overlap",
+      "def": "decor_rock", "id_prefix": "rock",
+      "pattern": "scatter",
+      "count": 12, "min_r": 1.5, "max_r": 9, "y": 0,
+      "min_spacing": 1.4
+    }
+  ],
 
   "initial_instances": [
-    {"def": "player", "id": "player", "position": [0, 0, 0]},
-
-    {"_": "5 orbs evenly spaced on radius-5 circle (angles 0, 72°, 144°, 216°, 288°)",
-     "def": "orb", "id": "orb_1", "position": [5.00, 0.4,  0.00]},
-    {"def": "orb", "id": "orb_2", "position": [1.55, 0.4,  4.76]},
-    {"def": "orb", "id": "orb_3", "position": [-4.05, 0.4, 2.94]},
-    {"def": "orb", "id": "orb_4", "position": [-4.05, 0.4, -2.94]},
-    {"def": "orb", "id": "orb_5", "position": [1.55, 0.4, -4.76]},
-
-    {"_": "8 trees on outer ring at radius 13 — natural framing for the garden",
-     "def": "decor_tree", "id": "tree_1", "position": [13.0, 0,   0.0]},
-    {"def": "decor_tree", "id": "tree_2", "position": [ 9.2, 0,   9.2]},
-    {"def": "decor_tree", "id": "tree_3", "position": [ 0.0, 0,  13.0]},
-    {"def": "decor_tree", "id": "tree_4", "position": [-9.2, 0,   9.2]},
-    {"def": "decor_tree", "id": "tree_5", "position": [-13.0, 0,  0.0]},
-    {"def": "decor_tree", "id": "tree_6", "position": [-9.2, 0,  -9.2]},
-    {"def": "decor_tree", "id": "tree_7", "position": [ 0.0, 0, -13.0]},
-    {"def": "decor_tree", "id": "tree_8", "position": [ 9.2, 0,  -9.2]},
-
-    {"_": "6 rocks as inner scatter (radius ~2-3) — close-up decor breaks open space",
-     "def": "decor_rock", "id": "rock_1", "position": [ 2.5, 0,  1.5]},
-    {"def": "decor_rock", "id": "rock_2", "position": [-2.5, 0,  1.5]},
-    {"def": "decor_rock", "id": "rock_3", "position": [ 0.0, 0,  3.0]},
-    {"def": "decor_rock", "id": "rock_4", "position": [ 2.0, 0, -2.5]},
-    {"def": "decor_rock", "id": "rock_5", "position": [-2.0, 0, -2.5]},
-    {"def": "decor_rock", "id": "rock_6", "position": [ 0.0, 0, -3.5]}
+    {"_": "Singleton — hand-placed since patterns are for repeated objects",
+     "def": "player", "id": "player", "position": [0, 0, 0]}
   ],
 
   "initial_relations": []
