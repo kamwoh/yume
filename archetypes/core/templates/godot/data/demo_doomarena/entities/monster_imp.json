@@ -1,0 +1,21 @@
+{
+  "_comment": "Common enemy. 1 HP. Walks toward player at 60 px/s.",
+  "definitions": [
+    {
+      "id": "monster_imp",
+      "tags": ["monster", "enemy", "imp", "creature"],
+      "properties": {
+        "speed": 60
+      },
+      "state_init": {
+        "hp": 1,
+        "velocity": [0, 0]
+      },
+      "visual": {
+        "shape": "doomarena_imp",
+        "flip_with_velocity": true,
+        "params": {"body": "#a02020", "eye": "#ffd040"}
+      }
+    }
+  ]
+}

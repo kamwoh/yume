@@ -1,0 +1,17 @@
+{
+  "_comment": "Med kit. +25 HP on contact. Random spawn ~every 7 sec.",
+  "definitions": [
+    {
+      "id": "health_pickup",
+      "tags": ["pickup", "pickup_health"],
+      "properties": {
+        "heal_amount": 25
+      },
+      "state_init": {},
+      "visual": {
+        "shape": "doomarena_health_pickup",
+        "params": {"box": "#f0f0f0", "cross": "#d02040"}
+      }
+    }
+  ]
+}

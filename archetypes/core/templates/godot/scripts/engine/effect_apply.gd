@@ -298,10 +298,15 @@ static func _emit_shell_event(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 	for k in e.keys():
 		if str(k) == "type" or str(k) == "event": continue
 		record[str(k)] = _value(e[k], ctx, env)
-	var buf: Array = env.get("shell_event_buffer", null)
-	if buf == null:
-		# Lazily create — content rules may fire shell events even before
-		# GameShell wires its own buffer.
+	# Lazy-create the buffer. GameShell may not have wired one yet, OR no
+	# GameShell is attached at all (purely sim-only scenes). Either way,
+	# events accumulate; GameShell drains if it exists, else buffer just
+	# grows (harmless for short runs).
+	var buf_v = env.get("shell_event_buffer", null)
+	var buf: Array
+	if buf_v is Array:
+		buf = buf_v
+	else:
 		buf = []
 		env["shell_event_buffer"] = buf
 	buf.append(record)

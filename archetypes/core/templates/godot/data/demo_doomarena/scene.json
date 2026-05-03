@@ -1,0 +1,19 @@
+{
+  "_comment": "DoomArena scene config. Tight tick rate for snappy combat. Camera follows player. Bounds rendered as dark sci-fi floor + red glowing border.",
+
+  "tick_seconds": 0.1,
+
+  "camera": {
+    "follow_tag": "player",
+    "lerp": 0.12,
+    "zoom": [1.4, 1.4]
+  },
+
+  "bounds": {
+    "min": [-320, -240],
+    "max": [320, 240],
+    "floor_color": "#0c0a14",
+    "border_color": "#a02020",
+    "border_width": 4
+  }
+}

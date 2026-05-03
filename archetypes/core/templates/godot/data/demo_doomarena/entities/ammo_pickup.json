@@ -1,0 +1,17 @@
+{
+  "_comment": "Ammo crate. +5 ammo on contact. Random spawn ~every 7 sec.",
+  "definitions": [
+    {
+      "id": "ammo_pickup",
+      "tags": ["pickup", "pickup_ammo"],
+      "properties": {
+        "ammo_amount": 5
+      },
+      "state_init": {},
+      "visual": {
+        "shape": "doomarena_ammo_pickup",
+        "params": {"box": "#e0c040", "stripe": "#806020"}
+      }
+    }
+  ]
+}

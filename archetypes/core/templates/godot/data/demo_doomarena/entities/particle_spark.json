@@ -1,0 +1,20 @@
+{
+  "_comment": "Transient spark — spawned on monster death + bullet wall hit. lifetime=18 ticks (auto-despawn). fade_with_lifetime for smooth fade-out. velocity outward gives a visible burst.",
+  "definitions": [
+    {
+      "id": "particle_spark",
+      "tags": ["particle", "effect"],
+      "properties": {},
+      "state_init": {
+        "lifetime": 18,
+        "max_lifetime": 18,
+        "velocity": [0, 0]
+      },
+      "visual": {
+        "shape": "doomarena_spark",
+        "fade_with_lifetime": true,
+        "params": {"glow": "#ffe080", "core": "#ffffff"}
+      }
+    }
+  ]
+}

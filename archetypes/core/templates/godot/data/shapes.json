@@ -199,6 +199,82 @@
         {"op": "circle", "pos": [7, -3], "radius": 1.5, "color": "$pupil"}
       ],
       "params": {"body": "#e88030", "tail": "#c06010", "eyewhite": "#ffffff", "pupil": "#000000"}
+    },
+
+    "doomarena_marine": {
+      "_comment": "Marine — cyan armored figure. Body circle + helmet/visor + small gun jutting forward (drawn as art-faces-right by convention).",
+      "primitives": [
+        {"op": "circle", "pos": [0, 0],  "radius": 14, "color": "$body"},
+        {"op": "circle", "pos": [0, -2], "radius": 8,  "color": "$armor"},
+        {"op": "rect",   "pos": [4, -3], "size": [12, 4], "color": "$armor"},
+        {"op": "circle", "pos": [3, -2], "radius": 3,  "color": "$visor"}
+      ],
+      "params": {"body": "#3aa8e8", "armor": "#2080c0", "visor": "#80e0ff"}
+    },
+
+    "doomarena_imp": {
+      "_comment": "Imp — small dark-red roundish blob with two yellow eye dots.",
+      "primitives": [
+        {"op": "circle", "pos": [0, 0],   "radius": 12, "color": "$body"},
+        {"op": "circle", "pos": [-3, -2], "radius": 1.8, "color": "$eye"},
+        {"op": "circle", "pos": [3, -2],  "radius": 1.8, "color": "$eye"}
+      ],
+      "params": {"body": "#a02020", "eye": "#ffd040"}
+    },
+
+    "doomarena_demon": {
+      "_comment": "Demon — bigger dark-purple angular shape with red eyes. Tougher silhouette.",
+      "primitives": [
+        {"op": "polygon",
+         "points": [[-14, -8], [14, -8], [16, 6], [0, 14], [-16, 6]],
+         "color": "$body"},
+        {"op": "circle", "pos": [-5, -3], "radius": 2.5, "color": "$eye"},
+        {"op": "circle", "pos": [5, -3],  "radius": 2.5, "color": "$eye"},
+        {"op": "rect",   "pos": [-10, -10], "size": [20, 3], "color": "$highlight"}
+      ],
+      "params": {"body": "#5a1c4a", "highlight": "#9a2c8a", "eye": "#ff4040"}
+    },
+
+    "doomarena_bullet": {
+      "_comment": "Plasma bolt — bright yellow streak. Drawn pointing right (+x); rotate_with_velocity points it in fire direction.",
+      "primitives": [
+        {"op": "rect",   "pos": [-10, -2], "size": [10, 4], "color": "$tail"},
+        {"op": "circle", "pos": [0, 0],    "radius": 4,     "color": "$core"}
+      ],
+      "params": {"core": "#ffe060", "tail": "#ff8020"}
+    },
+
+    "doomarena_health_pickup": {
+      "primitives": [
+        {"op": "rect",   "pos": [-10, -10], "size": [20, 20], "color": "$box"},
+        {"op": "rect",   "pos": [-2, -8],   "size": [4, 16], "color": "$cross"},
+        {"op": "rect",   "pos": [-8, -2],   "size": [16, 4], "color": "$cross"}
+      ],
+      "params": {"box": "#f0f0f0", "cross": "#d02040"}
+    },
+
+    "doomarena_ammo_pickup": {
+      "primitives": [
+        {"op": "rect", "pos": [-10, -8], "size": [20, 16], "color": "$box"},
+        {"op": "rect", "pos": [-10, -2], "size": [20, 4],  "color": "$stripe"}
+      ],
+      "params": {"box": "#e0c040", "stripe": "#806020"}
+    },
+
+    "doomarena_spark": {
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": 5, "color": "$glow"},
+        {"op": "circle", "pos": [0, 0], "radius": 2.5, "color": "$core"}
+      ],
+      "params": {"glow": "#ffe080", "core": "#ffffff"}
+    },
+
+    "doomarena_wall": {
+      "primitives": [
+        {"op": "rect", "pos": [-12, -6], "size": [24, 12], "color": "$core"},
+        {"op": "rect", "pos": [-12, -6], "size": [24, 2],  "color": "$highlight"}
+      ],
+      "params": {"core": "#a02020", "highlight": "#e04040"}
     }
   }
 }

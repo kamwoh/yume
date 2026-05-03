@@ -1,0 +1,21 @@
+{
+  "_comment": "Plasma bolt. Spawned by player on shoot. lifetime=24 ticks (auto-despawn). rotate_with_velocity to point in fire direction. fade_with_lifetime for smooth disappearance.",
+  "definitions": [
+    {
+      "id": "bullet",
+      "tags": ["bullet", "projectile"],
+      "properties": {},
+      "state_init": {
+        "lifetime": 24,
+        "max_lifetime": 24,
+        "velocity": [0, 0]
+      },
+      "visual": {
+        "shape": "doomarena_bullet",
+        "rotate_with_velocity": true,
+        "fade_with_lifetime": true,
+        "params": {"core": "#ffe060", "tail": "#ff8020"}
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "_comment": "Decorative arena perimeter. No collision logic — actual bounds are enforced via entity_bounds rule on creatures. Walls are visual anchors.",
+  "definitions": [
+    {
+      "id": "wall_segment",
+      "tags": ["wall", "decor"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "shape": "doomarena_wall",
+        "params": {"core": "#a02020", "highlight": "#e04040"}
+      }
+    }
+  ]
+}

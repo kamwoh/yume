@@ -1,0 +1,19 @@
+{
+  "_comment": "Arena timer singleton. Tracks elapsed seconds + spawn/pickup countdown timers. Drives the pressure curve (spawn rate increases over time).",
+  "definitions": [
+    {
+      "id": "arena_clock",
+      "tags": ["meta", "clock"],
+      "properties": {},
+      "state_init": {
+        "elapsed": 0.0,
+        "spawn_timer": 4.0,
+        "pickup_timer": 5.0
+      },
+      "visual": {
+        "shape": "invisible_marker",
+        "params": {"color": "#00000000"}
+      }
+    }
+  ]
+}

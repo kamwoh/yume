@@ -1,0 +1,32 @@
+{
+  "_comment": "Initial entity placements. Player at center; arena_clock invisible at corner; 8 spawn markers at edges; 12 wall segments forming the rectangular border.",
+
+  "initial_instances": [
+    {"def": "arena_clock", "id": "clock_1", "position": [-400, -300]},
+    {"def": "player",      "id": "player",  "position": [0, 0]},
+
+    {"def": "spawn_marker", "id": "spawn_n1", "position": [-200, -240]},
+    {"def": "spawn_marker", "id": "spawn_n2", "position": [ 200, -240]},
+    {"def": "spawn_marker", "id": "spawn_s1", "position": [-200,  240]},
+    {"def": "spawn_marker", "id": "spawn_s2", "position": [ 200,  240]},
+    {"def": "spawn_marker", "id": "spawn_e1", "position": [ 320, -100]},
+    {"def": "spawn_marker", "id": "spawn_e2", "position": [ 320,  100]},
+    {"def": "spawn_marker", "id": "spawn_w1", "position": [-320, -100]},
+    {"def": "spawn_marker", "id": "spawn_w2", "position": [-320,  100]},
+
+    {"def": "wall_segment", "id": "wall_n1", "position": [-240, -240]},
+    {"def": "wall_segment", "id": "wall_n2", "position": [ -80, -240]},
+    {"def": "wall_segment", "id": "wall_n3", "position": [  80, -240]},
+    {"def": "wall_segment", "id": "wall_n4", "position": [ 240, -240]},
+    {"def": "wall_segment", "id": "wall_s1", "position": [-240,  240]},
+    {"def": "wall_segment", "id": "wall_s2", "position": [ -80,  240]},
+    {"def": "wall_segment", "id": "wall_s3", "position": [  80,  240]},
+    {"def": "wall_segment", "id": "wall_s4", "position": [ 240,  240]},
+    {"def": "wall_segment", "id": "wall_e1", "position": [ 320, -120]},
+    {"def": "wall_segment", "id": "wall_e2", "position": [ 320,  120]},
+    {"def": "wall_segment", "id": "wall_w1", "position": [-320, -120]},
+    {"def": "wall_segment", "id": "wall_w2", "position": [-320,  120]}
+  ],
+
+  "initial_relations": []
+}
