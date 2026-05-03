@@ -141,6 +141,27 @@
     },
 
     {
+      "name": "lone_enemy_walks_full_path_to_base",
+      "_": "Spawn one enemy at wp_1. Disable wave-spawning. Run for 220 ticks (22s — enough to walk all 39m at 2 m/s). Enemy should reach base and trigger -1 base.hp. NO towers built — pure path-following test, isolates path bug from combat.",
+      "setup": {
+        "entity_state": {
+          "clock_1": {"wave_timer": 99999, "spawn_cooldown": 99999}
+        },
+        "spawn": [
+          {"def": "enemy_grunt", "id": "lone_walker",
+           "position": [-9, 0, -7],
+           "state": {"velocity": [2.0, 0, 0], "hp": 99}}
+        ]
+      },
+      "actions": [],
+      "ticks": 220,
+      "assertions": [
+        {"type": "entity_field", "select": "by_id", "id": "base_1",
+         "field": "state.hp", "op": "<", "value": 10}
+      ]
+    },
+
+    {
       "name": "first_wave_starts",
       "_": "After 4s (40 ticks @ 0.1s tick), wave_clock should have enemies_to_spawn > 0 (set by wave_start rule when wave_timer ≤ 0). Initial wave_timer = 3.0.",
       "setup": {},
