@@ -1250,11 +1250,18 @@ func test_blocks_motion() -> void:
 	expect_eq(resolved3.x, 0.5, "slide preserves new x")
 	expect_eq(resolved3.z, 2.0, "slide reverts z to old (X-only path taken)")
 
-	# Bullet fired upward through wall: old (0.5, 1, 2), new (0.5, 5, 0.5).
-	# At altitude 5 > wall top 3 + radius — should pass through unblocked.
+	# Bullet entirely above wall top (Y=3 + body_r): old (0.5, 5, 2),
+	# new (0.5, 5, 0.5). Segment stays above the wall — should pass.
 	var resolved_up := World._resolve_motion_3d(
+		Vector3(0.5, 5.0, 2.0), Vector3(0.5, 5.0, 0.5), 0.4, blockers)
+	expect_eq(resolved_up, Vector3(0.5, 5.0, 0.5), "high-altitude bullet (entirely above wall) clears full move")
+
+	# Bullet ascending FROM inside wall altitude TO above: old (0.5, 1, 2),
+	# new (0.5, 5, 0.5). Segment crosses the wall vertically. Swept check
+	# blocks it (correct — bullet would graze the wall on its way up).
+	var resolved_grazing := World._resolve_motion_3d(
 		Vector3(0.5, 1.0, 2.0), Vector3(0.5, 5.0, 0.5), 0.4, blockers)
-	expect_eq(resolved_up, Vector3(0.5, 5.0, 0.5), "high-altitude bullet clears wall (full move)")
+	expect(resolved_grazing.z >= 1.5, "ascending bullet grazes wall — Z reverted (not full passthrough)")
 
 	# 2D variant uses the same logic (Vector2 maps to XZ at Y=0).
 	var resolved2 := World._resolve_motion_2d(
@@ -1267,3 +1274,32 @@ func test_blocks_motion() -> void:
 	expect_eq(World._to_vec3([1, 2]), Vector3(1, 0, 2), "_to_vec3 array len 2 → XZ")
 	expect_eq(World._to_vec3(Vector2(1, 2)), Vector3(1, 0, 2), "_to_vec3 Vector2 → XZ")
 	expect_eq(World._to_vec3(Vector3(1, 2, 3)), Vector3(1, 2, 3), "_to_vec3 Vector3 passthrough")
+
+	# Swept (segment) check — catches tunneling that point-tests miss.
+	# Wall slab from x ∈ [-0.25, 0.25], spans y/z fully for the test.
+	var wall: Array = [{
+		"minx": -0.25, "maxx": 0.25,
+		"miny":  0.0,  "maxy": 3.0,
+		"minz": -22.0, "maxz": 22.0
+	}]
+	# A bullet at p0=(1, 1.5, 0) flies fast to p1=(-1, 1.5, 0): point-tests
+	# at the endpoints would miss (both outside the 0.5m wall in X), but
+	# the segment crosses the wall. Swept check must return true.
+	expect(World._segment_intersects(Vector3(1, 1.5, 0), Vector3(-1, 1.5, 0), 0.18, wall),
+		"swept: bullet tunneling x=1 → x=-1 across thin wall is caught")
+	# Confirm endpoint-only test would have missed it (regression check).
+	expect(not World._aabb_intersects(1.0, 1.5, 0.0, 0.18, wall),
+		"sanity: point at x=1 outside wall")
+	expect(not World._aabb_intersects(-1.0, 1.5, 0.0, 0.18, wall),
+		"sanity: point at x=-1 outside wall (so endpoint-only would miss)")
+	# Slow movement parallel to wall: no cross.
+	expect(not World._segment_intersects(Vector3(2, 1.5, 0), Vector3(2, 1.5, 5), 0.18, wall),
+		"swept: motion parallel to wall doesn't intersect")
+	# Bullet at altitude > wall top: clears the wall.
+	expect(not World._segment_intersects(Vector3(1, 5, 0), Vector3(-1, 5, 0), 0.18, wall),
+		"swept: high-altitude bullet clears wall (Y > 3.18)")
+	# Resolve3D test — bullet would tunnel; resolved should stay at old.
+	var resolved_bullet := World._resolve_motion_3d(
+		Vector3(1, 1.5, 0), Vector3(-1, 1.5, 0), 0.18, wall)
+	expect_eq(resolved_bullet, Vector3(1, 1.5, 0),
+		"resolve3d: tunneling bullet stays at old position (all axes blocked)")

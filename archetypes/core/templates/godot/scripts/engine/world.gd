@@ -466,38 +466,59 @@ func _integrate_motion(delta: float) -> void:
 		var moved := false
 		# Skip blocker-vs-blocker self-block (an obstacle isn't moving).
 		var is_blocker: bool = (ent as Entity).has_tag("blocks_motion")
+		# Projectiles stop dead at walls (no slide) — bullets shouldn't
+		# crawl AROUND a wall. Walking creatures slide normally.
+		var is_projectile: bool = (ent as Entity).has_tag("projectile")
 		var body_r: float = float((ent as Entity).get_property("body_radius", DEFAULT_BODY_RADIUS))
 		var p = (ent as Entity).get_position()
 		if v is Vector2 and v != Vector2.ZERO:
 			if p is Vector2:
 				var new_p2: Vector2 = (p as Vector2) + (v as Vector2) * delta
 				if not is_blocker and not blockers.is_empty():
-					new_p2 = _resolve_motion_2d(p as Vector2, new_p2, body_r, blockers)
+					if is_projectile:
+						new_p2 = _resolve_projectile_2d(p as Vector2, new_p2, body_r, blockers)
+					else:
+						new_p2 = _resolve_motion_2d(p as Vector2, new_p2, body_r, blockers)
 				(ent as Entity).set_position(new_p2)
 				moved = true
 			elif p is Vector3:
-				# 2D velocity on 3D pos: project to XZ plane
 				var v2: Vector2 = v as Vector2
 				var new_p3v: Vector3 = (p as Vector3) + Vector3(v2.x, 0, v2.y) * delta
 				if not is_blocker and not blockers.is_empty():
-					new_p3v = _resolve_motion_3d(p as Vector3, new_p3v, body_r, blockers)
+					if is_projectile:
+						new_p3v = _resolve_projectile_3d(p as Vector3, new_p3v, body_r, blockers)
+					else:
+						new_p3v = _resolve_motion_3d(p as Vector3, new_p3v, body_r, blockers)
 				(ent as Entity).set_position(new_p3v)
 				moved = true
 		elif v is Vector3 and v != Vector3.ZERO:
 			if p is Vector3:
 				var new_p3: Vector3 = (p as Vector3) + (v as Vector3) * delta
 				if not is_blocker and not blockers.is_empty():
-					new_p3 = _resolve_motion_3d(p as Vector3, new_p3, body_r, blockers)
+					if is_projectile:
+						new_p3 = _resolve_projectile_3d(p as Vector3, new_p3, body_r, blockers)
+					else:
+						new_p3 = _resolve_motion_3d(p as Vector3, new_p3, body_r, blockers)
 				(ent as Entity).set_position(new_p3)
 				moved = true
 			elif p is Vector2:
-				# 3D velocity on 2D pos: take XZ
 				var v3: Vector3 = v as Vector3
 				var new_p2v: Vector2 = (p as Vector2) + Vector2(v3.x, v3.z) * delta
 				if not is_blocker and not blockers.is_empty():
-					new_p2v = _resolve_motion_2d(p as Vector2, new_p2v, body_r, blockers)
+					if is_projectile:
+						new_p2v = _resolve_projectile_2d(p as Vector2, new_p2v, body_r, blockers)
+					else:
+						new_p2v = _resolve_motion_2d(p as Vector2, new_p2v, body_r, blockers)
 				(ent as Entity).set_position(new_p2v)
 				moved = true
+		# Projectile that hit a blocker: zero its velocity AND lifetime so
+		# it visibly stops at the wall and despawns next tick (no slide-
+		# along, no infinite hang).
+		if is_projectile and moved:
+			var p_after = (ent as Entity).get_position()
+			if p_after == p:
+				(ent as Entity).set_velocity(Vector3.ZERO if p is Vector3 else Vector2.ZERO)
+				(ent as Entity).set_state("lifetime", 0)
 		if moved and spatial_index != null:
 			spatial_index.update_entity(id, (ent as Entity).get_planar_position())
 
@@ -536,43 +557,66 @@ func _collect_blockers() -> Array:
 
 
 ## Resolve 3D motion against AABB blockers via separate-axes slide on XZ.
-## When both X and Z are blocked, Y is also reverted so projectiles can't
-## "stick" to a wall and slide vertically along its face.
+## Uses SWEPT (segment) intersection for correctness when entities move
+## fast (bullets at 22 m/s × tick 0.05s = 1.1m/tick can teleport past
+## 0.5m-thick walls if only endpoints are tested — empirically caught
+## in doomarena3d "bullet bypass wall" bug 2026-05-04).
+##
+## When all 3 axes are blocked, position fully reverts so projectiles
+## stop dead at the wall instead of sliding along it.
 static func _resolve_motion_3d(old_p: Vector3, new_p: Vector3, body_r: float, blockers: Array) -> Vector3:
-	if not _aabb_intersects(new_p.x, new_p.y, new_p.z, body_r, blockers):
+	if not _segment_intersects(old_p, new_p, body_r, blockers):
 		return new_p
-	# Try X-only: keep new x, old y, old z
-	if not _aabb_intersects(new_p.x, old_p.y, old_p.z, body_r, blockers):
+	# Try X-only: keep new x, old y/z. Segment from old → (new.x, old.y, old.z).
+	var x_target := Vector3(new_p.x, old_p.y, old_p.z)
+	if not _segment_intersects(old_p, x_target, body_r, blockers):
 		return Vector3(new_p.x, new_p.y, old_p.z)
-	# Try Z-only: keep old x, old y, new z
-	if not _aabb_intersects(old_p.x, old_p.y, new_p.z, body_r, blockers):
+	# Try Z-only.
+	var z_target := Vector3(old_p.x, old_p.y, new_p.z)
+	if not _segment_intersects(old_p, z_target, body_r, blockers):
 		return Vector3(old_p.x, new_p.y, new_p.z)
 	# Try Y-only: bullets fired upward can clear a wall by altitude alone.
-	if not _aabb_intersects(old_p.x, new_p.y, old_p.z, body_r, blockers):
+	var y_target := Vector3(old_p.x, new_p.y, old_p.z)
+	if not _segment_intersects(old_p, y_target, body_r, blockers):
 		return Vector3(old_p.x, new_p.y, old_p.z)
-	# All blocked: stay (don't preserve any new axis — fixes bullet-stuck-
-	# floats-up bug from doomarena3d v2.5 playtest).
+	# All blocked: stay (no axis can advance without crossing a blocker).
 	return old_p
 
 
-## Same shape for 2D positions. Vector2 represents (x, z) in our convention
-## (top-down 2D maps to XZ plane). 2D entities are always at Y=0 so Y is
-## a no-op here; we pass 0 to the shared 3D test.
+## Projectile variant — no slide. If the segment from old_p to new_p
+## crosses any blocker, return old_p (caller is responsible for setting
+## lifetime=0 so the bullet despawns at the wall instead of hanging).
+## Without this, the slide-axis logic makes bullets crawl AROUND walls
+## (empirically caught in doomarena3d 2026-05-04 playtest).
+static func _resolve_projectile_3d(old_p: Vector3, new_p: Vector3, body_r: float, blockers: Array) -> Vector3:
+	if _segment_intersects(old_p, new_p, body_r, blockers):
+		return old_p
+	return new_p
+
+
+static func _resolve_projectile_2d(old_p: Vector2, new_p: Vector2, body_r: float, blockers: Array) -> Vector2:
+	var o3 := Vector3(old_p.x, 0.0, old_p.y)
+	var n3 := Vector3(new_p.x, 0.0, new_p.y)
+	if _segment_intersects(o3, n3, body_r, blockers):
+		return old_p
+	return new_p
+
+
+## 2D variant. Y=0 in the underlying 3D check.
 static func _resolve_motion_2d(old_p: Vector2, new_p: Vector2, body_r: float, blockers: Array) -> Vector2:
-	if not _aabb_intersects(new_p.x, 0.0, new_p.y, body_r, blockers):
+	var o3 := Vector3(old_p.x, 0.0, old_p.y)
+	var n3 := Vector3(new_p.x, 0.0, new_p.y)
+	if not _segment_intersects(o3, n3, body_r, blockers):
 		return new_p
-	if not _aabb_intersects(new_p.x, 0.0, old_p.y, body_r, blockers):
+	if not _segment_intersects(o3, Vector3(new_p.x, 0.0, old_p.y), body_r, blockers):
 		return Vector2(new_p.x, old_p.y)
-	if not _aabb_intersects(old_p.x, 0.0, new_p.y, body_r, blockers):
+	if not _segment_intersects(o3, Vector3(old_p.x, 0.0, new_p.y), body_r, blockers):
 		return Vector2(old_p.x, new_p.y)
 	return old_p
 
 
 ## Test if a sphere at (px, py, pz) with radius r overlaps any blocker AABB.
-## 3D check (added in v2.6 follow-up to ADR 0004): without Y, a bullet fired
-## upward gets stuck horizontally on the wall while its Y velocity keeps
-## climbing — appears to "float up the wall." Including Y in the test lets
-## bullets clear walls naturally by altitude.
+## 3D static-position check — used by tests + as a building block.
 static func _aabb_intersects(px: float, py: float, pz: float, r: float, blockers: Array) -> bool:
 	var r2 := r * r
 	for b in blockers:
@@ -583,6 +627,64 @@ static func _aabb_intersects(px: float, py: float, pz: float, r: float, blockers
 		var dy := py - cy
 		var dz := pz - cz
 		if dx * dx + dy * dy + dz * dz < r2:
+			return true
+	return false
+
+
+## Swept (segment) test for fast-moving entities. Slab method against
+## AABB expanded by body_r in each axis (Minkowski sum approximated as
+## an inflated box — correct enough for arcade-feel collision; not a true
+## sphere-vs-AABB swept test). Returns true if the segment from p0 to p1
+## crosses any blocker. Catches tunneling — entities moving > AABB
+## thickness per tick can't slip through anymore.
+static func _segment_intersects(p0: Vector3, p1: Vector3, body_r: float, blockers: Array) -> bool:
+	if p0 == p1:
+		return _aabb_intersects(p1.x, p1.y, p1.z, body_r, blockers)
+	var dir := p1 - p0
+	for b in blockers:
+		var minx: float = b["minx"] - body_r
+		var maxx: float = b["maxx"] + body_r
+		var miny: float = b["miny"] - body_r
+		var maxy: float = b["maxy"] + body_r
+		var minz: float = b["minz"] - body_r
+		var maxz: float = b["maxz"] + body_r
+		var t_near := -INF
+		var t_far := INF
+		var hit := true
+		# X slab
+		if abs(dir.x) < 1e-6:
+			if p0.x < minx or p0.x > maxx: hit = false
+		else:
+			var t1: float = (minx - p0.x) / dir.x
+			var t2: float = (maxx - p0.x) / dir.x
+			if t1 > t2:
+				var tmp := t1; t1 = t2; t2 = tmp
+			t_near = max(t_near, t1)
+			t_far = min(t_far, t2)
+		# Y slab
+		if hit:
+			if abs(dir.y) < 1e-6:
+				if p0.y < miny or p0.y > maxy: hit = false
+			else:
+				var t1: float = (miny - p0.y) / dir.y
+				var t2: float = (maxy - p0.y) / dir.y
+				if t1 > t2:
+					var tmp := t1; t1 = t2; t2 = tmp
+				t_near = max(t_near, t1)
+				t_far = min(t_far, t2)
+		# Z slab
+		if hit:
+			if abs(dir.z) < 1e-6:
+				if p0.z < minz or p0.z > maxz: hit = false
+			else:
+				var t1: float = (minz - p0.z) / dir.z
+				var t2: float = (maxz - p0.z) / dir.z
+				if t1 > t2:
+					var tmp := t1; t1 = t2; t2 = tmp
+				t_near = max(t_near, t1)
+				t_far = min(t_far, t2)
+		# Segment crosses if there's a valid interval and it overlaps [0,1].
+		if hit and t_near <= t_far and t_far >= 0.0 and t_near <= 1.0:
 			return true
 	return false
 
