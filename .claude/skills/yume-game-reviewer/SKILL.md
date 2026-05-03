@@ -1,6 +1,6 @@
 ---
 name: yume-game-reviewer
-description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 7 depth axes. Outputs review.md with verdict (accept / revise / reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built.
+description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 12 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ allowed to surface NEW issues, not just verify round-1 fixes.
 ---
 
 # /yume-game-reviewer
@@ -169,16 +169,126 @@ physics (rigid body), networked play, voice acting.
 - **Unwinnable spirals**: Can the player be locked into a losing state?
 - **Visual confusion**: Can the player tell what's happening at a
   glance? Multiple enemies, multiple kinds of pickups, etc.
+- **Save/persistence**: Mid-puzzle alt-tab → does the player lose
+  progress? Multi-level games without save = frustration.
+
+### Axis 8 — Total content scope (tutorial vs game)
+
+**Question**: How long is this game? Is it a real game session or a
+tech demo?
+
+**Heuristic minimums for "real game"** (genre-dependent):
+- Puzzle (sokoban, etc.): ≥20 levels for "casual game", ≥50 for "real game"
+- Roguelike: ≥3 hours of varied runs
+- TD: ≥20 levels OR endless mode with variety
+- Shooter: ≥3 levels OR endless arena with variety
+- Sim: replayable across many sessions
+
+**Red flag**: GDD's stated total play time is < 30 min. That's a demo,
+not a game. The game-designer must be honest: either scope down to
+"demo" framing OR commit to enough content for "game" framing.
+
+A game with 8 levels is a tutorial. That's fine if the GDD CALLS it
+a tutorial. It's not fine if the GDD claims "Discovery" or "Submission"
+aesthetics — those need depth of content.
+
+### Axis 9 — Signature design moments
+
+**Question**: Are there memorable single moments? Levels, encounters,
+twists, bosses, items, maps that someone would describe to a friend?
+
+**Red flag**: every level / wave / room is a "+1 difficulty step" with
+no standout moments. The game is a difficulty curve, not a memory.
+
+**What to ask**:
+- Is there a WOW level / moment / mechanic?
+- Will the player recall a specific moment after finishing?
+- Does the design include "iconic" encounters (boss, twist, surprise)?
+
+If GDD is purely "1 box → 2 boxes → ... → 8 boxes," it's a curve,
+not memorable. Push for ≥1-3 named "signature" content pieces.
+
+### Axis 10 — Theme / identity
+
+**Question**: Does the game have a distinctive look-and-feel beyond
+"pixel art" or "low-poly 3D"? Is there a fictional context?
+
+**Red flag**: GDD describes mechanics but no theme. "Pixel art tower
+defense" is generic. "Pixel art tower defense set in a derelict space
+station where towers are repurposed industrial machinery" is themed.
+
+Theme matters because:
+- Sound design has a target (industrial vs magical vs cute)
+- Visual style has a target (rust + sparks vs glowing crystals vs pastel)
+- Player onboarding has a hook (what fantasy is this?)
+
+Even abstract games can have identity (Tetris = grid + falling
+geometry; Threes = numbers + warm palette).
+
+**Push for**: a 1-2 sentence "the game's vibe / fantasy / fictional
+context" statement.
+
+### Axis 11 — Replay value
+
+**Question**: Why does the player come back AFTER beating it once?
+
+**Heuristic options**:
+- Procedural variation (rogue-like)
+- Score chasing (move count, time, kill count)
+- Multiple difficulty modes
+- Achievements / unlockables
+- Endless mode
+- Asynchronous social (leaderboards, daily levels)
+
+**Red flag**: GDD is silent on replay. After clear, player has no
+reason to launch again.
+
+For genres that ARE intrinsically one-and-done (story-heavy, puzzle
+classics), this can be acceptable IF the play-once experience is
+30+ hours. For shorter games, replay matters.
+
+### Axis 12 — Real-UX (frustration mitigation, accessibility)
+
+**Question**: Does the GDD address frustration vectors and
+accessibility?
+
+**Standard UX considerations**:
+- **Save/load**: can player save mid-session and resume?
+- **Undo / rewind**: does player commit irreversible mistakes?
+- **Onboarding**: how does player learn controls? (controls hint,
+  in-level prompt, tutorial level)
+- **Difficulty selection**: too hard / too easy options?
+- **Pause**: can the player pause without losing state?
+- **Restart UX**: from scratch vs from current level?
+- **Color-blind / reduced motion**: accessibility considerations?
+
+**Red flag**: GDD's frustration mitigation is "press R to restart."
+That's the bare minimum. Stronger designs add 1-step undo, save
+between levels, difficulty options.
+
+For the "Submission" aesthetic specifically: undo/rewind is critical.
+A trance-state game broken by an irreversible mistake breaks the
+aesthetic.
 
 ## Verdict guidelines
 
-- **accept**: All 7 axes meet minimum bar. Game-designer can ship the
+- **accept**: All 12 axes meet minimum bar. Game-designer can ship the
   GDD to game-planner.
-- **revise**: 1-3 axes fail with specific addressable issues. Designer
+- **revise**: 1-5 axes fail with specific addressable issues. Designer
   fixes; reviewer reviews again.
 - **reject**: Multiple fundamental issues OR scope-out-of-bounds. The
   game as designed cannot be Yume-shaped. Surface to user for redesign
   or descope.
+
+**On round 2+**: don't auto-accept just because round-1 issues were
+addressed. Apply ALL 12 axes again. Revisions sometimes expose new
+gaps (e.g., adding theme might reveal that mechanics don't match
+theme; adding levels might reveal lack of signature moments). Be
+honest about what the revised GDD still lacks.
+
+A reviewer that always accepts on round 2 is too lenient. A reviewer
+that refuses round 4+ on minor polish is too strict. Aim for 2-3
+rounds in most cases.
 
 Distinguish "shallow but fixable" (revise) from "fundamentally wrong"
 (reject). Most cases are revise.

@@ -353,6 +353,41 @@ Total game time: 12-22 minutes for solve-on-first-try. With restarts,
 All levels fit in a viewport ~10×13 cells. Camera should auto-zoom to
 fit current level. Player can always see entire grid at glance.
 
+## REV note — round 3 GDD revision impact
+
+The GDD's round-3 revisions changed the level-progression plan:
+
+| Level | Old layout (this doc) | New GDD beat | Status |
+|---|---|---|---|
+| 1 | "Trivial push" | "First Crate" — same intent | ✓ matches |
+| 2 | "Two boxes, two goals" | "Pair" — same | ✓ matches |
+| 3 | "U-shape walls" | "The Hallway" — corridor with double-back | **needs redesign** |
+| 4 | "Narrow corridor" | "Quiet Shelf" breather — open + no tricks | **needs redesign (swap with what was L3)** |
+| 5 | "Choke point" | "Choke" — same | ✓ matches |
+| 6 | "Dead-end branches" | "Mind the Corners" — same intent | ✓ matches |
+| 7 | "Multi-step planning" | "The Diamond" — 4-box diamond with strict push order | **needs redesign as diamond pattern** |
+| 8 | "Circle puzzle" | "Vault Doors" — open chamber, 5 boxes, plan 8+ moves | mostly matches; tighten |
+
+Three levels (3, 4, 7) need layout updates to match the new
+signature/breather beats. Content-designer should NOT translate the
+existing layouts as-is for L3/L4/L7 — wait for level-designer to
+issue updated grids.
+
+Par moves (new GDD requirement) need to be computed per level for
+the bronze/silver/gold medal system. Suggested values (level-designer
+to confirm by solving each):
+
+| Level | par_moves estimate |
+|---|---|
+| 1 | 1 |
+| 2 | 7 |
+| 3 (Hallway) | 12 (corridor double-back is the hook) |
+| 4 (Quiet Shelf) | 6 |
+| 5 (Choke) | 18 |
+| 6 (Corners) | 14 |
+| 7 (Diamond) | 16 (the satisfying tight number) |
+| 8 (Vault Doors) | 24 |
+
 ## Risks / known issues
 
 1. **Level 5 walls don't fully constrain**: my drawn walls may allow

@@ -1,78 +1,98 @@
-# Sokoban — design review (round 2)
+# Sokoban — design review (round 4)
 
 _Date: 2026-05-03_
-_Reviewer: yume-game-reviewer_
+_Reviewer: yume-game-reviewer (12-axis)_
 _GDD: docs/games/sokoban/GDD.md_
 
 ## Verdict
-**accept**
+**accept** (with 2 minor housekeeping notes — not blockers)
 
-## Round-2 verification
+Round 3 surfaced 8 substantive issues across axes 3, 5, 7, 8, 9, 10,
+11, 12. Round-4 GDD addresses all 8. At the now-honestly-scoped demo
+level, this GDD is ready to ship.
 
-The 3 revision requests from round 1 are all addressed:
+## Per-axis findings (round 4)
 
-### 1. Per-level teaching arc — ADDRESSED ✓
+| Axis | Verdict | Notes |
+|---|---|---|
+| 1. Mechanical depth | ✓ PASS | Push canonical for puzzle |
+| 2. Strategic depth | ✓ PASS | Per-move decisions; lock-out tension (mitigated by undo) |
+| 3. Pacing | ✓ PASS | Named beats: Onboarding → Hook → Breather → Climb → Climax → Finale |
+| 4. Feedback | ✓ PASS | Audio cues + HUD specified |
+| 5. Aesthetic match | ✓ PASS | Submission + Light Challenge — Discovery dropped honestly |
+| 6. Scope honesty | ✓ PASS | Demo framing; engine cadence flagged |
+| 7. Adversarial pokes | ✓ PASS | Undo prevents irreversible commits; level save persists across sessions |
+| 8. Content scope | ✓ PASS | "8-level demo" honestly framed; aesthetic claims match scope |
+| 9. Signature moments | ✓ PASS | 3 named: "The Hallway" (L3), "The Diamond" (L7), "Vault Doors" (L8) |
+| 10. Theme / identity | ✓ PASS | "The Archive Vault" — quiet sorter, parchment + oak + brass, library hush |
+| 11. Replay value | ✓ PASS | Par-move scoring with bronze/silver/gold medals; gold-perfect chase |
+| 12. Real-UX | ✓ PASS | Undo (16-deep), session save, onboarding HUD, par-counter implicit stuck signal |
 
-The new "Level progression plan" section enumerates 8 levels with
-concrete layouts AND specific teaching lessons per level. Examples:
-- Level 1: arrow-key movement
-- Level 4: narrow corridor — tight space
-- Level 6: dead-end branches — corner = lockout
-- Level 8: must approach from specific side
+All 12 axes meet bar.
 
-Each level introduces something the previous didn't. This makes the
-"Discovery" aesthetic claim concrete instead of aspirational, and
-gives level-designer precise targets.
+## Housekeeping notes (not blockers)
 
-### 2. Per-move feedback specification — ADDRESSED ✓
+These are stale text that contradicts round-3 revisions; not design
+gaps. Designer can clean up in a follow-up edit; pipeline can
+proceed.
 
-New "Per-move feedback" section has:
-- Audio cue table with 6 actions (step / push / no-op / box-on-goal /
-  box-off-goal / level-clear) and rationale per cue
-- Maps to existing Tier 2.6n procedural sounds (`pickup`, `build`,
-  `error`, `win`) so no new sounds needed for v1
-- HUD elements: Level / Boxes placed / Moves / Restart hint
+1. **Stale "Honest scope" section** (lines 268-282): still says
+   "Undo (would need state history)" as out-of-scope. Round 3
+   promoted undo TO scope. Should be removed or updated. Not
+   blocking — the player verbs section + stuck-state UX section
+   correctly describe undo.
 
-The "Submission" aesthetic now has tactile feedback support.
+2. **Stale "Aesthetic-mechanic match validation" section**
+   (lines 300-310): still lists "Discovery" as a passing aesthetic.
+   Round 3 dropped Discovery. Should be removed or updated. Not
+   blocking — the new aesthetic table at top (line 26-31) is
+   authoritative.
 
-### 3. Stuck-state UX — ADDRESSED ✓
-
-New "Stuck-state UX" section specifies 3 mitigations:
-- Persistent restart hint
-- Visible move counter for self-assessment
-- Level-designer pre-checks layouts for solvability
-
-Auto-detect deferred to v2 (correctly scoped). The v1 frustration
-vector is mitigated — players know the escape hatch (R key) and have
-a metric (move count) to recognize lockout.
-
-## Per-axis findings (round 2 deltas only)
-
-All 7 axes now pass:
-- **Mechanical depth**: PASS (genre-aware — push is canonical sokoban)
-- **Strategic depth**: PASS
-- **Pacing**: PASS (was PARTIAL → now concrete via teaching arc)
-- **Feedback**: PASS (was PARTIAL → now specified)
-- **Aesthetic match**: PASS
-- **Scope honesty**: PASS WITH FLAG (engine cadence question — defer
-  to systems-designer; not a blocker)
-- **Adversarial pokes**: PASS (was RED FLAG → now mitigated via
-  restart hint + move counter)
+These are simple text deletions. Designer can apply in 1 minute.
+Optional — pipeline doesn't need to halt.
 
 ## Reasoning summary
 
-The revised GDD addresses every concrete revision request from round
-1. The teaching-arc enumeration moves "progressive difficulty" from
-aspirational claim to actionable level-designer brief. The feedback
-spec leverages existing engine primitives (Tier 2.6n audio + HUD).
-The stuck-state UX adds two unobtrusive but critical UX touches.
+Round 4 represents a real iteration cycle: round-1 caught 3 surface
+gaps, round-2 (under old 7-axis lens) accepted too easily, round-3
+(under new 12-axis lens) caught 8 substantive deeper gaps, and
+round-4 verifies the revisions. The GDD is now:
 
-This GDD is ready to ship to game-planner / level-designer. No further
-revision needed. The pipeline can proceed.
+- **Honestly scoped** as an 8-level demo (~20 min) rather than
+  pretending to be a "real" puzzle game.
+- **Themed** ("Archive Vault" with concrete fictional context).
+- **Memorable** (3 named signature levels with "wow" hooks).
+- **Forgiving** (undo + restart + level save).
+- **Replayable** (par-move medals).
+- **Onboarded** (persistent HUD key-binding cue).
 
-**Notable for the framework**: this is the first GDD that completed
-the review cycle — round 1 revise → round 2 accept. Validates the
-reviewer skill works as intended (catches real depth gaps; designer
-fixes them; review re-passes). Total cycle time: minutes, all in
-text. Compare to TowerDef3D which had to discover all these gaps
-post-build through multiple manual iteration sessions.
+This is shippable. The reviewer-revise cycle worked exactly as
+intended: caught real depth gaps in text-only iteration, pushed back
+twice when the design was thin or dishonest, accepted when the design
+matched its claims.
+
+**Pipeline can proceed** to level-designer (which already produced
+8 layouts; may need updates for new signature levels + par counts +
+undo-affecting layout choices) → systems-designer → content-designer.
+
+## What this validates about the reviewer skill
+
+The 4-round arc demonstrates the skill works:
+- Round 1: caught 3 obvious format gaps. Designer fixed.
+- Round 2: accepted on format compliance — TOO LENIENT. (Bug in old
+  reviewer.)
+- Skill expanded from 7 → 12 axes per user feedback "needs to be
+  harsh."
+- Round 3: caught 8 deeper design gaps with the new lens. Designer
+  did real design work to fix.
+- Round 4: verifies all 8 revisions land; surfaces only minor
+  housekeeping; accepts.
+
+This is what a real reviewer-revise cycle looks like. Total time:
+minutes per round, all in text. Compare to TowerDef3D, where these
+exact issues (audio, content scope, signature moments, theme) were
+discovered post-build through hours of manual playtesting + iteration.
+
+The expanded reviewer is now appropriately harsh — not for harshness'
+sake, but because the depth axes ARE the difference between a tech
+demo and a game.
