@@ -494,8 +494,11 @@ func _integrate_motion(delta: float) -> void:
 
 
 ## ADR 0004: build a snapshot of all `blocks_motion` AABBs for this frame.
-## Each entry: {"min": Vector3, "max": Vector3} on the XZ plane (Y ignored
-## for collision — walls are tall, all horizontal motion intersects).
+## Each entry: full 3D AABB {minx, maxx, miny, maxy, minz, maxz}. The AABB
+## is centered at `entity.position + properties.aabb_offset` (default zero
+## offset), with half-extents from `properties.aabb_extents`. Y handling
+## matters for projectiles fired upward — without it, bullets at high
+## altitude get stuck against tall walls visually beneath them.
 func _collect_blockers() -> Array:
 	var out: Array = []
 	for id in entities.keys():
@@ -505,55 +508,72 @@ func _collect_blockers() -> Array:
 		var ext = (ent as Entity).get_property("aabb_extents", null)
 		if ext == null: continue
 		var ext_v: Vector3 = _to_vec3(ext)
+		var off_v: Vector3 = _to_vec3((ent as Entity).get_property("aabb_offset", [0, 0, 0]))
 		var pos = (ent as Entity).get_position()
 		var pos_v: Vector3 = Vector3.ZERO
 		if pos is Vector3: pos_v = pos
 		elif pos is Vector2: pos_v = Vector3(pos.x, 0, pos.y)
 		else: continue
+		var center: Vector3 = pos_v + off_v
 		out.append({
-			"minx": pos_v.x - ext_v.x,
-			"maxx": pos_v.x + ext_v.x,
-			"minz": pos_v.z - ext_v.z,
-			"maxz": pos_v.z + ext_v.z,
+			"minx": center.x - ext_v.x,
+			"maxx": center.x + ext_v.x,
+			"miny": center.y - ext_v.y,
+			"maxy": center.y + ext_v.y,
+			"minz": center.z - ext_v.z,
+			"maxz": center.z + ext_v.z,
 		})
 	return out
 
 
-## Resolve 3D motion against XZ-plane blockers via separate-axes slide.
+## Resolve 3D motion against AABB blockers via separate-axes slide on XZ.
+## When both X and Z are blocked, Y is also reverted so projectiles can't
+## "stick" to a wall and slide vertically along its face.
 static func _resolve_motion_3d(old_p: Vector3, new_p: Vector3, body_r: float, blockers: Array) -> Vector3:
-	if not _aabb_intersects(new_p.x, new_p.z, body_r, blockers):
+	if not _aabb_intersects(new_p.x, new_p.y, new_p.z, body_r, blockers):
 		return new_p
-	# Try X-only: keep new x, old z
-	if not _aabb_intersects(new_p.x, old_p.z, body_r, blockers):
+	# Try X-only: keep new x, old y, old z
+	if not _aabb_intersects(new_p.x, old_p.y, old_p.z, body_r, blockers):
 		return Vector3(new_p.x, new_p.y, old_p.z)
-	# Try Z-only: keep old x, new z
-	if not _aabb_intersects(old_p.x, new_p.z, body_r, blockers):
+	# Try Z-only: keep old x, old y, new z
+	if not _aabb_intersects(old_p.x, old_p.y, new_p.z, body_r, blockers):
 		return Vector3(old_p.x, new_p.y, new_p.z)
-	# Both blocked: keep XZ, allow Y if any (rare for planar games)
-	return Vector3(old_p.x, new_p.y, old_p.z)
+	# Try Y-only: bullets fired upward can clear a wall by altitude alone.
+	if not _aabb_intersects(old_p.x, new_p.y, old_p.z, body_r, blockers):
+		return Vector3(old_p.x, new_p.y, old_p.z)
+	# All blocked: stay (don't preserve any new axis — fixes bullet-stuck-
+	# floats-up bug from doomarena3d v2.5 playtest).
+	return old_p
 
 
 ## Same shape for 2D positions. Vector2 represents (x, z) in our convention
-## (top-down 2D maps to XZ plane).
+## (top-down 2D maps to XZ plane). 2D entities are always at Y=0 so Y is
+## a no-op here; we pass 0 to the shared 3D test.
 static func _resolve_motion_2d(old_p: Vector2, new_p: Vector2, body_r: float, blockers: Array) -> Vector2:
-	if not _aabb_intersects(new_p.x, new_p.y, body_r, blockers):
+	if not _aabb_intersects(new_p.x, 0.0, new_p.y, body_r, blockers):
 		return new_p
-	if not _aabb_intersects(new_p.x, old_p.y, body_r, blockers):
+	if not _aabb_intersects(new_p.x, 0.0, old_p.y, body_r, blockers):
 		return Vector2(new_p.x, old_p.y)
-	if not _aabb_intersects(old_p.x, new_p.y, body_r, blockers):
+	if not _aabb_intersects(old_p.x, 0.0, new_p.y, body_r, blockers):
 		return Vector2(old_p.x, new_p.y)
 	return old_p
 
 
-## Test if a circle at (px, pz) with radius r overlaps any blocker AABB.
-static func _aabb_intersects(px: float, pz: float, r: float, blockers: Array) -> bool:
+## Test if a sphere at (px, py, pz) with radius r overlaps any blocker AABB.
+## 3D check (added in v2.6 follow-up to ADR 0004): without Y, a bullet fired
+## upward gets stuck horizontally on the wall while its Y velocity keeps
+## climbing — appears to "float up the wall." Including Y in the test lets
+## bullets clear walls naturally by altitude.
+static func _aabb_intersects(px: float, py: float, pz: float, r: float, blockers: Array) -> bool:
 	var r2 := r * r
 	for b in blockers:
 		var cx: float = clamp(px, b["minx"], b["maxx"])
+		var cy: float = clamp(py, b["miny"], b["maxy"])
 		var cz: float = clamp(pz, b["minz"], b["maxz"])
 		var dx := px - cx
+		var dy := py - cy
 		var dz := pz - cz
-		if dx * dx + dz * dz < r2:
+		if dx * dx + dy * dy + dz * dz < r2:
 			return true
 	return false
 

@@ -5,7 +5,8 @@
       "id": "wall_ns",
       "tags": ["wall", "structure", "decoration", "blocks_motion"],
       "properties": {
-        "aabb_extents": [22, 1.5, 0.25]
+        "aabb_extents": [22, 1.5, 0.25],
+        "aabb_offset": [0, 1.5, 0]
       },
       "state_init": {},
       "visual": {
@@ -16,7 +17,8 @@
       "id": "wall_ew",
       "tags": ["wall", "structure", "decoration", "blocks_motion"],
       "properties": {
-        "aabb_extents": [0.25, 1.5, 22]
+        "aabb_extents": [0.25, 1.5, 22],
+        "aabb_offset": [0, 1.5, 0]
       },
       "state_init": {},
       "visual": {

@@ -5,7 +5,8 @@
       "id": "pillar",
       "tags": ["pillar", "structure", "decoration", "cover", "blocks_motion"],
       "properties": {
-        "aabb_extents": [0.5, 1.5, 0.5]
+        "aabb_extents": [0.5, 1.5, 0.5],
+        "aabb_offset": [0, 1.5, 0]
       },
       "state_init": {},
       "visual": {
