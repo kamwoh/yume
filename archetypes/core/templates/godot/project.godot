@@ -22,6 +22,10 @@ renderer/rendering_method="gl_compatibility"
 window/size/viewport_width=960
 window/size/viewport_height=540
 
+[autoload]
+
+CaptureRunner="*res://scripts/engine/capture_runner.gd"
+
 [input]
 
 move_north={

@@ -151,6 +151,39 @@ timeout 60 .../Godot.exe --headless --path C:/.../YumeTemplate \
 - ✅ Flag rules that fire too often (probably missing chance / interval)
 - ✅ Compare observed dynamics to GDD intent
 - ✅ Drain `env.error_buffer` for structured engine errors (Tier 2.6a)
+- ✅ **Visual QA via auto-capture (Tier 2.6r)** — run windowed for ~3
+  seconds, capture viewport, read the PNG. Verify entities are visible,
+  scaled correctly, not stuck-in-place, HUD renders, no obvious clipping.
+  Compare to GDD intent: "the player should see N pickups from spawn",
+  "world feels populated", etc.
+
+## Visual QA capture step
+
+After the headless smoke test, run the game windowed with auto-capture:
+
+```bash
+~/yume/scripts/play.sh <game-name> --capture
+```
+
+That syncs framework + launches game + waits 3s + saves PNG + quits.
+Reports the resolved output path. Read the PNG with the Read tool and
+visually check:
+
+| Check | Pass criteria |
+|---|---|
+| Entities visible | Player + intended decor render at expected scale |
+| No "everything in one place" | Visible spread of entities; not collapsed at origin |
+| Lighting + shadows | Shadows visible (3D scenes), tints applied (day/night) |
+| HUD renders | Score + bars + controls overlay visible |
+| Camera fits scene | Player + key entities in frame |
+| Scale sanity | Trees larger than rocks; player at human-eye height |
+
+Common visual bugs surfaced by this loop:
+- `position_scale` mismatch (entities collapse to origin in 3D scenes)
+- Camera mode wrong for content (top-down view of 3D mesh = empty plane)
+- Entity meshes default-cube because `visual.mesh` field missing
+- HUD layered behind background (z-order bug)
+- Camera spawn position inside a wall
 
 ## What you DON'T do
 

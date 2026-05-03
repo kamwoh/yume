@@ -184,13 +184,22 @@ The world-plan is the single source of truth for named content
     `Skill(skill="yume-qa-tester", args=<data folder + scene path + GDD path>)`.
 20. Skill runs Godot headless, drains `env.error_buffer`, produces
     `docs/games/<name>/qa-report.md`.
-21. **Autonomous fix-and-retry**: if qa-tester reports a small mechanical
-    bug (ternary syntax, typo, missing field), the orchestrator may
-    apply the fix inline and re-run. Engine errors via Tier 2.6a make
-    this safe — the structured records identify what to fix. Never
-    invent new logic; only fix what the error report directly identifies.
-    Limit: max 3 retry cycles before surfacing to user.
-22. Interactive: show QA report, ask approval. Autonomous: proceed.
+21. **Tier 2.6r — Visual QA**: after headless smoke test, qa-tester
+    runs the game windowed with auto-capture (`scripts/play.sh <name>
+    --capture`), reads the captured PNG, and verifies:
+    - Entities visible at expected scale (not collapsed at origin)
+    - Layout matches design intent (rings/scatters render correctly)
+    - HUD renders + lighting applied
+    - No obvious clipping / camera-in-wall / wrong-mode-for-content
+    Findings appended to qa-report.md alongside cascade verification.
+22. **Autonomous fix-and-retry**: if qa-tester reports a small mechanical
+    bug (ternary syntax, typo, missing field, position_scale mismatch),
+    the orchestrator may apply the fix inline and re-run. Tier 2.6a
+    structured engine errors + Tier 2.6r visual bug recognition make
+    this safe. Never invent new logic; only fix what the report
+    directly identifies. Limit: max 3 retry cycles before surfacing.
+23. Interactive: show QA report + capture path, ask approval.
+    Autonomous: proceed.
 
 ### Phase 6 — Optional: asset generation (only if --with-assets)
 
