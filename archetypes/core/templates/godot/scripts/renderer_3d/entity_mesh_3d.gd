@@ -52,6 +52,7 @@ func _ready() -> void:
 			mi.mesh = packed
 			add_child(mi)
 		_mode = "model"
+		_apply_shadow_only_if_set(visual)
 		_sync_position()
 		return
 
@@ -70,6 +71,7 @@ func _ready() -> void:
 			)
 			_build_mesh_children()
 			_mode = "mesh"
+			_apply_shadow_only_if_set(visual)
 			_sync_position()
 			return
 
@@ -83,7 +85,26 @@ func _ready() -> void:
 	mi_box.material_override = _make_material(color)
 	add_child(mi_box)
 	_mode = "bare"
+	_apply_shadow_only_if_set(visual)
 	_sync_position()
+
+
+## If `visual.hide_for_camera_attach=true`, recursively set all
+## MeshInstance3D children to SHADOWS_ONLY — the mesh casts a shadow
+## on the ground but doesn't render to any camera. Doom/CSGO viewmodel
+## pattern: the player's own body is invisible from their first-person
+## view (the viewmodel weapon overlay handles "what the player sees of
+## themselves") but still has a presence on the ground for atmosphere.
+func _apply_shadow_only_if_set(visual: Dictionary) -> void:
+	if not bool(visual.get("hide_for_camera_attach", false)): return
+	_set_shadow_only_recursive(self)
+
+
+func _set_shadow_only_recursive(node: Node) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D:
+			(child as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		_set_shadow_only_recursive(child)
 
 
 func _process(_dt: float) -> void:

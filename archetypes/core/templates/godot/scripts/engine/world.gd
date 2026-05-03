@@ -267,12 +267,13 @@ func _attach_renderer(ent: Entity) -> void:
 	# entity shows as a pink/grey square at its position. Empirically caught
 	# during towerdef3d capture (2026-05-03).
 	if bool((ent.visual as Dictionary).get("hidden", false)): return
-	# Honor `visual.hide_for_camera_attach=true` — used by first-person
-	# scenes to suppress the player's own mesh (camera is at eye height
-	# but the player capsule/head sphere would otherwise occlude the view
-	# from inside). Empirically caught during doomarena3d level review
-	# (2026-05-03) — the flag was documented in JSON but never read.
-	if bool((ent.visual as Dictionary).get("hide_for_camera_attach", false)): return
+	# `visual.hide_for_camera_attach=true` is now a SHADOW-ONLY flag, not
+	# a skip. The renderer reads it and applies SHADOW_CASTING_SETTING_
+	# SHADOWS_ONLY to its mesh children — the mesh disappears from the
+	# viewer's camera but still casts a shadow on the ground. Doom/CSGO
+	# pattern: viewer sees only the viewmodel hand/weapon, but their
+	# shadow on the floor reveals their full body. (Empirically caught
+	# during doomarena3d 2026-05-04 playtest: "i see only gun shadow.")
 	var script := load(renderer_script)
 	if script == null: return
 	var node = script.new()
