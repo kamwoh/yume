@@ -95,25 +95,25 @@
     },
 
     {
-      "_comment": "=== PLAYER MOVEMENT (velocity_set_relative for forward-relative motion). Drag in player.state.drag handles deceleration.",
+      "_comment": "=== PLAYER MOVEMENT (velocity_add_relative — accumulates per-tick contributions so W+A diagonal works). Drag in player.state.drag handles deceleration. Per-tick add of 3.0 with drag=8 + tick=0.05s gives equilibrium speed ≈ 4.5 m/s; diagonal sum sqrt(2)·3 ≈ 4.24 m/s.",
       "id": "move_forward",
       "trigger": {"type": "input", "action": "move_north"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 4.5, "strafe": 0}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 3.0, "strafe": 0}
     },
     {
       "id": "move_back",
       "trigger": {"type": "input", "action": "move_south"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": -4.5, "strafe": 0}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": -3.0, "strafe": 0}
     },
     {
       "id": "strafe_right",
       "trigger": {"type": "input", "action": "move_east"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": -4.5}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -3.0}
     },
     {
       "id": "strafe_left",
       "trigger": {"type": "input", "action": "move_west"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": 4.5}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": 3.0}
     },
 
     {

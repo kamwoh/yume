@@ -54,13 +54,14 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"velocity_set":      _velocity_set(effect, env, context)
 		"velocity_lerp":     _velocity_lerp(effect, env, context)
 		"velocity_set_relative": _velocity_set_relative(effect, env, context)
+		"velocity_add_relative": _velocity_add_relative(effect, env, context)
 		"emit":              _emit(effect, env, context)
 		"emit_shell_event":  _emit_shell_event(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, emit, emit_shell_event.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, emit, emit_shell_event.",
 				"warning")
 	return {}
 
@@ -302,6 +303,36 @@ static func _velocity_set_relative(e: Dictionary, env: Dictionary, ctx: Dictiona
 		ent.set_velocity(Vector3(vx, 0, vz))
 	else:
 		ent.set_velocity(Vector2(vx, vz))
+
+
+## Like velocity_set_relative but ADDS the contribution to current velocity
+## instead of overwriting. Lets multiple input rules in the same tick combine
+## (W + A both fire → forward + strafe contributions sum into a diagonal
+## velocity). Drag handles deceleration when no input. Tune per-tick
+## magnitude so equilibrium matches desired top speed: with drag d and tick
+## delta dt, equilibrium ≈ add * (1 - d*dt) / (d*dt). Empirically caught
+## during doomarena3d v2 playtest: diagonal motion broken because each
+## velocity_set_relative call wiped the prior input's component (2026-05-03).
+static func _velocity_add_relative(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var ent: Entity = _target(e, env, ctx)
+	if ent == null: return
+	var fwd := float(_value(e.get("forward", 0), ctx, env))
+	var strafe := float(_value(e.get("strafe", 0), ctx, env))
+	var facing := float(ent.get_state("facing", 0.0))
+	var fx := -sin(facing) * fwd
+	var fz := -cos(facing) * fwd
+	var sx := -cos(facing) * strafe
+	var sz := sin(facing) * strafe
+	var dvx := fx + sx
+	var dvz := fz + sz
+	var pos = ent.get_position()
+	var v_cur = ent.get_velocity()
+	if pos is Vector3:
+		var base: Vector3 = Vector3.ZERO if v_cur == null else (v_cur as Vector3)
+		ent.set_velocity(base + Vector3(dvx, 0, dvz))
+	else:
+		var base2: Vector2 = Vector2.ZERO if v_cur == null else (v_cur as Vector2)
+		ent.set_velocity(base2 + Vector2(dvx, dvz))
 
 
 ## Smoothly approach a target velocity each tick. Lets entities feel weighty —

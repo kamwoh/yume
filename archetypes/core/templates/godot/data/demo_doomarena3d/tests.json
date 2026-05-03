@@ -320,6 +320,58 @@
     },
 
     {
+      "name": "diagonal_movement_works",
+      "_": "v2.5: pressing W + A in the same tick should produce diagonal motion. velocity_set_relative would lose one axis (last write wins); velocity_add_relative accumulates. After 30 ticks of holding W+A from origin facing=0 (forward = -Z, strafe-left = -X), player should have moved in BOTH -X (left) AND -Z (forward) by at least 1m each.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "position": [0, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "move_north"}, {"tick": 1, "input": "move_west"},
+        {"tick": 2, "input": "move_north"}, {"tick": 2, "input": "move_west"},
+        {"tick": 3, "input": "move_north"}, {"tick": 3, "input": "move_west"},
+        {"tick": 4, "input": "move_north"}, {"tick": 4, "input": "move_west"},
+        {"tick": 5, "input": "move_north"}, {"tick": 5, "input": "move_west"},
+        {"tick": 6, "input": "move_north"}, {"tick": 6, "input": "move_west"},
+        {"tick": 7, "input": "move_north"}, {"tick": 7, "input": "move_west"},
+        {"tick": 8, "input": "move_north"}, {"tick": 8, "input": "move_west"},
+        {"tick": 9, "input": "move_north"}, {"tick": 9, "input": "move_west"},
+        {"tick": 10, "input": "move_north"}, {"tick": 10, "input": "move_west"},
+        {"tick": 11, "input": "move_north"}, {"tick": 11, "input": "move_west"},
+        {"tick": 12, "input": "move_north"}, {"tick": 12, "input": "move_west"},
+        {"tick": 13, "input": "move_north"}, {"tick": 13, "input": "move_west"},
+        {"tick": 14, "input": "move_north"}, {"tick": 14, "input": "move_west"},
+        {"tick": 15, "input": "move_north"}, {"tick": 15, "input": "move_west"},
+        {"tick": 16, "input": "move_north"}, {"tick": 16, "input": "move_west"},
+        {"tick": 17, "input": "move_north"}, {"tick": 17, "input": "move_west"},
+        {"tick": 18, "input": "move_north"}, {"tick": 18, "input": "move_west"},
+        {"tick": 19, "input": "move_north"}, {"tick": 19, "input": "move_west"},
+        {"tick": 20, "input": "move_north"}, {"tick": 20, "input": "move_west"},
+        {"tick": 21, "input": "move_north"}, {"tick": 21, "input": "move_west"},
+        {"tick": 22, "input": "move_north"}, {"tick": 22, "input": "move_west"},
+        {"tick": 23, "input": "move_north"}, {"tick": 23, "input": "move_west"},
+        {"tick": 24, "input": "move_north"}, {"tick": 24, "input": "move_west"},
+        {"tick": 25, "input": "move_north"}, {"tick": 25, "input": "move_west"},
+        {"tick": 26, "input": "move_north"}, {"tick": 26, "input": "move_west"},
+        {"tick": 27, "input": "move_north"}, {"tick": 27, "input": "move_west"},
+        {"tick": 28, "input": "move_north"}, {"tick": 28, "input": "move_west"},
+        {"tick": 29, "input": "move_north"}, {"tick": 29, "input": "move_west"},
+        {"tick": 30, "input": "move_north"}, {"tick": 30, "input": "move_west"}
+      ],
+      "ticks": 30,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.position.x", "op": "<", "value": -1.0},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.position.z", "op": "<", "value": -1.0}
+      ]
+    },
+
+    {
       "name": "boss_killed_sets_victory_flag",
       "_": "v2 signature win: spawn boss at low HP, hit it once → hp ≤ 0 → boss_killed_win sets clock.boss_killed=1 → HUD wins.",
       "setup": {
