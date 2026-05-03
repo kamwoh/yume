@@ -1,7 +1,7 @@
 # ADR 0004 — `blocks_motion` tag for static obstacles
 
 _Date: 2026-05-03_
-_Status: proposed_
+_Status: accepted (landed 2026-05-03)_
 
 ## Context
 

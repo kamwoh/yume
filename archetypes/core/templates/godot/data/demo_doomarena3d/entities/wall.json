@@ -1,10 +1,12 @@
 {
-  "_comment": "Containment Chamber 7 perimeter walls — rusted steel panels with warning stripes. Decorative only in v2 (no projectile/movement blocking — engine doesn't have wall_blocks_* primitives yet). 4 instances frame the arena at ±22m.",
+  "_comment": "Containment Chamber 7 perimeter walls — rusted steel panels with warning stripes. ADR 0004: blocks_motion tag + aabb_extents make these solid (player + monsters can't walk through). 4 instances frame the arena at ±22m.",
   "definitions": [
     {
       "id": "wall_ns",
-      "tags": ["wall", "structure", "decoration"],
-      "properties": {},
+      "tags": ["wall", "structure", "decoration", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [22, 1.5, 0.25]
+      },
       "state_init": {},
       "visual": {
         "mesh": "wall_panel_ns"
@@ -12,8 +14,10 @@
     },
     {
       "id": "wall_ew",
-      "tags": ["wall", "structure", "decoration"],
-      "properties": {},
+      "tags": ["wall", "structure", "decoration", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [0.25, 1.5, 22]
+      },
       "state_init": {},
       "visual": {
         "mesh": "wall_panel_ew"

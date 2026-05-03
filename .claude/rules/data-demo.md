@@ -30,6 +30,12 @@ no GDScript files belong here.
 
 - ✅ **Tag liberally.** Tags are free; queries depend on them. Anti-tag
   with `tags_none` for exclusion (e.g. flammable but not burning yet).
+- ⚠️ **`blocks_motion` is engine-recognized** (ADR 0004). Entities with
+  this tag must also declare `properties.aabb_extents: [hx, hy, hz]`
+  (half-extents on each axis). Motion integrator slides moving entities
+  around their AABB on the XZ plane. Example: `tags: ["wall",
+  "blocks_motion"], properties: {"aabb_extents": [22, 1.5, 0.25]}`.
+  Don't reuse the name for other meanings.
 - ✅ **Use `state_init` for both static initial values AND dynamic state
   to be mutated.** The engine doesn't enforce a static/dynamic split;
   it's a content convention.

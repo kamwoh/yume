@@ -1,10 +1,12 @@
 {
-  "_comment": "Interior cover pillars — exposed structural columns / mining-rig fragments per Containment Chamber theme. 4 asymmetric instances per level-design.md. Decorative + spatial-reference only in v2 (no LOS/movement blocking yet).",
+  "_comment": "Interior cover pillars — exposed structural columns / mining-rig fragments per Containment Chamber theme. ADR 0004: blocks_motion tag + 1m×1m aabb_extents make these solid for line-of-cover gameplay. 4 asymmetric instances per level-design.md.",
   "definitions": [
     {
       "id": "pillar",
-      "tags": ["pillar", "structure", "decoration", "cover"],
-      "properties": {},
+      "tags": ["pillar", "structure", "decoration", "cover", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [0.5, 1.5, 0.5]
+      },
       "state_init": {},
       "visual": {
         "mesh": "pillar_steel",

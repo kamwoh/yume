@@ -418,8 +418,18 @@ func _find_actor_id() -> String:
 ## actively setting velocity. drag is per-second factor (0.0 = no drag,
 ## 1.0 = full stop in 1s). Velocity multiplies by (1 - drag * delta) each
 ## frame. Below DRAG_REST_EPSILON it snaps to zero.
+##
+## ADR 0004: entities with the `blocks_motion` tag and `properties.aabb_extents`
+## act as static obstacles. Each moving entity is tested against blockers as
+## a circle (XZ plane) with radius from `properties.body_radius` (default
+## 0.4). On intersection, motion slides along separate axes — try X-only, then
+## Z-only, else stay. Approximation: no swept CCD, so very fast entities at
+## oblique angles can tunnel through thin walls. Acceptable for arcade-feel.
 const DRAG_REST_EPSILON := 0.5
+const DEFAULT_BODY_RADIUS := 0.4
 func _integrate_motion(delta: float) -> void:
+	# ADR 0004: collect blockers once per frame (immovable static obstacles).
+	var blockers: Array = _collect_blockers()
 	for id in entities.keys():
 		var ent = entities[id]
 		if not (ent is Entity): continue
@@ -445,26 +455,118 @@ func _integrate_motion(delta: float) -> void:
 					(ent as Entity).set_velocity(v3)
 					v = v3
 		var moved := false
+		# Skip blocker-vs-blocker self-block (an obstacle isn't moving).
+		var is_blocker: bool = (ent as Entity).has_tag("blocks_motion")
+		var body_r: float = float((ent as Entity).get_property("body_radius", DEFAULT_BODY_RADIUS))
+		var p = (ent as Entity).get_position()
 		if v is Vector2 and v != Vector2.ZERO:
-			var p = (ent as Entity).get_position()
 			if p is Vector2:
-				(ent as Entity).set_position(p + v * delta)
+				var new_p2: Vector2 = (p as Vector2) + (v as Vector2) * delta
+				if not is_blocker and not blockers.is_empty():
+					new_p2 = _resolve_motion_2d(p as Vector2, new_p2, body_r, blockers)
+				(ent as Entity).set_position(new_p2)
 				moved = true
 			elif p is Vector3:
 				# 2D velocity on 3D pos: project to XZ plane
-				(ent as Entity).set_position(p + Vector3(v.x, 0, v.y) * delta)
+				var v2: Vector2 = v as Vector2
+				var new_p3v: Vector3 = (p as Vector3) + Vector3(v2.x, 0, v2.y) * delta
+				if not is_blocker and not blockers.is_empty():
+					new_p3v = _resolve_motion_3d(p as Vector3, new_p3v, body_r, blockers)
+				(ent as Entity).set_position(new_p3v)
 				moved = true
 		elif v is Vector3 and v != Vector3.ZERO:
-			var p = (ent as Entity).get_position()
 			if p is Vector3:
-				(ent as Entity).set_position(p + v * delta)
+				var new_p3: Vector3 = (p as Vector3) + (v as Vector3) * delta
+				if not is_blocker and not blockers.is_empty():
+					new_p3 = _resolve_motion_3d(p as Vector3, new_p3, body_r, blockers)
+				(ent as Entity).set_position(new_p3)
 				moved = true
 			elif p is Vector2:
 				# 3D velocity on 2D pos: take XZ
-				(ent as Entity).set_position(p + Vector2(v.x, v.z) * delta)
+				var v3: Vector3 = v as Vector3
+				var new_p2v: Vector2 = (p as Vector2) + Vector2(v3.x, v3.z) * delta
+				if not is_blocker and not blockers.is_empty():
+					new_p2v = _resolve_motion_2d(p as Vector2, new_p2v, body_r, blockers)
+				(ent as Entity).set_position(new_p2v)
 				moved = true
 		if moved and spatial_index != null:
 			spatial_index.update_entity(id, (ent as Entity).get_planar_position())
+
+
+## ADR 0004: build a snapshot of all `blocks_motion` AABBs for this frame.
+## Each entry: {"min": Vector3, "max": Vector3} on the XZ plane (Y ignored
+## for collision — walls are tall, all horizontal motion intersects).
+func _collect_blockers() -> Array:
+	var out: Array = []
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		if not (ent as Entity).has_tag("blocks_motion"): continue
+		var ext = (ent as Entity).get_property("aabb_extents", null)
+		if ext == null: continue
+		var ext_v: Vector3 = _to_vec3(ext)
+		var pos = (ent as Entity).get_position()
+		var pos_v: Vector3 = Vector3.ZERO
+		if pos is Vector3: pos_v = pos
+		elif pos is Vector2: pos_v = Vector3(pos.x, 0, pos.y)
+		else: continue
+		out.append({
+			"minx": pos_v.x - ext_v.x,
+			"maxx": pos_v.x + ext_v.x,
+			"minz": pos_v.z - ext_v.z,
+			"maxz": pos_v.z + ext_v.z,
+		})
+	return out
+
+
+## Resolve 3D motion against XZ-plane blockers via separate-axes slide.
+static func _resolve_motion_3d(old_p: Vector3, new_p: Vector3, body_r: float, blockers: Array) -> Vector3:
+	if not _aabb_intersects(new_p.x, new_p.z, body_r, blockers):
+		return new_p
+	# Try X-only: keep new x, old z
+	if not _aabb_intersects(new_p.x, old_p.z, body_r, blockers):
+		return Vector3(new_p.x, new_p.y, old_p.z)
+	# Try Z-only: keep old x, new z
+	if not _aabb_intersects(old_p.x, new_p.z, body_r, blockers):
+		return Vector3(old_p.x, new_p.y, new_p.z)
+	# Both blocked: keep XZ, allow Y if any (rare for planar games)
+	return Vector3(old_p.x, new_p.y, old_p.z)
+
+
+## Same shape for 2D positions. Vector2 represents (x, z) in our convention
+## (top-down 2D maps to XZ plane).
+static func _resolve_motion_2d(old_p: Vector2, new_p: Vector2, body_r: float, blockers: Array) -> Vector2:
+	if not _aabb_intersects(new_p.x, new_p.y, body_r, blockers):
+		return new_p
+	if not _aabb_intersects(new_p.x, old_p.y, body_r, blockers):
+		return Vector2(new_p.x, old_p.y)
+	if not _aabb_intersects(old_p.x, new_p.y, body_r, blockers):
+		return Vector2(old_p.x, new_p.y)
+	return old_p
+
+
+## Test if a circle at (px, pz) with radius r overlaps any blocker AABB.
+static func _aabb_intersects(px: float, pz: float, r: float, blockers: Array) -> bool:
+	var r2 := r * r
+	for b in blockers:
+		var cx: float = clamp(px, b["minx"], b["maxx"])
+		var cz: float = clamp(pz, b["minz"], b["maxz"])
+		var dx := px - cx
+		var dz := pz - cz
+		if dx * dx + dz * dz < r2:
+			return true
+	return false
+
+
+## Coerce Array / Vector2 / Vector3 to Vector3.
+static func _to_vec3(v) -> Vector3:
+	if v is Vector3: return v
+	if v is Vector2: return Vector3(v.x, 0, v.y)
+	if v is Array:
+		var a := v as Array
+		if a.size() >= 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
+		if a.size() == 2: return Vector3(float(a[0]), 0, float(a[1]))
+	return Vector3.ZERO
 
 
 ## Generic tick summary: total entity count + counts per common tag.

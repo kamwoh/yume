@@ -38,6 +38,7 @@ func _ready() -> void:
 	test_rpg_cascade()
 	test_chess_cascade()
 	test_engine_error()
+	test_blocks_motion()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1203,3 +1204,82 @@ func test_engine_error() -> void:
 	if fbuf.size() >= 1:
 		expect_eq(str(fbuf[0].code), EngineError.FORMULA_PARSE_FAILED, "formula.parse_failed code")
 		expect_eq(str((fbuf[0].where as Dictionary).get("rule_id")), "r_formula", "formula rule_id attribution")
+
+
+# ============================================================
+# BLOCKS_MOTION (ADR 0004)
+# ============================================================
+
+func test_blocks_motion() -> void:
+	_section("blocks_motion (ADR 0004)")
+
+	# Single AABB blocker centered at origin, [-1, 1] on both axes.
+	var blockers: Array = [{"minx": -1.0, "maxx": 1.0, "minz": -1.0, "maxz": 1.0}]
+
+	# A circle whose center is inside the AABB intersects.
+	expect(World._aabb_intersects(0.0, 0.0, 0.4, blockers), "center inside aabb intersects")
+
+	# A circle far from the AABB does not.
+	expect(not World._aabb_intersects(5.0, 5.0, 0.4, blockers), "center far away doesn't intersect")
+
+	# Edge-of-aabb approach: at x=1.3, edge of aabb is at x=1; distance=0.3
+	# < radius 0.4 → intersects.
+	expect(World._aabb_intersects(1.3, 0.0, 0.4, blockers), "approach within body radius intersects")
+
+	# Just outside body radius: x=1.5, distance=0.5 > radius 0.4 → no.
+	expect(not World._aabb_intersects(1.5, 0.0, 0.4, blockers), "approach outside body radius does not intersect")
+
+	# Resolve: walking south (z decreasing) into the blocker face.
+	# Old (0.5, 2): z=2 outside aabb. New (0.5, 0.5): inside → intersects.
+	# Slide attempt: X-only (0.5, 2): same as old z, no intersect → take it.
+	var resolved3 := World._resolve_motion_3d(
+		Vector3(0.5, 0, 2.0), Vector3(0.5, 0, 0.5), 0.4, blockers)
+	expect_eq(resolved3.x, 0.5, "slide preserves new x")
+	expect_eq(resolved3.z, 2.0, "slide reverts z to old (X-only path taken)")
+
+	# Resolve: pushing diagonally toward the corner from outside.
+	# Old (2, 2): corner-ish, no intersect (distance √2 ≈ 1.41).
+	# New (0.5, 0.5): inside aabb → intersects.
+	# X-only (0.5, 2): outside in z → take.
+	var resolved3b := World._resolve_motion_3d(
+		Vector3(2.0, 0, 2.0), Vector3(0.5, 0, 0.5), 0.4, blockers)
+	expect(abs(resolved3b.x - 0.5) < 0.001, "diagonal slide: new x kept")
+	expect(abs(resolved3b.z - 2.0) < 0.001, "diagonal slide: z reverted (X-only succeeds first)")
+
+	# Resolve: when both axes are blocked, position stays.
+	# Old (0, 2): outside (just). New (0, 0): inside.
+	# X-only (0, 2): same as old → no intersect → returns (0, _, 2).
+	# But that's the same as old XZ wise. So "X-only wins" returns same as old.
+	# Construct a true both-blocked case: blocker is wide on X only.
+	var wide_blocker: Array = [{"minx": -10.0, "maxx": 10.0, "minz": -1.0, "maxz": 1.0}]
+	# Old (0, 1.5): outside (z=1.5 > 1). New (0, 0): inside.
+	# X-only (0, 1.5): same as old → no intersect → returns (0, _, 1.5). OK.
+	# To force both axes blocked, old must already touch the wall on at least
+	# one axis. Old (0, 1.39): X intersects (it's inside x bounds), z just
+	# inside body radius (1 + 0.4 = 1.4 boundary, 1.39 inside).
+	# Actually let me use a different scenario: nudging into a corner blocker.
+	var corner_blocker: Array = [{"minx": -1.0, "maxx": 1.0, "minz": -1.0, "maxz": 1.0}]
+	# Old (1.4, 1.4): just outside both edges (distance √(0.4²+0.4²) = √0.32
+	# ≈ 0.566, > radius 0.4 → no intersect).
+	# New (0.5, 0.5): inside, intersects.
+	# X-only (0.5, 1.4): x=0.5 inside, z=1.4 — closest aabb pt (0.5, 1.0),
+	# dist 0.4 = radius → boundary, expect_eq false (using strict <).
+	# Z-only (1.4, 0.5): x=1.4 outside, z=0.5 inside, closest (1, 0.5),
+	# dist 0.4 = boundary → also strict false.
+	# So full move blocked, X-only blocked, Z-only blocked → stay.
+	var resolved3c := World._resolve_motion_3d(
+		Vector3(1.4, 0, 1.4), Vector3(0.5, 0, 0.5), 0.4, corner_blocker)
+	expect(abs(resolved3c.x - 1.4) < 0.001 and abs(resolved3c.z - 1.4) < 0.001,
+		"corner push: both axes blocked → stay at old XZ")
+
+	# 2D variant uses the same logic (Vector2 maps to XZ).
+	var resolved2 := World._resolve_motion_2d(
+		Vector2(0.5, 2.0), Vector2(0.5, 0.5), 0.4, blockers)
+	expect_eq(resolved2.x, 0.5, "2D slide preserves new x")
+	expect_eq(resolved2.y, 2.0, "2D slide reverts y to old")
+
+	# _to_vec3 coercion variants.
+	expect_eq(World._to_vec3([1, 2, 3]), Vector3(1, 2, 3), "_to_vec3 array len 3")
+	expect_eq(World._to_vec3([1, 2]), Vector3(1, 0, 2), "_to_vec3 array len 2 → XZ")
+	expect_eq(World._to_vec3(Vector2(1, 2)), Vector3(1, 0, 2), "_to_vec3 Vector2 → XZ")
+	expect_eq(World._to_vec3(Vector3(1, 2, 3)), Vector3(1, 2, 3), "_to_vec3 Vector3 passthrough")

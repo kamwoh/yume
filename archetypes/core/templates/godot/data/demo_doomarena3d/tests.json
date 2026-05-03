@@ -320,6 +320,34 @@
     },
 
     {
+      "name": "wall_blocks_player",
+      "_": "ADR 0004: walking west into the west wall (at x=-22, blocks_motion + aabb_extents [0.25, 1.5, 22]) should stop the player. After holding W with facing rotated to face -X for 60 ticks (3s), player.x should not pass the wall plane minus body radius (~-21.6, but we check >-22 strict).",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": -1.5708, "pitch": 0, "ammo": 0, "position": [-15, 0, 0]},
+          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "move_north"}, {"tick": 2, "input": "move_north"},
+        {"tick": 3, "input": "move_north"}, {"tick": 4, "input": "move_north"},
+        {"tick": 5, "input": "move_north"}, {"tick": 6, "input": "move_north"},
+        {"tick": 7, "input": "move_north"}, {"tick": 8, "input": "move_north"},
+        {"tick": 9, "input": "move_north"}, {"tick": 10, "input": "move_north"},
+        {"tick": 15, "input": "move_north"}, {"tick": 20, "input": "move_north"},
+        {"tick": 25, "input": "move_north"}, {"tick": 30, "input": "move_north"},
+        {"tick": 40, "input": "move_north"}, {"tick": 50, "input": "move_north"},
+        {"tick": 60, "input": "move_north"}
+      ],
+      "ticks": 60,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.position.x", "op": ">", "value": -22.0}
+      ]
+    },
+
+    {
       "name": "diagonal_movement_works",
       "_": "v2.5: pressing W + A in the same tick should produce diagonal motion. velocity_set_relative would lose one axis (last write wins); velocity_add_relative accumulates. After 30 ticks of holding W+A from origin facing=0 (forward = -Z, strafe-left = -X), player should have moved in BOTH -X (left) AND -Z (forward) by at least 1m each.",
       "setup": {

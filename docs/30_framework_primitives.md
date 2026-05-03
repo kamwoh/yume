@@ -106,6 +106,15 @@ typed value. `flammable: true` as a property implies a numeric ignition
 threshold elsewhere; `"flammable"` as a tag is a simple membership query.
 Use properties when numeric; tags when categorical.
 
+**Engine-recognized tags** (small, deliberately-curated list — most tags are
+content-defined, but these have engine-side semantics):
+
+| Tag | Effect | Required companion |
+|---|---|---|
+| `blocks_motion` | Static obstacle. Motion integrator slides moving entities around its AABB. | `properties.aabb_extents: [hx, hy, hz]` |
+
+Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`.
+
 ### 3. Rule
 
 The only behavior primitive.
