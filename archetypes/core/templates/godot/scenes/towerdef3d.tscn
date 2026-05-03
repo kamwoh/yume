@@ -36,6 +36,7 @@ verbose = true
 renderer_script = "res://scripts/renderer_3d/entity_mesh_3d.gd"
 input_actions_press = PackedStringArray()
 input_actions_hold = PackedStringArray()
+stop_action_on_idle = ""
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_1")

@@ -40,11 +40,11 @@
 
     {
       "name": "enemy_advances_at_waypoint",
-      "_": "Place enemy near wp_2 with eastward velocity. After contact (radius 0.8), velocity_set should swap to wp_2's stored next_v (0, 0, 2 — turn south).",
+      "_": "Place enemy near wp_2 with eastward velocity. After contact (radius 0.8), velocity_set should swap to wp_2's stored next_v (0, 0, 2 — turn south). wp_2 is at (-3, 0, -7).",
       "setup": {
         "spawn": [
           {"def": "enemy_grunt", "id": "test_enemy",
-           "position": [-4.5, 0, -10],
+           "position": [-3.5, 0, -7],
            "state": {"velocity": [2.0, 0, 0]}}
         ]
       },
@@ -58,14 +58,14 @@
 
     {
       "name": "tower_fires_when_enemy_in_range",
-      "_": "Place enemy 3m from tower_a (range 6). After 5 ticks, tower has fired (cooldown reset to ~0.1) and enemy has taken at least 1 damage (hp < 99).",
+      "_": "Place enemy 3m from tower_a at (-6, 0, -4) — range 6. After 5 ticks, tower has fired and enemy took at least 1 damage.",
       "setup": {
         "entity_state": {
           "tower_a": {"cooldown": -1.0}
         },
         "spawn": [
           {"def": "enemy_grunt", "id": "rogue_enemy",
-           "position": [-8, 0, -3],
+           "position": [-6, 0, -1],
            "state": {"velocity": [0, 0, 0], "hp": 99}}
         ]
       },
@@ -81,8 +81,14 @@
 
     {
       "name": "enemy_takes_damage_from_projectile",
-      "_": "Place a projectile right next to an enemy (radius 0.6). After 2 ticks, projectile gone, enemy.hp reduced.",
+      "_": "Place a projectile right next to an enemy (radius 0.6). After 2 ticks, projectile gone, enemy.hp reduced. Set tower cooldown high so towers don't auto-fire and contaminate the projectile count.",
       "setup": {
+        "entity_state": {
+          "tower_a": {"cooldown": 99},
+          "tower_b": {"cooldown": 99},
+          "tower_c": {"cooldown": 99},
+          "tower_d": {"cooldown": 99}
+        },
         "spawn": [
           {"def": "enemy_grunt", "id": "victim",
            "position": [0, 0, 0], "state": {"velocity": [0, 0, 0]}},
@@ -102,11 +108,11 @@
 
     {
       "name": "enemy_at_base_damages_it",
-      "_": "Place enemy 0.3m from base. Contact (radius 0.8) should fire: -1 base.hp, enemy removed.",
+      "_": "Place enemy 0.3m from base at (9, 0, 0). Contact (radius 0.8) should fire: -1 base.hp, enemy removed.",
       "setup": {
         "spawn": [
           {"def": "enemy_grunt", "id": "leaker",
-           "position": [11.7, 0, 0], "state": {"velocity": [0, 0, 0]}}
+           "position": [8.7, 0, 0], "state": {"velocity": [0, 0, 0]}}
         ]
       },
       "actions": [],

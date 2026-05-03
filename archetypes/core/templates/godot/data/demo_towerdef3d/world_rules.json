@@ -28,14 +28,14 @@
     },
 
     {
-      "_comment": "Spawn one enemy at wp_1 each spawn_cooldown tick. Initial velocity = wp_1.next_v (toward wp_2). Done by setting velocity on spawn.",
+      "_comment": "Spawn one enemy at wp_1 each spawn_cooldown tick. Initial velocity = wp_1.next_v (toward wp_2). Position must match wp_1's position from zz_instances.json.",
       "id": "wave_spawn_one",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["wave_clock"],
                 "state": {"spawn_cooldown_lte": 0.0, "enemies_to_spawn_gt": 0}},
       "effect": [
         {"type": "spawn", "template": "enemy_grunt",
-         "position": [-12, 0, -10],
+         "position": [-9, 0, -7],
          "overrides": {"state": {"velocity": [2.0, 0, 0]}}},
         {"type": "state_add", "target": "self", "field": "enemies_to_spawn", "amount": -1},
         {"type": "state_set", "target": "self", "field": "spawn_cooldown", "value": 0.4}

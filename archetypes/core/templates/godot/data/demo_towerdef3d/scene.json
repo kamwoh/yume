@@ -11,6 +11,6 @@
     "mode": "top_down_3d",
     "follow_tag": "wave_clock",
     "height": 22,
-    "fov": 60
+    "ortho_size": 18
   }
 }
