@@ -111,9 +111,16 @@ content-defined, but these have engine-side semantics):
 
 | Tag | Effect | Required companion |
 |---|---|---|
-| `blocks_motion` | Static obstacle. Motion integrator slides moving entities around its AABB. | `properties.aabb_extents: [hx, hy, hz]` |
+| `blocks_motion` | Static obstacle. Motion integrator slides moving entities around its AABB; projectile-tagged entities stop dead at the boundary. | `properties.aabb_extents: [hx, hy, hz]` (and optional `aabb_offset`) |
+| `projectile` | Different motion-resolution path: no slide on collision (stop dead). Used by motion integrator to distinguish bullets from creatures. | None (just the tag) |
 
 Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`.
+
+**Engine-recognized scene config** (in `scene.json`):
+
+| Block | Effect |
+|---|---|
+| `ground` | `{y, clamp_tags, despawn_tags}`. Each frame after motion integration, entities matching `clamp_tags` get Y-clamped to `y`; entities matching `despawn_tags` are removed if Y < `y`. Defaults: clamp_tags=["creature"], despawn_tags=["projectile"]. Replaces per-game creature_bounds + projectile_floor_despawn content rules. |
 
 ### 3. Rule
 

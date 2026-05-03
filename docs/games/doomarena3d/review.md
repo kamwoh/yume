@@ -265,3 +265,28 @@ The pipeline now has the structure to catch this at GDD time:
 2. yume-shooter-reviewer (10-axis ceiling, strictest) → must also accept
 
 Both layers must accept before systems-designer touches the GDD.
+
+---
+
+## Round 4 — post-engine-cleanup re-review (2026-05-04)
+
+_Reviewer: yume-game-reviewer (13-axis) + yume-shooter-reviewer (10-axis)_
+_Trigger: engine cleanup landed — creature_bounds + projectile_floor_despawn content rules dropped, replaced by scene.ground primitive (clamp creatures + despawn projectiles below ground.y). Walls already handle XZ via blocks_motion. 3 mechanisms → 2._
+
+### Verdict: **accept**
+
+No regressions. The cleanup makes the design CLEANER without changing mechanics. GDD updated to reflect:
+- Rule inventory refreshed (was stale — listed 17 rules from v2 implementation; v2.6 has ~25 rules with weapons + signatures + ranger AI).
+- "Boundary unification" added to in-scope list to document the engine-level move.
+
+### Per-axis check
+
+All 13 generic + 10 shooter axes still pass. The cleanup affects:
+
+- **Axis 6 (Scope honesty)** — IMPROVED. GDD now says "engine handles XZ via blocks_motion, Y via ground primitive" rather than maintaining redundant content rules.
+- **Axis S5 (Projectile-obstacle policy)** — UNCHANGED. Bullets stop dead at walls (post-tunneling-fix); below-ground bullets despawn (post-cleanup ground primitive replaces the lifetime-zero formula).
+- **Axis S6 (Y-axis policy)** — IMPROVED. "Creatures locked at Y=0" now an engine guarantee (ground.clamp_tags), not a per-game rule.
+
+### Note for future
+
+The `ground` primitive is now part of Yume's engine surface. Future shooters get Y-clamp + projectile-despawn-below for free via scene.json. TD games can use it for "off-the-edge" elimination. Sim games can use it for "fish below water surface" cleanup. Worth adding to docs/30_framework_primitives.md alongside blocks_motion as engine-recognized scene config.

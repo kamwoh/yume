@@ -537,6 +537,70 @@ func _integrate_motion(delta: float) -> void:
 		entities.erase(rid)
 		rent.queue_free()
 	_pending_remove_ids = []
+	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
+	# clamp tagged "creature" entities to that Y, and remove tagged
+	# "projectile" entities that drop below it. Replaces game-level
+	# creature_bounds + projectile_floor_despawn rules with a single
+	# engine behavior. Empty / missing ground config = no-op.
+	_apply_ground()
+
+
+var _ground_cfg_loaded: bool = false
+var _ground_y: float = -INF
+var _ground_clamp_tags: Array = []
+var _ground_despawn_tags: Array = []
+func _load_ground_cfg() -> void:
+	if _ground_cfg_loaded: return
+	_ground_cfg_loaded = true
+	var path := data_root.rstrip("/") + "/scene.json"
+	if not FileAccess.file_exists(path): return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return
+	var json := JSON.new()
+	if json.parse(f.get_as_text()) != OK: return
+	if not (json.data is Dictionary): return
+	var cfg: Dictionary = json.data
+	if not (cfg.get("ground", null) is Dictionary): return
+	var g: Dictionary = cfg["ground"]
+	if g.has("y"):
+		_ground_y = float(g["y"])
+	_ground_clamp_tags = g.get("clamp_tags", ["creature"])
+	_ground_despawn_tags = g.get("despawn_tags", ["projectile"])
+
+
+func _apply_ground() -> void:
+	_load_ground_cfg()
+	if _ground_y == -INF: return
+	var to_remove: Array[String] = []
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		var p = (ent as Entity).get_position()
+		var py: float = p.y if p is Vector3 else 0.0
+		if py >= _ground_y: continue
+		# Below ground. Despawn projectiles, clamp creatures.
+		var despawn := false
+		for t in _ground_despawn_tags:
+			if (ent as Entity).has_tag(str(t)):
+				despawn = true; break
+		if despawn:
+			to_remove.append(str(id))
+			continue
+		var clamp_match := false
+		for t in _ground_clamp_tags:
+			if (ent as Entity).has_tag(str(t)):
+				clamp_match = true; break
+		if clamp_match and p is Vector3:
+			(ent as Entity).set_position(Vector3(p.x, _ground_y, p.z))
+	for rid in to_remove:
+		var rent: Entity = entities.get(rid, null)
+		if rent == null: continue
+		if relations != null:
+			relations.clear_entity(rid)
+		if spatial_index != null and spatial_index.has_method("remove_entity"):
+			spatial_index.remove_entity(rid)
+		entities.erase(rid)
+		rent.queue_free()
 
 
 ## ADR 0004: build a snapshot of all `blocks_motion` AABBs for this frame.

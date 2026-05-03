@@ -491,32 +491,8 @@
         {"type": "emit_shell_event", "event": "play_sound", "name": "siren"},
         {"type": "state_set", "target": "self", "field": "siren_played", "value": 1}
       ]
-    },
-
-    {
-      "_comment": "=== BOUNDS — clamp player + monsters to arena (XZ ±21 to keep them just inside the wall plane at ±22). Y locked to 0 (planar combat).",
-      "id": "creature_bounds",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["creature"]},
-      "effect": {
-        "type": "state_set",
-        "target": "self",
-        "field": "position",
-        "value": "Vector3(clamp(self.state.position.x, -21, 21), 0, clamp(self.state.position.z, -21, 21))"
-      }
-    },
-
-    {
-      "_comment": "=== FLOOR despawn — bullets/projectiles fired downward stop at floor (Y=0) instead of clipping through. Multiplies lifetime by 0 when Y < 0 (clamp-step formula: y*1e6 clamped to [0,1] → 0 if y<0, 1 if y>0). Engine auto-removes at lifetime=0. Cheaper than full blocks_motion floor (which would risk trapping the player who lives at Y=0).",
-      "id": "projectile_floor_despawn",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["projectile"]},
-      "effect": {
-        "type": "state_mul",
-        "target": "self",
-        "field": "lifetime",
-        "amount": "clamp(self.state.position.y * 1e6, 0, 1)"
-      }
     }
-  ]
+  ],
+
+  "_cleanup_note_2026-05-04": "Two content rules removed: creature_bounds (XZ clamp) and projectile_floor_despawn (Y-zero check). Behavior moved into engine primitives. Walls/pillars (blocks_motion, ADR 0004) handle XZ. Engine ground primitive (scene.json ground block) handles Y — creatures clamp to Y=0; projectiles despawn below. Three mechanisms collapsed to two engine-level concerns."
 }

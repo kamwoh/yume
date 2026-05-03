@@ -1,10 +1,17 @@
 {
-  "_comment": "DoomArena3D scene — first-person, planar aim (use_pitch=false). Tick 0.05s for snappy combat. position_scale=1.0 because positions are in world units (meters), not pixels.",
+  "_comment": "DoomArena3D scene — first-person, full 3D aim. Tick 0.05s for snappy combat. position_scale=1.0 because positions are in world units (meters), not pixels.",
 
   "tick_seconds": 0.05,
 
   "renderer": {
     "position_scale": 1.0
+  },
+
+  "_ground_doc": "Engine ground primitive (Tier 2.6r): creatures (tag) clamp to Y=0, projectiles (tag) despawn below it. Replaces what creature_bounds + projectile_floor_despawn rules used to do — engine-level instead of content-level.",
+  "ground": {
+    "y": 0,
+    "clamp_tags": ["creature"],
+    "despawn_tags": ["projectile"]
   },
 
   "camera": {

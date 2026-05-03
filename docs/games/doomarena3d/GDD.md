@@ -202,29 +202,34 @@ HUD shows current weapon name + cooldown bar.
 - `ammo_pickup` (yellow cube, +5 ammo)
 - `particle_spark` (transient — tiny glowing sphere with state.lifetime)
 
-## Rule inventory
+## Rule inventory (REV — v2.6 post-cleanup)
 
-~17 rules (vs ~22 in 2D — collapses 4 directional fire rules into 1
-forward-fire, drops bounds-as-walls, drops spawn-marker indirection):
+**Clock (5)**
+- `clock_advance` — increments elapsed; decrements spawn_timer + pickup_timer + demon_timer + ranger_timer
+- `monster_spawn` (imp), `monster_spawn_demon` (≥30s), `monster_spawn_ranger` (≥30s) — type-specific spawns by phase
+- `pickup_spawn_health` / `pickup_spawn_ammo` — random pickup spawns
 
-**Clock (3)**
-- `clock_advance` — increments elapsed; decrements spawn_timer + pickup_timer
-- `monster_spawn` — spawns imp at random angle on edge when spawn_timer ≤ 0
-- `pickup_spawn_health` / `pickup_spawn_ammo` — random pickup at random arena point
+**Player input (3 movement + 3 weapons + 3 fire)**
+- `move_forward/back/strafe_left/strafe_right` — velocity_add_relative (additive per-tick so diagonals work)
+- `weapon_switch_1/2/3` — set player.current_weapon, click sound
+- `weapon_cooldown_tick` — decrement weapon_cooldown each tick
+- `fire_plasma` / `fire_shotgun` / `fire_rocket` — gated by current_weapon + ammo + cooldown
 
-**Player input (5)**
-- `move_forward/back/strafe_left/strafe_right` — velocity_set_relative
-- `fire_forward` — single PRESS-edge rule: spawns bullet with velocity
-  along player.state.facing, decrements ammo (gated by ammo > 0)
+**AI (3)**
+- `monster_homing` — non-ranger creatures walk toward player (XZ plane)
+- `ranger_homing` — ranger walks toward player but stops at fire_range (clamp-step)
+- `ranger_cooldown_tick` + `ranger_fire` — ranger decrements cooldown, fires enemy_bullet on player contact within radius
 
-**Monster AI (1)**
-- `monster_homing` — every contact tick, sets monster velocity toward
-  player position (XZ plane, radius 1000 = always fires)
+**Combat (4)**
+- `bullet_kills_monster` — contact: bullet damage scales by bullet.properties.damage
+- `enemy_bullet_hits_player` — contact: -10 HP + flash + remove
+- `monster_death` — hp ≤ 0: 4 sparks + shake + score+1 + remove
+- `monster_hits_player` — contact: kamikaze + -10 HP + flash + shake
 
-**Combat (3)**
-- `bullet_kills_monster` — contact: bullet remove + monster.hp -1
-- `monster_death` — query hp ≤ 0: 4 sparks + shake + score+1 + remove
-- `monster_hits_player` — contact: monster remove + player.hp -10 + flash + shake
+**Signature (3)**
+- `boss_spawn_check` — score ≥ 25 → spawn monster_boss (one-shot via clock.boss_spawned)
+- `boss_killed_win` — boss hp ≤ 0 → set clock.boss_killed = 1, win sound + flash
+- `wave_phase_siren` — elapsed ≥ 60s → siren sound (one-shot via clock.siren_played)
 
 **Pickups (2)**
 - `pickup_health_grab` — contact: hp +25 (clamped) + pickup remove
@@ -254,6 +259,10 @@ In scope:
   ballistic profiles, ammo costs that encourage mix-and-match.
 - **Static obstacles (v2.5 REV)**: walls + cover pillars block
   motion via the `blocks_motion` engine primitive (ADR 0004 landed).
+- **Boundary unification (v2.6 REV)**: walls + ground primitive
+  (scene.json `ground` block) replace the old creature_bounds + 
+  projectile_floor_despawn content rules. Engine-level instead of 
+  content-level. Three mechanisms collapsed to two.
 
 Out of scope (explicitly):
 - Jumping / gravity — flat XZ movement (Y stays 0)
