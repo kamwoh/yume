@@ -1,0 +1,33 @@
+{
+  "_comment": "Initial placements. Path is a zigzag from (-12, 0, -10) → (12, 0, 10). Each waypoint stores the velocity to set on enemies that touch it (toward the NEXT waypoint, magnitude = enemy speed = 2 m/s). Final waypoint is the base. Towers placed along bends.",
+
+  "initial_instances": [
+    {"def": "wave_clock", "id": "clock_1", "position": [0, 0, 0]},
+    {"def": "player",     "id": "player",  "position": [0, 0, 0]},
+
+    {"_": "Path waypoints. Each next_vx/next_vz is unit-vector × 2 m/s (enemy speed) pointing to the next waypoint.",
+     "def": "waypoint", "id": "wp_1", "position": [-12, 0, -10],
+     "state": {"next_vx": 2.0, "next_vz": 0.0}},
+    {"def": "waypoint", "id": "wp_2", "position": [-4, 0, -10],
+     "state": {"next_vx": 0.0, "next_vz": 2.0}},
+    {"def": "waypoint", "id": "wp_3", "position": [-4, 0, 0],
+     "state": {"next_vx": 2.0, "next_vz": 0.0}},
+    {"def": "waypoint", "id": "wp_4", "position": [4, 0, 0],
+     "state": {"next_vx": 0.0, "next_vz": 2.0}},
+    {"def": "waypoint", "id": "wp_5", "position": [4, 0, 10],
+     "state": {"next_vx": 2.0, "next_vz": 0.0}},
+    {"def": "waypoint", "id": "wp_6", "position": [12, 0, 10],
+     "state": {"next_vx": 0.0, "next_vz": -2.0}},
+
+    {"_": "The base — last node on the path. Enemies that contact it deal 1 damage and despawn.",
+     "def": "base", "id": "base_1", "position": [12, 0, 0]},
+
+    {"_": "Towers — placed along the path bends for coverage.",
+     "def": "tower_basic", "id": "tower_a", "position": [-8, 0, -6]},
+    {"def": "tower_basic", "id": "tower_b", "position": [0, 0, -3]},
+    {"def": "tower_basic", "id": "tower_c", "position": [8, 0, 6]},
+    {"def": "tower_basic", "id": "tower_d", "position": [0, 0, 7]}
+  ],
+
+  "initial_relations": []
+}

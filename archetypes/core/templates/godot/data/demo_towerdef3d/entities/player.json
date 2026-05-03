@@ -1,0 +1,15 @@
+{
+  "_comment": "Singleton player record. No movement in v1 — purely tracks gold + score. Tagged 'player' for HUD bindings.",
+  "definitions": [
+    {
+      "id": "player",
+      "tags": ["player"],
+      "properties": {},
+      "state_init": {
+        "gold": 100,
+        "score": 0
+      },
+      "visual": {"hidden": true}
+    }
+  ]
+}

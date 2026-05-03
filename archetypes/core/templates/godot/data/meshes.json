@@ -119,6 +119,42 @@
         {"op": "box", "pos": [0, 0.42, 0], "size": [0.55, 0.04, 0.4], "color": "$band"}
       ],
       "params": {"body": "#e8c020", "band": "#806000"}
+    },
+
+    "wp_marker": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.4, "height": 0.1, "color": "$glow"}
+      ],
+      "params": {"glow": "#3a8a3a"}
+    },
+
+    "base_3d": {
+      "primitives": [
+        {"op": "box",  "pos": [0, 0.5, 0], "size": [2, 1, 2], "color": "$frame"},
+        {"op": "box",  "pos": [0, 1.3, 0], "size": [1.4, 0.6, 1.4], "color": "$core"},
+        {"op": "sphere", "pos": [0, 1.9, 0], "radius": 0.3, "color": "$core"}
+      ],
+      "params": {"core": "#1860d0", "frame": "#80b0ff"}
+    },
+
+    "grunt_3d": {
+      "primitives": [
+        {"op": "capsule", "pos": [0, 0.45, 0], "radius": 0.3, "height": 0.6, "color": "$body"},
+        {"op": "sphere",  "pos": [0, 1.1, 0], "radius": 0.18, "color": "$body"},
+        {"op": "cylinder","pos": [0.18, 1.25, 0], "radius": 0.04, "height": 0.18, "color": "$spike"},
+        {"op": "cylinder","pos": [-0.18, 1.25, 0], "radius": 0.04, "height": 0.18, "color": "$spike"}
+      ],
+      "params": {"body": "#a02020", "spike": "#3a0a0a"}
+    },
+
+    "tower_3d": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.6, "height": 0.8, "color": "$base"},
+        {"op": "box",      "pos": [0, 1.0, 0], "size": [0.6, 0.4, 0.6], "color": "$base"},
+        {"op": "cylinder", "pos": [0, 1.25, 0.5], "radius": 0.12, "height": 0.6, "color": "$barrel"},
+        {"op": "sphere",   "pos": [0, 1.55, 0], "radius": 0.12, "color": "$glow"}
+      ],
+      "params": {"base": "#404048", "barrel": "#a0a0b0", "glow": "#ffe060"}
     }
   }
 }

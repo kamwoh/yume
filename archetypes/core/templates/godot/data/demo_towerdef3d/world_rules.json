@@ -1,0 +1,165 @@
+{
+  "_comment": "TowerDef3D rules. Categories: clock+waves, path-following, combat, base damage. Path = chain of waypoints each storing the velocity to set when an enemy touches them. Tower fires when contact w/ enemy in range AND tower.cooldown ≤ 0.",
+
+  "rules": [
+
+    {
+      "_comment": "=== CLOCK + WAVES ===",
+      "id": "clock_advance",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["wave_clock"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "wave_timer", "amount": -0.1},
+        {"type": "state_add", "target": "self", "field": "spawn_cooldown", "amount": -0.1}
+      ]
+    },
+
+    {
+      "_comment": "Wave start: when wave_timer ≤ 0 AND we have nothing left to spawn, set up next wave's spawn count.",
+      "id": "wave_start",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["wave_clock"],
+                "state": {"wave_timer_lt": 0.0, "enemies_to_spawn_lte": 0}},
+      "effect": [
+        {"type": "state_set", "target": "self", "field": "enemies_to_spawn",
+         "value": "self.state.wave * 2 + 1"},
+        {"type": "state_set", "target": "self", "field": "wave_timer", "value": 99.0}
+      ]
+    },
+
+    {
+      "_comment": "Spawn one enemy at wp_1 each spawn_cooldown tick. Initial velocity = wp_1.next_v (toward wp_2). Done by setting velocity on spawn.",
+      "id": "wave_spawn_one",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["wave_clock"],
+                "state": {"spawn_cooldown_lte": 0.0, "enemies_to_spawn_gt": 0}},
+      "effect": [
+        {"type": "spawn", "template": "enemy_grunt",
+         "position": [-12, 0, -10],
+         "overrides": {"state": {"velocity": [2.0, 0, 0]}}},
+        {"type": "state_add", "target": "self", "field": "enemies_to_spawn", "amount": -1},
+        {"type": "state_set", "target": "self", "field": "spawn_cooldown", "value": 0.4}
+      ]
+    },
+
+    {
+      "_comment": "Wave clear: enemies_to_spawn ≤ 0 (no more queued) AND no enemies alive — advance wave + 8s countdown.",
+      "id": "wave_clear_advance",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["wave_clock"],
+                "state": {"enemies_to_spawn_lte": 0, "wave_timer_gt": 50.0}},
+      "require": {
+        "no_enemies": {"tags_all": ["enemy"]}
+      },
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "wave", "amount": 1},
+        {"type": "state_set", "target": "self", "field": "wave_timer", "value": 8.0}
+      ]
+    },
+
+    {
+      "_comment": "=== PATH-FOLLOWING ===",
+      "_": "Enemy contacts a waypoint → set velocity to that waypoint's stored next_v. Waypoint encodes the direction to the NEXT waypoint, so the enemy turns at each corner.",
+      "id": "enemy_advance_at_waypoint",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["enemy"]},
+        "b": {"tags_all": ["waypoint"]},
+        "radius": 0.8
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "a",
+        "x": "b.state.next_vx",
+        "y": 0,
+        "z": "b.state.next_vz"
+      }
+    },
+
+    {
+      "_comment": "=== TOWER COMBAT ===",
+      "_": "Tower cooldown ticks down each frame.",
+      "id": "tower_cooldown_tick",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["tower"]},
+      "effect": {"type": "state_add", "target": "self", "field": "cooldown", "amount": -0.1}
+    },
+
+    {
+      "_": "Tower fires at first enemy in range when cooldown ≤ 0. Contact rule fires once per (a, b) pair; the first one resets cooldown so subsequent pairs see cooldown > 0 and don't re-fire (require gates this).",
+      "id": "tower_fires",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["tower"], "state": {"cooldown_lte": 0.0}},
+        "b": {"tags_all": ["enemy"]},
+        "radius": 6.0
+      },
+      "effect": [
+        {"type": "spawn", "template": "projectile",
+         "position": ["a.state.position.x", 0.6, "a.state.position.z"],
+         "overrides": {"state": {"velocity": [
+           "(b.state.position.x - a.state.position.x) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 1) * 14",
+           0,
+           "(b.state.position.z - a.state.position.z) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.z - a.state.position.z, 2)), 1) * 14"
+         ]}}},
+        {"type": "state_set", "target": "a", "field": "cooldown", "value": 0.5}
+      ]
+    },
+
+    {
+      "_": "Projectile damages enemy on contact.",
+      "id": "projectile_hits_enemy",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["projectile"]},
+        "b": {"tags_all": ["enemy"]},
+        "radius": 0.6
+      },
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "hp", "amount": -1},
+        {"type": "remove", "target": "a"}
+      ]
+    },
+
+    {
+      "_": "Enemy death: hp ≤ 0 → 4 sparkles, shake, +5 gold, remove.",
+      "id": "enemy_death",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["enemy"], "state": {"hp_lte": 0}},
+      "effect": [
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.6, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [1.5, 1.0, 1.5]}}},
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.6, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [-1.5, 1.0, 1.5]}}},
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.6, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [1.5, 1.0, -1.5]}}},
+        {"type": "spawn", "template": "particle_spark",
+         "position": ["self.state.position.x", 0.6, "self.state.position.z"],
+         "overrides": {"state": {"velocity": [-1.5, 1.0, -1.5]}}},
+        {"type": "emit_shell_event", "event": "shake", "intensity": 0.05, "duration": 6},
+        {"type": "state_add", "target": "player", "field": "gold", "amount": 5},
+        {"type": "remove", "target": "self"}
+      ]
+    },
+
+    {
+      "_comment": "=== BASE DAMAGE ===",
+      "_": "Enemy reaches base → -1 base.hp, shake, remove enemy.",
+      "id": "enemy_at_base",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["enemy"]},
+        "b": {"tags_all": ["base"]},
+        "radius": 0.8
+      },
+      "effect": [
+        {"type": "state_add", "target": "b", "field": "hp", "amount": -1},
+        {"type": "emit_shell_event", "event": "shake", "intensity": 0.08, "duration": 8},
+        {"type": "remove", "target": "a"}
+      ]
+    }
+  ]
+}

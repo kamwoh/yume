@@ -1,0 +1,17 @@
+{
+  "_comment": "Singleton — drives wave cadence. Ticks down wave_timer + spawn_cooldown, fires wave_start rule, drives wave_spawn_one rule.",
+  "definitions": [
+    {
+      "id": "wave_clock",
+      "tags": ["wave_clock"],
+      "properties": {},
+      "state_init": {
+        "wave": 1,
+        "wave_timer": 3.0,
+        "spawn_cooldown": 0.0,
+        "enemies_to_spawn": 0
+      },
+      "visual": {"hidden": true}
+    }
+  ]
+}

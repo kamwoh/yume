@@ -1,0 +1,4 @@
+{
+  "_comment": "Initial world state — empty. wave_clock entity owns wave timing state.",
+  "tick": 0
+}

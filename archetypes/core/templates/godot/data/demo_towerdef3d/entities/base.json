@@ -1,0 +1,17 @@
+{
+  "_comment": "End-of-path objective. Enemies that reach it deal 1 damage. base.hp drives lose-condition.",
+  "definitions": [
+    {
+      "id": "base",
+      "tags": ["base"],
+      "properties": {},
+      "state_init": {
+        "hp": 10
+      },
+      "visual": {
+        "mesh": "base_3d",
+        "params": {"core": "#1860d0", "frame": "#80b0ff"}
+      }
+    }
+  ]
+}
