@@ -504,6 +504,19 @@
         "field": "position",
         "value": "Vector3(clamp(self.state.position.x, -21, 21), 0, clamp(self.state.position.z, -21, 21))"
       }
+    },
+
+    {
+      "_comment": "=== FLOOR despawn — bullets/projectiles fired downward stop at floor (Y=0) instead of clipping through. Multiplies lifetime by 0 when Y < 0 (clamp-step formula: y*1e6 clamped to [0,1] → 0 if y<0, 1 if y>0). Engine auto-removes at lifetime=0. Cheaper than full blocks_motion floor (which would risk trapping the player who lives at Y=0).",
+      "id": "projectile_floor_despawn",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["projectile"]},
+      "effect": {
+        "type": "state_mul",
+        "target": "self",
+        "field": "lifetime",
+        "amount": "clamp(self.state.position.y * 1e6, 0, 1)"
+      }
     }
   ]
 }

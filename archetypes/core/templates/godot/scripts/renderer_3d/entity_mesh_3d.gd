@@ -111,71 +111,8 @@ func _sync_position() -> void:
 # ============================================================
 
 func _build_mesh_children() -> void:
-	for p in _mesh_primitives:
-		if not (p is Dictionary): continue
-		var op := str(p.get("op", ""))
-		var mesh: Mesh = null
-		match op:
-			"box":
-				var size := _to_vec3(_param_resolve(p.get("size", [1, 1, 1])))
-				var m := BoxMesh.new()
-				m.size = size
-				mesh = m
-			"sphere":
-				var r := float(_param_resolve(p.get("radius", 0.5)))
-				var m := SphereMesh.new()
-				m.radius = r
-				m.height = r * 2.0
-				mesh = m
-			"cylinder":
-				var r := float(_param_resolve(p.get("radius", 0.3)))
-				var h := float(_param_resolve(p.get("height", 1.0)))
-				var m := CylinderMesh.new()
-				m.top_radius = r
-				m.bottom_radius = r
-				m.height = h
-				mesh = m
-			"capsule":
-				var r := float(_param_resolve(p.get("radius", 0.3)))
-				var h := float(_param_resolve(p.get("height", 1.0)))
-				var m := CapsuleMesh.new()
-				m.radius = r
-				m.height = h
-				mesh = m
-			"plane":
-				var sz := _to_vec2(_param_resolve(p.get("size", [1, 1])))
-				var m := PlaneMesh.new()
-				m.size = sz
-				mesh = m
-			"prism":
-				var sz := _to_vec3(_param_resolve(p.get("size", [1, 1, 1])))
-				var m := PrismMesh.new()
-				m.size = sz
-				mesh = m
-			"torus":
-				var inner := float(_param_resolve(p.get("inner_radius", 0.3)))
-				var outer := float(_param_resolve(p.get("outer_radius", 0.5)))
-				var m := TorusMesh.new()
-				m.inner_radius = inner
-				m.outer_radius = outer
-				mesh = m
-			"quad":
-				var sz := _to_vec2(_param_resolve(p.get("size", [1, 1])))
-				var m := QuadMesh.new()
-				m.size = sz
-				mesh = m
-		if mesh == null:
-			continue
-		var mi := MeshInstance3D.new()
-		mi.mesh = mesh
-		mi.material_override = _make_material(_resolve_color(p.get("color", "#fff")))
-		var pos := _to_vec3(_param_resolve(p.get("pos", [0, 0, 0])))
-		mi.position = pos
-		# Optional rotation in degrees (Vector3) — handle simple case
-		if p.has("rotation_deg"):
-			var rd := _to_vec3(p["rotation_deg"])
-			mi.rotation_degrees = rd
-		add_child(mi)
+	# Shared helper — same primitive vocabulary used by game_shell viewmodels.
+	MeshLib.build_primitives_into(self, _mesh_primitives, _mesh_params)
 
 
 # ============================================================

@@ -13,6 +13,16 @@
     "eye_height": 1.6,
     "mouse_sensitivity": 0.003,
     "use_pitch": true,
-    "fov": 78
+    "fov": 78,
+    "viewmodel": {
+      "follow_state": "current_weapon",
+      "offset": [0.35, -0.28, -0.55],
+      "weapons": {
+        "1": {"mesh": "viewmodel_plasma"},
+        "2": {"mesh": "viewmodel_shotgun"},
+        "3": {"mesh": "viewmodel_rocket"}
+      }
+    }
   }
 }
+

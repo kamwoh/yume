@@ -453,6 +453,73 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	_camera3d.global_position = target + Vector3(0, eye_height, 0)
 	_camera3d.rotation = Vector3(pitch, facing, 0)
 	_apply_ortho(cam_cfg, false)
+	# Tier 2.6r — Doom/CSGO-style first-person viewmodel. Mesh hangs in
+	# camera-local space (so it inherits camera rotation). Active mesh
+	# swaps based on the actor's state field (e.g. current_weapon).
+	_setup_viewmodel(cam_cfg)
+	_update_viewmodel(actor, cam_cfg)
+
+
+# ============================================================
+# FIRST-PERSON VIEWMODEL (Tier 2.6r)
+# ============================================================
+# Doom/CSGO-style "weapon in hand" rendering. Configured via
+# scene.json's camera.viewmodel block:
+#   "viewmodel": {
+#     "follow_state": "current_weapon",
+#     "offset": [0.3, -0.25, -0.5],
+#     "weapons": {
+#       "1": {"mesh": "viewmodel_plasma"},
+#       "2": {"mesh": "viewmodel_shotgun"},
+#       "3": {"mesh": "viewmodel_rocket"}
+#     }
+#   }
+# Each weapon's mesh is built once at first-person setup; runtime swap
+# just toggles visibility based on actor's `follow_state` field value.
+
+var _viewmodel_root: Node3D = null
+var _viewmodel_meshes: Dictionary = {}    # str(state value) → Node3D
+
+func _setup_viewmodel(cam_cfg: Dictionary) -> void:
+	if _viewmodel_root != null: return
+	if _camera3d == null: return
+	var vm_cfg = cam_cfg.get("viewmodel", null)
+	if not (vm_cfg is Dictionary): return
+	var weapons = vm_cfg.get("weapons", null)
+	if not (weapons is Dictionary) or weapons.is_empty(): return
+	_viewmodel_root = Node3D.new()
+	_viewmodel_root.name = "Viewmodel"
+	_camera3d.add_child(_viewmodel_root)
+	var offset_arr: Array = vm_cfg.get("offset", [0.3, -0.25, -0.5])
+	if offset_arr.size() >= 3:
+		_viewmodel_root.position = Vector3(float(offset_arr[0]), float(offset_arr[1]), float(offset_arr[2]))
+	var lib := MeshLib.load_from_file("res://data/meshes.json")
+	for key in weapons.keys():
+		var w = weapons[key]
+		if not (w is Dictionary): continue
+		var mesh_name := str(w.get("mesh", ""))
+		if mesh_name == "" or not lib.has(mesh_name): continue
+		var mesh_def := lib.get_mesh(mesh_name)
+		var mesh_node := Node3D.new()
+		mesh_node.name = "vm_%s" % str(key)
+		mesh_node.visible = false
+		var params: Dictionary = MeshLib.merge_params(mesh_def, w.get("params", {}) as Dictionary)
+		MeshLib.build_primitives_into(mesh_node, mesh_def.get("primitives", []), params)
+		_viewmodel_root.add_child(mesh_node)
+		_viewmodel_meshes[str(key)] = mesh_node
+
+
+func _update_viewmodel(actor, cam_cfg: Dictionary) -> void:
+	if _viewmodel_root == null: return
+	var vm_cfg = cam_cfg.get("viewmodel", null)
+	if not (vm_cfg is Dictionary): return
+	var follow_state := str(vm_cfg.get("follow_state", ""))
+	if follow_state == "" or actor == null: return
+	var current_v = (actor as Entity).get_state(follow_state, "")
+	# Coerce numeric state values to string for dict lookup
+	var current := str(int(current_v)) if current_v is int or current_v is float else str(current_v)
+	for key in _viewmodel_meshes:
+		(_viewmodel_meshes[key] as Node3D).visible = (str(key) == current)
 
 
 # Tracks whether we've done the initial cursor capture for first-person.
