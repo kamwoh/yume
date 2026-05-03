@@ -7,8 +7,8 @@
       "elements": [
         {"type": "label", "binds": "wave_clock.wave", "format": "🌊 Wave: {} / 10", "size": 22},
         {"type": "spacer", "height": 4},
-        {"type": "label", "binds": "base_1.hp", "format": "🏰 Base: {}", "size": 18},
-        {"type": "progress_bar", "binds": "base_1.hp", "max": 10,
+        {"type": "label", "binds": "base.hp", "format": "🏰 Base: {}", "size": 18},
+        {"type": "progress_bar", "binds": "base.hp", "max": 10,
          "color_lerp": ["#dd3333", "#33dd33"]},
         {"type": "spacer", "height": 6},
         {"type": "label", "binds": "player.gold", "format": "💰 Gold: {}", "size": 18},
@@ -24,6 +24,6 @@
 
   "win":  {"binds": "wave_clock.wave", "op": ">=", "value": 11,
            "message": "🏆 SECTOR HELD 🏆\nAll waves repelled."},
-  "lose": {"binds": "base_1.hp", "op": "<=", "value": 0, "sustained": 1,
+  "lose": {"binds": "base.hp", "op": "<=", "value": 0, "sustained": 1,
            "message": "💥 BASE DESTROYED 💥\nThe horde got through."}
 }

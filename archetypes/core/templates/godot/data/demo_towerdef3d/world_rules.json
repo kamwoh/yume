@@ -14,23 +14,23 @@
     },
 
     {
+      "_": "wave_timer ticks once the current wave is done SPAWNING (ets≤0). Doesn't wait for enemies to die — by design, waves overlap to ramp pressure.",
       "id": "clock_advance_wave_timer",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["wave_clock"],
-                "state": {"enemies_alive_lte": 0, "enemies_to_spawn_lte": 0}},
+                "state": {"enemies_to_spawn_lte": 0}},
       "effect": [
         {"type": "state_add", "target": "self", "field": "wave_timer", "amount": -0.1}
       ]
     },
 
     {
-      "_comment": "Advance to next wave when timer ≤ 0 AND no pending spawns AND no enemies alive. Increments wave, sets new wave_size, resets timer to 8s for next inter-wave countdown.",
+      "_comment": "Advance to next wave when timer ≤ 0 AND no pending spawns. Doesn't wait for current wave's enemies to die — overlapping waves ramp difficulty (player must build/upgrade fast enough to handle multiple waves on field).",
       "id": "wave_advance",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["wave_clock"],
                 "state": {"wave_timer_lte": 0.0,
-                          "enemies_to_spawn_lte": 0,
-                          "enemies_alive_lte": 0}},
+                          "enemies_to_spawn_lte": 0}},
       "effect": [
         {"type": "state_add", "target": "self", "field": "wave", "amount": 1},
         {"type": "state_set", "target": "self", "field": "enemies_to_spawn",
