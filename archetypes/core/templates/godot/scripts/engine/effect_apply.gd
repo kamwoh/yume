@@ -55,13 +55,14 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"velocity_lerp":     _velocity_lerp(effect, env, context)
 		"velocity_set_relative": _velocity_set_relative(effect, env, context)
 		"velocity_add_relative": _velocity_add_relative(effect, env, context)
+		"raycast_hit":       _raycast_hit(effect, env, context)
 		"emit":              _emit(effect, env, context)
 		"emit_shell_event":  _emit_shell_event(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, emit, emit_shell_event.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, emit, emit_shell_event.",
 				"warning")
 	return {}
 
@@ -517,3 +518,160 @@ static func _position(v, env: Dictionary, ctx: Dictionary):
 		if all.has(ref_id) and all[ref_id] is Entity:
 			return (all[ref_id] as Entity).get_position()
 	return Vector2.ZERO
+
+
+# ============================================================
+# RAYCAST_HIT (ADR 0005)
+# ============================================================
+# Hitscan weapon primitive — casts a ray from origin in direction up to
+# max_distance, finds the closest entity matching tag filters, optionally
+# capped by walls (blocks_motion AABBs). On hit: binds `hit` (entity id)
+# and `hit_point` (Vector3 world position) and runs `on_hit` effects. On
+# miss: binds `hit_point` (ray endpoint or wall hit point) and runs
+# `on_miss`.
+static func _raycast_hit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var origin: Vector3 = _to_vec3_v(_position(e.get("origin", [0, 0, 0]), env, ctx))
+	var direction: Vector3 = _to_vec3_v(_position(e.get("direction", [0, 0, -1]), env, ctx))
+	if direction.length() < 1e-6: return
+	direction = direction.normalized()
+	var max_d: float = float(_value(e.get("max_distance", 100.0), ctx, env))
+	var tags_all: Array = e.get("tags_all", [])
+	var tags_none: Array = e.get("tags_none", [])
+	var respect_obstacles: bool = bool(e.get("respect_obstacles", true))
+
+	# Ray-vs-blockers: find first wall hit within max_d.
+	var blocker_t: float = max_d
+	if respect_obstacles:
+		var blockers: Array = _collect_blockers_from_env(env)
+		for b in blockers:
+			var t: float = _ray_aabb_t(origin, direction, b)
+			if t > 0.0 and t < blocker_t:
+				blocker_t = t
+
+	# Find closest entity matching tag filters within ray range.
+	var closest_t: float = blocker_t
+	var hit_id: String = ""
+	var entities: Dictionary = env.get("entities", {})
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		var ent_e: Entity = ent
+		if not _matches_tags(ent_e, tags_all, tags_none): continue
+		var radius := float(ent_e.get_property("body_radius", 0.4))
+		var pos = ent_e.get_position()
+		if pos == null: continue
+		var p3: Vector3 = pos if pos is Vector3 else Vector3(pos.x, 0, pos.y)
+		var t: float = _ray_sphere_t(origin, direction, p3, radius)
+		if t > 0.0 and t < closest_t:
+			closest_t = t
+			hit_id = str(id)
+
+	var hit_point: Vector3 = origin + direction * closest_t
+	var sub_ctx: Dictionary = ctx.duplicate()
+	sub_ctx["hit_point"] = hit_point
+	if hit_id != "":
+		sub_ctx["hit"] = hit_id
+		for sub in (e.get("on_hit", []) as Array):
+			if sub is Dictionary:
+				apply(sub, env, sub_ctx)
+	else:
+		for sub in (e.get("on_miss", []) as Array):
+			if sub is Dictionary:
+				apply(sub, env, sub_ctx)
+
+
+## Match tag filters with shared helpers.
+static func _matches_tags(ent: Entity, tags_all: Array, tags_none: Array) -> bool:
+	for t in tags_all:
+		if not ent.has_tag(str(t)): return false
+	for t in tags_none:
+		if ent.has_tag(str(t)): return false
+	return true
+
+
+## Collect blocks_motion AABBs from env (mirrors World._collect_blockers
+## without needing a World instance — usable from static effect context).
+static func _collect_blockers_from_env(env: Dictionary) -> Array:
+	var out: Array = []
+	var entities: Dictionary = env.get("entities", {})
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		if not (ent as Entity).has_tag("blocks_motion"): continue
+		var ext = (ent as Entity).get_property("aabb_extents", null)
+		if ext == null: continue
+		var ext_v: Vector3 = _to_vec3_v(ext)
+		var off_v: Vector3 = _to_vec3_v((ent as Entity).get_property("aabb_offset", [0, 0, 0]))
+		var pos = (ent as Entity).get_position()
+		var pos_v: Vector3 = Vector3.ZERO
+		if pos is Vector3: pos_v = pos
+		elif pos is Vector2: pos_v = Vector3(pos.x, 0, pos.y)
+		else: continue
+		var center: Vector3 = pos_v + off_v
+		out.append({
+			"minx": center.x - ext_v.x, "maxx": center.x + ext_v.x,
+			"miny": center.y - ext_v.y, "maxy": center.y + ext_v.y,
+			"minz": center.z - ext_v.z, "maxz": center.z + ext_v.z,
+		})
+	return out
+
+
+## Ray-vs-AABB t parameter (slab method). Returns first positive t along
+## the ray in [0, INF), or -1 if no intersection.
+static func _ray_aabb_t(origin: Vector3, dir: Vector3, b: Dictionary) -> float:
+	var t_near: float = -INF
+	var t_far: float = INF
+	# X
+	if abs(dir.x) < 1e-6:
+		if origin.x < b["minx"] or origin.x > b["maxx"]: return -1.0
+	else:
+		var t1: float = (b["minx"] - origin.x) / dir.x
+		var t2: float = (b["maxx"] - origin.x) / dir.x
+		if t1 > t2: var tmp := t1; t1 = t2; t2 = tmp
+		t_near = max(t_near, t1); t_far = min(t_far, t2)
+	# Y
+	if abs(dir.y) < 1e-6:
+		if origin.y < b["miny"] or origin.y > b["maxy"]: return -1.0
+	else:
+		var t1: float = (b["miny"] - origin.y) / dir.y
+		var t2: float = (b["maxy"] - origin.y) / dir.y
+		if t1 > t2: var tmp := t1; t1 = t2; t2 = tmp
+		t_near = max(t_near, t1); t_far = min(t_far, t2)
+	# Z
+	if abs(dir.z) < 1e-6:
+		if origin.z < b["minz"] or origin.z > b["maxz"]: return -1.0
+	else:
+		var t1: float = (b["minz"] - origin.z) / dir.z
+		var t2: float = (b["maxz"] - origin.z) / dir.z
+		if t1 > t2: var tmp := t1; t1 = t2; t2 = tmp
+		t_near = max(t_near, t1); t_far = min(t_far, t2)
+	if t_near > t_far or t_far < 0.0: return -1.0
+	return max(t_near, 0.0)
+
+
+## Ray-vs-sphere t parameter. Returns first positive t along the ray in
+## [0, INF), or -1 if no intersection. Standard quadratic.
+static func _ray_sphere_t(origin: Vector3, dir: Vector3, center: Vector3, r: float) -> float:
+	var oc: Vector3 = origin - center
+	var b: float = oc.dot(dir)
+	var c: float = oc.dot(oc) - r * r
+	var discr: float = b * b - c
+	if discr < 0.0: return -1.0
+	var sq: float = sqrt(discr)
+	var t: float = -b - sq
+	if t > 0.0: return t
+	t = -b + sq
+	if t > 0.0: return t
+	return -1.0
+
+
+static func _to_vec3_v(v) -> Vector3:
+	if v is Vector3: return v
+	if v is Vector2: return Vector3(v.x, 0, v.y)
+	if v is Array:
+		var a := v as Array
+		if a.size() >= 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
+		if a.size() == 2: return Vector3(float(a[0]), 0, float(a[1]))
+	if v is float or v is int:
+		return Vector3(float(v), float(v), float(v))
+	return Vector3.ZERO

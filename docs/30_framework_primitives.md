@@ -122,6 +122,26 @@ Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`.
 |---|---|
 | `ground` | `{y, clamp_tags, despawn_tags}`. Each frame after motion integration, entities matching `clamp_tags` get Y-clamped to `y`; entities matching `despawn_tags` are removed if Y < `y`. Defaults: clamp_tags=["creature"], despawn_tags=["projectile"]. Replaces per-game creature_bounds + projectile_floor_despawn content rules. |
 
+**Hitscan effect** (added by ADR 0005):
+
+```jsonc
+{
+  "type": "raycast_hit",
+  "origin": [<x>, <y>, <z>],          // formula or array
+  "direction": [<dx>, <dy>, <dz>],    // formula or array (need not be unit)
+  "max_distance": 30.0,
+  "tags_all": ["monster"],            // entity must match these
+  "tags_none": ["dead"],              // entity must NOT match
+  "respect_obstacles": true,          // ray tests blocks_motion AABBs
+  "on_hit": [...effect list...],      // `hit` binds to entity id; `hit_point` to Vector3
+  "on_miss": [...effect list...]      // `hit_point` binds to ray endpoint
+}
+```
+
+Use for instant-hit weapons (rifles, lasers, sniper) and AI line-of-sight
+checks. Pairs with `spawn` (use spawn for slow visible projectiles, raycast
+for hitscan-feeling weapons).
+
 ### 3. Rule
 
 The only behavior primitive.

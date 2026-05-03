@@ -39,6 +39,7 @@ func _ready() -> void:
 	test_chess_cascade()
 	test_engine_error()
 	test_blocks_motion()
+	test_raycast_hit()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1303,3 +1304,107 @@ func test_blocks_motion() -> void:
 		Vector3(1, 1.5, 0), Vector3(-1, 1.5, 0), 0.18, wall)
 	expect_eq(resolved_bullet, Vector3(1, 1.5, 0),
 		"resolve3d: tunneling bullet stays at old position (all axes blocked)")
+
+
+# ============================================================
+# RAYCAST_HIT (ADR 0005)
+# ============================================================
+
+func test_raycast_hit() -> void:
+	_section("raycast_hit (ADR 0005)")
+
+	# Build a minimal env with one target entity at (0, 1, -5) and a
+	# wall blocker at (0, 1.5, -10) with extents [5, 1.5, 0.25].
+	var entities: Dictionary = {}
+	var defs: Dictionary = {
+		"target": {
+			"id": "target",
+			"tags": ["enemy"],
+			"properties": {"body_radius": 0.4},
+			"state_init": {"hp": 5, "position": [0, 1, -5]}
+		},
+		"wall_seg": {
+			"id": "wall_seg",
+			"tags": ["wall", "blocks_motion"],
+			"properties": {"aabb_extents": [5, 1.5, 0.25], "aabb_offset": [0, 0, 0]},
+			"state_init": {"position": [0, 1.5, -10]}
+		}
+	}
+	var t := Entity.create(defs["target"], "target", {})
+	t.set_position(Vector3(0, 1, -5))
+	entities["target"] = t
+	var w := Entity.create(defs["wall_seg"], "wall_seg", {})
+	w.set_position(Vector3(0, 1.5, -10))
+	entities["wall_seg"] = w
+	var env: Dictionary = {"entities": entities, "defs": defs, "world": {}, "next_id": {"_": 0}}
+
+	# Fire from origin (0, 1, 0) toward -Z (forward).
+	# Target at z=-5, wall at z=-10. Ray direction (0,0,-1) hits target first.
+	EffectApply.apply({
+		"type": "raycast_hit",
+		"origin": [0, 1, 0],
+		"direction": [0, 0, -1],
+		"max_distance": 30.0,
+		"tags_all": ["enemy"],
+		"on_hit": [{"type": "state_add", "target": "hit", "field": "hp", "amount": -2}]
+	}, env, {})
+	expect_eq(t.get_state("hp"), 3.0, "raycast on_hit: target hp 5 → 3")
+
+	# Aim AWAY from target (positive Z) — should miss.
+	t.set_state("hp", 5)
+	var miss_flag: Array = [false]
+	# We can't easily inject a closure, so: aim at Z=+1 (no entities there)
+	EffectApply.apply({
+		"type": "raycast_hit",
+		"origin": [0, 1, 0],
+		"direction": [0, 0, 1],
+		"max_distance": 30.0,
+		"tags_all": ["enemy"],
+		"on_hit": [{"type": "state_add", "target": "hit", "field": "hp", "amount": -100}]
+	}, env, {})
+	expect_eq(t.get_state("hp"), 5.0, "raycast miss: target unaffected when ray points away")
+
+	# Wall caps the ray: place a SECOND target BEHIND the wall, only the
+	# wall-side target is hit. Move first target behind wall (z=-15) and
+	# fire — wall blocks the ray at z=-10, target at z=-15 unreachable.
+	t.set_position(Vector3(0, 1, -15))
+	t.set_state("hp", 5)
+	EffectApply.apply({
+		"type": "raycast_hit",
+		"origin": [0, 1, 0],
+		"direction": [0, 0, -1],
+		"max_distance": 30.0,
+		"tags_all": ["enemy"],
+		"respect_obstacles": true,
+		"on_hit": [{"type": "state_add", "target": "hit", "field": "hp", "amount": -100}]
+	}, env, {})
+	expect_eq(t.get_state("hp"), 5.0, "raycast: wall blocks ray, target behind unhurt")
+
+	# respect_obstacles=false: ray passes through walls.
+	EffectApply.apply({
+		"type": "raycast_hit",
+		"origin": [0, 1, 0],
+		"direction": [0, 0, -1],
+		"max_distance": 30.0,
+		"tags_all": ["enemy"],
+		"respect_obstacles": false,
+		"on_hit": [{"type": "state_add", "target": "hit", "field": "hp", "amount": -1}]
+	}, env, {})
+	expect_eq(t.get_state("hp"), 4.0, "raycast respect_obstacles=false: target through wall is hit")
+
+	# Tag filter excludes non-matching entities.
+	t.set_position(Vector3(0, 1, -5))
+	t.set_state("hp", 5)
+	EffectApply.apply({
+		"type": "raycast_hit",
+		"origin": [0, 1, 0],
+		"direction": [0, 0, -1],
+		"max_distance": 30.0,
+		"tags_all": ["nonexistent_tag"],
+		"on_hit": [{"type": "state_add", "target": "hit", "field": "hp", "amount": -100}]
+	}, env, {})
+	expect_eq(t.get_state("hp"), 5.0, "raycast tags_all filter excludes non-matching entity")
+
+	# Cleanup
+	for ent in entities.values():
+		if is_instance_valid(ent): (ent as Entity).queue_free()
