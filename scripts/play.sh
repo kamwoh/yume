@@ -38,12 +38,14 @@ if [ "${SKIP_SYNC}" != "1" ]; then
   cp -r "${TEMPLATE_SRC}/." "${TEMPLATE_DST}/"
 fi
 
-# Try per-game scene first; fall back to universal play.tscn with --game= arg
-PER_GAME_SCENE="scenes/${GAME_NAME}_2d.tscn"
-if [ -f "${TEMPLATE_DST}/${PER_GAME_SCENE}" ]; then
-  echo "[play.sh] launching ${PER_GAME_SCENE}"
-  cd "${TEMPLATE_DST}" && "${GODOT_BIN}" --path . "${PER_GAME_SCENE}"
-else
-  echo "[play.sh] launching scenes/play.tscn -- --game=${DATA_FOLDER}"
-  cd "${TEMPLATE_DST}" && "${GODOT_BIN}" --path . scenes/play.tscn -- --game="${DATA_FOLDER}"
-fi
+# Try per-game scenes in order: <name>_2d.tscn, <name>_3d.tscn, <name>.tscn.
+# Fall back to universal play.tscn with --game= arg if none found.
+for variant in "${GAME_NAME}_2d.tscn" "${GAME_NAME}_3d.tscn" "${GAME_NAME}.tscn"; do
+  if [ -f "${TEMPLATE_DST}/scenes/${variant}" ]; then
+    echo "[play.sh] launching scenes/${variant}"
+    cd "${TEMPLATE_DST}" && "${GODOT_BIN}" --path . "scenes/${variant}"
+    exit 0
+  fi
+done
+echo "[play.sh] no per-game scene found; launching universal play.tscn -- --game=${DATA_FOLDER}"
+cd "${TEMPLATE_DST}" && "${GODOT_BIN}" --path . scenes/play.tscn -- --game="${DATA_FOLDER}"

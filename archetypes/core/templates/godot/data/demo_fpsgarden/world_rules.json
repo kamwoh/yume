@@ -1,0 +1,43 @@
+{
+  "_comment": "FPS Garden — minimal first-person test. WASD + mouse look. velocity_set_relative makes W move forward in look direction. Pickup orbs to score. 5 orbs = win.",
+
+  "rules": [
+    {
+      "_comment": "=== MOVEMENT (forward-relative — uses player.state.facing) ===",
+      "id": "move_forward",
+      "trigger": {"type": "input", "action": "move_north"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": -4.0, "strafe": 0}
+    },
+    {
+      "id": "move_back",
+      "trigger": {"type": "input", "action": "move_south"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 4.0, "strafe": 0}
+    },
+    {
+      "id": "strafe_right",
+      "trigger": {"type": "input", "action": "move_east"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": 4.0}
+    },
+    {
+      "id": "strafe_left",
+      "trigger": {"type": "input", "action": "move_west"},
+      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": -4.0}
+    },
+
+    {
+      "_comment": "=== ORB COLLECTION === (forward = -4 in velocity_set_relative because the convention is +forward → toward facing's -Z; so negative makes W intuitively 'go forward'.)",
+      "id": "collect_orb",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["player"]},
+        "b": {"tags_all": ["orb"]},
+        "radius": 1.2
+      },
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "score", "amount": 1},
+        {"type": "remove", "target": "b"},
+        {"type": "emit_shell_event", "event": "shake", "intensity": 0.05, "duration": 6}
+      ]
+    }
+  ]
+}

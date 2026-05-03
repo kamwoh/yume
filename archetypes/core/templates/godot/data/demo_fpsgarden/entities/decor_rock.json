@@ -1,0 +1,15 @@
+{
+  "_comment": "Decorative rock — small visual landmark.",
+  "definitions": [
+    {
+      "id": "decor_rock",
+      "tags": ["decor", "rock"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "rock",
+        "params": {"stone": "#7a7a7a"}
+      }
+    }
+  ]
+}

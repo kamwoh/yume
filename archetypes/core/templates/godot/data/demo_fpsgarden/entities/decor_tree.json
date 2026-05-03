@@ -1,0 +1,15 @@
+{
+  "_comment": "Decorative tree — visual anchor for the garden so it's not empty.",
+  "definitions": [
+    {
+      "id": "decor_tree",
+      "tags": ["decor", "tree"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "tree",
+        "params": {"foliage": "#3a8a3a", "trunk": "#6b3a1a"}
+      }
+    }
+  ]
+}

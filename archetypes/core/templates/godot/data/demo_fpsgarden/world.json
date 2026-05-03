@@ -1,0 +1,4 @@
+{
+  "_comment": "Empty initial world state — game has no global state. All gameplay state lives on player + orbs.",
+  "state": {"tick": 0}
+}
