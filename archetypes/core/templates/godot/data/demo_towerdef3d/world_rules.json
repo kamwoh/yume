@@ -4,13 +4,22 @@
   "rules": [
 
     {
-      "_comment": "=== CLOCK + WAVES ===",
-      "id": "clock_advance",
+      "_comment": "=== CLOCK + WAVES === spawn_cooldown ticks always (drives the spawn cadence within a wave). wave_timer ticks ONLY between waves (enemies_alive ≤ 0 AND enemies_to_spawn ≤ 0) — otherwise it would go negative while enemies are still walking and HUD would show 'Next wave in: -3s'.",
+      "id": "clock_advance_spawn_cooldown",
       "trigger": {"type": "tick", "interval": 1},
       "query": {"tags_all": ["wave_clock"]},
       "effect": [
-        {"type": "state_add", "target": "self", "field": "wave_timer", "amount": -0.1},
         {"type": "state_add", "target": "self", "field": "spawn_cooldown", "amount": -0.1}
+      ]
+    },
+
+    {
+      "id": "clock_advance_wave_timer",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["wave_clock"],
+                "state": {"enemies_alive_lte": 0, "enemies_to_spawn_lte": 0}},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "wave_timer", "amount": -0.1}
       ]
     },
 

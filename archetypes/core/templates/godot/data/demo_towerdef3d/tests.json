@@ -4,7 +4,7 @@
   "scenarios": [
     {
       "name": "clock_advance_works",
-      "_": "After 50 ticks: wave_timer was 3.0, ticked down to <0 at t31, wave_advance fired (wave 0→1, enemies_to_spawn=3, wave_timer=8). Then 19 more ticks of decrement: 8 - 1.9 ≈ 6.1.",
+      "_": "After 50 ticks: initial wave_timer=3.0 ticks down (no enemies), hits 0, wave_advance fires → wave=1, ets=3, wave_timer=8. Then enemies start spawning (ets→0, ea>0), so wave_timer FREEZES at 8.0 (clock_advance_wave_timer rule only fires between waves).",
       "setup": {},
       "actions": [],
       "ticks": 50,
@@ -12,9 +12,7 @@
         {"type": "entity_field", "select": "by_id", "id": "clock_1",
          "field": "state.wave", "op": "==", "value": 1},
         {"type": "entity_field", "select": "by_id", "id": "clock_1",
-         "field": "state.wave_timer", "op": "<", "value": 8.0},
-        {"type": "entity_field", "select": "by_id", "id": "clock_1",
-         "field": "state.wave_timer", "op": ">", "value": 5.0}
+         "field": "state.wave_timer", "op": "==", "value": 8.0}
       ]
     },
 
