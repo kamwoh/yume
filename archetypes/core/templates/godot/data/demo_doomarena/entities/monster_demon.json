@@ -13,7 +13,7 @@
       },
       "visual": {
         "shape": "doomarena_demon",
-        "flip_with_velocity": true,
+        "rotate_with_velocity": true,
         "params": {"body": "#5a1c4a", "highlight": "#9a2c8a", "eye": "#ff4040"}
       }
     }

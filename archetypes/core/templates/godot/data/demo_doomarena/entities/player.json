@@ -16,7 +16,7 @@
       },
       "visual": {
         "shape": "doomarena_marine",
-        "flip_with_velocity": true,
+        "rotate_with_velocity": true,
         "params": {"body": "#3aa8e8", "armor": "#2080c0", "visor": "#80e0ff"}
       }
     }
