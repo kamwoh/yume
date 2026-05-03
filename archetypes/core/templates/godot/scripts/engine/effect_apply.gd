@@ -117,6 +117,15 @@ static func _spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionar
 	var overrides: Dictionary = (e.get("overrides", {}) as Dictionary).duplicate(true)
 	if e.has("position"):
 		overrides["position"] = _position(e["position"], env, ctx)
+	# Resolve formula strings in state-override Arrays (position/velocity).
+	# Without this, override `state.velocity = ["cos(facing)*22", 0, ...]`
+	# survives Array→float coercion as Vector3.ZERO and the bullet doesn't
+	# move. Empirically caught during doomarena3d build (2026-05-03).
+	if overrides.has("state") and overrides["state"] is Dictionary:
+		var ov_state: Dictionary = overrides["state"]
+		for key in ["position", "velocity"]:
+			if ov_state.has(key) and ov_state[key] is Array:
+				ov_state[key] = _position(ov_state[key], env, ctx)
 	# Determine instance id
 	var inst_id := ""
 	if overrides.has("_forced_id"):

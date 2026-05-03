@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+; Tier 2.6s — generic harness for game-specific JSON scenario tests.
+; Pass --game=<name> after `--` so the runner picks up the data folder.
+;
+;   godot --headless --path . scenes/scenario_test.tscn -- --game=doomarena3d
+
+[ext_resource type="Script" path="res://scripts/engine/scenario_runner.gd" id="1"]
+
+[node name="ScenarioRunner" type="Node"]
+script = ExtResource("1")

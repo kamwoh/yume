@@ -98,6 +98,28 @@ timeout 60 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.
 Should report `passed: NN  failed: 0  total: NN`. If failed, content
 introduced a regression — flag in QA report.
 
+3b. **Run game-specific scenario tests (Tier 2.6s)** if the game has
+    a `tests.json`:
+
+```bash
+timeout 30 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe \
+  --headless --path C:/Users/kamwoh/Documents/Projects/Godot/YumeTemplate \
+  scenes/scenario_test.tscn -- --game=demo_<name>
+```
+
+Scenario tests are JSON-driven game-logic tests at
+`data/demo_<name>/tests.json`. They build a fresh World per scenario,
+apply setup overrides, drive ticks (with motion integration + lifetime
+decrement), inject scripted inputs at scheduled ticks, and assert
+entity counts + field values. This is the layer that catches game-
+behavior bugs the headless smoke test misses (e.g., "bullet doesn't
+move after fire"). If the game has no `tests.json`, the runner exits
+0 with a "no tests.json — skipping" message.
+
+Authoring scenario tests for a new game: include 3-5 representative
+scenarios covering the core verbs (input → state change → cascade).
+Schema in `scripts/engine/scenario_runner.gd` header comment.
+
 4. **Build a temp scene** for the new game (or reuse `world_2d.tscn`
    pointing at the new data_root). For headless testing:
 

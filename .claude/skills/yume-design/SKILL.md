@@ -184,6 +184,13 @@ The world-plan is the single source of truth for named content
     `Skill(skill="yume-qa-tester", args=<data folder + scene path + GDD path>)`.
 20. Skill runs Godot headless, drains `env.error_buffer`, produces
     `docs/games/<name>/qa-report.md`.
+20b. **Tier 2.6s — Game-specific scenario tests**: content-designer should
+    have authored `data/demo_<name>/tests.json` covering 3-5 core verbs
+    (input → state change → expected cascade). qa-tester runs:
+    `godot --headless scenes/scenario_test.tscn -- --game=demo_<name>`.
+    These JSON tests catch behavior bugs the smoke test misses (e.g.,
+    "bullet doesn't move after fire"). Schema in
+    `scripts/engine/scenario_runner.gd` header.
 21. **Tier 2.6r — Visual QA**: after headless smoke test, qa-tester
     runs the game windowed with auto-capture (`scripts/play.sh <name>
     --capture`), reads the captured PNG, and verifies:
