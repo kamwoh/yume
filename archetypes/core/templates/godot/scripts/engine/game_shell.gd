@@ -239,15 +239,33 @@ func _update_floor_tint() -> void:
 	_floor.color = _floor_color_low.lerp(_floor_color_high, t)
 
 
+## Tier 2.6o — camera mode dispatch. scene.json's camera.mode picks one of:
+##   top_down_2d  : Camera2D, optional follow_tag, optional zoom (default)
+##   side_scroll_2d : Camera2D, follow x-axis only, y clamped to config
+##   fixed        : Camera2D held at camera.position, no follow
+##
+## Default if unspecified: top_down_2d (preserves prior behavior).
+## 3D modes (top_down_3d, isometric_3d, first_person_3d, third_person_3d)
+## land in Phase 2/3.
 func _update_camera_follow() -> void:
 	if _camera == null: return
 	var cam_cfg: Dictionary = _scene_cfg.get("camera", {}) as Dictionary
 	if cam_cfg.is_empty(): return
-	# Apply zoom (idempotent)
+	# Apply zoom once (idempotent)
 	if cam_cfg.has("zoom"):
 		var z = _to_vec2(cam_cfg["zoom"])
 		if _camera.zoom != z: _camera.zoom = z
-	# Follow tag
+	var mode := str(cam_cfg.get("mode", "top_down_2d"))
+	match mode:
+		"top_down_2d":   _camera_top_down_2d(cam_cfg)
+		"side_scroll_2d": _camera_side_scroll_2d(cam_cfg)
+		"fixed":         _camera_fixed(cam_cfg)
+		_:
+			# Unknown mode = silent fallback to top_down_2d
+			_camera_top_down_2d(cam_cfg)
+
+
+func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
 	var tag := str(cam_cfg.get("follow_tag", ""))
 	if tag == "": return
 	var ent := _find_entity_by_tag(tag)
@@ -257,6 +275,30 @@ func _update_camera_follow() -> void:
 	if p is Vector2:
 		var lerp_t := float(cam_cfg.get("lerp", 0.08))
 		_camera.position = _camera.position.lerp(p as Vector2, lerp_t)
+
+
+## Side-scroller: camera follows entity's x; y stays at config value
+## (or initial position if no fixed_y given). Common for platformers.
+func _camera_side_scroll_2d(cam_cfg: Dictionary) -> void:
+	var tag := str(cam_cfg.get("follow_tag", ""))
+	if tag == "": return
+	var ent := _find_entity_by_tag(tag)
+	if ent == null: return
+	if not ent.has_method("get_position"): return
+	var p = ent.get_position()
+	if not (p is Vector2): return
+	var lerp_t := float(cam_cfg.get("lerp", 0.08))
+	var fixed_y := float(cam_cfg.get("fixed_y", _camera.position.y))
+	var target := Vector2((p as Vector2).x, fixed_y)
+	_camera.position = _camera.position.lerp(target, lerp_t)
+
+
+## Fixed camera: holds at camera.position from scene.json. No follow.
+## Common for cinematic / one-room observer games.
+func _camera_fixed(cam_cfg: Dictionary) -> void:
+	if cam_cfg.has("position"):
+		var pos := _to_vec2(cam_cfg["position"])
+		if _camera.position != pos: _camera.position = pos
 
 
 # ============================================================
