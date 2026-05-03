@@ -63,6 +63,25 @@
     },
 
     {
+      "name": "bullet_flies_up_when_aiming_up",
+      "_": "REGRESSION: positive pitch = looking up. Bullet Y component must be +sin(pitch)*22, not -sin(pitch)*22. At pitch=0.5 (≈29° up), bullet should rise: y(t) = 1.6 + sin(0.5)*0.6 (spawn) + sin(0.5)*22*delta*ticks. After 8 ticks at 0.05s: y ≈ 1.89 + 0.479*22*0.4 ≈ 1.89 + 4.22 ≈ 6.1 m. Permissive bound y > 3.0.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0.5, "ammo": 5, "position": [0, 0, 0]}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "spark"}
+      ],
+      "ticks": 8,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["bullet"]},
+         "field": "state.position.y", "op": ">", "value": 3.0}
+      ]
+    },
+
+    {
       "name": "fire_blocked_when_no_ammo",
       "_": "ammo=0 → fire rule's `state.ammo_gt: 0` query fails → no bullet.",
       "setup": {

@@ -596,12 +596,16 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 		"center":
 			# Centered overlay — for crosshairs, target reticles, etc.
 			# VBox sits in the middle of the screen; child elements stack
-			# but typical use is a single element (one crosshair).
+			# but typical use is a single element (one crosshair). Box
+			# half-size defaults to 32 px; override with `width` + `height`
+			# in panel_cfg for larger reticles or stacked center HUD.
+			var w: float = float(panel_cfg.get("width", 64))
+			var h: float = float(panel_cfg.get("height", 64))
 			vbox.set_anchors_preset(Control.PRESET_CENTER)
-			vbox.offset_left = -32
-			vbox.offset_top = -32
-			vbox.offset_right = 32
-			vbox.offset_bottom = 32
+			vbox.offset_left = -w * 0.5
+			vbox.offset_top = -h * 0.5
+			vbox.offset_right = w * 0.5
+			vbox.offset_bottom = h * 0.5
 			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	root.add_child(vbox)
 
