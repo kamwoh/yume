@@ -15,6 +15,13 @@
         {"type": "spacer", "height": 6},
         {"type": "label", "binds": "clock.elapsed", "format": "⏱️ {} / 90s", "size": 18}
       ]
+    },
+    {
+      "_": "Centered crosshair — points at where bullets actually go.",
+      "anchor": "center",
+      "elements": [
+        {"type": "crosshair", "glyph": "+", "size": 28, "color": "#ffe060"}
+      ]
     }
   ],
 

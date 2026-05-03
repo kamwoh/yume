@@ -593,6 +593,16 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 			vbox.offset_top = -240
 			vbox.offset_right = 380
 			vbox.offset_bottom = -20
+		"center":
+			# Centered overlay — for crosshairs, target reticles, etc.
+			# VBox sits in the middle of the screen; child elements stack
+			# but typical use is a single element (one crosshair).
+			vbox.set_anchors_preset(Control.PRESET_CENTER)
+			vbox.offset_left = -32
+			vbox.offset_top = -32
+			vbox.offset_right = 32
+			vbox.offset_bottom = 32
+			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	root.add_child(vbox)
 
 	for elem_cfg in panel_cfg.get("elements", []):
@@ -619,6 +629,18 @@ func _build_element(parent: Container, cfg: Dictionary) -> void:
 			var sp := Control.new()
 			sp.custom_minimum_size = Vector2(1, int(cfg.get("height", 8)))
 			parent.add_child(sp)
+		"crosshair":
+			# Simple text-based crosshair — uses a Label with a glyph.
+			# Cheap, theme-able, no extra draw code. For richer reticles,
+			# extend later with a Control + custom _draw.
+			var ch := Label.new()
+			ch.text = str(cfg.get("glyph", "+"))
+			_apply_label_style(ch,
+				int(cfg.get("size", 28)),
+				_color(cfg.get("color", "#ffffff")))
+			ch.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			ch.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			parent.add_child(ch)
 
 
 func _apply_label_style(lbl: Label, font_size: int, color: Color) -> void:

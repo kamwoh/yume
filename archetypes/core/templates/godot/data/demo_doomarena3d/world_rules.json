@@ -89,7 +89,7 @@
         {"type": "spawn", "template": "bullet",
          "position": [
            "self.state.position.x - sin(self.state.facing) * cos(self.state.pitch) * 0.6",
-           "1.4 - sin(self.state.pitch) * 0.6",
+           "1.6 - sin(self.state.pitch) * 0.6",
            "self.state.position.z - cos(self.state.facing) * cos(self.state.pitch) * 0.6"
          ],
          "overrides": {"state": {"velocity": [
