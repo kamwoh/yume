@@ -242,6 +242,12 @@ func _fire_contact_rule(rule: Rule) -> void:
 	var b_spec: Dictionary = query["b"]
 	var radius: float = float(query.get("radius", 1.0))
 	var chance: float = rule.chance
+	# `once_per_a` fires the rule at most once per `a` entity per tick
+	# (first matching `b` becomes the target, rest are skipped). Used by
+	# tower-defense / shooter targeting where one entity should pick one
+	# target per cooldown cycle — without it, contact rules fire per pair
+	# and a tower in range of N enemies fires N projectiles per tick.
+	var once_per_a: bool = bool(query.get("once_per_a", false))
 
 	# Find all 'a' candidates (full scan — entities matching a's filters)
 	var a_candidates: Array = QueryLib.run(a_spec, env, {})
@@ -253,6 +259,7 @@ func _fire_contact_rule(rule: Rule) -> void:
 		var b_spec_with_radius: Dictionary = b_spec.duplicate()
 		b_spec_with_radius["radius"] = radius
 		var b_candidates: Array = QueryLib.run(b_spec_with_radius, env, ctx_for_b)
+		var fired_for_a := false
 		for b_ent in b_candidates:
 			if not (b_ent is Entity): continue
 			if a_ent == b_ent: continue
@@ -268,6 +275,11 @@ func _fire_contact_rule(rule: Rule) -> void:
 				continue
 			for e in rule.effects:
 				_enqueue(e, ctx, rule.id)
+			if once_per_a:
+				fired_for_a = true
+				break
+		if once_per_a and fired_for_a:
+			continue
 
 
 # ============================================================

@@ -164,6 +164,34 @@
     },
 
     {
+      "name": "tower_fires_once_per_tick_with_many_enemies",
+      "_": "Spawn 1 tower in a remote spot with cooldown=-1 so it fires immediately. Drop 4 enemies right next to it (all within range 6). Run 1 tick. Assert exactly 1 projectile spawned (was: 4 — engine bug pre-once_per_a). Tower's cooldown set to fire_cooldown so it can't immediately re-fire.",
+      "setup": {
+        "entity_state": {
+          "clock_1": {"wave_timer": 99999, "spawn_cooldown": 99999}
+        },
+        "spawn": [
+          {"def": "tower_basic", "id": "test_tower",
+           "position": [-15, 0, -15], "state": {"cooldown": -1.0}},
+          {"def": "enemy_grunt", "id": "e1",
+           "position": [-15, 0, -14], "state": {"velocity": [0, 0, 0], "hp": 99}},
+          {"def": "enemy_grunt", "id": "e2",
+           "position": [-14, 0, -15], "state": {"velocity": [0, 0, 0], "hp": 99}},
+          {"def": "enemy_grunt", "id": "e3",
+           "position": [-15, 0, -16], "state": {"velocity": [0, 0, 0], "hp": 99}},
+          {"def": "enemy_grunt", "id": "e4",
+           "position": [-16, 0, -15], "state": {"velocity": [0, 0, 0], "hp": 99}}
+        ]
+      },
+      "actions": [],
+      "ticks": 1,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["projectile"]},
+         "op": "==", "value": 1}
+      ]
+    },
+
+    {
       "name": "lone_enemy_walks_full_path_to_base",
       "_": "Spawn one enemy at wp_1. Disable wave-spawning. Run for 220 ticks (22s — enough to walk all 39m at 2 m/s). Enemy should reach base and trigger -1 base.hp. NO towers built — pure path-following test, isolates path bug from combat.",
       "setup": {

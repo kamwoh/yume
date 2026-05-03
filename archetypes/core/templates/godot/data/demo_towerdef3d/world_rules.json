@@ -217,13 +217,14 @@
     },
 
     {
-      "_": "Tower fires at first enemy in range when cooldown ≤ 0.",
+      "_": "Tower fires at FIRST enemy in range when cooldown ≤ 0. once_per_a: true means the tower fires once per tick (one projectile, one target), even if multiple enemies are in range. Without this, contact would fire per pair and the tower would spawn N projectiles for N enemies — the classic TD invariant 'one tower → one shot per cooldown' broken.",
       "id": "tower_fires",
       "trigger": {"type": "contact"},
       "query": {
         "a": {"tags_all": ["tower"], "state": {"cooldown_lte": 0.0}},
         "b": {"tags_all": ["enemy"]},
-        "radius": 6.0
+        "radius": 6.0,
+        "once_per_a": true
       },
       "effect": [
         {"type": "spawn", "template": "projectile",
