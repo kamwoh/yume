@@ -252,6 +252,12 @@ func _spawn_initial(inst: Dictionary) -> void:
 ## No-op for headless/test runs that set it to "".
 func _attach_renderer(ent: Entity) -> void:
 	if renderer_script == "": return
+	# Honor `visual.hidden=true` — entities with no visual representation
+	# (singletons like clocks, score trackers, world state holders). Without
+	# this, the renderer falls through to the default colored-box and the
+	# entity shows as a pink/grey square at its position. Empirically caught
+	# during towerdef3d capture (2026-05-03).
+	if bool((ent.visual as Dictionary).get("hidden", false)): return
 	var script := load(renderer_script)
 	if script == null: return
 	var node = script.new()
