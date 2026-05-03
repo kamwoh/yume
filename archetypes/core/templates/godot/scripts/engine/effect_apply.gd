@@ -53,6 +53,7 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"tag_remove":        _tag_remove(effect, env, context)
 		"velocity_set":      _velocity_set(effect, env, context)
 		"velocity_lerp":     _velocity_lerp(effect, env, context)
+		"velocity_set_relative": _velocity_set_relative(effect, env, context)
 		"emit":              _emit(effect, env, context)
 		"emit_shell_event":  _emit_shell_event(effect, env, context)
 		_:
@@ -254,6 +255,36 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 	var vy := float(_value(e.get("y", 0), ctx, env))
 	# 2D-default velocity. 3D variant would set z too — extend when needed.
 	ent.set_velocity(Vector2(vx, vy))
+
+
+## Tier 2.6o Phase 3 — set velocity in actor's facing-relative frame.
+## Used by first/third-person controls where W means "forward in look
+## direction" rather than "+Y in world". `forward` and `strafe` are
+## scalars (signed), result projected onto XZ plane (Y-up world).
+##
+## Convention: facing=0 → forward = (0, 0, -1) (look along -Z).
+##             facing=π/2 → forward = (-1, 0, 0) (look along -X).
+static func _velocity_set_relative(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var ent: Entity = _target(e, env, ctx)
+	if ent == null: return
+	var fwd := float(_value(e.get("forward", 0), ctx, env))
+	var strafe := float(_value(e.get("strafe", 0), ctx, env))
+	var facing := float(ent.get_state("facing", 0.0))
+	# Forward in world: rotate (0,0,-1) by yaw around Y → (-sin, 0, -cos)
+	var fx := -sin(facing) * fwd
+	var fz := -cos(facing) * fwd
+	# Strafe right = forward rotated 90° clockwise → (-cos, 0, sin)
+	var sx := -cos(facing) * strafe
+	var sz := sin(facing) * strafe
+	# Final velocity: combine and store. If the entity stores Vector2 position
+	# (top-down 2D content), project onto XZ via Vector2(x_total, z_total).
+	var pos = ent.get_position()
+	var vx := fx + sx
+	var vz := fz + sz
+	if pos is Vector3:
+		ent.set_velocity(Vector3(vx, 0, vz))
+	else:
+		ent.set_velocity(Vector2(vx, vz))
 
 
 ## Smoothly approach a target velocity each tick. Lets entities feel weighty —

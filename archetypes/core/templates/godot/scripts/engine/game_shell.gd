@@ -278,6 +278,8 @@ func _update_camera_follow() -> void:
 			if _camera3d != null: _camera_isometric_3d(cam_cfg)
 		"third_person_3d":
 			if _camera3d != null: _camera_third_person_3d(cam_cfg)
+		"first_person_3d":
+			if _camera3d != null: _camera_first_person_3d(cam_cfg)
 		_:
 			# Unknown mode — fall back to top_down_2d
 			if _camera != null:
@@ -372,21 +374,78 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 	_apply_ortho(cam_cfg, true)
 
 
-## Third-person 3D: Camera3D fixed offset behind entity. Perspective (no
-## mouse-orbit yet — that lands in Phase 3 with mouse-input infrastructure).
-## For now a static camera-behind-player view. Action-adventure / MMO feel.
+## Third-person 3D: Camera3D orbits behind entity using state.facing.
+## Mouse-x → facing yaw via _drain_mouse_facing. Camera positioned at
+## (target - forward * distance + up * height). Action-adventure / MMO feel.
 func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
 	if target_v == null: return
 	var target: Vector3 = target_v
+	var actor = _drain_mouse_facing(cam_cfg)
+	var facing := 0.0
+	if actor != null:
+		facing = float(actor.get_state("facing", 0.0))
 	var distance := float(cam_cfg.get("distance", 12.0))
 	var height := float(cam_cfg.get("height", 5.0))
 	var lerp_t := float(cam_cfg.get("lerp", 0.1))
-	# Behind on -Z, above on +Y. Phase 3 adds yaw orbit from mouse.
-	var desired := target + Vector3(0, height, distance)
+	# Forward = (-sin, 0, -cos); camera sits opposite (behind player)
+	var fx := -sin(facing)
+	var fz := -cos(facing)
+	var desired := target + Vector3(-fx * distance, height, -fz * distance)
 	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
 	_camera3d.look_at(target, Vector3.UP)
 	_apply_ortho(cam_cfg, false)
+
+
+## First-person 3D: Camera3D at entity eye height, rotated by state.facing.
+## Mouse-x → facing yaw, mouse-y → optional pitch (clamped). Doom/FPS feel.
+## Uses MOUSE_MODE_CAPTURED to lock cursor to game window.
+func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
+	var target_v = _follow_target_3d(cam_cfg)
+	if target_v == null: return
+	var target: Vector3 = target_v
+	var actor = _drain_mouse_facing(cam_cfg)
+	if actor == null: return
+	# Lock cursor for first-person feel (idempotent — safe to call repeatedly)
+	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	var facing := float(actor.get_state("facing", 0.0))
+	var pitch := float(actor.get_state("pitch", 0.0))
+	var eye_height := float(cam_cfg.get("eye_height", 1.7))
+	# Camera at the player's eye, rotated to face yaw + pitch.
+	_camera3d.global_position = target + Vector3(0, eye_height, 0)
+	_camera3d.rotation = Vector3(pitch, facing, 0)
+	_apply_ortho(cam_cfg, false)
+
+
+## Drain accumulated mouse motion → update actor.state.facing (yaw) and
+## optionally state.pitch. Returns the actor entity (or null). Mouse-y
+## controls pitch only if cam_cfg.use_pitch is true (clamped to ±π/2 - 0.1).
+func _drain_mouse_facing(cam_cfg: Dictionary):
+	var tag := str(cam_cfg.get("follow_tag", ""))
+	if tag == "": return null
+	var actor := _find_entity_by_tag(tag)
+	if actor == null: return null
+	var sched = _world.get("scheduler")
+	if sched == null: return actor
+	var env: Dictionary = sched.env
+	var delta_v = env.get("mouse_delta", Vector2.ZERO)
+	if not (delta_v is Vector2): delta_v = Vector2.ZERO
+	var delta: Vector2 = delta_v
+	if delta.length_squared() == 0.0: return actor
+	# Consume the delta
+	env["mouse_delta"] = Vector2.ZERO
+	var sensitivity := float(cam_cfg.get("mouse_sensitivity", 0.003))
+	var facing := float(actor.get_state("facing", 0.0))
+	facing -= delta.x * sensitivity
+	actor.set_state("facing", facing)
+	if bool(cam_cfg.get("use_pitch", false)):
+		var pitch := float(actor.get_state("pitch", 0.0))
+		pitch -= delta.y * sensitivity
+		var lim := PI * 0.5 - 0.05
+		pitch = clamp(pitch, -lim, lim)
+		actor.set_state("pitch", pitch)
+	return actor
 
 
 ## Resolve follow target's 3D position. Entity might store position as Vector2

@@ -307,6 +307,18 @@ func _process(delta: float) -> void:
 	_integrate_motion(delta)
 
 
+## Tier 2.6o Phase 3 — accumulate mouse motion across the frame.
+## GameShell drains env.mouse_delta in first/third-person camera modes
+## to update the actor's state.facing (yaw). Set + reset per frame.
+func _input(event: InputEvent) -> void:
+	if scheduler == null: return
+	if event is InputEventMouseMotion:
+		var motion := event as InputEventMouseMotion
+		var current = scheduler.env.get("mouse_delta", Vector2.ZERO)
+		if not (current is Vector2): current = Vector2.ZERO
+		scheduler.env["mouse_delta"] = (current as Vector2) + motion.relative
+
+
 ## Poll input actions and queue them on the scheduler. HOLD actions queue
 ## every frame the key is pressed; PRESS actions queue once per keypress
 ## (just_pressed edge). Both resolve `actor` to first entity tagged
