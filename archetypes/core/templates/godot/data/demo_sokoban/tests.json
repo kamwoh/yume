@@ -113,6 +113,25 @@
       "assertions": [
         {"type": "world_field", "field": "all_levels_complete", "op": "==", "value": 1}
       ]
+    },
+
+    {
+      "name": "restart_resets_level",
+      "_": "Move N (player(48,80)→(48,48)), then press R: player respawns at level-start (48, 80). Verifies transition_level with current_level reloads.",
+      "setup": {},
+      "actions": [
+        {"tick": 1, "input": "move_north"},
+        {"tick": 6, "input": "restart"}
+      ],
+      "ticks": 12,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.position.x", "op": "==", "value": 48},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.position.y", "op": "==", "value": 80}
+      ]
     }
   ]
 }

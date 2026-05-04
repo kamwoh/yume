@@ -4,6 +4,16 @@
   "rules": [
 
     {
+      "_comment": "=== RESTART — fires transition_level with the current level id, which causes the engine to clear non-persistent entities and reload the same level. Same trick as `transition_level next` but targeting the current level instead of the next one.",
+      "id": "restart_input",
+      "trigger": {"type": "input", "action": "restart"},
+      "effect": {
+        "type": "transition_level",
+        "target": "world.current_level"
+      }
+    },
+
+    {
       "_comment": "=== INPUT — one rule per direction. Reset clock flags + set delta + emit attempt_move signal whose _origin_position is the target cell.",
       "id": "input_move_north",
       "trigger": {"type": "input", "action": "move_north"},
