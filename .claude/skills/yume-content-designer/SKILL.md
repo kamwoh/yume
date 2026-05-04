@@ -206,6 +206,53 @@ randomness on the spawn target's spawn-trigger rules.
 9. **Ship to qa-tester.** When the JSON is written, hand off with the
    data folder path.
 
+## Translating level-design.md → JSON: hand vs pattern
+
+`level-design.md` (from yume-level-designer) lists placements as
+either explicit coordinates or pattern specs. Translate 1:1:
+
+**Hand-placed entries** → `initial_instances`:
+
+```jsonc
+{"def": "boss_spawn_marker", "id": "boss_marker", "position": [0, 0, 16]}
+```
+
+**Pattern entries** → `patterns` block (engine expands at load):
+
+```jsonc
+{"patterns": [
+  {"def": "pillar", "pattern": "ring",
+   "count": 6, "radius": 11, "yaw_offset": 0.26},
+  {"def": "rock",   "pattern": "scatter",
+   "count": 30, "min_r": 3, "max_r": 18, "min_spacing": 1.5,
+   "exclude_zones": [
+     {"center": [0, 0, 0], "radius": 4},
+     {"center": [0, 0, 16], "radius": 6}
+   ]},
+  {"pattern": "mirror", "axis": "x",
+   "items": [
+     {"def": "tower_slot", "id": "slot_w1", "position": [-9, 0, -3]},
+     {"def": "tower_slot", "id": "slot_w2", "position": [-9, 0, 3]}
+   ]}
+]}
+```
+
+Available patterns: `ring`, `grid`, `line`, `scatter`, `cluster`,
+`mirror`. `scatter` + `cluster` accept `exclude_zones: [{center,
+radius}, ...]` for protected areas (player spawn, boss frame, choke
+points). See `instance_patterns.gd` for full options.
+
+**Determinism**: scene.json's `level_seed: <int>` makes
+`randf()`-based patterns reproducible across runs. Omit for
+stochastic per-session randomization.
+
+**Both blocks coexist** in zz_instances.json — `patterns` expands
+first, then `initial_instances`. Use this division:
+- `initial_instances` — singletons, signature placements,
+  asymmetric hand-tuned entities
+- `patterns` — repeating decoration, symmetric layouts, high
+  counts, anything where typing each position is busywork
+
 ## Schema validation
 
 Before declaring done, run mental schema validation:

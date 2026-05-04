@@ -40,6 +40,7 @@ func _ready() -> void:
 	test_engine_error()
 	test_blocks_motion()
 	test_raycast_hit()
+	test_instance_patterns()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1408,3 +1409,76 @@ func test_raycast_hit() -> void:
 	# Cleanup
 	for ent in entities.values():
 		if is_instance_valid(ent): (ent as Entity).queue_free()
+
+
+# ============================================================
+# INSTANCE PATTERNS (Tier 2.6q + v2.6 mirror/exclude_zones)
+# ============================================================
+
+func test_instance_patterns() -> void:
+	_section("instance_patterns (mirror + exclude_zones + determinism)")
+
+	# Ring expansion (existing primitive — sanity check).
+	var ring := InstancePatterns.expand({
+		"def": "pillar", "pattern": "ring", "count": 4, "radius": 10
+	})
+	expect_eq(ring.size(), 4, "ring: 4 entries placed")
+	expect_eq(str((ring[0] as Dictionary)["def"]), "pillar", "ring: def carried through")
+
+	# Mirror primitive — duplicates `items` reflected across X axis.
+	var mirrored := InstancePatterns.expand({
+		"pattern": "mirror", "axis": "x",
+		"items": [
+			{"def": "pillar", "id": "P1", "position": [5, 0, 3]},
+			{"def": "pillar", "id": "P2", "position": [7, 0, -2]}
+		]
+	})
+	expect_eq(mirrored.size(), 4, "mirror: 2 originals + 2 mirrored = 4 entries")
+	expect_eq(str((mirrored[0] as Dictionary)["id"]), "P1", "mirror: original kept")
+	var mirror_pos: Array = (mirrored[1] as Dictionary)["position"]
+	expect_eq(float(mirror_pos[0]), -5.0, "mirror: x flipped (5 → -5)")
+	expect_eq(float(mirror_pos[2]),  3.0, "mirror: z preserved")
+	expect_eq(str((mirrored[1] as Dictionary)["id"]), "P1_mirror", "mirror: id_suffix appended")
+
+	# Mirror axis Z.
+	var mirrored_z := InstancePatterns.expand({
+		"pattern": "mirror", "axis": "z",
+		"items": [{"def": "pillar", "id": "Q", "position": [4, 0, 7]}]
+	})
+	var mz_pos: Array = (mirrored_z[1] as Dictionary)["position"]
+	expect_eq(float(mz_pos[0]),  4.0, "mirror z-axis: x preserved")
+	expect_eq(float(mz_pos[2]), -7.0, "mirror z-axis: z flipped")
+
+	# Exclude zones — scatter avoids forbidden circles.
+	seed(42)
+	var scattered := InstancePatterns.expand({
+		"def": "rock", "pattern": "scatter",
+		"count": 30, "min_r": 0, "max_r": 10, "min_spacing": 0.5,
+		"exclude_zones": [{"center": [0, 0, 0], "radius": 4}]
+	})
+	var any_inside_zone := false
+	for inst in scattered:
+		var p: Array = (inst as Dictionary)["position"]
+		var dx := float(p[0])
+		var dz := float(p[2])
+		if dx * dx + dz * dz < 16.0:
+			any_inside_zone = true
+			break
+	expect(not any_inside_zone, "scatter exclude_zones: no placement inside r=4 circle around origin")
+	expect(scattered.size() > 0, "scatter exclude_zones: still placed entities outside the zone")
+
+	# Determinism — same seed produces same result.
+	seed(123)
+	var batch_a := InstancePatterns.expand({
+		"def": "tree", "pattern": "scatter", "count": 10, "max_r": 20
+	})
+	seed(123)
+	var batch_b := InstancePatterns.expand({
+		"def": "tree", "pattern": "scatter", "count": 10, "max_r": 20
+	})
+	expect_eq(batch_a.size(), batch_b.size(), "deterministic: same seed → same count")
+	if batch_a.size() == batch_b.size() and batch_a.size() > 0:
+		var pa: Array = (batch_a[0] as Dictionary)["position"]
+		var pb: Array = (batch_b[0] as Dictionary)["position"]
+		expect_eq(float(pa[0]), float(pb[0]), "deterministic: same seed → same x[0]")
+		expect_eq(float(pa[2]), float(pb[2]), "deterministic: same seed → same z[0]")

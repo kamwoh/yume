@@ -112,6 +112,11 @@ func load_data() -> void:
 	for n in (registered.get("hold", []) as Array):
 		if not (input_actions_hold as Array).has(str(n)):
 			input_actions_hold.append(str(n))
+	# v2.6: scene.json may declare a `level_seed` integer that's applied to
+	# Godot's global PRNG before any pattern/scatter/cluster runs. Makes
+	# procedurally-generated layouts reproducible — same seed = same map.
+	# Omit for stochastic per-session randomization.
+	_apply_level_seed_if_set(root)
 	_load_rules_file(root + "/world_rules.json")
 	_load_world_file(root + "/world.json")
 	# Entities can come from a single entities.json OR a per-def entities/
@@ -567,6 +572,21 @@ func _load_ground_cfg() -> void:
 		_ground_y = float(g["y"])
 	_ground_clamp_tags = g.get("clamp_tags", ["creature"])
 	_ground_despawn_tags = g.get("despawn_tags", ["projectile"])
+
+
+func _apply_level_seed_if_set(root: String) -> void:
+	var path := root + "/scene.json"
+	if not FileAccess.file_exists(path): return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return
+	var json := JSON.new()
+	if json.parse(f.get_as_text()) != OK: return
+	if not (json.data is Dictionary): return
+	if not (json.data as Dictionary).has("level_seed"): return
+	var s: int = int((json.data as Dictionary).get("level_seed", 0))
+	seed(s)
+	if verbose:
+		print("[World] level_seed=%d applied — patterns are deterministic" % s)
 
 
 func _apply_ground() -> void:

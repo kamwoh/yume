@@ -251,6 +251,55 @@ Player central, spawns at radius R, 2-3 cover pillars at radius R/2.
 Each zone has its own ecosystem. Movement between zones happens
 near boundaries.
 
+## Hand-coords vs declarative patterns — when to use which
+
+The engine's `instance_patterns.gd` (Tier 2.6q + v2.6) lets the
+JSON itself express **intent** rather than coordinates. Patterns
+expand at world load. Available primitives:
+
+- `ring` — n on a circle (count, radius, origin)
+- `grid` — cols × rows uniform grid
+- `line` — n along a segment
+- `scatter` — random within an annulus, optional `min_spacing`,
+  optional `exclude_zones: [{center, radius}, ...]`
+- `cluster` — n around an origin, with spread + exclude_zones
+- `mirror` — duplicate `items` reflected across X or Z axis
+
+Plus `scene.json` `level_seed` makes `randf()`-based patterns
+**deterministic** — same seed → same map. Omit for stochastic per-
+session randomization.
+
+**When to specify hand-coordinates**:
+- Signature moments (boss spawn, player start, named landmarks)
+- Asymmetric layouts where each element matters
+- Small counts (≤6 placements where typing each is faster than
+  parameterizing)
+
+**When to specify a pattern**:
+- Repeating decoration (scatter 30 rocks, ring of 8 cover pillars)
+- Symmetric layouts (mirror across X — author one side)
+- High counts (≥10 entries)
+- When replay-variance matters (procedural maps with seed)
+
+**Style for level-design.md**: in your placement table, include a
+column or row showing the pattern spec when one applies. Example:
+
+```markdown
+### Cover pillars (8 — pattern + hand-placed mix)
+
+Pattern: `ring` of 6 + 2 hand-placed signature pillars.
+
+| Placement | Spec | Rationale |
+|---|---|---|
+| 6 ring pillars | pattern: ring, count: 6, radius: 11, yaw_offset: 0.26 (15°) | Even cover around player; offset prevents pillar at +Z to keep boss-spawn sightline open |
+| pillar_signature_1 | hand: (10, 0, 14) | Frames boss spawn area's right side — signature moment, asymmetric |
+| pillar_signature_2 | hand: (-10, 0, 14) | Mirrors signature_1 |
+```
+
+content-designer translates each row 1:1 into `zz_instances.json`:
+- Hand-placed → `initial_instances` entry
+- Pattern → `patterns` entry
+
 ## What you DON'T do
 
 - ❌ Write JSON. content-designer translates your level-design into
@@ -261,8 +310,10 @@ near boundaries.
 - ❌ Run the game. qa-tester does that after build.
 - ❌ Place randomly without rationale. Each position has a why.
 - ❌ Over-design tiny details. Aim for ~20 placements documented; if
-  more, group them (e.g., "12 trees scattered with min spacing 1.4m"
-  is fine, not 12 individual rationales).
+  more, group them via patterns (e.g., "scatter 30 rocks with
+  min_spacing=1.5 in r∈[3,18] excluding the player-spawn 2m
+  circle" is fine — one pattern entry, not 30 rationales).
+- ❌ Hand-place when a pattern would do (and vice-versa).
 
 ## When invoked by orchestrator
 

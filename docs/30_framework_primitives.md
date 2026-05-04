@@ -121,6 +121,25 @@ Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`.
 | Block | Effect |
 |---|---|
 | `ground` | `{y, clamp_tags, despawn_tags}`. Each frame after motion integration, entities matching `clamp_tags` get Y-clamped to `y`; entities matching `despawn_tags` are removed if Y < `y`. Defaults: clamp_tags=["creature"], despawn_tags=["projectile"]. Replaces per-game creature_bounds + projectile_floor_despawn content rules. |
+| `level_seed` | Integer applied to Godot's global PRNG at world load. Makes `randf()`-driven instance patterns (scatter / cluster) deterministic across sessions — same seed = same map. Omit for stochastic randomization. |
+
+**Declarative placement patterns** (in `entities.json` /
+`zz_instances.json` `patterns` block — Tier 2.6q + v2.6):
+
+```jsonc
+{"patterns": [
+  {"def": "pillar", "pattern": "ring", "count": 6, "radius": 11},
+  {"def": "rock",   "pattern": "scatter", "count": 20,
+   "min_r": 3, "max_r": 18, "min_spacing": 1.5,
+   "exclude_zones": [{"center": [0,0,0], "radius": 4}]},
+  {"pattern": "mirror", "axis": "x", "items": [...]}
+]}
+```
+
+Patterns expand at load into the same `_spawn_initial` path as
+hand-coded `initial_instances`. Primitives: `ring`, `grid`, `line`,
+`scatter`, `cluster`, `mirror`. `scatter` + `cluster` accept
+`exclude_zones`.
 
 **Hitscan effect** (added by ADR 0005):
 

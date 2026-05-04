@@ -25,8 +25,18 @@ class_name InstancePatterns
 ##   grid     — cols × rows (cols, rows, spacing, origin)
 ##   line     — n along segment (count, start, end)
 ##   scatter  — random with min-spacing (count, min_r, max_r, y,
-##              min_spacing, max_attempts)
-##   cluster  — n around an origin (count, origin, spread, min_spacing)
+##              min_spacing, max_attempts, exclude_zones)
+##   cluster  — n around an origin (count, origin, spread, min_spacing,
+##              exclude_zones)
+##   mirror   — duplicate `items` mirrored across `axis` ("x" or "z")
+##
+## `exclude_zones` (scatter + cluster): list of {center, radius} circles
+## where placement is forbidden. Useful for protecting player spawn,
+## boss spawn frame, choke points.
+##
+## Determinism: scene.json's `level_seed` value is applied to Godot's
+## global PRNG at world load. With a fixed seed, scatter/cluster
+## produce the same map every run; without one, each session randomizes.
 
 
 ## Expand a single pattern dict into a list of instance dicts.
@@ -40,6 +50,7 @@ static func expand(pattern: Dictionary) -> Array:
 		"line":    return _line(pattern)
 		"scatter": return _scatter(pattern)
 		"cluster": return _cluster(pattern)
+		"mirror":  return _mirror(pattern)
 	return []
 
 
@@ -141,6 +152,7 @@ static func _scatter(p: Dictionary) -> Array:
 	var min_spacing := float(p.get("min_spacing", 0.0))
 	var max_attempts := int(p.get("max_attempts", 100))
 	var origin := _to_vec3(p.get("origin", [0, 0, 0]))
+	var exclude_zones: Array = p.get("exclude_zones", [])
 	var out: Array = []
 	var placed: Array = []
 	if count <= 0 or def_id == "": return out
@@ -160,6 +172,8 @@ static func _scatter(p: Dictionary) -> Array:
 				if (prior as Vector3).distance_to(pos) < min_spacing:
 					ok = false
 					break
+		if ok and not exclude_zones.is_empty():
+			ok = not _in_exclude_zone(pos, exclude_zones)
 		if ok:
 			placed.append(pos)
 			out.append({
@@ -183,6 +197,7 @@ static func _cluster(p: Dictionary) -> Array:
 	var spread := float(p.get("spread", 2.0))
 	var min_spacing := float(p.get("min_spacing", 0.0))
 	var max_attempts := int(p.get("max_attempts", 100))
+	var exclude_zones: Array = p.get("exclude_zones", [])
 	var out: Array = []
 	var placed: Array = []
 	if count <= 0 or def_id == "": return out
@@ -197,6 +212,8 @@ static func _cluster(p: Dictionary) -> Array:
 				if (prior as Vector3).distance_to(pos) < min_spacing:
 					ok = false
 					break
+		if ok and not exclude_zones.is_empty():
+			ok = not _in_exclude_zone(pos, exclude_zones)
 		if ok:
 			placed.append(pos)
 			out.append({
@@ -209,8 +226,56 @@ static func _cluster(p: Dictionary) -> Array:
 
 
 # ============================================================
+# MIRROR — duplicate `items` reflected across an axis
+# ============================================================
+# Useful for symmetric arena layouts: hand-place N landmarks on one
+# side, mirror onto the other. Output count = items.size() × 2 (the
+# original list + the mirrored list). axis: "x" flips x, "z" flips z.
+
+static func _mirror(p: Dictionary) -> Array:
+	var items: Array = p.get("items", [])
+	if items.is_empty(): return []
+	var axis := str(p.get("axis", "x"))
+	var id_suffix := str(p.get("id_suffix", "_mirror"))
+	var out: Array = []
+	for item in items:
+		if not (item is Dictionary): continue
+		# Original
+		out.append(item.duplicate(true))
+		# Mirrored copy
+		var pos = (item as Dictionary).get("position", [0, 0, 0])
+		var pos_v := _to_vec3(pos)
+		var mirrored: Vector3 = pos_v
+		match axis:
+			"x": mirrored = Vector3(-pos_v.x, pos_v.y, pos_v.z)
+			"z": mirrored = Vector3(pos_v.x, pos_v.y, -pos_v.z)
+		var copy: Dictionary = (item as Dictionary).duplicate(true)
+		copy["position"] = [mirrored.x, mirrored.y, mirrored.z]
+		var orig_id := str(copy.get("id", ""))
+		if orig_id != "":
+			copy["id"] = orig_id + id_suffix
+		out.append(copy)
+	return out
+
+
+# ============================================================
 # UTIL
 # ============================================================
+
+## Test if pos lies inside any of the exclude_zones (each {center, radius}
+## in 2D — XZ plane). Y ignored.
+static func _in_exclude_zone(pos: Vector3, zones: Array) -> bool:
+	for z in zones:
+		if not (z is Dictionary): continue
+		var c := _to_vec3(z.get("center", [0, 0, 0]))
+		var r: float = float(z.get("radius", 0))
+		if r <= 0.0: continue
+		var dx := pos.x - c.x
+		var dz := pos.z - c.z
+		if dx * dx + dz * dz < r * r:
+			return true
+	return false
+
 
 static func _to_vec3(v) -> Vector3:
 	if v is Vector3: return v
