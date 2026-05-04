@@ -1,0 +1,39 @@
+{
+  "_comment": "Sokoban GAME rules (ADR 0009). The metagame layer: scoring, win conditions, restart. Subscribes to world/physics.json events. Without these rules the world still runs (player walks, walls block, boxes push) — but there's no goal. game/rules.json is what makes the world a *game*.",
+
+  "rules": [
+
+    {
+      "_comment": "Track move count — subscribe to physics's player_moved signal. Decoupled from physics so a 'move-counter-free' game variant could omit this rule.",
+      "id": "track_moves",
+      "trigger": {"type": "signal", "name": "player_moved"},
+      "query": {"tags_all": ["clock"]},
+      "effect": {"type": "state_add", "target": "self", "field": "moves", "amount": 1}
+    },
+
+    {
+      "_comment": "Restart input: R reloads the current level. world.current_level is the engine-managed binding to the current level id.",
+      "id": "restart_input",
+      "trigger": {"type": "input", "action": "restart"},
+      "effect": {
+        "type": "transition_level",
+        "target": "world.current_level"
+      }
+    },
+
+    {
+      "_comment": "Win check — when a box overlaps a goal, fire transition_level next. Past the last level, engine sets world.all_levels_complete=1 → HUD wins.",
+      "id": "win_box_on_goal",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["box"]},
+        "b": {"tags_all": ["goal"]},
+        "radius": 12,
+        "once_per_a": true
+      },
+      "effect": [
+        {"type": "transition_level", "target": "next"}
+      ]
+    }
+  ]
+}

@@ -33,13 +33,19 @@ class_name InputRegistrar
 ##   - scenario_runner — same hook (test scenarios get the same vocabulary)
 
 
-## Read inputs.json at the given data root and register all actions.
+## Read inputs config at the given data root and register all actions.
 ## Returns a Dictionary {"press": [String, ...], "hold": [String, ...]} so
 ## the caller can extend its poll lists. Silent no-op (returns empty
 ## dict) if the file doesn't exist.
+##
+## ADR 0009: prefers new path ui/input.json; falls back to legacy
+## inputs.json. New path takes priority if both exist.
 static func register_from_data_root(data_root: String) -> Dictionary:
 	var out: Dictionary = {"press": [], "hold": []}
-	var path := data_root.rstrip("/") + "/inputs.json"
+	var root := data_root.rstrip("/")
+	var path := root + "/ui/input.json"
+	if not FileAccess.file_exists(path):
+		path = root + "/inputs.json"
 	if not FileAccess.file_exists(path):
 		return out
 	var f := FileAccess.open(path, FileAccess.READ)

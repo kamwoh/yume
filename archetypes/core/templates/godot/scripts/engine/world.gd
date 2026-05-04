@@ -101,6 +101,12 @@ func _resolve_data_root_from_cmdline() -> void:
 ## state from `data_root/`. Order: rules → entities → world → initial flush.
 ## Rules load first so that spawn-triggered rules can fire during initial
 ## entity load (per W0 finding on lifecycle-flush-at-load).
+##
+## ADR 0009: supports both old layout (world_rules.json + progression.json
+## at root) and new layout (world/physics.json + game/rules.json +
+## game/flow.json + levels/<name>/rules.json). New paths take priority;
+## old paths are fallback for un-migrated demos. Engine merges all rule
+## files into the scheduler — split is purely authoring-time.
 func load_data() -> void:
 	var root := data_root.rstrip("/")
 	# Tier 2.6t — register per-game input actions from inputs.json (if any).
@@ -108,6 +114,7 @@ func load_data() -> void:
 	# v2.6r: registrar returns press/hold action names so the engine extends
 	# its poll lists. Without this, per-game actions get InputMap entries
 	# but never reach the rule scheduler.
+	# ADR 0009: registrar also checks new ui/input.json path.
 	var registered: Dictionary = InputRegistrar.register_from_data_root(root)
 	for n in (registered.get("press", []) as Array):
 		if not (input_actions_press as Array).has(str(n)):
@@ -120,17 +127,20 @@ func load_data() -> void:
 	# procedurally-generated layouts reproducible — same seed = same map.
 	# Omit for stochastic per-session randomization.
 	_apply_level_seed_if_set(root)
-	# ADR 0006: multi-level support. If progression.json exists, load it and
-	# the starting level under levels/<name>/. Persistent entities (tagged
-	# 'persistent') come from the root's entities.json. Otherwise (single-
-	# level games), behave exactly as before.
-	var prog_path := root + "/progression.json"
-	if FileAccess.file_exists(prog_path):
+	# ADR 0006: multi-level support. If progression.json (or new
+	# game/flow.json per ADR 0009) exists, load it and the starting level.
+	# Persistent entities come from the root's entities.json. Otherwise
+	# (single-level games), behave exactly as before.
+	var prog_path := _resolve_layout_path(root, "game/flow.json", "progression.json")
+	if prog_path != "":
 		_load_progression(prog_path)
-		# Global rules (cross-level) come from root/world_rules.json. Per-level
-		# rules are appended in _load_level().
+		# Global rules (cross-level): load all four rule files if present,
+		# in order. Each file's rules append to the scheduler. world/physics +
+		# game/rules are the new ADR 0009 split; world_rules.json is legacy.
+		_load_rules_file(root + "/world/physics.json")
+		_load_rules_file(root + "/game/rules.json")
 		_load_rules_file(root + "/world_rules.json")
-		_load_world_file(root + "/world.json")
+		_load_world_file(_resolve_layout_path(root, "world/state.json", "world.json"))
 		# Persistent entities live in root/entities.json or root/entities/.
 		# Per ADR 0006: tag them "persistent" to survive level transitions.
 		_load_entities_path(root)
@@ -139,8 +149,10 @@ func load_data() -> void:
 			_load_level(current_level)
 	else:
 		# Single-level (backwards-compatible)
+		_load_rules_file(root + "/world/physics.json")
+		_load_rules_file(root + "/game/rules.json")
 		_load_rules_file(root + "/world_rules.json")
-		_load_world_file(root + "/world.json")
+		_load_world_file(_resolve_layout_path(root, "world/state.json", "world.json"))
 		_load_entities_path(root)
 	scheduler.flush_effects()
 	if verbose:
@@ -649,8 +661,24 @@ func _load_level(name: String) -> void:
 	if levels_root == "" or name == "": return
 	var lvl_dir := levels_root + "/" + name
 	# Per-level rules append to existing scheduler (don't clobber globals).
+	# ADR 0009: prefer new path levels/<x>/rules.json; fall back to legacy
+	# levels/<x>/world_rules.json. Both treated as game rules at this layer.
+	_load_rules_file(lvl_dir + "/rules.json", true)
 	_load_rules_file(lvl_dir + "/world_rules.json", true)
 	_load_entities_path(lvl_dir)
+
+
+## ADR 0009: prefer new layout path; fall back to old. Returns "" if
+## neither exists. Centralizes layout-path resolution so callers don't
+## repeat the fallback logic.
+func _resolve_layout_path(root: String, new_path: String, old_path: String) -> String:
+	var p_new := root + "/" + new_path
+	if FileAccess.file_exists(p_new):
+		return p_new
+	var p_old := root + "/" + old_path
+	if FileAccess.file_exists(p_old):
+		return p_old
+	return ""
 
 
 ## Process a queued level transition (set by transition_level effect).
@@ -687,11 +715,15 @@ func _do_level_transition(target: String) -> void:
 			spatial_index.remove_entity(rid)
 		entities.erase(rid)
 		rent.queue_free()
-	# Clear scheduler rules and reload globals (persistent across levels)
-	# from root/world_rules.json; per-level rules get appended in _load_level.
+	# Clear scheduler rules and reload globals (persistent across levels).
+	# ADR 0009: load all three rule paths (new world/physics + game/rules,
+	# and legacy world_rules.json). Per-level rules get appended in
+	# _load_level.
 	if scheduler != null and scheduler.has_method("clear_rules"):
 		scheduler.clear_rules()
 	var root := data_root.rstrip("/")
+	_load_rules_file(root + "/world/physics.json")
+	_load_rules_file(root + "/game/rules.json")
 	_load_rules_file(root + "/world_rules.json")
 	# Load new level
 	current_level = target

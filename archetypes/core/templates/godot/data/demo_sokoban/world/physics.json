@@ -1,20 +1,10 @@
 {
-  "_comment": "Sokoban v0.2 — conditional movement rules. Pattern: input emits 'attempt_move' signal with payload _origin_position = (player.x + dx, player.y + dy). Signal handlers scan target cell for walls/boxes and set flags on level_clock. A contact rule between player and clock then commits the move IF gates passed. v0.2 covers walk + walls-block + box-push. v0.3 will add win check (next level transition).",
+  "_comment": "Sokoban WORLD physics (ADR 0009). How the world physically behaves: input → motion signal → wall/box detection → commit move/push. No game logic here (no scoring, no win/lose). A 'player' could walk around indefinitely with these rules alone — that's the sandbox version of sokoban. Game/rules.json layers the goal on top.",
 
   "rules": [
 
     {
-      "_comment": "=== RESTART — fires transition_level with the current level id, which causes the engine to clear non-persistent entities and reload the same level. Same trick as `transition_level next` but targeting the current level instead of the next one.",
-      "id": "restart_input",
-      "trigger": {"type": "input", "action": "restart"},
-      "effect": {
-        "type": "transition_level",
-        "target": "world.current_level"
-      }
-    },
-
-    {
-      "_comment": "=== INPUT — one rule per direction. Reset clock flags + set delta + emit attempt_move signal whose _origin_position is the target cell.",
+      "_comment": "=== INPUT → MOTION SIGNAL — one rule per direction. Reset clock flags + set delta + emit attempt_move signal whose _origin_position is the target cell. Translates player intent into a world event.",
       "id": "input_move_north",
       "trigger": {"type": "input", "action": "move_north"},
       "query": {"tags_all": ["player"]},
@@ -88,7 +78,7 @@
     },
 
     {
-      "_comment": "=== REACT — wall-at-target check. Signal-trigger query scans walls within 12px of the payload's _origin_position (the target cell). If any match, set move_blocked=1.",
+      "_comment": "=== REACT — wall-at-target check.",
       "id": "wall_blocks_attempt",
       "trigger": {"type": "signal", "name": "attempt_move"},
       "query": {"tags_all": ["wall"], "radius": 12},
@@ -96,14 +86,13 @@
     },
 
     {
-      "_comment": "=== REACT — box-at-target check. If a box is at the move target, set push_pending=1 + emit attempt_push for the cell BEYOND the box.",
+      "_comment": "=== REACT — box-at-target check.",
       "id": "box_at_attempt",
       "trigger": {"type": "signal", "name": "attempt_move"},
       "query": {"tags_all": ["box"], "radius": 12},
       "effect": [
         {"type": "state_set", "target": "level_clock", "field": "push_pending", "value": 1},
-        {"_comment": "level_clock → pushing → box. commit_push's b-side filter `relations: {pushing: 'a'}` checks 'clock has pushing edge to box' — works because contact b-spec has 'a' in context (per phase_scheduler:276), but a-spec runs without context so we can't put the filter there.",
-         "type": "relate", "relation": "pushing", "from": "level_clock", "to": "self"},
+        {"type": "relate", "relation": "pushing", "from": "level_clock", "to": "self"},
         {"type": "emit", "signal": "attempt_push",
          "payload": {
            "_origin_position": [
@@ -115,7 +104,7 @@
     },
 
     {
-      "_comment": "=== REACT — wall-blocks-push: if anything blocks_motion at the push target (cell beyond the box), set push_blocked=1.",
+      "_comment": "=== REACT — wall-blocks-push (cell beyond box).",
       "id": "wall_blocks_push",
       "trigger": {"type": "signal", "name": "attempt_push"},
       "query": {"tags_all": ["wall"], "radius": 12},
@@ -123,7 +112,7 @@
     },
 
     {
-      "_comment": "=== REACT — box-blocks-push: another box at the push target (can't push a box into another box).",
+      "_comment": "=== REACT — box-blocks-push (another box at push target).",
       "id": "box_blocks_push",
       "trigger": {"type": "signal", "name": "attempt_push"},
       "query": {"tags_all": ["box"], "radius": 12},
@@ -131,7 +120,7 @@
     },
 
     {
-      "_comment": "=== REACT — commit_push runs FIRST (before commit_move) so the box's position-formula evaluates while clock.last_dx is still non-zero. commit_move resets last_dx → if it ran first, commit_push's formula would compute 0+0=80 (no movement). Effects in queue apply FIFO, so JSON definition order = effect order.",
+      "_comment": "=== REACT — commit_push runs FIRST (before commit_move) so box's position-formula evaluates while clock.last_dx is non-zero.",
       "id": "commit_push",
       "trigger": {"type": "contact"},
       "query": {
@@ -150,7 +139,7 @@
     },
 
     {
-      "_comment": "=== REACT — commit_move. Fires when move_attempted=1 + move_blocked=0 + push_blocked=0. After moving the player, resets clock flags (last_dx, last_dy, push_pending, move_attempted) so subsequent ticks don't re-fire.",
+      "_comment": "=== REACT — commit_move. Emits player_moved signal so game rules can react (e.g., increment move counter).",
       "id": "commit_move",
       "trigger": {"type": "contact"},
       "query": {
@@ -164,26 +153,12 @@
            "a.state.position.x + b.state.last_dx",
            "a.state.position.y + b.state.last_dy"
          ]},
-        {"type": "state_add", "target": "b", "field": "moves", "amount": 1},
         {"type": "state_set", "target": "b", "field": "last_dx", "value": 0},
         {"type": "state_set", "target": "b", "field": "last_dy", "value": 0},
         {"type": "state_set", "target": "b", "field": "push_pending", "value": 0},
-        {"type": "state_set", "target": "b", "field": "move_attempted", "value": 0}
-      ]
-    },
-
-    {
-      "_comment": "=== WIN CHECK — when a box overlaps a goal, fire transition_level. once_per_a keeps it firing once per tick max. After transition past the last level, engine sets world.all_levels_complete=1 → HUD wins.",
-      "id": "win_box_on_goal",
-      "trigger": {"type": "contact"},
-      "query": {
-        "a": {"tags_all": ["box"]},
-        "b": {"tags_all": ["goal"]},
-        "radius": 12,
-        "once_per_a": true
-      },
-      "effect": [
-        {"type": "transition_level", "target": "next"}
+        {"type": "state_set", "target": "b", "field": "move_attempted", "value": 0},
+        {"_comment": "Emit semantic event — game/rules.json's track_moves rule subscribes.",
+         "type": "emit", "signal": "player_moved"}
       ]
     }
   ]
