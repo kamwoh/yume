@@ -75,7 +75,21 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 static func _state_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var ent: Entity = _target(e, env, ctx)
 	if ent == null: return
-	ent.set_state(str(e.get("field", "")), _value(e.get("value"), ctx, env))
+	var field := str(e.get("field", ""))
+	var value = _value(e.get("value"), ctx, env)
+	# 2026-05-04 consistency fix: position/velocity field-sets route through
+	# Entity's normalizing setters so Array values [x, y] → Vector2 (or
+	# [x, y, z] → Vector3). Without this, state_set field="position" with
+	# an Array stores raw Array — renderer handles it via get_planar_position
+	# but formulas reading self.state.position.x return 0 (Formula doesn't
+	# drill into Arrays). Normalizing keeps state.position as Vector2/Vector3
+	# regardless of how it was set.
+	if field == "position":
+		ent.set_position(value)
+	elif field == "velocity":
+		ent.set_velocity(value)
+	else:
+		ent.set_state(field, value)
 
 static func _state_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var ent: Entity = _target(e, env, ctx)
@@ -440,9 +454,22 @@ static func _resolve_id(v, ctx: Dictionary) -> String:
 ## W4: formulas evaluated via Formula.evaluate. Context for formulas exposes
 ## entity refs as objects (so `self.state.hp` works) — built lazily here from
 ## the rule's bare-id context.
+##
+## 2026-05-04 consistency fix: Arrays now recurse, evaluating each element.
+## Previously Arrays were returned as-is, meaning formula strings inside
+## Arrays did NOT evaluate (only `spawn`'s `_position` helper handled this).
+## The recursion makes behavior consistent across all effect types: any
+## Array-valued effect param (e.g. state_set's `value`, emit's payload
+## fields, spawn's `position`) evaluates per-element. Vector2/Vector3 still
+## return as-is (they're concrete numeric types, not formula containers).
 static func _value(v, ctx: Dictionary, env: Dictionary = {}):
 	if v is float or v is int or v is bool: return v
-	if v is Array or v is Vector2 or v is Vector3: return v
+	if v is Vector2 or v is Vector3: return v
+	if v is Array:
+		var out: Array = []
+		for item in (v as Array):
+			out.append(_value(item, ctx, env))
+		return out
 	if v is String:
 		var s := str(v)
 		# Bare context binding (e.g. "actor" → context["actor"])

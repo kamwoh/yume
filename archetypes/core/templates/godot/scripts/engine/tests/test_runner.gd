@@ -370,6 +370,39 @@ func test_effect_apply() -> void:
 			transformed = e; break
 	expect(transformed != null, "transform spawned new instance with preserved state")
 
+	# 2026-05-04 consistency fix: _value() recurses into Arrays + state_set
+	# normalizes position/velocity through Entity.set_position/set_velocity.
+	# Verify both behaviors so future regressions (e.g. someone reverting the
+	# Array-recursion to fix some other bug) get caught.
+	var ar := Entity.create({"id": "ar", "tags": ["x"], "state_init": {}}, "ar_1")
+	env.entities["ar_1"] = ar
+	# Array of formula strings → each element evaluates
+	EffectApply.apply({
+		"type": "state_set", "target": "ar_1", "field": "position",
+		"value": ["10 + 5", "20 * 2"]
+	}, env, {"self": "ar_1"})
+	var pos = ar.get_position()
+	expect(pos is Vector2, "state_set position with Array → Vector2 (got %s)" % typeof(pos))
+	expect_eq((pos as Vector2).x, 15.0, "Array element 0 formula evaluated")
+	expect_eq((pos as Vector2).y, 40.0, "Array element 1 formula evaluated")
+	# Formula reading position.x after Array-set should still work (regression
+	# guard: without normalization, formulas would return 0)
+	EffectApply.apply({
+		"type": "state_set", "target": "ar_1", "field": "marker",
+		"value": "self.state.position.x"
+	}, env, {"self": "ar_1"})
+	expect_eq(ar.get_state("marker"), 15.0, "formula reads .x after Array-set position")
+	# Concrete numeric Array still works (unchanged behavior — no formulas inside)
+	EffectApply.apply({
+		"type": "state_set", "target": "ar_1", "field": "position",
+		"value": [3, 7]
+	}, env, {"self": "ar_1"})
+	var p2 = ar.get_position()
+	expect(p2 is Vector2, "concrete numeric Array still becomes Vector2")
+	expect_eq((p2 as Vector2).x, 3.0, "concrete x preserved")
+	ar.queue_free()
+	env.entities.erase("ar_1")
+
 	for e in env.entities.values(): (e as Entity).queue_free()
 
 

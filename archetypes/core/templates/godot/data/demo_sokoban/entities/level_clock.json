@@ -7,12 +7,12 @@
       "properties": {},
       "state_init": {
         "moves": 0,
+        "move_attempted": 0,
         "move_blocked": 0,
         "push_pending": 0,
         "push_blocked": 0,
         "last_dx": 0,
         "last_dy": 0,
-        "push_box_id": "",
         "level_won": 0
       },
       "visual": {
