@@ -24,6 +24,18 @@
       "visual": {
         "mesh": "wall_panel_ew"
       }
+    },
+    {
+      "id": "wall_divider",
+      "tags": ["wall", "divider", "structure", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [8, 1.5, 0.25],
+        "aabb_offset": [0, 1.5, 0]
+      },
+      "state_init": {},
+      "visual": {
+        "mesh": "wall_panel_short_ns"
+      }
     }
   ]
 }

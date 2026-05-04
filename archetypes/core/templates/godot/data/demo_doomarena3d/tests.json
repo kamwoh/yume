@@ -83,33 +83,33 @@
 
     {
       "name": "five_imps_all_home",
-      "_": "5 imps from different angles. Spawn rules disabled. After 50 ticks (2.5s), each imp should have moved at least 5m closer to origin (started 10m away, speed 3.5 m/s → 8.75m closer in 2.5s, but we test less).",
+      "_": "5 imps from different angles. Spawn rules disabled. v2 map: divider at z=0 spans X∈[-22,-6] and X∈[6,22], so imp spawn Z must avoid the divider band. Placed in forward zone (z=-5) and back zone (z=+12) where there's free space. After 50 ticks (2.5s), each imp should have moved closer to origin.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]},
           "clock_1": {"spawn_timer": 99999.0, "pickup_timer": 99999.0}
         },
         "spawn": [
-          {"def": "monster_imp", "id": "imp_a", "position": [10, 0, 0]},
-          {"def": "monster_imp", "id": "imp_b", "position": [-10, 0, 0]},
-          {"def": "monster_imp", "id": "imp_c", "position": [0, 0, 10]},
+          {"def": "monster_imp", "id": "imp_a", "position": [10, 0, -5]},
+          {"def": "monster_imp", "id": "imp_b", "position": [-10, 0, -5]},
+          {"def": "monster_imp", "id": "imp_c", "position": [0, 0, 12]},
           {"def": "monster_imp", "id": "imp_d", "position": [0, 0, -10]},
-          {"def": "monster_imp", "id": "imp_e", "position": [7, 0, 7]}
+          {"def": "monster_imp", "id": "imp_e", "position": [3, 0, -16]}
         ]
       },
       "actions": [],
       "ticks": 50,
       "assertions": [
         {"type": "entity_field", "select": "by_id", "id": "imp_a",
-         "field": "state.position.x", "op": "<", "value": 8},
+         "field": "state.position.x", "op": "<", "value": 9},
         {"type": "entity_field", "select": "by_id", "id": "imp_b",
-         "field": "state.position.x", "op": ">", "value": -8},
+         "field": "state.position.x", "op": ">", "value": -9},
         {"type": "entity_field", "select": "by_id", "id": "imp_c",
-         "field": "state.position.z", "op": "<", "value": 8},
+         "field": "state.position.z", "op": "<", "value": 11},
         {"type": "entity_field", "select": "by_id", "id": "imp_d",
          "field": "state.position.z", "op": ">", "value": -8},
         {"type": "entity_field", "select": "by_id", "id": "imp_e",
-         "field": "state.position.x", "op": "<", "value": 6}
+         "field": "state.position.x", "op": "<", "value": 2.5}
       ]
     },
 
@@ -160,13 +160,13 @@
 
     {
       "name": "monster_reaches_and_kills_player",
-      "_": "Run long enough for an imp to walk from x=8 to player at origin (8m / 3.5 m/s = ~2.3s = 46 ticks). After 80 ticks (4s), imp should have hit player → imp removed (monster_hits_player), player HP -10.",
+      "_": "Run long enough for an imp to walk to player. v2 map: imp at (4, 0, -8) — forward zone, no divider conflict. ~9m at 3.5 m/s = ~2.6s = ~52 ticks. After 80 ticks (4s), imp should have hit player → imp removed, player HP -10.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
         },
         "spawn": [
-          {"def": "monster_imp", "id": "test_imp", "position": [8, 0, 0]}
+          {"def": "monster_imp", "id": "test_imp", "position": [4, 0, -8]}
         ]
       },
       "actions": [],
@@ -182,13 +182,13 @@
 
     {
       "name": "monster_homes_toward_player",
-      "_": "User playtest: 'the bot didn't come to me?' Spawn imp at x=10, player at origin. After 10 ticks (0.5s) imp should move toward player (lower x). Imp speed=3.5 m/s × 0.5s = 1.75 m closer, so x should drop from 10 to ~8.25. Permissive bound x < 9.5.",
+      "_": "v2 map: spawn imp at (10, 0, -5) — forward zone, no divider conflict. After 10 ticks (0.5s) imp should move toward player (lower x). Imp speed=3.5 m/s × 0.5s = 1.75m closer, so x should drop from 10 toward ~8. Permissive bound x < 9.5.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
         },
         "spawn": [
-          {"def": "monster_imp", "id": "test_imp", "position": [10, 0, 0]}
+          {"def": "monster_imp", "id": "test_imp", "position": [10, 0, -5]}
         ]
       },
       "actions": [],

@@ -455,12 +455,9 @@
         "once_per_a": true
       },
       "effect": [
-        {"type": "spawn", "template": "monster_boss",
-         "position": [
-           "cos(randf() * 6.28318) * 16",
-           0,
-           "sin(randf() * 6.28318) * 16"
-         ]},
+        {"_comment": "v2 ceremonial: boss spawns at fixed back-center (0, 0, 16), framed by pillar_BL/BR + machinery_BL/BR. Player must turn around to face it.",
+         "type": "spawn", "template": "monster_boss",
+         "position": [0, 0, 16]},
         {"type": "state_set", "target": "a", "field": "boss_spawned", "value": 1},
         {"type": "emit_shell_event", "event": "play_sound", "name": "boss_roar"},
         {"type": "emit_shell_event", "event": "shake", "intensity": 0.15, "duration": 20},

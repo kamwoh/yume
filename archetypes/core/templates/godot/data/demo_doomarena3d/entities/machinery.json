@@ -1,0 +1,18 @@
+{
+  "_comment": "Industrial machinery — ore-processing crates / containment-rig fragments per Containment Chamber theme. 1.5m cubes with rust + warning-band visual. blocks_motion AABB so they're solid cover (visually + projectile-blocking). 4 instances per level-design.md (2 forward zone + 2 back zone).",
+  "definitions": [
+    {
+      "id": "machinery",
+      "tags": ["machinery", "structure", "decoration", "cover", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [0.75, 0.75, 0.75],
+        "aabb_offset": [0, 0.75, 0]
+      },
+      "state_init": {},
+      "visual": {
+        "mesh": "machinery_crate",
+        "params": {"body": "#5a3018", "band": "#cc7000", "pipe": "#1a1a1a"}
+      }
+    }
+  ]
+}

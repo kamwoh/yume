@@ -1,10 +1,9 @@
 {
-  "_comment": "Initial placements per level-design.md (2026-05-03). Player at center, clock invisible at origin, 4 perimeter walls at ±22m, 4 asymmetric cover pillars, 1 floor plate. All other entities (monsters, pickups, bullets, sparks, boss) spawn dynamically via rules.",
+  "_comment": "Initial placements per level-design.md v2 (2026-05-04). Two-zone closed arena with chamber divider. Player + clock at center. 4 perimeter walls + 2 divider segments. 8 pillars (4 forward zone, 4 back zone). 4 machinery crates (2 per zone). 1 floor plate. All other entities (monsters, pickups, bullets, sparks, boss) spawn dynamically via rules.",
 
   "initial_instances": [
     {"def": "arena_clock", "id": "clock_1", "position": [0, 0, 0]},
     {"def": "player",      "id": "player",  "position": [0, 0, 0]},
-
     {"def": "floor",       "id": "floor_1", "position": [0, 0, 0]},
 
     {"def": "wall_ns",     "id": "wall_north", "position": [0, 0,  22]},
@@ -12,10 +11,22 @@
     {"def": "wall_ew",     "id": "wall_east",  "position": [ 22, 0, 0]},
     {"def": "wall_ew",     "id": "wall_west",  "position": [-22, 0, 0]},
 
-    {"def": "pillar",      "id": "pillar_a",   "position": [ 5, 0,  -3]},
-    {"def": "pillar",      "id": "pillar_b",   "position": [-7, 0,   4]},
-    {"def": "pillar",      "id": "pillar_c",   "position": [10, 0,   9]},
-    {"def": "pillar",      "id": "pillar_d",   "position": [-3, 0, -10]}
+    {"def": "wall_divider","id": "divider_west", "position": [-14, 0, 0]},
+    {"def": "wall_divider","id": "divider_east", "position": [ 14, 0, 0]},
+
+    {"def": "pillar",      "id": "pillar_FL1", "position": [-9, 0,  -6]},
+    {"def": "pillar",      "id": "pillar_FL2", "position": [-6, 0, -15]},
+    {"def": "pillar",      "id": "pillar_FR1", "position": [11, 0,  -8]},
+    {"def": "pillar",      "id": "pillar_FR2", "position": [ 8, 0, -16]},
+    {"def": "pillar",      "id": "pillar_BC1", "position": [-13, 0, 4]},
+    {"def": "pillar",      "id": "pillar_BC2", "position": [ 11, 0, 6]},
+    {"def": "pillar",      "id": "pillar_BL",  "position": [ -6, 0, 13]},
+    {"def": "pillar",      "id": "pillar_BR",  "position": [  8, 0, 15]},
+
+    {"def": "machinery",   "id": "machinery_FL", "position": [-15, 0, -10]},
+    {"def": "machinery",   "id": "machinery_FR", "position": [ 15, 0, -12]},
+    {"def": "machinery",   "id": "machinery_BL", "position": [-15, 0,  10]},
+    {"def": "machinery",   "id": "machinery_BR", "position": [ 13, 0,  12]}
   ],
 
   "initial_relations": []
