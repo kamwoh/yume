@@ -1,0 +1,15 @@
+{
+  "_comment": "Parchment-cream floor under the play area. Visual-only (no blocks_motion); just sits under everything else for the warm-archive aesthetic. Per visual-review.md round 1 (2026-05-04).",
+  "definitions": [
+    {
+      "id": "floor_tile",
+      "tags": ["floor", "decoration"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "shape": "tile_32",
+        "params": {"color": "#e8d8b0"}
+      }
+    }
+  ]
+}

@@ -5,9 +5,9 @@
     {
       "anchor": "top-left",
       "elements": [
-        {"type": "label", "binds": "world.current_level", "format": "📚 Level: {}", "size": 22},
+        {"type": "label", "binds": "world.current_level", "format": "📚 Level {}", "size": 22, "color": "#f0e0c0"},
         {"type": "spacer", "height": 4},
-        {"type": "label", "binds": "level_clock.moves", "format": "moves: {}", "size": 16}
+        {"type": "label", "binds": "level_clock.moves", "format": "moves: {}", "size": 16, "color": "#d8c8a0"}
       ]
     }
   ],

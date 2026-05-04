@@ -10,7 +10,7 @@
       },
       "visual": {
         "shape": "filled_circle",
-        "params": {"radius": 8, "color": "#c0a040"}
+        "params": {"radius": 10, "color": "#dab048"}
       }
     }
   ]

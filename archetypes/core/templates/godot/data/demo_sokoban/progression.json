@@ -1,8 +1,8 @@
 {
   "_comment": "Sokoban 8-level progression (ADR 0006). v0.1 ships level_1 only as proof; levels 2-8 added once cell-grid signal-based movement workaround is empirically validated.",
 
-  "levels": ["level_1"],
-  "starting_level": "level_1",
+  "levels": ["1"],
+  "starting_level": "1",
 
   "on_all_complete": {
     "win_message": "🌟 ALL LEVELS CLEARED 🌟"
