@@ -1,0 +1,43 @@
+{
+  "_comment": "GLOBAL rules — apply across all levels. Movement (WASD) and goal-touch transition. Per-level rules (if any) live in levels/<name>/world_rules.json and append to these at level load.",
+
+  "rules": [
+    {
+      "_comment": "=== MOVEMENT — velocity_add_relative for diagonal-friendly walk; drag decelerates between inputs. Top-down 2D so facing is fixed at 0; WASD maps to world axes via velocity_add_relative's forward/strafe with facing=0 → forward=-Z, strafe-left=+X.",
+      "id": "move_north",
+      "trigger": {"type": "input", "action": "move_north"},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 4.0, "strafe": 0}
+    },
+    {
+      "id": "move_south",
+      "trigger": {"type": "input", "action": "move_south"},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": -4.0, "strafe": 0}
+    },
+    {
+      "id": "strafe_left",
+      "trigger": {"type": "input", "action": "move_west"},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": 4.0}
+    },
+    {
+      "id": "strafe_right",
+      "trigger": {"type": "input", "action": "move_east"},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -4.0}
+    },
+
+    {
+      "_comment": "=== GOAL TRIGGER — when player contacts the level's goal entity, fire transition_level. once_per_a prevents double-firing on the same tick. Player.cleared increments for HUD feedback.",
+      "id": "goal_reached",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["player"]},
+        "b": {"tags_all": ["goal"]},
+        "radius": 1.0,
+        "once_per_a": true
+      },
+      "effect": [
+        {"type": "state_add", "target": "a", "field": "cleared", "amount": 1},
+        {"type": "transition_level", "target": "next"}
+      ]
+    }
+  ]
+}

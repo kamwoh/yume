@@ -1,0 +1,13 @@
+{
+  "_comment": "Level 1 — Onboarding chamber. Open layout, goal directly north of start. Player walks straight up. ~5 seconds.",
+
+  "initial_instances": [
+    {"def": "level_goal", "id": "goal_l1", "position": [0, 0, 8]},
+
+    {"def": "wall_block", "id": "wall_l1_n_w", "position": [-6, 0, 10]},
+    {"def": "wall_block", "id": "wall_l1_n_e", "position": [ 6, 0, 10]},
+    {"def": "wall_block", "id": "wall_l1_e",   "position": [ 8, 0, 0]},
+    {"def": "wall_block", "id": "wall_l1_w",   "position": [-8, 0, 0]},
+    {"def": "wall_block", "id": "wall_l1_s",   "position": [ 0, 0, -6]}
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "_comment": "Initial world state. current_level + all_levels_complete are managed by the engine via progression.json + transition_level effect, but we declare initial values here in case rules read them before first transition.",
+  "state": {
+    "current_level": "level_1",
+    "all_levels_complete": 0
+  }
+}

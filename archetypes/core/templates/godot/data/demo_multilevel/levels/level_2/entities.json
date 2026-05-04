@@ -1,0 +1,17 @@
+{
+  "_comment": "Level 2 — Detour chamber. A wall blocks the direct north path; player must go around via east or west passage. Goal still up north but requires lateral movement. ~10 seconds.",
+
+  "initial_instances": [
+    {"def": "level_goal", "id": "goal_l2", "position": [0, 0, 10]},
+
+    {"def": "wall_block", "id": "wall_l2_block_n", "position": [0, 0, 4]},
+    {"def": "wall_block", "id": "wall_l2_block_ne", "position": [3, 0, 6]},
+    {"def": "wall_block", "id": "wall_l2_block_nw", "position": [-3, 0, 6]},
+
+    {"def": "wall_block", "id": "wall_l2_e",  "position": [10, 0,  4]},
+    {"def": "wall_block", "id": "wall_l2_w",  "position": [-10, 0, 4]},
+    {"def": "wall_block", "id": "wall_l2_ne", "position": [10, 0, 12]},
+    {"def": "wall_block", "id": "wall_l2_nw", "position": [-10, 0, 12]},
+    {"def": "wall_block", "id": "wall_l2_s",  "position": [0, 0, -8]}
+  ]
+}

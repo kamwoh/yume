@@ -56,13 +56,14 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"velocity_set_relative": _velocity_set_relative(effect, env, context)
 		"velocity_add_relative": _velocity_add_relative(effect, env, context)
 		"raycast_hit":       _raycast_hit(effect, env, context)
+		"transition_level":  _transition_level(effect, env, context)
 		"emit":              _emit(effect, env, context)
 		"emit_shell_event":  _emit_shell_event(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, emit, emit_shell_event.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event.",
 				"warning")
 	return {}
 
@@ -675,3 +676,13 @@ static func _to_vec3_v(v) -> Vector3:
 	if v is float or v is int:
 		return Vector3(float(v), float(v), float(v))
 	return Vector3.ZERO
+
+
+## ADR 0006: defer level transition. Sets env._pending_level_transition to
+## target name; world.gd processes this between ticks (after the current
+## rule's effect chain finishes) so we don't mutate entities mid-rule.
+## target = "next" → engine looks up the next level in progression.levels.
+static func _transition_level(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var target := str(_value(e.get("target", "next"), ctx, env))
+	if target == "": return
+	env["_pending_level_transition"] = target

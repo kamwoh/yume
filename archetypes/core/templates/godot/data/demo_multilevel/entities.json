@@ -1,0 +1,52 @@
+{
+  "_comment": "Persistent player + level-scoped entity DEFINITIONS at root (defs are global; instances live in per-level zz_instances.json under levels/<name>/). The 'persistent' tag on player makes it survive level transitions per ADR 0006.",
+
+  "definitions": [
+    {
+      "id": "player",
+      "tags": ["player", "creature", "actor", "persistent"],
+      "properties": {
+        "drag": 8.0,
+        "body_radius": 0.4
+      },
+      "state_init": {
+        "hp": 100.0,
+        "facing": 0.0,
+        "drag": 8.0,
+        "cleared": 0,
+        "velocity": [0, 0, 0]
+      },
+      "visual": {
+        "mesh": "person",
+        "params": {"shirt": "#3aa8e8", "skin": "#e0b094"}
+      }
+    },
+    {
+      "id": "wall_block",
+      "tags": ["wall", "structure", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [1, 1.5, 1],
+        "aabb_offset": [0, 1.5, 0]
+      },
+      "state_init": {},
+      "visual": {
+        "mesh": "wall_block_2m",
+        "params": {"body": "#3a3a40", "stripe": "#cc7000"}
+      }
+    },
+    {
+      "id": "level_goal",
+      "tags": ["goal", "trigger"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "mesh": "goal_pad",
+        "params": {"glow": "#3adb40"}
+      }
+    }
+  ],
+
+  "initial_instances": [
+    {"def": "player", "id": "player", "position": [0, 0, 0]}
+  ]
+}

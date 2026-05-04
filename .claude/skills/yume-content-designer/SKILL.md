@@ -253,6 +253,78 @@ first, then `initial_instances`. Use this division:
 - `patterns` — repeating decoration, symmetric layouts, high
   counts, anything where typing each position is busywork
 
+## Multi-level games (ADR 0006)
+
+If the GDD describes a sequence of levels (sokoban with 8 puzzles,
+TD with multiple maps, RPG town→dungeon, roguelike floors), use the
+`levels/` directory pattern instead of a single root entities.json:
+
+```
+data/<game>/
+├── scene.json               # global (camera, ground, level_seed)
+├── hud.json
+├── inputs.json
+├── progression.json         # NEW — level order + start
+├── world.json               # initial world state (state block)
+├── entities.json            # PERSISTENT entity defs + initial_instances
+├── world_rules.json         # GLOBAL rules (cross-level — movement, etc.)
+└── levels/
+    ├── level_1/
+    │   ├── entities.json    # level-scoped: only `initial_instances`
+    │   │                     #              (defs come from root)
+    │   └── world_rules.json # OPTIONAL: per-level rules (appended to globals)
+    ├── level_2/
+    └── ...
+```
+
+**`progression.json`**:
+```jsonc
+{
+  "levels": ["level_1", "level_2", ..., "level_N"],
+  "starting_level": "level_1",
+  "on_all_complete": {"win_message": "🌟 ALL CHAMBERS CLEARED 🌟"}
+}
+```
+
+**Persistent vs level-scoped entities**:
+- Entities tagged `persistent` SURVIVE level transitions. Player +
+  global score/inventory/HP are persistent.
+- Everything else (walls, boxes, goals, enemies, pickups) is
+  level-scoped — wiped when transitioning, reloaded from the new
+  level's entities.json.
+
+**Triggering a transition** (rule effect):
+```jsonc
+{"type": "transition_level", "target": "next"}      // shorthand
+{"type": "transition_level", "target": "level_5"}   // explicit
+```
+
+`"next"` is resolved against `progression.levels`; if past the last
+level, sets `world.all_levels_complete = 1` (HUD's `win` block can
+bind to this for the game-cleared screen).
+
+**Win condition for a level** (typical pattern — contact rule):
+```jsonc
+{
+  "id": "goal_reached",
+  "trigger": {"type": "contact"},
+  "query": {
+    "a": {"tags_all": ["player"]},
+    "b": {"tags_all": ["goal"]},
+    "radius": 1.0,
+    "once_per_a": true
+  },
+  "effect": [
+    {"type": "state_add", "target": "a", "field": "cleared", "amount": 1},
+    {"type": "transition_level", "target": "next"}
+  ]
+}
+```
+
+**Example demo**: `data/demo_multilevel/` ships a 3-chamber
+navigation game using this pattern. Read it as the reference for
+small multi-level games.
+
 ## Schema validation
 
 Before declaring done, run mental schema validation:

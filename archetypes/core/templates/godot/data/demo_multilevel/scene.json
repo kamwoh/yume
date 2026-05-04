@@ -1,0 +1,19 @@
+{
+  "_comment": "Multi-level progression demo (ADR 0006). 3 chambers connected by goal triggers. Player persists across transitions; per-level walls + goal reset on each level load. Top-down 2D for clarity. Validates engine's level-loading + persistent tag + transition_level effect end-to-end.",
+
+  "tick_seconds": 0.05,
+  "renderer": {"position_scale": 1.0},
+
+  "ground": {
+    "y": 0,
+    "clamp_tags": ["creature"],
+    "despawn_tags": ["projectile"]
+  },
+
+  "camera": {
+    "mode": "top_down_3d",
+    "follow_tag": "player",
+    "height": 18,
+    "fov": 70
+  }
+}

@@ -292,6 +292,23 @@
         {"op": "sphere",   "pos": [0, 0, -0.85], "radius": 0.13, "color": "$cap"}
       ],
       "params": {"body": "#3a2a1a", "tube": "#202022", "cap": "#ff5020"}
+    },
+
+    "wall_block_2m": {
+      "primitives": [
+        {"op": "box", "pos": [0, 1.5, 0], "size": [2, 3, 2],   "color": "$body"},
+        {"op": "box", "pos": [0, 0.4, 0], "size": [2.05, 0.2, 2.05], "color": "$stripe"},
+        {"op": "box", "pos": [0, 2.6, 0], "size": [2.05, 0.2, 2.05], "color": "$stripe"}
+      ],
+      "params": {"body": "#3a3a40", "stripe": "#cc7000"}
+    },
+
+    "goal_pad": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.9, "height": 0.1, "color": "$glow"},
+        {"op": "cylinder", "pos": [0, 0.12, 0], "radius": 0.4, "height": 0.05, "color": "#ffffff"}
+      ],
+      "params": {"glow": "#3adb40"}
     }
   }
 }

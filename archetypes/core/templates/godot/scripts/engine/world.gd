@@ -117,18 +117,33 @@ func load_data() -> void:
 	# procedurally-generated layouts reproducible — same seed = same map.
 	# Omit for stochastic per-session randomization.
 	_apply_level_seed_if_set(root)
-	_load_rules_file(root + "/world_rules.json")
-	_load_world_file(root + "/world.json")
-	# Entities can come from a single entities.json OR a per-def entities/
-	# directory (each .json file = one entity blueprint). Both work; if both
-	# exist they merge — directory load is additive on top.
-	_load_entities_path(root)
-	# Flush any effects queued by spawn triggers during initial load
-	# (actual spawn-trigger dispatch lands in W2; flush is a no-op for W1).
+	# ADR 0006: multi-level support. If progression.json exists, load it and
+	# the starting level under levels/<name>/. Persistent entities (tagged
+	# 'persistent') come from the root's entities.json. Otherwise (single-
+	# level games), behave exactly as before.
+	var prog_path := root + "/progression.json"
+	if FileAccess.file_exists(prog_path):
+		_load_progression(prog_path)
+		# Global rules (cross-level) come from root/world_rules.json. Per-level
+		# rules are appended in _load_level().
+		_load_rules_file(root + "/world_rules.json")
+		_load_world_file(root + "/world.json")
+		# Persistent entities live in root/entities.json or root/entities/.
+		# Per ADR 0006: tag them "persistent" to survive level transitions.
+		_load_entities_path(root)
+		# Then load the starting level's content under levels/<name>/.
+		if current_level != "":
+			_load_level(current_level)
+	else:
+		# Single-level (backwards-compatible)
+		_load_rules_file(root + "/world_rules.json")
+		_load_world_file(root + "/world.json")
+		_load_entities_path(root)
 	scheduler.flush_effects()
 	if verbose:
-		print("[World] loaded: %d defs, %d entities, %d relations" % [
-			defs.size(), entities.size(), relations.count_total()
+		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
+		print("[World] loaded: %d defs, %d entities, %d relations%s" % [
+			defs.size(), entities.size(), relations.count_total(), lvl_str
 		])
 
 
@@ -213,15 +228,20 @@ func _read_entities_json(path: String, env: Dictionary) -> Dictionary:
 	return data as Dictionary
 
 
-func _load_rules_file(path: String) -> void:
+func _load_rules_file(path: String, append: bool = false) -> void:
+	if not FileAccess.file_exists(path):
+		return
 	var env := _build_env()
 	var rules := Rule.load_from_file(path, env)
 	var errors := Rule.validate_all(rules)
 	for record in errors:
 		EngineError.report(env, record)
-	scheduler.register_rules(rules)
+	if append and scheduler.has_method("append_rules"):
+		scheduler.append_rules(rules)
+	else:
+		scheduler.register_rules(rules)
 	if verbose:
-		print("[World] %d rules registered" % rules.size())
+		print("[World] %d rules %s" % [rules.size(), "appended" if append else "registered"])
 
 
 func _load_world_file(path: String) -> void:
@@ -229,7 +249,11 @@ func _load_world_file(path: String) -> void:
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if data is Dictionary:
-		world_state = (data.get("state", {}) as Dictionary).duplicate(true)
+		# Merge `state` block into world_state (preserves any pre-set keys
+		# like current_level from progression.json).
+		var s: Dictionary = data.get("state", {}) as Dictionary
+		for k in s.keys():
+			world_state[str(k)] = s[k]
 
 
 func _spawn_initial(inst: Dictionary) -> void:
@@ -326,8 +350,22 @@ func _start_clock() -> void:
 func _on_tick(count: int) -> void:
 	scheduler.tick()
 	_decrement_lifetimes()
+	process_pending_level_transition()
 	if verbose and count % 4 == 0:
 		_print_tick_summary(count)
+
+
+## ADR 0006: process queued level transitions AFTER the tick's effect chain
+## has fully drained. Effect handlers set env._pending_level_transition;
+## we read + clear it here so entity teardown happens between ticks, not
+## mid-rule. Called from _on_tick AND from scenario_runner (which doesn't
+## go through _on_tick).
+func process_pending_level_transition() -> void:
+	var env: Dictionary = scheduler.env
+	var pending = env.get("_pending_level_transition", "")
+	if str(pending) != "":
+		env["_pending_level_transition"] = ""
+		_do_level_transition(str(pending))
 
 
 ## Tier 2.6j: entities with state.lifetime > 0 auto-decrement each tick;
@@ -572,6 +610,93 @@ func _load_ground_cfg() -> void:
 		_ground_y = float(g["y"])
 	_ground_clamp_tags = g.get("clamp_tags", ["creature"])
 	_ground_despawn_tags = g.get("despawn_tags", ["projectile"])
+
+
+# ============================================================
+# MULTI-LEVEL (ADR 0006)
+# ============================================================
+## Active level + progression. current_level == "" for single-level games.
+var current_level: String = ""
+var level_order: Array = []
+var levels_root: String = ""
+var on_all_complete_msg: String = ""
+
+
+func _load_progression(path: String) -> void:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return
+	var json := JSON.new()
+	if json.parse(f.get_as_text()) != OK: return
+	if not (json.data is Dictionary): return
+	var p: Dictionary = json.data
+	level_order = p.get("levels", [])
+	current_level = str(p.get("starting_level", level_order[0] if level_order.size() > 0 else ""))
+	levels_root = data_root.rstrip("/") + "/levels"
+	var oac = p.get("on_all_complete", null)
+	if oac is Dictionary:
+		on_all_complete_msg = str((oac as Dictionary).get("win_message", ""))
+	# Mirror current_level into world state for formula access.
+	world_state["current_level"] = current_level
+
+
+## Load the level subfolder at levels/<name>/. Reads world_rules.json (if
+## present, appended to global rules) and entities.json + entities/
+## directory (if present).
+func _load_level(name: String) -> void:
+	if levels_root == "" or name == "": return
+	var lvl_dir := levels_root + "/" + name
+	# Per-level rules append to existing scheduler (don't clobber globals).
+	_load_rules_file(lvl_dir + "/world_rules.json", true)
+	_load_entities_path(lvl_dir)
+
+
+## Process a queued level transition (set by transition_level effect).
+## Removes non-persistent entities, clears scheduler rules, reloads next
+## level's content. Player + persistent state survive.
+func _do_level_transition(target: String) -> void:
+	# Resolve "next" shorthand against progression order.
+	if target == "next":
+		var idx: int = level_order.find(current_level)
+		if idx >= 0 and idx + 1 < level_order.size():
+			target = str(level_order[idx + 1])
+		else:
+			# Past the last level — game won. Set a world-state flag so
+			# HUD's win condition can trigger (binds to clock/world).
+			world_state["all_levels_complete"] = 1
+			if verbose:
+				print("[World] all levels complete: ", on_all_complete_msg)
+			return
+	if not level_order.has(target):
+		push_warning("[World] transition_level target '%s' not in progression.levels" % target)
+		return
+	# Remove non-persistent entities.
+	var to_remove: Array[String] = []
+	for id in entities.keys():
+		var ent = entities[id]
+		if ent is Entity and not (ent as Entity).has_tag("persistent"):
+			to_remove.append(str(id))
+	for rid in to_remove:
+		var rent: Entity = entities.get(rid, null)
+		if rent == null: continue
+		if relations != null:
+			relations.clear_entity(rid)
+		if spatial_index != null and spatial_index.has_method("remove_entity"):
+			spatial_index.remove_entity(rid)
+		entities.erase(rid)
+		rent.queue_free()
+	# Clear scheduler rules and reload globals (persistent across levels)
+	# from root/world_rules.json; per-level rules get appended in _load_level.
+	if scheduler != null and scheduler.has_method("clear_rules"):
+		scheduler.clear_rules()
+	var root := data_root.rstrip("/")
+	_load_rules_file(root + "/world_rules.json")
+	# Load new level
+	current_level = target
+	world_state["current_level"] = target
+	_load_level(target)
+	scheduler.flush_effects()
+	if verbose:
+		print("[World] transitioned to level: ", target)
 
 
 func _apply_level_seed_if_set(root: String) -> void:

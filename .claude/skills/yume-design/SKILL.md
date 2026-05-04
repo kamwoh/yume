@@ -54,6 +54,41 @@ shot, surfacing only on hard failure or at the final wrap. Default
 3. State the plan: paths, phases, autonomous-or-interactive mode.
 4. Interactive mode: wait for explicit go-ahead. Autonomous: proceed.
 
+### Phase 0a — Multi-level detection
+
+Read the GDD's "Level progression" or "Levels" section if present.
+If the prose describes ≥2 levels (sokoban with N puzzles, TD with
+multi-map campaign, RPG town→dungeon, roguelike floors), this is a
+**multi-level game** and the file layout uses the `levels/` directory
+pattern (ADR 0006):
+
+```
+data/<name>/
+├── scene.json, hud.json, inputs.json, world.json   # global
+├── progression.json                                 # level order
+├── entities.json + world_rules.json                 # PERSISTENT defs +
+│                                                     #  GLOBAL rules
+└── levels/
+    ├── level_1/entities.json    # level-scoped instances
+    ├── level_1/world_rules.json # OPTIONAL per-level rules
+    ├── level_2/...
+    └── ...
+```
+
+State the multi-level decision to the user (interactive) or proceed
+(autonomous):
+
+```
+LEVELS DETECTED: 8 (sokoban-style puzzles)
+- Pattern: levels/ directory + progression.json
+- Persistent entities: player (carries cleared/score across levels)
+- Per-level: walls, boxes, goals (cleared on transition)
+- Transition rule: contact(player, goal) → transition_level "next"
+```
+
+Single-level games (most arena shooters, single-zone sims) use the
+existing flat layout — no progression.json, no levels/ directory.
+
 ### Phase 0b — Layout planning (cross-cutting decision)
 
 Before invoking any specialist skill, decide the file layout. All

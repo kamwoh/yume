@@ -130,6 +130,9 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 		world.scheduler.tick()
 		if world.has_method("_decrement_lifetimes"):
 			world._decrement_lifetimes()
+		# ADR 0006: process any queued level transitions between ticks.
+		if world.has_method("process_pending_level_transition"):
+			world.process_pending_level_transition()
 		# Motion integration normally runs in World._process(delta) at
 		# frame rate. Headless scenario testing runs ticks discretely, so
 		# we simulate motion using tick_seconds as the delta.
@@ -217,8 +220,33 @@ func _check_assertion(world: World, a, scenario_name: String) -> void:
 			_check_entity_count(world, a, scenario_name)
 		"entity_field":
 			_check_entity_field(world, a, scenario_name)
+		"world_field":
+			_check_world_field(world, a, scenario_name)
 		_:
 			_record_fail(scenario_name, "unknown assertion type '%s'" % atype)
+
+
+## Assert against a top-level world.world_state field (e.g. current_level,
+## all_levels_complete, tick). Useful for ADR 0006 multi-level transitions.
+func _check_world_field(world: World, a: Dictionary, scenario_name: String) -> void:
+	var field := str(a.get("field", ""))
+	var op := str(a.get("op", "=="))
+	var expected = a.get("value", null)
+	var got = world.world_state.get(field, null)
+	# String compare for current_level; numeric compare otherwise.
+	var ok := false
+	if expected is String or got is String:
+		match op:
+			"==": ok = (str(got) == str(expected))
+			"!=": ok = (str(got) != str(expected))
+			_: ok = false
+	else:
+		ok = _cmp(float(got if got != null else 0), op, float(expected))
+	if ok:
+		_record_pass("world_field %s %s %s (got %s)" % [field, op, str(expected), str(got)])
+	else:
+		_record_fail(scenario_name,
+			"world_field %s: expected %s %s, got %s" % [field, op, str(expected), str(got)])
 
 
 func _check_entity_count(world: World, a: Dictionary, scenario_name: String) -> void:

@@ -100,6 +100,24 @@ func register_rules(rules: Array) -> void:
 	_topo_sort_all()
 
 
+## Append rules to the existing bucket map (used by multi-level loads:
+## global rules registered once, level-specific rules added on top).
+func append_rules(rules: Array) -> void:
+	for r in rules:
+		if not (r is Rule): continue
+		var tt := (r as Rule).trigger_type()
+		if not rules_by_trigger.has(tt):
+			rules_by_trigger[tt] = []
+		(rules_by_trigger[tt] as Array).append(r)
+	_topo_sort_all()
+
+
+## Wipe all registered rules. Used by ADR 0006 level transition before
+## reloading per-level rules + global rules.
+func clear_rules() -> void:
+	rules_by_trigger.clear()
+
+
 func _topo_sort_all() -> void:
 	for tt in rules_by_trigger.keys():
 		_topo_sort_bucket(rules_by_trigger[tt])
