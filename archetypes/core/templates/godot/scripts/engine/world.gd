@@ -23,14 +23,17 @@ class_name World
 @export_file("*.gd") var renderer_script: String = "res://scripts/renderer_2d/entity_sprite_2d.gd"
 ## Input actions polled while HELD — fire every frame the key is down.
 ## Suitable for continuous things (movement, charge meters).
-@export var input_actions_hold: PackedStringArray = PackedStringArray([
-	"move_north", "move_south", "move_east", "move_west",
-])
+##
+## Default empty: per-game `inputs.json` declares each action's edge type
+## (hold/press). Engine has no genre opinions about what's hold vs press —
+## those are content decisions. (2026-05-05: dropped baked-in shooter
+## defaults that broke turn-based games like sokoban.)
+@export var input_actions_hold: PackedStringArray = PackedStringArray()
 ## Input actions polled on PRESS edge — fire once per keypress, not every frame.
 ## Suitable for discrete events (spawn bullet, toggle, dialog advance).
-@export var input_actions_press: PackedStringArray = PackedStringArray([
-	"spark", "fire_north", "fire_south", "fire_east", "fire_west",
-])
+##
+## Default empty — see input_actions_hold note.
+@export var input_actions_press: PackedStringArray = PackedStringArray()
 @export var actor_tag: String = "player"
 ## "stop" action queued when no movement keys pressed (lets velocity_set
 ## reset to zero). Empty string disables.

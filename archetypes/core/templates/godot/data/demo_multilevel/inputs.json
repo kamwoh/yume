@@ -1,4 +1,10 @@
 {
-  "_comment": "WASD movement (engine defaults), Z=undo placeholder, R=restart (placeholder).",
-  "actions": []
+  "_comment": "Multilevel demo: WASD walk (HOLD — top-down 2D continuous motion).",
+
+  "actions": [
+    {"name": "move_north", "edge": "hold"},
+    {"name": "move_south", "edge": "hold"},
+    {"name": "move_east",  "edge": "hold"},
+    {"name": "move_west",  "edge": "hold"}
+  ]
 }

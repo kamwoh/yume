@@ -81,8 +81,17 @@ static func _register_one(action_def: Dictionary) -> String:
 	if action_def.has("keys") and action_def["keys"] is Array:
 		for k in action_def["keys"]:
 			keys.append(str(k))
+	# 2026-05-05: keys-optional mode for already-registered InputMap actions.
+	# Lets per-game inputs.json declare edge-classification (hold vs press)
+	# for actions whose keys are already bound in project.godot (e.g.
+	# move_north). Without this, every game that wanted WASD movement would
+	# have to re-declare the keys redundantly. With it, inputs.json just
+	# says `{"name": "move_north", "edge": "hold"}` and the existing
+	# project.godot binding stays.
 	if keys.is_empty():
-		push_warning("[InputRegistrar] action '%s' has no key bindings" % name)
+		if InputMap.has_action(name):
+			return name
+		push_warning("[InputRegistrar] action '%s' has no key bindings AND is not already in InputMap — skipping" % name)
 		return ""
 
 	# Idempotent: clear pre-existing events for this action so re-loading

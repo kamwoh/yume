@@ -1,10 +1,15 @@
 {
-  "_comment": "Game-specific input bindings for doomarena3d. Tier 2.6t: per-game registration. Movement (WASD) is engine-universal so stays in project.godot. SPACE-to-fire + 1/2/3 weapon-switch are game-specific.",
+  "_comment": "DoomArena3D inputs. Movement is continuous (HOLD) — held key = sustained motion. Fire (SPACE) and weapon-switch (1/2/3) are discrete (PRESS-edge). Movement key bindings live in project.godot; this file just classifies the edge type per action.",
 
   "actions": [
-    {"name": "spark", "key": "Space"},
-    {"name": "weapon_1", "key": "1"},
-    {"name": "weapon_2", "key": "2"},
-    {"name": "weapon_3", "key": "3"}
+    {"name": "move_north", "edge": "hold"},
+    {"name": "move_south", "edge": "hold"},
+    {"name": "move_east",  "edge": "hold"},
+    {"name": "move_west",  "edge": "hold"},
+
+    {"name": "spark", "key": "Space", "edge": "press"},
+    {"name": "weapon_1", "key": "1", "edge": "press"},
+    {"name": "weapon_2", "key": "2", "edge": "press"},
+    {"name": "weapon_3", "key": "3", "edge": "press"}
   ]
 }

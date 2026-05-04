@@ -1,10 +1,15 @@
 {
-  "_comment": "Twin-stick shooting bindings. I/J/K/L for 4-direction fire.",
+  "_comment": "Shooter twin-stick: WASD walk (HOLD), I/J/K/L fire (PRESS-edge).",
 
   "actions": [
-    {"name": "fire_north", "key": "I"},
-    {"name": "fire_south", "key": "K"},
-    {"name": "fire_east",  "key": "L"},
-    {"name": "fire_west",  "key": "J"}
+    {"name": "move_north", "edge": "hold"},
+    {"name": "move_south", "edge": "hold"},
+    {"name": "move_east",  "edge": "hold"},
+    {"name": "move_west",  "edge": "hold"},
+
+    {"name": "fire_north", "key": "I", "edge": "press"},
+    {"name": "fire_south", "key": "K", "edge": "press"},
+    {"name": "fire_east",  "key": "L", "edge": "press"},
+    {"name": "fire_west",  "key": "J", "edge": "press"}
   ]
 }

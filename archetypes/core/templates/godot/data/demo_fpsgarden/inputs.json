@@ -1,5 +1,5 @@
 {
-  "_comment": "RPG: WASD walk (HOLD), SPACE for action / interact / advance dialogue (PRESS-edge).",
+  "_comment": "FPS garden: WASD walk (HOLD — continuous first-person motion), SPACE fire / spark (PRESS-edge).",
 
   "actions": [
     {"name": "move_north", "edge": "hold"},

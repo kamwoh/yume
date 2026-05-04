@@ -1,13 +1,11 @@
 {
-  "_comment": "Arrow keys / WASD for movement (PRESS-edge — turn-based, one move per keypress). R to restart current level.",
+  "_comment": "Sokoban is turn-based — every action fires on press-edge (one move per keypress, not every frame held). Movement keys are already bound in project.godot's InputMap; inputs.json just declares the edge classification by name. R for restart.",
 
-  "actions": {
-    "move_north": {"keys": ["W", "Up"]},
-    "move_south": {"keys": ["S", "Down"]},
-    "move_east":  {"keys": ["D", "Right"]},
-    "move_west":  {"keys": ["A", "Left"]},
-    "restart":    {"keys": ["R"]}
-  },
-
-  "press_edge": ["move_north", "move_south", "move_east", "move_west", "restart"]
+  "actions": [
+    {"name": "move_north", "edge": "press"},
+    {"name": "move_south", "edge": "press"},
+    {"name": "move_east",  "edge": "press"},
+    {"name": "move_west",  "edge": "press"},
+    {"name": "restart", "key": "R", "edge": "press"}
+  ]
 }
