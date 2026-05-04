@@ -13,6 +13,12 @@ data_root = "res://data/demo_sokoban"
 auto_start = true
 verbose = true
 renderer_script = "res://scripts/renderer_2d/entity_sprite_2d.gd"
+; Sokoban is turn-based: one cell per keypress. Override engine defaults
+; (which put move_* in the HOLD list for shooter-style continuous motion)
+; so movement fires once on press-edge instead of every frame held.
+input_actions_hold = PackedStringArray()
+input_actions_press = PackedStringArray("move_north", "move_south", "move_east", "move_west", "restart")
+stop_action_on_idle = ""
 
 [node name="GameShell" type="Node" parent="."]
 script = ExtResource("2")
