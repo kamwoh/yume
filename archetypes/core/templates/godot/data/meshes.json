@@ -217,6 +217,24 @@
       ]
     },
 
+    "wall_panel_ns_28": {
+      "_comment": "Chamber 1 (Outer Containment) NS wall — 28m wide vs 44m full-chamber wall.",
+      "primitives": [
+        {"op": "box", "pos": [0, 1.5, 0], "size": [28, 3, 0.5],   "color": "#3a3a40"},
+        {"op": "box", "pos": [0, 0.4, 0], "size": [28, 0.25, 0.55], "color": "#cc7000"},
+        {"op": "box", "pos": [0, 2.6, 0], "size": [28, 0.25, 0.55], "color": "#cc7000"}
+      ]
+    },
+
+    "wall_panel_ew_28": {
+      "_comment": "Chamber 1 EW wall — 28m deep, oriented along Z axis.",
+      "primitives": [
+        {"op": "box", "pos": [0, 1.5, 0], "size": [0.5, 3, 28],   "color": "#3a3a40"},
+        {"op": "box", "pos": [0, 0.4, 0], "size": [0.55, 0.25, 28], "color": "#cc7000"},
+        {"op": "box", "pos": [0, 2.6, 0], "size": [0.55, 0.25, 28], "color": "#cc7000"}
+      ]
+    },
+
     "machinery_crate": {
       "primitives": [
         {"op": "box", "pos": [0, 0.75, 0], "size": [1.5, 1.5, 1.5], "color": "$body"},

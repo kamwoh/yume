@@ -1,11 +1,13 @@
 {
-  "_comment": "DoomArena3D HUD v2.5 — score/HP/ammo/time + crosshair + weapon indicator + bottom-left controls hint. Win latches on clock.boss_killed (boss spawns at score≥25, kill = win). Lose at HP=0.",
+  "_comment": "DoomArena3D HUD v3.0 — multi-chamber. Top-left shows Chamber name (binds world.current_level), kills, HP, ammo, chamber-elapsed. Win latches on world.all_levels_complete=1 (set after Core boss-kill transition). Lose at HP=0. Per-chamber elapsed resets on level transition (each chamber has its own clock instance).",
 
   "panels": [
     {
       "anchor": "top-left",
       "elements": [
-        {"type": "label", "binds": "player.score", "format": "💀 Kills: {} (Boss @ 25)", "size": 22},
+        {"type": "label", "binds": "world.current_level", "format": "🏭 Chamber: {}", "size": 22},
+        {"type": "spacer", "height": 4},
+        {"type": "label", "binds": "player.score", "format": "💀 Kills: {}", "size": 22},
         {"type": "spacer", "height": 4},
         {"type": "label", "binds": "player.hp", "format": "❤️ HP: {}", "size": 18},
         {"type": "progress_bar", "binds": "player.hp", "max": 100,
@@ -13,7 +15,7 @@
         {"type": "spacer", "height": 6},
         {"type": "label", "binds": "player.ammo", "format": "🔫 Ammo: {}", "size": 18},
         {"type": "spacer", "height": 6},
-        {"type": "label", "binds": "clock.elapsed", "format": "⏱️ {} / 90s", "size": 18}
+        {"type": "label", "binds": "clock.elapsed", "format": "⏱️ {} (chamber)", "size": 18}
       ]
     },
     {
@@ -38,8 +40,8 @@
 
   "controls_hint": "WASD walk · Mouse aim · SPACE fire\n1/2/3 swap weapon · ESC release cursor\nR restart · Q quit",
 
-  "win":  {"binds": "clock.boss_killed", "op": ">=", "value": 1,
-           "message": "🌟 CHAMBER STABILIZED 🌟\nThe Industrial Mover is down.\nLast Marine endures."},
+  "win":  {"binds": "world.all_levels_complete", "op": ">=", "value": 1,
+           "message": "🌟 ALL CHAMBERS STABILIZED 🌟\nOuter, Foundry, Core — all clear.\nThe Industrial Mover is down.\nLast Marine endures."},
   "lose": {"binds": "player.hp", "op": "<=", "value": 0, "sustained": 1,
            "message": "💀 KIA 💀\nContainment breach unrecovered.\n[R] retry · [ESC] menu · [Q] quit"}
 }

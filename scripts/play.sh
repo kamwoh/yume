@@ -15,6 +15,15 @@
 #   --capture-after=N : capture after N seconds (implies --capture)
 #   --output=PATH     : capture output path (Godot user:// resolves to
 #                       %APPDATA%/Godot/app_userdata/Yume Framework/)
+#   --record          : screen-record entire session to AVI (default path
+#                       under user://recordings/<game>_<timestamp>.avi).
+#                       Uses Godot's --write-movie (Movie Maker mode):
+#                       deterministic 60fps, audio muxed into the AVI
+#                       container. Convert with
+#                       `ffmpeg -i out.avi -c:v libx264 -crf 22 out.mp4`.
+#   --record=PATH     : record to a specific path (Windows or user:// path).
+#                       For PNG-sequence mode, use a .png path — Godot will
+#                       write image-XXXXX.png + a separate .wav for audio.
 #   SKIP_SYNC=1       : skip rsync step (env var; for faster re-runs)
 
 set -e
@@ -23,6 +32,8 @@ set -e
 GAME_NAME=""
 CAPTURE_DELAY=""
 OUTPUT_PATH=""
+RECORD_PATH=""
+RECORD_DEFAULT=0
 for arg in "$@"; do
   case "$arg" in
     --capture)
@@ -33,6 +44,12 @@ for arg in "$@"; do
       ;;
     --output=*)
       OUTPUT_PATH="${arg#*=}"
+      ;;
+    --record)
+      RECORD_DEFAULT=1
+      ;;
+    --record=*)
+      RECORD_PATH="${arg#*=}"
       ;;
     -*)
       echo "Unknown flag: $arg"
@@ -94,12 +111,36 @@ if [ -z "$SCENE" ]; then
   USER_ARGS+=("--game=${DATA_FOLDER}")
 fi
 
-echo "[play.sh] launching ${SCENE}${CAPTURE_DELAY:+ (capture ${CAPTURE_DELAY}s)}"
+# Resolve --record default path (user://recordings/<game>_<timestamp>.avi)
+if [ "$RECORD_DEFAULT" = "1" ] && [ -z "$RECORD_PATH" ]; then
+  TS=$(date +%Y%m%d_%H%M%S)
+  RECORD_PATH="user://recordings/${GAME_NAME}_${TS}.avi"
+fi
+
+# Build Godot pre-`--` flags array
+GODOT_FLAGS=()
+if [ -n "$RECORD_PATH" ]; then
+  # Pre-create parent dir — Godot's MovieWriter doesn't mkdir, fails with
+  # "Condition f.is_null() is true. Returning: ERR_UNCONFIGURED" if missing.
+  REC_PARENT_WSL=""
+  if [[ "$RECORD_PATH" == user://* ]]; then
+    REL="${RECORD_PATH#user://}"
+    REC_PARENT_WSL="/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework/$(dirname "${REL}")"
+  elif [[ "$RECORD_PATH" == /mnt/* ]]; then
+    REC_PARENT_WSL="$(dirname "$RECORD_PATH")"
+  fi
+  if [ -n "$REC_PARENT_WSL" ]; then
+    mkdir -p "$REC_PARENT_WSL"
+  fi
+  GODOT_FLAGS+=("--write-movie" "$RECORD_PATH")
+fi
+
+echo "[play.sh] launching ${SCENE}${CAPTURE_DELAY:+ (capture ${CAPTURE_DELAY}s)}${RECORD_PATH:+ (recording → ${RECORD_PATH})}"
 cd "${TEMPLATE_DST}"
 if [ ${#USER_ARGS[@]} -gt 0 ]; then
-  "${GODOT_BIN}" --path . "${SCENE}" -- "${USER_ARGS[@]}"
+  "${GODOT_BIN}" --path . "${GODOT_FLAGS[@]}" "${SCENE}" -- "${USER_ARGS[@]}"
 else
-  "${GODOT_BIN}" --path . "${SCENE}"
+  "${GODOT_BIN}" --path . "${GODOT_FLAGS[@]}" "${SCENE}"
 fi
 RC=$?
 
@@ -116,6 +157,30 @@ if [ -n "$CAPTURE_DELAY" ]; then
   fi
   if [ -f "$REAL_OUTPUT" ]; then
     echo "[play.sh] captured: ${REAL_OUTPUT}"
+  fi
+fi
+
+# Locate + report recording output. AVI mode muxes audio into the container;
+# PNG-sequence mode writes a sibling .wav.
+if [ -n "$RECORD_PATH" ]; then
+  REAL_REC="$RECORD_PATH"
+  if [[ "$REAL_REC" == user://* ]]; then
+    REL="${REAL_REC#user://}"
+    REAL_REC="/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework/${REL}"
+  fi
+  if [ -f "$REAL_REC" ]; then
+    SIZE=$(du -h "$REAL_REC" | cut -f1)
+    echo "[play.sh] recorded: ${REAL_REC} (${SIZE})"
+    EXT="${REAL_REC##*.}"
+    if [ "$EXT" = "avi" ]; then
+      MP4="${REAL_REC%.avi}.mp4"
+      echo "[play.sh] convert:  ffmpeg -i \"${REAL_REC}\" -c:v libx264 -crf 22 -c:a aac \"${MP4}\""
+    elif [ "$EXT" = "png" ]; then
+      WAV="${REAL_REC%.png}.wav"
+      [ -f "$WAV" ] && echo "[play.sh] audio:    ${WAV}"
+    fi
+  else
+    echo "[play.sh] WARN: expected recording at ${REAL_REC} (not found)"
   fi
 fi
 

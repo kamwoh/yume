@@ -1,6 +1,6 @@
 ---
 name: yume-game-reviewer
-description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 13 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ allowed to surface NEW issues, not just verify round-1 fixes.
+description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 13 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ MUST run ripple-analysis: when a revision adds structural primitives (multi-level, persistent state, new modes), prior-round axis acceptance does NOT carry over to axes those primitives ripple into — re-interpret under the new design frame.
 ---
 
 # /yume-game-reviewer
@@ -353,10 +353,99 @@ strong Axis 10 (Theme) AND Axis 1 (Mechanics) coverage that implies
 spatial structure. Use judgment — but if you can't picture the level
 in your head from the GDD, that's a fail signal.
 
+## Round-N+1 ripple analysis (MANDATORY for round 2+)
+
+A naive reviewer runs the 13 axes in isolation each round, treats
+prior-round acceptance as carrying forward, and looks for "did
+round-1 issues get fixed." This **misses the most common failure
+mode in iterative GDDs**: a structural change in round N+1
+re-interprets axes that PASSED in round N — not because the prior
+review was wrong, but because the design frame the axes were
+evaluated against has changed.
+
+**Empirical case** (doomarena3d v3.0, 2026-05-04): all 13 axes
+passed cleanly in v2.6 (single 90s arena). v3.0 added a 3-chamber
+campaign. Naive reviewer would carry forward all 13 axis-passes
+and approve. Ripple analysis surfaced 5 tuning notes: wave-beats
+(Axis 3) tied to single-timer no longer make sense across chambers;
+transition feedback (Axis 4) didn't exist before; Submission
+aesthetic (Axis 5) breaks across context-switches; restart policy
+(Axis 12) ambiguous across chambers; replay framing (Axis 11)
+under-utilizes multi-stage structure. None were "previous reviewer
+miss" — all were design questions that only become askable once
+chambers exist.
+
+### Ripple analysis procedure
+
+**Before** running the 13-axis pass on round 2+:
+
+1. **Diff against prior round.** What structural primitives changed?
+   (Not text edits — design-level additions: a new mode, a new
+   resource, a new persistence boundary, a new spatial layer.)
+2. **Consult the ripple table below.** For each structural change,
+   mark which axes need RE-INTERPRETATION (not just re-check) under
+   the new design frame.
+3. **Run the 13 axes.** Axes the change DOESN'T ripple into may
+   inherit prior-round acceptance. Axes the change ripples into get
+   a fresh evaluation: ask "does the prior axis-rationale still
+   hold under the new frame, or did the new primitive change what
+   this axis means for this game?"
+4. **State the ripple analysis explicitly in the review.** A
+   subsection under findings: "Structural changes since round N-1:
+   X, Y. Axes re-interpreted under new frame: A, B, C. Axes
+   inheriting prior acceptance: rest."
+
+If you skip step 4, future readers (and future reviewers) won't know
+which axis-passes are fresh evaluations vs. inherited. This is the
+audit trail that prevents "we accepted v3 against v2's frame."
+
+### Ripple table
+
+| If round adds... | Re-interpret these axes under new frame |
+|---|---|
+| **Multi-level / multi-arena / multi-chamber** | 3 (per-level pacing vs. single timer), 4 (transition feedback), 5 (Submission/Discovery shift across transitions), 8 (total content vs. single), 9 (per-level signature beats), 11 (per-level stats / speedrun framing), 12 (death/restart policy across levels) |
+| **Persistent state across modes/levels** | 2 (strategic depth from carry-over decisions), 7 (softlock spirals from low-resource entry), 12 (restart policy — full vs. checkpoint) |
+| **New playable character / party member** | 1 (per-character mech depth), 2 (party synergy), 9 (character intro beat), 10 (cast-diversity in theme) |
+| **New combat/play mode (turn-based, stealth, vehicle)** | 3 (mode pacing differs), 4 (mode-specific feedback), 13 (spatial implications of new mode) |
+| **Score / progression revamp** | 8 (content gating), 11 (replay framing), 12 (restart policy) |
+| **New enemy / boss / encounter type** | 1 (depth), 9 (signature beat), 13 (does layout support new behavior?) |
+| **New weapon / tool / mechanic** | 1 (depth), 2 (strategic decisions), S2/S3 if shooter (genre-specific), 4 (audio-visual distinctness) |
+| **Removed feature / cut content** | 1 (now-thin?), 8 (now-tutorial?), 10 (theme-fit broken?), 11 (replay vector lost?) |
+| **Genre claim shift** (e.g. "arcade" → "campaign") | All 13 — genre minimums change with claim. Re-run from scratch. |
+
+This table is generative, not exhaustive. If the structural change
+isn't listed, ask: "does this change the design frame for any axis?
+If yes, which?" Add the row mentally.
+
+### When ripple analysis is NOT needed
+
+- **Round 1**: nothing to compare against. Run 13 axes fresh.
+- **Round 2+ with text-only edits** (typo fixes, clarity rewrites,
+  re-ordering sections): no design-frame change. Re-check round-1
+  fix-list only.
+- **Round 2+ that REMOVES a planned-but-deferred feature**: ripple
+  the removal (table row above), but most axes likely stay clean.
+
+### Output discipline
+
+Every round-2+ review's findings table must include one of:
+- "Round-N+1 ripple analysis: no structural changes — axes inherit
+  prior acceptance, re-checking round N fix-list only."
+- "Round-N+1 ripple analysis: structural change X added. Re-
+  interpreting axes A, B, C under new frame."
+
+If you can't write one of these sentences honestly, you haven't
+done the ripple analysis. Stop and do it.
+
 ## Verdict guidelines
 
 - **accept**: All 13 axes meet minimum bar. Game-designer can ship the
   GDD to game-planner.
+- **accept with notes**: All 13 axes pass but tuning items remain
+  (typically 3-7). Notes are non-blocking; designer can address
+  during the same revision cycle as content-designer handoff. Use
+  this verdict when ripple analysis surfaces tuning items that
+  don't break any axis but improve the design.
 - **revise**: 1-5 axes fail with specific addressable issues. Designer
   fixes; reviewer reviews again.
 - **reject**: Multiple fundamental issues OR scope-out-of-bounds. The
@@ -364,10 +453,13 @@ in your head from the GDD, that's a fail signal.
   or descope.
 
 **On round 2+**: don't auto-accept just because round-1 issues were
-addressed. Apply ALL 12 axes again. Revisions sometimes expose new
-gaps (e.g., adding theme might reveal that mechanics don't match
-theme; adding levels might reveal lack of signature moments). Be
-honest about what the revised GDD still lacks.
+addressed. Run the ripple analysis (above) FIRST. Apply ALL 13 axes
+again, marking which inherit prior acceptance and which are re-
+interpreted under a new frame. Revisions sometimes expose new gaps
+(e.g., adding theme might reveal mechanics don't match theme; adding
+levels might reveal lack of signature moments AND break Submission
+aesthetic AND require a death-policy decision). Be honest about
+what the revised GDD still lacks.
 
 A reviewer that always accepts on round 2 is too lenient. A reviewer
 that refuses round 4+ on minor polish is too strict. Aim for 2-3

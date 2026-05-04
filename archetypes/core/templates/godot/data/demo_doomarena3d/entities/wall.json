@@ -36,6 +36,31 @@
       "visual": {
         "mesh": "wall_panel_short_ns"
       }
+    },
+    {
+      "_comment": "v3.0 Chamber 1 walls — 28m wide for the smaller Outer Containment arena (vs 44m for Foundry/Core). aabb_extents matches mesh size.",
+      "id": "wall_ns_outer",
+      "tags": ["wall", "structure", "decoration", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [14, 1.5, 0.25],
+        "aabb_offset": [0, 1.5, 0]
+      },
+      "state_init": {},
+      "visual": {
+        "mesh": "wall_panel_ns_28"
+      }
+    },
+    {
+      "id": "wall_ew_outer",
+      "tags": ["wall", "structure", "decoration", "blocks_motion"],
+      "properties": {
+        "aabb_extents": [0.25, 1.5, 14],
+        "aabb_offset": [0, 1.5, 0]
+      },
+      "state_init": {},
+      "visual": {
+        "mesh": "wall_panel_ew_28"
+      }
     }
   ]
 }

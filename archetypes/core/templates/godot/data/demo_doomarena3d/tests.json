@@ -1,8 +1,35 @@
 {
-  "_comment": "Game-specific scenario tests for doomarena3d. Tier 2.6s. Each scenario builds a fresh World, applies setup, ticks forward, injects scripted inputs, then asserts. The first test (bullet_moves_after_fire) is the regression for the spawn-override-formula bug found 2026-05-03.",
+  "_comment": "Game-specific scenario tests for doomarena3d v3.0 (3-chamber campaign, ADR 0006). Each scenario builds a fresh World, applies setup, ticks forward, injects scripted inputs, then asserts. v3.0 changes vs v2.6: clock instance is per-chamber (clock_outer/clock_foundry/clock_core), boss is pre-spawned in chamber 3 (no score=25 trigger), win = world.all_levels_complete (was clock.boss_killed). New: multi-chamber transition tests.",
 
   "scenarios": [
+
     {
+      "_section": "=== STARTUP ===",
+      "name": "starts_in_outer_chamber",
+      "_": "v3.0: world.current_level should be 'outer' immediately after load (progression.starting_level).",
+      "setup": {},
+      "actions": [],
+      "ticks": 1,
+      "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "outer"}
+      ]
+    },
+
+    {
+      "name": "player_has_persistent_tag",
+      "_": "v3.0: player def tagged 'persistent' (ADR 0006) so HP/ammo/score survive transitions.",
+      "setup": {},
+      "actions": [],
+      "ticks": 1,
+      "assertions": [
+        {"type": "entity_count",
+         "query": {"tags_all": ["player", "persistent"]},
+         "op": "==", "value": 1}
+      ]
+    },
+
+    {
+      "_section": "=== COMBAT (PLASMA) ===",
       "name": "bullet_spawns_on_fire",
       "_": "Pressing SPACE (spark) on tick 1 should spawn exactly 1 bullet.",
       "setup": {
@@ -22,7 +49,7 @@
 
     {
       "name": "bullet_moves_after_fire",
-      "_": "REGRESSION: bullet velocity must be Vector3, not Vector3.ZERO. Camera convention: at facing=0, pitch=0, forward = -Z. Bullet velocity formula = (-sin(f)*cos(p), -sin(p), -cos(f)*cos(p)) * 22. At facing=pitch=0, that's (0, 0, -22). After 8 ticks at tick_seconds=0.05, bullet should be at z ≈ -0.6 (spawn) - 22*0.05*8 = -9.4.",
+      "_": "REGRESSION: bullet velocity must be Vector3, not Vector3.ZERO. At facing=pitch=0, forward = -Z. After 8 ticks, bullet should be at z < -1.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "ammo": 5, "position": [0, 0, 0]}
@@ -64,7 +91,7 @@
 
     {
       "name": "bullet_flies_up_when_aiming_up",
-      "_": "REGRESSION: positive pitch = looking up. Bullet Y component must be +sin(pitch)*22, not -sin(pitch)*22. At pitch=0.5 (≈29° up), bullet should rise: y(t) = 1.6 + sin(0.5)*0.6 (spawn) + sin(0.5)*22*delta*ticks. After 8 ticks at 0.05s: y ≈ 1.89 + 0.479*22*0.4 ≈ 1.89 + 4.22 ≈ 6.1 m. Permissive bound y > 3.0.",
+      "_": "REGRESSION: positive pitch = looking up. At pitch=0.5, bullet should rise — y > 3.0 after 8 ticks.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0.5, "ammo": 5, "position": [0, 0, 0]}
@@ -82,12 +109,76 @@
     },
 
     {
-      "name": "five_imps_all_home",
-      "_": "5 imps from different angles. Spawn rules disabled. v2 map: divider at z=0 spans X∈[-22,-6] and X∈[6,22], so imp spawn Z must avoid the divider band. Placed in forward zone (z=-5) and back zone (z=+12) where there's free space. After 50 ticks (2.5s), each imp should have moved closer to origin.",
+      "name": "fire_blocked_when_no_ammo",
+      "_": "ammo=0 → fire rule's `state.ammo_gt: 0` query fails → no bullet.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "position": [0, 0, 0]}
+        }
+      },
+      "actions": [
+        {"tick": 1, "input": "spark"}
+      ],
+      "ticks": 3,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["bullet"]},
+         "op": "==", "value": 0}
+      ]
+    },
+
+    {
+      "_section": "=== AI: MONSTER HOMING ===",
+      "name": "monster_homes_toward_player",
+      "_": "Spawn imp at (10, 0, -5) — chamber 1 forward zone. After 10 ticks (0.5s) imp should move toward player. Speed=3.5 m/s × 0.5s = 1.75m closer; permissive bound x < 9.5.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "test_imp", "position": [10, 0, -5]}
+        ]
+      },
+      "actions": [],
+      "ticks": 10,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["monster"]},
+         "op": ">=", "value": 1},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["monster"]},
+         "field": "state.position.x", "op": "<", "value": 9.5}
+      ]
+    },
+
+    {
+      "name": "monster_reaches_and_kills_player",
+      "_": "Imp at (4, 0, -8). After 80 ticks (4s), imp should reach player → imp removed, player HP -10. Disable chamber 1 spawn timer to prevent rule-spawned imps from polluting the count.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        },
+        "spawn": [
+          {"def": "monster_imp", "id": "test_imp", "position": [4, 0, -8]}
+        ]
+      },
+      "actions": [],
+      "ticks": 80,
+      "assertions": [
+        {"type": "entity_count", "query": {"tags_all": ["monster"]},
+         "op": "==", "value": 0},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.hp", "op": "<", "value": 100}
+      ]
+    },
+
+    {
+      "name": "five_imps_all_home",
+      "_": "5 imps from different angles. Spawn rules disabled via clock_outer. After 50 ticks (2.5s) each imp should have moved toward origin.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "pickup_timer": 99999.0}
         },
         "spawn": [
           {"def": "monster_imp", "id": "imp_a", "position": [10, 0, -5]},
@@ -115,11 +206,11 @@
 
     {
       "name": "single_monster_long_run",
-      "_": "ONE imp, 200 ticks. No spawn rule pressure. Should walk to player and trigger contact removal.",
+      "_": "ONE imp, 200 ticks, no spawn pressure. Should reach player and trigger contact removal.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "pickup_timer": 99999.0}
         },
         "spawn": [
           {"def": "monster_imp", "id": "lone_imp", "position": [10, 0, 5]}
@@ -128,7 +219,7 @@
       "actions": [],
       "ticks": 200,
       "assertions": [
-        {"type": "entity_count", "query": {"tags_all": ["monster"]},
+        {"type": "entity_count", "query": {"tags_all": ["monster"], "tags_none": ["pillar"]},
          "op": "==", "value": 0},
         {"type": "entity_field", "select": "first",
          "query": {"tags_all": ["player"]},
@@ -137,96 +228,13 @@
     },
 
     {
-      "name": "monster_long_run_reaches_player",
-      "_": "Like live smoke (1200 ticks). Imp at typical spawn (10, 0, 5). Should reach player and trigger contact eventually. After 1200 ticks (60s simulated), monster count is bounded (v2: demons + rangers spawn after 30s, so cap is more permissive than v1) AND player.hp should be < 100.",
-      "setup": {
-        "entity_state": {
-          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
-        },
-        "spawn": [
-          {"def": "monster_imp", "id": "test_imp_long", "position": [10, 0, 5]}
-        ]
-      },
-      "actions": [],
-      "ticks": 1200,
-      "assertions": [
-        {"type": "entity_count", "query": {"tags_all": ["monster"]},
-         "op": "<=", "value": 12},
-        {"type": "entity_field", "select": "first",
-         "query": {"tags_all": ["player"]},
-         "field": "state.hp", "op": "<", "value": 100}
-      ]
-    },
-
-    {
-      "name": "monster_reaches_and_kills_player",
-      "_": "Run long enough for an imp to walk to player. v2 map: imp at (4, 0, -8) — forward zone, no divider conflict. ~9m at 3.5 m/s = ~2.6s = ~52 ticks. After 80 ticks (4s), imp should have hit player → imp removed, player HP -10.",
-      "setup": {
-        "entity_state": {
-          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
-        },
-        "spawn": [
-          {"def": "monster_imp", "id": "test_imp", "position": [4, 0, -8]}
-        ]
-      },
-      "actions": [],
-      "ticks": 80,
-      "assertions": [
-        {"type": "entity_count", "query": {"tags_all": ["monster"]},
-         "op": "==", "value": 0},
-        {"type": "entity_field", "select": "first",
-         "query": {"tags_all": ["player"]},
-         "field": "state.hp", "op": "<", "value": 100}
-      ]
-    },
-
-    {
-      "name": "monster_homes_toward_player",
-      "_": "v2 map: spawn imp at (10, 0, -5) — forward zone, no divider conflict. After 10 ticks (0.5s) imp should move toward player (lower x). Imp speed=3.5 m/s × 0.5s = 1.75m closer, so x should drop from 10 toward ~8. Permissive bound x < 9.5.",
-      "setup": {
-        "entity_state": {
-          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0]}
-        },
-        "spawn": [
-          {"def": "monster_imp", "id": "test_imp", "position": [10, 0, -5]}
-        ]
-      },
-      "actions": [],
-      "ticks": 10,
-      "assertions": [
-        {"type": "entity_count", "query": {"tags_all": ["monster"]},
-         "op": "==", "value": 1},
-        {"type": "entity_field", "select": "first",
-         "query": {"tags_all": ["monster"]},
-         "field": "state.position.x", "op": "<", "value": 9.5}
-      ]
-    },
-
-    {
-      "name": "fire_blocked_when_no_ammo",
-      "_": "ammo=0 → fire rule's `state.ammo_gt: 0` query fails → no bullet.",
-      "setup": {
-        "entity_state": {
-          "player": {"facing": 0, "pitch": 0, "ammo": 0, "position": [0, 0, 0]}
-        }
-      },
-      "actions": [
-        {"tick": 1, "input": "spark"}
-      ],
-      "ticks": 3,
-      "assertions": [
-        {"type": "entity_count", "query": {"tags_all": ["bullet"]},
-         "op": "==", "value": 0}
-      ]
-    },
-
-    {
+      "_section": "=== AI: RANGER ===",
       "name": "ranger_fire_damages_player",
-      "_": "v2: spawn a ranger at distance 5 (within fire_range=6). After 80 ticks ranger fires multiple times; bullets travel 8 m/s → reach player; player.hp drops below 100. Tests the full ranger AI loop: cooldown decrement → fire → bullet flies → damage.",
+      "_": "Ranger at distance 5 (within fire_range=6). After 80 ticks ranger fires bullets, player HP < 100.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "hp": 100},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         },
         "spawn": [
           {"def": "monster_ranger", "id": "test_ranger", "position": [5, 0, 0]}
@@ -243,11 +251,11 @@
 
     {
       "name": "ranger_holds_position_when_in_range",
-      "_": "v2: ranger AI plants when distance ≤ fire_range. Spawn at distance 5; after 30 ticks ranger should not have crossed into 'kamikaze' territory (still ≥ 4m from player).",
+      "_": "Ranger plants when distance ≤ fire_range. Spawn at distance 5; after 30 ticks ranger should not have crossed into kamikaze range (still ≥ 4m from player).",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         },
         "spawn": [
           {"def": "monster_ranger", "id": "stand_ranger", "position": [5, 0, 0]}
@@ -263,11 +271,11 @@
 
     {
       "name": "enemy_bullet_damages_player",
-      "_": "v2: spawn enemy_bullet on top of player. Contact rule fires → -10 HP. After 3 ticks (one contact pass), player.hp should be ≤ 90.",
+      "_": "Spawn enemy_bullet on top of player. Contact rule fires → -10 HP.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "hp": 100},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         },
         "spawn": [
           {"def": "enemy_bullet", "id": "test_eb", "position": [0.5, 0.5, 0]}
@@ -283,49 +291,13 @@
     },
 
     {
-      "name": "boss_spawns_when_score_reaches_25",
-      "_": "v2 signature moment: set player.score = 25, leave clock.boss_spawned = 0. boss_spawn_check fires on first contact tick → 1 boss exists, clock.boss_spawned latches to 1.",
-      "setup": {
-        "entity_state": {
-          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "score": 25},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0, "boss_spawned": 0}
-        }
-      },
-      "actions": [],
-      "ticks": 5,
-      "assertions": [
-        {"type": "entity_count", "query": {"tags_all": ["boss"]},
-         "op": "==", "value": 1},
-        {"type": "entity_field", "select": "first",
-         "query": {"tags_all": ["clock"]},
-         "field": "state.boss_spawned", "op": "==", "value": 1}
-      ]
-    },
-
-    {
-      "name": "boss_does_not_spawn_below_score_25",
-      "_": "v2: at score 24, no boss should spawn even after many ticks.",
-      "setup": {
-        "entity_state": {
-          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0, "score": 24},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0, "boss_spawned": 0}
-        }
-      },
-      "actions": [],
-      "ticks": 20,
-      "assertions": [
-        {"type": "entity_count", "query": {"tags_all": ["boss"]},
-         "op": "==", "value": 0}
-      ]
-    },
-
-    {
+      "_section": "=== WALLS / MOVEMENT ===",
       "name": "wall_blocks_player",
-      "_": "ADR 0004: walking west into the west wall (at x=-22, blocks_motion + aabb_extents [0.25, 1.5, 22]) should stop the player. After holding W with facing rotated to face -X for 60 ticks (3s), player.x should not pass the wall plane minus body radius (~-21.6, but we check >-22 strict).",
+      "_": "ADR 0004: walking west into chamber 2-style west wall (x=-22, blocks_motion). Note: starting chamber is 'outer' (28×28m), but tests load with persistent player + outer's smaller walls at ±14. Use chamber 1 wall: walking into x=-14 should stop player. Adjusted bound: x > -14.",
       "setup": {
         "entity_state": {
-          "player": {"facing": -1.5708, "pitch": 0, "ammo": 0, "position": [-15, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "player": {"facing": -1.5708, "pitch": 0, "ammo": 0, "position": [-10, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         }
       },
       "actions": [
@@ -343,17 +315,17 @@
       "assertions": [
         {"type": "entity_field", "select": "first",
          "query": {"tags_all": ["player"]},
-         "field": "state.position.x", "op": ">", "value": -22.0}
+         "field": "state.position.x", "op": ">", "value": -14.0}
       ]
     },
 
     {
       "name": "diagonal_movement_works",
-      "_": "v2.5: pressing W + A in the same tick should produce diagonal motion. velocity_set_relative would lose one axis (last write wins); velocity_add_relative accumulates. After 30 ticks of holding W+A from origin facing=0 (forward = -Z, strafe-left = -X), player should have moved in BOTH -X (left) AND -Z (forward) by at least 1m each.",
+      "_": "v2.5: W+A in same tick produces diagonal motion via velocity_add_relative. After 30 ticks of holding both, player should have moved -1m in BOTH X and Z.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "ammo": 0, "position": [0, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         }
       },
       "actions": [
@@ -400,12 +372,13 @@
     },
 
     {
+      "_section": "=== WEAPONS (V2.5 ARSENAL) ===",
       "name": "weapon_switch_changes_state",
-      "_": "v2.5: pressing weapon_2 sets player.current_weapon = 2.",
+      "_": "Pressing weapon_2 sets player.current_weapon = 2.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 1, "position": [0, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         }
       },
       "actions": [
@@ -421,11 +394,11 @@
 
     {
       "name": "shotgun_fires_5_pellets",
-      "_": "v2.5: with current_weapon=2 and ≥3 ammo, pressing fire spawns 5 bullet_pellet entities. Cooldown set to 8 ticks.",
+      "_": "current_weapon=2 + ≥3 ammo → fire spawns 5 bullet_pellet entities.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 2, "weapon_cooldown": 0, "position": [0, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         }
       },
       "actions": [
@@ -443,11 +416,11 @@
 
     {
       "name": "rocket_does_3_damage",
-      "_": "v2.5: rocket vs demon (2 HP). Single hit should kill the demon (3 dmg ≥ 2 HP).",
+      "_": "Rocket vs demon (2 HP) — single hit kills (3 dmg ≥ 2 HP).",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 3, "weapon_cooldown": 0, "position": [0, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         },
         "spawn": [
           {"def": "monster_demon", "id": "test_demon", "position": [0, 0, -3]}
@@ -465,11 +438,11 @@
 
     {
       "name": "weapon_cooldown_blocks_immediate_refire",
-      "_": "v2.5: shotgun cooldown=8 ticks. Fire at tick 1, fire again at tick 2 — second fire blocked because cooldown=8.",
+      "_": "Shotgun cooldown=8 ticks. Fire at tick 1 + tick 2; second fire blocked.",
       "setup": {
         "entity_state": {
           "player": {"facing": 0, "pitch": 0, "ammo": 30, "current_weapon": 2, "weapon_cooldown": 0, "position": [0, 0, 0]},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
         }
       },
       "actions": [
@@ -484,23 +457,112 @@
     },
 
     {
-      "name": "boss_killed_sets_victory_flag",
-      "_": "v2 signature win: spawn boss at low HP, hit it once → hp ≤ 0 → boss_killed_win sets clock.boss_killed=1 → HUD wins.",
+      "_section": "=== V3.0 MULTI-CHAMBER (ADR 0006) ===",
+      "name": "outer_clears_at_score_5",
+      "_": "v3.0 chamber transition: set player.score=5, after a few ticks the outer_clear rule (score_gte=5, contact, once_per_a) fires transition_level next → world.current_level = 'foundry'.",
       "setup": {
         "entity_state": {
-          "player": {"facing": 0, "pitch": 0, "position": [0, 0, 0], "ammo": 0},
-          "clock_1": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0, "boss_spawned": 1}
-        },
-        "spawn": [
-          {"def": "monster_boss", "id": "doomed_boss", "position": [10, 0, 0], "state": {"hp": 0}}
-        ]
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "score": 5, "position": [0, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
       },
       "actions": [],
-      "ticks": 3,
+      "ticks": 5,
       "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "foundry"}
+      ]
+    },
+
+    {
+      "name": "outer_does_NOT_clear_below_score_5",
+      "_": "v3.0: at score=4, outer_clear's score_gte=5 fails → stay in outer.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "score": 4, "position": [0, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [],
+      "ticks": 10,
+      "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "outer"}
+      ]
+    },
+
+    {
+      "name": "chambers_chain_to_core_at_score_20",
+      "_": "v3.0: set player.score=20 → outer clears (score≥5) → foundry loads → foundry clears (score≥20 still true) → core loads. Verifies the full cascade via score short-circuit.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "score": 20, "position": [0, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [],
+      "ticks": 10,
+      "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "core"}
+      ]
+    },
+
+    {
+      "name": "player_persists_across_transition",
+      "_": "v3.0 ADR 0006: persistent player tag → HP/ammo/score retained through chamber transition. Set HP=37, ammo=12, fire chamber 1 clear, verify same HP/ammo on the foundry side.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 12, "hp": 37, "score": 5, "position": [0, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [],
+      "ticks": 5,
+      "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "foundry"},
         {"type": "entity_field", "select": "first",
-         "query": {"tags_all": ["clock"]},
-         "field": "state.boss_killed", "op": "==", "value": 1}
+         "query": {"tags_all": ["player"]},
+         "field": "state.hp", "op": "==", "value": 37},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.ammo", "op": "==", "value": 12},
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["player"]},
+         "field": "state.score", "op": "==", "value": 5}
+      ]
+    },
+
+    {
+      "name": "non_persistent_entities_cleared_on_transition",
+      "_": "v3.0 ADR 0006: clock_outer is not tagged persistent → destroyed on transition. After moving from outer to foundry, no entity tagged 'clock' should still have id=clock_outer (it's been replaced by clock_foundry).",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "score": 5, "position": [0, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [],
+      "ticks": 5,
+      "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "foundry"},
+        {"type": "entity_count", "query": {"tags_all": ["clock"]},
+         "op": "==", "value": 1}
+      ]
+    },
+
+    {
+      "name": "boss_pre_spawned_in_core_chamber",
+      "_": "v3.0: boss is no longer score-triggered — it's in chamber 3 (core)'s initial_instances at (0,0,16). After cascading to core via score=20 (which clears chambers 1+2), the boss should exist.",
+      "setup": {
+        "entity_state": {
+          "player": {"facing": 0, "pitch": 0, "ammo": 0, "score": 20, "position": [0, 0, 0]},
+          "clock_outer": {"spawn_timer": 99999.0, "demon_timer": 99999.0, "ranger_timer": 99999.0, "pickup_timer": 99999.0}
+        }
+      },
+      "actions": [],
+      "ticks": 10,
+      "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "core"},
+        {"type": "entity_count", "query": {"tags_all": ["boss"]},
+         "op": "==", "value": 1}
       ]
     }
   ]

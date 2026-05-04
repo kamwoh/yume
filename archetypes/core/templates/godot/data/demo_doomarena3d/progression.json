@@ -1,0 +1,10 @@
+{
+  "_comment": "DoomArena3D 3-chamber campaign (ADR 0006, v3.0). Outer = onboarding (imps only, score=5 clear). Foundry = signature tactical layout with full enemy mix (score=20 clear). Core = boss arena climax (boss-kill clear). After core clears, world.all_levels_complete = 1 → HUD wins via existing binding.",
+
+  "levels": ["outer", "foundry", "core"],
+  "starting_level": "outer",
+
+  "on_all_complete": {
+    "win_message": "🌟 ALL CHAMBERS STABILIZED 🌟"
+  }
+}

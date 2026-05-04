@@ -1,15 +1,15 @@
 # DoomArena3D
 
-_Date: 2026-05-03_
+_Date: 2026-05-04_
 _Designer: yume-game-designer_
-_Source: 3D port of demo_doomarena (2D); revised round 2 per 12-axis review._
+_Source: 3D port of demo_doomarena (2D); v3.0 — multi-chamber campaign via ADR 0006._
 
 ## One-line pitch
 
-Containment Chamber 7. You're the last marine after the portal
-incident — three minutes to either drop 30 demons or escape with your
-score. Pitch-aim mouselook, space to fire, three monster types, one
-boss.
+Containment Chambers. You're the Last Marine fighting through three
+sealed chambers of a derelict mining colony — clear each to advance,
+break the boss to win. First-person mouselook, three weapons, four
+monster types, persistent loadout across chambers.
 
 ## Theme / identity (REV — per Axis 10)
 
@@ -33,9 +33,9 @@ not magical.
 
 | Category | Why |
 |---|---|
-| **Challenge** | Aim + dodge under pressure. First-person view raises the cost of looking the wrong way. Now real after Axis 1 expansion (3 enemy types + boss force tactical decisions). |
-| **Sensation** | Hits feel impactful — camera shake, red flash on damage, monsters explode into 3D sparkles, audio cues per cascade (Tier 2.6n shipped). |
-| **Submission** | One closed arena, repeating loop (look → spot → fire → reposition). Trance-state arcade with score-chase replay. |
+| **Challenge** | Aim + dodge under pressure. First-person view raises the cost of looking the wrong way. Now real after Axis 1 expansion (3 enemy types + boss force tactical decisions). v3.0 also adds the cross-chamber persistent-loadout decision (carry shotgun ammo into chamber 2, or burn it on chamber 1 imps?). |
+| **Sensation** | Hits feel impactful — camera shake, red flash on damage, monsters explode into 3D sparkles, audio cues per cascade (Tier 2.6n shipped). v3.0 chamber-transition beats are also Sensation moments (containment-breach audio + flash) between trance segments. |
+| **Submission** | Within each chamber, the trance loop survives — continuous spawn pressure + look→spot→fire→reposition rhythm is unbroken. Chamber transitions are brief Sensation beats between trance segments, not part of the trance itself. (v3.0 reframe: Submission applies INTERNAL to each chamber, not across the whole campaign.) |
 
 Expressly NOT: Discovery (no rooms beyond the arena), Narrative (no
 story beyond theme), Fellowship (single-player), Expression (no
@@ -80,6 +80,67 @@ spawn is the "you'll remember this moment" beat per Axis 9.
 
 If the boss is killed before time runs out: 5-second slow-mo win with
 "CHAMBER STABILIZED" message + score breakdown.
+
+## Campaign structure (REV — v3.0 per ADR 0006: 3 chambers)
+
+The game now spans **three sealed containment chambers** played in
+sequence. Each chamber is a different arena layout + enemy
+composition + clear condition. Player loadout (HP, ammo, score,
+current_weapon, weapon_cooldown) is **persistent** across chambers
+— you don't re-equip between rooms.
+
+| Chamber | Name | Layout | Enemy mix | Clear condition | Beat |
+|---|---|---|---|---|---|
+| 1 | **Outer Containment** | Smaller arena (28×28m), 4 cover pillars, 1 perimeter | Imps only (1.5s spawn) | Score reaches 5 kills | Onboarding — learn movement + plasma |
+| 2 | **The Foundry** *(signature)* | Original 44×44m chamber: divider + 8 pillars + 4 machinery | Imp + demon + ranger mix (2s spawn) | Score reaches 20 (15 more after chamber 1) | Tactical — weapons + cover decisions matter; rangers force pillar-flanking |
+| 3 | **Core Containment** *(finale)* | Open 44×44m arena, sparse cover (3 pillars), boss spawns immediately at center-back | Boss (10 HP) + supplemental imps every 4s | Boss killed → CHAMBER STABILIZED win | Climax — boss-rocket showdown |
+
+**Persistent player loadout**: `player` def tagged `persistent` per
+ADR 0006 — survives `transition_level` effect calls. State carried:
+HP, ammo, score, current_weapon, weapon_cooldown, facing, pitch.
+
+**Per-chamber clear rule**: tick rule queries player score; when ≥
+chamber-specific target, fires `transition_level` effect with target
+"next". Engine handles entity teardown + new chamber load between
+ticks.
+
+**Final chamber (Core Containment)**: clear condition is `boss_killed`
+(existing rule still works), and the boss_killed_win cascade fires
+`transition_level next` — past last level → engine sets
+`world.all_levels_complete = 1` → HUD wins via existing binding.
+
+**No HP/ammo refill between chambers** (v3.0 design choice). Player
+who took heavy damage in chamber 1 enters chamber 2 wounded —
+encourages careful play. Pickups in each chamber restore HP/ammo
+mid-combat.
+
+**Wave-beat → chamber mapping** (v3.0 — replaces v2.5's elapsed-time
+phase rules): the v2.5 Calm/Mixed/Rush phase beats now map onto the
+3 chambers. Outer = Calm-equivalent (imps only, onboarding); Foundry
+= Mixed-equivalent (composition pressure with imp+demon+ranger);
+Core = Rush+Boss-equivalent (climax). The v2.5 elapsed-time triggers
+(`elapsed_gte: 30` for Mixed, `elapsed_gte: 60` for Rush siren) are
+retired — chamber-specific spawn rules express the same idea more
+naturally.
+
+**Chamber-transition beat** (v3.0): when a chamber's clear condition
+fires, before `transition_level` triggers entity teardown:
+- HUD shows `CHAMBER N CLEARED` banner for ~1.5s
+- Plays `chamber_breach` audio cue (NEW: low descending tone +
+  reverb tail, ~0.8s — needs adding to sounds.json)
+- Brief screen flash (`#80c0ff` containment-cyan, 12 frames)
+- Persistent state visible on HUD throughout transition (HP/ammo/
+  score retained — no flicker)
+
+Without this beat, transitions feel like load screens. With it, they
+feel like climax moments — supporting the Sensation aesthetic.
+
+**Death = full-campaign restart** (v3.0 design choice). HP=0 in any
+chamber → lose screen → R reloads from chamber 1 with fresh HP/ammo/
+score. No mid-campaign checkpoints — single-life challenge across
+all 3 chambers supports the Challenge aesthetic. Suiciding-to-refill
+exploit is closed by design (the persistent loadout is the strategic
+constraint, not a punishment to escape).
 
 ## Mechanics
 
@@ -263,6 +324,12 @@ In scope:
   (scene.json `ground` block) replace the old creature_bounds + 
   projectile_floor_despawn content rules. Engine-level instead of 
   content-level. Three mechanisms collapsed to two.
+- **3-chamber campaign (v3.0 REV)**: multi-level structure via
+  ADR 0006 (`progression.json` + `levels/` + `transition_level`
+  effect + `persistent` tag). Chambers 1-2 cleared by score
+  threshold; Chamber 3 (boss arena) cleared by boss kill.
+  Persistent player loadout. Engine handles entity teardown +
+  re-load between chambers between ticks.
 
 Out of scope (explicitly):
 - Jumping / gravity — flat XZ movement (Y stays 0)
@@ -271,16 +338,31 @@ Out of scope (explicitly):
 - Difficulty modes — single fixed difficulty for v2.5
 - Bullet-blocked-by-wall opt-out (`ignores_obstacles`) — v3 if needed.
 
-### Replay framing (REV — per Axis 11)
+### Replay framing (REV — v3.0 multi-chamber speedrun)
 
-The 90-second arcade loop IS the replay vector. After first death/
-timeout/win:
-- Lose/win screen shows `Score: <kills>`, `Time: <Xs>`, and best
-  stats: `Best score: 27 (this session)` / `Best score ever: 35`.
-- Persistent best-stats stored at `user://doomarena3d_save.json`.
-- Player chases: kill more in 90s, OR survive longer past 30 kills,
-  OR kill the boss in fewer total kills.
-- Optional: track "fastest boss kill" as additional score axis.
+The 3-chamber campaign is intrinsically replay-rich (multi-stage
+campaigns naturally support speedrun framing — Doom 1993 had per-
+level par times). After first death/win:
+
+- Lose/win screen shows breakdown:
+  - `Total clear time: <X>s`
+  - `Chamber 1: <X>s · Chamber 2: <X>s · Chamber 3: <X>s`
+  - `Final score: <N> kills` · `Damage taken: <N>`
+  - `Best total clear: 87s · Best Chamber 3 boss-kill: 19s`
+- Persistent best-stats stored at `user://doomarena3d_save.json`:
+  - Best total clear time (campaign speedrun PB)
+  - Best per-chamber time (per-stage PB)
+  - Best chamber-3 boss-kill time
+  - Lowest HP entering chamber 3 (challenge run)
+  - Total damage taken across run (no-hit run)
+- Player chases:
+  - **Speedrun**: minimize total clear time
+  - **Per-stage PB**: optimize chamber 1, 2, or 3 individually
+  - **Boss-rush PB**: enter chamber 3 fast + kill boss fast
+  - **Damageless**: complete campaign with low/zero damage taken
+  - **Low-HP-3**: enter chamber 3 with lowest HP and still win
+
+These axes give 5+ replay vectors vs. v2.5's single score-chase.
 
 ### Restart UX (REV — per Axis 12)
 
@@ -307,7 +389,8 @@ Already specified in current implementation; formalizing in GDD:
 | Player hurt | `hurt` (noise+low pitch) | Visceral red-flash companion |
 | Pickup grab | `pickup` (rising sine chime) | Reward feedback |
 | Boss spawn | (NEW REV: needs `boss_roar` — descending square 200→80 Hz, 0.6s) | Distinct from imp deaths; player notices boss appears |
-| Wave 3 siren | (NEW REV: needs `siren` — alternating two-tone, 1.5s) | Announces Rush phase at t=60s |
+| ~~Wave 3 siren~~ | ~~`siren`~~ — RETIRED in v3.0 (chamber transitions replace elapsed-time phase rules) | — |
+| **Chamber transition** *(v3.0 NEW)* | `chamber_breach` (NEW: low descending tone + reverb tail, ~0.8s) | Containment-broken cue when chamber clear fires |
 | Restart on death | `lose` | Existing |
 | Boss-killed win | `win` | Existing |
 

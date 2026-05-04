@@ -1,0 +1,23 @@
+{
+  "_comment": "Chamber 3 — Core Containment (v3.0 FINALE). 44×44m open arena with 3 sparse pillars (no divider, no machinery). Boss spawns IN initial_instances at center-back (0, 0, 16) — no spawn rule needed. Supplemental imps spawn every 4s. Boss-kill clears (engine flips world.all_levels_complete since this is last level).",
+
+  "initial_instances": [
+    {"def": "arena_clock", "id": "clock_core", "position": [0, 0, 0]},
+    {"def": "floor",       "id": "floor_core", "position": [0, 0, 0]},
+
+    {"def": "wall_ns", "id": "wall_core_n", "position": [0, 0,  22]},
+    {"def": "wall_ns", "id": "wall_core_s", "position": [0, 0, -22]},
+    {"def": "wall_ew", "id": "wall_core_e", "position": [ 22, 0, 0]},
+    {"def": "wall_ew", "id": "wall_core_w", "position": [-22, 0, 0]},
+
+    {"_comment": "Sparse cover — 3 pillars asymmetric. Open arena forces player to face the boss directly with limited cover for kiting.",
+     "def": "pillar", "id": "pillar_core_L", "position": [-9, 0, -2]},
+    {"def": "pillar", "id": "pillar_core_R", "position": [10, 0, 0]},
+    {"def": "pillar", "id": "pillar_core_F", "position": [ 0, 0, -10]},
+
+    {"_comment": "BOSS pre-spawned at back-center per GDD's ceremonial framing. Player turns around, sees the Industrial Mover already standing there — climax intro.",
+     "def": "monster_boss", "id": "boss_core", "position": [0, 0, 16]}
+  ],
+
+  "initial_relations": []
+}
