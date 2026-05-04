@@ -1,0 +1,13 @@
+{
+  "_comment": "Arrow keys / WASD for movement (PRESS-edge — turn-based, one move per keypress). R to restart current level.",
+
+  "actions": {
+    "move_north": {"keys": ["W", "Up"]},
+    "move_south": {"keys": ["S", "Down"]},
+    "move_east":  {"keys": ["D", "Right"]},
+    "move_west":  {"keys": ["A", "Left"]},
+    "restart":    {"keys": ["R"]}
+  },
+
+  "press_edge": ["move_north", "move_south", "move_east", "move_west", "restart"]
+}

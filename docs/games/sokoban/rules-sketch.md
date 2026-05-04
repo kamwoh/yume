@@ -144,6 +144,87 @@ The orchestrator hint asked us to flag this if found:
 
 For v1 sokoban: proceed with workaround. Flag as ADR candidate.
 
+---
+
+## v0.1 implementation notes (2026-05-04)
+
+Foundation built: data folder + entity defs + level_1 instances + scene
++ HUD + progression. Smoke test passes (5 defs, 20 entities, level=level_1,
+no engine errors). Visual capture confirms 5×5 grid renders correctly
+with PBG layout. **Conditional movement rules NOT implemented yet** —
+v0.1 ships static instances only.
+
+### Engine concerns surfaced during build
+
+1. **shapes.json doesn't support formulas in primitive fields.** Only
+   `$param_name` substitution works. A "generic square" with size param
+   requires concrete-sized variants (`tile_32`, `tile_26`) instead of
+   one parameterized shape. Added both to `data/shapes.json`. Minor
+   asset-design wart; not blocking.
+
+2. **state_set with Array value doesn't auto-evaluate per-element
+   formulas.** `_value()` returns Array as-is; only `spawn` has special
+   handling for position/velocity formula arrays. This means
+   `{"type": "state_set", "field": "position", "value": ["self.state.position.x + 32", ...]}`
+   does NOT work as written. **This is a real engine gap for sokoban's
+   teleport-on-input movement model.**
+
+3. **`require` clause only validates entities already named in
+   context.** Can't easily express "no wall exists at target cell" —
+   require needs an entity ID to check, not "scan all entities at
+   position." The signal+payload+_origin_position workaround is still
+   the right approach but needs empirical validation in v0.2.
+
+### Path forward — two options
+
+**Option A**: Push the signal-based workaround empirically. Steps:
+- Input rule emits signal `attempt_move` with `_origin_position` =
+  target cell coords + payload `{dx, dy}`
+- Signal-trigger rule scans walls at radius 12 of origin → sets clock
+  flag if found
+- Signal-trigger rule scans boxes at radius 12 → emits `attempt_push`
+  with target+dx,dy
+- Tick rule commits move IF no flags blocked
+- For position teleport: instead of state_set, use spawn+remove
+  (despawn old player, spawn new at target). Wasteful but works.
+
+Risk: complex; signal phase ordering and `_origin_position` payload
+binding need empirical validation. ~2-4 hours of careful work.
+
+**Option B (recommended)**: ADR 0008 — Cell-grid primitives. Add
+explicit engine support for grid-based games:
+- `state_set` accepts Array values with per-element formula
+  evaluation (small change in `_value`)
+- New query field `position_at: [x, y]` for "entities at exact
+  position" without needing radius+origin gymnastics
+- Optional `cell_grid` scene config for snap-to-grid rendering
+
+Risk: real engine work + ADR review. ~1-2 days. But unblocks sokoban,
+chess (already in tests but stubbed), tactical RPG, roguelike, any
+future grid game cleanly.
+
+I'd push Option B for the long term; Option A for a one-off proof.
+
+### Files added in v0.1
+
+- `archetypes/core/templates/godot/data/demo_sokoban/scene.json`
+- `archetypes/core/templates/godot/data/demo_sokoban/world.json`
+- `archetypes/core/templates/godot/data/demo_sokoban/inputs.json`
+- `archetypes/core/templates/godot/data/demo_sokoban/hud.json`
+- `archetypes/core/templates/godot/data/demo_sokoban/progression.json`
+- `archetypes/core/templates/godot/data/demo_sokoban/world_rules.json` (placeholder)
+- `archetypes/core/templates/godot/data/demo_sokoban/entities/{player,box,wall,goal,level_clock}.json`
+- `archetypes/core/templates/godot/data/demo_sokoban/levels/level_1/entities.json`
+- `archetypes/core/templates/godot/scenes/sokoban_2d.tscn`
+- `archetypes/core/templates/godot/data/shapes.json` (+`tile_32`, +`tile_26`, +`filled_circle`)
+- `captures/sokoban_l1_v0.1.png`
+
+### Status
+
+- v0.1 = playable as a "static art exhibit" (level renders, no
+  interaction works yet besides Q to quit and ESC).
+- v0.2 = pick A or B above; build movement; ship 8 levels.
+
 ## Open questions for content-designer
 
 1. Level transition mechanics — how does state-set on `level_clock.level`

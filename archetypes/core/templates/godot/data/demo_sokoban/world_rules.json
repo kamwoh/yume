@@ -1,0 +1,13 @@
+{
+  "_comment": "Sokoban v0.1 — FOUNDATION ONLY. Conditional movement rules (push, walls, win) are v0.2 work, gated on engine-level decision: (a) make signal+payload+_origin_position workaround viable for cell-grid queries OR (b) ADR 0008 for cell-grid primitives. See docs/games/sokoban/rules-sketch.md for the design. v0.1 only ships a tick-counter so the engine has at least one rule registered (else scheduler may complain).",
+
+  "rules": [
+    {
+      "_comment": "Increment level_clock.moves each tick — placeholder; real movement updates this on player-input commit. Lets HUD tick visibly during smoke test.",
+      "id": "tick_clock",
+      "trigger": {"type": "tick", "interval": 4},
+      "query": {"tags_all": ["clock"]},
+      "effect": {"type": "state_add", "target": "self", "field": "moves", "amount": 0}
+    }
+  ]
+}

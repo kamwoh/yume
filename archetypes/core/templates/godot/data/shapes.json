@@ -2,6 +2,30 @@
   "_comment": "Initial shape library — composes engine draw primitives (circle, rect, polygon, line) into recognizable visuals. Adding a new shape is a JSON edit. Each shape has default $params overridable via entity.visual.params.",
 
   "shapes": {
+    "tile_32": {
+      "_comment": "Filled 32×32 square, centered. Useful for grid-cell content at 32px resolution (sokoban walls etc).",
+      "primitives": [
+        {"op": "rect", "pos": [-16, -16], "size": [32, 32], "color": "$color"}
+      ],
+      "params": {"color": "#888888"}
+    },
+
+    "tile_26": {
+      "_comment": "Filled 26×26 square, centered. Slightly inset from a 32-cell — for crates/movables that visually fit inside a tile with margin.",
+      "primitives": [
+        {"op": "rect", "pos": [-13, -13], "size": [26, 26], "color": "$color"}
+      ],
+      "params": {"color": "#888888"}
+    },
+
+    "filled_circle": {
+      "_comment": "Filled circle with per-entity radius/color via params. Default 12px.",
+      "primitives": [
+        {"op": "circle", "pos": [0, 0], "radius": "$radius", "color": "$color"}
+      ],
+      "params": {"radius": 12, "color": "#888888"}
+    },
+
     "tree": {
       "primitives": [
         {"op": "rect",   "pos": [-3, -2],  "size": [6, 16], "color": "$trunk"},

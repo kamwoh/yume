@@ -1,0 +1,9 @@
+{
+  "_comment": "Sokoban scene config — top-down 2D grid. tick_seconds=0 means 'tick on input only' (turn-based). Cell size = 32px. position_scale=1.0 because we author in pixels.",
+
+  "tick_seconds": 0.1,
+
+  "renderer": {
+    "position_scale": 1.0
+  }
+}

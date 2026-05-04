@@ -1,0 +1,19 @@
+{
+  "_comment": "Sokoban HUD — minimal. Chamber name + move count + restart hint. Win latches on world.all_levels_complete (set by engine after final level transition).",
+
+  "panels": [
+    {
+      "anchor": "top-left",
+      "elements": [
+        {"type": "label", "binds": "world.current_level", "format": "📚 Level: {}", "size": 22},
+        {"type": "spacer", "height": 4},
+        {"type": "label", "binds": "level_clock.moves", "format": "moves: {}", "size": 16}
+      ]
+    }
+  ],
+
+  "controls_hint": "WASD/arrows to move · R to restart · Q to quit",
+
+  "win":  {"binds": "world.all_levels_complete", "op": ">=", "value": 1,
+           "message": "🌟 ALL LEVELS CLEARED 🌟\nThe archive is sorted.\nYou may rest."}
+}

@@ -1,0 +1,15 @@
+{
+  "_comment": "Sokoban player. Each level spawns a fresh player at its level-defined start position; player is NOT persistent (movement count lives on the per-level level_clock). Position in pixels; cell size = 32, so position [32, 64] = cell (1, 2).",
+  "definitions": [
+    {
+      "id": "player",
+      "tags": ["player", "creature", "actor"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "shape": "filled_circle",
+        "params": {"radius": 12, "color": "#3aa8e8"}
+      }
+    }
+  ]
+}
