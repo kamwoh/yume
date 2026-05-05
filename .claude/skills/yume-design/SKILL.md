@@ -238,33 +238,54 @@ The plan + level-design are the single sources of truth for downstream:
   coordinates from level-design.md (no ad-hoc placement decisions).
 - asset-designer reads visual hints + applies consistent style.
 
-### Phase 2 — systems-designer (GDD → rule sketches)
+### Phase 2 — systems-designer (GDD → world physics)
+
+Per ADR 0009, this skill now writes `world/physics.json` directly
+(in addition to the rule-sketch document for review).
 
 8. Invoke `yume-systems-designer` skill. Tool:
    `Skill(skill="yume-systems-designer", args=<GDD path + resolved questions>)`.
-9. Skill produces `docs/games/<name>/rules-sketch.md`. May propose ADRs
-   at `docs/adr/NNNN-*.md` if new primitives needed.
+9. Skill produces `docs/games/<name>/rules-sketch.md` + `world/physics.json`
+   under the data folder. May propose ADRs if new primitives needed.
 10. **If ADR proposed → escalate to tech-director:**
     `Skill(skill="yume-tech-director", args=<ADR path + diff>)`.
     On rejection → re-invoke systems-designer without the new primitive.
     On accept → ADR status set to `accepted`, proceed.
 11. Interactive: show sketch + ADRs, ask approval. Autonomous: proceed.
 
-### Phase 3 — content-designer (sketches → JSON)
+### Phase 3 — content-designer (entities + initial state)
+
+Per ADR 0009 narrowed scope: this skill ONLY writes entity defs + initial
+placements + world state. Rules are NOT written here.
 
 12. Invoke `yume-content-designer` skill. Tool:
-    `Skill(skill="yume-content-designer", args=<sketch path + GDD path + design decisions>)`.
-13. Skill writes `entities.json`, `world_rules.json`, optional `world.json`,
-    `shapes.json` under `archetypes/core/templates/godot/data/demo_<name>/`.
+    `Skill(skill="yume-content-designer", args=<GDD + world-plan + level-design + sketch>)`.
+13. Skill writes `entities/*.json` (defs + placements), `world/state.json`
+    (initial world state), `levels/<name>/entities.json` (multi-level
+    games), under `data/demo_<name>/`.
 14. Interactive: show file summary, ask approval. Autonomous: proceed.
 
-### Phase 4 — asset-designer (visual + audio fields)
+### Phase 3.5 — game-rules-designer (game logic) ★ NEW per ADR 0009
 
-15. Invoke `yume-asset-designer` skill. Tool:
-    `Skill(skill="yume-asset-designer", args=<GDD path + entities path + style flag>)`.
-16. Skill updates `entity.visual.*` fields, extends `shapes.json`, and
-    writes `asset_gen.json` if `--with-assets`.
-17. Interactive: show visual choices, ask approval. Autonomous: proceed.
+15. Invoke `yume-game-rules-designer` skill. Tool:
+    `Skill(skill="yume-game-rules-designer", args=<GDD + world/physics.json>)`.
+16. Skill writes `game/rules.json` (scoring, win/lose, transitions,
+    restart) and `game/flow.json` (level sequence + on-all-complete).
+    For sandbox sims (no goals), this phase is SKIPPED — game/ folder
+    stays empty.
+17. Interactive: show game-logic decisions, ask approval. Autonomous: proceed.
+
+### Phase 4 — asset-designer (visuals + audio + UI strings)
+
+Per ADR 0009 expanded scope: also writes audio/cues.json + ui/strings.json.
+
+18. Invoke `yume-asset-designer` skill. Tool:
+    `Skill(skill="yume-asset-designer", args=<GDD + entities path + style flag>)`.
+19. Skill updates `entity.visual.*` + `audio.*` fields, writes `scene.json`,
+    `hud.json`, `audio/cues.json` (semantic event → sound mapping),
+    `ui/strings.json` (localizable HUD text), and `asset_gen.json` if
+    `--with-assets`.
+20. Interactive: show visual + audio + string choices, ask approval. Autonomous: proceed.
 
 ### Phase 5 — qa-tester (verify)
 
@@ -441,9 +462,10 @@ design-quality phases). The 8 specialist skills it invokes are at
 - `yume-game-reviewer` — Phase 1b (adversarial GDD critique)
 - `yume-game-planner` — Phase 1c (GDD → world plan, named cast)
 - `yume-level-designer` — Phase 1d (spatial layout + rationale)
-- `yume-systems-designer` — Phase 2 (rule sketches)
-- `yume-content-designer` — Phase 3 (sketches → JSON)
-- `yume-asset-designer` — Phase 4 (visual + audio fields)
+- `yume-systems-designer` — Phase 2 (world physics rules — `world/physics.json`)
+- `yume-content-designer` — Phase 3 (entities + initial state)
+- `yume-game-rules-designer` — Phase 3.5 (game logic — `game/rules.json` + `game/flow.json`) ★ ADR 0009
+- `yume-asset-designer` — Phase 4 (visuals + audio cues + UI strings)
 - `yume-qa-tester` — Phase 5 (headless + visual + scenario QA)
 - `yume-tech-director` — invariant guardian, on-demand
 

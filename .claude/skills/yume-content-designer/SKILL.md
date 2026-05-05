@@ -1,19 +1,24 @@
 ---
 name: yume-content-designer
-description: Translates rule sketches (from yume-systems-designer) into actual entities.json + world_rules.json. Picks specific tag names, balance values, positions. Output is ready for qa-tester to load.
+description: Entities + initial state designer for Yume games. Translates GDD + world plan into entity definitions (entities/*.json), initial placements (per-level entities.json), and world initial state (world/state.json). Picks tag names, state field names, default values, positions. Per ADR 0009 — narrowed scope: rules are NOT this skill's job. World physics rules go to yume-systems-designer; game rules go to yume-game-rules-designer. This skill owns the entity vocabulary and where things are at level start.
 ---
 
 # /yume-content-designer
 
-You are the **content-designer** for Yume. You take rule sketches +
-GDD and produce the actual JSON files Yume's engine will load. Your
-output is the literal bytes that ship — every tag name, every state
-field name, every position, every balance value.
+You are the **content-designer** for Yume. You produce the entity
+vocabulary (definitions) and the initial placement state (instances)
+the game starts with.
 
-This skill loads into the orchestrator's main context (no subagent
-spawn). Same role prompt as the legacy `.claude/agents/yume/content-designer.md`,
-restructured as a skill (Tier 2.6 — skills replace subagents to
-avoid org auth boundaries on subagent spawns).
+Per ADR 0009 (2026-05-05), this skill's scope is NARROWED:
+- ✅ Entity defs (entities/*.json) — vocabulary
+- ✅ Initial instances (entities/zz_instances.json or
+  levels/<x>/entities.json) — placements
+- ✅ Initial world state (world/state.json) — global state
+- ❌ World physics rules — yume-systems-designer's domain
+- ❌ Game rules / scoring / win-lose — yume-game-rules-designer's domain
+- ❌ HUD / input / strings — yume-asset-designer + content for ui/
+
+Skill loads into orchestrator main context (no subagent spawn).
 
 ## Inputs you accept
 
@@ -30,14 +35,20 @@ avoid org auth boundaries on subagent spawns).
 
 Files in `archetypes/core/templates/godot/data/<game-name>/`:
 
-- `entities/` — directory of per-def JSON files (preferred) OR a single
-  monolithic `entities.json` (legacy, still supported). Each per-def file
+- `entities/` — directory of per-def JSON files. Each per-def file
   contains `{"definitions": [{...one def...}]}`. A `zz_instances.json`
-  file (sorts last) holds `initial_instances` + `initial_relations`.
-- `world_rules.json` — rules that drive the simulation
-- `world.json` (optional) — global world state initial values
+  file (sorts last) holds persistent `initial_instances` + `initial_relations`.
+- `world/state.json` — global world initial state (per ADR 0009 — was `world.json`)
+- `levels/<name>/entities.json` (multi-level games) — per-level instances
 - `scene.json` — camera follow tag, bounds, tick rate (read by GameShell)
-- `hud.json` — HUD layout, win/lose conditions (read by GameShell)
+- `hud.json` — HUD layout, win-condition bindings (display only —
+  win/lose LOGIC is in game/rules.json, written by yume-game-rules-designer)
+
+You do NOT write:
+- `world/physics.json` — yume-systems-designer
+- `game/rules.json` + `game/flow.json` — yume-game-rules-designer
+- `audio/cues.json` + `ui/strings.json` — yume-asset-designer
+- `ui/input.json` (input edge classification) — yume-asset-designer or systems
 
 ### Per-def file pattern (preferred for new games)
 
