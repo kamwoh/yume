@@ -1511,3 +1511,126 @@ min of revision instead of multi-hour rebuild. The ternary discovery
 is a side-effect Tier 2.6 invariant that the engine layer should
 surface (proposed: ADR for "no ternary" + a simple `cond` helper in
 formula vocabulary).
+
+## ADR 0006 + ADR 0009 fully landed (2026-05-04 / 05)
+
+Two structural ADRs shipped end-to-end. Roadmap is past its previously-
+projected Tier 2.7 surface and into post-W6 territory; updating here so
+future Claudes don't miss it.
+
+### ADR 0006 — Multi-level architecture (LANDED 2026-05-04)
+
+`game/flow.json` declares level order + starting level. Per-level
+content under `levels/<name>/` (entities + optional rules). Persistent
+entities tagged `persistent` survive transitions. Engine path:
+`transition_level` effect → `process_pending_level_transition` between
+ticks → tear down non-persistent + reload globals + load new level.
+
+Demonstrated by demo_multilevel + demo_doomarena3d (3-chamber campaign)
++ demo_sokoban (8-level puzzle progression).
+
+### ADR 0009 — World/game/flow separation (LANDED 2026-05-05)
+
+Sub-phases shipped in order:
+
+- **Phase 1** — engine multi-file rule loader + initial sokoban migration
+- **Phase 2a** — `world/physics.json` + `game/rules.json` + `game/flow.json`
+  layout
+- **Phase 2b** — `audio/cues.json` + `@cues.X` indirection
+- **Phase 2c** — `ui/strings.json` + `@strings.X` indirection
+- **Phase 2d** — variants overlay layer (`variants/<name>.json` applies
+  rule-id-keyed overrides + world_state overlay + entity-id state
+  overrides at load time; controlled by `World.variant_override` >
+  `scene.json.variant` > `YUME_VARIANT` env var)
+- **Phase 3** — bulk migration: 13 demos onto the new layout
+- **Phase 3b** — per-demo rule classification splits: 7 demos
+  (shooter / doomarena / doomarena3d / fpsgarden / rpg / towerdef3d /
+  harvestcore) now have proper world/physics + game/rules separation;
+  5 demos (chess / ecology / ecology_deep / farming / tinypond)
+  intentionally left physics-only as pure simulations
+- **Phase 4** — 8 specialist skills updated for the new ownership boundaries;
+  new `yume-game-rules-designer` skill added
+- **Phase 5b** — sunset legacy loader paths (world_rules.json,
+  progression.json, world.json, inputs.json, levels/<x>/world_rules.json
+  all removed from the engine; canonical paths only)
+
+Engine state: 236/236 unit tests + 14/14 sokoban scenarios pass with
+the new layout.
+
+### Engine fixes surfaced by sokoban builds (2026-05-04 → 05)
+
+The sokoban build empirically exposed several engine-level bugs that
+got fixed and baked into skill files:
+
+- **state_set position didn't update spatial_index** — entities moved
+  via state_set (no velocity) silently disappeared from radius queries
+  once they crossed a 64px cell boundary. Fixed in effect_apply.gd.
+- **Signal-rule effects didn't apply before contact rules in same
+  react phase** — wall_blocks_push set push_blocked=1, commit_push
+  queried stale 0, boxes pushed through walls. Fixed by adding
+  `flush_effects()` after `_drain_signals_into("react")` in
+  phase_scheduler.tick(). Codified as Invariant #9 in tech-director.
+- **scenario_runner cached actor_id at scenario start** — broke
+  multi-level playthroughs because each transition recreated the
+  player entity with a new id. Fixed: re-resolve every tick.
+- **Renderer drew in spawn order with no z_index respect** — player
+  occluded by floor tiles in level 2+. Fixed: renderer reads optional
+  visual.z_index. Sokoban convention baked into asset-designer skill.
+- **Camera hardcoded to level-1 center** — level 3+ extended
+  off-screen. Fixed: `center_on_tag` mode + optional `fit_padding`
+  for auto-zoom-to-fit.
+
+### Skills now baking in lessons (2026-05-05)
+
+Each post-launch fix was traced back to the responsible skill and
+documented:
+
+- yume-asset-designer — camera-mode selection guide; z_index layering
+  convention table.
+- yume-visual-designer — Axis 4 demands captures of levels beyond L1;
+  Axis 5 gains stacking check.
+- yume-qa-tester — required-coverage section: "blocker pattern" rules
+  (signal sets `_blocked` flag, contact reads it) MUST have a
+  scenario exercising the BLOCKED path.
+- yume-tech-director — Invariant #9 (phase ordering: drain('react')
+  must be followed by flush before phase-react).
+- yume-level-designer — Step 6 solvability/reachability audit. Plus
+  the load-bearing rule: "ASCII diagram IS the level — designer notes
+  that contradict the diagram are ignored by the auto-generator."
+
+### Cleanup pass (2026-05-05)
+
+- Deleted orphaned engine scripts: pathfinding_astar.gd, minimap.gd,
+  sim_pos.gd (all pre-W1 / pre-architecture artifacts with zero
+  consumers).
+- Deleted `.claude/agents/yume/` (7 legacy subagent role prompts).
+  They were superseded by skills AND documented the pre-ADR-0009
+  layout, so they were an active hazard.
+- Regenerated `docs/engine-reference/api-manifest.json` — added
+  `velocity_add_relative`, `raycast_hit`, `transition_level` effects
+  that were implemented + tested but missing.
+- Skill ownership boundaries fixed: yume-content-designer no longer
+  claims scene.json/hud.json/world_rules.json/progression.json (those
+  belong to asset-designer / systems-designer / game-rules-designer).
+
+### Status
+
+| Tier | State |
+|---|---|
+| Tier 2 (engine) | done end of W6 |
+| Tier 2.5 (pipeline) | done except optional asset-gen (2.5i-2.5l) |
+| Tier 2.6 (harness) | partial — 2.6a + 2.6c + 2.6g done; 2.6b/d/e/f open |
+| Tier 2.7 (design-quality + recording) | design-quality phases done; recording substrate not started |
+| ADR 0006 (multi-level) | done |
+| ADR 0009 (world/game/flow split) | fully closed including Phase 5b sunset |
+
+Outstanding live debt:
+1. harvestcore + tinypond may have silently broken ternaries (Godot
+   4.6.1 Expression bug). Audit + convert to clamp-step pattern.
+2. harvestcore has a deeply-nested ternary that won't parse; surfaced
+   during 3b smoke-test, not yet fixed.
+
+Recommended next strategic move: run a fresh game through `/yume-design`
+to validate the now-mature pipeline produces a working game without
+human intervention. Skill files have changed substantially since the
+last validation pass.
