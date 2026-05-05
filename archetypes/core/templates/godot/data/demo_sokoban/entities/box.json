@@ -6,7 +6,8 @@
       "tags": ["box", "pushable"],
       "properties": {},
       "state_init": {
-        "on_goal": 0
+        "on_goal": 0,
+        "being_pushed": 0
       },
       "visual": {
         "shape": "tile_26",

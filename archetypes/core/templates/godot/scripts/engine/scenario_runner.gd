@@ -113,13 +113,13 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	var setup: Dictionary = sc.get("setup", {})
 	_apply_setup(world, setup)
 
-	# Pre-resolve actor id for input injection
-	var actor_id := _find_actor_id(world)
-
 	# Run ticks; inject scripted inputs at scheduled tick numbers.
+	# Resolve actor id each iteration — multi-level playthroughs destroy and
+	# recreate the player entity across transitions, invalidating any cached id.
 	var actions: Array = sc.get("actions", [])
 	var n_ticks := int(sc.get("ticks", 30))
 	for t in range(1, n_ticks + 1):
+		var actor_id := _find_actor_id(world)
 		for a in actions:
 			if not (a is Dictionary):
 				continue

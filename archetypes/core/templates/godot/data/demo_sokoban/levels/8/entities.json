@@ -7,7 +7,12 @@
       "position": [
         16,
         16
-      ]
+      ],
+      "state": {
+        "total_boxes": 4,
+        "on_goal_count": 0,
+        "is_won": 0
+      }
     },
     {
       "def": "wall",

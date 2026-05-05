@@ -121,6 +121,54 @@ Authoring scenario tests for a new game: include 3-5 representative
 scenarios covering the core verbs (input → state change → cascade).
 Schema in `scripts/engine/scenario_runner.gd` header comment.
 
+**Multi-level playthrough scenarios (Tier 2.7p, 2026-05-05).** For
+multi-level games (ADR 0006 progression), a single scenario can drive
+the player through several levels in sequence and assert
+`world.current_level` advances. Pattern from
+`data/demo_sokoban/tests.json::playthrough_l1_to_l4`:
+
+```json
+{
+  "name": "playthrough_l1_to_l4",
+  "actions": [
+    {"tick": 1,  "input": "move_east"},   // L1 solve
+
+    {"tick": 5,  "input": "move_east"},   // L2 starts ~tick 5
+    ...
+    {"tick": 16, "input": "move_east"},
+
+    {"tick": 20, "input": "move_east"},   // L3 starts ~tick 20
+    ...
+  ],
+  "ticks": 55,
+  "assertions": [
+    {"type": "world_field", "field": "current_level",
+     "op": "==", "value": "5"}
+  ]
+}
+```
+
+Two essential gotchas:
+
+1. **`scenario_runner` re-resolves the actor id every tick** so input
+   routes to the new player after a level transition. (If you see a
+   subagent / older scenario_runner cache the actor once at start,
+   that's the legacy behavior — caching breaks across transitions.)
+
+2. **Win-to-transition latency for tick-rule-driven win checks is
+   ~3-4 ticks**, not immediate. Pattern: contact rule accumulates a
+   counter in REACT phase → next tick's DECIDE computes a derived
+   `is_won` flag (effects within a phase aren't yet applied to that
+   phase's rule queries) → next tick's DECIDE matches `is_won_gte: 1`
+   and fires `transition_level` → end-of-tick processes the
+   transition. Plan ~4 ticks of buffer between levels in your action
+   schedule.
+
+If a level's scenario fails: enable per-tick debug printing in
+`scenario_runner._run_one` (`var debug := scenario_name == "..."`) to
+trace player position / box positions / clock state per tick. Do
+NOT commit the debug code; remove after diagnosis.
+
 4. **Build a temp scene** for the new game (or reuse `world_2d.tscn`
    pointing at the new data_root). For headless testing:
 

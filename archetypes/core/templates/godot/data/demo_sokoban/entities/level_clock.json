@@ -13,7 +13,9 @@
         "push_blocked": 0,
         "last_dx": 0,
         "last_dy": 0,
-        "level_won": 0
+        "total_boxes": 1,
+        "on_goal_count": 0,
+        "is_won": 0
       },
       "visual": {
         "hidden": true

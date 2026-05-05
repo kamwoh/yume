@@ -86,6 +86,16 @@ static func _state_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	# regardless of how it was set.
 	if field == "position":
 		ent.set_position(value)
+		# 2026-05-05: state_set position must update spatial index, else contact
+		# queries see stale cell registration. Without this, an entity moved via
+		# state_set (no velocity) becomes invisible to radius queries the moment
+		# it crosses a spatial cell boundary. Caught during sokoban L2 playthrough
+		# debug — boxes crossed cells after a few pushes and box_at_attempt
+		# queries stopped matching them. Motion-integration update covers
+		# velocity-driven movement; this covers effect-driven movement.
+		var sx = env.get("spatial_index", null)
+		if sx != null and sx.has_method("update_entity"):
+			sx.update_entity(ent.instance_id, ent.get_planar_position())
 	elif field == "velocity":
 		ent.set_velocity(value)
 	else:

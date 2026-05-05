@@ -86,14 +86,68 @@
 
     {
       "name": "push_box_onto_goal_advances_level",
-      "_": "Pushing box onto goal completes level 1 → transition_level fires → world.current_level becomes '2'.",
+      "_": "Pushing box onto goal completes level 1. Count-based win check needs 2-tick latency (react accumulates, next decide checks).",
       "setup": {},
       "actions": [
         {"tick": 1, "input": "move_east"}
       ],
-      "ticks": 5,
+      "ticks": 10,
       "assertions": [
         {"type": "world_field", "field": "current_level", "op": "==", "value": "2"}
+      ]
+    },
+
+
+    {
+      "name": "playthrough_l1_to_l4",
+      "_": "Solve levels 1, 2, 3, 4 in sequence. Level→level transition takes ~4 ticks (compute→win→reset→count chain). L1: 1E. L2: 4E+S+3W+S+3E (12). L3: 3E+S+3W+3S+3E+N+2W (16). L4: 2E+S+3W+S+2E (9). Verify advance to level 5.",
+      "setup": {},
+      "actions": [
+        {"tick": 1,  "input": "move_east"},
+
+        {"tick": 5,  "input": "move_east"},
+        {"tick": 6,  "input": "move_east"},
+        {"tick": 7,  "input": "move_east"},
+        {"tick": 8,  "input": "move_east"},
+        {"tick": 9,  "input": "move_south"},
+        {"tick": 10, "input": "move_west"},
+        {"tick": 11, "input": "move_west"},
+        {"tick": 12, "input": "move_west"},
+        {"tick": 13, "input": "move_south"},
+        {"tick": 14, "input": "move_east"},
+        {"tick": 15, "input": "move_east"},
+        {"tick": 16, "input": "move_east"},
+
+        {"tick": 20, "input": "move_east"},
+        {"tick": 21, "input": "move_east"},
+        {"tick": 22, "input": "move_east"},
+        {"tick": 23, "input": "move_south"},
+        {"tick": 24, "input": "move_west"},
+        {"tick": 25, "input": "move_west"},
+        {"tick": 26, "input": "move_west"},
+        {"tick": 27, "input": "move_south"},
+        {"tick": 28, "input": "move_south"},
+        {"tick": 29, "input": "move_south"},
+        {"tick": 30, "input": "move_east"},
+        {"tick": 31, "input": "move_east"},
+        {"tick": 32, "input": "move_east"},
+        {"tick": 33, "input": "move_north"},
+        {"tick": 34, "input": "move_west"},
+        {"tick": 35, "input": "move_west"},
+
+        {"tick": 39, "input": "move_east"},
+        {"tick": 40, "input": "move_east"},
+        {"tick": 41, "input": "move_south"},
+        {"tick": 42, "input": "move_west"},
+        {"tick": 43, "input": "move_west"},
+        {"tick": 44, "input": "move_west"},
+        {"tick": 45, "input": "move_south"},
+        {"tick": 46, "input": "move_east"},
+        {"tick": 47, "input": "move_east"}
+      ],
+      "ticks": 55,
+      "assertions": [
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "5"}
       ]
     },
 
