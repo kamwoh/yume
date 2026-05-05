@@ -1634,3 +1634,49 @@ Recommended next strategic move: run a fresh game through `/yume-design`
 to validate the now-mature pipeline produces a working game without
 human intervention. Skill files have changed substantially since the
 last validation pass.
+
+## Next-phase brainstorm (2026-05-06)
+
+Strategic conversation captured in `docs/timeline/entries/27_roadmap_brainstorm_2026-05-06.js`.
+Decisions distilled here for roadmap state.
+
+### Skill candidates
+
+- [ ] **combining-logic designer** — universal compositional pattern (recipe
+  systems): crafting / alchemy / breeding / key-combos / chemistry. Yume
+  primitives cover it; pure design skill, no engine work. Easiest of the
+  three to ship; will land alongside the merchant game.
+- [ ] **economy-designer** — flow analysis + balance. Build alongside the
+  merchant game (real surface beats speculative scope).
+- [ ] **story-planner** — narrative arc / event tracking. Defer until a
+  narrative game actually needs it.
+
+### Game candidates (ranked)
+
+- [ ] **Merchant-POV (Recettear-like)** — NEXT pipeline freshness test.
+  1 shop, ~5 traveler types, ~10 items, news as world.signal. Tests
+  pipeline + combining-logic skill simultaneously. ~1 session scope.
+- [ ] **SAO Alicization-style life-sim** — second target. Researchers
+  raise Fluctlights from infancy in a virtual village. Two POV options
+  (Fluctlight or researcher). Needs time-compression engine question
+  answered first (year_counter binding? variable tick_seconds?).
+- [ ] **Sims-like** — harvestcore + needs systems + select-direct UI.
+  Substrate mostly there.
+- [ ] **Pure-combining-magic** — small-scope test for combining-logic
+  in isolation. Optional if merchant game doesn't exercise it enough.
+- [ ] Civilization — premature without Tier 3 (faction AI).
+- [ ] SAO mainline (Aincrad/ALO/GGO) — unbuildable without picking
+  the core mechanic. Alicization is the buildable arc.
+
+### Engine surface findings
+
+- `ui/input.json` covers keys + mouse buttons; mouse position / wheel /
+  modifier-combos / touch / gamepad NOT yet wired. Worth adding
+  mouse-as-state when a pointer-driven game (RTS, point-and-click)
+  comes up.
+- Simulation input layer EXISTS via `scenario_runner.queue_input`
+  (same code path as live keyboard). Missing for runtime AI: non-headless
+  variant + policy interface. Both are Tier 3 (Actors) work.
+- Time-compression for long-arc games (Alicization Fluctlight lifespans)
+  is an open design question — engine extension or content convention?
+  Decide before starting that game.
