@@ -77,6 +77,44 @@ For any new "domain" added (e.g., audio, animation), check the split:
 If a proposed change adds genre-specific code, reject — propose
 a generic primitive instead.
 
+### Invariant #9: Phase boundaries flush effects (Tier 2.7p, 2026-05-05)
+
+Effects produced by rules in one phase MUST be visible to rules in
+the next phase. The current `phase_scheduler.tick()` uses this
+ordering:
+
+```
+input → flush
+drain("decide") → (no flush — decide tick rules see PRE-signal state)
+decide → flush
+drain("react") → flush  ← critical: signal-rule effects apply here
+react → flush
+```
+
+The `drain("react") → flush` is load-bearing for blocker-pattern
+rules (signal sets `_blocked` flag, contact reads it). Sokoban v0.4
+shipped with boxes pushed through walls because this flush was
+missing — push_blocked=1 was buffered, commit_push queried stale 0,
+push fired anyway.
+
+**Symmetric flush after `drain("decide")` is intentionally absent.**
+Adding it would expose signal-rule effects to decide-phase tick
+rules, which can break tick rules that intentionally rely on
+seeing pre-signal state (e.g., sokoban's `reset_being_pushed`
+clears stale flags from previous-tick blocked pushes — if it ran
+AFTER the new being_pushed=1 flag was applied, it would clear the
+fresh flag and break pushes).
+
+**For any proposed change to phase ordering or flush placement:**
+1. State which axis-of-correctness motivates the change.
+2. Trace ALL existing demos' tick flows to verify no regression.
+3. Add a scenario test that would catch the regression (per
+   yume-qa-tester's blocker-pattern coverage requirement).
+
+Engine ordering changes need an ADR — they're cross-cutting and the
+implications often don't surface until a specific rule chain hits
+them in the field.
+
 ## How to review a change
 
 1. **Read the diff carefully.** What got added/changed/removed in

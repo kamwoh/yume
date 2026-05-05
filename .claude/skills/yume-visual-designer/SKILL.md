@@ -174,11 +174,20 @@ symmetric) or unbalanced (everything in one corner)?
 - Is there breathing room (negative space) for the eye to rest?
 - For grid games (sokoban, chess): is the grid centered? Is there
   too much or too little margin?
+- **For multi-level grid games**: capture LEVELS BEYOND THE FIRST
+  too. A camera config that frames level 1 (e.g. hardcoded
+  `position: (80, 80)`) crops level 3+. If captures show the level
+  shoved bottom-right of viewport, the camera config is wrong —
+  recommend `center_on_tag: "floor"` (or whatever tag defines the
+  level bounds) so the camera frames any level automatically.
+  Sokoban v0.4 launched with this bug because round-1 review only
+  saw level 1.
 - For 3D shooters: is there visual depth (foreground / mid / back) or
   is everything at one distance?
 
 **Severity calibration**: symmetric-everything = minor (sterile but
-functional). Bunched-and-cluttered = major.
+functional). Bunched-and-cluttered = major. Level cropped /
+off-center on multi-level games = major.
 
 ### Axis 5 — Visual hierarchy
 
@@ -190,9 +199,19 @@ functional). Bunched-and-cluttered = major.
 - Decorative entities (walls, terrain) should recede.
 - Active threats / interactive items (enemies, pickups) should pop
   but not as much as the player.
+- **Stacking check (2D grid games)**: when the player or a movable
+  entity steps onto a cell that already has another entity (floor,
+  goal, switch), is the player still visible? If the player
+  disappears or partially occludes, the entity defs are missing
+  `visual.z_index` values. Convention: floor=-10, structure=-8,
+  on-floor markers=-5, on-floor items=5, actors=10. Walk through 2-3
+  cells in the capture sequence to verify — a single static frame
+  may not catch this.
 
 **Severity calibration**: player invisible / lost in scene = major.
-Decorations equally prominent as gameplay = minor.
+Decorations equally prominent as gameplay = minor. Player invisible
+when stepping onto another entity's cell = blocker (game becomes
+unplayable).
 
 ### Axis 6 — HUD integration
 

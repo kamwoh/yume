@@ -121,6 +121,41 @@ Authoring scenario tests for a new game: include 3-5 representative
 scenarios covering the core verbs (input → state change → cascade).
 Schema in `scripts/engine/scenario_runner.gd` header comment.
 
+**Required coverage: blocker-pattern rules (Tier 2.7p, 2026-05-05).**
+If the game has any rule of the shape "signal rule sets a `_blocked`
+flag on shared state, a contact rule reads that flag", you MUST write
+a scenario that exercises the BLOCKED path — not just the
+unblocked-success path. Pattern from sokoban physics:
+
+- `wall_blocks_push` (signal) sets `clock.push_blocked=1`
+- `commit_push` (contact) requires `clock.push_blocked=0`
+
+Sokoban v0.4 shipped with this rule chain working in unit tests
+("push the box onto the goal" succeeded) but pushing INTO the
+perimeter wall worked too — boxes flew out of bounds. The flag was
+buffered in the same react phase that contact rules queried. Engine
+fix landed (`flush_effects()` after `_drain_signals_into("react")`),
+but a `wall_blocks_push_at_perimeter` scenario should have caught it
+on day one. Required test shape:
+
+```json
+{
+  "name": "wall_blocks_push_at_perimeter",
+  "actions": [/* set up state, then attempt blocked action */],
+  "ticks": 8,
+  "assertions": [
+    {"type": "entity_field", "select": "first",
+     "query": {"tags_all": ["box"]},
+     "field": "state.position.x", "op": "<=", "value": <last_legal_x>}
+  ]
+}
+```
+
+Identify candidate blocker chains by grepping the game's rules for
+`*_blocked`, `*_blocks_*`, or any state-flag pattern where one rule
+SETS and another READS within the same tick. Each such pair gets a
+scenario.
+
 **Multi-level playthrough scenarios (Tier 2.7p, 2026-05-05).** For
 multi-level games (ADR 0006 progression), a single scenario can drive
 the player through several levels in sequence and assert

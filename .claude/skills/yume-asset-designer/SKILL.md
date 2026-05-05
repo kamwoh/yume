@@ -57,7 +57,8 @@ Optional:
   "tick_seconds": 0.1,           // 0.1 for snappy input games; 0.5 for slow sims
   "camera": {
     "follow_tag": "player",      // tag of entity to follow; omit for static camera
-    "lerp": 0.08,                // 0.05-0.15 = smooth; 1.0 = snap
+    "center_on_tag": "floor",    // OR: center camera on bbox of all matched entities
+    "lerp": 0.08,                // 0.05-0.15 = smooth; 1.0 = snap (turn-based)
     "zoom": [1.5, 1.5]
   },
   "bounds": {                    // optional — visible play area + clamping target
@@ -67,6 +68,52 @@ Optional:
     "border_color": "#4d8aa6",   // optional outline
     "border_width": 6
   }
+}
+```
+
+#### Camera mode selection
+
+- **`follow_tag: "player"`** — camera tracks one entity. Use for
+  scrolling worlds (ecology, RPG overworld, twin-stick shooter). Player
+  stays centered, world moves around them.
+- **`center_on_tag: "floor"` (or any layout-defining tag)** — camera
+  centers on the bounding-box of all matched entities. Use for
+  **fixed-frame grid games (sokoban, chess, puzzle)** where the WHOLE
+  level should always be visible regardless of player position.
+- **No follow / static** — camera holds at scene-defined position.
+  Rare; only for single-screen games with a known layout.
+
+**Multi-level games (ADR 0006): always prefer `center_on_tag` over
+hardcoded camera position.** A hardcoded position frames level 1 and
+crops level 3+. Sokoban v0.4 hit this — bug surfaced post-launch when
+the user played L3 and saw the map shoved bottom-right of the viewport.
+
+### Z-index for overlapping entities (2D)
+
+For games where multiple entities can occupy the same cell (sokoban
+box-on-goal, RPG NPC-on-floor-tile, TD tower-on-path), set
+`visual.z_index` per entity def. Without it, draw order is **spawn
+order** — later children render on top, which depends on the order
+content-designer wrote `initial_instances`. Symptom: player disappears
+when stepping onto a cell because some other entity's instance index
+is higher.
+
+Sokoban convention (good template for grid games):
+
+| Layer | z_index | Examples |
+|---|---|---|
+| Background floor | -10 | floor_tile, terrain |
+| Structural | -8  | walls, fences |
+| On-floor markers | -5  | goals, save points, footprints |
+| On-floor items | 5   | boxes, pickups, projectiles |
+| Actors | 10  | player, enemies, NPCs |
+| HUD-style overlays in world | 50  | damage numbers, sparkles |
+
+Set on the entity def's `visual` block:
+```jsonc
+{
+  "id": "floor_tile",
+  "visual": {"shape": "tile_32", "params": {...}, "z_index": -10}
 }
 ```
 
