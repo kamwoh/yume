@@ -91,6 +91,9 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	world.verbose = false
 	world.renderer_script = ""  # headless: no renderer
 	world.input_actions_press = PackedStringArray()  # we inject manually
+	# ADR 0009 Phase 2d: per-scenario variant override (read BEFORE
+	# load_data, since variant detection happens there).
+	world.variant_override = str(sc.get("variant", ""))
 	add_child(world)
 	# Run lifecycle: _ready on World already fired during add_child; data
 	# isn't loaded because auto_start=false. Load explicitly.

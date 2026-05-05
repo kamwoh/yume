@@ -39,6 +39,12 @@ class_name World
 ## reset to zero). Empty string disables.
 @export var stop_action_on_idle: String = "stop"
 
+## ADR 0009 Phase 2d: variant override. If non-empty, takes precedence
+## over scene.json's "variant" key and the YUME_VARIANT env var. Used
+## by scenario_runner to test variant logic without mutating shared
+## global state.
+@export var variant_override: String = ""
+
 # ============================================================
 # STATE
 # ============================================================
@@ -155,6 +161,12 @@ func load_data() -> void:
 		_load_rules_file(root + "/world_rules.json", true)
 		_load_world_file(_resolve_layout_path(root, "world/state.json", "world.json"))
 		_load_entities_path(root)
+	# ADR 0009 Phase 2d: variant overlay applies after rules + world_state +
+	# entities are loaded. Read variant name from scene.json's "variant" key
+	# or YUME_VARIANT env var. Variant file at variants/<name>.json applies
+	# rule-id-keyed field overrides + world_state overrides + entity-id state
+	# overrides. Purely additive — cannot change rule structure.
+	_apply_variant_if_active(root)
 	scheduler.flush_effects()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
@@ -258,6 +270,129 @@ func _load_rules_file(path: String, append: bool = false) -> void:
 		scheduler.register_rules(rules)
 	if verbose:
 		print("[World] %d rules %s" % [rules.size(), "appended" if append else "registered"])
+
+
+## ADR 0009 Phase 2d — variant overlay loader.
+##
+## Schema (variants/<name>.json):
+##   {
+##     "rules":        {"<rule_id>": {"<dotted.path>": <new_value>}},
+##     "world_state":  {"<key>": <value>},
+##     "entities":     {"<entity_id>": {"<state_field>": <value>}}
+##   }
+##
+## Rules path supports:
+##   "chance"                 → rule.chance
+##   "effect.<field>"         → rule.effects[0][<field>]  (single-effect rules)
+##   "effects.<idx>.<field>"  → rule.effects[<idx>][<field>]  (multi-effect rules)
+##
+## Variants are PURELY ADDITIVE — they override numeric / scalar values
+## but cannot add or remove rules / change rule structure / introduce
+## new effect types. Use a separate game/rules.json for structural
+## changes.
+func _apply_variant_if_active(root: String) -> void:
+	var variant_name := _active_variant_name(root)
+	if variant_name == "":
+		return
+	var path := root + "/variants/" + variant_name + ".json"
+	if not FileAccess.file_exists(path):
+		if verbose:
+			print("[variant] '%s' selected but no file at %s — skipping" % [variant_name, path])
+		return
+	var f := FileAccess.open(path, FileAccess.READ)
+	var raw := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(raw)
+	if not (parsed is Dictionary):
+		push_warning("[variant] %s: invalid JSON" % path)
+		return
+	var v: Dictionary = parsed
+
+	# 1. Rule overrides
+	var rule_overrides: Dictionary = v.get("rules", {})
+	for rid_v in rule_overrides:
+		var rid := str(rid_v)
+		var rule := scheduler.get_rule_by_id(rid)
+		if rule == null:
+			push_warning("[variant] rule '%s' not found — override skipped" % rid)
+			continue
+		var fields: Dictionary = rule_overrides[rid_v]
+		for path_key in fields:
+			_apply_rule_override(rule, str(path_key), fields[path_key])
+
+	# 2. world_state overlay
+	var ws_overrides: Dictionary = v.get("world_state", {})
+	for k in ws_overrides:
+		world_state[str(k)] = ws_overrides[k]
+
+	# 3. Entity state overrides
+	var ent_overrides: Dictionary = v.get("entities", {})
+	for ent_id_v in ent_overrides:
+		var ent_id := str(ent_id_v)
+		var ent = entities.get(ent_id, null)
+		if not (ent is Entity):
+			push_warning("[variant] entity '%s' not found — override skipped" % ent_id)
+			continue
+		var state_overrides: Dictionary = ent_overrides[ent_id_v]
+		for sk in state_overrides:
+			(ent as Entity).set_state(str(sk), state_overrides[sk])
+
+	if verbose:
+		print("[variant] applied: %s (%d rules, %d world_state, %d entities)" % [
+			variant_name, rule_overrides.size(), ws_overrides.size(), ent_overrides.size()
+		])
+
+
+## Determine the active variant. Precedence:
+##   1. self.variant_override property (set by scenario_runner / tests)
+##   2. scene.json's "variant" key
+##   3. YUME_VARIANT env var
+##   4. "" (no variant)
+func _active_variant_name(root: String) -> String:
+	if variant_override != "":
+		return variant_override
+	var scene_path := root + "/scene.json"
+	if FileAccess.file_exists(scene_path):
+		var f := FileAccess.open(scene_path, FileAccess.READ)
+		var raw := f.get_as_text()
+		f.close()
+		var parsed = JSON.parse_string(raw)
+		if parsed is Dictionary:
+			var v := str((parsed as Dictionary).get("variant", ""))
+			if v != "":
+				return v
+	return OS.get_environment("YUME_VARIANT")
+
+
+## Apply a single override. Path forms:
+##   "chance"                 → rule.chance
+##   "effect.<key>"           → rule.effects[0][<key>]
+##   "effects.<idx>.<key>"    → rule.effects[<idx>][<key>]
+func _apply_rule_override(rule: Rule, path: String, value) -> void:
+	if path == "chance":
+		rule.chance = float(value)
+		return
+	if path.begins_with("effect."):
+		var key := path.substr("effect.".length())
+		if rule.effects.size() == 0:
+			push_warning("[variant] rule '%s' has no effects to override .%s" % [rule.id, key])
+			return
+		(rule.effects[0] as Dictionary)[key] = value
+		return
+	if path.begins_with("effects."):
+		var rest := path.substr("effects.".length())
+		var dot := rest.find(".")
+		if dot < 0:
+			push_warning("[variant] malformed effects path '%s' — expected effects.<idx>.<field>" % path)
+			return
+		var idx := int(rest.substr(0, dot))
+		var key2 := rest.substr(dot + 1)
+		if idx < 0 or idx >= rule.effects.size():
+			push_warning("[variant] rule '%s' effects index %d out of range" % [rule.id, idx])
+			return
+		(rule.effects[idx] as Dictionary)[key2] = value
+		return
+	push_warning("[variant] unsupported override path '%s' on rule '%s'" % [path, rule.id])
 
 
 func _load_world_file(path: String) -> void:

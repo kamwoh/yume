@@ -1,0 +1,11 @@
+{
+  "_comment": "Test variant — disables the move-counter by setting track_moves rule's chance to 0.0. Used by scenario tests to prove variant overlay actually mutates loaded rules. Real games would use variants for difficulty modes (e.g. 'easy' with reduced enemy speed, 'hardcore' with one-life), not this kind of toggle.",
+
+  "rules": {
+    "track_moves": {"chance": 0.0}
+  },
+
+  "world_state": {
+    "variant_active": "no_move_counter"
+  }
+}

@@ -172,6 +172,24 @@
     },
 
     {
+      "name": "variant_no_move_counter_disables_track_moves",
+      "_": "ADR 0009 Phase 2d. Variant 'no_move_counter' overrides track_moves rule's chance to 0.0. Player walks N then S (2 moves) — without the override, clock.moves=2; with it, clock.moves=0. Also asserts world_state.variant_active was overlaid.",
+      "variant": "no_move_counter",
+      "setup": {},
+      "actions": [
+        {"tick": 1, "input": "move_north"},
+        {"tick": 6, "input": "move_south"}
+      ],
+      "ticks": 12,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["clock"]},
+         "field": "state.moves", "op": "==", "value": 0},
+        {"type": "world_field", "field": "variant_active", "op": "==", "value": "no_move_counter"}
+      ]
+    },
+
+    {
       "name": "restart_resets_level",
       "_": "Move N (player(48,80)→(48,48)), then press R: player respawns at level-start (48, 80). Verifies transition_level with current_level reloads.",
       "setup": {},

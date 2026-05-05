@@ -118,6 +118,17 @@ func clear_rules() -> void:
 	rules_by_trigger.clear()
 
 
+## Find a registered rule by id. Used by variant overlay to apply
+## rule-id-keyed field overrides post-load. O(n) — variants rarely
+## override more than a handful of rules.
+func get_rule_by_id(rule_id: String) -> Rule:
+	for tt in rules_by_trigger.keys():
+		for r in rules_by_trigger[tt]:
+			if (r as Rule).id == rule_id:
+				return r as Rule
+	return null
+
+
 func _topo_sort_all() -> void:
 	for tt in rules_by_trigger.keys():
 		_topo_sort_bucket(rules_by_trigger[tt])
