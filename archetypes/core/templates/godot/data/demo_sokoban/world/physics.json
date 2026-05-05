@@ -134,7 +134,8 @@
            "a.state.position.x + b.state.last_dx",
            "a.state.position.y + b.state.last_dy"
          ]},
-        {"type": "unrelate", "relation": "pushing", "from": "b", "to": "a"}
+        {"type": "unrelate", "relation": "pushing", "from": "b", "to": "a"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "@cues.wood_push"}
       ]
     },
 
@@ -158,7 +159,8 @@
         {"type": "state_set", "target": "b", "field": "push_pending", "value": 0},
         {"type": "state_set", "target": "b", "field": "move_attempted", "value": 0},
         {"_comment": "Emit semantic event — game/rules.json's track_moves rule subscribes.",
-         "type": "emit", "signal": "player_moved"}
+         "type": "emit", "signal": "player_moved"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "@cues.wood_step"}
       ]
     }
   ]

@@ -15,10 +15,10 @@
       "_comment": "Restart input: R reloads the current level. world.current_level is the engine-managed binding to the current level id.",
       "id": "restart_input",
       "trigger": {"type": "input", "action": "restart"},
-      "effect": {
-        "type": "transition_level",
-        "target": "world.current_level"
-      }
+      "effect": [
+        {"type": "emit_shell_event", "event": "play_sound", "name": "@cues.level_restart"},
+        {"type": "transition_level", "target": "world.current_level"}
+      ]
     },
 
     {
@@ -32,6 +32,7 @@
         "once_per_a": true
       },
       "effect": [
+        {"type": "emit_shell_event", "event": "play_sound", "name": "@cues.level_won"},
         {"type": "transition_level", "target": "next"}
       ]
     }

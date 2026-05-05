@@ -226,8 +226,16 @@ func _drain_shell_events() -> void:
 			"play_sound":
 				# Tier 2.6n — forward to AudioBus autoload. Silent when
 				# AudioBus isn't loaded (headless/scenario tests).
+				# ADR 0009 Phase 2b: @-prefix resolution. If sound name
+				# starts with `@cues.`, look up via audio/cues.json. Lets
+				# rules emit semantic event names; cue table maps to
+				# concrete sounds. Swap audio palette without changing
+				# rules.
 				var sound_name := str(ev.get("name", ""))
 				if sound_name == "": continue
+				if sound_name.begins_with("@"):
+					sound_name = _resolve_cue(sound_name)
+					if sound_name == "": continue
 				var bus = get_node_or_null("/root/AudioBus")
 				if bus != null and bus.has_method("play"):
 					bus.play(sound_name)
@@ -850,6 +858,48 @@ func _show_outcome(message: String, won: bool) -> void:
 # ============================================================
 # UTIL
 # ============================================================
+
+# ADR 0009 Phase 2b — audio cue cache. Loaded once on first @-resolve;
+# lazy because most games may not use the cue indirection.
+var _cue_cache: Dictionary = {}
+var _cue_cache_loaded: bool = false
+
+
+## Resolve `@key.subkey` reference. Currently supports `@cues.<name>` →
+## audio/cues.json["cues"][name]. Returns "" if file missing or key not
+## found (silent fallback — rule keeps working with literal name path).
+func _resolve_cue(ref: String) -> String:
+	if not _cue_cache_loaded:
+		_load_cue_cache()
+	# Strip leading "@" then split first segment as namespace.
+	var rest: String = ref.substr(1)
+	var dot: int = rest.find(".")
+	if dot < 0: return ""
+	var ns: String = rest.substr(0, dot)
+	var key: String = rest.substr(dot + 1)
+	if ns != "cues":
+		return ""  # only cues namespace today; future: @strings.X for localization
+	return str(_cue_cache.get(key, ""))
+
+
+func _load_cue_cache() -> void:
+	_cue_cache_loaded = true
+	if _world == null: return
+	var dr = _world.get("data_root")
+	var root := (str(dr) if dr != null else "").rstrip("/")
+	if root == "": return
+	var path := root + "/audio/cues.json"
+	if not FileAccess.file_exists(path): return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return
+	var json := JSON.new()
+	if json.parse(f.get_as_text()) != OK: return
+	if not (json.data is Dictionary): return
+	var spec: Dictionary = json.data
+	var cues = spec.get("cues", {})
+	if cues is Dictionary:
+		_cue_cache = cues
+
 
 func _find_entity_by_tag(tag: String) -> Object:
 	if _world == null: return null
