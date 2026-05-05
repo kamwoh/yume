@@ -250,6 +250,59 @@ The plan + level-design are the single sources of truth for downstream:
   coordinates from level-design.md (no ad-hoc placement decisions).
 - asset-designer reads visual hints + applies consistent style.
 
+### Phase 1e — domain-specialist designers (CONDITIONAL)
+
+Three optional design specialists run BEFORE systems/content/game-rules
+authors any JSON. Each is gated on whether the GDD signals its domain.
+Order matters: combining-logic first (recipe table feeds economy),
+then economy (pricing curves feed content placement), then story
+(beats reference both).
+
+#### Phase 1e.1 — combining-logic-designer (CONDITIONAL)
+
+Trigger: GDD mentions any of crafting / alchemy / breeding / cooking /
+chemistry / spell-combinations / key-combos / recipe / merge.
+
+10a. Invoke `yume-combining-logic-designer` skill.
+10b. Produces `docs/games/<name>/combining-design.md` — recipe table,
+     discovery model, yield rules, failure modes, primitive mapping.
+10c. Interactive: show summary (recipe count, discovery model, key
+     risks). Autonomous: proceed.
+
+If trigger absent: skip this phase entirely.
+
+#### Phase 1e.2 — economy-designer (CONDITIONAL)
+
+Trigger: GDD mentions any of currency / score / shop / trade /
+progression / unlock / cost / level-up / XP / income / merchant.
+Most non-trivial games trigger this.
+
+11a. Invoke `yume-economy-designer` skill (read combining-design.md
+     too if Phase 1e.1 ran — recipe yields feed economy).
+11b. Produces `docs/games/<name>/economy-design.md` — sources/sinks,
+     conversion ratios, currency design, pricing curves, pacing math,
+     adversarial-poke checklist.
+11c. Interactive: show summary (resource count, currency layers, key
+     adversarial findings). Autonomous: proceed.
+
+If trigger absent (pure simulation, no progression): skip.
+
+#### Phase 1e.3 — story-planner (CONDITIONAL)
+
+Trigger: GDD mentions any of campaign / acts / arc / story / NPC
+evolution / scripted events / branches / endings / chronicle. Pure
+sandboxes / arcades skip.
+
+12a. Invoke `yume-story-planner` skill (reads level-design + economy
+     if present — beats often gate on level transitions or resource
+     thresholds).
+12b. Produces `docs/games/<name>/story-design.md` — beats, character
+     arcs, act structure, branches, primitive mapping.
+12c. Interactive: show summary (story shape, beat count, key risks).
+     Autonomous: proceed.
+
+If trigger absent: skip.
+
 ### Phase 2 — systems-designer (GDD → world physics)
 
 Per ADR 0009, this skill now writes `world/physics.json` directly
@@ -474,6 +527,9 @@ design-quality phases). The 8 specialist skills it invokes are at
 - `yume-game-reviewer` — Phase 1b (adversarial GDD critique)
 - `yume-game-planner` — Phase 1c (GDD → world plan, named cast)
 - `yume-level-designer` — Phase 1d (spatial layout + rationale)
+- `yume-combining-logic-designer` — Phase 1e.1 (recipe systems — CONDITIONAL)
+- `yume-economy-designer` — Phase 1e.2 (numeric balance + flows — CONDITIONAL)
+- `yume-story-planner` — Phase 1e.3 (narrative beats + arcs — CONDITIONAL)
 - `yume-systems-designer` — Phase 2 (world physics rules — `world/physics.json`)
 - `yume-content-designer` — Phase 3 (entities + initial state)
 - `yume-game-rules-designer` — Phase 3.5 (game logic — `game/rules.json` + `game/flow.json`) ★ ADR 0009
