@@ -8,7 +8,8 @@
       "state_init": {},
       "visual": {
         "shape": "tile_32",
-        "params": {"color": "#e8d8b0"}
+        "params": {"color": "#e8d8b0"},
+        "z_index": -10
       }
     }
   ]

@@ -11,7 +11,8 @@
       },
       "visual": {
         "shape": "tile_26",
-        "params": {"color": "#a07040"}
+        "params": {"color": "#a07040"},
+        "z_index": 5
       }
     }
   ]

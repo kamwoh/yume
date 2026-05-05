@@ -8,7 +8,8 @@
       "state_init": {},
       "visual": {
         "shape": "filled_circle",
-        "params": {"radius": 12, "color": "#c89058"}
+        "params": {"radius": 12, "color": "#c89058"},
+        "z_index": 10
       }
     }
   ]

@@ -66,6 +66,13 @@ func _ready() -> void:
 	_flip_with_velocity = bool(visual.get("flip_with_velocity", false))
 	_rotate_with_velocity = bool(visual.get("rotate_with_velocity", false))
 	_fade_with_lifetime = bool(visual.get("fade_with_lifetime", false))
+	# Optional z_index for draw-order control. Without this, draw order is
+	# determined by spawn order (later children draw on top). Sokoban L2+
+	# breaks because floor tiles are spawned after the player and occlude
+	# it. Convention: floor=-10, things-on-floor (boxes, goals)=0,
+	# actors=10, ui-overlay=100.
+	if visual.has("z_index"):
+		z_index = int(visual["z_index"])
 
 	# Tier 1 — real sprite asset
 	var sprite_path := str(visual.get("sprite_2d", ""))
