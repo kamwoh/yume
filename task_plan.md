@@ -1680,3 +1680,64 @@ Decisions distilled here for roadmap state.
 - Time-compression for long-arc games (Alicization Fluctlight lifespans)
   is an open design question — engine extension or content convention?
   Decide before starting that game.
+
+## Content layer gaps (2026-05-06)
+
+After drafting ADRs 0010-0013 (save/screens/tutorials/settings — all
+proposed, awaiting tech-director review), redirected discussion to
+content QUALITY rather than infrastructure. Long-form analysis at
+`docs/timeline/entries/28_content_layer_gaps_2026-05-06.js`.
+
+### Honest pipeline assessment
+
+13 specialist skills enforce that games are CORRECT (engine expresses
+them, no broken cascades). They do NOT enforce that games are GOOD.
+Symptoms: sokoban v0.4 = 8 levels of one mechanic (no evolution);
+harvestcore NPCs are functionally distinct but personality-flat;
+tinypond has identical dynamics from t=0 to t=2400.
+
+Pipeline is optimized for "the engine can express this." It is not
+yet optimized for "this game is GOOD."
+
+### 6 identified gaps
+
+- [ ] **Reference-design discipline** — every GDD must name "drafting
+  on: X, Y, Z" with concrete what-we-keep / what-we-change. Cheap; high
+  signal. Add to game-designer.
+- [ ] **Mechanic-progression / verb-expansion designer** — tracks
+  player verb library across play arc. Without this, content scales
+  horizontally (more of same), not vertically (deeper).
+- [ ] **Charm / voice / character-density discipline** — game-planner
+  names cast; nobody puts FLESH on them. NPCs personality-flat.
+- [ ] **Playtester skill** — qa-tester verifies cascades; doesn't
+  catch boring/confusing moments. Real games iterate on playtester
+  feedback dozens of times; Yume builds once.
+- [ ] **Content scale enforcement** — Axis 8 catches "demo not game"
+  but the fix is often "add more levels" without intentional content
+  per hour. 30 trivial levels ≠ 8 crafted ones.
+- [ ] **Theme-cohesion-through-execution check** — GDD says theme;
+  asset-designer picks colors; nobody checks audio/enemy-names/dialog
+  alignment. Theme drift is #1 reason indie games feel "off".
+
+### Priority candidates (3, ranked)
+
+- [ ] **Playtester** — feedback loop that catches everything else;
+  hardest to design but biggest impact.
+- [ ] **Reference-design discipline** — 5 minutes per GDD; lifts all
+  downstream decisions; lowest cost.
+- [ ] **Mechanic-progression-designer** — forces verb-library
+  expansion across play arc; structural impact.
+
+### Relationship to shell-layer ADRs
+
+ADRs 0010-0013 (proposed) become MORE valuable once content is good
+(polish on top of fun). Fun isn't there yet. Don't accelerate
+save/screen/tutorial/settings work until content layer matures.
+
+### Open questions
+
+- Of the 3 candidate skills, which first?
+- Merchant game built AS test bed for new skills, or mature content
+  layer first then build?
+- Specific shipped games Yume should learn from? "Make it like X" is
+  the most useful design constraint we could have.
