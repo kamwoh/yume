@@ -152,6 +152,26 @@
     },
 
     {
+      "name": "wall_blocks_push_at_perimeter_l2",
+      "_": "Win level 1, then on level 2 push B1 east 5 times. 4 pushes land B1 on G1 at (208,80). 5th push target (240,80) is perimeter wall — must NOT push B1 to (240). All boxes in level 2 must stay at x <= 208 (col 6 = G1 column = rightmost in-bounds).",
+      "setup": {},
+      "actions": [
+        {"tick": 1,  "input": "move_east"},
+        {"tick": 5,  "input": "move_east"},
+        {"tick": 6,  "input": "move_east"},
+        {"tick": 7,  "input": "move_east"},
+        {"tick": 8,  "input": "move_east"},
+        {"tick": 9,  "input": "move_east"}
+      ],
+      "ticks": 12,
+      "assertions": [
+        {"type": "entity_field", "select": "first",
+         "query": {"tags_all": ["box"]},
+         "field": "state.position.x", "op": "<=", "value": 208}
+      ]
+    },
+
+    {
       "name": "restart_resets_level",
       "_": "Move N (player(48,80)→(48,48)), then press R: player respawns at level-start (48, 80). Verifies transition_level with current_level reloads.",
       "setup": {},

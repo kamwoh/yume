@@ -5,5 +5,11 @@
 
   "renderer": {
     "position_scale": 1.0
+  },
+
+  "camera": {
+    "_": "Center camera on the bounding box of all floor tiles → frames the level rather than following the player. lerp=1.0 = instant snap (turn-based, no smoothing needed). Updates per-frame so a level transition recenters automatically.",
+    "center_on_tag": "floor",
+    "lerp": 1.0
   }
 }

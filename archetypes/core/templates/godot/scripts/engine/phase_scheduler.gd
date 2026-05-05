@@ -174,6 +174,13 @@ func tick() -> void:
 	_phase_decide()
 	flush_effects()
 	_drain_signals_into("react")
+	flush_effects()  # 2026-05-05: signal-rule effects apply BEFORE react
+	                 # queries state. Critical for blocker-pattern rules: a
+	                 # signal rule sets a "blocked" flag that a contact rule
+	                 # in react then reads. Without this flush, contact rules
+	                 # see the pre-flag state. Caught during sokoban L2:
+	                 # wall_blocks_push set push_blocked=1 but commit_push
+	                 # still fired and pushed boxes through perimeter walls.
 
 	# Motion is now integrated per-frame by World (see world.gd._process),
 	# NOT per-tick. velocity is a state field updated at tick rate; position

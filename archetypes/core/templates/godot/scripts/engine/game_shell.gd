@@ -334,6 +334,19 @@ func _apply_2d_zoom(cam_cfg: Dictionary) -> void:
 
 
 func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
+	# Mode A: center camera on bounding box of entities matching a tag.
+	# Useful for grid-based games where the WHOLE level should fit the
+	# viewport regardless of where the player is. Sokoban uses this with
+	# tag="floor" so the camera frames the play area.
+	if cam_cfg.has("center_on_tag"):
+		var bound_tag := str(cam_cfg["center_on_tag"])
+		var bbox := _bbox_of_entities_with_tag(bound_tag)
+		if bbox.has("center"):
+			var lerp_t := float(cam_cfg.get("lerp", 0.08))
+			_camera.position = _camera.position.lerp(bbox["center"], lerp_t)
+		return
+	# Mode B: follow_tag — camera tracks one entity (e.g. player in a
+	# scrolling world).
 	var tag := str(cam_cfg.get("follow_tag", ""))
 	if tag == "": return
 	var ent := _find_entity_by_tag(tag)
@@ -343,6 +356,28 @@ func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
 	if p is Vector2:
 		var lerp_t := float(cam_cfg.get("lerp", 0.08))
 		_camera.position = _camera.position.lerp(p as Vector2, lerp_t)
+
+
+func _bbox_of_entities_with_tag(tag: String) -> Dictionary:
+	var entities: Dictionary = _world.scheduler.env.get("entities", {})
+	var min_x := INF
+	var min_y := INF
+	var max_x := -INF
+	var max_y := -INF
+	var found := false
+	for id in entities:
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		if not (ent as Entity).has_tag(tag): continue
+		var p = (ent as Entity).get_position()
+		if not (p is Vector2): continue
+		var v := p as Vector2
+		min_x = min(min_x, v.x); max_x = max(max_x, v.x)
+		min_y = min(min_y, v.y); max_y = max(max_y, v.y)
+		found = true
+	if not found:
+		return {}
+	return {"center": Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)}
 
 
 ## Side-scroller: camera follows entity's x; y stays at config value
