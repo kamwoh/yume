@@ -338,12 +338,35 @@ func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
 	# Useful for grid-based games where the WHOLE level should fit the
 	# viewport regardless of where the player is. Sokoban uses this with
 	# tag="floor" so the camera frames the play area.
+	# Also auto-zooms to fit when "fit_padding" is set: scales the camera
+	# zoom so the bbox fits in the viewport with the given pixel padding.
 	if cam_cfg.has("center_on_tag"):
 		var bound_tag := str(cam_cfg["center_on_tag"])
 		var bbox := _bbox_of_entities_with_tag(bound_tag)
 		if bbox.has("center"):
 			var lerp_t := float(cam_cfg.get("lerp", 0.08))
-			_camera.position = _camera.position.lerp(bbox["center"], lerp_t)
+			var center_v = bbox["center"]
+			if center_v is Vector2:
+				_camera.position = _camera.position.lerp(center_v as Vector2, lerp_t)
+		# Auto-zoom-to-fit: optional. Only applies when bbox has size and
+		# fit_padding is set. Computes zoom so bbox + 2*padding fits the
+		# viewport. Values > 1 zoom IN (smaller world view); < 1 zoom OUT.
+		if cam_cfg.has("fit_padding") and bbox.has("size"):
+			var pad := float(cam_cfg["fit_padding"])
+			var bsz_v = bbox["size"]
+			if bsz_v is Vector2:
+				var bsz := bsz_v as Vector2
+				var vp_size := _camera.get_viewport_rect().size
+				var target_w: float = bsz.x + 2.0 * pad
+				var target_h: float = bsz.y + 2.0 * pad
+				var zx: float = vp_size.x / float(max(target_w, 1.0))
+				var zy: float = vp_size.y / float(max(target_h, 1.0))
+				var z: float = float(min(zx, zy))
+				# Clamp to a sensible range (don't zoom in past 4x / out past 0.25x).
+				z = clamp(z, 0.25, 4.0)
+				var target_zoom := Vector2(z, z)
+				var z_lerp := float(cam_cfg.get("zoom_lerp", 0.08))
+				_camera.zoom = _camera.zoom.lerp(target_zoom, z_lerp)
 		return
 	# Mode B: follow_tag — camera tracks one entity (e.g. player in a
 	# scrolling world).
@@ -377,7 +400,10 @@ func _bbox_of_entities_with_tag(tag: String) -> Dictionary:
 		found = true
 	if not found:
 		return {}
-	return {"center": Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5)}
+	return {
+		"center": Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5),
+		"size":   Vector2(max_x - min_x, max_y - min_y),
+	}
 
 
 ## Side-scroller: camera follows entity's x; y stays at config value

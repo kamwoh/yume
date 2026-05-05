@@ -8,8 +8,10 @@
   },
 
   "camera": {
-    "_": "Center camera on the bounding box of all floor tiles → frames the level rather than following the player. lerp=1.0 = instant snap (turn-based, no smoothing needed). Updates per-frame so a level transition recenters automatically.",
+    "_": "Center on floor bbox + auto-zoom-to-fit so the whole level is visible regardless of size. fit_padding=64 leaves a margin of 2 cells. lerp=1.0 + zoom_lerp=1.0 = instant snap (turn-based — no smoothing needed). Updates per-frame so transitions reframe automatically.",
     "center_on_tag": "floor",
-    "lerp": 1.0
+    "fit_padding": 64,
+    "lerp": 1.0,
+    "zoom_lerp": 1.0
   }
 }

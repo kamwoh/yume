@@ -1,8 +1,9 @@
 [gd_scene load_steps=3 format=3]
 
-; Sokoban — top-down 2D grid. v0.1 foundation only (no conditional movement
-; yet). Camera centered at level 1's grid center: 5x5 cells × 32px = 160px,
-; center = (80, 80).
+; Sokoban — top-down 2D grid. Camera position + zoom are computed each
+; frame from data/demo_sokoban/scene.json's camera config (center_on_tag
+; "floor" + fit_padding) so the whole level fits the viewport regardless
+; of size. No need to hardcode position/zoom here.
 
 [ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
@@ -21,5 +22,3 @@ stop_action_on_idle = ""
 script = ExtResource("2")
 
 [node name="Camera2D" type="Camera2D" parent="."]
-position = Vector2(80, 80)
-zoom = Vector2(2, 2)
