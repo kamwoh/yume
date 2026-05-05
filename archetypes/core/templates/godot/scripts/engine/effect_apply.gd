@@ -474,6 +474,11 @@ static func _value(v, ctx: Dictionary, env: Dictionary = {}):
 		var s := str(v)
 		# Bare context binding (e.g. "actor" → context["actor"])
 		if ctx.has(s): return ctx[s]
+		# ADR 0009 indirection refs (@cues.X, @strings.X) — pass through
+		# unevaluated so GameShell / HUD can resolve at consumption time.
+		# Without this, the dot in @cues.foo makes Formula.looks_like_formula
+		# return true and parse fails on the @ character.
+		if s.begins_with("@"): return s
 		# Formula? Evaluate with entity-object context.
 		if Formula.looks_like_formula(s):
 			var fctx := _formula_context(ctx, env)

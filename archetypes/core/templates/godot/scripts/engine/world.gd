@@ -134,12 +134,13 @@ func load_data() -> void:
 	var prog_path := _resolve_layout_path(root, "game/flow.json", "progression.json")
 	if prog_path != "":
 		_load_progression(prog_path)
-		# Global rules (cross-level): load all four rule files if present,
-		# in order. Each file's rules append to the scheduler. world/physics +
-		# game/rules are the new ADR 0009 split; world_rules.json is legacy.
+		# Global rules (cross-level): load all three potential rule files.
+		# First call uses register (initializes); subsequent use append so we
+		# don't clobber prior loads. world/physics + game/rules are the new
+		# ADR 0009 split; world_rules.json is legacy fallback.
 		_load_rules_file(root + "/world/physics.json")
-		_load_rules_file(root + "/game/rules.json")
-		_load_rules_file(root + "/world_rules.json")
+		_load_rules_file(root + "/game/rules.json", true)
+		_load_rules_file(root + "/world_rules.json", true)
 		_load_world_file(_resolve_layout_path(root, "world/state.json", "world.json"))
 		# Persistent entities live in root/entities.json or root/entities/.
 		# Per ADR 0006: tag them "persistent" to survive level transitions.
@@ -150,8 +151,8 @@ func load_data() -> void:
 	else:
 		# Single-level (backwards-compatible)
 		_load_rules_file(root + "/world/physics.json")
-		_load_rules_file(root + "/game/rules.json")
-		_load_rules_file(root + "/world_rules.json")
+		_load_rules_file(root + "/game/rules.json", true)
+		_load_rules_file(root + "/world_rules.json", true)
 		_load_world_file(_resolve_layout_path(root, "world/state.json", "world.json"))
 		_load_entities_path(root)
 	scheduler.flush_effects()
@@ -717,14 +718,15 @@ func _do_level_transition(target: String) -> void:
 		rent.queue_free()
 	# Clear scheduler rules and reload globals (persistent across levels).
 	# ADR 0009: load all three rule paths (new world/physics + game/rules,
-	# and legacy world_rules.json). Per-level rules get appended in
-	# _load_level.
+	# and legacy world_rules.json). First file uses register (initializes
+	# bucket map); subsequent files append so they don't clobber prior loads.
+	# Per-level rules get appended in _load_level.
 	if scheduler != null and scheduler.has_method("clear_rules"):
 		scheduler.clear_rules()
 	var root := data_root.rstrip("/")
 	_load_rules_file(root + "/world/physics.json")
-	_load_rules_file(root + "/game/rules.json")
-	_load_rules_file(root + "/world_rules.json")
+	_load_rules_file(root + "/game/rules.json", true)
+	_load_rules_file(root + "/world_rules.json", true)
 	# Load new level
 	current_level = target
 	world_state["current_level"] = target

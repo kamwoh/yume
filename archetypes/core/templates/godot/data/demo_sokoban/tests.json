@@ -1,5 +1,5 @@
 {
-  "_comment": "Sokoban v0.2 movement scenarios. Validates: walk into empty cell, walls block, box pushes when cell beyond is empty, push blocked when cell beyond is wall. Cell size = 32px. Level 1 layout: P(1,2)=(48,80), B(2,2)=(80,80), G(3,2)=(112,80), perimeter walls. Each test starts with fresh load via scenario_runner.",
+  "_comment": "Sokoban v0.2 movement scenarios. Validates: walk into empty cell, walls block, push moves box, push blocked when cell beyond is wall. Cell size = 32px. Level 1 layout: P(1,2)=(48,80), B(2,2)=(80,80), G(3,2)=(112,80), perimeter walls.",
 
   "scenarios": [
     {
@@ -51,26 +51,8 @@
     },
 
     {
-      "name": "push_box_onto_goal",
-      "_": "Player(48,80) presses E. Target (80,80)=box. Cell beyond (112,80)=goal (empty for push). Box moves to 112,80. Player moves to 80,80.",
-      "setup": {},
-      "actions": [
-        {"tick": 1, "input": "move_east"}
-      ],
-      "ticks": 5,
-      "assertions": [
-        {"type": "entity_field", "select": "first",
-         "query": {"tags_all": ["player"]},
-         "field": "state.position.x", "op": "==", "value": 80},
-        {"type": "entity_field", "select": "first",
-         "query": {"tags_all": ["box"]},
-         "field": "state.position.x", "op": "==", "value": 112}
-      ]
-    },
-
-    {
       "name": "moves_increment_per_action",
-      "_": "Each successful move increments level_clock.moves. Walk N then S — should be 2 moves (back to start).",
+      "_": "Each successful move increments level_clock.moves. Walk N then S — should be 2 moves (back to start). No level transition because no goal triggered.",
       "setup": {},
       "actions": [
         {"tick": 1, "input": "move_north"},
@@ -103,15 +85,15 @@
     },
 
     {
-      "name": "push_box_onto_goal_wins",
-      "_": "Pushing the box onto the goal should fire transition_level. Past the last level → world.all_levels_complete=1.",
+      "name": "push_box_onto_goal_advances_level",
+      "_": "Pushing box onto goal completes level 1 → transition_level fires → world.current_level becomes '2'.",
       "setup": {},
       "actions": [
         {"tick": 1, "input": "move_east"}
       ],
       "ticks": 5,
       "assertions": [
-        {"type": "world_field", "field": "all_levels_complete", "op": "==", "value": 1}
+        {"type": "world_field", "field": "current_level", "op": "==", "value": "2"}
       ]
     },
 

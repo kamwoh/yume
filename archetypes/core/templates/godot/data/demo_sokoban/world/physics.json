@@ -92,7 +92,6 @@
       "query": {"tags_all": ["box"], "radius": 12},
       "effect": [
         {"type": "state_set", "target": "level_clock", "field": "push_pending", "value": 1},
-        {"type": "relate", "relation": "pushing", "from": "level_clock", "to": "self"},
         {"type": "emit", "signal": "attempt_push",
          "payload": {
            "_origin_position": [
@@ -134,7 +133,6 @@
            "a.state.position.x + b.state.last_dx",
            "a.state.position.y + b.state.last_dy"
          ]},
-        {"type": "unrelate", "relation": "pushing", "from": "b", "to": "a"},
         {"type": "emit_shell_event", "event": "play_sound", "name": "@cues.wood_push"}
       ]
     },

@@ -1,0 +1,502 @@
+{
+  "_comment": "Level 2 \u2014 auto-generated from ASCII grid in docs/games/sokoban/level-design.md. 8\u00d77 grid, 26 walls, 30 floor tiles, 2 boxes, 2 goals.",
+  "initial_instances": [
+    {
+      "def": "level_clock",
+      "id": "level_clock",
+      "position": [
+        16,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_01",
+      "position": [
+        16,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_02",
+      "position": [
+        48,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_03",
+      "position": [
+        80,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_04",
+      "position": [
+        112,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_05",
+      "position": [
+        144,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_06",
+      "position": [
+        176,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_07",
+      "position": [
+        208,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_08",
+      "position": [
+        240,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_09",
+      "position": [
+        16,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_01",
+      "position": [
+        48,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_02",
+      "position": [
+        80,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_03",
+      "position": [
+        112,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_04",
+      "position": [
+        144,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_05",
+      "position": [
+        176,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_06",
+      "position": [
+        208,
+        48
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_10",
+      "position": [
+        240,
+        48
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_11",
+      "position": [
+        16,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_07",
+      "position": [
+        48,
+        80
+      ]
+    },
+    {
+      "def": "player",
+      "id": "player_l2_player",
+      "position": [
+        48,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_08",
+      "position": [
+        80,
+        80
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l2_box_01",
+      "position": [
+        80,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_09",
+      "position": [
+        112,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_10",
+      "position": [
+        144,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_11",
+      "position": [
+        176,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_12",
+      "position": [
+        208,
+        80
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l2_goal_01",
+      "position": [
+        208,
+        80
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_12",
+      "position": [
+        240,
+        80
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_13",
+      "position": [
+        16,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_13",
+      "position": [
+        48,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_14",
+      "position": [
+        80,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_15",
+      "position": [
+        112,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_16",
+      "position": [
+        144,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_17",
+      "position": [
+        176,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_18",
+      "position": [
+        208,
+        112
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_14",
+      "position": [
+        240,
+        112
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_15",
+      "position": [
+        16,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_19",
+      "position": [
+        48,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_20",
+      "position": [
+        80,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_21",
+      "position": [
+        112,
+        144
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l2_box_02",
+      "position": [
+        112,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_22",
+      "position": [
+        144,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_23",
+      "position": [
+        176,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_24",
+      "position": [
+        208,
+        144
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l2_goal_02",
+      "position": [
+        208,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_16",
+      "position": [
+        240,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_17",
+      "position": [
+        16,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_25",
+      "position": [
+        48,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_26",
+      "position": [
+        80,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_27",
+      "position": [
+        112,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_28",
+      "position": [
+        144,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_29",
+      "position": [
+        176,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l2_floor_30",
+      "position": [
+        208,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_18",
+      "position": [
+        240,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_19",
+      "position": [
+        16,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_20",
+      "position": [
+        48,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_21",
+      "position": [
+        80,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_22",
+      "position": [
+        112,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_23",
+      "position": [
+        144,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_24",
+      "position": [
+        176,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_25",
+      "position": [
+        208,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l2_wall_26",
+      "position": [
+        240,
+        208
+      ]
+    }
+  ],
+  "initial_relations": []
+}

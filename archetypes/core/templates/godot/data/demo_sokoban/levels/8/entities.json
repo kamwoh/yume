@@ -1,0 +1,790 @@
+{
+  "_comment": "Level 8 \u2014 auto-generated from ASCII grid in docs/games/sokoban/level-design.md. 8\u00d711 grid, 36 walls, 52 floor tiles, 4 boxes, 4 goals.",
+  "initial_instances": [
+    {
+      "def": "level_clock",
+      "id": "level_clock",
+      "position": [
+        16,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_01",
+      "position": [
+        16,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_02",
+      "position": [
+        48,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_03",
+      "position": [
+        80,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_04",
+      "position": [
+        112,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_05",
+      "position": [
+        144,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_06",
+      "position": [
+        176,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_07",
+      "position": [
+        208,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_08",
+      "position": [
+        240,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_09",
+      "position": [
+        16,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_01",
+      "position": [
+        48,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_02",
+      "position": [
+        80,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_03",
+      "position": [
+        112,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_04",
+      "position": [
+        144,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_05",
+      "position": [
+        176,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_06",
+      "position": [
+        208,
+        48
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_10",
+      "position": [
+        240,
+        48
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_11",
+      "position": [
+        16,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_07",
+      "position": [
+        48,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_08",
+      "position": [
+        80,
+        80
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l8_goal_01",
+      "position": [
+        80,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_09",
+      "position": [
+        112,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_10",
+      "position": [
+        144,
+        80
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l8_goal_02",
+      "position": [
+        144,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_11",
+      "position": [
+        176,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_12",
+      "position": [
+        208,
+        80
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_12",
+      "position": [
+        240,
+        80
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_13",
+      "position": [
+        16,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_13",
+      "position": [
+        48,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_14",
+      "position": [
+        80,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_15",
+      "position": [
+        112,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_16",
+      "position": [
+        144,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_17",
+      "position": [
+        176,
+        112
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_14",
+      "position": [
+        208,
+        112
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_15",
+      "position": [
+        240,
+        112
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_16",
+      "position": [
+        16,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_18",
+      "position": [
+        48,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_19",
+      "position": [
+        80,
+        144
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l8_box_01",
+      "position": [
+        80,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_20",
+      "position": [
+        112,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_21",
+      "position": [
+        144,
+        144
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l8_box_02",
+      "position": [
+        144,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_22",
+      "position": [
+        176,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_17",
+      "position": [
+        208,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_18",
+      "position": [
+        240,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_19",
+      "position": [
+        16,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_23",
+      "position": [
+        48,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_24",
+      "position": [
+        80,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_25",
+      "position": [
+        112,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_26",
+      "position": [
+        144,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_27",
+      "position": [
+        176,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_28",
+      "position": [
+        208,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_20",
+      "position": [
+        240,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_21",
+      "position": [
+        16,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_29",
+      "position": [
+        48,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_30",
+      "position": [
+        80,
+        208
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l8_box_03",
+      "position": [
+        80,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_31",
+      "position": [
+        112,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_32",
+      "position": [
+        144,
+        208
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l8_box_04",
+      "position": [
+        144,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_33",
+      "position": [
+        176,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_34",
+      "position": [
+        208,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_22",
+      "position": [
+        240,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_23",
+      "position": [
+        16,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_35",
+      "position": [
+        48,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_36",
+      "position": [
+        80,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_37",
+      "position": [
+        112,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_38",
+      "position": [
+        144,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_39",
+      "position": [
+        176,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_40",
+      "position": [
+        208,
+        240
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_24",
+      "position": [
+        240,
+        240
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_25",
+      "position": [
+        16,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_41",
+      "position": [
+        48,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_42",
+      "position": [
+        80,
+        272
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l8_goal_03",
+      "position": [
+        80,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_43",
+      "position": [
+        112,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_44",
+      "position": [
+        144,
+        272
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l8_goal_04",
+      "position": [
+        144,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_45",
+      "position": [
+        176,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_46",
+      "position": [
+        208,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_26",
+      "position": [
+        240,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_27",
+      "position": [
+        16,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_47",
+      "position": [
+        48,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_48",
+      "position": [
+        80,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_49",
+      "position": [
+        112,
+        304
+      ]
+    },
+    {
+      "def": "player",
+      "id": "player_l8_player",
+      "position": [
+        112,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_50",
+      "position": [
+        144,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_51",
+      "position": [
+        176,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l8_floor_52",
+      "position": [
+        208,
+        304
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_28",
+      "position": [
+        240,
+        304
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_29",
+      "position": [
+        16,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_30",
+      "position": [
+        48,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_31",
+      "position": [
+        80,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_32",
+      "position": [
+        112,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_33",
+      "position": [
+        144,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_34",
+      "position": [
+        176,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_35",
+      "position": [
+        208,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l8_wall_36",
+      "position": [
+        240,
+        336
+      ]
+    }
+  ],
+  "initial_relations": []
+}
