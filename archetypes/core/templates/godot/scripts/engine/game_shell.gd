@@ -234,7 +234,7 @@ func _drain_shell_events() -> void:
 				var sound_name := str(ev.get("name", ""))
 				if sound_name == "": continue
 				if sound_name.begins_with("@"):
-					sound_name = _resolve_cue(sound_name)
+					sound_name = _resolve_at_ref(sound_name)
 					if sound_name == "": continue
 				var bus = get_node_or_null("/root/AudioBus")
 				if bus != null and bus.has_method("play"):
@@ -621,8 +621,12 @@ func _build_hud() -> void:
 	for panel_cfg in _hud_cfg.get("panels", []):
 		_build_panel(root, panel_cfg as Dictionary)
 
-	# Controls hint (bottom-left)
+	# Controls hint (bottom-left). ADR 0009 Phase 2c: @-prefix resolution.
 	var hint := str(_hud_cfg.get("controls_hint", ""))
+	if hint.begins_with("@"):
+		var resolved_hint := _resolve_at_ref(hint)
+		if resolved_hint != "":
+			hint = resolved_hint
 	if hint != "":
 		var hl := Label.new()
 		hl.text = hint
@@ -782,8 +786,14 @@ func _apply_binding_to_node(node: Node, cfg: Dictionary, value) -> void:
 				var idx: int = clamp(int(float(value) * phases.size()), 0, phases.size() - 1)
 				lbl.text = str(phases[idx])
 				return
-		# format with {} placeholder
+		# format with {} placeholder. ADR 0009 Phase 2c: @strings.x.y
+		# refs resolve via ui/strings.json. Falls back to literal text
+		# if ref unresolved.
 		var fmt := str(cfg.get("format", "{}"))
+		if fmt.begins_with("@"):
+			var resolved := _resolve_at_ref(fmt)
+			if resolved != "":
+				fmt = resolved
 		lbl.text = fmt.replace("{}", str(_format_value(value)))
 	elif node is ProgressBar:
 		var pb: ProgressBar = node
@@ -810,7 +820,7 @@ func _format_value(v) -> String:
 func _check_win_lose() -> void:
 	var win_cfg: Dictionary = _hud_cfg.get("win", {}) as Dictionary
 	if not win_cfg.is_empty() and _matches(win_cfg):
-		_show_outcome(str(win_cfg.get("message", "🌟 YOU WIN! 🌟\nPress R to restart")), true)
+		_show_outcome(_resolve_message(str(win_cfg.get("message", "🌟 YOU WIN! 🌟\nPress R to restart"))), true)
 		return
 	var lose_cfg: Dictionary = _hud_cfg.get("lose", {}) as Dictionary
 	if not lose_cfg.is_empty():
@@ -819,9 +829,17 @@ func _check_win_lose() -> void:
 		if hit:
 			_sustain_counter += 1
 			if _sustain_counter >= sustained:
-				_show_outcome(str(lose_cfg.get("message", "💀 GAME OVER\nPress R to restart")), false)
+				_show_outcome(_resolve_message(str(lose_cfg.get("message", "💀 GAME OVER\nPress R to restart"))), false)
 		else:
 			_sustain_counter = max(0, _sustain_counter - 1)
+
+
+## ADR 0009 Phase 2c: pass strings through @-prefix resolution. Falls
+## back to literal text if not @-prefixed or ref unresolved.
+func _resolve_message(s: String) -> String:
+	if not s.begins_with("@"): return s
+	var resolved := _resolve_at_ref(s)
+	return resolved if resolved != "" else s
 
 
 func _matches(cond: Dictionary) -> bool:
@@ -859,46 +877,78 @@ func _show_outcome(message: String, won: bool) -> void:
 # UTIL
 # ============================================================
 
-# ADR 0009 Phase 2b — audio cue cache. Loaded once on first @-resolve;
-# lazy because most games may not use the cue indirection.
+# ADR 0009 Phase 2b/2c — content-indirection caches. Both lazy-loaded
+# on first @-resolve; lazy because most games may not use either layer.
 var _cue_cache: Dictionary = {}
 var _cue_cache_loaded: bool = false
+var _strings_cache: Dictionary = {}
+var _strings_cache_loaded: bool = false
 
 
-## Resolve `@key.subkey` reference. Currently supports `@cues.<name>` →
-## audio/cues.json["cues"][name]. Returns "" if file missing or key not
-## found (silent fallback — rule keeps working with literal name path).
-func _resolve_cue(ref: String) -> String:
-	if not _cue_cache_loaded:
-		_load_cue_cache()
-	# Strip leading "@" then split first segment as namespace.
+## Resolve `@<namespace>.<key>` reference. Two namespaces today:
+##   @cues.<name>      → audio/cues.json["cues"][name] (Phase 2b)
+##   @strings.<a.b.c>  → ui/strings.json[a][b][c]      (Phase 2c)
+## Returns "" if namespace unknown, file missing, or key not found
+## (silent fallback — caller decides what to do).
+func _resolve_at_ref(ref: String) -> String:
 	var rest: String = ref.substr(1)
 	var dot: int = rest.find(".")
 	if dot < 0: return ""
 	var ns: String = rest.substr(0, dot)
 	var key: String = rest.substr(dot + 1)
-	if ns != "cues":
-		return ""  # only cues namespace today; future: @strings.X for localization
-	return str(_cue_cache.get(key, ""))
+	match ns:
+		"cues":
+			if not _cue_cache_loaded: _load_cue_cache()
+			return str(_cue_cache.get(key, ""))
+		"strings":
+			if not _strings_cache_loaded: _load_strings_cache()
+			return _resolve_dotted_string(_strings_cache, key)
+	return ""
+
+
+## Walk a dotted path through a dict-of-dicts. e.g. "hud.level_label"
+## → cache["hud"]["level_label"]. Returns "" if any segment missing.
+static func _resolve_dotted_string(cache: Dictionary, key: String) -> String:
+	var parts: PackedStringArray = key.split(".")
+	var cur = cache
+	for part in parts:
+		if not (cur is Dictionary): return ""
+		if not (cur as Dictionary).has(part): return ""
+		cur = (cur as Dictionary)[part]
+	return str(cur) if cur != null else ""
 
 
 func _load_cue_cache() -> void:
 	_cue_cache_loaded = true
-	if _world == null: return
-	var dr = _world.get("data_root")
-	var root := (str(dr) if dr != null else "").rstrip("/")
-	if root == "": return
-	var path := root + "/audio/cues.json"
-	if not FileAccess.file_exists(path): return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
-	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
-	var spec: Dictionary = json.data
+	var spec := _read_json_file_in_data("audio/cues.json")
 	var cues = spec.get("cues", {})
 	if cues is Dictionary:
 		_cue_cache = cues
+
+
+func _load_strings_cache() -> void:
+	_strings_cache_loaded = true
+	# ADR 0009 Phase 2c: ui/strings.json is the localization layer.
+	# Schema is freeform nested dict; @strings.x.y.z walks the path.
+	# Future: ui/strings.<lang>.json for locale switching.
+	_strings_cache = _read_json_file_in_data("ui/strings.json")
+
+
+## Read a JSON file under data_root. Returns {} on any failure
+## (missing file, parse error, non-dict root). Used by lazy-loaders.
+func _read_json_file_in_data(rel_path: String) -> Dictionary:
+	if _world == null: return {}
+	var dr = _world.get("data_root")
+	var root := (str(dr) if dr != null else "").rstrip("/")
+	if root == "": return {}
+	var path := root + "/" + rel_path
+	if not FileAccess.file_exists(path): return {}
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return {}
+	var json := JSON.new()
+	if json.parse(f.get_as_text()) != OK: return {}
+	if not (json.data is Dictionary): return {}
+	return json.data
 
 
 func _find_entity_by_tag(tag: String) -> Object:
