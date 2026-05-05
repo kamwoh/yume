@@ -1,35 +1,75 @@
 {
-  "_comment": "HarvestCore world rules. 5 cascades: (1) daily clock/weather → watered state → out-of-season death. (2) crop growth → stage transforms. (3) sell loop: deposit → gold. (4) animal care: hunger decay → produce timer → produce spawn. (5) NPC ambient schedule. IMPORTANT: world.* formula bindings read from env['world'] (loaded from world.json['state']) which is NOT auto-synced from world_clock entity state. All weather/season-conditional rules use contact triggers between world_clock entity (position -220,-220) and target entities with radius=1000 (covers full map). Entity state is the canonical source. Total: 47 rules.",
-
+  "_comment": "Harvestcore WORLD physics (ADR 0009 Phase 3b). Day/night clock, weather, crop growth, player movement + tool use, NPC schedules + AI, animal hunger/produce. Inventory pickup/deposit + gold scoring live in game/rules.json.",
   "rules": [
-
     {
       "_comment": "=== WORLD CLOCK RULES. time_of_day increments each tick; full day = ticks_per_day ticks. dawn_advance_day fires every 60 ticks and emits day_start for the dawn chain. ===",
       "id": "clock_tick_time_of_day",
       "_comment2": "Increments time_of_day by 1/60 per tick. Clamped naturally by dawn_advance_day resetting to 0 at day boundary.",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["world_state"]},
-      "effect": {"type": "state_add", "target": "self", "field": "time_of_day", "amount": 0.01667}
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "world_state"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "time_of_day",
+        "amount": 0.01667
+      }
     },
-
     {
       "id": "dawn_advance_day",
       "_comment": "Fires every 60 ticks. Increments day, updates season (floor(day/28) mod 4), resets time_of_day to 0, emits day_start. interval=60 must match ticks_per_day in world.json.",
-      "trigger": {"type": "tick", "interval": 60},
-      "query": {"tags_all": ["world_state"]},
+      "trigger": {
+        "type": "tick",
+        "interval": 60
+      },
+      "query": {
+        "tags_all": [
+          "world_state"
+        ]
+      },
       "effect": [
-        {"type": "state_add", "target": "self", "field": "day",         "amount": 1},
-        {"type": "state_set", "target": "self", "field": "season",      "value": "floor(self.state.day / 28) mod 4"},
-        {"type": "state_set", "target": "self", "field": "time_of_day", "value": 0.0},
-        {"type": "emit",      "signal": "day_start"}
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "day",
+          "amount": 1
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "season",
+          "value": "floor(self.state.day / 28) mod 4"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "time_of_day",
+          "value": 0.0
+        },
+        {
+          "type": "emit",
+          "signal": "day_start"
+        }
       ]
     },
-
     {
       "id": "dawn_draw_weather",
       "_comment": "Draws new weather value on day_start signal. Season-weighted probability. Spring: 10% storm, 40% rain. Summer: 5% storm, 20% rain. Autumn: 15% storm, 30% rain. Winter: 5% storm, 20% rain. Two randf() calls in nested ternary to model cumulative probability. Result stored in world_clock.state.weather for contact-rule weather checks.",
-      "trigger": {"type": "signal", "name": "day_start"},
-      "query": {"tags_all": ["world_state"]},
+      "trigger": {
+        "type": "signal",
+        "name": "day_start"
+      },
+      "query": {
+        "tags_all": [
+          "world_state"
+        ]
+      },
       "effect": {
         "type": "state_set",
         "target": "self",
@@ -37,43 +77,92 @@
         "value": "((2 if randf() < 0.1 else (1 if randf() < 0.4 else 0)) if self.state.season == 0 else ((2 if randf() < 0.05 else (1 if randf() < 0.2 else 0)) if self.state.season == 1 else ((2 if randf() < 0.15 else (1 if randf() < 0.3 else 0)) if self.state.season == 2 else (2 if randf() < 0.05 else (1 if randf() < 0.2 else 0)))))"
       }
     },
-
     {
       "id": "dawn_reset_watered",
       "_comment": "At dawn, resets watered=0 on all planted crops unconditionally. If today is rainy, crop_rain_watered (contact rule) will immediately re-set watered=1 in the same tick's react phase.",
-      "trigger": {"type": "signal", "name": "day_start"},
-      "query": {"tags_all": ["planted_crop"]},
-      "effect": {"type": "state_set", "target": "self", "field": "watered", "value": 0}
+      "trigger": {
+        "type": "signal",
+        "name": "day_start"
+      },
+      "query": {
+        "tags_all": [
+          "planted_crop"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "watered",
+        "value": 0
+      }
     },
-
     {
       "id": "dawn_reset_fed",
       "_comment": "Clears fed_today on all livestock each dawn.",
-      "trigger": {"type": "signal", "name": "day_start"},
-      "query": {"tags_all": ["animal", "livestock"]},
-      "effect": {"type": "state_set", "target": "self", "field": "fed_today", "value": 0}
+      "trigger": {
+        "type": "signal",
+        "name": "day_start"
+      },
+      "query": {
+        "tags_all": [
+          "animal",
+          "livestock"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "fed_today",
+        "value": 0
+      }
     },
-
     {
       "_comment": "=== CROP GROWTH RULES. Weather checks use contact trigger between world_clock (a) and crops (b) with radius=1000 to cover the full map. This avoids world.* formula bindings which are not synced from entity state. ===",
       "id": "crop_rain_watered",
       "_comment2": "While it is raining (world_clock weather==1), all planted crops are continuously watered via large-radius contact. Fires in react phase each tick. After dawn_reset_watered clears all crops, this re-waters them on rainy days.",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["world_state"], "state": {"weather_eq": 1}},
-        "b": {"tags_all": ["planted_crop"]},
+        "a": {
+          "tags_all": [
+            "world_state"
+          ],
+          "state": {
+            "weather_eq": 1
+          }
+        },
+        "b": {
+          "tags_all": [
+            "planted_crop"
+          ]
+        },
         "radius": 1000.0
       },
-      "effect": {"type": "state_set", "target": "b", "field": "watered", "value": 1}
+      "effect": {
+        "type": "state_set",
+        "target": "b",
+        "field": "watered",
+        "value": 1
+      }
     },
-
     {
       "id": "crop_update_season_valid",
-      "_comment": "Each tick, caches season validity for all planted crops. Uses contact between world_clock (a) and crop (b) so formula can access a.state.season and b.properties.season_mask. Bitmask: (1 << season) & mask != 0 means in-season. Fires every tick — cheap state update, idempotent.",
-      "trigger": {"type": "contact"},
+      "_comment": "Each tick, caches season validity for all planted crops. Uses contact between world_clock (a) and crop (b) so formula can access a.state.season and b.properties.season_mask. Bitmask: (1 << season) & mask != 0 means in-season. Fires every tick \u2014 cheap state update, idempotent.",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["world_state"]},
-        "b": {"tags_all": ["planted_crop"]},
+        "a": {
+          "tags_all": [
+            "world_state"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "planted_crop"
+          ]
+        },
         "radius": 1000.0
       },
       "effect": {
@@ -83,24 +172,50 @@
         "value": "1 if (((1 << a.state.season) & b.properties.season_mask) > 0) else 0"
       }
     },
-
     {
       "id": "crop_out_of_season_halt",
-      "_comment": "Out-of-season crops transform to dead_crop. Fires via contact (world_clock near all crops) on planted_crop with season_valid==0. Once transformed, entity loses planted_crop tag — rule stops firing for it. Implements GDD Q6: seasonal deadline with visual dead_crop feedback.",
-      "trigger": {"type": "contact"},
+      "_comment": "Out-of-season crops transform to dead_crop. Fires via contact (world_clock near all crops) on planted_crop with season_valid==0. Once transformed, entity loses planted_crop tag \u2014 rule stops firing for it. Implements GDD Q6: seasonal deadline with visual dead_crop feedback.",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["world_state"]},
-        "b": {"tags_all": ["planted_crop"], "state": {"season_valid_eq": 0}},
+        "a": {
+          "tags_all": [
+            "world_state"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "planted_crop"
+          ],
+          "state": {
+            "season_valid_eq": 0
+          }
+        },
         "radius": 1000.0
       },
-      "effect": {"type": "transform", "target": "b", "to": "dead_crop"}
+      "effect": {
+        "type": "transform",
+        "target": "b",
+        "to": "dead_crop"
+      }
     },
-
     {
       "id": "crop_grow_watered",
       "_comment": "Core growth tick. Fires every 2 ticks on watered, in-season planted crops. grow_rate property on crop entity determines growth per tick. Interval=2 means crops grow ~30 times per in-game day at ticks_per_day=60.",
-      "trigger": {"type": "tick", "interval": 2},
-      "query": {"tags_all": ["planted_crop"], "state": {"watered_eq": 1, "season_valid_eq": 1}},
+      "trigger": {
+        "type": "tick",
+        "interval": 2
+      },
+      "query": {
+        "tags_all": [
+          "planted_crop"
+        ],
+        "state": {
+          "watered_eq": 1,
+          "season_valid_eq": 1
+        }
+      },
       "effect": {
         "type": "state_add",
         "target": "self",
@@ -108,470 +223,1077 @@
         "amount": "self.properties.grow_rate"
       }
     },
-
     {
       "id": "crop_seed_to_young",
-      "_comment": "Seed → young stage transition at growth>=100. transform preserves growth and crop_type property (state merge in _transform).",
-      "trigger": {"type": "tick", "interval": 2},
-      "query": {"tags_all": ["planted_crop", "crop_stage_seed"], "state": {"growth_gte": 100}},
-      "effect": {"type": "transform", "target": "self", "to": "crop_young"}
+      "_comment": "Seed \u2192 young stage transition at growth>=100. transform preserves growth and crop_type property (state merge in _transform).",
+      "trigger": {
+        "type": "tick",
+        "interval": 2
+      },
+      "query": {
+        "tags_all": [
+          "planted_crop",
+          "crop_stage_seed"
+        ],
+        "state": {
+          "growth_gte": 100
+        }
+      },
+      "effect": {
+        "type": "transform",
+        "target": "self",
+        "to": "crop_young"
+      }
     },
-
     {
       "id": "crop_young_to_mature",
-      "_comment": "Young → mature stage transition at growth>=200. crop_mature gains harvestable tag from def, enabling scythe harvest rules.",
-      "trigger": {"type": "tick", "interval": 2},
-      "query": {"tags_all": ["planted_crop", "crop_stage_young"], "state": {"growth_gte": 200}},
-      "effect": {"type": "transform", "target": "self", "to": "crop_mature"}
+      "_comment": "Young \u2192 mature stage transition at growth>=200. crop_mature gains harvestable tag from def, enabling scythe harvest rules.",
+      "trigger": {
+        "type": "tick",
+        "interval": 2
+      },
+      "query": {
+        "tags_all": [
+          "planted_crop",
+          "crop_stage_young"
+        ],
+        "state": {
+          "growth_gte": 200
+        }
+      },
+      "effect": {
+        "type": "transform",
+        "target": "self",
+        "to": "crop_mature"
+      }
     },
-
     {
       "id": "storm_damages_crop",
-      "_comment": "During storms (world_clock weather==2), each harvestable crop has a small chance per tick of being destroyed. radius=1000 covers full map. Each (world_clock, crop) pair independently rolls — stochastic per-crop. chance=0.008 per tick gives ~0.5%/sec; at 4 mature crops: ~2 crop losses over a 60-second storm on average. Tunable by qa-tester.",
-      "trigger": {"type": "contact"},
+      "_comment": "During storms (world_clock weather==2), each harvestable crop has a small chance per tick of being destroyed. radius=1000 covers full map. Each (world_clock, crop) pair independently rolls \u2014 stochastic per-crop. chance=0.008 per tick gives ~0.5%/sec; at 4 mature crops: ~2 crop losses over a 60-second storm on average. Tunable by qa-tester.",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["world_state"], "state": {"weather_eq": 2}},
-        "b": {"tags_all": ["harvestable"]},
+        "a": {
+          "tags_all": [
+            "world_state"
+          ],
+          "state": {
+            "weather_eq": 2
+          }
+        },
+        "b": {
+          "tags_all": [
+            "harvestable"
+          ]
+        },
         "radius": 1000.0
       },
       "chance": 0.008,
-      "effect": {"type": "remove", "target": "b"}
+      "effect": {
+        "type": "remove",
+        "target": "b"
+      }
     },
-
     {
       "_comment": "=== PLAYER MOVEMENT ===",
       "id": "move_north",
-      "trigger": {"type": "input", "action": "move_north"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": -90}
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": -90
+      }
     },
-
     {
       "id": "move_south",
-      "trigger": {"type": "input", "action": "move_south"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 90}
+      "trigger": {
+        "type": "input",
+        "action": "move_south"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": 90
+      }
     },
-
     {
       "id": "move_east",
-      "trigger": {"type": "input", "action": "move_east"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 90, "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_east"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 90,
+        "y": 0
+      }
     },
-
     {
       "id": "move_west",
-      "trigger": {"type": "input", "action": "move_west"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": -90, "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": -90,
+        "y": 0
+      }
     },
-
     {
       "id": "move_stop",
-      "trigger": {"type": "input", "action": "stop"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "stop"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": 0
+      }
     },
-
     {
       "_comment": "=== PLAYER TOOL RULES (input: discrete actions) ===",
       "id": "tool_cycle",
-      "_comment2": "Cycles held_tool 0→1→2→0. Two effects: add 1 then wrap mod 3. 0=watering_can, 1=hoe, 2=scythe.",
-      "trigger": {"type": "input", "action": "tool_cycle"},
-      "query": {"tags_all": ["player"]},
+      "_comment2": "Cycles held_tool 0\u21921\u21922\u21920. Two effects: add 1 then wrap mod 3. 0=watering_can, 1=hoe, 2=scythe.",
+      "trigger": {
+        "type": "input",
+        "action": "tool_cycle"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
       "effect": [
-        {"type": "state_add", "target": "self", "field": "held_tool", "amount": 1},
-        {"type": "state_set", "target": "self", "field": "held_tool", "value": "self.state.held_tool mod 3"}
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "held_tool",
+          "amount": 1
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "held_tool",
+          "value": "self.state.held_tool mod 3"
+        }
       ]
     },
-
     {
       "id": "seed_cycle",
       "_comment": "Cycles selected_seed 0..4 wrapping via mod on num_seed_types property.",
-      "trigger": {"type": "input", "action": "seed_cycle"},
-      "query": {"tags_all": ["player"]},
+      "trigger": {
+        "type": "input",
+        "action": "seed_cycle"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
       "effect": [
-        {"type": "state_add", "target": "self", "field": "selected_seed", "amount": 1},
-        {"type": "state_set", "target": "self", "field": "selected_seed", "value": "self.state.selected_seed mod self.properties.num_seed_types"}
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "selected_seed",
+          "amount": 1
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "selected_seed",
+          "value": "self.state.selected_seed mod self.properties.num_seed_types"
+        }
       ]
     },
-
     {
       "_comment": "=== CONTACT TOOL RULES. All spatial tool actions use contact trigger. Tool gated by player.state.held_tool. ===",
       "id": "hoe_till",
-      "_comment2": "Player (hoe equipped) contacts dirt_tile → transforms to tilled_soil. Single-fire: after transform, tile loses tillable tag.",
-      "trigger": {"type": "contact"},
+      "_comment2": "Player (hoe equipped) contacts dirt_tile \u2192 transforms to tilled_soil. Single-fire: after transform, tile loses tillable tag.",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 1}},
-        "b": {"tags_all": ["ground", "tillable"]},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 1
+          }
+        },
+        "b": {
+          "tags_all": [
+            "ground",
+            "tillable"
+          ]
+        },
         "radius": 28.0
       },
-      "effect": {"type": "transform", "target": "b", "to": "tilled_soil"}
+      "effect": {
+        "type": "transform",
+        "target": "b",
+        "to": "tilled_soil"
+      }
     },
-
     {
       "id": "hoe_remove_dead",
-      "_comment": "Player (hoe) contacts dead_crop → removes it. The tilled_soil tile beneath is still there; player can re-plant next.",
-      "trigger": {"type": "contact"},
+      "_comment": "Player (hoe) contacts dead_crop \u2192 removes it. The tilled_soil tile beneath is still there; player can re-plant next.",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 1}},
-        "b": {"tags_all": ["crop", "dead"]},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 1
+          }
+        },
+        "b": {
+          "tags_all": [
+            "crop",
+            "dead"
+          ]
+        },
         "radius": 28.0
       },
-      "effect": {"type": "remove", "target": "b"}
+      "effect": {
+        "type": "remove",
+        "target": "b"
+      }
     },
-
     {
       "id": "watering_can_water",
-      "_comment": "Player (watering_can) near tilled or planted entity → sets watered=1. tags_any matches tilled_soil (plantable tag) and all crop stages (planted_crop tag).",
-      "trigger": {"type": "contact"},
+      "_comment": "Player (watering_can) near tilled or planted entity \u2192 sets watered=1. tags_any matches tilled_soil (plantable tag) and all crop stages (planted_crop tag).",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 0}},
-        "b": {"tags_any": ["plantable", "planted_crop"]},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 0
+          }
+        },
+        "b": {
+          "tags_any": [
+            "plantable",
+            "planted_crop"
+          ]
+        },
         "radius": 28.0
       },
-      "effect": {"type": "state_set", "target": "b", "field": "watered", "value": 1}
+      "effect": {
+        "type": "state_set",
+        "target": "b",
+        "field": "watered",
+        "value": 1
+      }
     },
-
     {
       "id": "crop_removed_free_tile",
       "_comment": "When a crop's on_tile relation is removed (by remove/clear_entity), clear the tile's occupied flag. Uses relation_changed trigger. 'to' binding = tile entity id. Handles both player harvest and storm removal.",
-      "trigger": {"type": "relation_changed", "relation": "on_tile", "change": "removed"},
-      "effect": {"type": "state_set", "target": "to", "field": "occupied", "value": 0}
+      "trigger": {
+        "type": "relation_changed",
+        "relation": "on_tile",
+        "change": "removed"
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "to",
+        "field": "occupied",
+        "value": 0
+      }
     },
-
     {
-      "_comment": "=== HARVEST RULES (5 per crop type — spawn.template must be a literal string). remove clears on_tile via clear_entity; crop_removed_free_tile handles tile occupied reset. ===",
+      "_comment": "=== HARVEST RULES (5 per crop type \u2014 spawn.template must be a literal string). remove clears on_tile via clear_entity; crop_removed_free_tile handles tile occupied reset. ===",
       "id": "scythe_harvest_radish",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 2}},
-        "b": {"tags_all": ["harvestable"], "properties": {"crop_type_eq": "radish"}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 2
+          }
+        },
+        "b": {
+          "tags_all": [
+            "harvestable"
+          ],
+          "properties": {
+            "crop_type_eq": "radish"
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",  "template": "produce_radish", "position": "a"},
-        {"type": "remove", "target": "b"}
+        {
+          "type": "spawn",
+          "template": "produce_radish",
+          "position": "a"
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
       ]
     },
-
     {
       "id": "scythe_harvest_corn",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 2}},
-        "b": {"tags_all": ["harvestable"], "properties": {"crop_type_eq": "corn"}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 2
+          }
+        },
+        "b": {
+          "tags_all": [
+            "harvestable"
+          ],
+          "properties": {
+            "crop_type_eq": "corn"
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",  "template": "produce_corn", "position": "a"},
-        {"type": "remove", "target": "b"}
+        {
+          "type": "spawn",
+          "template": "produce_corn",
+          "position": "a"
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
       ]
     },
-
     {
       "id": "scythe_harvest_pumpkin",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 2}},
-        "b": {"tags_all": ["harvestable"], "properties": {"crop_type_eq": "pumpkin"}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 2
+          }
+        },
+        "b": {
+          "tags_all": [
+            "harvestable"
+          ],
+          "properties": {
+            "crop_type_eq": "pumpkin"
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",  "template": "produce_pumpkin", "position": "a"},
-        {"type": "remove", "target": "b"}
+        {
+          "type": "spawn",
+          "template": "produce_pumpkin",
+          "position": "a"
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
       ]
     },
-
     {
       "id": "scythe_harvest_turnip",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 2}},
-        "b": {"tags_all": ["harvestable"], "properties": {"crop_type_eq": "turnip"}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 2
+          }
+        },
+        "b": {
+          "tags_all": [
+            "harvestable"
+          ],
+          "properties": {
+            "crop_type_eq": "turnip"
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",  "template": "produce_turnip", "position": "a"},
-        {"type": "remove", "target": "b"}
+        {
+          "type": "spawn",
+          "template": "produce_turnip",
+          "position": "a"
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
       ]
     },
-
     {
       "id": "scythe_harvest_potato",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"held_tool_eq": 2}},
-        "b": {"tags_all": ["harvestable"], "properties": {"crop_type_eq": "potato"}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "held_tool_eq": 2
+          }
+        },
+        "b": {
+          "tags_all": [
+            "harvestable"
+          ],
+          "properties": {
+            "crop_type_eq": "potato"
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",  "template": "produce_potato", "position": "a"},
-        {"type": "remove", "target": "b"}
+        {
+          "type": "spawn",
+          "template": "produce_potato",
+          "position": "a"
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
       ]
     },
-
     {
-      "_comment": "=== PLANT RULES (5 per seed type — contact trigger, nearest unoccupied tile). ===",
+      "_comment": "=== PLANT RULES (5 per seed type \u2014 contact trigger, nearest unoccupied tile). ===",
       "id": "plant_seed_radish",
-      "_comment2": "Player with selected_seed=0 contacts unoccupied tilled tile → spawn crop_seed with radish properties. After spawn, tile occupied=1 prevents repeat planting same tick.",
-      "trigger": {"type": "contact"},
+      "_comment2": "Player with selected_seed=0 contacts unoccupied tilled tile \u2192 spawn crop_seed with radish properties. After spawn, tile occupied=1 prevents repeat planting same tick.",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"selected_seed_eq": 0}},
-        "b": {"tags_all": ["ground", "plantable"], "state": {"occupied_eq": 0}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "selected_seed_eq": 0
+          }
+        },
+        "b": {
+          "tags_all": [
+            "ground",
+            "plantable"
+          ],
+          "state": {
+            "occupied_eq": 0
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",     "template": "crop_seed", "position": "b",
-         "overrides": {"properties": {"crop_type": "radish", "season_mask": 1, "grow_rate": 5},
-                       "state": {"growth": 0, "watered": 0, "season_valid": 0}}},
-        {"type": "state_set", "target": "b", "field": "occupied", "value": 1}
+        {
+          "type": "spawn",
+          "template": "crop_seed",
+          "position": "b",
+          "overrides": {
+            "properties": {
+              "crop_type": "radish",
+              "season_mask": 1,
+              "grow_rate": 5
+            },
+            "state": {
+              "growth": 0,
+              "watered": 0,
+              "season_valid": 0
+            }
+          }
+        },
+        {
+          "type": "state_set",
+          "target": "b",
+          "field": "occupied",
+          "value": 1
+        }
       ]
     },
-
     {
       "id": "plant_seed_corn",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"selected_seed_eq": 1}},
-        "b": {"tags_all": ["ground", "plantable"], "state": {"occupied_eq": 0}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "selected_seed_eq": 1
+          }
+        },
+        "b": {
+          "tags_all": [
+            "ground",
+            "plantable"
+          ],
+          "state": {
+            "occupied_eq": 0
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",     "template": "crop_seed", "position": "b",
-         "overrides": {"properties": {"crop_type": "corn", "season_mask": 2, "grow_rate": 4},
-                       "state": {"growth": 0, "watered": 0, "season_valid": 0}}},
-        {"type": "state_set", "target": "b", "field": "occupied", "value": 1}
+        {
+          "type": "spawn",
+          "template": "crop_seed",
+          "position": "b",
+          "overrides": {
+            "properties": {
+              "crop_type": "corn",
+              "season_mask": 2,
+              "grow_rate": 4
+            },
+            "state": {
+              "growth": 0,
+              "watered": 0,
+              "season_valid": 0
+            }
+          }
+        },
+        {
+          "type": "state_set",
+          "target": "b",
+          "field": "occupied",
+          "value": 1
+        }
       ]
     },
-
     {
       "id": "plant_seed_pumpkin",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"selected_seed_eq": 2}},
-        "b": {"tags_all": ["ground", "plantable"], "state": {"occupied_eq": 0}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "selected_seed_eq": 2
+          }
+        },
+        "b": {
+          "tags_all": [
+            "ground",
+            "plantable"
+          ],
+          "state": {
+            "occupied_eq": 0
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",     "template": "crop_seed", "position": "b",
-         "overrides": {"properties": {"crop_type": "pumpkin", "season_mask": 4, "grow_rate": 2},
-                       "state": {"growth": 0, "watered": 0, "season_valid": 0}}},
-        {"type": "state_set", "target": "b", "field": "occupied", "value": 1}
+        {
+          "type": "spawn",
+          "template": "crop_seed",
+          "position": "b",
+          "overrides": {
+            "properties": {
+              "crop_type": "pumpkin",
+              "season_mask": 4,
+              "grow_rate": 2
+            },
+            "state": {
+              "growth": 0,
+              "watered": 0,
+              "season_valid": 0
+            }
+          }
+        },
+        {
+          "type": "state_set",
+          "target": "b",
+          "field": "occupied",
+          "value": 1
+        }
       ]
     },
-
     {
       "id": "plant_seed_turnip",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"selected_seed_eq": 3}},
-        "b": {"tags_all": ["ground", "plantable"], "state": {"occupied_eq": 0}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "selected_seed_eq": 3
+          }
+        },
+        "b": {
+          "tags_all": [
+            "ground",
+            "plantable"
+          ],
+          "state": {
+            "occupied_eq": 0
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",     "template": "crop_seed", "position": "b",
-         "overrides": {"properties": {"crop_type": "turnip", "season_mask": 4, "grow_rate": 3},
-                       "state": {"growth": 0, "watered": 0, "season_valid": 0}}},
-        {"type": "state_set", "target": "b", "field": "occupied", "value": 1}
+        {
+          "type": "spawn",
+          "template": "crop_seed",
+          "position": "b",
+          "overrides": {
+            "properties": {
+              "crop_type": "turnip",
+              "season_mask": 4,
+              "grow_rate": 3
+            },
+            "state": {
+              "growth": 0,
+              "watered": 0,
+              "season_valid": 0
+            }
+          }
+        },
+        {
+          "type": "state_set",
+          "target": "b",
+          "field": "occupied",
+          "value": 1
+        }
       ]
     },
-
     {
       "id": "plant_seed_potato",
       "_comment": "Potato grows in Spring (mask=1) AND Autumn (mask=4). season_mask = 1+4 = 5.",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"], "state": {"selected_seed_eq": 4}},
-        "b": {"tags_all": ["ground", "plantable"], "state": {"occupied_eq": 0}},
+        "a": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "selected_seed_eq": 4
+          }
+        },
+        "b": {
+          "tags_all": [
+            "ground",
+            "plantable"
+          ],
+          "state": {
+            "occupied_eq": 0
+          }
+        },
         "radius": 28.0
       },
       "effect": [
-        {"type": "spawn",     "template": "crop_seed", "position": "b",
-         "overrides": {"properties": {"crop_type": "potato", "season_mask": 5, "grow_rate": 3},
-                       "state": {"growth": 0, "watered": 0, "season_valid": 0}}},
-        {"type": "state_set", "target": "b", "field": "occupied", "value": 1}
+        {
+          "type": "spawn",
+          "template": "crop_seed",
+          "position": "b",
+          "overrides": {
+            "properties": {
+              "crop_type": "potato",
+              "season_mask": 5,
+              "grow_rate": 3
+            },
+            "state": {
+              "growth": 0,
+              "watered": 0,
+              "season_valid": 0
+            }
+          }
+        },
+        {
+          "type": "state_set",
+          "target": "b",
+          "field": "occupied",
+          "value": 1
+        }
       ]
     },
-
     {
       "id": "feed_animal",
-      "_comment": "Player walks near animal → hunger=0, fed_today=1. Contact-based: player must approach each day. Animal produce-timer countdown requires fed_today=1.",
-      "trigger": {"type": "contact"},
+      "_comment": "Player walks near animal \u2192 hunger=0, fed_today=1. Contact-based: player must approach each day. Animal produce-timer countdown requires fed_today=1.",
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"]},
-        "b": {"tags_all": ["animal", "livestock"]},
+        "a": {
+          "tags_all": [
+            "player"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "animal",
+            "livestock"
+          ]
+        },
         "radius": 32.0
       },
       "effect": [
-        {"type": "state_set", "target": "b", "field": "hunger",    "value": 0},
-        {"type": "state_set", "target": "b", "field": "fed_today", "value": 1}
+        {
+          "type": "state_set",
+          "target": "b",
+          "field": "hunger",
+          "value": 0
+        },
+        {
+          "type": "state_set",
+          "target": "b",
+          "field": "fed_today",
+          "value": 1
+        }
       ]
     },
-
-    {
-      "id": "player_at_chest",
-      "_comment": "Player walks within 48px of sell_chest → emits deposit_trigger signal. Signal-triggered deposit rules then loop over all held produce items (via in_inventory tag) regardless of their stored position. This avoids the contact-proximity issue with produce items (which stay at their spawn position, not following the player).",
-      "trigger": {"type": "contact"},
-      "query": {
-        "a": {"tags_all": ["player"]},
-        "b": {"tags_all": ["sell_point"]},
-        "radius": 48.0
-      },
-      "effect": {"type": "emit", "signal": "deposit_trigger"}
-    },
-
-    {
-      "id": "deposit_collect_gold",
-      "_comment": "On deposit_trigger signal, each in_inventory produce item adds its sell_value to farm_ledger_1 gold. self=each produce item. Literal target 'farm_ledger_1' resolves to the singleton economy entity.",
-      "trigger": {"type": "signal", "name": "deposit_trigger"},
-      "query": {"tags_all": ["produce", "item", "in_inventory"]},
-      "effect": {"type": "state_add", "target": "farm_ledger_1", "field": "gold", "amount": "self.properties.sell_value"}
-    },
-
-    {
-      "id": "deposit_remove_produce",
-      "_comment": "Removes produce after gold is collected. after deposit_collect_gold ensures gold is added before entity is removed.",
-      "trigger": {"type": "signal", "name": "deposit_trigger"},
-      "query": {"tags_all": ["produce", "item", "in_inventory"]},
-      "effect": [
-        {"type": "unrelate",  "relation": "held_by", "from": "self", "to": "player_1"},
-        {"type": "tag_remove","target": "self",      "tag": "in_inventory"},
-        {"type": "remove",    "target": "self"}
-      ],
-      "after": ["deposit_collect_gold"]
-    },
-
-    {
-      "id": "produce_pickup",
-      "_comment": "Player contacts loose produce → relate held_by + tag in_inventory. tags_none: in_inventory prevents re-pickup of already-held items.",
-      "trigger": {"type": "contact"},
-      "query": {
-        "a": {"tags_all": ["player"]},
-        "b": {"tags_all": ["produce", "item", "carryable"], "tags_none": ["in_inventory"]},
-        "radius": 20.0
-      },
-      "effect": [
-        {"type": "relate",  "relation": "held_by", "from": "b", "to": "player_1"},
-        {"type": "tag_add", "target": "b", "tag": "in_inventory"}
-      ]
-    },
-
     {
       "_comment": "=== ANIMAL PRODUCTION RULES ===",
       "id": "animal_hunger_decay",
       "_comment2": "Hunger increases 1 per day on day_start signal. Clamped 0-100. At 100 animal stops producing (produce_timer stalls) but no death (GDD Q7: no punishing cascade).",
-      "trigger": {"type": "signal", "name": "day_start"},
-      "query": {"tags_all": ["animal", "livestock"]},
+      "trigger": {
+        "type": "signal",
+        "name": "day_start"
+      },
+      "query": {
+        "tags_all": [
+          "animal",
+          "livestock"
+        ]
+      },
       "effect": [
-        {"type": "state_add",   "target": "self", "field": "hunger", "amount": 1},
-        {"type": "state_clamp", "target": "self", "field": "hunger", "min": 0, "max": 100}
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "hunger",
+          "amount": 1
+        },
+        {
+          "type": "state_clamp",
+          "target": "self",
+          "field": "hunger",
+          "min": 0,
+          "max": 100
+        }
       ]
     },
-
     {
       "id": "animal_produce_tick",
-      "_comment": "produce_timer counts down every tick only on fed animals (fed_today==1). Unfed animals stall — produce pauses but no punishment.",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["animal", "livestock"], "state": {"fed_today_eq": 1}},
-      "effect": {"type": "state_add", "target": "self", "field": "produce_timer", "amount": -1}
+      "_comment": "produce_timer counts down every tick only on fed animals (fed_today==1). Unfed animals stall \u2014 produce pauses but no punishment.",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "animal",
+          "livestock"
+        ],
+        "state": {
+          "fed_today_eq": 1
+        }
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "produce_timer",
+        "amount": -1
+      }
     },
-
     {
       "id": "animal_produce_output_chicken",
-      "_comment": "Chicken: when produce_timer<=0, spawn egg at chicken position + reset timer (produce_interval * ticks_per_day + jitter). Timer jitter = ±1 day via randf()*60.",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["animal", "livestock", "chicken"], "state": {"produce_timer_lte": 0}},
+      "_comment": "Chicken: when produce_timer<=0, spawn egg at chicken position + reset timer (produce_interval * ticks_per_day + jitter). Timer jitter = \u00b11 day via randf()*60.",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "animal",
+          "livestock",
+          "chicken"
+        ],
+        "state": {
+          "produce_timer_lte": 0
+        }
+      },
       "effect": [
-        {"type": "spawn",     "template": "produce_egg",  "position": "self"},
-        {"type": "state_set", "target": "self", "field": "produce_timer",
-         "value": "self.properties.produce_interval * 60 + floor(randf() * 60)"}
+        {
+          "type": "spawn",
+          "template": "produce_egg",
+          "position": "self"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "produce_timer",
+          "value": "self.properties.produce_interval * 60 + floor(randf() * 60)"
+        }
       ]
     },
-
     {
       "id": "animal_produce_output_cow",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["animal", "livestock", "cow"], "state": {"produce_timer_lte": 0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "animal",
+          "livestock",
+          "cow"
+        ],
+        "state": {
+          "produce_timer_lte": 0
+        }
+      },
       "effect": [
-        {"type": "spawn",     "template": "produce_milk", "position": "self"},
-        {"type": "state_set", "target": "self", "field": "produce_timer",
-         "value": "self.properties.produce_interval * 60 + floor(randf() * 60)"}
+        {
+          "type": "spawn",
+          "template": "produce_milk",
+          "position": "self"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "produce_timer",
+          "value": "self.properties.produce_interval * 60 + floor(randf() * 60)"
+        }
       ]
     },
-
     {
       "id": "animal_produce_output_sheep",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["animal", "livestock", "sheep"], "state": {"produce_timer_lte": 0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "animal",
+          "livestock",
+          "sheep"
+        ],
+        "state": {
+          "produce_timer_lte": 0
+        }
+      },
       "effect": [
-        {"type": "spawn",     "template": "produce_wool", "position": "self"},
-        {"type": "state_set", "target": "self", "field": "produce_timer",
-         "value": "self.properties.produce_interval * 60 + floor(randf() * 60)"}
+        {
+          "type": "spawn",
+          "template": "produce_wool",
+          "position": "self"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "produce_timer",
+          "value": "self.properties.produce_interval * 60 + floor(randf() * 60)"
+        }
       ]
     },
-
     {
       "_comment": "=== NPC SCHEDULE RULES. Schedule signals emitted when time_of_day is in a narrow window. NPCs velocity_set toward their destination. arrive_stop zeroes velocity when close. ===",
       "id": "npc_schedule_emit_work",
       "_comment2": "Emits time_work when time_of_day is in [0.3, 0.317). Window = 1 tick at ticks_per_day=60. Query on world_state so self=world_clock_1 at firing.",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["world_state"], "state": {"time_of_day_gte": 0.3, "time_of_day_lt": 0.317}},
-      "effect": {"type": "emit", "signal": "time_work"}
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "world_state"
+        ],
+        "state": {
+          "time_of_day_gte": 0.3,
+          "time_of_day_lt": 0.317
+        }
+      },
+      "effect": {
+        "type": "emit",
+        "signal": "time_work"
+      }
     },
-
     {
       "id": "npc_schedule_emit_social",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["world_state"], "state": {"time_of_day_gte": 0.6, "time_of_day_lt": 0.617}},
-      "effect": {"type": "emit", "signal": "time_social"}
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "world_state"
+        ],
+        "state": {
+          "time_of_day_gte": 0.6,
+          "time_of_day_lt": 0.617
+        }
+      },
+      "effect": {
+        "type": "emit",
+        "signal": "time_social"
+      }
     },
-
     {
       "id": "npc_schedule_emit_home",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["world_state"], "state": {"time_of_day_gte": 0.9, "time_of_day_lt": 0.917}},
-      "effect": {"type": "emit", "signal": "time_home"}
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "world_state"
+        ],
+        "state": {
+          "time_of_day_gte": 0.9,
+          "time_of_day_lt": 0.917
+        }
+      },
+      "effect": {
+        "type": "emit",
+        "signal": "time_home"
+      }
     },
-
     {
       "id": "npc_go_to_work",
       "_comment": "On time_work signal, set NPC velocity toward work_position. Direction = normalized(target - pos) * speed. max(dist,1) avoids division by zero when already at target.",
-      "trigger": {"type": "signal", "name": "time_work"},
-      "query": {"tags_all": ["npc", "actor"]},
+      "trigger": {
+        "type": "signal",
+        "name": "time_work"
+      },
+      "query": {
+        "tags_all": [
+          "npc",
+          "actor"
+        ]
+      },
       "effect": [
-        {"type": "state_set", "target": "self", "field": "schedule_phase", "value": 1},
-        {"type": "velocity_set", "target": "self",
-         "x": "(self.properties.work_position[0] - self.state.position[0]) / max(sqrt(pow(self.properties.work_position[0] - self.state.position[0], 2) + pow(self.properties.work_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed",
-         "y": "(self.properties.work_position[1] - self.state.position[1]) / max(sqrt(pow(self.properties.work_position[0] - self.state.position[0], 2) + pow(self.properties.work_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed"}
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "schedule_phase",
+          "value": 1
+        },
+        {
+          "type": "velocity_set",
+          "target": "self",
+          "x": "(self.properties.work_position[0] - self.state.position[0]) / max(sqrt(pow(self.properties.work_position[0] - self.state.position[0], 2) + pow(self.properties.work_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed",
+          "y": "(self.properties.work_position[1] - self.state.position[1]) / max(sqrt(pow(self.properties.work_position[0] - self.state.position[0], 2) + pow(self.properties.work_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed"
+        }
       ]
     },
-
     {
       "id": "npc_go_social",
-      "trigger": {"type": "signal", "name": "time_social"},
-      "query": {"tags_all": ["npc", "actor"]},
+      "trigger": {
+        "type": "signal",
+        "name": "time_social"
+      },
+      "query": {
+        "tags_all": [
+          "npc",
+          "actor"
+        ]
+      },
       "effect": [
-        {"type": "state_set", "target": "self", "field": "schedule_phase", "value": 2},
-        {"type": "velocity_set", "target": "self",
-         "x": "(self.properties.social_position[0] - self.state.position[0]) / max(sqrt(pow(self.properties.social_position[0] - self.state.position[0], 2) + pow(self.properties.social_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed",
-         "y": "(self.properties.social_position[1] - self.state.position[1]) / max(sqrt(pow(self.properties.social_position[0] - self.state.position[0], 2) + pow(self.properties.social_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed"}
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "schedule_phase",
+          "value": 2
+        },
+        {
+          "type": "velocity_set",
+          "target": "self",
+          "x": "(self.properties.social_position[0] - self.state.position[0]) / max(sqrt(pow(self.properties.social_position[0] - self.state.position[0], 2) + pow(self.properties.social_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed",
+          "y": "(self.properties.social_position[1] - self.state.position[1]) / max(sqrt(pow(self.properties.social_position[0] - self.state.position[0], 2) + pow(self.properties.social_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed"
+        }
       ]
     },
-
     {
       "id": "npc_go_home",
-      "trigger": {"type": "signal", "name": "time_home"},
-      "query": {"tags_all": ["npc", "actor"]},
+      "trigger": {
+        "type": "signal",
+        "name": "time_home"
+      },
+      "query": {
+        "tags_all": [
+          "npc",
+          "actor"
+        ]
+      },
       "effect": [
-        {"type": "state_set", "target": "self", "field": "schedule_phase", "value": 0},
-        {"type": "velocity_set", "target": "self",
-         "x": "(self.properties.home_position[0] - self.state.position[0]) / max(sqrt(pow(self.properties.home_position[0] - self.state.position[0], 2) + pow(self.properties.home_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed",
-         "y": "(self.properties.home_position[1] - self.state.position[1]) / max(sqrt(pow(self.properties.home_position[0] - self.state.position[0], 2) + pow(self.properties.home_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed"}
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "schedule_phase",
+          "value": 0
+        },
+        {
+          "type": "velocity_set",
+          "target": "self",
+          "x": "(self.properties.home_position[0] - self.state.position[0]) / max(sqrt(pow(self.properties.home_position[0] - self.state.position[0], 2) + pow(self.properties.home_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed",
+          "y": "(self.properties.home_position[1] - self.state.position[1]) / max(sqrt(pow(self.properties.home_position[0] - self.state.position[0], 2) + pow(self.properties.home_position[1] - self.state.position[1], 2)), 1) * self.properties.npc_speed"
+        }
       ]
     },
-
     {
       "id": "npc_arrive_stop",
       "_comment": "Every tick, halt NPCs within 28px of their current phase destination. schedule_phase 0=home, 1=work, 2=social. Formula selects the right waypoint by phase, computes distance, zeroes velocity if close. If not close, preserves current velocity components.",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["npc", "actor"]},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "npc",
+          "actor"
+        ]
+      },
       "effect": [
         {
           "type": "velocity_set",
@@ -581,6 +1303,5 @@
         }
       ]
     }
-
   ]
 }

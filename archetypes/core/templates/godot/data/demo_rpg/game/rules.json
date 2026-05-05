@@ -1,0 +1,111 @@
+{
+  "_comment": "RPG GAME rules (ADR 0009 Phase 3b). Enemy death emits xp signal; player-side xp gain + level-up + player death.",
+  "rules": [
+    {
+      "id": "enemy_dies",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "enemy"
+        ],
+        "state": {
+          "hp_lte": 0
+        }
+      },
+      "effect": [
+        {
+          "type": "emit",
+          "signal": "enemy_killed",
+          "payload": {
+            "xp_value": "self.state.xp_value"
+          }
+        },
+        {
+          "type": "remove",
+          "target": "self"
+        }
+      ]
+    },
+    {
+      "id": "player_gains_xp_on_kill",
+      "trigger": {
+        "type": "signal",
+        "name": "enemy_killed"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "xp",
+        "amount": "xp_value"
+      }
+    },
+    {
+      "id": "level_up_check",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "xp_gte": 100
+        }
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "level",
+          "amount": 1
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "xp",
+          "amount": -100
+        },
+        {
+          "type": "state_mul",
+          "target": "self",
+          "field": "hp_max",
+          "amount": 1.1
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "hp",
+          "value": "self.state.hp_max"
+        }
+      ]
+    },
+    {
+      "id": "player_dies",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "hp_lte": 0
+        }
+      },
+      "effect": {
+        "type": "remove",
+        "target": "self"
+      }
+    }
+  ]
+}

@@ -1,135 +1,237 @@
 {
-  "_comment": "DoomArena rules (~22). Categories: clock, input, AI, combat, pickups, bounds. Round-1 polish: velocity_lerp + drag, lifetime, emit_shell_event.",
-
+  "_comment": "DoomArena WORLD physics (ADR 0009 Phase 3b). Player movement + firing, AI homing, contact damage/pickup-grab, monster death animation, position bounds. No scoring or wave management \u2014 those belong to game/rules.json.",
   "rules": [
-
-    {
-      "_comment": "=== CLOCK ===",
-      "id": "clock_advance",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"]},
-      "effect": [
-        {"type": "state_add", "target": "self", "field": "elapsed", "amount": 0.1},
-        {"type": "state_add", "target": "self", "field": "spawn_timer", "amount": -0.1},
-        {"type": "state_add", "target": "self", "field": "pickup_timer", "amount": -0.1}
-      ]
-    },
-
-    {
-      "_comment": "Spawn imp at random edge when timer ≤ 0. Reset interval shortens with elapsed time (4s → 2s by t=60).",
-      "id": "monster_spawn",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"spawn_timer_lt": 0.0}},
-      "effect": [
-        {"type": "spawn",
-         "template": "monster_imp",
-         "position": [
-           "(randf() - 0.5) * 600",
-           "(randf() - 0.5) * 460"
-         ]},
-        {"type": "state_set", "target": "self", "field": "spawn_timer",
-         "value": "max(2.0, 4.0 - self.state.elapsed * 0.022)"}
-      ]
-    },
-
-    {
-      "id": "pickup_spawn_health",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
-      "chance": 0.5,
-      "effect": [
-        {"type": "spawn", "template": "health_pickup",
-         "position": ["(randf() - 0.5) * 500", "(randf() - 0.5) * 380"]},
-        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
-      ]
-    },
-
-    {
-      "id": "pickup_spawn_ammo",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
-      "effect": [
-        {"type": "spawn", "template": "ammo_pickup",
-         "position": ["(randf() - 0.5) * 500", "(randf() - 0.5) * 380"]},
-        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
-      ]
-    },
-
     {
       "_comment": "=== PLAYER MOVEMENT (velocity_lerp for weighty motion + drag in player def) ===",
       "id": "player_move_north",
-      "trigger": {"type": "input", "action": "move_north"},
-      "effect": {"type": "velocity_lerp", "target": "actor", "x": 0, "y": -240, "rate": 0.18}
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "effect": {
+        "type": "velocity_lerp",
+        "target": "actor",
+        "x": 0,
+        "y": -240,
+        "rate": 0.18
+      }
     },
     {
       "id": "player_move_south",
-      "trigger": {"type": "input", "action": "move_south"},
-      "effect": {"type": "velocity_lerp", "target": "actor", "x": 0, "y": 240, "rate": 0.18}
+      "trigger": {
+        "type": "input",
+        "action": "move_south"
+      },
+      "effect": {
+        "type": "velocity_lerp",
+        "target": "actor",
+        "x": 0,
+        "y": 240,
+        "rate": 0.18
+      }
     },
     {
       "id": "player_move_east",
-      "trigger": {"type": "input", "action": "move_east"},
-      "effect": {"type": "velocity_lerp", "target": "actor", "x": 240, "y": 0, "rate": 0.18}
+      "trigger": {
+        "type": "input",
+        "action": "move_east"
+      },
+      "effect": {
+        "type": "velocity_lerp",
+        "target": "actor",
+        "x": 240,
+        "y": 0,
+        "rate": 0.18
+      }
     },
     {
       "id": "player_move_west",
-      "trigger": {"type": "input", "action": "move_west"},
-      "effect": {"type": "velocity_lerp", "target": "actor", "x": -240, "y": 0, "rate": 0.18}
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "effect": {
+        "type": "velocity_lerp",
+        "target": "actor",
+        "x": -240,
+        "y": 0,
+        "rate": 0.18
+      }
     },
-
     {
-      "_comment": "=== PLAYER FIRING — arrow keys (fire_north/south/east/west are PRESS-edge inputs in world.gd's input_actions_press). Bullet spawns with velocity override per direction. ===",
+      "_comment": "=== PLAYER FIRING \u2014 arrow keys (fire_north/south/east/west are PRESS-edge inputs in world.gd's input_actions_press). Bullet spawns with velocity override per direction. ===",
       "id": "fire_north",
-      "trigger": {"type": "input", "action": "fire_north"},
-      "query": {"tags_all": ["player"], "state": {"ammo_gt": 0}},
+      "trigger": {
+        "type": "input",
+        "action": "fire_north"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "ammo_gt": 0
+        }
+      },
       "effect": [
-        {"type": "spawn", "template": "bullet",
-         "position": ["self.state.position.x", "self.state.position.y - 16"],
-         "overrides": {"state": {"velocity": [0, -400]}}},
-        {"type": "state_add", "target": "self", "field": "ammo", "amount": -1}
+        {
+          "type": "spawn",
+          "template": "bullet",
+          "position": [
+            "self.state.position.x",
+            "self.state.position.y - 16"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                0,
+                -400
+              ]
+            }
+          }
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "ammo",
+          "amount": -1
+        }
       ]
     },
     {
       "id": "fire_south",
-      "trigger": {"type": "input", "action": "fire_south"},
-      "query": {"tags_all": ["player"], "state": {"ammo_gt": 0}},
+      "trigger": {
+        "type": "input",
+        "action": "fire_south"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "ammo_gt": 0
+        }
+      },
       "effect": [
-        {"type": "spawn", "template": "bullet",
-         "position": ["self.state.position.x", "self.state.position.y + 16"],
-         "overrides": {"state": {"velocity": [0, 400]}}},
-        {"type": "state_add", "target": "self", "field": "ammo", "amount": -1}
+        {
+          "type": "spawn",
+          "template": "bullet",
+          "position": [
+            "self.state.position.x",
+            "self.state.position.y + 16"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                0,
+                400
+              ]
+            }
+          }
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "ammo",
+          "amount": -1
+        }
       ]
     },
     {
       "id": "fire_east",
-      "trigger": {"type": "input", "action": "fire_east"},
-      "query": {"tags_all": ["player"], "state": {"ammo_gt": 0}},
+      "trigger": {
+        "type": "input",
+        "action": "fire_east"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "ammo_gt": 0
+        }
+      },
       "effect": [
-        {"type": "spawn", "template": "bullet",
-         "position": ["self.state.position.x + 16", "self.state.position.y"],
-         "overrides": {"state": {"velocity": [400, 0]}}},
-        {"type": "state_add", "target": "self", "field": "ammo", "amount": -1}
+        {
+          "type": "spawn",
+          "template": "bullet",
+          "position": [
+            "self.state.position.x + 16",
+            "self.state.position.y"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                400,
+                0
+              ]
+            }
+          }
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "ammo",
+          "amount": -1
+        }
       ]
     },
     {
       "id": "fire_west",
-      "trigger": {"type": "input", "action": "fire_west"},
-      "query": {"tags_all": ["player"], "state": {"ammo_gt": 0}},
+      "trigger": {
+        "type": "input",
+        "action": "fire_west"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "ammo_gt": 0
+        }
+      },
       "effect": [
-        {"type": "spawn", "template": "bullet",
-         "position": ["self.state.position.x - 16", "self.state.position.y"],
-         "overrides": {"state": {"velocity": [-400, 0]}}},
-        {"type": "state_add", "target": "self", "field": "ammo", "amount": -1}
+        {
+          "type": "spawn",
+          "template": "bullet",
+          "position": [
+            "self.state.position.x - 16",
+            "self.state.position.y"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                -400,
+                0
+              ]
+            }
+          }
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "ammo",
+          "amount": -1
+        }
       ]
     },
-
     {
       "_comment": "=== MONSTER AI (homing via contact-broadcast pattern: player is 'b', monster is 'a'; radius 1000 = always fires) ===",
       "id": "monster_homing",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["monster"]},
-        "b": {"tags_all": ["player"]},
+        "a": {
+          "tags_all": [
+            "monster"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "player"
+          ]
+        },
         "radius": 1000
       },
       "effect": {
@@ -139,99 +241,237 @@
         "y": "(b.state.position.y - a.state.position.y) / max(sqrt(pow(b.state.position.x - a.state.position.x, 2) + pow(b.state.position.y - a.state.position.y, 2)), 1) * a.properties.speed"
       }
     },
-
     {
-      "_comment": "=== COMBAT: bullet damages monster ===",
-      "id": "bullet_kills_monster",
-      "trigger": {"type": "contact"},
+      "_comment": "Monster death: hp \u2264 0 \u2192 4 sparks + camera shake + score+1 on player + remove monster.",
+      "id": "monster_death",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
       "query": {
-        "a": {"tags_all": ["bullet"]},
-        "b": {"tags_all": ["monster"]},
-        "radius": 18
+        "tags_all": [
+          "monster"
+        ],
+        "state": {
+          "hp_lte": 0
+        }
       },
       "effect": [
-        {"type": "state_add", "target": "b", "field": "hp", "amount": -1},
-        {"type": "remove", "target": "a"}
+        {
+          "type": "spawn",
+          "template": "particle_spark",
+          "position": [
+            "self.state.position.x + (randf()-0.5)*30",
+            "self.state.position.y + (randf()-0.5)*30"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                60,
+                -60
+              ]
+            }
+          }
+        },
+        {
+          "type": "spawn",
+          "template": "particle_spark",
+          "position": [
+            "self.state.position.x + (randf()-0.5)*30",
+            "self.state.position.y + (randf()-0.5)*30"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                -60,
+                -60
+              ]
+            }
+          }
+        },
+        {
+          "type": "spawn",
+          "template": "particle_spark",
+          "position": [
+            "self.state.position.x + (randf()-0.5)*30",
+            "self.state.position.y + (randf()-0.5)*30"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                60,
+                60
+              ]
+            }
+          }
+        },
+        {
+          "type": "spawn",
+          "template": "particle_spark",
+          "position": [
+            "self.state.position.x + (randf()-0.5)*30",
+            "self.state.position.y + (randf()-0.5)*30"
+          ],
+          "overrides": {
+            "state": {
+              "velocity": [
+                -60,
+                60
+              ]
+            }
+          }
+        },
+        {
+          "type": "emit_shell_event",
+          "event": "shake",
+          "intensity": 4,
+          "duration": 8
+        },
+        {
+          "type": "state_add",
+          "target": "player",
+          "field": "score",
+          "amount": 1
+        },
+        {
+          "type": "remove",
+          "target": "self"
+        }
       ]
     },
-
-    {
-      "_comment": "Monster death: hp ≤ 0 → 4 sparks + camera shake + score+1 on player + remove monster.",
-      "id": "monster_death",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["monster"], "state": {"hp_lte": 0}},
-      "effect": [
-        {"type": "spawn", "template": "particle_spark",
-         "position": ["self.state.position.x + (randf()-0.5)*30", "self.state.position.y + (randf()-0.5)*30"],
-         "overrides": {"state": {"velocity": [60, -60]}}},
-        {"type": "spawn", "template": "particle_spark",
-         "position": ["self.state.position.x + (randf()-0.5)*30", "self.state.position.y + (randf()-0.5)*30"],
-         "overrides": {"state": {"velocity": [-60, -60]}}},
-        {"type": "spawn", "template": "particle_spark",
-         "position": ["self.state.position.x + (randf()-0.5)*30", "self.state.position.y + (randf()-0.5)*30"],
-         "overrides": {"state": {"velocity": [60, 60]}}},
-        {"type": "spawn", "template": "particle_spark",
-         "position": ["self.state.position.x + (randf()-0.5)*30", "self.state.position.y + (randf()-0.5)*30"],
-         "overrides": {"state": {"velocity": [-60, 60]}}},
-        {"type": "emit_shell_event", "event": "shake", "intensity": 4, "duration": 8},
-        {"type": "state_add", "target": "player", "field": "score", "amount": 1},
-        {"type": "remove", "target": "self"}
-      ]
-    },
-
     {
       "_comment": "Monster touches player = damage + flash + shake. Monster despawns on contact (kamikaze style).",
       "id": "monster_hits_player",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["monster"]},
-        "b": {"tags_all": ["player"]},
+        "a": {
+          "tags_all": [
+            "monster"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "player"
+          ]
+        },
         "radius": 24
       },
       "effect": [
-        {"type": "state_add", "target": "b", "field": "hp", "amount": -10},
-        {"type": "state_clamp", "target": "b", "field": "hp", "min": 0, "max": 100},
-        {"type": "emit_shell_event", "event": "flash", "color": "#ff0000", "duration": 12},
-        {"type": "emit_shell_event", "event": "shake", "intensity": 6, "duration": 10},
-        {"type": "remove", "target": "a"}
+        {
+          "type": "state_add",
+          "target": "b",
+          "field": "hp",
+          "amount": -10
+        },
+        {
+          "type": "state_clamp",
+          "target": "b",
+          "field": "hp",
+          "min": 0,
+          "max": 100
+        },
+        {
+          "type": "emit_shell_event",
+          "event": "flash",
+          "color": "#ff0000",
+          "duration": 12
+        },
+        {
+          "type": "emit_shell_event",
+          "event": "shake",
+          "intensity": 6,
+          "duration": 10
+        },
+        {
+          "type": "remove",
+          "target": "a"
+        }
       ]
     },
-
     {
       "_comment": "=== PICKUPS ===",
       "id": "pickup_health_grab",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"]},
-        "b": {"tags_all": ["pickup_health"]},
+        "a": {
+          "tags_all": [
+            "player"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "pickup_health"
+          ]
+        },
         "radius": 22
       },
       "effect": [
-        {"type": "state_add", "target": "a", "field": "hp", "amount": 25},
-        {"type": "state_clamp", "target": "a", "field": "hp", "min": 0, "max": 100},
-        {"type": "remove", "target": "b"}
+        {
+          "type": "state_add",
+          "target": "a",
+          "field": "hp",
+          "amount": 25
+        },
+        {
+          "type": "state_clamp",
+          "target": "a",
+          "field": "hp",
+          "min": 0,
+          "max": 100
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
       ]
     },
-
     {
       "id": "pickup_ammo_grab",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["player"]},
-        "b": {"tags_all": ["pickup_ammo"]},
+        "a": {
+          "tags_all": [
+            "player"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "pickup_ammo"
+          ]
+        },
         "radius": 22
       },
       "effect": [
-        {"type": "state_add", "target": "a", "field": "ammo", "amount": 5},
-        {"type": "remove", "target": "b"}
+        {
+          "type": "state_add",
+          "target": "a",
+          "field": "ammo",
+          "amount": 5
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
       ]
     },
-
     {
-      "_comment": "=== BOUNDS — clamp player + monsters to arena rectangle ===",
+      "_comment": "=== BOUNDS \u2014 clamp player + monsters to arena rectangle ===",
       "id": "creature_bounds",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["creature"]},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "creature"
+        ]
+      },
       "effect": {
         "type": "state_set",
         "target": "self",

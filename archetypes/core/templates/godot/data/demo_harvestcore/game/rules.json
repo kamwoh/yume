@@ -1,0 +1,123 @@
+{
+  "_comment": "Harvestcore GAME rules (ADR 0009 Phase 3b). Player picks up produce \u2192 relates to inventory; depositing at chest emits a signal that converts produce\u2192gold and removes the produce entity.",
+  "rules": [
+    {
+      "id": "player_at_chest",
+      "_comment": "Player walks within 48px of sell_chest \u2192 emits deposit_trigger signal. Signal-triggered deposit rules then loop over all held produce items (via in_inventory tag) regardless of their stored position. This avoids the contact-proximity issue with produce items (which stay at their spawn position, not following the player).",
+      "trigger": {
+        "type": "contact"
+      },
+      "query": {
+        "a": {
+          "tags_all": [
+            "player"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "sell_point"
+          ]
+        },
+        "radius": 48.0
+      },
+      "effect": {
+        "type": "emit",
+        "signal": "deposit_trigger"
+      }
+    },
+    {
+      "id": "deposit_collect_gold",
+      "_comment": "On deposit_trigger signal, each in_inventory produce item adds its sell_value to farm_ledger_1 gold. self=each produce item. Literal target 'farm_ledger_1' resolves to the singleton economy entity.",
+      "trigger": {
+        "type": "signal",
+        "name": "deposit_trigger"
+      },
+      "query": {
+        "tags_all": [
+          "produce",
+          "item",
+          "in_inventory"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "farm_ledger_1",
+        "field": "gold",
+        "amount": "self.properties.sell_value"
+      }
+    },
+    {
+      "id": "deposit_remove_produce",
+      "_comment": "Removes produce after gold is collected. after deposit_collect_gold ensures gold is added before entity is removed.",
+      "trigger": {
+        "type": "signal",
+        "name": "deposit_trigger"
+      },
+      "query": {
+        "tags_all": [
+          "produce",
+          "item",
+          "in_inventory"
+        ]
+      },
+      "effect": [
+        {
+          "type": "unrelate",
+          "relation": "held_by",
+          "from": "self",
+          "to": "player_1"
+        },
+        {
+          "type": "tag_remove",
+          "target": "self",
+          "tag": "in_inventory"
+        },
+        {
+          "type": "remove",
+          "target": "self"
+        }
+      ],
+      "after": [
+        "deposit_collect_gold"
+      ]
+    },
+    {
+      "id": "produce_pickup",
+      "_comment": "Player contacts loose produce \u2192 relate held_by + tag in_inventory. tags_none: in_inventory prevents re-pickup of already-held items.",
+      "trigger": {
+        "type": "contact"
+      },
+      "query": {
+        "a": {
+          "tags_all": [
+            "player"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "produce",
+            "item",
+            "carryable"
+          ],
+          "tags_none": [
+            "in_inventory"
+          ]
+        },
+        "radius": 20.0
+      },
+      "effect": [
+        {
+          "type": "relate",
+          "relation": "held_by",
+          "from": "b",
+          "to": "player_1"
+        },
+        {
+          "type": "tag_add",
+          "target": "b",
+          "tag": "in_inventory"
+        }
+      ]
+    }
+  ]
+}

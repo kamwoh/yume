@@ -1,56 +1,77 @@
 {
-  "_comment": "FPS Garden — minimal first-person test. WASD + mouse look. velocity_set_relative makes W move forward in look direction. Pickup orbs to score. 5 orbs = win.",
-
+  "_comment": "FPSGarden WORLD physics (ADR 0009 Phase 3b). 3D movement, position bounds. Orb collection (which awards score) lives in game/rules.json.",
   "rules": [
     {
-      "_comment": "=== MOVEMENT (forward-relative — uses player.state.facing). Convention: +forward = toward facing direction. W = +forward (intuitive).",
+      "_comment": "=== MOVEMENT (forward-relative \u2014 uses player.state.facing). Convention: +forward = toward facing direction. W = +forward (intuitive).",
       "id": "move_forward",
-      "trigger": {"type": "input", "action": "move_north"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 4.0, "strafe": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "effect": {
+        "type": "velocity_set_relative",
+        "target": "actor",
+        "forward": 4.0,
+        "strafe": 0
+      }
     },
     {
       "id": "move_back",
-      "trigger": {"type": "input", "action": "move_south"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": -4.0, "strafe": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_south"
+      },
+      "effect": {
+        "type": "velocity_set_relative",
+        "target": "actor",
+        "forward": -4.0,
+        "strafe": 0
+      }
     },
     {
       "id": "strafe_right",
-      "trigger": {"type": "input", "action": "move_east"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": -4.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_east"
+      },
+      "effect": {
+        "type": "velocity_set_relative",
+        "target": "actor",
+        "forward": 0,
+        "strafe": -4.0
+      }
     },
     {
       "id": "strafe_left",
-      "trigger": {"type": "input", "action": "move_west"},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": 4.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "effect": {
+        "type": "velocity_set_relative",
+        "target": "actor",
+        "forward": 0,
+        "strafe": 4.0
+      }
     },
-
     {
-      "_comment": "=== BOUNDS — clamp player position to garden plane (40x40) so they don't walk off into infinity. Y kept at 0 (no jumping in v1).",
+      "_comment": "=== BOUNDS \u2014 clamp player position to garden plane (40x40) so they don't walk off into infinity. Y kept at 0 (no jumping in v1).",
       "id": "player_bounds_3d",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["player"]},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
       "effect": {
         "type": "state_set",
         "target": "self",
         "field": "position",
         "value": "Vector3(clamp(self.state.position.x, -18, 18), 0, clamp(self.state.position.z, -18, 18))"
       }
-    },
-
-    {
-      "_comment": "=== ORB COLLECTION ===",
-      "id": "collect_orb",
-      "trigger": {"type": "contact"},
-      "query": {
-        "a": {"tags_all": ["player"]},
-        "b": {"tags_all": ["orb"]},
-        "radius": 1.2
-      },
-      "effect": [
-        {"type": "state_add", "target": "a", "field": "score", "amount": 1},
-        {"type": "remove", "target": "b"},
-        {"type": "emit_shell_event", "event": "shake", "intensity": 0.05, "duration": 6}
-      ]
     }
   ]
 }

@@ -1,121 +1,254 @@
 {
-  "_comment": "W5.3 shooter rules. WASD = move (input → velocity_set). IJKL = fire bullet in cardinal direction. Bullets travel, age out, damage enemies on contact. Enemy AI: contact-pair rule with huge radius — sets enemy velocity toward player using formula. Score increments when enemy dies (despawn trigger).",
-
+  "_comment": "Shooter WORLD physics (ADR 0009 Phase 3b). Player movement, firing, bullet aging/death, bullet-hits-enemy, enemy AI pursue + attack. Scoring lives in game/rules.json.",
   "rules": [
     {
       "id": "move_north",
-      "trigger": {"type": "input", "action": "move_north"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": -100}
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": -100
+      }
     },
     {
       "id": "move_south",
-      "trigger": {"type": "input", "action": "move_south"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 100}
+      "trigger": {
+        "type": "input",
+        "action": "move_south"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": 100
+      }
     },
     {
       "id": "move_east",
-      "trigger": {"type": "input", "action": "move_east"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 100, "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_east"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 100,
+        "y": 0
+      }
     },
     {
       "id": "move_west",
-      "trigger": {"type": "input", "action": "move_west"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": -100, "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": -100,
+        "y": 0
+      }
     },
     {
       "id": "stop",
-      "trigger": {"type": "input", "action": "stop"},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "stop"
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": 0
+      }
     },
-
     {
       "id": "fire_north",
-      "trigger": {"type": "input", "action": "fire_north"},
+      "trigger": {
+        "type": "input",
+        "action": "fire_north"
+      },
       "effect": {
         "type": "spawn",
         "template": "bullet",
         "position": "actor",
-        "overrides": {"state": {"velocity": [0, -200]}}
+        "overrides": {
+          "state": {
+            "velocity": [
+              0,
+              -200
+            ]
+          }
+        }
       }
     },
     {
       "id": "fire_south",
-      "trigger": {"type": "input", "action": "fire_south"},
+      "trigger": {
+        "type": "input",
+        "action": "fire_south"
+      },
       "effect": {
         "type": "spawn",
         "template": "bullet",
         "position": "actor",
-        "overrides": {"state": {"velocity": [0, 200]}}
+        "overrides": {
+          "state": {
+            "velocity": [
+              0,
+              200
+            ]
+          }
+        }
       }
     },
     {
       "id": "fire_east",
-      "trigger": {"type": "input", "action": "fire_east"},
+      "trigger": {
+        "type": "input",
+        "action": "fire_east"
+      },
       "effect": {
         "type": "spawn",
         "template": "bullet",
         "position": "actor",
-        "overrides": {"state": {"velocity": [200, 0]}}
+        "overrides": {
+          "state": {
+            "velocity": [
+              200,
+              0
+            ]
+          }
+        }
       }
     },
     {
       "id": "fire_west",
-      "trigger": {"type": "input", "action": "fire_west"},
+      "trigger": {
+        "type": "input",
+        "action": "fire_west"
+      },
       "effect": {
         "type": "spawn",
         "template": "bullet",
         "position": "actor",
-        "overrides": {"state": {"velocity": [-200, 0]}}
+        "overrides": {
+          "state": {
+            "velocity": [
+              -200,
+              0
+            ]
+          }
+        }
       }
     },
-
     {
       "id": "bullet_ages",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["bullet"]},
-      "effect": {"type": "state_add", "target": "self", "field": "lifespan", "amount": -1}
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "bullet"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "lifespan",
+        "amount": -1
+      }
     },
     {
       "id": "bullet_dies",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["bullet"], "state": {"lifespan_lte": 0}},
-      "effect": {"type": "remove", "target": "self"}
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "bullet"
+        ],
+        "state": {
+          "lifespan_lte": 0
+        }
+      },
+      "effect": {
+        "type": "remove",
+        "target": "self"
+      }
     },
-
     {
       "id": "bullet_hits_enemy",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["bullet"]},
-        "b": {"tags_all": ["enemy"]},
+        "a": {
+          "tags_all": [
+            "bullet"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "enemy"
+          ]
+        },
         "radius": 20.0
       },
       "effect": [
-        {"type": "state_add", "target": "b", "field": "hp", "amount": "-a.state.damage"},
-        {"type": "remove", "target": "a"}
+        {
+          "type": "state_add",
+          "target": "b",
+          "field": "hp",
+          "amount": "-a.state.damage"
+        },
+        {
+          "type": "remove",
+          "target": "a"
+        }
       ]
     },
-
     {
       "id": "enemy_dies",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["enemy"], "state": {"hp_lte": 0}},
-      "effect": {"type": "remove", "target": "self"}
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "enemy"
+        ],
+        "state": {
+          "hp_lte": 0
+        }
+      },
+      "effect": {
+        "type": "remove",
+        "target": "self"
+      }
     },
-
-    {
-      "id": "score_on_enemy_death",
-      "trigger": {"type": "despawn"},
-      "query": {"tags_all": ["enemy"]},
-      "effect": {"type": "state_add", "target": "score", "field": "kills", "amount": 1}
-    },
-
     {
       "id": "enemy_ai_pursue_player",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["enemy"]},
-        "b": {"tags_all": ["player"]},
+        "a": {
+          "tags_all": [
+            "enemy"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "player"
+          ]
+        },
         "radius": 1000.0
       },
       "effect": {
@@ -125,17 +258,31 @@
         "y": "(b.state.position.y - a.state.position.y) * 0.4"
       }
     },
-
     {
       "id": "enemy_damages_player_on_contact",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["enemy"]},
-        "b": {"tags_all": ["player"]},
+        "a": {
+          "tags_all": [
+            "enemy"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "player"
+          ]
+        },
         "radius": 25.0
       },
       "chance": 0.2,
-      "effect": {"type": "state_add", "target": "b", "field": "hp", "amount": -2}
+      "effect": {
+        "type": "state_add",
+        "target": "b",
+        "field": "hp",
+        "amount": -2
+      }
     }
   ]
 }
