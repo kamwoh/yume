@@ -37,23 +37,25 @@ These check the *meta-shape* of the output, not the exact bytes.
 harvests crops when ripe, ties them into a counter"
 ```
 
-**Expected outputs:**
+**Expected outputs (per ADR 0009):**
 - `docs/games/farming-sim/GDD.md` (or similar slug)
 - `docs/games/farming-sim/rules-sketch.md`
-- `archetypes/core/templates/godot/data/demo_farming-sim/entities.json`
-- `archetypes/core/templates/godot/data/demo_farming-sim/world_rules.json`
+- `archetypes/core/templates/godot/data/demo_farming-sim/entities/` or `entities.json`
+- `archetypes/core/templates/godot/data/demo_farming-sim/world/physics.json`
+- `archetypes/core/templates/godot/data/demo_farming-sim/game/rules.json` (if game has scoring/win)
+- `archetypes/core/templates/godot/data/demo_farming-sim/scene.json`
 - `archetypes/core/templates/godot/scenes/farming-sim_2d.tscn`
-- `archetypes/core/templates/godot/scenes/farming-sim_3d.tscn`
 - `docs/games/farming-sim/qa-report.md`
 
 **Schema checks:**
-- entities.json has `definitions` array with ≥ 5 entries (player +
+- entities have `definitions` array with ≥ 5 entries (player +
   seed + young + mature crop + ground or similar)
-- world_rules.json has ≥ 6 rules:
+- world/physics.json has ≥ 5 rules covering:
   - movement (input → velocity_set, 4 directions)
   - crop growth (tick → state_add)
   - growth threshold transforms (seed → young → mature)
-  - harvest (input or contact, transform/remove + state_add counter)
+- game/rules.json (if present) covers harvest scoring (contact +
+  state_add on a counter)
 - All rules pass `Rule.validate_all` (0 errors)
 
 **Cascade verification (qa-tester):**
@@ -111,8 +113,9 @@ that periodically strikes random trees"
   rules (tick spawn lightning at random tree, transform tree to
   burning_tree). Likely needs no new primitive — composition with
   existing seven.
-- Phase 3 (content-designer): MODIFIES `data/demo_ecology/entities.json`
-  + `world_rules.json` rather than creating new folder
+- Phase 3 (content-designer + systems-designer): MODIFIES
+  `data/demo_ecology/entities.json` + `world/physics.json` rather than
+  creating new folder
 - Phase 5 (qa-tester): verifies thunderstorm fires + ignites trees,
   AND that pre-existing cascades (fire spread, predation, etc.) still
   work (no regression)

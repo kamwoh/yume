@@ -38,17 +38,15 @@ Files in `archetypes/core/templates/godot/data/<game-name>/`:
 - `entities/` — directory of per-def JSON files. Each per-def file
   contains `{"definitions": [{...one def...}]}`. A `zz_instances.json`
   file (sorts last) holds persistent `initial_instances` + `initial_relations`.
-- `world/state.json` — global world initial state (per ADR 0009 — was `world.json`)
+- `world/state.json` — global world initial state
 - `levels/<name>/entities.json` (multi-level games) — per-level instances
-- `scene.json` — camera follow tag, bounds, tick rate (read by GameShell)
-- `hud.json` — HUD layout, win-condition bindings (display only —
-  win/lose LOGIC is in game/rules.json, written by yume-game-rules-designer)
 
 You do NOT write:
 - `world/physics.json` — yume-systems-designer
 - `game/rules.json` + `game/flow.json` — yume-game-rules-designer
-- `audio/cues.json` + `ui/strings.json` — yume-asset-designer
-- `ui/input.json` (input edge classification) — yume-asset-designer or systems
+- `scene.json` (camera/tick/renderer config) — yume-asset-designer
+- `ui/hud.json` + `ui/input.json` + `ui/strings.json` — yume-asset-designer
+- `audio/cues.json` — yume-asset-designer
 
 ### Per-def file pattern (preferred for new games)
 
@@ -60,10 +58,9 @@ data/demo_<game>/
 │   ├── pond_clock.json          # one def per file
 │   ├── fish.json
 │   ├── water_plant_mature.json
-│   └── zz_instances.json         # initial_instances + relations (sorts last)
-├── world_rules.json
-├── scene.json
-└── hud.json
+│   └── zz_instances.json        # initial_instances + relations (sorts last)
+├── world/state.json             # initial world_state values
+└── (other files written by other skills)
 ```
 
 **Why per-def:** smaller focused files = easier LLM editing (less context
@@ -85,18 +82,15 @@ GDScript. All playability config lives in scene.json + hud.json.
 
 ## How to do your job
 
-1. **Read the rule sketches AND the GDD.** Sketches tell you what
-   rules to write; GDD tells you the intended feel — informs balance.
+1. **Read the level-design (if multi-level), world plan, and GDD.**
+   The plan tells you the named cast; the GDD tells you intended feel.
+   You don't write rules — that's systems-designer / game-rules-designer.
 
-2. **Read `.claude/rules/data-demo.md` first.** All schema rules
-   apply: no semantic effect types, formula whitelist, tag conventions,
+2. **Read `.claude/rules/data-demo.md` first.** Schema rules apply:
+   no semantic effect types, formula whitelist, tag conventions,
    cross-renderer coordinates.
 
-3. **Read `docs/engine-reference/api-manifest.json`.** This is the
-   canonical engine vocabulary — auto-generated from source. The
-   manifest never drifts; hand-edited prompts can.
-
-4. **Read existing demos for patterns.** Don't reinvent — copy patterns
+3. **Read existing demos for patterns.** Don't reinvent — copy patterns
    from `demo_ecology/`, `demo_rpg/`, etc. Established conventions:
    - `tags_all` for "must have all of" (most common filter)
    - `tags_none` for exclusion ("not burning yet", "not seedling")
@@ -105,12 +99,11 @@ GDScript. All playability config lives in scene.json + hud.json.
    - Position in pixel-scale Vector2 (works in both 2D + 3D scenes)
    - Velocity in units-per-second
 
-5. **Write entities.json:**
+4. **Write entity definitions** under `entities/` (per-def files) or
+   `entities.json` (single-file):
 
 ```jsonc
 {
-  "_comment": "Brief description of the game + key dynamics.",
-
   "definitions": [
     {
       "id": "<def_id>",
@@ -122,36 +115,43 @@ GDScript. All playability config lives in scene.json + hud.json.
         "params": { /* override $param defaults */ }
       }
     }
-  ],
+  ]
+}
+```
 
+5. **Write initial instances** in `entities/zz_instances.json` (or
+   `entities.json` if single-file) for persistent / single-level games,
+   or `levels/<name>/entities.json` for per-level instances:
+
+```jsonc
+{
   "initial_instances": [
     { "def": "<def_id>", "id": "<unique_id>", "position": [x, y] }
   ],
-
   "initial_relations": [
     { "type": "<relation_type>", "from": "<id>", "to": "<id>" }
   ]
 }
 ```
 
-6. **Write world_rules.json:**
+6. **Write `world/state.json`** with the initial values for any
+   `world.X` bindings the rules will read (e.g. `score`, `current_level`,
+   `phase`):
 
 ```jsonc
 {
-  "_comment": "Brief description of rule chains + cascades.",
-
-  "rules": [
-    {
-      "id": "<rule_id>",
-      "trigger": { "type": "<trigger>", ... },
-      "query": { ... },
-      "require": { ... },
-      "chance": 1.0,
-      "effect": {} | [{}, {}]
-    }
-  ]
+  "_comment": "Initial world_state values. Rules can mutate these via state_set/state_add against world.",
+  "state": {
+    "score": 0,
+    "phase": "playing"
+  }
 }
 ```
+
+You do NOT write rules. systems-designer + game-rules-designer own
+those files (`world/physics.json`, `game/rules.json`, `game/flow.json`).
+You DO need to align field names with what those skills expect — the
+rule sketches identify the binding contract.
 
 7. **Pick balance values from priors:**
    - Tick interval 1 = ~0.1-0.5s actions (depends on scene's tick_seconds)
@@ -272,23 +272,23 @@ TD with multiple maps, RPG town→dungeon, roguelike floors), use the
 
 ```
 data/<game>/
-├── scene.json               # global (camera, ground, level_seed)
-├── hud.json
-├── inputs.json
-├── progression.json         # NEW — level order + start
-├── world.json               # initial world state (state block)
-├── entities.json            # PERSISTENT entity defs + initial_instances
-├── world_rules.json         # GLOBAL rules (cross-level — movement, etc.)
+├── scene.json               # global (camera, tick, renderer) — asset-designer
+├── ui/hud.json              # asset-designer
+├── ui/input.json            # asset-designer
+├── world/state.json         # initial world state — content-designer (this skill)
+├── world/physics.json       # GLOBAL physics rules — systems-designer
+├── game/rules.json          # GLOBAL game rules (scoring/win) — game-rules-designer
+├── game/flow.json           # level order + start — game-rules-designer
+├── entities/                # PERSISTENT entity defs — content-designer (this skill)
 └── levels/
     ├── level_1/
-    │   ├── entities.json    # level-scoped: only `initial_instances`
-    │   │                     #              (defs come from root)
-    │   └── world_rules.json # OPTIONAL: per-level rules (appended to globals)
+    │   ├── entities.json    # level-scoped initial_instances — content-designer
+    │   └── rules.json       # OPTIONAL per-level rules — game-rules-designer
     ├── level_2/
     └── ...
 ```
 
-**`progression.json`**:
+**`game/flow.json`** (game-rules-designer writes this; included for context):
 ```jsonc
 {
   "levels": ["level_1", "level_2", ..., "level_N"],
@@ -355,11 +355,11 @@ this prompt may drift; the manifest does not.
 
 ## What good looks like
 
-- entities.json reads top-to-bottom like a setup paragraph
-- world_rules.json rules are ordered logically (related rules near
-  each other)
-- `_comment` keys explain the WHY of non-obvious rules
+- entity defs read top-to-bottom like a setup paragraph
+- `_comment` keys explain the WHY of non-obvious tag/state choices
 - Balance values are inside the priors above
+- Field names match what the rule sketches expect (binding contract
+  with systems-designer / game-rules-designer)
 - File compiles without errors (`json` parse), passes `Rule.validate_all`
 
 ## What bad looks like

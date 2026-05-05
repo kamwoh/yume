@@ -64,13 +64,18 @@ pattern (ADR 0006):
 
 ```
 data/<name>/
-├── scene.json, hud.json, inputs.json, world.json   # global
-├── progression.json                                 # level order
-├── entities.json + world_rules.json                 # PERSISTENT defs +
-│                                                     #  GLOBAL rules
+├── scene.json                              # camera, tick, renderer
+├── world/state.json                        # initial world_state
+├── world/physics.json                      # how the world works
+├── game/rules.json                         # scoring + win/lose
+├── game/flow.json                          # level order + start
+├── ui/hud.json + ui/input.json + ui/strings.json
+├── audio/cues.json                         # @cues.X mappings
+├── variants/<mode>.json                    # OPTIONAL difficulty/mode
+├── entities/                               # PERSISTENT defs (multi-level)
 └── levels/
-    ├── level_1/entities.json    # level-scoped instances
-    ├── level_1/world_rules.json # OPTIONAL per-level rules
+    ├── level_1/entities.json   # level-scoped instances
+    ├── level_1/rules.json      # OPTIONAL per-level rules
     ├── level_2/...
     └── ...
 ```
@@ -80,14 +85,15 @@ State the multi-level decision to the user (interactive) or proceed
 
 ```
 LEVELS DETECTED: 8 (sokoban-style puzzles)
-- Pattern: levels/ directory + progression.json
+- Pattern: levels/ directory + game/flow.json
 - Persistent entities: player (carries cleared/score across levels)
 - Per-level: walls, boxes, goals (cleared on transition)
 - Transition rule: contact(player, goal) → transition_level "next"
 ```
 
 Single-level games (most arena shooters, single-zone sims) use the
-existing flat layout — no progression.json, no levels/ directory.
+flat layout — no game/flow.json, no levels/ directory; entities and
+rules live at the root.
 
 ### Phase 0b — Layout planning (cross-cutting decision)
 
@@ -103,18 +109,24 @@ based on prose-estimated scope:
   (e.g. `entities/world/`, `entities/creatures/`, `entities/plants/`),
   with one `entities/zz_instances.json` at the root
 
-**Rules layout**:
-- Small (≤ 15 rules): single `world_rules.json`
-- Medium (15-40): single `world_rules.json`, but ordered by category
-  blocks with `_comment` headers
-- Large (40+): `rules/` directory with category files
-  (e.g. `rules/clock.json`, `rules/movement.json`, `rules/eating.json`)
+**Rules layout** (ADR 0009 — always split by axis):
+- `world/physics.json` — motion, AI, contact resolution, decay,
+  lifecycle (yume-systems-designer)
+- `game/rules.json` — scoring, win/lose, transitions, level-up
+  (yume-game-rules-designer)
+- For pure simulations with no game layer (chess, ecology), omit
+  `game/rules.json` entirely — physics-only is fine.
+- Per-level rules go to `levels/<name>/rules.json`.
 
 **Always**:
-- `scene.json`, `hud.json`, `world.json` are single-file (small enough)
+- `scene.json` is single-file at root (camera/tick/renderer config)
+- `world/state.json` holds initial world_state values
+- `ui/hud.json` + `ui/input.json` + `ui/strings.json` for UI layer
+- `audio/cues.json` maps semantic events → sound names (@-prefix
+  refs in rules)
 - New shapes append to **`data/shapes.json` root**, NOT per-game
-- Per-game scene `.tscn` is a 12-line template stub (auto-written by
-  orchestrator at Phase 5; see template body in this doc)
+- Per-game scene `.tscn` is a 12-line template stub (auto-written
+  by orchestrator at Phase 5; see template body in this doc)
 - Universal `scenes/play.tscn` works for any game via `--game=` arg
 
 State the chosen layout to the user (interactive) or proceed with it
@@ -124,7 +136,7 @@ writes files in the right structure:
 ```
 LAYOUT CHOSEN:
 - entity_layout: medium → entities/ directory
-- rule_layout: small → single world_rules.json
+- rules: world/physics.json (systems) + game/rules.json (game)
 - assets: code-draw shapes appended to data/shapes.json root
 ```
 
@@ -391,7 +403,7 @@ state:
 - `docs/30_framework_primitives.md` — primitive contract
 - `docs/32_mda_for_yume.md` — design vocabulary
 - `docs/31_text_to_game_pipeline.md` — full pipeline architecture
-- `.claude/agents/yume/README.md` — agent index + handoff protocol
+- `.claude/skills/yume-*/SKILL.md` — specialist skills (loaded via Skill tool)
 - `.claude/rules/` — path-scoped rule files
 - `task_plan.md` — current state of the framework
 
@@ -468,9 +480,5 @@ design-quality phases). The 8 specialist skills it invokes are at
 - `yume-asset-designer` — Phase 4 (visuals + audio cues + UI strings)
 - `yume-qa-tester` — Phase 5 (headless + visual + scenario QA)
 - `yume-tech-director` — invariant guardian, on-demand
-
-The legacy `.claude/agents/yume/*.md` subagents are kept as fallback
-for users who configure `ANTHROPIC_API_KEY` and prefer subagent
-isolation, but skills are the primary path (Tier 2.6 finding).
 
 Behavioral tests are Tier 2.5h — see `tests/spec.md`.

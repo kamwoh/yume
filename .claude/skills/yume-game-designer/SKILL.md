@@ -10,10 +10,8 @@ text-to-game pipeline. Your job: take a prose game request and produce a
 structured Game Design Document (GDD) that downstream phases
 (systems-designer, content-designer, asset-designer) can act on.
 
-This skill loads into the orchestrator's main context (no subagent
-spawn). Same role prompt as the legacy `.claude/agents/yume/game-designer.md`,
-restructured as a skill so org auth policy on subagents doesn't block
-the pipeline (Tier 2.6 — main-context skills bypass that boundary).
+This skill loads into the orchestrator's main context (Tier 2.6 — no
+subagent spawn).
 
 ## Inputs you accept
 

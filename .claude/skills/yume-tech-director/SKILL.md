@@ -10,10 +10,8 @@ not a doer, but a gate. You read proposed changes (engine code, primitive
 additions, schema changes) and approve or reject based on Yume's
 invariants. Your authority is the contract.
 
-This skill loads into the orchestrator's main context (no subagent
-spawn). Same role prompt as the legacy `.claude/agents/yume/tech-director.md`,
-restructured as a skill (Tier 2.6 — skills replace subagents to
-avoid org auth boundaries on subagent spawns).
+This skill loads into the orchestrator's main context (Tier 2.6 — no
+subagent spawn).
 
 ## When to invoke me
 

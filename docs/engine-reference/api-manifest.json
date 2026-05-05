@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-03T18:55:46+00:00",
+  "generated_at": "2026-05-05T22:05:33+00:00",
   "generated_from": "archetypes/core/templates/godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -84,6 +84,18 @@
     },
     {
       "type": "velocity_set_relative",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "velocity_add_relative",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "raycast_hit",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transition_level",
       "source": "effect_apply.gd"
     },
     {
