@@ -776,5 +776,5 @@
       ]
     }
   ],
-  "_v3_note": "Spawn rules + chamber-clear rules + boss intro live in levels/<chamber>/world_rules.json (appended at level load). Chamber 1 has imp-only spawns + score=5 clear. Chamber 2 has full enemy mix + score=20 clear. Chamber 3 has boss pre-spawned + supplemental imps + boss-kill clear (engine sets world.all_levels_complete after last level)."
+  "_v3_note": "Spawn rules + chamber-clear rules + boss intro live in levels/<chamber>/rules.json (appended at level load). Chamber 1 has imp-only spawns + score=5 clear. Chamber 2 has full enemy mix + score=20 clear. Chamber 3 has boss pre-spawned + supplemental imps + boss-kill clear (engine sets world.all_levels_complete after last level)."
 }

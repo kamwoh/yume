@@ -8,9 +8,10 @@ class_name Rule
 ## Shape (JSON):
 ##   {id, trigger, query?, require?, chance?, effect, before?, after?, scope?}
 ##
-## Rules are loaded from world_rules.json into typed Rule instances. Trigger
-## dispatch, query evaluation, and effect application are separate modules;
-## Rule itself is just a structural carrier + validator + (W4) Expression cache.
+## Rules are loaded from world/physics.json + game/rules.json (ADR 0009)
+## into typed Rule instances. Trigger dispatch, query evaluation, and
+## effect application are separate modules; Rule itself is just a
+## structural carrier + validator + (W4) Expression cache.
 ##
 ## Within-phase ordering is JSON definition order with optional before/after
 ## hints. Priorities are deliberately not supported — named phases + JSON order
@@ -60,7 +61,8 @@ static func from_dict(d: Dictionary) -> Rule:
 	return r
 
 
-## Load a list of Rule objects from a world_rules.json file.
+## Load a list of Rule objects from a rules JSON file (any of
+## world/physics.json, game/rules.json, levels/<x>/rules.json).
 ##
 ## Pass `env` to capture load-time errors as structured records in
 ## `env.error_buffer`. Without env, errors only hit the dev console.
