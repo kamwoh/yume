@@ -247,7 +247,7 @@ first?" Multiple wrong moves = restart.
 #........#
 #.G.G.G..#
 #........#
-#..####..#
+#..#..#..#  ← chamber-top OPEN at cols 4 & 5 (was sealed in v0.4)
 #..#..#..#
 #..#PB#..#
 #..#..#..#
@@ -269,20 +269,26 @@ Grid: 10×13
 | goal | (2, 2) |
 | goal | (4, 2) |
 | goal | (6, 2) |
-| walls | perimeter + chamber wall around player rows 4-8, cols 3-7 |
+| walls | perimeter + chamber wall (rows 4-8, cols 3 and 6, + row 8 cols 3-6) — chamber roof OPEN at cols 4-5 to allow box exit |
 
-**Solution**: player chamber has 1 box. Player can push it OUT of
-chamber via the only opening (col 4 or col 5 — designer note: leave
-col 5 row 4 as opening). Push north all the way to G at (5,2)? Hmm —
-but G positions are at cols 2, 4, 6.
+**Solution sketch**:
+- Inner box (5,6) → goal (4,2): player exits via opening, walks
+  around to (5,7), pushes N four times so box reaches (5,2), then
+  walks via row 3 to (6,2)=goal-cell, push W → box at (4,2)=G.
+- Outer box (2,10) → goal (2,2): from (2,11), push N eight times.
+- Outer box (6,10) → goal (6,2): from (6,11), push N eight times.
 
-Let me re-mark goals. Three goals across row 2: (2,2)(4,2)(6,2). Three
-boxes: chamber box (5,6) + (2,10) + (6,10). Player must place all
-three.
+**Order matters**: handle the inner box LAST or it could block the
+(6,10)→(6,2) path. Specifically — if inner box ends at (6,2), the
+outer (6,10) box can't reach its goal column. Solver must figure
+out that the inner box belongs at (4,2), not (6,2).
+
 **Locks**: many. Each box has a specific path. Pushing wrong = lockout.
 **Designer notes**: this is the "mid-game" puzzle. Requires planning
 all three box paths simultaneously. Maps to GDD's "plan ≥5 moves
-ahead."
+ahead." NOTE 2026-05-05: v0.4 shipped with chamber roof FULLY SEALED
+(unsolvable — player + box trapped); fixed by opening (4,4) and (5,4)
+to floor.
 
 ## Level 8 — Final: circle puzzle
 

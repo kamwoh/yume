@@ -391,16 +391,16 @@
       ]
     },
     {
-      "def": "wall",
-      "id": "wall_l7_wall_19",
+      "def": "floor_tile",
+      "id": "floor_l7_floor_75",
       "position": [
         144,
         144
       ]
     },
     {
-      "def": "wall",
-      "id": "wall_l7_wall_20",
+      "def": "floor_tile",
+      "id": "floor_l7_floor_76",
       "position": [
         176,
         144

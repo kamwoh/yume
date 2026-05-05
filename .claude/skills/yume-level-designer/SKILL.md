@@ -190,6 +190,47 @@ For each stated MDA aesthetic in the GDD, write one line on how the
 layout serves it. If you can't write a line, the layout is missing
 something.
 
+### Step 6 — Solvability / reachability audit (puzzle + grid games)
+
+For ANY puzzle / grid level (sokoban, lock-and-key, switch puzzles),
+trace by hand that the level is SOLVABLE before declaring it done.
+Do NOT rely on the ASCII diagram alone — the diagram can hide a
+sealed chamber, an unreachable goal, a corner-locked box.
+
+Sokoban v0.4 shipped a level 7 where the player + 1 box were sealed
+inside a fully closed chamber (rows 4 and 8 walled across cols 3-6,
+sides walled at cols 3 and 6, no opening). Designer notes said
+"leave col 5 row 4 as opening" but the ASCII didn't reflect it,
+and the auto-generator took the ASCII literally. Result: player
+trapped from tick 1, level unsolvable.
+
+**Audit checklist per puzzle level**:
+1. **Player reachability**: starting from player's spawn cell, can
+   the player reach every CELL adjacent to a box? (BFS through floor
+   cells.) If not, that box can't be pushed → unsolvable.
+2. **Box-to-goal reachability**: for each box, is there a sequence
+   of pushes from its start to SOME goal? (Reverse-BFS from goals
+   through "pull" moves works for sokoban.) Match boxes to goals;
+   verify a 1-to-1 assignment exists.
+3. **Lock-out check**: are any boxes adjacent to corners they can
+   be accidentally pushed into? Note any "instant lockouts" so the
+   GDD can call them out as DESIGN intent (not bugs).
+4. **One-shot doors / triggers**: if a level has a switch that opens
+   a wall, verify the switch is reachable BEFORE the player needs
+   the door open.
+
+If a level fails (1) or (2), the level is **broken** — fix or remove.
+If it fails (3) only, document the lockouts in the level's notes.
+
+For non-puzzle levels (TD path, sim zones, FPS arena), reachability
+is usually trivial. Still spot-check that all spawn points have a
+path to the player / objective.
+
+**ASCII vs reality**: when a level is auto-generated from an ASCII
+diagram, the diagram IS the level. If you put openings in design
+notes that aren't in the diagram, the generator will not honor
+them. Keep the ASCII diagram as the single source of truth.
+
 ## Genre patterns library (templates)
 
 ### TD zigzag (entry-level)
