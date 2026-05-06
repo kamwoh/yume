@@ -1741,3 +1741,100 @@ save/screen/tutorial/settings work until content layer matures.
   layer first then build?
 - Specific shipped games Yume should learn from? "Make it like X" is
   the most useful design constraint we could have.
+
+## Genre extensions + future engine work (2026-05-06)
+
+Genre-specific designer/reviewer skills built REACTIVELY when a real
+game in that genre is queued (same pattern as shooter-designer, which
+was built after doomarena3d v1 surfaced gaps). Some genres need
+engine work first; others are buildable today.
+
+### Genre extension matrix
+
+| Genre | Designer | Reviewer | Engine work | Status |
+|---|---|---|---|---|
+| Tower defense | `yume-td-designer` | `yume-td-reviewer` | none | buildable today |
+| Roguelike | `yume-roguelike-designer` | `yume-roguelike-reviewer` | maybe procgen | mostly buildable |
+| Platformer (puzzle / slow) | `yume-platformer-designer` | `yume-platformer-reviewer` | none | buildable today |
+| **Platformer (twitch — Celeste-style)** | same skill | same | needs engine ADR | future |
+| Life sim (long-arc) | `yume-life-sim-designer` | `yume-life-sim-reviewer` | time compression decision | needs ADR |
+| RTS / 4X | `yume-rts-designer` | `yume-rts-reviewer` | maybe selection-state primitive | maybe ADR |
+| **Racing (arcade)** | `yume-racing-designer` | `yume-racing-reviewer` | optional: lag-camera mode | mostly buildable |
+| Racing (sim) | n/a | n/a | continuous physics (out of scope) | skip |
+| Merchant / NPC-POV | `yume-merchant-designer` | `yume-merchant-reviewer` | none | buildable today |
+| Visual novel | n/a | n/a | dialogue runtime out of scope | skip |
+| Rhythm | n/a | n/a | sub-tick timing out of scope | skip |
+
+### Future engine work catalog
+
+These are tracked so that when a genre needing them comes up, the
+work is scoped. Each becomes an ADR when a real game queues it.
+
+#### Twitch platformer (Celeste / Hollow Knight / Super Meat Boy)
+
+- [ ] **`input_released` trigger** — fires when an input action is
+  released. Needed for variable jump height (hold longer = higher).
+  Symmetric with existing input-press triggers; small engine work.
+- [ ] **Contact direction info** — when a contact rule fires, expose
+  "which side of A is B on?" (above/below/left/right). Needed for
+  wall-slide / wall-jump / ground-detection without raycasts. Engine
+  extension to contact-rule pair-matcher.
+- [ ] **Animation state machine** — renderer reads a state formula
+  (idle/walk/jump/fall) and swaps the visual frame. Currently each
+  entity def has one fixed visual. Either ADR for a "frame
+  dictionary" visual or a new `animation_state` field on entities
+  with renderer logic.
+- [ ] **Coyote-time pattern (convention only)** — state-tracked timer
+  for "you can still jump for N ticks after leaving ledge". Doable
+  in JSON today; document as a pattern rather than engine work.
+
+#### Life sim long-arc (SAO Alicization-style)
+
+- [ ] **Time compression mechanism** — Fluctlights live decades
+  while observers see hours. Options: (a) variable `tick_seconds`
+  per scene phase, (b) `world.year_counter` binding driven by tick
+  rule, (c) compressed via tick interval (1 tick = 1 simulated
+  year). Decide via ADR before building.
+
+#### RTS / 4X (Civilization-style)
+
+- [ ] **Selection state primitive** — player selects unit / city /
+  tile; subsequent inputs route to that selected entity. Currently
+  inputs go to "the player" entity by `actor_tag`. Could be expressed
+  as `world.selected_entity_id` + input rules that read it; might be
+  cleaner as a first-class primitive. Decide when first RTS queued.
+- [ ] **Tile-grid primitive** — currently expressed via position +
+  contact radius. RTS / 4X need clean "what's on cell (x, y)?"
+  semantics. ADR candidate flagged from sokoban era; revisit when RTS
+  comes up.
+
+#### Twitch shooter polish
+
+- [ ] **Mouse position as input state** — currently
+  doomarena3d reads `Input.get_last_mouse_velocity` directly in
+  game_shell. Should be a world_state binding so rules can read it.
+  Engine work: continuous-input-polling + state push.
+- [ ] **Mouse wheel + modifier combos** — neither wired through
+  ui/input.json today.
+
+#### Racing-specific polish
+
+- [ ] **Lag-behind camera mode** — extension to camera follow that
+  trails behind when the entity accelerates. Adds the "feel of speed"
+  that arcade racers need. Could land as `camera.mode: follow_lag`
+  with `lag_distance` parameter. Probably small enough to skip ADR
+  and just land as a feature.
+- [ ] **Track checkpoint convention** — checkpoints as tagged
+  entities with order index + lap counter on the player. Pattern
+  doc, not engine work.
+
+### Build trigger
+
+Each genre extension skill builds when a game in that genre queues
+for `/yume-design`. The genre-extension matrix above is the LOOKUP
+TABLE the orchestrator consults.
+
+Engine ADRs in this section land when the first game needing them is
+queued. The orchestrator should refuse to build a "twitch platformer"
+or "life-sim long-arc" until the prerequisite ADR lands and is
+accepted.
