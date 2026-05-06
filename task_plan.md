@@ -2199,15 +2199,15 @@ Tech-director reviewed; build in this order:
    (+16 actor assertions). Backward compat verified: tinypond +
    sokoban scenario tests unchanged. Phase B: per-actor input lists,
    multi-device routing, follow_active_actor camera mode.
-4. [ ] **#83 ADR 0015** — vehicle physics primitive. **NOTE**: review
-   under ADR 0021 framing — may be superseded by #87 (Godot rigid-body
-   exposure). Decide before implementing.
+4. ~~#83 ADR 0015~~ — DELETED. Superseded entirely by #87 (Godot
+   rigid-body exposure) per ADR 0021. Vehicle physics deferred to
+   `VehicleBody3D` exposure when the first racing game queues.
 5. [ ] **#84 ADR 0014** — open-world chunked substrate. Biggest surface
-   change. Blocked by #80, #82.
+   change. Independent track parallel to merchant game critical path.
 6. [ ] **#85 ADR 0018** — in-process actor policy interface (Paths A +
-   D). Blocked by #82.
+   D). Critical-path for #96 merchant game (NPC behaviors).
 7. [ ] **#86 ADR 0020** — external agent IPC (DEFERRED — proposed,
-   activates when first dependent game queues).
+   activates when first LLM/RL game queues).
 
 ### Capability-exposure ADRs (ADRs 0022–0028, drafted reactively)
 
@@ -2231,17 +2231,41 @@ in the relevant genre queues for /yume-design.
 
 ### Compliance debt (deferred to capability-ADR era)
 
-- [ ] **#94** — Refactor ADR 0004 (`blocks_motion`) to use Godot
-  `PhysicsServer3D` instead of custom GDScript AABB. Blocked by #87.
-- [ ] **#95** — Refactor ADR 0005 (`raycast_hit`) to use Godot
-  `intersect_ray()`. Blocked by #87.
+- [ ] **#104** (was #94+#95, COMBINED) — Refactor ADRs 0004 + 0005
+  (`blocks_motion` AABB + `raycast_hit`) to use Godot `PhysicsServer3D`
+  + `intersect_ray()`. Blocked by #87.
+
+### Polish + nice-to-haves
+
+- [ ] **#103** (was #98+#100+#101+#102, COMBINED) — Shell-layer
+  Phase B polish: `ui/theme.json` → Godot Theme; overlay
+  `highlight_tag` shader + Tween pulse; key_binding press-to-rebind
+  state machine + accessibility renderer integration; per-actor
+  input/camera follow_active_actor. All small individually; combined
+  to land in one polish pass after #96 ships.
 
 ### Content / pipeline tasks
 
+- [ ] **#99** — Add `reset_world` effect (proper New Game flow that
+  clears world_state without scene reload). Critical-path for #96.
 - [ ] **#96** — Build first complete game: JRPG fantasy merchant
-  (Recettear-shaped). Drives demand for #76–79 implementations.
+  (Recettear-shaped). Composes shell-layer + #85 + #99.
 - [ ] **#97** — Build deferred genre-extension skills (reactive
   cadence): platformer, td, roguelike, life-sim, rts, merchant.
+
+### Recommended attack order
+
+**Critical-path for merchant game (#96):**
+1. #99 reset_world (small; ~50 lines; fixes New Game)
+2. #85 in-process policies (NPC behaviors; ADR 0018)
+3. #96 merchant game (the goal)
+
+**Parallel track (independent):** #84 open-world
+
+**Reactive (drafted when first game requires):** #87-#93 capability
+ADRs + #97 genre skills
+
+**Deferred:** #86 external IPC, #103 polish, #104 compliance
 
 ---
 
