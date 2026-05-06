@@ -58,6 +58,32 @@ grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|a
 
 Should return zero matches.
 
+## Visual validation gate (rendering primitives)
+
+**When modifying any of these files**, capture + invoke
+`yume-visual-designer` BEFORE committing:
+
+- `control_factory.gd`
+- `screen_flow.gd`
+- `entity_sprite_2d.gd` (or any `renderer_2d/*` / `renderer_3d/*`)
+- `game_shell.gd` (HUD construction, camera, viewmodel sections)
+- Any new module that instantiates Godot Control / CanvasItem / Mesh
+  nodes from JSON
+
+Phase A is not done until visual-designer accepts. Empirical
+precedent: ADR 0011 Phase A (commit `6f6a8d4`) shipped with a
+miscentered Sokoban title screen because the implementer noticed the
+anchor offset, self-deferred to "Phase B," and committed Phase A
+anyway. User caught it on the next message — pipeline failure.
+
+**The check**: run a relevant demo with `--capture`, read the PNG,
+and either fix the visual issue OR run `yume-visual-designer` on it
+and apply its revisions. If you don't have a render to capture
+(e.g. pure refactor), skip this gate; if you DO, it's mandatory.
+
+Tech-director enforces this on merge: see
+`.claude/skills/yume-tech-director/SKILL.md` §visual gate.
+
 ## When in doubt
 
 Ask: "could a different game (chess, shooter, ecology) want this

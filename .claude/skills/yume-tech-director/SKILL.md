@@ -130,6 +130,33 @@ them in the field.
    was added, verify it's documented in `docs/30_framework_primitives.md`
    and has unit tests in `test_runner.gd`.
 
+6. **Visual gate (rendering primitives only).** If the diff touches
+   any of these — reject merge unless a visual-designer review is
+   attached:
+
+   - `control_factory.gd` (or any element-type → Godot Control mapping)
+   - `screen_flow.gd` (modal stack, transitions, toast)
+   - `entity_sprite_2d.gd`, `renderer_2d/*`, `renderer_3d/*`
+   - `game_shell.gd` HUD construction / camera / viewmodel sections
+   - Any new module instantiating Godot Control / CanvasItem / Mesh
+     nodes from JSON
+
+   The implementer must have run a relevant demo with `--capture`,
+   read the PNG, and EITHER fixed observed issues OR run
+   `yume-visual-designer` and applied its revisions.
+
+   If no rendered surface to capture (pure refactor, headless-only
+   logic), this gate doesn't apply — note that explicitly in the
+   approval.
+
+   **Why the gate exists:** ADR 0011 Phase A (commit `6f6a8d4`)
+   shipped with a miscentered Sokoban title screen because the
+   implementer noticed the anchor offset, self-deferred to "Phase B,"
+   and committed Phase A anyway. User caught it next turn. This gate
+   prevents that pattern: "I'll fix it in the next pass" is not a
+   merge condition. See `.claude/rules/engine-scripts.md` § visual
+   validation gate.
+
 ## How to approve
 
 If all checks pass:

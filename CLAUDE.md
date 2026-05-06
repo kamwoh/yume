@@ -215,6 +215,8 @@ When editing files matching certain globs, **read the corresponding rule first**
 
 Rules encode invariants like "no semantic effect types in engine," "JSON formulas use only whitelisted bindings," "primitive changes need ADRs." See `.claude/rules/README.md` for the index.
 
+**Visual validation gate** — when modifying rendering primitives in `scripts/engine/` (control_factory, screen_flow, renderer_2d/*, renderer_3d/*, game_shell HUD/camera sections), run `--capture` + `yume-visual-designer` review BEFORE committing. "I'll fix it next pass" is not a merge condition. Details: `.claude/rules/engine-scripts.md` § Visual validation gate. Tech-director enforces at merge gate.
+
 ## Godot API reference (pinned)
 
 When proposing GDScript code, verify against `docs/engine-reference/godot/`:
