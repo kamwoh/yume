@@ -155,6 +155,8 @@ Match keywords from the one-line pitch:
 | Genre | Triggers | Designer | Reviewer |
 |---|---|---|---|
 | **shooter** | "shooter", "fps", "doom", "arena shooter", "twin-stick", "first-person" | `yume-shooter-designer` | `yume-shooter-reviewer` |
+| **merchant** | "merchant", "shopkeeper", "item shop", "Recettear", "trader", "Moonlighter" | `yume-merchant-designer` | `yume-merchant-reviewer` |
+| **racing** | "racing", "kart", "F-Zero", "Wipeout", "Trackmania", "Burnout" | `yume-racing-designer` | (future: yume-racing-reviewer) |
 | **td** | "tower defense", "td", "bloons", "kingdom rush", "pvz" | (future: yume-td-designer) | (future: yume-td-reviewer) |
 | **sim** | "sim", "ecology", "farming", "stardew", "harvest moon", "life sim" | (future) | (future) |
 | **puzzle** | "puzzle", "sokoban", "match", "block-push", "tile" | (future) | (future) |
@@ -177,6 +179,8 @@ If no genre matches, only generic skills run.
 
 5. Invoke the specialist designer if genre detected, else generic:
    - Shooter: `Skill(skill="yume-shooter-designer", args=<prose + name>)`
+   - Merchant: `Skill(skill="yume-merchant-designer", args=<prose + name>)`
+   - Racing: `Skill(skill="yume-racing-designer", args=<prose + name>)`
    - TD/sim/puzzle/roguelike (when those skills land): same shape
    - No genre: `Skill(skill="yume-game-designer", args=<prose + name>)`
 6. Specialist designers PRODUCE the full GDD (generic MDA scaffolding
