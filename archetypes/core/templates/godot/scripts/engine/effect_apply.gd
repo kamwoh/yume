@@ -62,14 +62,14 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"transition_screen": _transition_screen(effect, env, context)
 		"quit_app":          _quit_app(effect, env, context)
 		"show_toast":        _show_toast(effect, env, context)
-		"load_data":         _load_data(effect, env, context)
+		"reload_scene":      _reload_scene(effect, env, context)
 		"save_state":        _save_state(effect, env, context)
 		"load_state":        _load_state(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, load_data, save_state, load_state.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state.",
 				"warning")
 	return {}
 
@@ -781,11 +781,18 @@ static func _show_toast(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 							 "duration": duration})
 
 
-## Re-init the world from JSON. Used by "New Game" buttons. Optional args:
-##   reset: true → also clears any saved state (composes with ADR 0010 later)
-static func _load_data(e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
+## Reload the entire current Godot scene. DESTRUCTIVE — anything queued
+## after this in the same effect chain is silently dropped when the scene
+## reload lands at end-of-frame. See `.claude/rules/engine-scripts.md`
+## § effect-chain validation gate.
+##
+## For "reset world without scene reload" use the future `reset_world`
+## effect (task #99). For most "New Game" buttons, just `transition_screen`
+## is sufficient because the world is already at initial state on scene
+## load.
+static func _reload_scene(e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
 	var args = e.get("args", {})
-	_push_screen_event(env, {"event": "load_data", "args": args})
+	_push_screen_event(env, {"event": "reload_scene", "args": args})
 
 
 # ============================================================

@@ -82,7 +82,10 @@ final `screens.json` at `data/<game>/screens.json`.
       {"type": "button", "text": "@strings.new_game",
        "theme_variation": "menu_button",
        "on_click": [
-         {"type": "load_data", "args": {"reset": true}},
+         // For most games the world is at initial state on scene load,
+         // so transition_screen alone is sufficient. If you need to
+         // reset world_state after a Continue, use reset_world (when
+         // implemented per task #99) BEFORE the transition.
          {"type": "transition_screen", "target": "game"}
        ]},
       {"type": "button", "text": "@strings.continue",
@@ -167,8 +170,11 @@ Key choices:
      "anchor": "center", "theme_variation": "headline"},
     {"type": "button", "text": "@strings.restart",
      "on_click": [
-       {"type": "load_data", "args": {"reset": true}},
-       {"type": "transition_screen", "target": "game"}
+       // reload_scene is destructive — must be LAST. After reload, the
+       // starting_screen kicks in. If you need to land on the "game"
+       // screen post-reload, use the future reset_world (#99) instead
+       // of reload_scene + transition_screen.
+       {"type": "reload_scene"}
      ]},
     {"type": "button", "text": "@strings.quit_to_title",
      "on_click": [{"type": "transition_screen", "target": "title"}]}
@@ -203,6 +209,52 @@ to whichever screen is active.
 | Sandbox sim (tinypond) | title, game, pause, settings (game_over often absent) |
 | Multi-protagonist | title, game, character_select, pause, settings |
 
+## Footgun: destructive effects in chains
+
+**Critical**: some effects destroy the active scene or replace world
+state. Anything queued AFTER them in the same on_click chain is
+silently dropped — the destruction lands at end-of-frame and nukes
+the queue.
+
+Destructive effects (current vocabulary):
+- `reload_scene` — calls Godot's `reload_current_scene()` (replaces
+  the entire scene; was previously named `load_data`, renamed
+  2026-05-06 for clarity)
+- `transition_level` — tears down level entities, reloads from JSON
+- `load_state` — replaces world_state + persistent entities
+
+**Rule**: a destructive effect must be the LAST effect in its chain.
+
+❌ Wrong (sokoban v0.1 shipped this; user caught it next turn):
+```jsonc
+{"on_click": [
+  {"type": "reload_scene"},
+  {"type": "transition_screen", "target": "game"}    // ← never fires
+]}
+```
+
+✅ Right (for "New Game" with no-prior-state assumption):
+```jsonc
+{"on_click": [
+  {"type": "transition_screen", "target": "game"}
+]}
+```
+
+✅ Right (for "Continue" with saved state — load_state first, transition last):
+```jsonc
+{"on_click": [
+  {"type": "load_state", "slot": 0},
+  {"type": "transition_screen", "target": "game"}
+]}
+```
+(Wait — `load_state` mutates state but does NOT reload the scene.
+That's why transition_screen still fires here. Know which effects
+destroy and which mutate.)
+
+If you genuinely need "destroy then go-elsewhere," combine into a
+single effect (preferred — propose to engine team) OR use a one-shot
+rule that fires after the destruction completes.
+
 ## Anti-patterns to avoid
 
 ❌ **Title screen with no music/visuals** — feels like a placeholder.
@@ -221,6 +273,9 @@ to whichever screen is active.
 ❌ **Inventing new element types** — use the ADR 0011 mapping table.
    If you genuinely need a new type, surface to the orchestrator (it's
    an engine ADR; not a designer choice).
+
+❌ **Effects after destructive effects** — see Footgun section above.
+   Trace every chain end-to-end before shipping.
 
 ## What you DON'T do
 

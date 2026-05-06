@@ -157,6 +157,28 @@ them in the field.
    merge condition. See `.claude/rules/engine-scripts.md` § visual
    validation gate.
 
+7. **Effect-chain validation gate** (interaction primitives). When
+   the diff adds or modifies effect types that touch screen / scene /
+   save lifecycle (`transition_screen`, `transition_level`,
+   `reload_scene`, `save_state`, `load_state`, `quit_app`), reject merge unless every `on_click` / `on_press` /
+   `on_submit` / `on_change` chain in shipped JSON content has been
+   traced end-to-end:
+
+   - Destructive effects (scene reload, state load) must be LAST in
+     the chain.
+   - Anything after a destructive effect is silently dropped when
+     the destruction lands at end-of-frame.
+
+   **Why the gate exists:** ADR 0010 reference content (commit
+   `13d2910`) wired sokoban "New Game" as a chain whose first
+   effect reloaded the scene; the following `transition_screen`
+   was destroyed before it could fire. Visual rendering passed;
+   click did nothing. User caught it next turn (commit `b109324`).
+   The effect was later renamed `reload_scene` for clarity. The
+   visual gate alone was insufficient — the static render looked
+   correct. See `.claude/rules/engine-scripts.md` §
+   effect-chain validation gate.
+
 ## How to approve
 
 If all checks pass:

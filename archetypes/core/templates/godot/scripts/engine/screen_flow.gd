@@ -214,7 +214,7 @@ func _dispatch_effects(effects, _ctx: Dictionary) -> void:
 # ============================================================
 
 ## Drain pending screen events emitted by transition_screen / quit_app /
-## show_toast / load_data effects. Same pattern as GameShell's
+## show_toast / reload_scene effects. Same pattern as GameShell's
 ## shell_event_buffer.
 func _drain_screen_events() -> void:
 	if _world == null: return
@@ -242,8 +242,13 @@ func _drain_screen_events() -> void:
 				get_tree().quit()
 			"show_toast":
 				_show_toast(str(ev.get("text", "")), float(ev.get("duration", 2.0)))
-			"load_data":
-				# Re-init the world from scratch. Used by "New Game" buttons.
+			"reload_scene":
+				# DESTRUCTIVE — reload the entire current Godot scene.
+				# Anything queued after this in the same effect chain was
+				# already pushed to the buffer; we still drain them in
+				# order, but the next-frame scene reload tears them down.
+				# Per `.claude/rules/engine-scripts.md` § effect-chain
+				# validation, reload_scene must be LAST in any chain.
 				get_tree().reload_current_scene()
 
 

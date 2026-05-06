@@ -84,6 +84,47 @@ and apply its revisions. If you don't have a render to capture
 Tech-director enforces this on merge: see
 `.claude/skills/yume-tech-director/SKILL.md` §visual gate.
 
+## Effect-chain validation gate (interaction primitives)
+
+The visual gate above catches static rendering. It does NOT catch
+broken effect chains (button click → nothing happens). When adding
+or modifying an effect type that interacts with screen flow, save
+state, or scene lifecycle:
+
+- `transition_screen`, `transition_level`, `reload_scene`
+- `save_state`, `load_state`
+- `quit_app`
+- Any effect that reloads, destroys, or replaces the active scene
+
+**Rule**: trace every `on_click` (and `on_submit`, `on_change`,
+`on_press`) chain end-to-end before shipping. If any effect in the
+chain destroys state, replaces the scene, or reloads data, it must
+be the **LAST** effect. Anything queued after a destructive effect is
+silently dropped when the destruction lands at end-of-frame.
+
+Empirical precedent: ADR 0010 reference content (commit `13d2910`)
+wired sokoban "New Game" as `[load_data, transition_screen]` (the
+effect was later renamed to `reload_scene` for clarity). The button
+rendered fine and the visual gate passed. But clicking it did
+nothing — the scene reload queued by that effect destroyed the
+following `transition_screen`. User caught it on the next message
+(commit `b109324`). Visual gate didn't help because nothing was
+visually wrong; the bug was in interaction.
+
+**The check**: for each new screens.json / hud.json / overlay.json /
+tutorial.json file (or rule that fires `transition_*` / `*_state`):
+
+1. List every effect chain (on_click, on_press, on_submit, etc.).
+2. For each chain, identify any destructive effects (above list).
+3. Confirm destructive effects are LAST in the chain.
+4. If a chain needs sequencing (e.g. "reset world then transition"),
+   either combine into a single effect (preferred) OR queue the
+   follow-up via a one-shot rule that fires after the destruction
+   completes.
+
+Effect documentation must spell out destructive-vs-additive semantics.
+See `docs/engine-reference/api-manifest.json` (auto-generated).
+
 ## When in doubt
 
 Ask: "could a different game (chess, shooter, ecology) want this

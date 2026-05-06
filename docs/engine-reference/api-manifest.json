@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-06T14:34:37+00:00",
+  "generated_at": "2026-05-06T14:43:52+00:00",
   "generated_from": "archetypes/core/templates/godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -119,7 +119,7 @@
       "source": "effect_apply.gd"
     },
     {
-      "type": "load_data",
+      "type": "reload_scene",
       "source": "effect_apply.gd"
     },
     {

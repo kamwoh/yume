@@ -1551,8 +1551,8 @@ func test_screen_flow_effects() -> void:
 	expect_eq(str(t.get("text", "")), "Saved!", "show_toast: text passed")
 	expect_eq(float(t.get("duration", 0)), 1.5, "show_toast: duration passed")
 
-	EffectApply.apply({"type": "load_data", "args": {"reset": true}}, env, ctx)
-	expect_eq(env["screen_event_buffer"].size(), 4, "load_data: buffer grew")
+	EffectApply.apply({"type": "reload_scene", "args": {"reset": true}}, env, ctx)
+	expect_eq(env["screen_event_buffer"].size(), 4, "reload_scene: buffer grew")
 
 	# transition_screen with no target should warn but not crash
 	EffectApply.apply({"type": "transition_screen"}, env, ctx)
