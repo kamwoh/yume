@@ -1,7 +1,7 @@
 # ADR 0016 — Multi-actor framework (actor as configurable, not singleton)
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accepted with conditions addressed (2026-05-06)**_
 
 ## Context
 
@@ -259,3 +259,136 @@ Conditions before implementation:
 
 Foundational ADR; depends on nothing; gates ADRs 0014, 0017, 0018.
 Should land first if user approves all six.
+
+## Revisions per tech-director review (2026-05-06)
+
+### 1. Synthesized-default-actors (single code path)
+
+**Decision**: replace dual-code-path with synthesized default. At
+world load:
+
+```gdscript
+func _resolve_actors_config(root) -> Dictionary:
+    var path = root + "/actors.json"
+    if FileAccess.file_exists(path):
+        return _load_json(path)
+    # Synthesize default: one actor pointing to actor_tag
+    return {
+        "actors": [
+            {
+                "id": "default_player",
+                "input_device": "keyboard",
+                "control_mode": "human",
+                "starting_entity_tag": actor_tag  # World's @export
+            }
+        ],
+        "active_actor_id": "default_player"
+    }
+```
+
+Engine has ONE code path: read actors config, route inputs per
+actor. Existing demos work with zero migration; their synthesized
+config is functionally identical to the legacy actor_tag mechanism.
+
+### 2. input_actions_press location
+
+**Decision**: per-actor in actors.json. Each actor declares its
+own `input_actions_press` and `input_actions_hold` lists. Engine
+union'd them into the project-level InputMap registration but
+dispatches per-actor.
+
+```jsonc
+{
+  "actors": [
+    {
+      "id": "player_main",
+      "input_device": "keyboard",
+      "input_actions_press": ["jump", "fire", "swap_weapon"],
+      "input_actions_hold": ["move_north", "move_south", "move_east", "move_west"],
+      ...
+    }
+  ]
+}
+```
+
+This allows per-character control schemes (different keys, different
+action sets). Backward compat: synthesized default uses World's
+existing @export lists.
+
+### 3. switch_actor mid-tick timing
+
+**Decision**: `switch_actor` effect is buffered like all effects;
+takes effect at the end-of-tick flush. Subsequent rules in the SAME
+tick still see the OLD active_actor_id.
+
+The next tick's input phase reads the NEW active_actor_id. Camera
+follow updates on next frame.
+
+This matches Yume's existing pattern (state changes apply at flush
+boundaries). Predictable and consistent.
+
+### 4. Camera mode for active actor
+
+**Decision**: add `camera.mode: "follow_active_actor"` as a new
+camera mode (extends asset-designer's scene.json camera config
+per ADR 0009). When mode is `follow_active_actor`:
+
+- Camera reads `world.active_actor_id`
+- Resolves it to an entity via `env.entities`
+- Follows that entity's position (lerp + zoom rules same as
+  `follow_tag`)
+
+Switching actors at runtime → camera reframes at next frame.
+
+### 5. Per-actor state location
+
+**Decision**: per-actor state lives ON THE ENTITY the actor
+controls. No new "per-actor state slot" in world_state.
+
+Multi-protagonist game has distinct entities per character. Each
+entity has its own `state.hp`, `state.inventory`, `state.position`.
+When player switches from Michael to Trevor, the camera follows
+Trevor's entity; Trevor's state is naturally separate.
+
+This keeps Invariant #1 + #5 clean (entity-tied state, queried via
+existing tag/id mechanisms). No new global state surface.
+
+Convention for the player_main / player_alt distinction: tag the
+entities `["player", "player_main"]` and `["player", "player_alt"]`.
+Rules query by tag.
+
+### 6. Migration path for existing demos
+
+**Decision**: ZERO migration required. Existing demos:
+- Have no actors.json → engine synthesizes default at load
+- Synthesized default uses World's `actor_tag` (`"player"`)
+- Existing input rules with no `actor` field default to active
+  actor (which is the synthesized default in legacy demos)
+- All current behavior preserved
+
+Confirmed: sokoban / harvestcore / doomarena3d / etc. continue to
+work without ANY content changes after this ADR lands.
+
+### 7. Test plan
+
+Scenario tests required before implementation:
+
+1. **switch_actor takes effect at next tick**: rule fires
+   switch_actor at tick 5; tick 5's remaining rules see old
+   active_actor_id; tick 6's input rules see new active_actor_id.
+2. **Input route change after switch**: action `move_north` queued
+   to active actor; switch; subsequent `move_north` queued to new
+   active actor.
+3. **Camera reframe after switch**: scene config has
+   follow_active_actor; switch; camera position updates next frame.
+4. **Existing demo regression**: sokoban's playthrough_l1_to_l4
+   scenario passes unchanged after this ADR lands.
+5. **Synthesized-default smoke**: a brand-new demo without
+   actors.json loads + input dispatches to actor_tag entity.
+
+### Final verdict
+
+All conditions addressed. **Status: accepted.**
+
+Foundational; lands BEFORE 0014 + 0017 + 0018 per revised build
+order.

@@ -45,12 +45,13 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | 0011 | Declarative screen flow | proposed | 2026-05-06 |
 | 0012 | Tutorial overlay primitive | proposed | 2026-05-06 |
 | 0013 | Settings schema + config | proposed | 2026-05-06 |
-| [0014](./0014-open-world-foundational-substrate.md) | Open-world foundational substrate | accept-with-conditions (TD review) | 2026-05-06 |
-| [0015](./0015-vehicle-physics-primitive.md) | Vehicle physics primitive | accept-with-conditions (TD review) | 2026-05-06 |
-| [0016](./0016-multi-actor-framework.md) | Multi-actor framework | accept-with-conditions (TD review) | 2026-05-06 |
-| [0017](./0017-spatial-lod-rule-scheduling.md) | Spatial-LOD rule scheduling | accept-with-conditions (TD review) | 2026-05-06 |
-| [0018](./0018-actor-policy-interface.md) | Actor policy interface | revise — split (TD review) | 2026-05-06 |
-| [0019](./0019-rule-plugin-macro-layer.md) | Rule plugin / macro layer | accept-with-conditions (TD review) | 2026-05-06 |
+| [0014](./0014-open-world-foundational-substrate.md) | Open-world foundational substrate | accepted (conditions resolved) | 2026-05-06 |
+| [0015](./0015-vehicle-physics-primitive.md) | Vehicle physics primitive (+ never-list anchor) | accepted (conditions resolved) | 2026-05-06 |
+| [0016](./0016-multi-actor-framework.md) | Multi-actor framework | accepted (conditions resolved) | 2026-05-06 |
+| [0017](./0017-spatial-lod-rule-scheduling.md) | Spatial-LOD rule scheduling | accepted (conditions resolved) | 2026-05-06 |
+| [0018](./0018-actor-policy-interface.md) | In-process actor policy interface (split: in-process only) | accepted (conditions resolved) | 2026-05-06 |
+| [0019](./0019-rule-plugin-macro-layer.md) | Rule plugin / macro layer | accepted (conditions resolved) | 2026-05-06 |
+| [0020](./0020-external-agent-ipc.md) | External agent IPC (split from 0018) | proposed — deferred until first dependent game | 2026-05-06 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 
@@ -145,6 +146,50 @@ splitting before re-review.
 If user accepts these conditions, recommended build order above
 applies. Tech-director will re-verify on each ADR's implementation
 PR.
+
+### Conditions resolution (2026-05-06 update)
+
+User reviewed the TD verdicts and chose to **address all conditions
+in-place**. Each ADR now has a "Revisions per tech-director review"
+section concretely resolving every condition:
+
+- **0014**: persistent-entity-in-spatial-index spec'd; chunk-size
+  unit semantics inherit from renderer; cross-chunk query semantics
+  defined; save/load interaction explicit; test plan added.
+- **0015**: physics never-list anchored as contract addendum (no
+  continuous integration, no constraints, no soft body, no sub-tick
+  CCD, no tire grip, no aerodynamics); impulse-based semantics;
+  performance budget; phase ordering; reflection spec; mass>0
+  contract.
+- **0016**: synthesized-default-actors at load (single code path);
+  per-actor input lists in actors.json; switch_actor at flush
+  boundary; follow_active_actor camera mode; per-actor state on
+  entity; zero migration confirmed; test plan added.
+- **0017**: hysteresis (enter_radius < leave_radius); tick_slowed
+  state in scheduler; determinism guidance bake into crowd-designer
+  skill; lod_anchor_position cached; LOD vs stream-radius
+  validation; test plan added.
+- **0018**: SPLIT — in-process subset (Paths A+D) accepted as
+  ADR 0018; external IPC (Paths B+C) extracted to ADR 0020 as
+  deferred-until-needed.
+- **0019**: depth ≤ 4 + max-expanded-effects ≤ 50; cycle detection
+  at load; load-time-only expansion semantics; per-game scoping;
+  automated CI Invariant #2 check; test plan + $param.field
+  traversal spec.
+
+All six ADRs now status: **accepted**. ADR 0020 is **proposed
+(deferred)** — activates when a game requires external IPC.
+
+Build order remains as recommended:
+1. ADR 0017 (spatial-LOD)
+2. ADR 0019 (macros)
+3. ADR 0016 (multi-actor)
+4. ADR 0015 (vehicle physics)
+5. ADR 0014 (open-world)
+6. ADR 0018 (in-process policies)
+7. ADR 0020 (external IPC) — when needed
+
+Implementation start gated on user's go-ahead.
 
 ADRs land alongside the contract change they justify. PR review is the
 gate. If a PR's diff materially changes engine vocabulary or pipeline

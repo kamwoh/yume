@@ -1,7 +1,7 @@
 # ADR 0014 — Open world as foundational substrate
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accepted with conditions addressed (2026-05-06)**_
 
 ## Context
 
@@ -276,3 +276,93 @@ Conditions before implementation:
 
 These are clarifications, not redesigns. Once addressed, implementation
 is gated only on dependency ADRs (0016 first per build order).
+
+## Revisions per tech-director review (2026-05-06)
+
+### 1. Persistent-entity-in-spatial-index spec
+
+**Decision**: persistent-tagged entities are LOADED ONCE at world
+boot from `chunks/_persistent/entities.json` and remain in
+`env.entities` + `spatial_index` for the entire session, regardless
+of which non-persistent chunks are loaded.
+
+When the active actor moves into a region containing persistent
+entities (e.g. an NPC in chunk 5,3), the entity's renderer is
+attached/detached based on chunk visibility, but the entity itself
+remains in env. Queries continue to find them.
+
+This means: no "ghost" representation needed. The cost is memory —
+all persistent entities live in RAM for the whole session. Mitigation:
+games budget persistent-tag carefully (named NPCs only; not 1000
+random pedestrians).
+
+### 2. Chunk-size unit semantics
+
+**Decision**: chunk_size units MATCH the renderer's coordinate
+system:
+- 2D pixel renderer: pixels (e.g. `[320, 320]` = 10×10 cells of 32px)
+- 3D world renderer: world units / meters (e.g. `[50, 50]` = 50m × 50m)
+
+Engine reads `scene.json.renderer.position_scale` to know which
+context. No explicit unit declaration in `world.json`; inherits from
+renderer config.
+
+### 3. Cross-chunk query semantics
+
+**Decision**: contact rules + radius queries find entities ONLY
+within the currently-loaded chunk set (active chunk + stream_radius
+neighbors). Entities in unloaded chunks are not findable; their
+chunk would need to be in stream range first.
+
+Persistent entities (per #1 above) are findable regardless of chunk
+state.
+
+This is the simplest and least surprising semantic. Content-designers
+size chunks + stream_radius so that gameplay-relevant interaction
+distances stay within loaded radius.
+
+### 4. Save/load interaction with ADR 0010
+
+**Decision**: at save time, the engine serializes:
+- `world_state` (all of it, per save_policy.json)
+- All entities currently in `env.entities` matching
+  `save_policy.entity_tags_persistent` (which by convention includes
+  `persistent` tag from this ADR)
+- The `current_chunk` coordinate (so reload positions player
+  correctly)
+
+The engine does NOT serialize transient chunk content — it reloads
+from `chunks/<x>_<y>/entities.json` on resume. This means saves
+stay small (no duplicating the world JSON in the save file).
+
+If a transient entity (e.g. a spawned monster) needs to persist
+across save/load, the game must explicitly tag it `persistent` (or
+add a save policy entry).
+
+### 5. Test plan
+
+Scenario tests required before implementation lands:
+
+1. **Player crosses chunk boundary**: chunk (0,0) loaded; player
+   walks to chunk (1,0); engine loads (1,0), unloads any chunk
+   beyond stream_radius. Verify entities transit correctly.
+2. **Persistent NPC survives chunk unload**: NPC tagged persistent
+   at position in chunk (3,4); player walks to (10,10); NPC's chunk
+   unloads but entity remains in env; player walks back; NPC's
+   visual reappears at correct position with correct state.
+3. **Save+reload while in non-starting chunk**: player in chunk
+   (5,3); save to slot 0; restart game; load slot 0; player resumes
+   in chunk (5,3) at correct position; persistent state intact.
+4. **Cross-chunk contact rule**: contact rule with radius 100; two
+   entities in adjacent loaded chunks within 100u distance fire the
+   rule correctly.
+5. **Beyond-stream query returns empty**: entities in unloaded
+   chunks are not findable.
+
+### Final verdict
+
+All conditions addressed. **Status: accepted.**
+
+Implementation gates: ADR 0016 (multi-actor) lands first (provides
+`active_actor_id` for stream-radius anchor); ADR 0017 (spatial-LOD)
+lands first if perf budget tight.

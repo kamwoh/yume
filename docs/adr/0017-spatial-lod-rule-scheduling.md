@@ -1,7 +1,7 @@
 # ADR 0017 — Spatial-LOD rule scheduling (perf for crowds + open worlds)
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accepted with conditions addressed (2026-05-06)**_
 
 ## Context
 
@@ -233,3 +233,92 @@ Conditions before implementation:
 
 Lowest-risk ADR of the six. Reasonable to land before 0014/0015 if
 user wants quick win on existing demo perf at scale.
+
+## Revisions per tech-director review (2026-05-06)
+
+### 1. Hysteresis to prevent boundary flip-flop
+
+**Decision**: split `radius` into `enter_radius` and `leave_radius`:
+
+```jsonc
+"lod": {
+  "anchor": "active_actor",
+  "enter_radius": 200,    // entities inside this radius START firing
+  "leave_radius": 240,    // entities outside this radius STOP firing
+  "fallback": "freeze"
+}
+```
+
+Convention: leave_radius ≥ enter_radius * 1.1 (10% hysteresis
+minimum). Engine warns at load if leave_radius ≤ enter_radius.
+
+Authoring shorthand: if only `radius` provided, engine sets
+`enter_radius = radius * 0.95, leave_radius = radius * 1.05` (5%
+each side).
+
+### 2. tick_slowed state location
+
+**Decision**: per-rule per-entity tracking lives in scheduler-
+internal dictionary keyed by `(rule_id, entity_id)` →
+`last_fired_tick`. Engine-private; not exposed via env.
+
+When entity enters tick_slowed mode, scheduler computes `tick_count
+- last_fired_tick >= interval_at_slowed_rate`; only fires when met.
+
+Entries are GC'd when entity despawns (existing entity-cleanup hook).
+At 500 entities × 50 LOD-tagged rules = 25k entries; ~200KB; fine.
+
+### 3. Determinism — author guidance
+
+**Decision**: explicit guidance on which fallback to pick by use
+case (will be baked into yume-crowd-designer skill):
+
+| Use case | Fallback |
+|---|---|
+| Anonymous pedestrian crowd | `freeze` (no behavior; cheap) |
+| Named NPC with daily schedule | `tick_slowed:0.5` (1 tick per 2 sec) |
+| Distant economy ticking (shops) | `tick_slowed:0.1` (1 tick per 10 sec) |
+| Plot-critical scripted character | `frozen_state` (no behavior + visible static state) |
+
+Engine doesn't enforce; authors decide. Skill provides the heuristic.
+
+### 4. Cache lod_anchor_position
+
+**Decision**: scheduler computes `env.lod_anchor_position` ONCE per
+tick at start of phase processing. All LOD-tagged rules in that
+tick read the cached value.
+
+Position resolves from active_actor_id (per ADR 0016) at tick start.
+If active actor switches mid-tick, the change applies next tick
+(consistent with switch_actor timing in ADR 0016).
+
+### 5. LOD radius vs ADR 0014 stream_radius
+
+**Decision**: load-time validation that `enter_radius ≤
+chunk_size.x * stream_radius` (and same for y). If a rule's LOD
+radius would extend beyond loaded chunks, engine warns at load
+(not error — author may have valid reason; e.g. persistent entities
+beyond stream radius).
+
+Scenario tests verify the warning fires when expected.
+
+### 6. Test plan
+
+1. **Hysteresis**: entity at boundary with enter=200, leave=220.
+   Move entity to 210. Rule still firing. Move to 230. Rule stops.
+   Move back to 210. Rule still NOT firing (must enter ≤ 200 first).
+2. **tick_slowed**: rule with `tick_slowed: 0.5` (every 2 ticks)
+   in slowed mode fires at ticks N, N+2, N+4, etc.
+3. **No-LOD baseline**: rule without lod field runs on all entities
+   regardless of distance (current behavior preserved).
+4. **Cache hit**: profiler shows lod_anchor_position computed once
+   per tick despite many LOD-tagged rules.
+5. **Stream-radius warning**: rule with enter_radius > stream*chunk
+   logs warning at load.
+
+### Final verdict
+
+All conditions addressed. **Status: accepted.**
+
+Per revised build order: lands FIRST (cleanest, lowest contract
+risk; provides immediate perf benefit to existing demos at scale).

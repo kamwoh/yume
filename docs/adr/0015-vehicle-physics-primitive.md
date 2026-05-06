@@ -1,7 +1,7 @@
 # ADR 0015 — Vehicle physics primitive (mass + momentum + collision response)
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accepted with conditions addressed (2026-05-06)**_
 
 ## Context
 
@@ -257,3 +257,118 @@ Conditions before implementation:
 
 This is a contract-edge ADR. The "never list" is critical. Without
 it, the next ADR (0020? 0030?) erodes the boundary.
+
+## Revisions per tech-director review (2026-05-06)
+
+### 1. Physics never-list (CONTRACT ANCHOR)
+
+**Yume engine WILL NEVER implement these features.** Future ADRs
+proposing them must FIRST modify this never-list (which itself
+requires extensive cross-cutting review). This anchors the discrete-
+arcade-physics boundary.
+
+| Banned feature | Why |
+|---|---|
+| **Continuous force integration over time** (springs, dampers, gravitational orbits) | Continuous physics is out of scope per Yume's contract. Forces apply as discrete impulses at tick boundaries only. |
+| **Constraint solvers** (joints, hinges, ropes, chains) | Constraint solving is fundamentally continuous; sequential-impulse solvers iterate to convergence. Out of scope. |
+| **Continuous-time deformation** (soft body, cloth, fluids) | Same — continuous integration. Out of scope. |
+| **Sub-tick continuous collision detection** (CCD / swept volumes) | Yume's tick is the granularity for collision; entities can tunnel at high speed. Acceptable arcade behavior. CCD requires sub-tick math; out of scope. |
+| **Tire grip / slip-angle / weight transfer** | This is what separates arcade from sim. Out of scope per Yume non-goals. |
+| **Aerodynamic simulation** (downforce, drafting, wind resistance beyond simple drag) | Continuous physics. Drag as a tick-rate velocity scale IS allowed; aerodynamic surfaces with angle-of-attack are NOT. |
+
+If a game's design requires any of these, the design is out of scope
+for Yume. Don't bend the boundary; pick a different engine for that
+game OR redesign within the discrete-arcade envelope.
+
+### 2. Impulse vs inheritance semantics
+
+**Decision**: collision response is ALWAYS impulse-based. Math:
+
+```
+post_velocity = pre_velocity + (impulse / mass) * normal
+```
+
+Where `impulse = -(1+e) * relative_velocity_along_normal /
+(1/m1 + 1/m2)`.
+
+"Inheritance" is the perceptual outcome at heavy-vs-light mass
+ratios:
+- car (1500kg) hits pedestrian (70kg): ped gets large impulse,
+  appears to "inherit" car's velocity
+- car hits car (1500kg vs 1500kg): mutual impulse, both get
+  redirected
+- pedestrian hits wall (effective ∞): full reflection scaled by
+  restitution
+
+This is documented behavior; authors tune mass ratios for desired
+feel. No "set velocity = other's velocity" mode (that would violate
+conservation of momentum and feel arcade-bad).
+
+### 3. Performance budget
+
+**Target**: ≤16ms total physics-response time per tick at 100
+dynamic entities.
+
+Approach:
+- Spatial-index narrowing: only check entity pairs within max-AABB
+  + max-velocity*dt distance
+- Pair cache: stable AABBs + low-velocity pairs cached between
+  ticks
+- O(n) bound in typical case via spatial bucketing
+
+Implementation must include a perf test: 100 cars in a 320×320
+chunk with random velocities; tick budget < 16ms on dev machine.
+
+### 4. Phase ordering (Invariant #9 compliance)
+
+**Decision**: collision response runs in REACT phase as queued
+`velocity_set` effects (composes with existing flush rules):
+
+```
+input → flush
+drain decide → (no flush)
+decide → flush
+drain react → flush
+react phase {
+  contact rules fire
+  physics-response computes pairs from contacts; queues velocity_set
+}
+flush
+```
+
+Does NOT introduce a new phase. Velocity changes apply at end-of-tick
+flush; per-frame motion integrator (existing) reads new velocities
+the next frame.
+
+### 5. blocks_motion reflection spec
+
+**Decision**: when `physics_dynamic` entity hits `blocks_motion`-
+only entity (static wall):
+
+```
+post_velocity = pre_velocity - 2 * (pre_velocity · normal) * normal * restitution_dynamic
+```
+
+Wall has effective mass infinity; full reflection scaled by the
+DYNAMIC entity's restitution. Wall doesn't move.
+
+When two `blocks_motion`-only entities collide: no response (both
+are static). Engine logs a warning; should be impossible if content
+is sane.
+
+### 6. Mass property contract
+
+**Decision**: `physics_dynamic` entities MUST declare
+`properties.mass > 0`. Engine errors at load if mass is 0, missing,
+or negative — structured EngineError per Tier 2.6a.
+
+Static walls (`blocks_motion` only, not dynamic) need not declare
+mass; their effective mass is infinity.
+
+### Final verdict
+
+All conditions addressed; never-list anchored. **Status: accepted.**
+
+Implementation independent of other ADRs in this batch; can land in
+parallel. New `apply_impulse` effect type added to api-manifest at
+implementation time.

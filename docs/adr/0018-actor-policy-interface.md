@@ -1,46 +1,46 @@
-# ADR 0018 — Actor policy interface (LLM/RL/scripted-agent control)
+# ADR 0018 — In-process actor policy interface (scripted + godot_resource)
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accepted with conditions addressed (2026-05-06)**_
+_Note: ORIGINAL DRAFT INCLUDED EXTERNAL IPC PATHS (B+C); split per
+tech-director review. External IPC moved to ADR 0020._
 
 ## Context
 
 ADR 0016 introduces multi-actor architecture. With it, NON-PLAYER
-actors can exist — controlled not by keyboard but by some "policy."
-This ADR defines the policy INTERFACE: how an external agent (LLM,
-RL model, scripted bot, behavior tree) observes the world and emits
-actions.
+actors can exist — controlled not by keyboard but by a **policy**.
+This ADR defines the IN-PROCESS policy interface: scripted JSON
+policies + GDScript-resource policies. External-process policies
+(LLM/RL via subprocess or ZMQ) are deferred to ADR 0020 to keep
+this ADR's scope bounded.
 
 This is the foundation for:
 
-- **LLM-driven NPCs** — Generative Agents / Smallville-style social
-  simulations where each NPC has a language-model brain
-- **RL agents** — train a model to play Yume games (driving, combat,
-  trading)
-- **Scripted bots** — testing / playtest automation; sophisticated AI
-  beyond what rule-trees can express
-- **Hybrid actors** — human player whose actions are augmented or
-  shaped by a policy (assist mode, accessibility)
-- **Headless agent simulation** — many actors running in parallel in
-  a sim (for training data, social-experiment research)
+- **Multi-protagonist control** — switch between Michael / Trevor /
+  Franklin; non-active characters keep doing things via scripted
+  policies (continue patrol; idle at cover)
+- **Scripted NPC AI** — guards patrol; shopkeepers stand at counter;
+  enemies pursue / retreat per behavior tree
+- **In-game bots** — testing / playtest automation; advanced AI
+  beyond what rule-trees can express but still in-process
+- **Behavior trees** — godot_resource path lets games ship
+  GDScript-based BT implementations
 
-This is core to Yume's Tier 3 vision (Actors). It's also the
-foundation for the "simulation input layer" the user has flagged
-multiple times.
+External-process LLM agents (Smallville-style), RL training pipelines,
+and ZMQ-driven external clients ALL move to ADR 0020.
 
 ## Decision
 
 Define a **policy interface** that any actor with `control_mode:
-ai_policy` (per ADR 0016) implements. Policies receive observations
-+ emit actions; engine routes actions through the same input-effect
+ai_policy` (per ADR 0016) implements. Policies receive observations,
+emit actions; engine routes actions through the same input-effect
 pipeline as human inputs.
 
 ### Policy interface (conceptual contract)
 
 ```
-class Policy:
-    def observe(env, actor_id, observation_config) -> Observation
-    def decide(observation, actor_state) -> List[Action]
+Policy.observe(env, actor_id, observation_config) -> Observation
+Policy.decide(observation, actor_state) -> List[Action]
 ```
 
 Where:
@@ -49,12 +49,11 @@ Where:
   nearby entities (filtered by tags + radius), recent events
   (signals fired), world state, the actor's own state
 - `Action` = a Dictionary matching the existing input event shape —
-  `{action: "move_north", actor_id: <self>}` or
-  `{action: "fire", actor_id: <self>}`
+  `{action: "move_north", actor_id: <self>}`
 
-### Implementation paths
+### Two in-process paths
 
-**Path A: Built-in scripted policies (in JSON)**
+**Path A: Scripted JSON policies**
 
 ```jsonc
 // policies/guard_basic.json
@@ -63,277 +62,220 @@ Where:
   "rules": [
     {
       "id": "patrol",
-      "if": {"distance_to_player_gt": 200},
-      "then": [{"action": "move_to_waypoint"}]
+      "if": {"distance_to": {"target": "@waypoint_a", "gt": 50}},
+      "then": [{"action": "move_to_waypoint", "waypoint": "@waypoint_a"}]
     },
     {
       "id": "alert",
-      "if": {"distance_to_player_lt": 100, "world.player_visible": 1},
-      "then": [{"action": "fire", "target": "player"}]
+      "if": {
+        "all": [
+          {"distance_to": {"target": "active_actor", "lt": 100}},
+          {"world_state": {"player_visible": 1}}
+        ]
+      },
+      "then": [{"action": "fire", "target": "active_actor"}]
     }
   ]
 }
 ```
 
-The engine has a built-in scripted-policy interpreter. No external
-dependency. Good for in-game NPC AI.
+The engine has a built-in scripted-policy interpreter — think of it
+as a stripped-down rule engine specifically for actor decision-making.
+Pure JSON; no external dependency. Good for in-game NPC AI at the
+80% case.
 
-**Path B: External LLM policy (via process / file IPC)**
-
-```jsonc
-// policies/llm_npc.json
-{
-  "type": "external",
-  "transport": "stdio",
-  "command": ["python3", "policies/llm_brain.py"],
-  "tick_rate_hz": 1.0,        // LLM thinks once per second; faster
-                              // = more cost
-  "observation_template": "policies/templates/observation.txt"
-}
-```
-
-The engine forks a process per actor (or pools them). Sends
-observation as JSON over stdin; reads action JSON from stdout.
-
-**Path C: External RL agent (via shared memory / ZMQ)**
+**Path B: Godot Resource policies**
 
 ```jsonc
-// policies/rl_driver.json
-{
-  "type": "external",
-  "transport": "zmq",
-  "endpoint": "tcp://localhost:5555",
-  "tick_rate_hz": 60.0,        // every tick
-  "observation_template": "policies/templates/driving_obs.txt"
-}
-```
-
-For RL training, latency matters. ZMQ or shared-memory IPC.
-
-**Path D: In-process Godot Resource policy**
-
-```jsonc
+// policies/behavior_tree.json
 {
   "type": "godot_resource",
-  "script": "policies/behavior_tree_v1.gd"
+  "script": "res://policies/behavior_tree_v1.gd"
 }
 ```
 
-Allows GDScript-based policies for performance-critical AI (NPC
-crowd) without IPC overhead.
+```gdscript
+# policies/behavior_tree_v1.gd
+extends RefCounted
+class_name BehaviorTreeV1
+
+func decide(observation: Dictionary, actor_state: Dictionary) -> Array:
+    # Game-specific behavior tree implementation
+    if observation.has("player_visible"):
+        return [{"action": "fire", "target": "active_actor"}]
+    return [{"action": "patrol"}]
+```
+
+For performance-critical AI (crowds with sophisticated behaviors)
+where the scripted-JSON interpreter is too slow, OR for behavior-
+tree libraries that exist as GDScript code already.
+
+This path uses GDScript per game, which is at the EDGE of Invariant #1
+(JSON-only content channel). Justified because:
+- It's at the AI/policy layer, not the game-rule layer (rules still
+  pure JSON)
+- Existing GDScript libraries (e.g. behavior trees) shouldn't be
+  reimplemented
+- Tech-director explicitly approved this path with the scoping (in-
+  process only; doesn't compose with per-game rule-implementation
+  GDScript)
 
 ### File layout
 
 ```
 data/<game>/
 ├── policies/                   # NEW
-│   ├── guard_basic.json
-│   ├── llm_npc.json
-│   ├── templates/
-│   │   ├── observation.txt
-│   │   └── driving_obs.txt
+│   ├── guard_basic.json        # scripted
+│   ├── behavior_tree_v1.gd     # godot_resource
+│   ├── templates/              # observation templates if shared
 │   └── ...
 └── ...
 ```
 
-Per-game policies. Engine ships generic interpreters per type
-(scripted, external-stdio, external-zmq, godot-resource).
-
 ### Engine work
 
-1. `scripts/engine/actor_policy.gd` — abstract interface + dispatch
-   to type-specific implementations
+1. `scripts/engine/actor_policy.gd` — abstract dispatcher
 2. `scripts/engine/policies/scripted_policy.gd` — Path A interpreter
-3. `scripts/engine/policies/external_stdio_policy.gd` — Path B; spawns
-   subprocess, JSON over stdin/stdout
-4. `scripts/engine/policies/external_zmq_policy.gd` — Path C; ZMQ
-   integration (Godot has a ZMQ binding via gdextension)
-5. Per-actor observation builder: takes the actor's perception_config
-   (radius, tags-of-interest, recent-event window) and serializes
-   relevant env state to JSON
+3. `scripts/engine/policies/godot_resource_policy.gd` — Path B
+   loads GDScript at runtime, calls `decide()`
 
-6. Action injection: policy returns JSON action; engine validates
-   shape + queues via `scheduler.queue_input(action, params,
-   actor_id)` (per ADR 0016)
+4. Per-actor observation builder: takes the actor's
+   `observation_config` (from actors.json) and serializes relevant
+   env state to a Dictionary (not JSON string — in-process; pass by
+   reference)
 
-7. Rate limiting: policies can run at different frequencies than the
-   engine tick. Slow policies (LLM, 1Hz) cache their last action and
-   the engine reuses it between policy refreshes.
+5. Action injection: policy returns Array of Action Dictionaries;
+   engine validates + queues via `scheduler.queue_input(action,
+   params, actor_id)` (per ADR 0016)
 
-### Backward compat
-
-Existing demos work unchanged. No actor opts into ai_policy without
-ADR 0016 + this ADR; policies are opt-in via the per-actor config in
-`actors.json`.
+6. Per-policy tick rate: actors.json declares `policy_tick_rate_hz`
+   (default = 20Hz, matching engine tick). Slower policies (LLM in
+   ADR 0020) cache their last action between policy refreshes.
 
 ### Observation config
 
-The per-policy observation shape needs to be configurable. Yume
-should NOT hardcode "every policy gets the same view." Instead:
+The per-policy observation shape is configurable on the actor:
 
 ```jsonc
+// actors.json (per ADR 0016)
 {
-  "perception": {
-    "self": ["state.hp", "state.position", "state.inventory"],
-    "nearby_radius": 200,
-    "nearby_tags": ["npc", "player", "enemy"],
-    "nearby_fields": ["state.position", "state.hp", "tags"],
-    "recent_signals": 10,    // last N signals across entities
-    "world_state": ["day", "weather", "score"]
-  }
+  "actors": [
+    {
+      "id": "guard_npc_A",
+      "control_mode": "ai_policy",
+      "policy_ref": "policies/guard_basic.json",
+      "observation_config": {
+        "self": ["state.hp", "state.position", "state.weapon"],
+        "nearby_radius": 200,
+        "nearby_tags": ["player", "enemy", "ally"],
+        "nearby_fields": ["state.position", "state.hp", "tags"],
+        "recent_signals": 10,
+        "world_state": ["day_of_week", "alarm_level"]
+      },
+      "policy_tick_rate_hz": 5.0
+    }
+  ]
 }
 ```
 
 Engine builds the observation Dictionary from this config + current
-env state, serializes to JSON, sends to policy.
+env state, passes to policy. Same shape across both Paths A and B.
+
+### Backward compat
+
+Existing demos work unchanged. Actors with `control_mode: "ai_policy"`
+require ADR 0016 (multi-actor) which itself is backward-compatible
+via synthesized-default. Without explicit AI actors, no policy code
+runs.
+
+## Yume's responsibility — explicit boundary
+
+**Yume engine MUST**:
+- Define the observation/action protocol
+- Build observations from env state per config
+- Route actions through the existing input-effect pipeline
+- Handle policy unavailability gracefully (last-action fallback)
+
+**Yume engine SHOULD NOT**:
+- Ship reference implementations of complex AI (BT libraries, planners,
+  pathfinding) — that's content
+- Force policies to follow a particular paradigm (rules, tree, FSM)
+  beyond the observe/decide contract
+- Require all policies to handle all observation features —
+  policies opt into what they consume
 
 ## Consequences
 
 **Enables:**
-- LLM-driven NPCs (Smallville / Generative Agents)
-- RL training pipelines (agent + Yume sandbox)
-- Scripted bots for testing / playtest automation
-- Mixed-control actors (player input + AI override)
-- Multi-agent simulation experiments (econ, social, combat)
-- Foundation for an LLM-first game-design loop
-  (game generates itself by querying agents)
+- Multi-protagonist games where non-active actors keep doing things
+- In-game NPC AI more flexible than rule-trees (Path B)
+- Scripted bots for testing
+- Foundation for ADR 0020 (external IPC) — same observe/decide
+  protocol, different transport
 
 **Constrains:**
-- IPC adds latency. LLM calls = 100ms-2s. Engine must accept
-  asynchrony (policy returns null this tick, engine reuses last
-  action).
-- Observation serialization costs CPU. At many-actor scale, observation
-  building is significant.
-- External policies require external dependencies (Python, ZMQ, etc).
-  Yume engine doesn't bundle these; ship example policies but require
-  user to install runtime.
+- Path B's GDScript surface is per-game code in the data folder —
+  edge of Invariant #1
+- Policies are stateless from engine's POV (engine doesn't track
+  policy internal state); policies that need persistent state
+  (e.g. last-decision memory) must store it in entity state
 
 **Doesn't enable:**
-- Frame-perfect physics-aware policies — RL needs sub-tick observations;
-  Yume tick is the granularity. Acceptable for arcade/strategy genres,
-  not for fighting games.
-- Cross-Yume-instance multi-agent (training many sims in parallel) —
-  would need separate harness; out of scope for this ADR.
+- LLM agents (ADR 0020 — external IPC)
+- RL training (ADR 0020)
+- Cross-process / networked policies (ADR 0020)
 
 ## Alternatives considered
 
-### A. Hardcode behavior trees in engine
+### A. Skip in-process; only do external IPC
 
-Reject: violates Invariant #1 + locks AI shape.
+External IPC has 100ms-2s latency. Unusable for in-game NPC AI
+(crowds, guards). In-process must come first.
 
-### B. Make policies a JSON-only thing (no external)
+### B. Engine ships a built-in BT library as a primitive
 
-Limited expressiveness. LLM drivers fundamentally need external
-process; can't simulate language model in pure JSON.
+Locks games into one BT shape. Better to ship the policy interface
+and let games build their own BT (or use scripted JSON, or load a
+GDScript BT lib).
 
-### C. Engine ships its own LLM brain
+### C. Make Path B JSON-only (not GDScript)
 
-Out of scope; Yume is engine + content, not AI infrastructure. Let
-users plug in their preferred backend.
+Already exists as Path A (scripted). If author needs more power,
+GDScript is the escape valve. Forcing all logic into JSON would
+push complexity into a new DSL we'd then maintain.
+
+## Revisions per tech-director review (2026-05-06)
+
+This ADR has been REVISED per TD review. Original draft included
+external IPC paths (subprocess, ZMQ); those moved to ADR 0020 to
+keep this ADR's scope bounded.
+
+### Test plan
+
+1. **Scripted policy fires action**: actor with scripted policy +
+   simple "always move north" rule; tick advances; actor entity's
+   position changes.
+2. **Godot resource policy loads**: actor with godot_resource
+   policy; engine loads + invokes; action dispatched.
+3. **Observation correctness**: observation Dictionary contains
+   correct nearby entities, world_state values, recent signals.
+4. **Action staleness**: policy_tick_rate_hz: 1 (1Hz); engine ticks
+   at 20Hz; policy decides every 20 ticks; cached action reused
+   between.
+5. **Existing demos unchanged**: sokoban / harvestcore / etc. don't
+   use ai_policy control_mode; their tick + scenario tests pass
+   identically post-implementation.
+
+### Final verdict
+
+**Status: accepted (post-split).**
+
+External IPC concerns (subprocess management, ZMQ dependency,
+async latency, security) are EXCLUDED from this ADR — see ADR 0020.
 
 ## References
 
 - ADR 0016 (multi-actor) — prerequisite
-- Tier 3 (Actors) — this ADR is the implementation
-- yume-actor-policy-designer skill (future) — design discipline for
-  policy types + observation configs
-- Smallville / Generative Agents paper — reference architecture
-- task_plan.md "simulation input layer" — earlier flag, now formal
-
-## Tech-director review
-
-_Date: 2026-05-06_
-_Reviewer: yume-tech-director_
-
-### Invariant checks
-
-| Invariant | Status | Notes |
-|---|---|---|
-| #1 JSON-only content channel | ⚠ | scripted policies are JSON; godot_resource path is GDScript per game (path D); external paths require non-Yume code |
-| #2 No semantic effect types | ✓ | actions are existing input events |
-| #3 No entity-class hierarchy | ✓ | policies are config + interpreter, not classes |
-| #5 Queries first-class | ✓ | observation builder uses existing query mechanisms |
-| #8 Engine = primitives + interpreter | ⚠⚠ | external IPC adds significant engine surface — see verdict |
-
-### Major concern: scope conflation
-
-This ADR conflates TWO distinct concerns:
-
-**Concern A: In-process actor policies**
-- Path A (scripted JSON) — pure JSON, in-process. Clean.
-- Path D (godot_resource) — GDScript per game. Borderline Invariant #1
-  but defensible (it's at the actor-AI layer, not game-rule layer).
-
-**Concern B: External agent IPC**
-- Path B (stdio subprocess) — spawns external process per actor.
-- Path C (ZMQ) — adds ZMQ dependency, networking layer.
-
-Concern A is bounded engine work. Concern B is a NEW DEPENDENCY
-SURFACE — Yume currently has zero network/process integration.
-Adding both at once is scope creep.
-
-Specific risks of B+C:
-- Subprocess management: lifecycle, deadlock, error propagation,
-  cleanup on quit. Each is non-trivial.
-- ZMQ adds a build-time dependency (gdextension or similar).
-- Cross-platform support (Windows/Mac/Linux subprocess differs).
-- Security: external policy can do anything its host process can.
-- Performance: serialization + IPC + LLM call = 100ms-2s. Engine
-  must handle async; current architecture is sync-tick.
-
-### Concerns specific to this ADR
-
-1. **Where does Yume's responsibility end?** ADR doesn't draw the
-   line clearly. Recommend explicit:
-   - Yume engine MUST: define observation/action protocol, route
-     between actor and policy, handle policy unavailability gracefully.
-   - Yume engine SHOULD NOT: ship LLM clients, ZMQ broker, RL
-     environment wrappers, sample policies.
-
-2. **Action staleness on async policies**. ADR mentions "engine
-   reuses last action." But if policy says "move north" 3 ticks ago
-   and the world has changed (wall in the way), should engine
-   re-validate? Or trust the policy? Spec needed.
-
-3. **Observation serialization cost**. At many-actor scale (100+ AI
-   NPCs, each observing 50 nearby entities), observation building
-   dominates CPU. ADR doesn't budget this.
-
-4. **Recommendation: split this ADR**. Two ADRs:
-   - **0018 (this) — In-process actor policies**: Paths A + D only.
-     Scripted JSON + godot_resource. Bounded engine work (interpreter
-     + GDScript dispatch). Sufficient for: multi-protagonist games,
-     scripted bots, behavior trees. Most use cases.
-   - **0020 (future) — External agent IPC**: Paths B + C.
-     Subprocess + ZMQ. Land when first LLM/RL game is queued, not
-     speculatively. Allows separate scope review.
-
-### Verdict
-
-**revise**.
-
-Recommendation: SPLIT this ADR. The in-process subset (Paths A + D)
-is acceptable as ADR 0018. The external subset (Paths B + C) becomes
-a future ADR (0020 — External Agent IPC) gated separately.
-
-Reasons:
-1. External IPC is a major dependency surface deserving its own
-   tech-director gate.
-2. Most use cases (multi-protagonist, scripted NPC AI, behavior
-   trees) work with in-process policies. External IPC is an
-   advanced feature.
-3. Scope discipline: don't commit to ZMQ + subprocess management
-   speculatively. Wait for the first real game that needs it.
-4. The architectural insight (observation/action protocol) is the
-   same; only the transport differs. Land transport-specific work
-   when needed.
-
-If user wants ALL paths in this ADR, the conditions are:
-- Explicit "Yume MUST / SHOULD NOT" responsibility statement
-- Action staleness spec
-- Observation budget
-- Subprocess lifecycle spec (start, error, kill, cleanup)
-- ZMQ dependency declared in build docs
-- Sample reference impls in tests, not engine
-
-But splitting is the cleaner answer.
+- ADR 0020 (external agent IPC) — companion ADR for LLM/RL/external
+- Tier 3 (Actors) — this ADR + ADR 0020 together implement
+- yume-actor-policy-designer skill (future) — design discipline

@@ -1960,3 +1960,59 @@ Build order (after gates):
 This is comparable in size to everything Yume has shipped to date.
 Multi-month commitment, not weekend work. Decision logged: aim big,
 build incrementally, log everything.
+
+## ADRs 0014-0020 conditions resolved (2026-05-06)
+
+Per user direction "do whatever to improve yume + believe we are
+the best + we serve both world modeling AND end-user game creation":
+all six ADRs in the open-world batch updated in-place to address
+tech-director conditions. ADR 0018 split as recommended.
+
+### Changes from prior status
+
+- ADRs 0014, 0015, 0016, 0017, 0018, 0019 → **accepted** (conditions
+  resolved in-place via "Revisions per tech-director review"
+  sections)
+- ADR 0020 → **proposed (deferred)** — split out from 0018; covers
+  external IPC (subprocess, ZMQ, etc.); activates when first
+  dependent game queues
+
+### Key design anchors locked in
+
+1. **Physics never-list (ADR 0015)** — Yume engine WILL NEVER
+   implement: continuous force integration, constraint solvers,
+   soft body, sub-tick CCD, tire grip / weight transfer, aerodynamic
+   simulation. Anchor for future ADRs that bend the boundary.
+2. **Macros are compile-time templates (ADR 0019)** — load-time
+   expansion only; not runtime functions; cycle detection + count
+   caps; per-game scoped; automated CI check.
+3. **Single code path post-actors (ADR 0016)** — synthesized
+   default if actors.json absent; no dual fallback maintenance.
+4. **In-process vs external policies (ADRs 0018/0020)** — split.
+   In-process land now; external defer until real LLM/RL game.
+
+### Strategic framing (user)
+
+"Doing it for both world modeling and for people who can create
+their own game." This dual mission shapes priorities:
+
+- World modeling (LLM-agent simulation, Smallville-style) → ADR
+  0018 + 0020 (deferred until real game)
+- End-user creation → JSON-only discipline (Invariants #1, #8) is
+  non-negotiable
+
+Both reinforce: keep things declarative, explicit, composable.
+
+### Implementation gates
+
+Build order locked:
+
+1. ADR 0017 (spatial-LOD)
+2. ADR 0019 (macros)
+3. ADR 0016 (multi-actor)
+4. ADR 0015 (vehicle physics)
+5. ADR 0014 (open-world)
+6. ADR 0018 (in-process policies)
+7. ADR 0020 (external IPC) — when needed
+
+Awaiting user "start implementing" signal.

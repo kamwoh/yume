@@ -1,7 +1,7 @@
 # ADR 0019 — Rule plugin / macro layer (composed-effect templates)
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accepted with conditions addressed (2026-05-06)**_
 
 ## Context
 
@@ -345,3 +345,140 @@ Conditions before implementation:
 This ADR can land FIRST in the build order (lowest contract risk;
 biggest authoring win). Implementation risk is moderate (rule-loader
 change), but tests catch regressions if covered.
+
+## Revisions per tech-director review (2026-05-06)
+
+### 1. Both depth + count limits enforced
+
+**Decision**: macros are bounded by TWO independent limits at load
+time:
+- `max_recursion_depth = 4` — A→B→C→D depth max
+- `max_expanded_effects_per_rule = 50` — total effects after full
+  expansion of any single rule
+
+If either limit exceeded, engine errors with structured EngineError
+identifying the offending macro chain. No silent truncation.
+
+### 2. Cycle detection at load
+
+**Decision**: macro graph parsed at load. Cycles (mutual recursion)
+detected via DFS coloring. If cycle found:
+- Error fires with chain identified: `"macro cycle: deal_damage →
+  apply_status_effect → deal_damage"`
+- Engine refuses to load any macros until cycle resolved
+- Existing rules unaffected (registry stays empty)
+
+### 3. Load-time vs fire-time semantics — explicit
+
+**Decision**: macro expansion is COMPILE-TIME (load-time) only:
+
+- At load: engine reads macros.json, walks every rule's effect list,
+  expands any macro reference by substituting `$param` with the rule
+  call's literal arguments
+- The expanded effect list replaces the macro reference in the
+  rule's stored effects
+- At fire: rules execute their (already-expanded) effect list with
+  normal context binding (self, target, a, b, world.X)
+
+`$param` substitution rules at load time:
+- `$param` (bare) = string substitution of the macro arg's literal
+  value into the JSON token
+- `$param.field` = compiled to a Formula at load: `target.field`
+  where `target` is the runtime context binding for the param's
+  value. The dot-traversal happens at fire time via existing
+  formula resolution.
+
+This means macros are **template metaprogramming** for JSON, not
+runtime functions. No closures; no late binding beyond what
+formulas already do.
+
+### 4. Per-game scoping
+
+**Decision**: macros are PER-GAME scoped. Engine loads
+`data/<game>/macros.json` (or `data/<game>/game/macros.json`). Macros
+defined in game A are NOT visible to game B.
+
+There is no shared macro library. Each game owns its abstractions.
+This prevents cross-game contamination and keeps macros tied to the
+content they support.
+
+If a pattern reappears across games, content-designer can copy the
+macro per-game (cheap; ~10 lines) — or eventually we extend the
+ADR to support a per-archetype shared library if it's painful.
+
+### 5. Automated Invariant #2 check
+
+**Decision**: extend `tools/gen_api_manifest.py` to scan all
+`data/<game>/**/macros.json` files at manifest-regeneration time.
+For each macro:
+- Verify `name` is not in the forbidden set: damage, need_decay,
+  need_restore, gain_xp, advance_stage, heal, attack
+- Verify `expands_to` only references known primitive effect types
+  OR other macro names defined in the same file (recursion check
+  separately)
+
+Build fails with clear error citing the offending file + macro_id.
+Tech-director's manual review burden becomes "verify the CI ran"
+rather than "scan every game's macros myself."
+
+### 6. Test plan
+
+1. **Macro expansion correctness**: rule with effect
+   `{type: "deal_damage", target: "b", amount: 10}` expands at load
+   to the full effect list; runtime sees no macro reference.
+2. **Cycle detection**: macros A→B and B→A; load fails with cycle
+   error.
+3. **Depth limit**: chain A→B→C→D→E; load fails with depth-exceeded
+   error.
+4. **Count limit**: macro that expands to 60 effects; load fails
+   with count-exceeded error.
+5. **Per-game scoping**: game A has macro "x"; game B uses "x" in
+   a rule; game B's load fails (unknown effect type).
+6. **Regression suite**: all 13 demos load + tick identically pre/
+   post macro-expander integration. Baseline: existing scenario tests
+   pass before; same tests pass after.
+7. **Forbidden-name CI**: macros.json with `name: "damage"`; CI build
+   fails with structured error.
+
+### 7. $param.field traversal
+
+**Decision**: at load-time expansion:
+- `$param` substitutes literal value
+- `$param.field` (and `$param.nested.field`) compiles to formula:
+  `<param_value>.field` where `<param_value>` is whatever the rule
+  passed for `$param` (typically a context binding like `"a"`,
+  `"target"`, etc.)
+- Formula resolves at fire time via existing context-binding +
+  property-traversal (Formula.gd already supports `target.state.hp`)
+
+Example:
+```jsonc
+// macros.json
+{"name": "deal_damage", "params": ["target", "amount"],
+ "expands_to": [
+   {"type": "state_add", "target": "$target", "field": "hp",
+    "amount": "-$amount"},
+   {"type": "state_clamp", "target": "$target", "field": "hp",
+    "min": 0, "max": "$target.properties.max_hp"}
+ ]}
+
+// Rule using it:
+{"id": "bullet_damage", "trigger": ..., "effect": [
+   {"type": "deal_damage", "target": "b", "amount": 10}
+]}
+
+// Expanded at load:
+{"id": "bullet_damage", "trigger": ..., "effect": [
+   {"type": "state_add", "target": "b", "field": "hp", "amount": -10},
+   {"type": "state_clamp", "target": "b", "field": "hp", "min": 0,
+    "max": "b.properties.max_hp"}  // formula at fire time
+]}
+```
+
+### Final verdict
+
+All conditions addressed. **Status: accepted.**
+
+Per revised build order: lands SECOND (after 0017 ships). Rule-
+loader change is moderate implementation risk; comprehensive test
+plan + regression coverage make it safe.
