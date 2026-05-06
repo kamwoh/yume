@@ -71,11 +71,12 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"set_input_mapping":    _set_input_mapping(effect, env, context)
 		"switch_actor":         _switch_actor(effect, env, context)
 		"queue_input_for_actor": _queue_input_for_actor(effect, env, context)
+		"reset_world":          _reset_world(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world.",
 				"warning")
 	return {}
 
@@ -950,3 +951,24 @@ static func _queue_input_for_actor(e: Dictionary, env: Dictionary, ctx: Dictiona
 	var sched = parent_node.scheduler
 	if sched.has_method("queue_input"):
 		sched.queue_input(action, {"actor": actor_id, "synthesized": true})
+
+
+## ADR 0010+0011 follow-up (#99): reset world state without scene reload.
+## Used by "New Game" buttons after the player previously clicked Continue
+## (which mutated state via load_state). Without this effect, a New Game
+## chain is broken: reload_scene + transition_screen drops the transition
+## (destructive chain footgun); just transition_screen leaves loaded state
+## intact.
+##
+## Behavior (deferred to between-tick processing in world.gd):
+## - Despawn all non-persistent entities (matches transition_level pattern)
+## - Reset world_state to initial values from world/state.json
+## - For multi-level games (game/flow.json present): reset current_level
+##   to starting_level + reload that level's entities
+## - For single-level games: reload entities/initial_instances
+##
+## Non-destructive to the effect chain: only mutates env via
+## _pending_world_reset flag, processed at end of tick. Subsequent effects
+## (transition_screen, etc.) fire normally.
+static func _reset_world(_e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
+	env["_pending_world_reset"] = true

@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-06T16:41:11+00:00",
+  "generated_at": "2026-05-06T17:33:50+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -152,6 +152,10 @@
     },
     {
       "type": "queue_input_for_actor",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "reset_world",
       "source": "effect_apply.gd"
     }
   ],

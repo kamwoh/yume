@@ -2246,8 +2246,15 @@ in the relevant genre queues for /yume-design.
 
 ### Content / pipeline tasks
 
-- [ ] **#99** — Add `reset_world` effect (proper New Game flow that
-  clears world_state without scene reload). Critical-path for #96.
+- [x] **#99** — `reset_world` effect landed. Deferred via
+  env._pending_world_reset; world.gd processes between ticks
+  (after save/load + actor switch). Despawns non-persistent entities,
+  clears world_state in-place, reloads world/state.json initial values,
+  re-spawns starting level (multi-level) or root entities (single).
+  Refreshes has_save + active_actor_id mirrors. Non-destructive in
+  effect chain — [reset_world, transition_screen] works (unlike the
+  old reload_scene + transition_screen footgun). 353/353 tests pass.
+  Sokoban New Game button now uses [reset_world, transition_screen].
 - [ ] **#96** — Build first complete game: JRPG fantasy merchant
   (Recettear-shaped). Composes shell-layer + #85 + #99.
 - [ ] **#97** — Build deferred genre-extension skills (reactive

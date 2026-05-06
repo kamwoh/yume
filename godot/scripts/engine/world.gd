@@ -563,6 +563,10 @@ func _on_tick(count: int) -> void:
 	# AFTER scheduler.tick() so the current tick's rules saw the OLD
 	# active_actor; the next tick's input phase will see the NEW one.
 	process_pending_actor_switch()
+	# Task #99: reset_world resets world_state + non-persistent entities
+	# without scene reload. Processed after other deferred ops so any
+	# in-flight save/load completes before the reset wipes state.
+	process_pending_world_reset()
 	if verbose and count % 4 == 0:
 		_print_tick_summary(count)
 
@@ -816,6 +820,65 @@ func process_pending_actor_switch() -> void:
 		world_state["active_actor_id"] = target
 		if verbose:
 			print("[World] active actor → ", target)
+
+
+## Task #99 — process queued reset_world between ticks. Despawns all
+## non-persistent entities, resets world_state to initial values, and
+## reloads the starting level (or root entities for single-level games).
+## NO scene reload — the World node + scheduler + screen_flow + settings
+## persist. Used by "New Game" buttons to clean up after a Continue.
+func process_pending_world_reset() -> void:
+	var env: Dictionary = scheduler.env
+	if not bool(env.get("_pending_world_reset", false)): return
+	env.erase("_pending_world_reset")
+	_do_world_reset()
+
+
+func _do_world_reset() -> void:
+	var root := data_root.rstrip("/")
+	# 1. Despawn all non-persistent entities (matches transition_level)
+	var to_remove: Array[String] = []
+	for id in entities.keys():
+		var ent = entities[id]
+		if ent is Entity and not (ent as Entity).has_tag("persistent"):
+			to_remove.append(str(id))
+	for rid in to_remove:
+		var rent: Entity = entities.get(rid, null)
+		if rent == null: continue
+		if relations != null:
+			relations.clear_entity(rid)
+		if spatial_index != null and spatial_index.has_method("remove_entity"):
+			spatial_index.remove_entity(rid)
+		entities.erase(rid)
+		rent.queue_free()
+	# 2. Reset world_state to initial values. Clear in-place so any
+	# external references (env.world is a back-ref) stay valid.
+	world_state.clear()
+	world_state["tick"] = 0
+	_load_world_file(root + "/world/state.json")
+	# 3. Reload entities + relations. For multi-level games, reset to
+	# the progression's starting_level. For single-level, just re-load
+	# root entities.
+	var prog_path := root + "/game/flow.json"
+	if FileAccess.file_exists(prog_path):
+		_load_progression(prog_path)         # resets current_level → starting_level
+		world_state["current_level"] = current_level
+		_load_entities_path(root)            # re-load persistent root entities
+		if current_level != "":
+			_load_level(current_level)
+	else:
+		_load_entities_path(root)
+	# 4. Refresh has_save (ADR 0010) — reset doesn't delete saves; it just
+	# clears in-memory state. has_save remains accurate.
+	if not save_policy.is_empty():
+		var slots := int(save_policy.get("slots", 1))
+		world_state["has_save"] = 1 if SaveState.has_any_save(_game_name(), slots) else 0
+	# 5. Refresh active_actor_id mirror (ActorManager state untouched).
+	if actor_manager != null:
+		world_state["active_actor_id"] = actor_manager.active_actor_id
+	scheduler.flush_effects()
+	if verbose:
+		print("[World] reset_world complete (level: %s)" % current_level)
 
 
 ## Integrate velocity → position each frame for smooth motion.

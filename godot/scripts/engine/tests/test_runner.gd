@@ -48,6 +48,7 @@ func _ready() -> void:
 	test_spatial_lod()
 	test_macro_expansion()
 	test_multi_actor()
+	test_reset_world_effect()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -2194,3 +2195,43 @@ func test_multi_actor() -> void:
 		"resolve active (p2) → trevor")
 	michael.queue_free()
 	trevor.queue_free()
+
+
+# ============================================================
+# RESET_WORLD EFFECT (#99)
+# ============================================================
+
+## Verify reset_world effect:
+## 1. Sets env._pending_world_reset (deferred to next-tick boundary)
+## 2. Non-destructive in the chain — subsequent effects fire normally
+##    (full integration with World.process_pending_world_reset is
+##    scene-based; here we verify the effect-buffer contract).
+func test_reset_world_effect() -> void:
+	_section("reset_world (#99)")
+
+	var env: Dictionary = {}
+	var ctx: Dictionary = {"_rule_id": "test"}
+
+	# Bare reset_world sets the pending flag
+	EffectApply.apply({"type": "reset_world"}, env, ctx)
+	expect(bool(env.get("_pending_world_reset", false)),
+		"reset_world sets env._pending_world_reset")
+
+	# Re-firing keeps it true (idempotent)
+	EffectApply.apply({"type": "reset_world"}, env, ctx)
+	expect(bool(env.get("_pending_world_reset", false)),
+		"second reset_world: still pending")
+
+	# Non-destructive in chain: subsequent effects in the same chain
+	# can still fire (they push into their own buffers / env keys).
+	# Simulate a [reset_world, transition_screen] chain.
+	env["screen_event_buffer"] = []
+	EffectApply.apply({"type": "reset_world"}, env, ctx)
+	EffectApply.apply({"type": "transition_screen", "target": "game"},
+		env, ctx)
+	expect(bool(env.get("_pending_world_reset", false)),
+		"chain: reset_world flag still set")
+	expect_eq(env["screen_event_buffer"].size(), 1,
+		"chain: transition_screen still queued (NOT destroyed)")
+	expect_eq(str((env["screen_event_buffer"][0] as Dictionary).get("event", "")),
+		"transition_screen", "chain: transition event reaches buffer")
