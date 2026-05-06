@@ -2204,8 +2204,19 @@ Tech-director reviewed; build in this order:
    `VehicleBody3D` exposure when the first racing game queues.
 5. [ ] **#84 ADR 0014** — open-world chunked substrate. Biggest surface
    change. Independent track parallel to merchant game critical path.
-6. [ ] **#85 ADR 0018** — in-process actor policy interface (Paths A +
-   D). Critical-path for #96 merchant game (NPC behaviors).
+6. [x] **#85 ADR 0018** — in-process actor policy interface. Phase A
+   landed: ScriptedPolicy module (JSON behavior-rule interpreter with
+   condition primitives world_state/actor_state/distance_to/nearby_count
+   + all/any/not boolean ops + first-match priority semantics).
+   ActorManager.load_policies() reads policy_ref per ai_policy actor;
+   tick_policies() builds observation from spatial_index radius query +
+   world_state + active actor position, calls policy.decide(), queues
+   resulting actions onto scheduler input queue. World ticks policies
+   BEFORE scheduler.tick so synthesized + human inputs land in same
+   tick. 368/368 tests pass (+15 policy assertions). Backward compat
+   verified (sokoban scenarios 14/14). Phase B: Path B (godot_resource
+   GDScript policies), policy_tick_rate_hz throttling, per-actor
+   observation_config in actors.json.
 7. [ ] **#86 ADR 0020** — external agent IPC (DEFERRED — proposed,
    activates when first LLM/RL game queues).
 

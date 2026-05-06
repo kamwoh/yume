@@ -49,6 +49,7 @@ func _ready() -> void:
 	test_macro_expansion()
 	test_multi_actor()
 	test_reset_world_effect()
+	test_scripted_policy()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -2235,3 +2236,148 @@ func test_reset_world_effect() -> void:
 		"chain: transition_screen still queued (NOT destroyed)")
 	expect_eq(str((env["screen_event_buffer"][0] as Dictionary).get("event", "")),
 		"transition_screen", "chain: transition event reaches buffer")
+
+
+# ============================================================
+# ACTOR POLICY (ADR 0018 Phase A — scripted JSON)
+# ============================================================
+
+## Verify ScriptedPolicy:
+## 1. Always-true rule fires its actions
+## 2. world_state condition gates rule firing
+## 3. distance_to active_actor evaluates correctly
+## 4. all/any boolean composition
+## 5. nearby_count evaluates against observation
+## 6. First matching rule wins (priority via order)
+## 7. actor_id stamped onto returned actions
+func test_scripted_policy() -> void:
+	_section("scripted_policy (ADR 0018)")
+
+	# Build a minimal observation + actor_state
+	var obs: Dictionary = {
+		"nearby": [
+			{"id": "enemy_1", "position": Vector2(50, 0), "tags": ["enemy"]},
+			{"id": "ally_1", "position": Vector2(-30, 0), "tags": ["ally"]},
+		],
+		"world_state": {"alarm_level": 2, "phase": "combat"},
+		"active_actor_position": Vector2(20, 0),
+	}
+	var actor_state: Dictionary = {
+		"id": "guard_a",
+		"position": Vector2(0, 0),
+		"state": {"hp": 80, "ammo": 10},
+		"tags": ["guard"],
+	}
+
+	# 1. Always-true rule (no `if` clause) returns its actions
+	var p1 := ScriptedPolicy.new()
+	p1._rules = [
+		{"id": "fallback", "then": [{"action": "patrol"}]},
+	]
+	var actions: Array = p1.decide(obs, actor_state)
+	expect_eq(actions.size(), 1, "fallback rule fires (no if)")
+	expect_eq(str((actions[0] as Dictionary).get("action", "")), "patrol",
+		"fallback action: patrol")
+	expect_eq(str((actions[0] as Dictionary).get("actor_id", "")), "guard_a",
+		"actor_id stamped on action")
+
+	# 2. world_state condition
+	var p2 := ScriptedPolicy.new()
+	p2._rules = [
+		{"id": "alert",
+		 "if": {"world_state": {"key": "alarm_level", "op": ">=", "value": 2}},
+		 "then": [{"action": "fire"}]},
+		{"id": "fallback", "then": [{"action": "patrol"}]},
+	]
+	var act2: Array = p2.decide(obs, actor_state)
+	expect_eq(str((act2[0] as Dictionary).get("action", "")), "fire",
+		"alarm_level=2 → fires alert rule (priority over fallback)")
+
+	# Now flip alarm_level to fail the condition
+	var obs_calm: Dictionary = obs.duplicate(true)
+	obs_calm["world_state"] = {"alarm_level": 0}
+	var act2b: Array = p2.decide(obs_calm, actor_state)
+	expect_eq(str((act2b[0] as Dictionary).get("action", "")), "patrol",
+		"alarm_level=0 → falls through to patrol")
+
+	# 3. distance_to active_actor
+	var p3 := ScriptedPolicy.new()
+	p3._rules = [
+		{"id": "engage",
+		 "if": {"distance_to": {"target": "active_actor", "op": "<", "value": 30}},
+		 "then": [{"action": "attack"}]},
+	]
+	# active actor at (20,0), self at (0,0) → dist 20 → < 30 → fires
+	var act3: Array = p3.decide(obs, actor_state)
+	expect_eq(act3.size(), 1, "distance < 30: rule fires")
+	expect_eq(str((act3[0] as Dictionary).get("action", "")), "attack",
+		"engage rule action")
+	# Move active actor far
+	var obs_far: Dictionary = obs.duplicate(true)
+	obs_far["active_actor_position"] = Vector2(500, 0)
+	var act3b: Array = p3.decide(obs_far, actor_state)
+	expect_eq(act3b.size(), 0, "distance >= 30: no rule fires")
+
+	# 4. all/any composition
+	var p4 := ScriptedPolicy.new()
+	p4._rules = [
+		{"id": "combo",
+		 "if": {"all": [
+			 {"world_state": {"key": "phase", "op": "==", "value": "combat"}},
+			 {"actor_state": {"field": "ammo", "op": ">", "value": 5}},
+		 ]},
+		 "then": [{"action": "shoot"}]},
+	]
+	var act4: Array = p4.decide(obs, actor_state)
+	expect_eq(str((act4[0] as Dictionary).get("action", "")), "shoot",
+		"all: phase=combat AND ammo>5 → shoot")
+	# Fail one branch
+	var st_low_ammo: Dictionary = actor_state.duplicate(true)
+	st_low_ammo["state"] = {"hp": 80, "ammo": 2}
+	var act4b: Array = p4.decide(obs, st_low_ammo)
+	expect_eq(act4b.size(), 0, "all: ammo too low → no shoot")
+	# any: at least one branch true
+	var p5 := ScriptedPolicy.new()
+	p5._rules = [
+		{"id": "alert_or_low_hp",
+		 "if": {"any": [
+			 {"actor_state": {"field": "hp", "op": "<", "value": 30}},
+			 {"world_state": {"key": "alarm_level", "op": ">=", "value": 2}},
+		 ]},
+		 "then": [{"action": "alert"}]},
+	]
+	var act5: Array = p5.decide(obs, actor_state)
+	expect_eq(str((act5[0] as Dictionary).get("action", "")), "alert",
+		"any: alarm>=2 (hp not low) → still fires")
+
+	# 5. nearby_count
+	var p6 := ScriptedPolicy.new()
+	p6._rules = [
+		{"id": "outnumbered",
+		 "if": {"nearby_count": {"tag": "enemy", "op": ">=", "value": 1}},
+		 "then": [{"action": "retreat"}]},
+	]
+	var act6: Array = p6.decide(obs, actor_state)
+	expect_eq(str((act6[0] as Dictionary).get("action", "")), "retreat",
+		"nearby_count enemy>=1 → retreat")
+
+	# 6. not negation
+	var p7 := ScriptedPolicy.new()
+	p7._rules = [
+		{"id": "no_allies",
+		 "if": {"not": {"nearby_count": {"tag": "ally", "op": ">=", "value": 1}}},
+		 "then": [{"action": "call_help"}]},
+	]
+	# Ally is nearby → not(true) → false → no fire
+	var act7: Array = p7.decide(obs, actor_state)
+	expect_eq(act7.size(), 0, "not negation: ally nearby → no_allies false → skip")
+
+	# 7. action params forwarded (everything except 'action' propagates)
+	var p8 := ScriptedPolicy.new()
+	p8._rules = [
+		{"id": "with_params",
+		 "then": [{"action": "move_to", "x": 100, "y": 50}]},
+	]
+	var act8: Array = p8.decide(obs, actor_state)
+	expect_eq(int((act8[0] as Dictionary).get("x", 0)), 100, "params: x forwarded")
+	expect_eq(int((act8[0] as Dictionary).get("y", 0)), 50, "params: y forwarded")

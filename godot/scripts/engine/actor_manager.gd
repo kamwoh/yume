@@ -27,6 +27,9 @@ class_name ActorManager
 var _actors: Array = []                 # array of {id, starting_entity_tag, input_device, control_mode}
 var _by_id: Dictionary = {}              # id → actor dict
 var active_actor_id: String = ""
+## ADR 0018 Phase A: actor_id → ScriptedPolicy instance for ai_policy actors.
+## Loaded once at game start; invoked per tick by tick_policies().
+var _policies: Dictionary = {}
 
 
 # ============================================================
@@ -123,3 +126,117 @@ func actor_ids() -> Array:
 
 func get_actor(actor_id: String) -> Dictionary:
 	return _by_id.get(actor_id, {})
+
+
+# ============================================================
+# AI POLICIES (ADR 0018 Phase A — scripted JSON path only)
+# ============================================================
+
+## Load a scripted policy for each actor with control_mode = ai_policy
+## and policy_ref pointing to a JSON file relative to data_root.
+## Path B (godot_resource) deferred to Phase B.
+func load_policies(data_root: String) -> void:
+	var root := data_root.rstrip("/")
+	for actor_id in _by_id.keys():
+		var actor: Dictionary = _by_id[actor_id]
+		if str(actor.get("control_mode", "")) != "ai_policy": continue
+		var ref := str(actor.get("policy_ref", ""))
+		if ref == "": continue
+		# v1: scripted JSON only. Future: detect type via "type" field
+		# in policy file or actor's policy_kind field.
+		var policy_path := root + "/" + ref
+		var p := ScriptedPolicy.load_from_file(policy_path)
+		if p != null:
+			_policies[str(actor_id)] = p
+
+
+## Per-tick: for each AI actor, build observation, call policy.decide(),
+## queue resulting actions onto the scheduler. Called by World between
+## the input and decide phases (see world.gd _on_tick).
+func tick_policies(env: Dictionary) -> void:
+	if _policies.is_empty(): return
+	var entities: Dictionary = env.get("entities", {})
+	var world_state: Dictionary = env.get("world", {})
+	for actor_id in _policies.keys():
+		var entity_id := resolve_actor_entity(str(actor_id), entities)
+		if entity_id == "": continue
+		var ent = entities.get(entity_id, null)
+		if ent == null: continue
+		var actor_state := _build_actor_state(entity_id, ent)
+		var observation := _build_observation(env, entity_id, ent, world_state)
+		var policy = _policies[actor_id]
+		var actions = policy.decide(observation, actor_state)
+		if not (actions is Array): continue
+		_queue_actions_for_actor(env, str(actor_id), actions as Array)
+
+
+## Bundle the actor's own state into the format ScriptedPolicy expects.
+static func _build_actor_state(actor_id: String, ent) -> Dictionary:
+	var pos = ent.get_position() if ent.has_method("get_position") else null
+	var st: Dictionary = ent.state if "state" in ent else {}
+	var tags: Array = ent.tags if "tags" in ent else []
+	return {
+		"id": actor_id,
+		"position": pos,
+		"state": st,
+		"tags": tags,
+	}
+
+
+## Build a generic observation Dictionary from env state. Phase A:
+## minimal — nearby entities (radius 200), world_state, active actor
+## position. Phase B can extend to recent_signals + custom tag filters
+## per actor's observation_config.
+func _build_observation(env: Dictionary, entity_id: String, ent,
+						world_state: Dictionary) -> Dictionary:
+	var sx = env.get("spatial_index", null)
+	var pos = ent.get_position() if ent.has_method("get_position") else null
+	var nearby: Array = []
+	if sx != null and pos != null and sx.has_method("query_radius_ids"):
+		var ids = sx.query_radius_ids(pos, 200)
+		var entities: Dictionary = env.get("entities", {})
+		for id in ids:
+			if str(id) == entity_id: continue
+			var other = entities.get(id, null)
+			if other == null: continue
+			var other_pos = other.get_position() if other.has_method("get_position") else null
+			var other_tags = other.tags if "tags" in other else []
+			nearby.append({
+				"id": str(id),
+				"position": other_pos,
+				"tags": other_tags,
+			})
+	# Active actor's position (for distance_to: active_actor)
+	var active_pos = null
+	if active_actor_id != "":
+		var active_ent_id := resolve_active_entity((env.get("entities", {}) as Dictionary))
+		if active_ent_id != "":
+			var active_ent = (env.get("entities", {}) as Dictionary).get(active_ent_id, null)
+			if active_ent != null and active_ent.has_method("get_position"):
+				active_pos = active_ent.get_position()
+	return {
+		"nearby": nearby,
+		"world_state": world_state,
+		"active_actor_position": active_pos,
+	}
+
+
+## Queue each action onto the scheduler's input queue. Each action's
+## actor_id propagates so input rules can target the right entity.
+static func _queue_actions_for_actor(env: Dictionary, actor_id: String,
+									 actions: Array) -> void:
+	var parent_node = env.get("parent", null)
+	if parent_node == null or parent_node.get("scheduler") == null: return
+	var sched = parent_node.scheduler
+	if not sched.has_method("queue_input"): return
+	for a in actions:
+		if not (a is Dictionary): continue
+		var action_name := str((a as Dictionary).get("action", ""))
+		if action_name == "": continue
+		# Action's params (everything except "action") get forwarded
+		var params: Dictionary = (a as Dictionary).duplicate(true)
+		params.erase("action")
+		# Always carry actor binding
+		params["actor"] = actor_id
+		params["synthesized"] = true
+		sched.queue_input(action_name, params)

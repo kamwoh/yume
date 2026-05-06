@@ -160,6 +160,9 @@ func load_data() -> void:
 	# active_actor_id into world_state so bindings can read it.
 	actor_manager = ActorManager.load_or_synthesize(root, actor_tag)
 	world_state["active_actor_id"] = actor_manager.active_actor_id
+	# ADR 0018 Phase A: load scripted policies for any ai_policy actors.
+	# No-op for legacy demos (no ai_policy actors in synthesized default).
+	actor_manager.load_policies(root)
 	# ADR 0006: multi-level support. If game/flow.json exists, load
 	# progression + the starting level's content. Persistent entities come
 	# from the root's entities.json. Otherwise (single-level games), load
@@ -555,6 +558,12 @@ func _on_tick(count: int) -> void:
 		# Still process pending save/load so a "Save" button in pause works
 		process_pending_save_load()
 		return
+	# ADR 0018 Phase A: tick AI policies BEFORE scheduler.tick so their
+	# synthesized actions land in the input queue and are processed in
+	# the same tick as human input. AI actors decide simultaneously
+	# with human-controlled ones.
+	if actor_manager != null:
+		actor_manager.tick_policies(scheduler.env)
 	scheduler.tick()
 	_decrement_lifetimes()
 	process_pending_level_transition()
