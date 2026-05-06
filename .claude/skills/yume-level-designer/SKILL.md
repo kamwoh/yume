@@ -371,8 +371,8 @@ After game-planner's world-plan.md is approved by reviewer.
 
 - `docs/30_framework_primitives.md` — what the engine can express
 - `docs/32_mda_for_yume.md` — aesthetic vocabulary
-- `archetypes/core/templates/godot/scripts/engine/instance_patterns.gd`
+- `godot/scripts/engine/instance_patterns.gd`
   — the placement primitives (ring/grid/scatter/line/cluster)
   available to content-designer
-- `archetypes/core/templates/godot/data/demo_*/entities/zz_instances.json`
+- `godot/data/demo_*/entities/zz_instances.json`
   — example placement files (good and bad)

@@ -30,7 +30,7 @@ subagent spawn).
 Forbidden: hardcoding game logic in GDScript.
 
 ```bash
-grep -rE '\bentities\.get\("[^"]+"\)' archetypes/core/templates/godot/scripts/engine/
+grep -rE '\bentities\.get\("[^"]+"\)' godot/scripts/engine/
 ```
 
 ### Invariant #2: No semantic effect types
@@ -40,7 +40,7 @@ heal, attack as effect `type` strings.
 
 ```bash
 grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|advance_stage)' \
-  archetypes/core/templates/godot/scripts/engine/
+  godot/scripts/engine/
 ```
 
 The canonical list of allowed effect types lives in
@@ -54,7 +54,7 @@ Forbidden: `extends Entity`, `class_name Agent extends Node`, etc.
 
 ```bash
 grep -rE 'extends Entity|class_name (Agent|Item|Projectile|Building)' \
-  archetypes/core/templates/godot/scripts/engine/
+  godot/scripts/engine/
 ```
 
 ### Invariant #5: Queries are first-class
@@ -63,7 +63,7 @@ Forbidden: shortcut helpers that bypass QueryLib for entity lookups.
 
 ```bash
 grep -rE 'for [a-z_]+ in [a-z_]+\.values\(\):.*has_tag' \
-  archetypes/core/templates/godot/scripts/engine/
+  godot/scripts/engine/
 ```
 
 ### Invariant #8: Engine = primitives + interpreter
@@ -220,5 +220,5 @@ is not recoverable without massive refactoring.
 - `docs/adr/README.md` — ADR format + when-to-write
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
 - `.claude/rules/engine-scripts.md` — path-scoped rules for engine
-- `archetypes/core/templates/godot/scripts/engine/tests/test_runner.gd` —
+- `godot/scripts/engine/tests/test_runner.gd` —
   the test suite

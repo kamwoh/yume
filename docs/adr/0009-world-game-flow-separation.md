@@ -261,9 +261,9 @@ the current `levels/<name>/world_rules.json` path; rename to
 
 **Updates needed**:
 
-- `archetypes/core/templates/godot/scripts/engine/world.gd` — multi-
+- `godot/scripts/engine/world.gd` — multi-
   file loader; variant overlay; new path resolution
-- `archetypes/core/templates/godot/scripts/engine/game_shell.gd` —
+- `godot/scripts/engine/game_shell.gd` —
   audio_cue interception; string substitution
 - `docs/30_framework_primitives.md` — document the new layout
 - `.claude/rules/data-demo.md` — schema rules updated

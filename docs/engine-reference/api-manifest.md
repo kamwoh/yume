@@ -1,8 +1,8 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-05-06T14:52:17+00:00_
-_Source: `archetypes/core/templates/godot/scripts/engine`_
+_Generated: 2026-05-06T15:15:25+00:00_
+_Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
 Agents (`yume-content-designer`, `yume-systems-designer`, `yume-tech-director`)

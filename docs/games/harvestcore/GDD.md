@@ -414,7 +414,7 @@ tech-director approval and an ADR.
 - [ ] This GDD approved by user
 - [ ] Passed to `yume-systems-designer` with path
       `/home/kamwoh/yume/docs/games/harvestcore/GDD.md`
-- [ ] Content-designer reference: `archetypes/core/templates/godot/data/demo_farming/`
+- [ ] Content-designer reference: `godot/data/demo_farming/`
   as entity JSON shape reference
 
 _Respects framework invariants #1–#8 from `docs/30_framework_primitives.md`:_

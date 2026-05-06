@@ -34,7 +34,7 @@ When upgrading Godot, audit:
 
 WSL-side scripts launch the Windows binary against Windows-side project
 paths (`C:/Users/.../YumeTemplate`). The framework template at
-`~/yume/archetypes/core/templates/godot/` is the source of truth and
+`~/yume/godot/` is the source of truth and
 gets `cp`'d into the YumeTemplate project for runtime testing.
 
 ## Verifying

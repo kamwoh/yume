@@ -373,10 +373,10 @@ content-designer + systems-designer + game-rules-designer write JSON
 - `docs/30_framework_primitives.md` — engine primitives (state_add,
   state_set, state_clamp, transform, spawn) cover all resource flow
 - `docs/32_mda_for_yume.md` — aesthetic vocabulary
-- `archetypes/core/templates/godot/data/demo_harvestcore/` — multi-
+- `godot/data/demo_harvestcore/` — multi-
   currency game (gold + crops + relationships) — read for working
   patterns
-- `archetypes/core/templates/godot/data/demo_towerdef3d/` — clean TD
+- `godot/data/demo_towerdef3d/` — clean TD
   economy (single currency, build/upgrade costs)
-- `archetypes/core/templates/godot/data/demo_rpg/` — XP / level / gold
+- `godot/data/demo_rpg/` — XP / level / gold
   progression curves

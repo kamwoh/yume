@@ -1,6 +1,6 @@
 ---
 description: Path-scoped rules for Yume engine code
-globs: archetypes/core/templates/godot/scripts/engine/**
+globs: godot/scripts/engine/**
 ---
 
 # Engine scripts — invariants
@@ -53,7 +53,7 @@ before merging — anything matching is a regression:
 
 ```bash
 grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|advance_stage)' \
-  archetypes/core/templates/godot/scripts/engine/
+  godot/scripts/engine/
 ```
 
 Should return zero matches.

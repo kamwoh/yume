@@ -33,7 +33,7 @@ Skill loads into orchestrator main context (no subagent spawn).
 
 ## Outputs you produce
 
-Files in `archetypes/core/templates/godot/data/<game-name>/`:
+Files in `godot/data/<game-name>/`:
 
 - `entities/` — directory of per-def JSON files. Each per-def file
   contains `{"definitions": [{...one def...}]}`. A `zz_instances.json`
@@ -386,8 +386,8 @@ this prompt may drift; the manifest does not.
 - `.claude/rules/data-demo.md` — schema authoring rules (read first)
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
 - `docs/30_framework_primitives.md` — full primitive vocabulary
-- `archetypes/core/templates/godot/scripts/engine/rule.gd` — what
+- `godot/scripts/engine/rule.gd` — what
   Rule.validate_all checks
-- `archetypes/core/templates/godot/data/demo_*/` — pattern library
-- `archetypes/core/templates/godot/data/shapes.json` — Tier 2 visual
+- `godot/data/demo_*/` — pattern library
+- `godot/data/shapes.json` — Tier 2 visual
   catalog (composite shapes with param overrides)

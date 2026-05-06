@@ -27,10 +27,10 @@ cat ~/yume/.claude/rules/data-demo.md
 
 | File | Globs | What it enforces |
 |---|---|---|
-| `engine-scripts.md` | `archetypes/core/templates/godot/scripts/engine/**` | No semantic effects, no genre code, no entity-class hierarchy |
-| `data-demo.md` | `archetypes/core/templates/godot/data/**` | Schema discipline, formula whitelist, no hardcoded engine paths |
+| `engine-scripts.md` | `godot/scripts/engine/**` | No semantic effects, no genre code, no entity-class hierarchy |
+| `data-demo.md` | `godot/data/**` | Schema discipline, formula whitelist, no hardcoded engine paths |
 | `docs.md` | `docs/**` | Primitive changes need ADRs; contract doc is load-bearing |
-| `tests.md` | `archetypes/core/templates/godot/scripts/engine/tests/**` | Tests ship with phase, no fixture-specific engine code |
+| `tests.md` | `godot/scripts/engine/tests/**` | Tests ship with phase, no fixture-specific engine code |
 
 Each rule file links back to relevant **invariants** from
 `docs/30_framework_primitives.md`. If a rule and an invariant ever conflict,

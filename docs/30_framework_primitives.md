@@ -925,7 +925,7 @@ Git preserves the old code. Tier 3 work rebuilds agent-side from the new primiti
 ## File layout after redesign
 
 ```
-archetypes/core/templates/godot/
+godot/
 ├── scripts/
 │   ├── engine/                       ← all 7 primitives live here
 │   │   ├── entity.gd                 ← Entity node (generic, no subclasses)

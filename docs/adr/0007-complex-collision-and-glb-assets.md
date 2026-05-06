@@ -96,8 +96,8 @@ New visual mode. Engine loads the GLTF asset via Godot's
 the file). The instantiated mesh is parented to the entity's
 visual node alongside any other visual primitives.
 
-`.glb` files live under `archetypes/core/templates/godot/data/<game>/meshes/`
-or a shared `archetypes/core/templates/godot/meshes/` library.
+`.glb` files live under `godot/data/<game>/meshes/`
+or a shared `godot/meshes/` library.
 Path follows the same convention as PNG sprites today.
 
 **2D renderer fallback**: `visual.glb` is 3D-only — the 3D renderer
@@ -187,10 +187,10 @@ Resolution order:
 - `docs/engine-reference/api-manifest.json` — auto-regen after
   engine work to surface the new fields in the canonical
   vocabulary list.
-- `archetypes/core/templates/godot/scripts/engine/motion_integrator.gd`
+- `godot/scripts/engine/motion_integrator.gd`
   (or wherever the swept-AABB check lives) — iterate over
   `aabb_volumes`, fall through to `aabb_extents` for legacy.
-- New module: `archetypes/core/templates/godot/scripts/engine/glb_collision.gd`
+- New module: `godot/scripts/engine/glb_collision.gd`
   — at level-load, walk new entities, derive collision from
   `visual.glb` per `collision_mode`, populate runtime
   `aabb_volumes`. Hooks into `World._load_entities_path`.
@@ -202,7 +202,7 @@ Resolution order:
 - `.claude/skills/yume-content-designer/SKILL.md` — add
   `aabb_volumes` to the schema doc; default `collision_mode` is
   not authored (let engine decide).
-- `archetypes/core/templates/godot/scripts/engine/tests/test_runner.gd`
+- `godot/scripts/engine/tests/test_runner.gd`
   — new test sections: `test_aabb_volumes`,
   `test_glb_auto_decomp`, `test_concave_mode`.
 

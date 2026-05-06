@@ -11,7 +11,7 @@ JSON-driven game framework on Godot 4. The engine ships seven primitives
 ./scripts/play.sh doomarena3d   # FPS arena
 ```
 
-Demos live under `archetypes/core/templates/godot/data/demo_<name>/`.
+Demos live under `godot/data/demo_<name>/`.
 
 ## Generate a new game
 
@@ -28,7 +28,7 @@ game under `data/demo_<slug>/`.
 
 ## Architecture
 
-- `archetypes/core/templates/godot/` — engine + demos (the live framework)
+- `godot/` — engine + demos (the live framework)
 - `docs/30_framework_primitives.md` — the contract
 - `docs/adr/` — architectural decisions
 - `.claude/skills/yume-*/` — 28 specialist skills

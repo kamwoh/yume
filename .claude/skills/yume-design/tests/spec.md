@@ -40,11 +40,11 @@ harvests crops when ripe, ties them into a counter"
 **Expected outputs (per ADR 0009):**
 - `docs/games/farming-sim/GDD.md` (or similar slug)
 - `docs/games/farming-sim/rules-sketch.md`
-- `archetypes/core/templates/godot/data/demo_farming-sim/entities/` or `entities.json`
-- `archetypes/core/templates/godot/data/demo_farming-sim/world/physics.json`
-- `archetypes/core/templates/godot/data/demo_farming-sim/game/rules.json` (if game has scoring/win)
-- `archetypes/core/templates/godot/data/demo_farming-sim/scene.json`
-- `archetypes/core/templates/godot/scenes/farming-sim_2d.tscn`
+- `godot/data/demo_farming-sim/entities/` or `entities.json`
+- `godot/data/demo_farming-sim/world/physics.json`
+- `godot/data/demo_farming-sim/game/rules.json` (if game has scoring/win)
+- `godot/data/demo_farming-sim/scene.json`
+- `godot/scenes/farming-sim_2d.tscn`
 - `docs/games/farming-sim/qa-report.md`
 
 **Schema checks:**

@@ -8,13 +8,13 @@ Yume's `/yume-design` pipeline as the first empirical test of flow B.
 - [GDD](./GDD.md) — game design document (game-designer agent output)
 - [rules-sketch.md](./rules-sketch.md) — primitive-vocabulary rule sketches (systems-designer)
 - [qa-report.md](./qa-report.md) — empirical QA verdict + harness gaps discovered
-- `../../archetypes/core/templates/godot/data/demo_harvestcore/` — JSON content
-- `../../archetypes/core/templates/godot/scenes/harvestcore_2d.tscn` — Godot scene
+- `../../godot/data/demo_harvestcore/` — JSON content
+- `../../godot/scenes/harvestcore_2d.tscn` — Godot scene
 
 ## Run it
 
 ```bash
-godot --path archetypes/core/templates/godot scenes/harvestcore_2d.tscn
+godot --path godot scenes/harvestcore_2d.tscn
 ```
 
 ## Pipeline summary

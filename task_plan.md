@@ -1073,7 +1073,7 @@ representations beat raw-trace consumption on long-horizon tasks.
   buildings, terrain ground sampling, Kenney asset pipeline.
 - Rules engine with semantic effects (will be replaced with generic ones).
 - SimPos adapter, Vector2 as the contract for sim logic.
-- Dimension-agnostic template restructure (`archetypes/core/templates/godot/`).
+- Dimension-agnostic template restructure (`godot/`).
 
 These accomplishments proved the ideas work. The **code** is being rewritten
 against the new primitive contract; the **lessons** (especially around JSON
@@ -1218,7 +1218,7 @@ the user's stated priority: *"always the best one, doesn't matter the cost."*
 ## Dev loop
 
 **During 2D-track work:**
-- Edit framework in `~/yume/archetypes/core/templates/godot/`
+- Edit framework in `~/yume/godot/`
 - `cp` to 2D test instance (to be set up in W1.9)
 - Run Godot via `gl_compatibility`
 - Check console + captured frame — use `visual-qa` skill for unbiased reads

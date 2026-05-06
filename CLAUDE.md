@@ -35,7 +35,7 @@ yume/
 ├── .claude/                            ← Skills + rules + settings
 │   ├── skills/yume-*/SKILL.md          (28 specialist skills, Tier 2.6)
 │   └── rules/                          (path-scoped invariants)
-├── archetypes/core/templates/godot/    ← THE ENGINE + DEMOS (active)
+├── godot/    ← THE ENGINE + DEMOS (active)
 │   ├── data/demo_<name>/               (per-game JSON content)
 │   │   ├── entities/                   (definitions + initial instances)
 │   │   ├── world/physics.json          (world physics rules — ADR 0009)
@@ -92,9 +92,9 @@ is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
 
 | Edit | Path |
 |---|---|
-| Engine logic | `archetypes/core/templates/godot/scripts/engine/*.gd` |
-| Game content | `archetypes/core/templates/godot/data/demo_<name>/*.json` |
-| Scene launcher | `archetypes/core/templates/godot/scenes/<name>_2d.tscn` |
+| Engine logic | `godot/scripts/engine/*.gd` |
+| Game content | `godot/data/demo_<name>/*.json` |
+| Scene launcher | `godot/scenes/<name>_2d.tscn` |
 | New ADR | `docs/adr/NNNN-<title>.md` |
 | Skill instructions | `.claude/skills/yume-*/SKILL.md` |
 
@@ -124,12 +124,12 @@ yume-juice-designer.
 
 ```bash
 # Sync framework to Godot test project + run unit tests
-cp -r archetypes/core/templates/godot/. /mnt/c/.../YumeTemplate/
+cp -r godot/. /mnt/c/.../YumeTemplate/
 godot --headless --path C:/.../YumeTemplate scenes/test_main.tscn
 ```
 
 Should report `passed: NN  failed: 0  total: NN`. Test source:
-`archetypes/core/templates/godot/scripts/engine/tests/test_runner.gd`.
+`godot/scripts/engine/tests/test_runner.gd`.
 
 Per-game scenario tests:
 ```bash
@@ -188,10 +188,10 @@ When editing files matching certain globs, **read the corresponding rule first**
 
 | File pattern | Rule file |
 |---|---|
-| `archetypes/core/templates/godot/scripts/engine/**` | `.claude/rules/engine-scripts.md` |
-| `archetypes/core/templates/godot/data/**` | `.claude/rules/data-demo.md` |
+| `godot/scripts/engine/**` | `.claude/rules/engine-scripts.md` |
+| `godot/data/**` | `.claude/rules/data-demo.md` |
 | `docs/**` | `.claude/rules/docs.md` |
-| `archetypes/core/templates/godot/scripts/engine/tests/**` | `.claude/rules/tests.md` |
+| `godot/scripts/engine/tests/**` | `.claude/rules/tests.md` |
 
 See `.claude/rules/README.md` for the index.
 

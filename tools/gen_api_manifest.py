@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-ENGINE_DIR = REPO / "archetypes" / "core" / "templates" / "godot" / "scripts" / "engine"
+ENGINE_DIR = REPO / "godot" / "scripts" / "engine"
 OUTPUT_DIR = REPO / "docs" / "engine-reference"
 JSON_OUT = OUTPUT_DIR / "api-manifest.json"
 MD_OUT = OUTPUT_DIR / "api-manifest.md"

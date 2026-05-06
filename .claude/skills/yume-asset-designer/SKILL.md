@@ -267,7 +267,7 @@ Convention: art is drawn facing right; flip happens when moving west.
 
 - `docs/30_framework_primitives.md` § "Composition examples"
 - `docs/31_text_to_game_pipeline.md` § "Asset layer"
-- `archetypes/core/templates/godot/data/shapes.json` — stock 2D shapes
-- `archetypes/core/templates/godot/data/meshes.json` — stock 3D meshes
-- `archetypes/core/templates/godot/scripts/renderer_2d/entity_sprite_2d.gd` —
+- `godot/data/shapes.json` — stock 2D shapes
+- `godot/data/meshes.json` — stock 3D meshes
+- `godot/scripts/renderer_2d/entity_sprite_2d.gd` —
   three-tier fallback logic

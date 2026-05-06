@@ -94,6 +94,6 @@ early. Killed in favor of W5.0 promotion.
 - `docs/30_framework_primitives.md` § "Tick ordering" + invariant #3
 - `docs/timeline/entries/16_renderer_3d_promoted.js` — W5.0 promotion
 - `docs/timeline/entries/17_renderer_3d_review_fixes.js` — review that surfaced this debt
-- `archetypes/core/templates/godot/scripts/engine/entity.gd` — implementation
-- `archetypes/core/templates/godot/scripts/engine/tests/test_runner.gd::test_renderer_agnostic`
+- `godot/scripts/engine/entity.gd` — implementation
+- `godot/scripts/engine/tests/test_runner.gd::test_renderer_agnostic`
 - Commit `a766186` (W1.14 through W5.1 landing)

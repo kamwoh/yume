@@ -15,7 +15,7 @@ subagent spawn).
 
 ## Inputs you accept
 
-- A data folder at `archetypes/core/templates/godot/data/<game-name>/`
+- A data folder at `godot/data/<game-name>/`
   with entities.json + world_rules.json (+ optional world.json,
   asset_gen.json, asset_catalog.json)
 - The GDD at `docs/games/<game-name>/GDD.md` (for "intended dynamics")
@@ -74,7 +74,7 @@ What content-designer / systems-designer should fix before re-testing.
 1. **Sync framework to test project:**
 
 ```bash
-cp -r ~/yume/archetypes/core/templates/godot/. \
+cp -r ~/yume/godot/. \
   /mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate/
 ```
 
@@ -324,9 +324,9 @@ A game passes QA when:
 - `docs/30_framework_primitives.md` § "Tick ordering" — semantic
   identity (helps debug timing-related bugs)
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
-- `archetypes/core/templates/godot/scripts/engine/world.gd` —
+- `godot/scripts/engine/world.gd` —
   `_print_tick_summary` shape (the verbose output you'll read)
-- `archetypes/core/templates/godot/scripts/engine/engine_error.gd` —
+- `godot/scripts/engine/engine_error.gd` —
   structured error record shape (Tier 2.6a)
-- `archetypes/core/templates/godot/scripts/engine/tests/test_runner.gd` —
+- `godot/scripts/engine/tests/test_runner.gd` —
   the test suite

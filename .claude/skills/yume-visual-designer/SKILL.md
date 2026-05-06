@@ -360,11 +360,11 @@ Polish has diminishing returns; don't loop forever.
   rubric)
 - `docs/games/<game>/level-design.md` — spatial intent (informs Axis
   4 layout assessment)
-- `archetypes/core/templates/godot/data/<game>/entities/*.json` —
+- `godot/data/<game>/entities/*.json` —
   visual fields you'll propose edits to
-- `archetypes/core/templates/godot/data/shapes.json` — shared shape
+- `godot/data/shapes.json` — shared shape
   library; sometimes the right fix is "use a different shape"
-- `archetypes/core/templates/godot/data/meshes.json` — 3D composites
+- `godot/data/meshes.json` — 3D composites
   (for 3D games)
 - `captures/` — reference artifacts (compare against past runs to
   see if visual quality regressed)

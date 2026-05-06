@@ -307,5 +307,5 @@ modal stacking depth.
   effects used by save buttons
 - docs/adr/0013-settings-schema-and-config.md — settings_renderer
   element type composition
-- archetypes/core/templates/godot/data/demo_*/hud.json — existing HUD
+- godot/data/demo_*/hud.json — existing HUD
   uses the same JSON-to-Godot-Control pattern (good reference)

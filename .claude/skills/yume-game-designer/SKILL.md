@@ -188,5 +188,5 @@ A GDD that:
 - `docs/31_text_to_game_pipeline.md` — your role in the broader pipeline
 - `docs/adr/0001-seven-primitives.md` — the engine's vocabulary
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
-- `archetypes/core/templates/godot/data/demo_*/` — existing demos as
+- `godot/data/demo_*/` — existing demos as
   reference for what's been done before

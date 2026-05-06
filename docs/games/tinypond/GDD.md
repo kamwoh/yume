@@ -104,7 +104,7 @@ recovery).
 - [x] Open questions Q1-Q4 documented with autonomous-mode recommendations
 - [ ] Pass to `yume-systems-designer` with path
       `/home/kamwoh/yume/docs/games/tinypond/GDD.md`
-- [ ] Reference: `archetypes/core/templates/godot/data/demo_ecology/` for
+- [ ] Reference: `godot/data/demo_ecology/` for
       smallest-similar simulation pattern
 
 ## Rule count target

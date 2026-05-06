@@ -1,6 +1,6 @@
 ---
 description: Path-scoped rules for Yume engine tests
-globs: archetypes/core/templates/godot/scripts/engine/tests/**
+globs: godot/scripts/engine/tests/**
 ---
 
 # Tests — ship-with-phase invariant
@@ -69,7 +69,7 @@ func test_my_new_thing() -> void:
 
 Then sync to the test project and run:
 ```bash
-cp -r ~/yume/archetypes/core/templates/godot/. /mnt/c/.../YumeTemplate/
+cp -r ~/yume/godot/. /mnt/c/.../YumeTemplate/
 godot --headless --path C:/Users/.../YumeTemplate scenes/test_main.tscn
 ```
 

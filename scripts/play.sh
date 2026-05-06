@@ -66,7 +66,7 @@ GAME_NAME="${GAME_NAME:-tinypond}"
 DATA_FOLDER="demo_${GAME_NAME}"
 
 YUME_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TEMPLATE_SRC="${YUME_ROOT}/archetypes/core/templates/godot"
+TEMPLATE_SRC="${YUME_ROOT}/godot"
 TEMPLATE_DST="/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate"
 GODOT_BIN="/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe"
 

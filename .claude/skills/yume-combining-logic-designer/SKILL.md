@@ -406,7 +406,7 @@ GDD mentions a combining mechanic.
 
 - `docs/30_framework_primitives.md` — what the engine can express
 - `docs/32_mda_for_yume.md` — aesthetic vocabulary
-- `archetypes/core/templates/godot/data/demo_ecology_deep/` — has
+- `godot/data/demo_ecology_deep/` — has
   smelting + transform chains, useful pattern reference
-- `archetypes/core/templates/godot/data/demo_harvestcore/` — has
+- `godot/data/demo_harvestcore/` — has
   cooking + planting (close to combining — read for tag patterns)

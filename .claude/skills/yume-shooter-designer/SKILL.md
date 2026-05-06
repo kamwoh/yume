@@ -252,5 +252,5 @@ After `yume-design` Phase 0 setup. Steps:
   (writing this GDD with that reviewer's checklist in mind speeds
   approval)
 - `.claude/skills/yume-game-designer/SKILL.md` — generic MDA scaffolder
-- `archetypes/core/templates/godot/data/demo_doomarena3d/` — example
+- `godot/data/demo_doomarena3d/` — example
   shooter content (for reference, not copy-paste)

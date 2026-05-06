@@ -425,11 +425,11 @@ the beat list to wire triggers.
   trigger, state_set, transition_level) cover most narrative
   expression
 - `docs/32_mda_for_yume.md` — aesthetic vocabulary
-- `archetypes/core/templates/godot/data/demo_doomarena3d/` — multi-
+- `godot/data/demo_doomarena3d/` — multi-
   level campaign with chamber-clear beats (good linear-narrative
   reference)
-- `archetypes/core/templates/godot/data/demo_harvestcore/` — life
+- `godot/data/demo_harvestcore/` — life
   sim with NPC schedules + relationship arcs (slice-of-life
   reference)
-- `archetypes/core/templates/godot/data/demo_sokoban/` — pure
+- `godot/data/demo_sokoban/` — pure
   level-progression, minimal narrative (simplest beat structure)

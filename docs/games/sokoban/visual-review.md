@@ -65,35 +65,35 @@ Ordered by impact. All philosophy-preserving (LLM-authorable JSON edits, no huma
 
 ### 1. Recolor player from cool blue to warm sepia (severity: **major**)
 
-- **File**: `archetypes/core/templates/godot/data/demo_sokoban/entities/player.json`
+- **File**: `godot/data/demo_sokoban/entities/player.json`
 - **Edit**: `"params": {"radius": 12, "color": "#3aa8e8"}` → `"params": {"radius": 12, "color": "#c89058"}`
 - **Why**: Axis 3 + 7. Blue is the loudest off-theme element. Warm sepia-tan (#c89058) is in-palette (parchment-adjacent), still high-contrast against the dark walls + bg, and reads as "person in a warm-toned archive" instead of "generic blue player avatar."
 
 ### 2. Add a parchment-cream floor under the play area (severity: **major**)
 
-- **File**: `archetypes/core/templates/godot/data/demo_sokoban/entities/floor_tile.json` *(new file)*
+- **File**: `godot/data/demo_sokoban/entities/floor_tile.json` *(new file)*
 - **New def**: `floor_tile` — tag `["floor", "decoration"]`, visual `{"shape": "tile_32", "params": {"color": "#e8d8b0"}}` (parchment cream)
-- **File**: `archetypes/core/templates/godot/data/demo_sokoban/levels/level_1/entities.json`
+- **File**: `godot/data/demo_sokoban/levels/level_1/entities.json`
 - **Edit**: add 9 floor_tile instances at the inner cells (1,1)-(3,3) — positions [48,48], [80,48], [112,48], [48,80], [80,80], [112,80], [48,112], [80,112], [112,112]
 - **Why**: Axis 3 + 4 + 7. Inner play area currently shows the dark scene bg. A parchment-cream floor (a) makes the chamber read as "archive workspace" not "void," (b) fills the empty grid cells without adding mechanical clutter, (c) provides a warm light-tone that contrasts against dark oak walls — visually anchors the chamber.
 
 ### 3. Brighter brass goal + slightly larger (severity: **minor**)
 
-- **File**: `archetypes/core/templates/godot/data/demo_sokoban/entities/goal.json`
+- **File**: `godot/data/demo_sokoban/entities/goal.json`
 - **Edit**: `"params": {"radius": 8, "color": "#c0a040"}` → `"params": {"radius": 10, "color": "#dab048"}`
 - **Why**: Axis 2. Goal-vs-box are both earth-tones; brighter brass (more yellow-saturated, less brown) makes the goal pop as a "brass catalog marker" while the box reads as "oak crate." Radius 10 (slightly larger than r=8) makes the focal point more readable without dominating.
 
 ### 4. Fix HUD level label leaking raw ID (severity: **minor**)
 
-- **File**: `archetypes/core/templates/godot/data/demo_sokoban/progression.json`
+- **File**: `godot/data/demo_sokoban/progression.json`
 - **Edit**: `"levels": ["level_1"]` → `"levels": ["1"]` (or `"levels": ["I"]` for roman-numeral archive vibe)
-- **File**: `archetypes/core/templates/godot/data/demo_sokoban/levels/level_1/` directory rename to `levels/1/` (keep file contents)
+- **File**: `godot/data/demo_sokoban/levels/level_1/` directory rename to `levels/1/` (keep file contents)
 - **Alternative if rename is risky**: keep "level_1" as the folder name but add display-name mapping in HUD format string (would need engine support — defer).
 - **Why**: Axis 6. `Level: level_1` reads as debug output. `Level: 1` (or `Level: I`) reads as finished UI. The cleanest fix is renaming the level identifier itself.
 
 ### 5. Warm the HUD text to parchment cream (severity: **minor**)
 
-- **File**: `archetypes/core/templates/godot/data/demo_sokoban/hud.json`
+- **File**: `godot/data/demo_sokoban/hud.json`
 - **Edit**: HUD labels currently use default white. Add a `"color": "#f0e0c0"` field to each label element to tint them parchment.
 - *Implementation note*: requires verifying the HUD config's label-element schema supports per-element color override (most label systems do; if not, this is a small content-designer skill recommendation).
 - **Why**: Axis 6 + 7. White HUD on dark bg is fine for legibility but reads as "generic UI." Parchment-cream HUD integrates the UI into the theme — the player feels like they're reading a label on parchment, not a HUD.

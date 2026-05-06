@@ -440,10 +440,10 @@ lap / drift / kart / racing).
 
 - `docs/30_framework_primitives.md` — engine primitives covering
   velocity / facing / friction
-- `archetypes/core/templates/godot/data/demo_doomarena3d/` — closest
+- `godot/data/demo_doomarena3d/` — closest
   existing reference (free movement + facing); read the
   `velocity_add_relative` patterns
-- `archetypes/core/templates/godot/data/demo_doomarena/` — top-down
+- `godot/data/demo_doomarena/` — top-down
   movement reference
 
 ## Quality ceiling honesty

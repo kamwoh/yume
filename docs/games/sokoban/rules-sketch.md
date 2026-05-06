@@ -207,16 +207,16 @@ I'd push Option B for the long term; Option A for a one-off proof.
 
 ### Files added in v0.1
 
-- `archetypes/core/templates/godot/data/demo_sokoban/scene.json`
-- `archetypes/core/templates/godot/data/demo_sokoban/world.json`
-- `archetypes/core/templates/godot/data/demo_sokoban/inputs.json`
-- `archetypes/core/templates/godot/data/demo_sokoban/hud.json`
-- `archetypes/core/templates/godot/data/demo_sokoban/progression.json`
-- `archetypes/core/templates/godot/data/demo_sokoban/world_rules.json` (placeholder)
-- `archetypes/core/templates/godot/data/demo_sokoban/entities/{player,box,wall,goal,level_clock}.json`
-- `archetypes/core/templates/godot/data/demo_sokoban/levels/level_1/entities.json`
-- `archetypes/core/templates/godot/scenes/sokoban_2d.tscn`
-- `archetypes/core/templates/godot/data/shapes.json` (+`tile_32`, +`tile_26`, +`filled_circle`)
+- `godot/data/demo_sokoban/scene.json`
+- `godot/data/demo_sokoban/world.json`
+- `godot/data/demo_sokoban/inputs.json`
+- `godot/data/demo_sokoban/hud.json`
+- `godot/data/demo_sokoban/progression.json`
+- `godot/data/demo_sokoban/world_rules.json` (placeholder)
+- `godot/data/demo_sokoban/entities/{player,box,wall,goal,level_clock}.json`
+- `godot/data/demo_sokoban/levels/level_1/entities.json`
+- `godot/scenes/sokoban_2d.tscn`
+- `godot/data/shapes.json` (+`tile_32`, +`tile_26`, +`filled_circle`)
 - `captures/sokoban_l1_v0.1.png`
 
 ### Status

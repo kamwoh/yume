@@ -159,5 +159,5 @@ Write the ADR following `docs/adr/README.md` format.
 - `docs/adr/README.md` — ADR format + when to write
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
 - `.claude/rules/data-demo.md` — JSON authoring rules
-- `archetypes/core/templates/godot/data/demo_*/` — existing demos as
+- `godot/data/demo_*/` — existing demos as
   pattern library

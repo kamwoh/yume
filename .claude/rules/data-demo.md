@@ -1,6 +1,6 @@
 ---
 description: Path-scoped rules for Yume demo data folders
-globs: archetypes/core/templates/godot/data/**
+globs: godot/data/**
 ---
 
 # Demo data — schema discipline
