@@ -1,194 +1,175 @@
-# Yume (夢) — Game Development Framework
+# Yume (夢) — JSON-driven game framework on Godot
 
-You are helping build an RPG game using the Yume framework. Yume provides reusable components, knowledge, and tools for creating 2D RPGs in Godot 4.
+You are working on **Yume**: a JSON-declarative content layer over Godot
+4.6.1 that lets non-programmers (and LLMs) generate working games without
+writing GDScript per-game. Per ADR 0021, the engine ships a fixed verb
+set (the "seven primitives" + a small interpreter); each game's mechanics
+are pure JSON.
 
 ## Quick Start
 
-To create a new RPG game project:
+To run an existing demo:
 
 ```bash
-pip install yume
-yume init my-game
-# Then open my-game/ in Godot 4.x and press F5
+./scripts/play.sh sokoban       # play sokoban
+./scripts/play.sh tinypond      # ecology sandbox
+./scripts/play.sh doomarena3d   # FPS arena
+
+# With auto-capture (3s) for visual QA:
+./scripts/play.sh sokoban --capture
 ```
 
-Or manually: copy `archetypes/rpg/templates/godot/` into a new Godot project, then add your game data to `data/`.
+To generate a new game from a prose pitch:
 
-## Framework Structure
+```
+/yume-design "a roguelike where vampires steal HP from light sources" --autonomous
+```
+
+The `/yume-design` skill orchestrates the text → GDD → world plan → level
+design → rules → JSON → assets → QA pipeline.
+
+## Framework structure
 
 ```
 yume/
-├── core/docs/              ← Game dev fundamentals (read first)
-├── archetypes/core/
-│   └── templates/godot_3d/ ← GENERIC 3D engine (shared by all game types)
-│       └── scripts/        ← 13 GDScripts: brain, entity, camera, combat, minimap, etc.
-├── archetypes/rpg/
-│   ├── templates/godot/    ← 2D RPG engine (party, quests, dialogue, ATB combat)
-│   │   ├── scripts/        ← GDScript RPG engine
-│   │   ├── scenes/         ← Main scene
-│   │   └── project.godot   ← Godot config with autoloads
-│   ├── data/examples/ff9/  ← Reference game data
-│   ├── docs/               ← RPG-specific knowledge
-│   ├── prompts/            ← LLM prompt templates for content generation
-│   ├── schemas/            ← Data format definitions
-│   └── lessons/            ← Known pitfalls and solutions
-├── core/validator/         ← Post-generation project checks
-├── tools/                  ← Testing & utility tools
-│   ├── validate_game_data.py    ← Data integrity checker
-│   ├── test_game_systems.py     ← Game system tests (party, quests, combat)
-│   └── simulate_playthrough.py  ← Automated full playthrough simulation
-└── examples/ff9/           ← Complete example (story + GDD + art bible)
+├── .claude/                            ← Skills + rules + settings
+│   ├── skills/yume-*/SKILL.md          (28 specialist skills, Tier 2.6)
+│   └── rules/                          (path-scoped invariants)
+├── archetypes/core/templates/godot/    ← THE ENGINE + DEMOS (active)
+│   ├── data/demo_<name>/               (per-game JSON content)
+│   │   ├── entities/                   (definitions + initial instances)
+│   │   ├── world/physics.json          (world physics rules — ADR 0009)
+│   │   ├── game/rules.json             (game logic — win/score/transition)
+│   │   ├── game/flow.json              (multi-level progression — ADR 0006)
+│   │   ├── levels/<n>/                 (per-level entities + rules)
+│   │   ├── world/state.json            (initial world_state)
+│   │   ├── audio/cues.json             (semantic-event → SFX mapping)
+│   │   ├── ui/strings.json             (localizable text)
+│   │   ├── scene.json                  (camera + bounds + tick_seconds)
+│   │   ├── hud.json                    (HUD elements)
+│   │   ├── screens.json                (title/pause/etc. — ADR 0011, optional)
+│   │   ├── save_policy.json            (what persists — ADR 0010, optional)
+│   │   └── tutorial.json               (overlay sequencing — ADR 0012, optional)
+│   ├── scripts/engine/                 (engine: rule, query, effect, scheduler, etc.)
+│   ├── scenes/                         (per-game .tscn launchers + universal play.tscn)
+│   └── project.godot
+├── docs/                               ← Documentation (active)
+│   ├── 30_framework_primitives.md      (the contract — invariant-bearing)
+│   ├── 31_text_to_game_pipeline.md     (Tier 2.5 strategic plan)
+│   ├── 32_mda_for_yume.md              (Mechanics → Dynamics → Aesthetics)
+│   ├── adr/NNNN-*.md                   (architecture decisions)
+│   ├── engine-reference/               (api manifest, Godot pinning)
+│   ├── games/<name>/                   (per-game GDDs, plans, reviews)
+│   └── timeline/                       (decision diary)
+├── scripts/play.sh                     ← Run a demo (sync + launch)
+├── tools/gen_api_manifest.py           ← Regenerate engine API manifest
+├── task_plan.md                        ← Durable backlog
+└── CLAUDE.md (this file)
 ```
 
-## How the Engine Works
+## How the engine works
 
-The RPG engine uses a **runtime data-driven architecture**:
-- ONE main scene with a Player, Camera, UI, and LocationRoot
-- **LocationManager** reads JSON from `data/locations/` and spawns everything at runtime
-- ALL game content lives in `data/*.json` — characters, items, enemies, quests, dialogues
-- Scene transitions = destroy old objects → load new location JSON → spawn new objects
-- No editor scripting needed — just data files + the engine scripts
+Yume is **primitives + interpreter** (Invariant #8). The engine ships a
+fixed vocabulary in GDScript; all game-specific behavior lives in JSON.
 
-## Key Data Files
+**Seven primitives** (ADR 0001):
 
-| File | What it defines |
-|------|----------------|
-| `data/characters.json` | All characters (party + NPCs + bosses) with stats, abilities |
-| `data/items.json` | All items (consumables, weapons, armor, key items) |
-| `data/enemies.json` | All enemies with stats, abilities, drop tables |
-| `data/quests.json` | All quests with steps, triggers, rewards |
-| `data/dialogues.json` | All dialogue sequences |
-| `data/progression.json` | Starting party, starting location, level curve |
-| `data/locations/*.json` | Rich per-location data (layout, props, NPCs, atmosphere) |
+1. **Entity** — JSON dict with id, tags, properties, state, position
+2. **Tag** — string membership label (no class hierarchy)
+3. **Rule** — `{trigger, query, effect}` triple
+4. **Trigger** — when (tick / contact / signal / input / spawn / despawn / relation_changed)
+5. **Effect** — what (state_set / spawn / remove / transform / relate / velocity_set / emit / ... — full list in `docs/engine-reference/api-manifest.json`)
+6. **Query** — entities matching tags + state + radius + relations
+7. **Relation** — typed directed edge between entities
 
-## Creating a New Game
+**ADR 0021** (foundational): Yume = JSON layer over Godot. Engine never
+reimplements what Godot already does well — it EXPOSES Godot's
+capabilities through JSON-declarative primitives. Each new capability
+is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
+0010 for FileAccess+JSON, future ADR 0022 for PhysicsServer3D).
 
-1. **Write or generate game data** — fill in the JSON files above
-2. **Use prompt templates** in `archetypes/rpg/prompts/` to generate data from a story:
-   - `pass1_structure.md` — Story → characters, locations, plot
-   - `pass2_content.md` — → quests, items, enemies, dialogues
-   - `pass3_balance.md` — → stat balancing
-   - `pass4_locations.md` — → rich location design
-3. **Validate** — run `python core/validator/validator.py <project_path>`
+## Key files for editing
 
-## RPG Systems Included
+| Edit | Path |
+|---|---|
+| Engine logic | `archetypes/core/templates/godot/scripts/engine/*.gd` |
+| Game content | `archetypes/core/templates/godot/data/demo_<name>/*.json` |
+| Scene launcher | `archetypes/core/templates/godot/scenes/<name>_2d.tscn` |
+| New ADR | `docs/adr/NNNN-<title>.md` |
+| Skill instructions | `.claude/skills/yume-*/SKILL.md` |
 
-| System | Script | What it does |
-|--------|--------|-------------|
-| Location Manager | `scripts/autoload/location_manager.gd` | Loads locations from JSON, spawns objects, handles transitions |
-| Dialogue | `scripts/autoload/dialogue_manager.gd` + `scripts/ui/dialogue_ui.gd` | Typewriter text, branching choices, quest triggers |
-| Party | `scripts/autoload/party_manager.gd` | Party stats, level up, XP |
-| Inventory | `scripts/autoload/inventory_manager.gd` | Items, equipment, use/equip |
-| Quests | `scripts/autoload/quest_manager.gd` | Quest tracking, triggers, rewards, chain progression |
-| Combat | `scripts/autoload/battle_manager.gd` + `scripts/ui/battle_ui.gd` | ATB battle system, damage calc, enemy AI |
-| Shops | `scripts/ui/shop_ui.gd` | Buy/sell with themed UI |
-| Save/Load | `scripts/autoload/save_manager.gd` | 3 save slots, full state persistence |
-| UI Theme | `scripts/autoload/ui_theme.gd` | Consistent styled panels, colors, fonts |
-| HUD | `scripts/ui/hud.gd` | Location name, gil, party HP, quest objective |
-| Menu | `scripts/ui/menu.gd` | Party stats, inventory, save/load |
+## Creating a new game
 
-## Known Pitfalls (from lessons/)
-
-- GDScript `var` in if/else branches shares function scope — use unique names
-- `:=` type inference fails with `max()`, `instantiate()`, dictionary access — use explicit types
-- `process_mode = PROCESS_MODE_ALWAYS` needed for UI that works while paused
-- ATB fill rate of 30 is too slow — use 100 for playable speed
-- Location JSON must have `"layout"` key for rich rendering (falls back to simple mode without it)
-- Boss encounters trigger via quest steps with `defeat:enemy_id` triggers
-
-## Yume Design Principles
-
-### 1. Data drives everything
-All game content is JSON. The engine never changes — only the data does.
 ```
-game_state.json  → story flow (cutscenes, party joins, bosses)
-locations/*.json → visual rooms (layout, props, treasures, NPCs)
-characters.json  → party members and NPCs
-items/enemies/quests.json → gameplay content
+/yume-design "<prose pitch>" --name=<slug> --autonomous
 ```
 
-### 2. Asset abstraction layers
-ALL visuals AND audio go through abstraction layers. Engine auto-detects files:
-```
-Visual:  visual_helpers.gd checks sprites/ → uses image if exists, code-drawn if not
-Audio:   audio_manager.gd checks audio/   → plays if exists, silent if not
-3D:      swap visual_helpers.gd for 3D version → same data, different renderer
-```
-Asset folders (drop files here, engine auto-detects):
-```
-sprites/characters/{id}.png     audio/bgm/{mood}.ogg
-sprites/npcs/{name}.png         audio/sfx/{action}.ogg
-sprites/props/{type}.png        audio/ambience/{type}.ogg
-sprites/enemies/{id}.png        audio/voice/{character}/{line}.ogg
-```
-JSON data contains generation prompts for each asset (pass5_assets.md):
-```
-characters.json  → sprite_prompts, portrait_prompt, voice_prompt, battle_sfx_prompts
-locations/*.json → atmosphere.bgm_prompt, ambience_prompt, ambience_layers
-enemies.json     → sfx_prompts (appear, attack, hurt, death)
-game_state.json  → per-phase bgm_override, bgm_prompt, sfx_cues
-```
+This orchestrates:
+1. yume-game-designer → GDD
+2. yume-game-reviewer → 13-axis depth review
+3. yume-game-planner → world plan (named NPCs, items, events)
+4. yume-level-designer → spatial layout with coordinates
+5. yume-systems-designer → world physics rule sketches
+6. yume-game-rules-designer → win/lose/scoring rules
+7. yume-content-designer → JSON content
+8. yume-asset-designer → visual + audio fields
+9. yume-qa-tester → headless cascade verification + visual capture
 
-### 3. Story state machine
-`game_state.json` is the single source of truth for story flow. Locations are visual-only.
-```
-game_state.json phases → triggers (reach/defeat) → cutscenes, party joins, flags, exits
-locations/*.json       → layout, props, treasures, ambient NPCs (no story logic)
-```
+For "complete game" tier (shell, save, tutorial, settings, audio,
+juice), additional skills compose: yume-screen-flow-designer,
+yume-save-policy-designer, yume-tutorial-designer, yume-audio-designer,
+yume-juice-designer.
 
-### 4. Test-driven game development
-```
-yume test → data validation + system tests + full playthrough simulation + Godot headless
-```
-If tests pass, the game works. Generated data is verified automatically.
-
-## Modifying the Engine
-
-The scripts are plain GDScript — edit them directly:
-- **Change combat** → edit `battle_manager.gd` (damage formulas, AI behavior)
-- **Change UI** → edit `ui_theme.gd` (colors, sizes) or individual UI scripts
-- **Change visuals** → edit `visual_helpers.gd` or drop sprites in `sprites/` folder
-- **Add new systems** → create new autoload script, register in `project.godot`
-- **Change movement** → edit `player_controller.gd`
-
-## Testing Your Game
-
-Yume includes a 4-layer automated test suite. Run after every content change:
+## Running tests
 
 ```bash
-# Full test suite (data + systems + playthrough)
-yume test /path/to/your-game/
-
-# Individual layers
-yume test /path/to/your-game/ -l data         # JSON integrity, refs, density
-yume test /path/to/your-game/ -l systems      # Party, quests, combat, shops
-yume test /path/to/your-game/ -l playthrough  # Simulates playing the entire game
-
-# With Godot headless (optional, needs Godot CLI)
-yume test /path/to/your-game/ -l godot -g /path/to/godot
+# Sync framework to Godot test project + run unit tests
+cp -r archetypes/core/templates/godot/. /mnt/c/.../YumeTemplate/
+godot --headless --path C:/.../YumeTemplate scenes/test_main.tscn
 ```
 
-| Layer | What it tests | Time |
-|-------|--------------|------|
-| **data** | JSON parse, exit refs, reachability, content density, steal lists | <1s |
-| **systems** | Party joins, quest chain, damage formulas, shop economy, game flow | <1s |
-| **playthrough** | Walks every room, fights every boss, completes every quest, verifies the game is finishable | <1s |
-| **godot** | Spawn structure, battle math, exit connectivity in Godot headless mode | ~3s |
+Should report `passed: NN  failed: 0  total: NN`. Test source:
+`archetypes/core/templates/godot/scripts/engine/tests/test_runner.gd`.
 
-The playthrough simulator is the most powerful — it literally plays through the game from title to credits, collecting items, fighting bosses, and verifying quest progression.
+Per-game scenario tests:
+```bash
+godot --headless --path C:/.../YumeTemplate scenes/scenario_test.tscn -- --game=demo_sokoban
+```
 
-## Behavioral Posture (karpathy-guidelines)
+## Yume design principles
 
-Apply the four principles from the `karpathy-guidelines` skill on every non-trivial change:
+### 1. Data drives everything (Invariant #1)
+All game-specific behavior is JSON. The engine has no game-specific
+GDScript. Adding a new game = writing JSON; never editing engine code.
+
+### 2. Engine = primitives + interpreter (Invariant #8)
+The engine is a fixed verb set. New game wants behavior X? Either
+compose existing verbs OR propose a new primitive via ADR. Never bake
+game-specific logic into engine code.
+
+### 3. Expose, don't reimplement (ADR 0021)
+Godot already does UI, audio, physics, animation, particles, pathfinding.
+Yume EXPOSES these through JSON primitives. We compose Godot's
+capabilities; we don't replicate them.
+
+### 4. Test-driven engine
+Every primitive lands with unit tests in `test_runner.gd`. Every game
+demo gets scenario tests covering core verbs. Visual gate (capture +
+review) for any rendering primitive. Effect-chain gate for any
+state-mutating effect.
+
+## Behavioral posture (karpathy-guidelines)
+
+Apply on every non-trivial change:
 
 1. **Think Before Coding** — surface assumptions, present alternatives, ask when unclear
 2. **Simplicity First** — minimum code that solves the problem, no speculative abstractions
 3. **Surgical Changes** — touch only what traces to the request, don't drive-by-refactor
 4. **Goal-Driven Execution** — define success criteria up front, loop until verified
 
-These are orthogonal to Yume's domain rules — a behavioral layer above WHAT-to-build. See skill `karpathy-guidelines` for details.
+See `karpathy-guidelines` skill for details.
 
-## Collaboration protocol (Tier 2.5)
+## Collaboration protocol
 
 When making non-trivial changes, follow **Question → Options → Decision → Draft → Approval**:
 
@@ -198,11 +179,10 @@ When making non-trivial changes, follow **Question → Options → Decision → 
 4. **Draft.** Show the change — file paths, key snippets, the diff shape. Don't apply yet.
 5. **Approval.** Wait for explicit go-ahead before writing files / running destructive commands.
 
-Apply selectively: trivial edits (typo, single-line fix) skip 1-3. New primitives, deletions, schema changes, infra moves require all five.
+Skip 1-3 for trivial edits (typo, single-line fix). New primitives,
+deletions, schema changes, infra moves require all five.
 
-Why: this kills the "Claude wrote 200 lines of the wrong thing" failure mode. Adapted from CCGS pattern (`docs/31_text_to_game_pipeline.md`).
-
-## Path-scoped rules (Tier 2.5)
+## Path-scoped rules
 
 When editing files matching certain globs, **read the corresponding rule first**:
 
@@ -213,9 +193,21 @@ When editing files matching certain globs, **read the corresponding rule first**
 | `docs/**` | `.claude/rules/docs.md` |
 | `archetypes/core/templates/godot/scripts/engine/tests/**` | `.claude/rules/tests.md` |
 
-Rules encode invariants like "no semantic effect types in engine," "JSON formulas use only whitelisted bindings," "primitive changes need ADRs." See `.claude/rules/README.md` for the index.
+See `.claude/rules/README.md` for the index.
 
-**Visual validation gate** — when modifying rendering primitives in `scripts/engine/` (control_factory, screen_flow, renderer_2d/*, renderer_3d/*, game_shell HUD/camera sections), run `--capture` + `yume-visual-designer` review BEFORE committing. "I'll fix it next pass" is not a merge condition. Details: `.claude/rules/engine-scripts.md` § Visual validation gate. Tech-director enforces at merge gate.
+**Visual validation gate** — when modifying rendering primitives
+(control_factory, screen_flow, overlay, renderer_2d/*, renderer_3d/*,
+game_shell HUD/camera sections), run `--capture` + `yume-visual-designer`
+review BEFORE committing. "I'll fix it next pass" is not a merge
+condition. Details: `.claude/rules/engine-scripts.md` § visual gate.
+Tech-director enforces at merge gate.
+
+**Effect-chain validation gate** — when adding/modifying effects that
+touch screen / scene / save lifecycle (`transition_screen`,
+`transition_level`, `reload_scene`, `save_state`, `load_state`,
+`quit_app`), trace every on_click/on_press chain end-to-end. Destructive
+effects must be LAST in their chain — anything queued after is silently
+dropped. Details: `.claude/rules/engine-scripts.md` § effect-chain gate.
 
 ## Godot API reference (pinned)
 
@@ -225,11 +217,14 @@ When proposing GDScript code, verify against `docs/engine-reference/godot/`:
 - `current-best-practices.md` — observed working idioms (class_name, Expression, RegEx, etc.)
 - `deprecated-apis.md` — Godot 3 → 4 migration hazards + LLM-cutoff trip-wires
 
-If proposed code uses `Reference` (gone — use `RefCounted`), `connect("foo", self, ...)` (gone — use `signal.connect(callable)`), or `OS.get_ticks_msec()` (use `Time.*`), it's wrong for 4.6.
+Common LLM-era pitfalls: `Reference` (gone — use `RefCounted`),
+`connect("foo", self, ...)` (gone — use `signal.connect(callable)`),
+`OS.get_ticks_msec()` (use `Time.*`).
 
 ## Read More
 
-- `core/docs/01_game_dev_cycle.md` — Game development stages
-- `archetypes/rpg/docs/02_rpg_systems_guide.md` — All RPG systems in detail
-- `archetypes/rpg/docs/04_game_design_and_level_design.md` — Level design patterns
-- `core/docs/05_yume_framework_vision.md` — Why Yume exists
+- `docs/30_framework_primitives.md` — the engine contract (invariant-bearing)
+- `docs/31_text_to_game_pipeline.md` — strategic plan + CCGS analysis
+- `docs/32_mda_for_yume.md` — design vocabulary
+- `docs/adr/README.md` — index of architectural decisions
+- `task_plan.md` — durable backlog (mirrors session TaskList)
