@@ -193,3 +193,41 @@ Tests (5-8 assertions):
 
 These compose on top of `raycast_hit` and are content-level (use
 multiple effects) or future ADRs (engine-level).
+
+## ADR 0021 compliance audit (2026-05-06)
+
+Same audit as ADR 0004: ADR 0021 ("Yume = JSON layer over Godot +
+external") was accepted 2026-05-06, after this ADR landed.
+
+**Compliance status: PARTIAL — implementation reimplements what
+Godot already provides.**
+
+This ADR's engine implementation (`_raycast_hit` in
+`effect_apply.gd`) does ray-AABB intersection in custom GDScript.
+Godot has:
+
+- `PhysicsDirectSpaceState2D.intersect_ray()` /
+  `PhysicsDirectSpaceState3D.intersect_ray()` for native raycasting
+- BVH-based broadphase (faster than iterating all entities)
+- Returns first-hit collider with normal + position
+
+Per ADR 0021, `raycast_hit` SHOULD compose Godot's `intersect_ray`
+rather than reimplement ray-AABB math.
+
+**Why we're not refactoring immediately:**
+
+1. **Working code**. Tested + shipped (doomarena3d ranger fire +
+   bullet trajectory).
+2. **Performance is adequate at current scale**.
+3. **Migration timing**. Refactor alongside ADR 0004 when ADR
+   0022 (Godot rigid-body physics integration) lands. The blockers
+   iteration logic is shared with blocks_motion; both convert to
+   PhysicsServer queries together.
+
+**Action**: flag as ADR 0021 compliance debt. When ADR 0022 lands,
+`raycast_hit` becomes a thin wrapper over
+`PhysicsDirectSpaceState.intersect_ray()`. The effect's JSON
+contract (target, dx/dy, on_hit field-set) stays unchanged. Backward-
+compatible from the content side.
+
+**Status: accepted (with compliance debt logged for ADR 0022 era)**

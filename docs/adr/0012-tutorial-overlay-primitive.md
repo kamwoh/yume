@@ -1,7 +1,7 @@
 # ADR 0012 — Tutorial overlay primitive
 
 _Date: 2026-05-06_
-_Status: **accept-with-conditions (TD review 2026-05-06; depends on ADR 0011 refactor)**_
+_Status: **accepted (conditions resolved 2026-05-06; ADR 0011 refactor landed)**_
 
 ## Context
 
@@ -327,3 +327,86 @@ machine, sequencing logic). UI rendering uses Godot. Clean composition.
 
 T5 (gameplay experience / shell layer) — yes. Tutorials are
 classic shell-layer onboarding UX.
+
+## Conditions resolved (2026-05-06)
+
+ADR 0011 refactor landed (status: accepted). This ADR's conditions
+addressed:
+
+### 1. Depends on ADR 0011 — RESOLVED
+
+ADR 0011 now provides the `JSON-to-Godot-Control` factory
+(`control_factory.gd`). Overlay rendering uses it: `show_overlay`
+spawns a CanvasLayer with title/body Label children + optional
+ColorRect dim backdrop, all instantiated via the same factory.
+
+### 2. Highlight visual implementation — SPEC'D
+
+When `show_overlay` includes `highlight_tag`, engine:
+
+1. Queries `env.entities` for matching tag
+2. For each matched entity, instantiates a `Sprite2D` (or
+   `Sprite3D` for 3D) at the entity's world position with a
+   `ShaderMaterial` applying a pulsing outline shader
+3. Pulse timing via Godot's `Tween` (sine ease, 1.0 sec period,
+   alpha 0.4-1.0 range)
+4. Highlight Sprite parented to a dedicated `highlight_layer` Node
+   below CanvasLayer; cleaned up on `dismiss_overlay`
+
+Shader is a 1-pass outline shader (sample neighbors; if any
+transparent, render outline color). Lives in `scripts/engine/
+shaders/outline.gdshader`. Color/thickness configurable via overlay
+JSON:
+
+```jsonc
+{"type": "show_overlay", "highlight_tag": "player",
+ "highlight_color": "#fdd068", "highlight_thickness": 2.0}
+```
+
+Defaults: `highlight_color: #ffeb3b` (yellow), `highlight_thickness: 2.0`.
+
+### 3. Modal stack consistent with ADR 0011 — RESOLVED
+
+Both screens (ADR 0011) and overlays (ADR 0012) push to the SAME
+modal CanvasLayer stack maintained by `screen_flow.gd`. Topmost
+layer has input focus; lower layers can still render but don't
+receive input.
+
+Difference:
+- **Screens**: replace each other on `transition_screen`; modal
+  flag pushes vs swaps
+- **Overlays**: always push (stack); `dismiss_overlay` pops the
+  matching id
+
+Engine ensures only one input recipient (topmost) at any tick.
+
+### 4. Test plan — SPEC'D
+
+1. **show_overlay basic**: rule fires `show_overlay` with title
+   + body; CanvasLayer + Labels visible; world frozen if
+   `freeze_world: true`.
+2. **dismiss_overlay**: matching id removes the overlay; world
+   resumes if it was frozen.
+3. **advance_action**: action input fires `overlay_advanced` signal
+   with `id` + `reason: "action"`.
+4. **advance_signal**: external signal fires `overlay_advanced` with
+   `reason: "signal"`.
+5. **advance_after_seconds**: timer fires `overlay_advanced` with
+   `reason: "timer"` after specified duration.
+6. **highlight rendering**: `highlight_tag: "player"` adds outline
+   to player entity; pulse animates; cleanup on dismiss.
+7. **stack ordering**: overlay shown over pause screen; topmost
+   gets input.
+8. **Tutorial chain**: 3-step tutorial (welcome → move → win)
+   advances through all steps via signals; `world.tutorial_step`
+   ends at 3.
+
+## Final verdict
+
+**Status: accepted.**
+
+All conditions resolved. Implementation gated on:
+- ADR 0011 implementation landing (provides control_factory)
+- Engine work: `overlay.gd` module + outline shader
+
+Independent of ADRs 0014-0020.

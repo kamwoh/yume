@@ -36,15 +36,15 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0001](./0001-seven-primitives.md) | Seven primitives + Engine = Primitives + Interpreter | accepted | 2026-04-22 |
 | [0002](./0002-renderer-agnostic-entity.md) | Entity extends Node (renderer-agnostic) | accepted | 2026-05-01 |
 | [0003](./0003-harness-engineering-tier-26.md) | Harness engineering as Tier 2.6 | proposed | 2026-05-01 |
-| 0004 | blocks_motion tag | accepted | 2026-05-03 |
-| 0005 | raycast_hit effect | accepted | 2026-05-03 |
+| [0004](./0004-blocks-motion-tag.md) | blocks_motion tag (compliance debt: refactor to Godot collision in ADR 0022 era) | accepted | 2026-05-03 |
+| [0005](./0005-raycast-hit-effect.md) | raycast_hit effect (compliance debt: refactor to Godot intersect_ray in ADR 0022 era) | accepted | 2026-05-03 |
 | 0006 | Multi-level architecture | accepted | 2026-05-04 |
 | 0007 | Complex collision + GLB assets | accepted | 2026-05-04 |
 | 0009 | World/game/flow separation | accepted | 2026-05-05 |
 | [0010](./0010-save-load-persistence.md) | Save/load persistence | accepted (TD review) | 2026-05-06 |
 | [0011](./0011-declarative-screen-flow.md) | Declarative screen flow → Godot Control exposure (foundational for shell tier) | accepted (refactored under ADR 0021) | 2026-05-06 |
-| [0012](./0012-tutorial-overlay-primitive.md) | Tutorial overlay primitive | accept-with-conditions (depends on 0011 refactor) | 2026-05-06 |
-| [0013](./0013-settings-schema-and-config.md) | Settings schema + config (use ConfigFile) | accept-with-conditions | 2026-05-06 |
+| [0012](./0012-tutorial-overlay-primitive.md) | Tutorial overlay primitive | accepted | 2026-05-06 |
+| [0013](./0013-settings-schema-and-config.md) | Settings schema + config (uses ConfigFile) | accepted | 2026-05-06 |
 | [0014](./0014-open-world-foundational-substrate.md) | Open-world foundational substrate | accepted (conditions resolved) | 2026-05-06 |
 | [0015](./0015-vehicle-physics-primitive.md) | Vehicle physics primitive (+ never-list anchor) | accepted (conditions resolved) | 2026-05-06 |
 | [0016](./0016-multi-actor-framework.md) | Multi-actor framework | accepted (conditions resolved) | 2026-05-06 |

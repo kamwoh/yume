@@ -109,3 +109,48 @@ already names obstacles as obstacles. Implementing the engine
 side closes the design-vs-runtime contract.
 
 Decision: implement (C → D rejected; A → B rejected).
+
+## ADR 0021 compliance audit (2026-05-06)
+
+ADR 0021 ("Yume = JSON layer over Godot + external") was accepted
+2026-05-06, after this ADR landed. Re-evaluating under that framing:
+
+**Compliance status: PARTIAL — implementation reimplements what
+Godot already provides.**
+
+This ADR's engine implementation (`world._collect_blockers` +
+`_integrate_motion` clamp logic in `world.gd`) does AABB
+intersection + position clamping in custom GDScript. It does NOT
+use Godot's existing collision system:
+
+- `Area2D` / `Area3D` + `CollisionShape2D` / `CollisionShape3D`
+  for spatial queries
+- `StaticBody2D` / `StaticBody3D` for solid walls
+- `KinematicBody*` (renamed `CharacterBody*` in Godot 4) for moving
+  entities with collision response
+- `PhysicsServer*.body_test_motion()` for low-level motion checks
+
+Per ADR 0021, blocks_motion SHOULD compose Godot's collision system
+rather than reimplement AABB math.
+
+**Why we're not refactoring immediately:**
+
+1. **Working code**. Current implementation is tested + shipped
+   across multiple demos (sokoban, doomarena, doomarena3d). Refactor
+   is non-trivial.
+2. **Performance is adequate at current scale** (~100 entities;
+   ~10 blockers per scene). Native Godot collision is faster but
+   not currently a bottleneck.
+3. **Migration timing**. ADR 0022 (Godot rigid-body physics
+   integration, queued in capability roadmap) is the natural place
+   to migrate blocks_motion to Godot's collision. Doing it
+   piecemeal now means double work.
+
+**Action**: flag as ADR 0021 compliance debt. When ADR 0022 lands,
+blocks_motion's implementation migrates to Godot's collision system
+(Area + StaticBody + body_test_motion). The blocks_motion TAG and
+the JSON contract for content authors stays unchanged — only the
+engine implementation switches. Backward-compatible from the
+content side.
+
+**Status: accepted (with compliance debt logged for ADR 0022 era)**

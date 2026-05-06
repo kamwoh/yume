@@ -1,7 +1,7 @@
 # ADR 0013 — Settings schema + config persistence
 
 _Date: 2026-05-06_
-_Status: **accept-with-conditions (TD review 2026-05-06; ConfigFile + ADR 0011 refactor)**_
+_Status: **accepted (conditions resolved 2026-05-06; ADR 0011 refactor landed)**_
 
 ## Context
 
@@ -398,3 +398,118 @@ So no new ADR 0029 needed. The split is:
 
 This is the cleanest organization. Land 0011 first (refactored);
 0012 + 0013 follow naturally.
+
+## Conditions resolved (2026-05-06)
+
+ADR 0011 refactor landed (status: accepted). This ADR's conditions
+addressed:
+
+### 1. Use Godot's ConfigFile — RESOLVED
+
+Replace `user://config.json` with `user://settings.cfg` via Godot's
+`ConfigFile` class.
+
+```gdscript
+# Persistence
+var cfg := ConfigFile.new()
+cfg.load("user://settings.cfg")  # OK if doesn't exist
+cfg.set_value("audio", "master_volume", 0.7)
+cfg.save("user://settings.cfg")
+
+# Load with default
+var v = cfg.get_value("audio", "master_volume", 0.7)
+```
+
+Section name = setting category id; key = setting key (without the
+category prefix). The schema-to-section mapping is automatic.
+
+### 2. UI composes with ADR 0011 — RESOLVED
+
+The `settings_renderer` element type (added to ADR 0011's element
+mapping table) reads `settings_schema.json` and generates Godot
+Control hierarchy via the factory:
+
+| Setting type | Generated Control |
+|---|---|
+| slider | HSlider with Label (name) + SpinBox (current value) |
+| bool | CheckBox |
+| enum | OptionButton populated from `options` |
+| key_binding | Button with text = current binding; clicking
+  enters "press a key" mode |
+
+All instantiated via control_factory; styled via ui/theme.json.
+Settings menu is just another screen (typically modal over title or
+pause).
+
+### 3. New effect types spec'd — RESOLVED
+
+Two new mechanical effect types (thin Godot wrappers):
+
+```jsonc
+{"type": "set_audio_bus_volume", "bus": "Master", "linear": 0.7}
+// Maps to AudioServer.set_bus_volume_db(bus_idx, linear_to_db(linear))
+
+{"type": "set_input_mapping", "action": "move_north", "key": "W"}
+// Maps to InputMap.action_erase_events + InputMap.action_add_event
+// with new InputEventKey constructed from key string
+```
+
+Both are bounded; ADR 0021 compliant (thin Godot exposure).
+
+Documented in api-manifest.json (CI auto-detects).
+
+### 4. Global vs per-actor key remap — SPEC'D
+
+Per ADR 0016 (multi-actor) composition:
+
+- **Global key remap** (this ADR's settings) → modifies project-level
+  InputMap. Single-player games use only this.
+- **Per-actor input map** (ADR 0016's actors.json) → unchanged by
+  settings; per-actor `input_actions_press` / `input_actions_hold`
+  declare WHICH actions exist; settings remaps the keyboard binding
+  PER PLAYER.
+
+For multi-protag games (e.g. P1 keyboard + P2 gamepad), each
+actor's `input_device` field in actors.json picks the device; the
+GLOBAL InputMap controls the keyboard mapping.
+
+If a future game needs PER-ACTOR keyboard remap (P1 uses WASD,
+P2 uses IJKL on same keyboard), that's a future ADR — out of scope
+for this one.
+
+### 5. Schema validation — SPEC'D
+
+At settings_schema.json load:
+
+- Each setting must have: `key`, `type`, `default`
+- For `slider`: `min` ≤ `default` ≤ `max`; `step > 0` if specified
+- For `enum`: `options` is non-empty array; `default` must be in `options`
+- For `key_binding`: `default` is a valid Godot key string
+- Engine errors at load if any check fails (structured EngineError)
+
+### 6. Test plan — SPEC'D
+
+1. **Settings persist across session**: change master_volume to 0.3;
+   exit; restart; settings.cfg has master_volume=0.3; engine applies
+   on boot.
+2. **Apply runs on change**: change music_volume; AudioServer's
+   Music bus volume_db reflects new value.
+3. **Reset to defaults**: button calls reset; all settings return
+   to schema defaults; settings.cfg updated.
+4. **Schema validation**: malformed schema (slider with min > max)
+   fails to load with structured error.
+5. **Default applied for missing settings**: schema has new setting
+   not in user's existing settings.cfg; default applied; written
+   back on next save.
+
+## Final verdict
+
+**Status: accepted.**
+
+All conditions resolved. Implementation gated on:
+- ADR 0011 implementation landing (provides control_factory +
+  settings_renderer support)
+- Engine work: `settings_manager.gd` module +
+  set_audio_bus_volume / set_input_mapping effects
+
+Independent of ADRs 0014-0020.
