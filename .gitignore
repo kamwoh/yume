@@ -15,6 +15,12 @@ venv/
 
 # Project planning (findings/progress are session-specific)
 findings.md
+progress.md
+session_log.txt
+.vqa.log
+
+# Capture screenshots — local artifacts, regenerable via play.sh --capture
+captures/
 
 # Generated output
 output/
