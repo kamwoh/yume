@@ -1,7 +1,7 @@
-# ADR 0011 — Declarative screen flow (main menu, pause, settings)
+# ADR 0011 — Declarative screen flow (Godot Control exposure for shell tier)
 
 _Date: 2026-05-06_
-_Status: **revise — refactor under ADR 0021 framing (TD review 2026-05-06)**_
+_Status: **accepted (refactored 2026-05-06 under ADR 0021 framing)**_
 
 ## Context
 
@@ -15,22 +15,39 @@ game runs immediately. There is no:
 - Game-over / credits screen
 - Save-slot picker
 
-These are universal in shipping games. Players expect them. The
-engine has no architecture for them — adding them ad-hoc per game
-would mean GDScript per-game (violates Invariant #1: JSON-only content
-channel).
+These are universal in shipping games. Players expect them. Adding
+them ad-hoc per game would mean GDScript per-game, violating
+Invariant #1 (JSON-only content channel).
 
-Per project constraint: ALL shell behavior must be JSON-driven. The
-engine ships a screen-flow interpreter; each game declares its menus
-in `screens.json`.
+Yume's existing `hud.json` already solves a sibling problem
+correctly: JSON declares element specs (label, progress_bar, etc.);
+`game_shell.gd` instantiates Godot `Control` nodes from those specs;
+binding rules update Control properties from entity state each tick.
+This works.
+
+Per ADR 0021 (Yume = JSON layer over Godot + external), the same
+pattern should apply to FULL SCREENS (title / pause / settings /
+game-over). JSON declares Godot Control hierarchies + which effects
+fire on user interaction; engine instantiates the actual Godot
+nodes. We don't render UI ourselves — Godot does. We don't handle
+clicks ourselves — Godot's `Button.pressed` signal does. We don't
+manage focus ourselves — Godot's Control focus chain does.
+
+This ADR is the **foundational shell-tier capability**: a generalized
+"JSON declares Godot Control hierarchy" mechanism that ADRs 0012
+(overlays) and 0013 (settings UI) compose on top of.
 
 ## Decision
 
 Add a **declarative screen-flow layer**: each game ships a
-`screens.json` that describes named screens, their UI elements, and
-the actions taken on element interaction. The HUD interpreter is
-extended to render screens declaratively. The world is paused (or
-torn down) when the active screen is not the gameplay screen.
+`screens.json` that describes named screens as Godot Control
+hierarchies. Engine reads JSON, instantiates a `CanvasLayer` per
+screen, populates it with Control nodes from the JSON spec, and
+wires user interactions (button clicks, key inputs) to dispatch
+Yume effect chains.
+
+This is **JSON-declared Godot UI**, not a Yume-internal UI renderer.
+We expose Godot's mature UI; we do not reimplement it.
 
 ### File layout
 
@@ -120,16 +137,56 @@ data/<game>/
 }
 ```
 
-### Element types (initial set)
+### Element type → Godot node mapping
 
-- `label` — static or formula-bound text
-- `button` — clickable, has `on_click` effect list
-- `progress_bar` — already in hud.json; reused
-- `image` — sprite from @assets reference
-- `spacer` — vertical / horizontal padding
-- `vbox` / `hbox` — container with child elements
-- `settings_renderer` — delegate to settings schema (ADR 0013)
-- `entity_world` — embed the world view (used by `game` screen by default)
+The CORE OF THE REFACTOR. Each JSON element type maps to a Godot
+Control class. Engine instantiates the Godot node, sets common
+properties (anchor, position, size), applies type-specific properties.
+
+| JSON `type` | Godot node class | Notes |
+|---|---|---|
+| `label` | `Label` | text resolves @strings.X; size/color from theme |
+| `button` | `Button` | text + `pressed` signal → `on_click` effect chain |
+| `image` | `TextureRect` | texture loaded from `@assets.X` reference |
+| `progress_bar` | `ProgressBar` | binding rules update value (same as hud.json) |
+| `vbox` | `VBoxContainer` | recurses on `children` array |
+| `hbox` | `HBoxContainer` | recurses on `children` array |
+| `margin` | `MarginContainer` | for padding around child |
+| `spacer` | `Control` with `custom_minimum_size` | vertical/horizontal gap |
+| `slider` | `HSlider` / `VSlider` | for settings sliders (composes ADR 0013) |
+| `checkbox` | `CheckBox` | for boolean settings |
+| `option_button` | `OptionButton` | for enum settings (dropdown) |
+| `text_input` | `LineEdit` | for free text input |
+| `key_binding` | custom Control wrapping `Button` | "press a key" UX (ADR 0013) |
+| `settings_renderer` | (special) | reads settings_schema.json; generates the element subtree per setting type |
+| `entity_world` | `SubViewportContainer` + `SubViewport` | embeds the live world view; used by the `game` screen |
+| `color_rect` | `ColorRect` | solid background or modal dim; `color` + `alpha` |
+
+This table is the contract. Adding a new element type = adding a row
++ engine support. Engine never invents UI primitives; it only maps
+to Godot nodes that already exist.
+
+### Common properties (apply to all element types)
+
+```jsonc
+{
+  "type": "...",
+  "anchor": "center",          // top_left, top_center, top_right,
+                               // center, bottom_left, etc.
+  "x_offset": 0,
+  "y_offset": 0,
+  "width": 200,                // optional; auto if omitted
+  "height": 40,                // optional
+  "size_flags_h": "fill",      // shrink_begin, shrink_center, shrink_end, fill, expand
+  "size_flags_v": "fill",
+  "theme_variation": "menu_button",  // optional; references ui/theme.json
+  "tooltip": "@strings.X",
+  "visible_if": "world.has_save",    // formula; engine applies to .visible
+  "enabled_if": "world.has_save"     // formula; engine applies to .disabled
+}
+```
+
+These map directly to Godot Control properties. No invention.
 
 ### New effect types
 
@@ -155,16 +212,79 @@ naturally with screens.
 - `screen.modal: true` → screen overlays the previous one rather than
   replacing. Closing the modal returns to the underlay.
 
+### Theme integration
+
+Screens (and HUD) styling lives in `ui/theme.json` (per-game,
+optional). Engine converts to a Godot `Theme` resource at load and
+applies to all instantiated Controls.
+
+```jsonc
+// ui/theme.json
+{
+  "_comment": "Visual theme for all UI Controls in this game.",
+  "default_font_size": 18,
+  "colors": {
+    "background": "#2a2418",
+    "primary": "#dab048",
+    "secondary": "#a07040"
+  },
+  "variations": {
+    "menu_button": {
+      "font_size": 22,
+      "min_size": [200, 50],
+      "color_normal": "#dab048",
+      "color_hover": "#fdd068"
+    },
+    "tutorial_overlay": { ... }
+  }
+}
+```
+
+Engine generates a Godot `Theme` resource: each variation becomes a
+type-variation that elements reference via `theme_variation`. This
+exposes Godot's existing Theme system; doesn't reinvent.
+
+### How user interaction → effect chains
+
+The link between Godot's signal system and Yume's effect pipeline:
+
+1. JSON declares `{"type": "button", "on_click": [<effect list>]}`
+2. Engine instantiates `Button` node, sets text, adds to scene
+3. Engine connects `button.pressed` to a Callable that:
+   - Builds a context dict from current screen state
+   - Iterates the on_click effect list
+   - Dispatches each effect via existing `effect_apply.apply()`
+4. Effects flush at end-of-tick like any other effect
+
+Same pattern works for:
+- `LineEdit.text_submitted` → on_submit effect chain
+- `HSlider.value_changed` → on_change effect chain (with new value
+  in context)
+- `CheckBox.toggled` → on_toggle effect chain
+
+The Godot signal IS the input event. Yume's effect pipeline IS the
+response. Engine glues them.
+
 ### Engine work
 
-1. `scripts/engine/screen_flow.gd` — new module; reads `screens.json`,
-   maintains `current_screen` state, dispatches input to active
-   screen's elements.
+1. `scripts/engine/screen_flow.gd` — new module:
+   - Reads `screens.json` at world load
+   - Maintains `world.current_screen` (string state)
+   - Listens for `transition_screen` effects and rebuilds the active
+     screen's Control subtree
+   - Maintains modal stack (Array of screen ids)
 
-2. `game_shell.gd` extended:
-   - On startup, if `screens.json` exists → load it, set
-     `world.current_screen = starting_screen`. World ticks ONLY when
-     `current_screen.freeze_world == false`.
+2. `scripts/engine/control_factory.gd` — new module:
+   - Maps JSON element specs to Godot Control instances per the
+     mapping table
+   - Recursively builds child hierarchies for containers
+   - Connects user-interaction signals to effect-chain dispatchers
+   - Applies theme variation if specified
+
+3. `game_shell.gd` extended:
+   - On startup, if `screens.json` exists → instantiate starting
+     screen via control_factory; mount under a top-level CanvasLayer
+   - World ticks ONLY when `current_screen.freeze_world == false`
    - Renders screen UI (labels, buttons) above the world view.
    - Routes input through screen's `on_click` for buttons + global
      inputs.

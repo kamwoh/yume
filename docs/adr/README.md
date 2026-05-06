@@ -42,7 +42,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | 0007 | Complex collision + GLB assets | accepted | 2026-05-04 |
 | 0009 | World/game/flow separation | accepted | 2026-05-05 |
 | [0010](./0010-save-load-persistence.md) | Save/load persistence | accepted (TD review) | 2026-05-06 |
-| [0011](./0011-declarative-screen-flow.md) | Declarative screen flow → Godot Control exposure (foundational for shell tier) | revise — refactor under ADR 0021 | 2026-05-06 |
+| [0011](./0011-declarative-screen-flow.md) | Declarative screen flow → Godot Control exposure (foundational for shell tier) | accepted (refactored under ADR 0021) | 2026-05-06 |
 | [0012](./0012-tutorial-overlay-primitive.md) | Tutorial overlay primitive | accept-with-conditions (depends on 0011 refactor) | 2026-05-06 |
 | [0013](./0013-settings-schema-and-config.md) | Settings schema + config (use ConfigFile) | accept-with-conditions | 2026-05-06 |
 | [0014](./0014-open-world-foundational-substrate.md) | Open-world foundational substrate | accepted (conditions resolved) | 2026-05-06 |
