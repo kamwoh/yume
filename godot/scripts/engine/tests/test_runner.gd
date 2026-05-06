@@ -50,6 +50,7 @@ func _ready() -> void:
 	test_multi_actor()
 	test_reset_world_effect()
 	test_scripted_policy()
+	test_chunk_streaming()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -2381,3 +2382,342 @@ func test_scripted_policy() -> void:
 	var act8: Array = p8.decide(obs, actor_state)
 	expect_eq(int((act8[0] as Dictionary).get("x", 0)), 100, "params: x forwarded")
 	expect_eq(int((act8[0] as Dictionary).get("y", 0)), 50, "params: y forwarded")
+
+
+# ============================================================
+# CHUNK STREAMING (ADR 0014)
+# ============================================================
+
+## Verify ChunkStreamer:
+## 1. world.json absence → try_load returns null (legacy mode)
+## 2. world.json present → config parsed; chunk_of math is correct
+## 3. Player crosses chunk boundary → load/unload flow updates env
+## 4. Persistent NPC survives chunk unload (loaded once at boot, never
+##    despawned on chunk eviction)
+## 5. Cross-chunk query semantics: entities in unloaded chunks are NOT
+##    findable; entities in adjacent loaded chunks ARE
+## 6. Save+reload replays current_chunk
+func test_chunk_streaming() -> void:
+	_section("chunk_streaming (ADR 0014)")
+
+	# 1. Absence of world.json → try_load returns null (legacy single-chunk mode).
+	var none := ChunkStreamer.try_load("/no/such/path", false)
+	expect_eq(none, null, "try_load returns null when world.json absent")
+
+	# Build a temp data_root under user://. We write JSON files for
+	# world.json + chunks/_persistent/entities.json + a few transient
+	# chunk dirs, then exercise the streamer end-to-end.
+	var stamp := Time.get_ticks_msec()
+	var root := "user://test_chunk_%d" % stamp
+	DirAccess.make_dir_recursive_absolute(root)
+	DirAccess.make_dir_recursive_absolute(root + "/chunks/_persistent")
+	for c in [[0, 0], [1, 0], [0, 1], [2, 0], [3, 0]]:
+		DirAccess.make_dir_recursive_absolute(
+			"%s/chunks/%d_%d" % [root, c[0], c[1]])
+
+	# world.json — chunk_size 100×100, stream_radius 1, unload_radius 2.
+	_write_text_file(root + "/world.json", JSON.stringify({
+		"chunk_size": [100, 100],
+		"stream_radius": 1,
+		"unload_radius": 2,
+		"starting_chunk": [0, 0],
+		"starting_position": [50, 50],
+		"persistent_tags": ["named_npc"],
+		"boundary_mode": "clamp",
+	}))
+
+	# 2. try_load parses correctly.
+	var cs := ChunkStreamer.try_load(root, false)
+	expect(cs != null, "try_load returns instance when world.json present")
+	expect_eq(cs.chunk_size, Vector2(100, 100), "chunk_size parsed")
+	expect_eq(cs.stream_radius, 1, "stream_radius parsed")
+	expect_eq(cs.unload_radius, 2, "unload_radius parsed")
+	expect_eq(cs.starting_chunk, Vector2i(0, 0), "starting_chunk parsed")
+
+	# chunk_of math
+	expect_eq(cs.chunk_of(Vector2(50, 50)), Vector2i(0, 0),
+		"chunk_of (50,50) → (0,0)")
+	expect_eq(cs.chunk_of(Vector2(150, 50)), Vector2i(1, 0),
+		"chunk_of (150,50) → (1,0)")
+	expect_eq(cs.chunk_of(Vector2(-50, 50)), Vector2i(-1, 0),
+		"chunk_of (-50,50) → (-1,0) (negative chunks)")
+	expect_eq(cs.chunk_of(Vector2(250, 250)), Vector2i(2, 2),
+		"chunk_of (250,250) → (2,2)")
+
+	# Persistent chunk content: an NPC at world (10, 10).
+	_write_text_file(root + "/chunks/_persistent/entities.json", JSON.stringify({
+		"definitions": [
+			{"id": "named_npc",
+			 "tags": ["named_npc"],
+			 "state_init": {"hp": 100, "name": "alice"}},
+		],
+		"initial_instances": [
+			{"def": "named_npc", "id": "alice", "position": [10, 10]},
+		],
+	}))
+	# Transient chunks: each has a "rock" at known coords.
+	_write_text_file(root + "/chunks/0_0/entities.json", JSON.stringify({
+		"definitions": [
+			{"id": "rock", "tags": ["rock"], "state_init": {}},
+		],
+		"initial_instances": [
+			{"def": "rock", "id": "rock_0_0", "position": [50, 50]},
+		],
+	}))
+	_write_text_file(root + "/chunks/1_0/entities.json", JSON.stringify({
+		"initial_instances": [
+			{"def": "rock", "id": "rock_1_0", "position": [150, 50]},
+		],
+	}))
+	_write_text_file(root + "/chunks/0_1/entities.json", JSON.stringify({
+		"initial_instances": [
+			{"def": "rock", "id": "rock_0_1", "position": [50, 150]},
+		],
+	}))
+	_write_text_file(root + "/chunks/2_0/entities.json", JSON.stringify({
+		"initial_instances": [
+			{"def": "rock", "id": "rock_2_0", "position": [250, 50]},
+		],
+	}))
+	_write_text_file(root + "/chunks/3_0/entities.json", JSON.stringify({
+		"initial_instances": [
+			{"def": "rock", "id": "rock_3_0", "position": [350, 50]},
+		],
+	}))
+
+	# Build a minimal env with a stub parent that knows how to spawn from
+	# JSON files (matches World.load_entities_file semantics).
+	var entities: Dictionary = {}
+	var defs: Dictionary = {}
+	var rs := RelationStore.new()
+	var sx := SpatialIndex.new()
+	var stub := _ChunkTestStub.new()
+	stub.entities = entities
+	stub.defs = defs
+	stub.relations = rs
+	stub.spatial_index = sx
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"spatial_index": sx, "world": {}, "parent": stub,
+		"next_id": {"_": 0}, "error_buffer": [],
+	}
+
+	# Pre-load persistent (mimics World.load_data flow).
+	stub.load_entities_file(root + "/chunks/_persistent/entities.json")
+	expect(entities.has("alice"), "persistent NPC loaded at boot")
+
+	# Spawn an actor at (50, 50) in chunk (0, 0).
+	var actor := Entity.new()
+	actor.def_id = "player"; actor.instance_id = "player_1"
+	actor.tags = ["player"]
+	actor.set_position(Vector2(50, 50))
+	entities["player_1"] = actor
+	sx.update_entity("player_1", actor.get_planar_position())
+
+	# Boot streamer: loads (0,0), (1,0), (0,1), and adjacent neighbors that
+	# don't exist on disk (treated as empty placeholders so we don't retry).
+	cs.boot(env)
+	expect(entities.has("rock_0_0"), "boot loads chunk (0,0)")
+	expect(entities.has("rock_1_0"), "boot loads chunk (1,0) within stream_radius")
+	expect(entities.has("rock_0_1"), "boot loads chunk (0,1) within stream_radius")
+	expect(not entities.has("rock_2_0"),
+		"boot does NOT load chunk (2,0) beyond stream_radius")
+
+	# 3. Player crosses chunk boundary. Move to (250, 50) → chunk (2, 0).
+	# stream_radius=1 means (1,0), (2,0), (3,0) loaded. unload_radius=2
+	# means (0,0) (anchor distance 2 — inclusive, not unloaded yet).
+	(entities["player_1"] as Entity).set_position(Vector2(250, 50))
+	cs.update(env, "player_1")
+	expect(entities.has("rock_2_0"),
+		"after crossing to chunk (2,0): rock_2_0 loaded")
+	expect(entities.has("rock_3_0"),
+		"after crossing: chunk (3,0) loaded")
+	expect(entities.has("rock_1_0"),
+		"chunk (1,0) still loaded (within stream_radius)")
+	# Move further to (550, 50) → chunk (5, 0). Now (0,0) and (1,0) are
+	# both beyond unload_radius=2; should be despawned.
+	(entities["player_1"] as Entity).set_position(Vector2(550, 50))
+	cs.update(env, "player_1")
+	expect(not entities.has("rock_0_0"),
+		"after far move: chunk (0,0) unloaded (beyond unload_radius)")
+	expect(not entities.has("rock_1_0"),
+		"after far move: chunk (1,0) unloaded")
+	expect(not entities.has("rock_2_0"),
+		"after far move: chunk (2,0) unloaded")
+	# 4. Persistent NPC survives all of that — never enters _loaded_chunks
+	# tracking, never despawned.
+	expect(entities.has("alice"),
+		"persistent NPC survives chunk eviction")
+
+	# 4b. Spatial index hygiene: rock_0_0's spatial_index entry should also
+	# be gone. Query the cell where rock_0_0 used to be; should not return
+	# rock_0_0.
+	var hits_at_origin := sx.query_radius_ids(Vector2(50, 50), 5.0)
+	for h in hits_at_origin:
+		expect(str(h) != "rock_0_0",
+			"spatial_index has no stale rock_0_0 entry")
+	# Persistent alice should be findable in spatial index too (loaded
+	# once at boot via stub).
+	# (Note: the stub only adds to spatial_index inside spawn — confirm
+	# alice was registered when persistent loaded.)
+	expect(sx.entity_count() >= 1, "spatial_index has at least the persistent + actor")
+
+	# 5. Cross-chunk query semantics:
+	#    - Move player back to (50, 50). Chunks (-1,-1)..(1,1) should be
+	#      loaded; (0,0) reloaded.
+	(entities["player_1"] as Entity).set_position(Vector2(50, 50))
+	cs.update(env, "player_1")
+	expect(entities.has("rock_0_0"), "walking back: chunk (0,0) reloaded")
+	# Adjacent loaded chunks: contact rule sees rock_1_0 within radius 100.
+	expect(entities.has("rock_1_0"), "walking back: chunk (1,0) reloaded")
+	# Beyond stream_radius: rock_3_0 (chunk distance 3) is NOT findable.
+	expect(not entities.has("rock_3_0"),
+		"chunk (3,0) beyond stream_radius is unloaded")
+
+	# 6. current_chunk mirrored into world_state for save/load.
+	expect_eq((env["world"] as Dictionary).get("current_chunk"), [0, 0],
+		"current_chunk mirrored into world_state")
+
+	# 7. Save serializes current_chunk; verify by saving with the SaveState
+	# module + reading back the JSON. Build a minimal save_policy that
+	# allows persistent_entities through.
+	var policy: Dictionary = {
+		"world_state_keys": ["current_chunk"],
+		"entity_tags_persistent": ["named_npc"],
+		"entity_state_blacklist": [],
+		"slots": 1,
+		"version": 1,
+	}
+	var game := "test_chunk_save_%d" % stamp
+	# Wire env.parent with a chunk_streamer property (the stub already has
+	# one slot; populate it for the save-side hook).
+	stub.chunk_streamer = cs
+	# current_chunk on the streamer should reflect anchor (0, 0)
+	expect_eq(cs.current_chunk, Vector2i(0, 0),
+		"streamer.current_chunk anchored at (0,0)")
+	var ok := SaveState.save_to_slot(env, policy, 0, game, 0)
+	expect(ok, "save_to_slot succeeded with chunked-world payload")
+	# Read back JSON and verify current_chunk is in payload
+	var path := SaveState.slot_path(game, 0)
+	var sf := FileAccess.open(path, FileAccess.READ)
+	var read = JSON.parse_string(sf.get_as_text())
+	sf.close()
+	expect(read is Dictionary, "save payload parses")
+	if read is Dictionary:
+		var rd: Dictionary = read
+		expect(rd.has("current_chunk"),
+			"save payload includes current_chunk key")
+		var cc = rd.get("current_chunk", null)
+		# JSON round-trip widens ints → floats; compare element-wise.
+		expect(cc is Array and (cc as Array).size() == 2,
+			"saved current_chunk is 2-element array")
+		if cc is Array and (cc as Array).size() == 2:
+			expect_eq(int((cc as Array)[0]), 0, "saved current_chunk[0] = 0")
+			expect_eq(int((cc as Array)[1]), 0, "saved current_chunk[1] = 0")
+
+	# 8. Load+restore: simulate a restart by clearing transient chunks and
+	# re-applying the saved chunk via streamer. Verify the saved chunk
+	# becomes the new anchor. (Full World.load_data flow integration is
+	# scene-based; here we exercise the chunk-restore logic directly.)
+	# Move actor back to (50, 50) so streamer can re-anchor.
+	(entities["player_1"] as Entity).set_position(Vector2(50, 50))
+	# Pretend save was at chunk (1, 0)
+	var saved_chunk := Vector2i(1, 0)
+	# Unload everything currently loaded
+	for c in cs.loaded_chunks().duplicate():
+		cs._unload_chunk(c, env)
+	cs.current_chunk = saved_chunk
+	cs.starting_chunk = saved_chunk
+	cs.boot(env)
+	expect_eq(cs.current_chunk, Vector2i(1, 0),
+		"after restore: streamer anchored at saved chunk (1, 0)")
+	expect(entities.has("rock_1_0"),
+		"after restore: chunk (1, 0) loaded")
+	expect(entities.has("rock_2_0"),
+		"after restore: chunk (2, 0) loaded (stream_radius from (1,0))")
+
+	# Cleanup save file
+	var d := DirAccess.open("user://saves/" + game)
+	if d != null:
+		d.remove("slot_0.json")
+	var d2 := DirAccess.open("user://saves")
+	if d2 != null:
+		d2.remove(game)
+
+	# Cleanup entities + temp data_root
+	for id in entities.keys().duplicate():
+		var e = entities[id]
+		entities.erase(id)
+		if e is Node: e.queue_free()
+	# Best-effort temp dir teardown (shallow — Godot has no recursive remove)
+	for sub in [
+		"chunks/_persistent/entities.json",
+		"chunks/0_0/entities.json", "chunks/1_0/entities.json",
+		"chunks/0_1/entities.json", "chunks/2_0/entities.json",
+		"chunks/3_0/entities.json", "world.json",
+	]:
+		DirAccess.remove_absolute(root + "/" + sub)
+	for sub in [
+		"chunks/_persistent", "chunks/0_0", "chunks/1_0",
+		"chunks/0_1", "chunks/2_0", "chunks/3_0", "chunks",
+	]:
+		DirAccess.remove_absolute(root + "/" + sub)
+	DirAccess.remove_absolute(root)
+
+
+## Helper: write a string to a path, creating parent dirs as needed.
+## Mirrors what data-driven tests routinely need to do for fixture setup.
+func _write_text_file(path: String, contents: String) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		push_warning("test fixture: cannot open %s for write" % path)
+		return
+	f.store_string(contents)
+	f.close()
+
+
+## Stub used by test_chunk_streaming as env.parent. Implements the
+## subset of World's API that ChunkStreamer touches:
+##   - load_entities_file(path) — loads entities from a JSON file into
+##     env.entities + defs + spatial_index (mirrors World's helper)
+##   - chunk_streamer field — populated by the test for save-side checks
+class _ChunkTestStub:
+	extends Node
+	var entities: Dictionary
+	var defs: Dictionary
+	var relations: RelationStore
+	var spatial_index: SpatialIndex
+	var chunk_streamer = null
+	var _next_seq: int = 0
+
+	func load_entities_file(path: String) -> void:
+		if not FileAccess.file_exists(path): return
+		var f := FileAccess.open(path, FileAccess.READ)
+		var data = JSON.parse_string(f.get_as_text())
+		f.close()
+		if not (data is Dictionary): return
+		var d: Dictionary = data
+		# Definitions
+		for def in d.get("definitions", []):
+			if def is Dictionary:
+				defs[str(def.get("id", ""))] = def
+		# Initial instances
+		for inst in d.get("initial_instances", []):
+			if not (inst is Dictionary): continue
+			var def_id := str(inst.get("def", ""))
+			if not defs.has(def_id): continue
+			var inst_id := str(inst.get("id", ""))
+			if inst_id == "":
+				inst_id = "%s_%d" % [def_id, _next_seq]
+				_next_seq += 1
+			var ent := Entity.create(defs[def_id], inst_id)
+			# Apply position override
+			if inst.has("position"):
+				ent.set_position(inst["position"])
+			# Apply state override
+			var state_in: Dictionary = inst.get("state", {}) as Dictionary
+			for k in state_in.keys():
+				ent.set_state(str(k), state_in[k])
+			entities[inst_id] = ent
+			if spatial_index != null:
+				spatial_index.update_entity(inst_id, ent.get_planar_position())

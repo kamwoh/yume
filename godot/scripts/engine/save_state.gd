@@ -20,7 +20,9 @@ class_name SaveState
 ##   ],
 ##   "relations": [
 ##     {"type": "<rel>", "from": "<id>", "to": "<id>"}
-##   ]
+##   ],
+##   "current_chunk": [x, y]  // ADR 0014 — only when game opted into
+##                            // chunked-world mode (world.json present)
 ## }
 ##
 ## Atomic write: writes to slot_N.json.tmp, then renames over slot_N.json.
@@ -99,6 +101,16 @@ static func save_to_slot(env: Dictionary, policy: Dictionary, slot: int,
 		"persistent_entities": _serialize_persistent_entities(env, policy),
 		"relations": _filter_relations(env, policy),
 	}
+	# ADR 0014: persist current_chunk if game is in chunked-world mode.
+	# Read from the live World node (env.parent) — chunk_streamer is the
+	# source of truth, NOT world_state["current_chunk"] (which is a
+	# mirror that may lag if save fires between tick + update).
+	var parent_node = env.get("parent", null)
+	if parent_node != null and "chunk_streamer" in parent_node:
+		var streamer = parent_node.chunk_streamer
+		if streamer != null:
+			var c: Vector2i = streamer.current_chunk
+			payload["current_chunk"] = [c.x, c.y]
 
 	var dest := slot_path(game_name, slot)
 	var tmp := dest + ".tmp"

@@ -75,6 +75,11 @@ var macro_expander = null
 ## for legacy demos). active_actor_id mirrored into world_state for
 ## binding readers (camera follow, input dispatch).
 var actor_manager = null
+## ADR 0014 — chunk streamer. Non-null only when the game opted into
+## open-world mode by shipping a `world.json`. When null, single-chunk
+## legacy behavior; all entities live in env.entities for the whole run.
+## When non-null, _on_tick calls update() each tick.
+var chunk_streamer: ChunkStreamer = null
 
 
 # ============================================================
@@ -191,6 +196,21 @@ func load_data() -> void:
 		_load_rules_file(root + "/tutorial.json", true)
 		_load_world_file(root + "/world/state.json")
 		_load_entities_path(root)
+	# ADR 0014: open-world chunk streaming. world.json declares chunked-world
+	# mode; absent means single-chunk legacy mode (no streaming, no chunks
+	# directory consulted). When present:
+	#   - chunks/_persistent/entities.json is loaded ONCE (entities live for
+	#     the whole session, regardless of chunk eviction)
+	#   - the starting chunk + stream_radius neighbors are loaded
+	#   - per-tick update() in _on_tick handles drift loads/unloads
+	chunk_streamer = ChunkStreamer.try_load(root, verbose)
+	if chunk_streamer != null:
+		# Persistent chunk first — its entities never leave env.entities.
+		var persist_dir := root + "/chunks/_persistent"
+		if DirAccess.dir_exists_absolute(persist_dir):
+			load_entities_file(persist_dir + "/entities.json")
+		# Boot: load starting_chunk + stream_radius neighbors.
+		chunk_streamer.boot(_build_env())
 	# ADR 0009 Phase 2d: variant overlay applies after rules + world_state +
 	# entities are loaded. Read variant name from scene.json's "variant" key
 	# or YUME_VARIANT env var. Variant file at variants/<name>.json applies
@@ -283,6 +303,43 @@ func _load_entities_path(root: String) -> void:
 					str(rel.get("from", "")),
 					str(rel.get("to", "")),
 				)
+
+
+## ADR 0014: load a single entities JSON file (definitions + patterns +
+## initial_instances + initial_relations). Used by ChunkStreamer to
+## stream per-chunk content; reuses the same definition-then-instance
+## pipeline as `_load_entities_path` so chunk-loaded entities and
+## bootstrap entities follow identical semantics.
+##
+## Called at runtime — definitions appearing in chunk files are added
+## to `defs` if new; existing-id collisions are silently overwritten
+## (chunks may share defs with the root entities folder).
+func load_entities_file(path: String) -> void:
+	if not FileAccess.file_exists(path): return
+	var env := _build_env()
+	var d := _read_entities_json(path, env)
+	if d.is_empty(): return
+	# Definitions
+	for def in d.get("definitions", []):
+		if def is Dictionary:
+			defs[str(def.get("id", ""))] = def
+	# Patterns
+	for p in d.get("patterns", []):
+		if p is Dictionary:
+			for inst in InstancePatterns.expand(p):
+				_spawn_initial(inst)
+	# Initial instances
+	for inst in d.get("initial_instances", []):
+		if inst is Dictionary:
+			_spawn_initial(inst)
+	# Initial relations
+	for rel in d.get("initial_relations", []):
+		if rel is Dictionary:
+			relations.relate(
+				str(rel.get("type", "")),
+				str(rel.get("from", "")),
+				str(rel.get("to", "")),
+			)
 
 
 ## Read one entities JSON file. Returns {} on missing/malformed; reports
@@ -567,6 +624,11 @@ func _on_tick(count: int) -> void:
 	scheduler.tick()
 	_decrement_lifetimes()
 	process_pending_level_transition()
+	# ADR 0014: chunk streaming runs after level transition (level changes
+	# may relocate the actor) and before save/load (save needs to capture
+	# the post-stream current_chunk). No-op when chunk_streamer is null
+	# (single-chunk legacy mode).
+	process_chunk_streaming()
 	process_pending_save_load()
 	# ADR 0016: switch_actor takes effect at next tick boundary. We process
 	# AFTER scheduler.tick() so the current tick's rules saw the OLD
@@ -645,6 +707,15 @@ func _do_load(slot: int) -> void:
 	var saved_level := str(world_state.get("current_level", current_level))
 	if saved_level != "" and saved_level != current_level:
 		_do_level_transition(saved_level)
+	# ADR 0014: restore current_chunk if the save came from chunked-world
+	# mode. Re-anchor the streamer at the saved chunk; the next tick's
+	# update() will load the right neighbors. We unload everything first
+	# so transient chunks from the starting_chunk boot don't linger.
+	if chunk_streamer != null and payload.has("current_chunk"):
+		var cc = payload["current_chunk"]
+		if cc is Array and (cc as Array).size() >= 2:
+			var saved_chunk := Vector2i(int(cc[0]), int(cc[1]))
+			_apply_saved_chunk(saved_chunk)
 	# Apply saved persistent entities (overwrite the level's defaults)
 	_apply_saved_entities(payload.get("persistent_entities", []))
 	# Apply saved relations (additive — relations from level are kept,
@@ -661,6 +732,23 @@ func _do_load(slot: int) -> void:
 				)
 	if verbose:
 		print("[World] loaded slot %d (tick was %d)" % [slot, int((payload.get("_meta", {}) as Dictionary).get("tick", -1))])
+
+
+## ADR 0014: re-anchor chunk_streamer at a saved chunk. Despawns all
+## currently-loaded transient chunks (they came from the starting_chunk
+## boot above), reseats current_chunk on the streamer, and triggers a
+## fresh load around the saved coord. Persistent entities are untouched.
+func _apply_saved_chunk(saved_chunk: Vector2i) -> void:
+	if chunk_streamer == null: return
+	var env := _build_env()
+	# Unload every transient chunk loaded by boot()
+	for c in chunk_streamer.loaded_chunks().duplicate():
+		chunk_streamer._unload_chunk(c, env)
+	# Reset internal state to force a reload around the saved chunk
+	chunk_streamer.current_chunk = saved_chunk
+	chunk_streamer.starting_chunk = saved_chunk
+	chunk_streamer.boot(env)
+	world_state["current_chunk"] = [saved_chunk.x, saved_chunk.y]
 
 
 ## Apply a saved persistent_entities array. For each record:
@@ -697,6 +785,21 @@ func _game_name() -> String:
 	var slash := s.rfind("/")
 	if slash < 0: return s
 	return s.substr(slash + 1)
+
+
+## ADR 0014: per-tick chunk streaming. Resolves the active actor's planar
+## position via ActorManager, then asks chunk_streamer to load any
+## chunks within stream_radius and despawn entities in chunks beyond
+## unload_radius. Persistent entities (from chunks/_persistent/ or
+## tagged via persistent_tags) are never affected — they live in env
+## for the whole session.
+##
+## No-op when chunk_streamer is null (legacy single-chunk demos).
+func process_chunk_streaming() -> void:
+	if chunk_streamer == null: return
+	var actor_id := _find_actor_id()
+	if actor_id == "": return
+	chunk_streamer.update(scheduler.env, actor_id)
 
 
 ## ADR 0006: process queued level transitions AFTER the tick's effect chain

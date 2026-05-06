@@ -36,6 +36,11 @@ godot/scenes/*.tscn
 !godot/scenes/test_main.tscn
 !godot/scenes/scenario_test.tscn
 
+# Per-game design docs (GDD, world-plan, level-design, reviews, QA reports).
+# These are local artifacts produced by /yume-design pipeline; they pair with
+# the gitignored godot/data/demo_<name>/ folders.
+docs/games/
+
 # User saves (Godot user:// resolves to platform appdata, but if anyone
 # sets data_root to a tracked path, this prevents leakage)
 godot/data/*/saves/

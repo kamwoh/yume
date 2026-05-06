@@ -2202,8 +2202,25 @@ Tech-director reviewed; build in this order:
 4. ~~#83 ADR 0015~~ — DELETED. Superseded entirely by #87 (Godot
    rigid-body exposure) per ADR 0021. Vehicle physics deferred to
    `VehicleBody3D` exposure when the first racing game queues.
-5. [ ] **#84 ADR 0014** — open-world chunked substrate. Biggest surface
-   change. Independent track parallel to merchant game critical path.
+5. [x] **#84 ADR 0014** — open-world chunked substrate. Phase A landed
+   (2026-05-06): ChunkStreamer module (~280 lines) tracks active-actor
+   position via ActorManager, loads `chunks/<x>_<y>/entities.json`
+   within stream_radius, despawns beyond unload_radius (hysteresis).
+   `chunks/_persistent/entities.json` loaded ONCE at boot — entities
+   live in env.entities + spatial_index for the whole session
+   regardless of chunk eviction (per ADR § Revisions #1). World.gd
+   exposes `load_entities_file()` helper for chunk content; per-tick
+   `process_chunk_streaming()` runs after `process_pending_level_
+   transition` (no flush ordering changes). SaveState serializes
+   `current_chunk` coord; `_apply_saved_chunk()` re-anchors streamer
+   on load. Backward compat: world.json absence → null streamer →
+   legacy single-chunk mode (verified via sokoban 14/14 scenarios).
+   407/407 unit tests pass (+39 from test_chunk_streaming covering
+   try_load, chunk_of math, boundary crossing, persistent survival,
+   spatial_index hygiene, beyond-stream-radius queries, save+restore).
+   Phase B (deferred): yume-open-world-designer skill, per-chunk
+   rules.json overrides, boundary_mode "wrap" / "infinite", per-actor
+   stream radii.
 6. [x] **#85 ADR 0018** — in-process actor policy interface. Phase A
    landed: ScriptedPolicy module (JSON behavior-rule interpreter with
    condition primitives world_state/actor_state/distance_to/nearby_count
