@@ -63,11 +63,13 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"quit_app":          _quit_app(effect, env, context)
 		"show_toast":        _show_toast(effect, env, context)
 		"load_data":         _load_data(effect, env, context)
+		"save_state":        _save_state(effect, env, context)
+		"load_state":        _load_state(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, load_data.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, load_data, save_state, load_state.",
 				"warning")
 	return {}
 
@@ -784,3 +786,23 @@ static func _show_toast(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 static func _load_data(e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
 	var args = e.get("args", {})
 	_push_screen_event(env, {"event": "load_data", "args": args})
+
+
+# ============================================================
+# SAVE / LOAD EFFECTS (ADR 0010)
+# ============================================================
+#
+# Both effects are DEFERRED — they set env._pending_save / env._pending_load
+# (slot number). World.gd processes the pending request between ticks
+# (after the current effect chain drains), same pattern as transition_level.
+# This keeps save/load atomic relative to the simulation: a save captures
+# a stable post-tick state, never mid-rule.
+
+static func _save_state(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var slot := int(_value(e.get("slot", 0), ctx, env))
+	env["_pending_save"] = slot
+
+
+static func _load_state(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var slot := int(_value(e.get("slot", 0), ctx, env))
+	env["_pending_load"] = slot

@@ -61,6 +61,10 @@ var _clock: WorldClock = null
 ## by reference into `env.error_buffer`; readable by qa-tester / VQA /
 ## LLM agents. Drain with `EngineError.drain(env)` between scenarios.
 var error_buffer: Array = []
+## ADR 0010 — save/load policy loaded from <data_root>/save_policy.json.
+## Empty if the game hasn't opted in to persistence; save_state /
+## load_state effects are no-ops when empty.
+var save_policy: Dictionary = {}
 
 
 # ============================================================
@@ -164,6 +168,13 @@ func load_data() -> void:
 	# rule-id-keyed field overrides + world_state overrides + entity-id state
 	# overrides. Purely additive — cannot change rule structure.
 	_apply_variant_if_active(root)
+	# ADR 0010: load save policy + expose has_save binding for menus.
+	save_policy = SaveState.load_policy(root)
+	if not save_policy.is_empty():
+		var slots := int(save_policy.get("slots", 1))
+		world_state["has_save"] = 1 if SaveState.has_any_save(_game_name(), slots) else 0
+	else:
+		world_state["has_save"] = 0
 	scheduler.flush_effects()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
@@ -501,12 +512,134 @@ func _on_tick(count: int) -> void:
 	# drawing the frozen scene behind the modal. Input still routes to the
 	# active screen via ScreenFlow's _process; we just skip scheduler.tick().
 	if int(world_state.get("screen_freeze_world", 0)) != 0:
+		# Still process pending save/load so a "Save" button in pause works
+		process_pending_save_load()
 		return
 	scheduler.tick()
 	_decrement_lifetimes()
 	process_pending_level_transition()
+	process_pending_save_load()
 	if verbose and count % 4 == 0:
 		_print_tick_summary(count)
+
+
+## ADR 0010: process pending save/load between ticks. Same deferred pattern
+## as level transitions — keeps save atomic relative to the simulation
+## (capture stable post-tick state, never mid-rule).
+##
+## On save: serialize via SaveState.save_to_slot, refresh has_save binding,
+## emit a toast for UI confirmation if a screen is active.
+##
+## On load: read the slot, refuse on version mismatch, then re-init the
+## world (reload data) and overlay saved state. v1 takes the "easy"
+## approach: re-load all entities/rules from disk, then apply the saved
+## world_state + saved persistent_entities (overwriting their reloaded
+## defaults). Persistent entities not in the save are left at default.
+func process_pending_save_load() -> void:
+	var env: Dictionary = scheduler.env
+	# Save first (so a save+load in same frame still saves the pre-load state)
+	var pending_save = env.get("_pending_save", null)
+	if pending_save != null and pending_save is int:
+		env.erase("_pending_save")
+		_do_save(int(pending_save))
+	var pending_load = env.get("_pending_load", null)
+	if pending_load != null and pending_load is int:
+		env.erase("_pending_load")
+		_do_load(int(pending_load))
+
+
+func _do_save(slot: int) -> void:
+	if save_policy.is_empty():
+		EngineError.raise(scheduler.env, EngineError.RULE_FILE_MISSING,
+			"save_state effect fired but no save_policy.json present",
+			{"slot": slot},
+			"Add data/<game>/save_policy.json to opt in to persistence.",
+			"warning")
+		return
+	var tick_n := _clock.tick_count if _clock != null else 0
+	var ok := SaveState.save_to_slot(scheduler.env, save_policy, slot, _game_name(), tick_n)
+	if ok:
+		# Refresh has_save so menus update immediately
+		var slots := int(save_policy.get("slots", 1))
+		world_state["has_save"] = 1 if SaveState.has_any_save(_game_name(), slots) else 0
+		if verbose:
+			print("[World] saved slot %d" % slot)
+	else:
+		push_warning("[World] save to slot %d failed" % slot)
+
+
+func _do_load(slot: int) -> void:
+	if save_policy.is_empty():
+		push_warning("load_state effect fired but no save_policy.json present")
+		return
+	var result: Dictionary = SaveState.read_slot(_game_name(), slot, save_policy)
+	if not bool(result.get("ok", false)):
+		var err := str(result.get("error", "unknown"))
+		push_warning("[World] load slot %d failed: %s" % [slot, err])
+		return
+	var payload: Dictionary = result["payload"]
+	# Apply saved world_state (replaces, doesn't merge — persisted keys are
+	# the source of truth on load)
+	var ws_in: Dictionary = payload.get("world_state", {}) as Dictionary
+	for k in ws_in.keys():
+		world_state[str(k)] = ws_in[k]
+	# Reload current_level if it changed (re-spawns the level's entities)
+	# AFTER state apply so the level loader sees the saved current_level.
+	var saved_level := str(world_state.get("current_level", current_level))
+	if saved_level != "" and saved_level != current_level:
+		_do_level_transition(saved_level)
+	# Apply saved persistent entities (overwrite the level's defaults)
+	_apply_saved_entities(payload.get("persistent_entities", []))
+	# Apply saved relations (additive — relations from level are kept,
+	# saved ones added; redundant relate() calls are no-ops in
+	# RelationStore)
+	var rels = payload.get("relations", [])
+	if rels is Array:
+		for r in rels:
+			if r is Dictionary:
+				relations.relate(
+					str(r.get("type", "")),
+					str(r.get("from", "")),
+					str(r.get("to", "")),
+				)
+	if verbose:
+		print("[World] loaded slot %d (tick was %d)" % [slot, int((payload.get("_meta", {}) as Dictionary).get("tick", -1))])
+
+
+## Apply a saved persistent_entities array. For each record:
+##   - if an entity with that id exists, update its position + state
+##   - if not, spawn from def at saved position with saved state
+## Either way, ensure the entity carries the persistent tag.
+func _apply_saved_entities(records: Array) -> void:
+	for r in records:
+		if not (r is Dictionary): continue
+		var rec: Dictionary = r
+		var inst_id := str(rec.get("id", ""))
+		var def_id := str(rec.get("def", ""))
+		if inst_id == "" or def_id == "": continue
+		var pos = rec.get("position", null)
+		var state_in: Dictionary = rec.get("state", {}) as Dictionary
+		var ent = entities.get(inst_id, null)
+		if ent != null and ent is Entity:
+			# Existing — overwrite position + state
+			(ent as Entity).set_position(pos)
+			for k in state_in.keys():
+				(ent as Entity).set_state(str(k), state_in[k])
+		else:
+			# Spawn from def
+			_spawn_initial({
+				"def": def_id, "id": inst_id,
+				"position": pos, "state": state_in,
+			})
+
+
+## Resolve the data_root's basename for save namespacing.
+## "res://data/demo_sokoban" → "demo_sokoban".
+func _game_name() -> String:
+	var s := data_root.rstrip("/")
+	var slash := s.rfind("/")
+	if slash < 0: return s
+	return s.substr(slash + 1)
 
 
 ## ADR 0006: process queued level transitions AFTER the tick's effect chain
@@ -850,6 +983,13 @@ func _do_level_transition(target: String) -> void:
 	world_state["current_level"] = target
 	_load_level(target)
 	scheduler.flush_effects()
+	# ADR 0010 autosave: on_level_transition. Push a save into the env's
+	# pending slot so the next process_pending_save_load picks it up.
+	# Slot 0 = autosave by convention.
+	if not save_policy.is_empty():
+		var auto: Dictionary = save_policy.get("autosave", {}) as Dictionary
+		if bool(auto.get("on_level_transition", false)):
+			scheduler.env["_pending_save"] = 0
 	if verbose:
 		print("[World] transitioned to level: ", target)
 

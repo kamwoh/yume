@@ -22,6 +22,14 @@
            {"type": "button", "text": "@strings.menu.new_game",
             "width": 240, "height": 48, "font_size": 22,
             "on_click": [
+              {"type": "load_data", "args": {"reset": true}},
+              {"type": "transition_screen", "target": "game"}
+            ]},
+           {"type": "button", "text": "@strings.menu.continue",
+            "width": 240, "height": 48, "font_size": 22,
+            "enabled_if": "world.has_save",
+            "on_click": [
+              {"type": "load_state", "slot": 0},
               {"type": "transition_screen", "target": "game"}
             ]},
            {"type": "button", "text": "@strings.menu.quit",
@@ -55,10 +63,16 @@
             "on_click": [
               {"type": "transition_screen", "target": "game"}
             ]},
+           {"type": "button", "text": "@strings.menu.save",
+            "width": 240, "height": 48, "font_size": 22,
+            "on_click": [
+              {"type": "save_state", "slot": 0},
+              {"type": "show_toast", "text": "@strings.menu.saved", "duration": 1.5}
+            ]},
            {"type": "button", "text": "@strings.menu.main_menu",
             "width": 240, "height": 48, "font_size": 22,
             "on_click": [
-              {"type": "load_data"}
+              {"type": "transition_screen", "target": "title"}
             ]}
          ]}
       ]

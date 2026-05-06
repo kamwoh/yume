@@ -1,0 +1,28 @@
+{
+  "_comment": "Sokoban save policy. Levels reload from JSON each time so we don't persist per-level entity state — only the player's CURRENT level + total moves + tutorial step. 1 slot is enough for a puzzle game (no branching playthroughs).",
+
+  "world_state_keys": [
+    "current_level",
+    "tutorial_step",
+    "all_levels_complete"
+  ],
+
+  "entity_tags_persistent": [],
+
+  "entity_state_blacklist": [
+    "_temp_*",
+    "diag_*"
+  ],
+
+  "relations_persistent": [],
+
+  "slots": 1,
+
+  "autosave": {
+    "on_signal": [],
+    "on_level_transition": true,
+    "interval_ticks": 0
+  },
+
+  "version": 1
+}

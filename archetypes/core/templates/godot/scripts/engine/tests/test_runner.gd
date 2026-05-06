@@ -43,6 +43,7 @@ func _ready() -> void:
 	test_instance_patterns()
 	test_screen_flow_effects()
 	test_control_factory()
+	test_save_state()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1622,3 +1623,118 @@ func test_control_factory() -> void:
 	expect(unknown == null, "unknown element type returns null")
 
 	parent.queue_free()
+
+
+# ============================================================
+# SAVE STATE (ADR 0010)
+# ============================================================
+
+## Round-trip: save snapshot of an env, mutate, load, verify state restored.
+## Uses a temp game name under user:// to isolate from real saves.
+func test_save_state() -> void:
+	_section("save_state (ADR 0010)")
+	var game := "test_save_%d" % Time.get_ticks_msec()
+	var policy: Dictionary = {
+		"world_state_keys": ["current_level", "score", "tutorial_step"],
+		"entity_tags_persistent": ["named_npc"],
+		"entity_state_blacklist": ["_temp_*"],
+		"relations_persistent": ["owns"],
+		"slots": 1,
+		"version": 1,
+	}
+
+	# Build a fresh env with one persistent entity + one transient
+	var defs: Dictionary = {
+		"npc": {"id": "npc", "tags": ["named_npc"], "state_init": {"hp": 100}},
+		"mob": {"id": "mob", "tags": ["enemy"], "state_init": {"hp": 50}},
+	}
+	var entities: Dictionary = {}
+	var rs := RelationStore.new()
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"world": {"current_level": "1", "score": 42, "tutorial_step": 3,
+				  "_temp_runtime": 999, "ignored_key": "x"},
+		"parent": null, "next_id": {"_": 0},
+	}
+
+	# Spawn one of each
+	var npc := Entity.new()
+	npc.def_id = "npc"; npc.instance_id = "alice"
+	npc.tags = ["named_npc"]
+	npc.state = {"hp": 75, "_temp_runtime": 1, "gold": 200}
+	npc.set_position(Vector2(10, 20))
+	entities["alice"] = npc
+
+	var mob := Entity.new()
+	mob.def_id = "mob"; mob.instance_id = "goblin1"
+	mob.tags = ["enemy"]
+	mob.state = {"hp": 50}
+	mob.set_position(Vector2(30, 40))
+	entities["goblin1"] = mob
+
+	rs.relate("owns", "alice", "sword_1")
+	rs.relate("knows", "alice", "bob")  # not in relations_persistent
+
+	# SAVE
+	var ok := SaveState.save_to_slot(env, policy, 0, game, 7)
+	expect(ok, "save_to_slot returned ok")
+
+	# Read back the JSON to verify structure
+	var path := SaveState.slot_path(game, 0)
+	expect(FileAccess.file_exists(path), "slot file exists")
+	var f := FileAccess.open(path, FileAccess.READ)
+	var read_payload = JSON.parse_string(f.get_as_text())
+	expect(read_payload is Dictionary, "saved file parses as JSON")
+	if read_payload is Dictionary:
+		var p: Dictionary = read_payload
+		expect_eq(int(p.get("version", -1)), 1, "version stored")
+		var ws: Dictionary = p.get("world_state", {})
+		expect_eq(int(ws.get("score", 0)), 42, "score persisted")
+		expect_eq(int(ws.get("tutorial_step", 0)), 3, "tutorial_step persisted")
+		expect(not ws.has("ignored_key"), "ignored_key NOT persisted (not in policy)")
+
+		var ents: Array = p.get("persistent_entities", [])
+		expect_eq(ents.size(), 1, "only persistent (named_npc) entity saved")
+		if ents.size() > 0:
+			var rec: Dictionary = ents[0]
+			expect_eq(str(rec.get("id", "")), "alice", "alice was saved")
+			expect_eq(str(rec.get("def", "")), "npc", "alice's def saved")
+			var st: Dictionary = rec.get("state", {})
+			expect_eq(int(st.get("hp", -1)), 75, "alice's hp saved")
+			expect_eq(int(st.get("gold", -1)), 200, "alice's gold saved")
+			expect(not st.has("_temp_runtime"),
+				"blacklisted _temp_* field NOT saved")
+
+		var rels: Array = p.get("relations", [])
+		expect_eq(rels.size(), 1, "only `owns` relation persisted")
+		if rels.size() > 0:
+			expect_eq(str((rels[0] as Dictionary).get("type", "")), "owns",
+				"saved relation type is `owns`")
+
+	# READ BACK + version check
+	var result: Dictionary = SaveState.read_slot(game, 0, policy)
+	expect(bool(result.get("ok", false)), "read_slot returned ok")
+
+	# Version mismatch refusal
+	var bad_policy: Dictionary = policy.duplicate()
+	bad_policy["version"] = 999
+	var bad_result: Dictionary = SaveState.read_slot(game, 0, bad_policy)
+	expect(not bool(bad_result.get("ok", true)), "version mismatch refuses load")
+	expect_eq(str(bad_result.get("error", "")), "version_mismatch",
+		"version mismatch reports correct error code")
+
+	# has_any_save sanity
+	expect(SaveState.has_any_save(game, 1), "has_any_save returns true after save")
+	expect(not SaveState.has_any_save("test_nonexistent_xyz", 3),
+		"has_any_save returns false for missing game")
+
+	# Cleanup: remove the temp save dir
+	var d := DirAccess.open("user://saves/" + game)
+	if d != null:
+		d.remove("slot_0.json")
+	var d2 := DirAccess.open("user://saves")
+	if d2 != null:
+		d2.remove(game)
+
+	npc.queue_free()
+	mob.queue_free()

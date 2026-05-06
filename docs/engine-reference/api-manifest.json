@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-06T13:51:24+00:00",
+  "generated_at": "2026-05-06T14:34:37+00:00",
   "generated_from": "archetypes/core/templates/godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -120,6 +120,14 @@
     },
     {
       "type": "load_data",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "save_state",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "load_state",
       "source": "effect_apply.gd"
     }
   ],

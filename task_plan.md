@@ -2146,9 +2146,13 @@ sessions. Update both when status changes.
   (`transition_screen`, `quit_app`, `show_toast`, `load_data`) +
   freeze_world hook. Reference content: `data/demo_sokoban/screens.json`.
   Commits `6f6a8d4` (Phase A) + `2b9c112` (anchor centering fix).
-- [ ] **#76 ADR 0010** — save/load engine. `save_state` + `load_state`
-  effects via Godot FileAccess + JSON. Reads per-game `save_policy.json`.
-  Slot management. Refuse-on-mismatch for schema version.
+- [x] **#76 ADR 0010** — save/load engine. Landed: SaveState module
+  (atomic write-then-rename, JSON via FileAccess, schema version
+  refuse-on-mismatch, glob blacklist, persistent-tag filtering).
+  `save_state` + `load_state` effects deferred between ticks. Autosave
+  on_level_transition. `world.has_save` binding. Reference content:
+  sokoban save_policy.json + Continue/Save buttons in screens.json.
+  281/281 tests pass.
 - [ ] **#78 ADR 0012** — tutorial overlay primitive. `show_overlay` +
   `dismiss_overlay` effects. Highlight via ShaderMaterial+Tween.
   Reads tutorial.json. Composes with #77's modal stack.
