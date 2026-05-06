@@ -336,6 +336,46 @@ temporarily swapping `progression.json` `starting_level` (this is
 the same trick used during doomarena3d v3.0 visual QA — see
 captures/v3_chamber_*.png as precedent).
 
+### Stage-driven capture via `--capture-input` (Tier 2.6r ext, 2026-05-06)
+
+The default capture sees only the spawn frame. **Most aesthetic
+problems surface at gameplay states later** — a customer in the
+middle of haggle, a dungeon boss arena visible after entry, a
+reputation-tier-up screen. Drive the player to that state via
+scripted input, then capture.
+
+```bash
+godot --path . scenes/<game>_2d.tscn -- \
+  --capture-after=0.3 \
+  --capture-input='move_east,2.0;move_south,1.5' \
+  --capture-output=user://stage_late.png
+```
+
+Format: `--capture-input='action,seconds;action,seconds;...'`. Each
+action is held for the duration via `Input.action_press`/`release`.
+Useful per-axis applications:
+
+- **Axis 1 Readability** at peak crowd: drive enough sales to spawn
+  multiple customers; capture mid-shop-phase to see the busiest
+  legible state.
+- **Axis 4 Layout balance**: capture at tier-up celebration, festival
+  surge, or mid-haggle — the full dynamic layout, not just the
+  static spawn.
+- **Axis 6 HUD integration**: drive enough state mutations (sales,
+  tier-ups) to populate ALL HUD bindings, then capture. Default
+  spawn capture has Day 1 / Gold 500 / Sold today: 0 — many HUD
+  fields show their initial-zero state. Driven captures show the
+  HUD when it has REAL information.
+
+Multi-stage progression: capture different inputs scripts under
+different filenames, read each, compare. Catches "rendering gets
+worse as game state advances" bugs that single-frame visual QA
+misses.
+
+This complements but doesn't replace `--capture-after` for the
+spawn frame — start with that, then drive deeper if findings
+demand it.
+
 ## When invoked by orchestrator
 
 After yume-qa-tester accepts:

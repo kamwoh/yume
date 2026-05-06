@@ -288,6 +288,68 @@ Common visual bugs surfaced by this loop:
 - HUD layered behind background (z-order bug)
 - Camera spawn position inside a wall
 
+## Stage-driven visual QA via `--capture-input` (Tier 2.6r ext, 2026-05-06)
+
+The default `--capture` flag captures at 3s after game start with the
+player in their initial position. **Many bugs only surface mid-
+gameplay** — customer arrival, haggle screen rendering, dungeon entry,
+debt-due splash. To capture those, drive scripted input first then
+snapshot.
+
+### Direct godot invocation (bypasses play.sh wrapper)
+
+```bash
+godot --path . scenes/<game>_2d.tscn -- \
+  --capture-after=0.3 \
+  --capture-input='move_east,2.0;move_south,1.5' \
+  --capture-output=user://stage_2.png
+```
+
+Format: `--capture-input='action1,seconds1;action2,seconds2;...'`. Each
+action is `Input.action_press`'d for the given seconds, then released.
+Actions must be registered in InputMap (movement actions are pre-bound
+via project.godot; per-game actions via `ui/input.json`). After all
+inputs run, the engine waits `--capture-after` seconds, then captures.
+
+### Per-system QA scripts
+
+For each game system you re-enable, run a capture script that exercises
+it end-to-end and verify the post-capture PNG:
+
+| System | Capture script example | Expected visual |
+|---|---|---|
+| Movement | `--capture-input='move_east,2.0'` | Player advanced east; HUD position changed |
+| Sale on contact | `--capture-input='move_east,2.0'` (player walks into customer) | Customer removed, gold counter incremented |
+| Phase transition | `--capture-input='leave_for_dungeon,0.1'` | HUD phase string changed |
+| Haggle screen | `--capture-input='move_east,2.0;interact,0.1'` | Haggle UI panel visible over world |
+| Pause menu | `--capture-input='pause,0.1'` | Pause modal centered, time-frozen world dimmed |
+| Multi-day cycle | `--capture-input='close_shop,0.1;wait,5.0'` | Day counter incremented on HUD |
+
+### Multi-stage sequence pattern
+
+Capture progression frames by running the same sequence with longer
+input scripts. Compare across stages to verify gameplay flow:
+
+```bash
+# Stage 1 — initial state
+godot ... -- --capture-input='' --capture-output=user://stage_0.png
+# Stage 2 — after 1 sale
+godot ... -- --capture-input='move_east,2.0' --capture-output=user://stage_1.png
+# Stage 3 — after 2 sales
+godot ... -- --capture-input='move_east,2.0;move_south,1.5' --capture-output=user://stage_2.png
+```
+
+Then read each PNG. Each stage captured the actual rendered viewport
+post-input. This combines with `tests.json` scenario tests
+(headless logic verification) to give two complementary test layers:
+- `scenario_test.tscn` — drives input via `scheduler.queue_input` →
+  asserts state field changes → catches LOGIC bugs
+- `--capture-input` flag — drives input via `Input.action_press` (real
+  windowed mode with renderer) → captures PNG → catches RENDERING bugs
+
+Use both. Logic-only tests miss "rule fires but UI doesn't update";
+visual-only tests miss "UI looks right but state is wrong."
+
 ## What you DON'T do
 
 - ❌ Modify entities.json / world_rules.json (content-designer's job —

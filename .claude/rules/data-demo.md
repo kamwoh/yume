@@ -8,6 +8,95 @@ globs: godot/data/**
 Demos live as JSON folders under `data/`. They are **content**, not code —
 no GDScript files belong here.
 
+## ⚠ CRITICAL: schema field-name landmines (memorize, then verify)
+
+These are exact field names the engine reads. Wrong name = silent failure
+(rule registers but never fires; no error). Empirically caught all of these
+during the merchant game build (2026-05-06) — each had ~30-50 occurrences
+across the data files before being fixed.
+
+| Effect | Engine reads | Common wrong name | Where verified |
+|---|---|---|---|
+| `state_add` | `amount` | ❌ `delta` | `effect_apply.gd:120` `e.get("amount")` |
+| `state_mul` | `amount` | ❌ `factor` / `delta` | `effect_apply.gd:126` |
+| `spawn` | `template` | ❌ `def` | `effect_apply.gd:148` `e.get("template")` |
+| `state_clamp` | `min` / `max` | (correct) | `effect_apply.gd:133-134` |
+
+**Verify before writing**: `grep -A 4 '"type": "<effect>"' godot/data/demo_doomarena3d/world/physics.json` — if a working demo uses different names, follow the demo, not your intuition.
+
+## ⚠ CRITICAL: query vs require — they are NOT interchangeable
+
+Wrong assumption (the merchant build cost ~40 broken rules to this):
+
+❌ **WRONG** — `require` is NOT a state-search filter:
+```jsonc
+{
+  "trigger": {"type": "tick", "interval": 10},
+  "require": {"clock": {"tags_all": ["world_clock"], "state": {"phase_eq": "shop"}}}
+  // expectation: rule fires when world_clock entity has phase=shop
+  // reality: require validates that ctx["clock"] (a binding from elsewhere)
+  // matches; ctx["clock"] is NEVER set, so require always fails, rule never fires
+}
+```
+
+✅ **RIGHT** — to gate on a singleton's state, put it in `query`:
+```jsonc
+{
+  "trigger": {"type": "tick", "interval": 10},
+  "query": {"tags_all": ["world_clock"], "state": {"phase_eq": "shop"}}
+  // engine searches for entities matching this filter; rule fires per match
+}
+```
+
+**`require` semantics**: validates that bindings ALREADY set in context match
+the filter. Used when query has named sub-bindings (chess `piece`, `from_sq`,
+`to_sq`) and require enforces extra constraints on those existing bindings.
+The engine code is `phase_scheduler.gd::_require_ok` — it reads
+`ctx.get(binding_name, null)`; if null → require FAILS regardless of
+your filter.
+
+**`query` with named sub-bindings**: `query: {clock: {...}, a: {...}}` sets
+multiple context bindings via search. Rule fires per (clock × a) combination.
+For pure tick rules wanting state-gating, use FLAT pattern:
+`query: {tags_all: ["world_clock"], state: {field_op: value}}`.
+
+## ⚠ CRITICAL: bindings in payload values are BARE, not `{...}`
+
+❌ **WRONG**: `"new_tier": "{world.reputation_tier}"` — engine sends the
+literal string through the formula evaluator, fails to parse `{world.X}` as
+a Godot Expression.
+
+✅ **RIGHT**: `"new_tier": "world.reputation_tier"` (bare binding) OR
+`"new_tier": {"binds": "world.reputation_tier"}` if your effect supports
+binding objects. Check the specific effect's spec.
+
+The merchant build had ~57 of these brace-wrapped bindings causing 31,000+
+formula.parse_failed errors per session.
+
+## ⚠ CRITICAL: world-state singleton pattern (no env.world_state queries)
+
+The engine does NOT support querying `env.world_state` directly:
+- ❌ `query: {world_state: {phase_eq: "shop"}}` — engine doesn't recognize
+  `world_state` as a query target
+- ✅ Create a singleton entity tagged `world_clock` (or `level_clock`,
+  `game_state`) with all your global state fields in `state_init`. Rules
+  query it via `tags_all: ["world_clock"]`; effects mutate via
+  `target: "<world_clock_entity_id>"`.
+
+**HUD bindings work BOTH ways** but for different stores:
+- `world.X` → reads `env.world_state` dict (set by `state_set target=world`)
+- `<entity_tag>.X` → finds first entity with that tag, reads its state
+
+**Don't duplicate**: pick ONE source-of-truth. Either use env.world_state
+(`target=world`, HUD binds `world.X`) OR singleton entity
+(`target=<entity_id>`, HUD binds `<tag>.X`). Mixing both means mutations on
+one don't affect reads from the other.
+
+Working demos:
+- chess: `game_state` singleton entity, queries via `tags_all: ["game_state"]`
+- sokoban: `level_clock` singleton, same pattern
+- harvestcore: hybrid (some env.world_state, some singletons) — the messier path
+
 ## DON'T
 
 - ❌ **Reference engine internals.** No `state.entities[N]`,

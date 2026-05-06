@@ -401,6 +401,19 @@ Per ADR 0009 expanded scope: also writes audio/cues.json + ui/strings.json.
     - HUD renders + lighting applied
     - No obvious clipping / camera-in-wall / wrong-mode-for-content
     Findings appended to qa-report.md alongside cascade verification.
+21b. **Tier 2.6r ext — Stage-driven Visual QA** (2026-05-06): the
+    spawn-frame capture only catches static rendering bugs. For
+    GAMEPLAY-state bugs (HUD bindings only populate after sales,
+    haggle screen renders mid-customer-arrival, dungeon layout only
+    after East Gate transition), drive scripted input first then
+    capture. Use `--capture-input='action,seconds;...'` flag on
+    capture_runner; the engine holds each action for the given
+    duration via `Input.action_press`/`release` then captures. Per-
+    system VQA examples in yume-qa-tester SKILL § "Stage-driven
+    visual QA". qa-tester captures both spawn-frame AND at least
+    one stage-frame for each major game system (movement, sale,
+    haggle UI, phase transition, debt-due splash, tier-up
+    celebration).
 22. **Autonomous fix-and-retry**: if qa-tester reports a small mechanical
     bug (ternary syntax, typo, missing field, position_scale mismatch),
     the orchestrator may apply the fix inline and re-run. Tier 2.6a

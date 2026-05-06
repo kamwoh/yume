@@ -22,17 +22,37 @@ extends Node
 func _ready() -> void:
 	var delay := -1.0
 	var output_path := "user://_capture.png"
+	# 2026-05-06 ext: scripted input for visual QA.
+	# --capture-input=move_east,2.0;move_north,1.0 holds each action for the
+	# given seconds, then captures. Lets visual-QA loops drive game state
+	# (walk player to spot, press button) before snapshot. Empty = legacy.
+	var input_script := ""
 	for arg in OS.get_cmdline_user_args():
 		var s := str(arg)
 		if s.begins_with("--capture-after="):
 			delay = float(s.substr(16))
 		elif s.begins_with("--capture-output="):
 			output_path = s.substr(17)
+		elif s.begins_with("--capture-input="):
+			input_script = s.substr(16)
 	if delay <= 0.0:
 		return  # no capture requested — no-op
 	# Detach from main scene tree timing — let the game's own _ready
 	# settle before we start counting.
 	await get_tree().process_frame
+	# Drive scripted input before the post-input capture delay.
+	if input_script != "":
+		for step in input_script.split(";"):
+			var parts := step.split(",")
+			if parts.size() != 2: continue
+			var action := parts[0].strip_edges()
+			var dur := float(parts[1])
+			if not InputMap.has_action(action):
+				push_warning("[CaptureRunner] unknown action: %s" % action)
+				continue
+			Input.action_press(action)
+			await get_tree().create_timer(dur).timeout
+			Input.action_release(action)
 	await get_tree().create_timer(delay).timeout
 	var img: Image = get_viewport().get_texture().get_image()
 	if img == null:
