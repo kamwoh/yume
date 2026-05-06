@@ -150,6 +150,10 @@ func load_data() -> void:
 		# appended. Per-level rules append on top in _load_level.
 		_load_rules_file(root + "/world/physics.json")
 		_load_rules_file(root + "/game/rules.json", true)
+		# ADR 0012: tutorial.json — optional, treated as additional rules
+		# at global scope. Steps are rules whose effects fire show_overlay /
+		# dismiss_overlay; sequencing via overlay_advanced signal + state.
+		_load_rules_file(root + "/tutorial.json", true)
 		_load_world_file(root + "/world/state.json")
 		# Per ADR 0006: tag persistent entities "persistent" to survive
 		# level transitions.
@@ -160,6 +164,7 @@ func load_data() -> void:
 		# Single-level layout
 		_load_rules_file(root + "/world/physics.json")
 		_load_rules_file(root + "/game/rules.json", true)
+		_load_rules_file(root + "/tutorial.json", true)
 		_load_world_file(root + "/world/state.json")
 		_load_entities_path(root)
 	# ADR 0009 Phase 2d: variant overlay applies after rules + world_state +
@@ -507,11 +512,14 @@ func _start_clock() -> void:
 
 
 func _on_tick(count: int) -> void:
-	# ADR 0011: when a screen with freeze_world=true is active (pause,
-	# settings, game-over modal, etc.), suppress simulation. Renderer keeps
-	# drawing the frozen scene behind the modal. Input still routes to the
-	# active screen via ScreenFlow's _process; we just skip scheduler.tick().
-	if int(world_state.get("screen_freeze_world", 0)) != 0:
+	# ADR 0011 + 0012: when a screen OR overlay with freeze_world=true is
+	# active, suppress simulation. Renderer keeps drawing the frozen scene
+	# behind the modal/overlay. Input still routes to the active screen
+	# (ScreenFlow's _process) or overlay (OverlayManager's _process); we
+	# just skip scheduler.tick().
+	var freeze := int(world_state.get("screen_freeze_world", 0)) != 0
+	freeze = freeze or int(world_state.get("overlay_freeze_world", 0)) != 0
+	if freeze:
 		# Still process pending save/load so a "Save" button in pause works
 		process_pending_save_load()
 		return
@@ -978,6 +986,9 @@ func _do_level_transition(target: String) -> void:
 	var root := data_root.rstrip("/")
 	_load_rules_file(root + "/world/physics.json")
 	_load_rules_file(root + "/game/rules.json", true)
+	# ADR 0012: tutorial.json is global (not per-level), re-register here
+	# so sequencing rules survive level transitions.
+	_load_rules_file(root + "/tutorial.json", true)
 	# Load new level
 	current_level = target
 	world_state["current_level"] = target
@@ -1279,8 +1290,11 @@ func _build_env() -> Dictionary:
 		"next_id": next_id_seq,
 		"error_buffer": error_buffer,
 		# ADR 0011: ScreenFlow drains transition_screen / quit_app /
-		# show_toast / load_data effects from this buffer. Lazily created
+		# show_toast / reload_scene effects from this buffer. Lazily created
 		# by effect_apply if no ScreenFlow is mounted (harmless — events
 		# accumulate and stay quiet).
 		"screen_event_buffer": [],
+		# ADR 0012: OverlayManager drains show_overlay / dismiss_overlay
+		# effects from this buffer.
+		"overlay_event_buffer": [],
 	}

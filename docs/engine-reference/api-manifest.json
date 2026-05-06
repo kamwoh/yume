@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-06T14:43:52+00:00",
+  "generated_at": "2026-05-06T14:52:17+00:00",
   "generated_from": "archetypes/core/templates/godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -128,6 +128,14 @@
     },
     {
       "type": "load_state",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "show_overlay",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "dismiss_overlay",
       "source": "effect_apply.gd"
     }
   ],

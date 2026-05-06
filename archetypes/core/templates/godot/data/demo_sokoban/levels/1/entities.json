@@ -11,7 +11,8 @@
       "state": {
         "total_boxes": 1,
         "on_goal_count": 0,
-        "is_won": 0
+        "is_won": 0,
+        "tutorial_step": 0
       }
     },
     {

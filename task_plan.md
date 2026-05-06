@@ -2153,9 +2153,13 @@ sessions. Update both when status changes.
   on_level_transition. `world.has_save` binding. Reference content:
   sokoban save_policy.json + Continue/Save buttons in screens.json.
   281/281 tests pass.
-- [ ] **#78 ADR 0012** — tutorial overlay primitive. `show_overlay` +
-  `dismiss_overlay` effects. Highlight via ShaderMaterial+Tween.
-  Reads tutorial.json. Composes with #77's modal stack.
+- [x] **#78 ADR 0012** — tutorial overlay primitive. Phase A landed:
+  OverlayManager module + 2 effects (show_overlay, dismiss_overlay) +
+  4 advance conditions (action / signal / timer / skip) + freeze_world
+  coordination + emit overlay_advanced signal. Reference content:
+  data/demo_sokoban/tutorial.json welcome step. 295/295 tests pass.
+  Visual gate: capture verifies overlay renders with title/body/dim
+  backdrop. Highlight rendering deferred to #100 (Phase B).
 - [ ] **#79 ADR 0013** — settings schema + Godot ConfigFile.
   `set_audio_bus_volume` + `set_input_mapping` effects. settings_renderer
   Control element type. Composes with #77.

@@ -1,0 +1,22 @@
+{
+  "_comment": "Sokoban tutorial — minimal Phase A demo. Shows a welcome overlay on level 1 entry (tutorial_step==0), advances on ui_accept (Space/Enter). After ui_accept, tutorial_step becomes 1 and no further overlays fire. Tutorial state lives in world_state and persists via save_policy.json.",
+
+  "rules": [
+    {
+      "id": "tut_step_0_welcome",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["clock"],
+                "state": {"tutorial_step_eq": 0}},
+      "effect": [
+        {"type": "show_overlay",
+         "id": "welcome",
+         "title": "Welcome to Sokoban",
+         "body": "Push every box onto a goal tile. Use WASD or arrow keys to move. Press R to restart a level. Press Space to begin.",
+         "advance_action": "ui_accept",
+         "freeze_world": true},
+        {"type": "state_set", "target": "self",
+         "field": "tutorial_step", "value": 1}
+      ]
+    }
+  ]
+}

@@ -44,6 +44,7 @@ func _ready() -> void:
 	test_screen_flow_effects()
 	test_control_factory()
 	test_save_state()
+	test_overlay_effects()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1738,3 +1739,61 @@ func test_save_state() -> void:
 
 	npc.queue_free()
 	mob.queue_free()
+
+
+# ============================================================
+# OVERLAY (ADR 0012)
+# ============================================================
+
+## Verify show_overlay / dismiss_overlay effect types push correctly into
+## env.overlay_event_buffer. Full OverlayManager (CanvasLayer + advance
+## conditions) is integration-tested via scene playthrough.
+func test_overlay_effects() -> void:
+	_section("overlay_effects (ADR 0012)")
+	var env: Dictionary = {"overlay_event_buffer": []}
+	var ctx: Dictionary = {"_rule_id": "test"}
+
+	# show_overlay forwards all keys verbatim
+	EffectApply.apply({
+		"type": "show_overlay",
+		"id": "welcome",
+		"title": "Welcome",
+		"body": "Press WASD to move.",
+		"advance_action": "move_north",
+		"freeze_world": true,
+	}, env, ctx)
+	expect_eq(env["overlay_event_buffer"].size(), 1, "show_overlay: buffer size")
+	var ev: Dictionary = env["overlay_event_buffer"][0]
+	expect_eq(str(ev.get("event", "")), "show_overlay", "event name")
+	expect_eq(str(ev.get("id", "")), "welcome", "id forwarded")
+	expect_eq(str(ev.get("title", "")), "Welcome", "title forwarded")
+	expect_eq(str(ev.get("advance_action", "")), "move_north", "advance_action forwarded")
+	expect_eq(bool(ev.get("freeze_world", false)), true, "freeze_world forwarded")
+
+	# dismiss_overlay records id + manual reason (set by OverlayManager)
+	EffectApply.apply({"type": "dismiss_overlay", "id": "welcome"}, env, ctx)
+	expect_eq(env["overlay_event_buffer"].size(), 2, "dismiss_overlay: buffer grew")
+	var d: Dictionary = env["overlay_event_buffer"][1]
+	expect_eq(str(d.get("event", "")), "dismiss_overlay", "dismiss event name")
+	expect_eq(str(d.get("id", "")), "welcome", "dismiss id")
+
+	# Lazy buffer creation
+	var fresh: Dictionary = {}
+	EffectApply.apply({"type": "show_overlay", "id": "a", "title": "x"}, fresh, ctx)
+	expect(fresh.has("overlay_event_buffer"), "lazy overlay buffer creation")
+	expect_eq((fresh["overlay_event_buffer"] as Array).size(), 1, "lazy buffer: event landed")
+
+	# Multiple advance conditions can all be specified; engine prioritizes
+	# at runtime (timer first, then action, then signal). Buffer record
+	# carries them all — OverlayManager decides.
+	var env2: Dictionary = {}
+	EffectApply.apply({
+		"type": "show_overlay", "id": "multi",
+		"advance_action": "ui_accept",
+		"advance_signal": "player_moved",
+		"advance_after_seconds": 5.0,
+	}, env2, ctx)
+	var ev2: Dictionary = env2["overlay_event_buffer"][0]
+	expect_eq(str(ev2.get("advance_action", "")), "ui_accept", "multi: action")
+	expect_eq(str(ev2.get("advance_signal", "")), "player_moved", "multi: signal")
+	expect_eq(float(ev2.get("advance_after_seconds", 0)), 5.0, "multi: timer")

@@ -65,11 +65,13 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"reload_scene":      _reload_scene(effect, env, context)
 		"save_state":        _save_state(effect, env, context)
 		"load_state":        _load_state(effect, env, context)
+		"show_overlay":      _show_overlay_effect(effect, env, context)
+		"dismiss_overlay":   _dismiss_overlay_effect(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state, show_overlay, dismiss_overlay.",
 				"warning")
 	return {}
 
@@ -813,3 +815,51 @@ static func _save_state(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 static func _load_state(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var slot := int(_value(e.get("slot", 0), ctx, env))
 	env["_pending_load"] = slot
+
+
+# ============================================================
+# OVERLAY EFFECTS (ADR 0012)
+# ============================================================
+#
+# Same pattern as screen events: push records into env.overlay_event_buffer.
+# OverlayManager (a Node sibling of GameShell) drains each frame.
+
+static func _push_overlay_event(env: Dictionary, record: Dictionary) -> void:
+	var buf_v = env.get("overlay_event_buffer", null)
+	var buf: Array
+	if buf_v is Array:
+		buf = buf_v
+	else:
+		buf = []
+		env["overlay_event_buffer"] = buf
+	buf.append(record)
+
+
+## Show an overlay (modal text + advance condition). All fields except
+## "type" are forwarded verbatim into the buffer record so OverlayManager
+## sees the full spec (id, title, body, advance_action, advance_signal,
+## advance_after_seconds, freeze_world, skippable, highlight_tag, etc.).
+##
+## Strings pass through raw (so "Press WASD to move." isn't mis-parsed as
+## a formula by Formula.looks_like_formula's space/dot heuristic). @-refs
+## resolve at show time via ControlFactory._resolve_text. Non-strings
+## (numbers, bools) go through _value so dynamic specs from state work
+## (e.g. `advance_after_seconds: world.tutorial_step + 2`).
+static func _show_overlay_effect(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var record: Dictionary = {"event": "show_overlay"}
+	for k in e.keys():
+		if str(k) == "type": continue
+		var v = e[k]
+		if v is String:
+			record[str(k)] = v
+		else:
+			record[str(k)] = _value(v, ctx, env)
+	_push_overlay_event(env, record)
+
+
+## Dismiss an overlay by id. Pops from the stack and fires
+## overlay_advanced{id, reason: "manual"}. If the id isn't on the
+## stack, no-op (idempotent).
+static func _dismiss_overlay_effect(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var id := str(_value(e.get("id", ""), ctx, env))
+	_push_overlay_event(env, {"event": "dismiss_overlay", "id": id})

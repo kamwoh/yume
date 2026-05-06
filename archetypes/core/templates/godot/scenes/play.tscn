@@ -1,4 +1,4 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/engine/screen_flow.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/engine/overlay.gd" id="4"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -28,6 +29,11 @@ script = ExtResource("2")
 ; If absent, ScreenFlow is a no-op and the world auto-launches as before.
 [node name="ScreenFlow" type="Node" parent="."]
 script = ExtResource("3")
+
+; ADR 0012: OverlayManager handles tutorial overlays + advance conditions.
+; No-op until a rule fires show_overlay.
+[node name="OverlayManager" type="Node" parent="."]
+script = ExtResource("4")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(0, 0)
