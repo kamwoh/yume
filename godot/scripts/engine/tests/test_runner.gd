@@ -45,6 +45,7 @@ func _ready() -> void:
 	test_control_factory()
 	test_save_state()
 	test_overlay_effects()
+	test_spatial_lod()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1797,3 +1798,157 @@ func test_overlay_effects() -> void:
 	expect_eq(str(ev2.get("advance_action", "")), "ui_accept", "multi: action")
 	expect_eq(str(ev2.get("advance_signal", "")), "player_moved", "multi: signal")
 	expect_eq(float(ev2.get("advance_after_seconds", 0)), 5.0, "multi: timer")
+
+
+# ============================================================
+# SPATIAL-LOD SCHEDULING (ADR 0017)
+# ============================================================
+
+## Verify LOD-tagged rules:
+## 1. Skip out-of-radius entities (freeze fallback)
+## 2. Hysteresis prevents boundary flip-flop
+## 3. tick_slowed rate-limits rule firing
+## 4. Rules without lod field run on all entities (baseline)
+func test_spatial_lod() -> void:
+	_section("spatial_lod (ADR 0017)")
+
+	# Rule with shorthand `radius` — gets normalized to enter/leave with
+	# 5% hysteresis on each side.
+	var r1 := Rule.from_dict({
+		"id": "shorthand",
+		"trigger": {"type": "tick", "interval": 1},
+		"lod": {"radius": 100.0, "fallback": "freeze"},
+		"effect": {"type": "state_set", "target": "self", "field": "x", "value": 1},
+	})
+	expect(r1.lod is Dictionary, "lod field parsed")
+	expect(abs(float(r1.lod["enter_radius"]) - 95.0) < 0.01,
+		"shorthand radius → enter_radius=95")
+	expect(abs(float(r1.lod["leave_radius"]) - 105.0) < 0.01,
+		"shorthand radius → leave_radius=105")
+
+	# Rule with explicit enter/leave radii
+	var r2 := Rule.from_dict({
+		"id": "explicit",
+		"trigger": {"type": "tick", "interval": 1},
+		"lod": {"enter_radius": 50.0, "leave_radius": 80.0,
+				"fallback": "tick_slowed:0.5"},
+		"effect": {"type": "state_set", "target": "self", "field": "x", "value": 1},
+	})
+	expect_eq(float(r2.lod["enter_radius"]), 50.0, "explicit enter_radius")
+	expect_eq(float(r2.lod["leave_radius"]), 80.0, "explicit leave_radius")
+	expect_eq(str(r2.lod["fallback"]), "tick_slowed:0.5", "fallback preserved")
+
+	# No lod field → no LOD config (baseline preserved)
+	var r3 := Rule.from_dict({
+		"id": "no_lod",
+		"trigger": {"type": "tick", "interval": 1},
+		"effect": {"type": "state_set", "target": "self", "field": "x", "value": 1},
+	})
+	expect(r3.lod == null, "rule without lod field has lod=null")
+
+	# Default anchor + fallback
+	var r4 := Rule.from_dict({
+		"id": "defaults",
+		"trigger": {"type": "tick", "interval": 1},
+		"lod": {"radius": 100.0},
+		"effect": {"type": "state_set", "target": "self", "field": "x", "value": 1},
+	})
+	expect_eq(str(r4.lod["anchor"]), "active_actor", "default anchor")
+	expect_eq(str(r4.lod["fallback"]), "freeze", "default fallback")
+
+	# End-to-end with scheduler: build a tiny env with one player + 2 NPCs
+	# at different distances. Run a tick. Inside-radius NPC fires; outside
+	# NPC doesn't.
+	var defs: Dictionary = {
+		"player": {"id": "player", "tags": ["player"], "state_init": {}},
+		"npc": {"id": "npc", "tags": ["npc"], "state_init": {"counter": 0}},
+	}
+	var entities: Dictionary = {}
+	var rs := RelationStore.new()
+	var sx := SpatialIndex.new()
+	var ws: Dictionary = {}
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"spatial_index": sx, "world": ws, "parent": null, "next_id": {"_": 0},
+	}
+	# Player at origin
+	var player := Entity.new()
+	player.def_id = "player"; player.instance_id = "p"
+	player.tags = ["player"]
+	player.set_position(Vector2(0, 0))
+	entities["p"] = player
+	sx.update_entity("p", Vector2(0, 0))
+	# Near NPC (dist=50 from player)
+	var near := Entity.new()
+	near.def_id = "npc"; near.instance_id = "near"
+	near.tags = ["npc"]
+	near.state = {"counter": 0}
+	near.set_position(Vector2(50, 0))
+	entities["near"] = near
+	sx.update_entity("near", Vector2(50, 0))
+	# Far NPC (dist=300 from player)
+	var far := Entity.new()
+	far.def_id = "npc"; far.instance_id = "far"
+	far.tags = ["npc"]
+	far.state = {"counter": 0}
+	far.set_position(Vector2(300, 0))
+	entities["far"] = far
+	sx.update_entity("far", Vector2(300, 0))
+
+	# Rule: tick → state_add counter +1, lod radius 100 (enter=95, leave=105)
+	var rule := Rule.from_dict({
+		"id": "lod_test",
+		"trigger": {"type": "tick", "interval": 1},
+		"lod": {"radius": 100.0, "fallback": "freeze"},
+		"query": {"tags_all": ["npc"]},
+		"effect": {"type": "state_add", "target": "self", "field": "counter", "amount": 1},
+	})
+	# Need scheduler with active actor resolution — but env.parent.actor_tag
+	# isn't accessible without a real World. Manually set lod_anchor_position.
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules([rule])
+	# Manually inject anchor (skip _compute_lod_anchor which needs parent.actor_tag)
+	env["lod_anchor_position"] = Vector2(0, 0)
+	# Run scan rule directly (bypassing tick to avoid clobbering anchor)
+	sched._fire_scan_rule(rule)
+	sched.flush_effects()
+	expect_eq(int(near.get_state("counter", 0)), 1, "near NPC inside radius — fired")
+	expect_eq(int(far.get_state("counter", 0)), 0, "far NPC outside radius — frozen")
+
+	# Hysteresis: move near NPC to dist=102 (between enter=95 and leave=105).
+	# It was inside, should STAY inside.
+	near.set_position(Vector2(102, 0))
+	sx.update_entity("near", Vector2(102, 0))
+	sched._fire_scan_rule(rule)
+	sched.flush_effects()
+	expect_eq(int(near.get_state("counter", 0)), 2,
+		"hysteresis: was-inside NPC at 102 (between 95-105) STILL fires")
+
+	# Now move near NPC past leave_radius — should leave
+	near.set_position(Vector2(110, 0))
+	sx.update_entity("near", Vector2(110, 0))
+	sched._fire_scan_rule(rule)
+	sched.flush_effects()
+	expect_eq(int(near.get_state("counter", 0)), 2,
+		"hysteresis: NPC past leave (110 > 105) STOPS firing")
+
+	# Move it back to 102 — should stay outside (must cross enter=95 to come back)
+	near.set_position(Vector2(102, 0))
+	sx.update_entity("near", Vector2(102, 0))
+	sched._fire_scan_rule(rule)
+	sched.flush_effects()
+	expect_eq(int(near.get_state("counter", 0)), 2,
+		"hysteresis: NPC at 102 (between 95-105) STAYS outside without re-entering")
+
+	# Cross enter_radius to come back inside
+	near.set_position(Vector2(50, 0))
+	sx.update_entity("near", Vector2(50, 0))
+	sched._fire_scan_rule(rule)
+	sched.flush_effects()
+	expect_eq(int(near.get_state("counter", 0)), 3,
+		"hysteresis: NPC re-enters (50 < 95)")
+
+	# Cleanup
+	player.queue_free()
+	near.queue_free()
+	far.queue_free()

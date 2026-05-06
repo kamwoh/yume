@@ -43,6 +43,15 @@ var react_phase_signals: Array = []        # emit during react → drained next 
 # Cycle warning flag (set once per load when topo-sort can't converge)
 var _topo_cycle_warned: bool = false
 
+## ADR 0017 — Spatial-LOD scheduling state. Per-rule per-entity tracking
+## of "currently inside LOD radius" (for hysteresis) and "last fired tick"
+## (for tick_slowed mode). Engine-private; not exposed via env.
+##
+## Shape: _lod_state[rule_id][entity_id] = {inside: bool, last_fired: int}
+##
+## Cleaned up in _on_entity_despawned to bound memory.
+var _lod_state: Dictionary = {}
+
 
 # ============================================================
 # INIT
@@ -175,6 +184,11 @@ func tick() -> void:
 	tick_count += 1
 	var world_state: Dictionary = env.get("world", {})
 	world_state["tick"] = tick_count
+
+	# ADR 0017: cache LOD anchor position once per tick. Resolves from
+	# world.actor_tag (the active actor). All LOD-tagged rules in this
+	# tick read env.lod_anchor_position. Null if no actor entity exists.
+	_compute_lod_anchor()
 
 	# PHASE 1: input
 	_phase_input()
@@ -384,6 +398,11 @@ func _fire_scan_rule(rule: Rule) -> void:
 		var matches: Array = QueryLib.run(rule.query, env, base_ctx)
 		for ent in matches:
 			if not (ent is Entity): continue
+			# ADR 0017: spatial-LOD filter. Skip entities outside the LOD
+			# radius (per the rule's hysteresis state); rate-limit firing
+			# for tick_slowed fallback mode.
+			if rule.lod is Dictionary and not _lod_should_fire(rule, ent):
+				continue
 			var ctx := base_ctx.duplicate()
 			ctx["self"] = (ent as Entity).instance_id
 			ctx["self_entity"] = ent
@@ -486,3 +505,122 @@ func flush_effects() -> void:
 	effect_buffer = []
 	for item in batch:
 		EffectApply.apply(item["effect"], env, item["context"])
+
+
+# ============================================================
+# SPATIAL-LOD SCHEDULING (ADR 0017)
+# ============================================================
+
+## Compute the LOD anchor position for this tick. Stored in
+## env.lod_anchor_position so all LOD-tagged rules in this tick share one
+## resolution. Active actor tag comes from the World node (read via env's
+## parent backref) — fallback "player" if World isn't accessible.
+func _compute_lod_anchor() -> void:
+	var entities: Dictionary = env.get("entities", {})
+	# Read actor_tag from World if available; default "player".
+	var parent_node = env.get("parent", null)
+	var actor_tag := "player"
+	if parent_node != null and parent_node.get("actor_tag") != null:
+		actor_tag = str(parent_node.get("actor_tag"))
+	# Find the active actor entity (first match)
+	var anchor = null
+	for ent in entities.values():
+		if ent is Entity and (ent as Entity).has_tag(actor_tag):
+			anchor = (ent as Entity).get_planar_position()
+			break
+	env["lod_anchor_position"] = anchor
+
+
+## Decide if an LOD-tagged rule should fire on the given entity this tick.
+## Implements:
+##   1. Hysteresis: entity is "inside" once it crosses enter_radius;
+##      stays inside until leave_radius (so it doesn't flip-flop).
+##   2. Fallback: when entity is outside, either skip (`freeze`) or
+##      rate-limit (`tick_slowed:N`).
+func _lod_should_fire(rule: Rule, ent: Entity) -> bool:
+	var lod: Dictionary = rule.lod as Dictionary
+	var anchor = env.get("lod_anchor_position", null)
+	if anchor == null:
+		# No active actor → no anchor → all rules run as if no LOD
+		# (graceful fallback; better to over-tick than to silently freeze).
+		return true
+	var entity_pos = ent.get_planar_position()
+	if entity_pos == null: return true
+	# Distance check (works for Vector2 OR Vector3 — both have distance_to)
+	var dist: float = (entity_pos as Vector2).distance_to(anchor as Vector2) \
+		if entity_pos is Vector2 else (entity_pos as Vector3).distance_to(anchor as Vector3)
+	# Update hysteresis state
+	var was_inside := _lod_get_inside(rule.id, ent.instance_id)
+	var enter_r := float(lod.get("enter_radius", 200.0))
+	var leave_r := float(lod.get("leave_radius", enter_r * 1.10))
+	var now_inside: bool
+	if was_inside:
+		# Was inside — stays inside until past leave_radius
+		now_inside = dist <= leave_r
+	else:
+		# Was outside — must cross enter_radius to come inside
+		now_inside = dist <= enter_r
+	if now_inside != was_inside:
+		_lod_set_inside(rule.id, ent.instance_id, now_inside)
+	# Inside → fire normally
+	if now_inside: return true
+	# Outside → apply fallback mode
+	var fallback := str(lod.get("fallback", "freeze"))
+	if fallback == "freeze":
+		return false
+	if fallback.begins_with("tick_slowed:"):
+		var slow_factor := float(fallback.substr(12))
+		# tick_slowed:0.5 = fire at half rate (every 2 ticks instead of every tick)
+		# tick_slowed:0.1 = fire at 1/10 rate
+		if slow_factor <= 0.0: return false
+		var interval := int(round(1.0 / slow_factor))
+		if interval <= 1: return true  # 1.0 or higher = full rate
+		var last := _lod_get_last_fired(rule.id, ent.instance_id)
+		if tick_count - last >= interval:
+			_lod_set_last_fired(rule.id, ent.instance_id, tick_count)
+			return true
+		return false
+	# Unknown fallback — fail-open (fire) so authors notice via behavior
+	return true
+
+
+# State accessors
+func _lod_get_inside(rule_id: String, entity_id: String) -> bool:
+	var by_entity = _lod_state.get(rule_id, null)
+	if not (by_entity is Dictionary): return false
+	var rec = (by_entity as Dictionary).get(entity_id, null)
+	if not (rec is Dictionary): return false
+	return bool((rec as Dictionary).get("inside", false))
+
+
+func _lod_set_inside(rule_id: String, entity_id: String, value: bool) -> void:
+	if not _lod_state.has(rule_id):
+		_lod_state[rule_id] = {}
+	var by_entity: Dictionary = _lod_state[rule_id]
+	if not by_entity.has(entity_id):
+		by_entity[entity_id] = {}
+	(by_entity[entity_id] as Dictionary)["inside"] = value
+
+
+func _lod_get_last_fired(rule_id: String, entity_id: String) -> int:
+	var by_entity = _lod_state.get(rule_id, null)
+	if not (by_entity is Dictionary): return -100000
+	var rec = (by_entity as Dictionary).get(entity_id, null)
+	if not (rec is Dictionary): return -100000
+	return int((rec as Dictionary).get("last_fired", -100000))
+
+
+func _lod_set_last_fired(rule_id: String, entity_id: String, value: int) -> void:
+	if not _lod_state.has(rule_id):
+		_lod_state[rule_id] = {}
+	var by_entity: Dictionary = _lod_state[rule_id]
+	if not by_entity.has(entity_id):
+		by_entity[entity_id] = {}
+	(by_entity[entity_id] as Dictionary)["last_fired"] = value
+
+
+## Called from World on entity despawn to GC LOD state.
+func clear_lod_state_for_entity(entity_id: String) -> void:
+	for rule_id in _lod_state.keys():
+		var by_entity: Dictionary = _lod_state[rule_id]
+		by_entity.erase(entity_id)

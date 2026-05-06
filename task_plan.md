@@ -2174,9 +2174,15 @@ sessions. Update both when status changes.
 
 Tech-director reviewed; build in this order:
 
-1. [ ] **#80 ADR 0017** — spatial-LOD rule scheduling (pure
-   optimization, no contract change, lowest risk). Hysteresis
-   required (enter_radius < leave_radius).
+1. [x] **#80 ADR 0017** — spatial-LOD rule scheduling. Landed: rule.gd
+   parses `lod` field with shorthand `radius` → `enter_radius`/
+   `leave_radius` (5% hysteresis); phase_scheduler `_fire_scan_rule`
+   filters by spatial radius; per-(rule, entity) hysteresis state
+   prevents boundary flip-flop; `tick_slowed:N` rate-limit fallback;
+   `freeze` fallback skips out-of-radius. `env.lod_anchor_position`
+   computed once per tick from world.actor_tag. 310/310 tests pass
+   (+15 LOD assertions). Independent of ADR 0014 stream radius
+   validation (defer to when ADR 0014 lands).
 2. [ ] **#81 ADR 0019** — rule plugin / macro layer. Load-time-only
    expansion. Depth ≤ 4, max-expanded-effects ≤ 50, cycle detection.
    Per-game scoped. Blocked by #80.

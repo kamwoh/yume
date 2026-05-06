@@ -35,6 +35,12 @@ var effects: Array = []            # always an Array of effect dicts (singleton 
 var before_hints: Array[String] = []
 var after_hints: Array[String] = []
 var scope: String = ""
+## ADR 0017 — spatial-LOD scheduling. null = no LOD (run on all entities,
+## current behavior). Otherwise:
+##   {anchor: "active_actor"|"camera"|"<tag>",
+##    enter_radius: float, leave_radius: float,
+##    fallback: "freeze"|"tick_slowed:N"}
+var lod: Variant = null
 
 ## W4 populates this — maps formula-string → parsed Expression. Lives on the
 ## rule so that the formula's lifetime matches the rule's, not global.
@@ -58,7 +64,35 @@ static func from_dict(d: Dictionary) -> Rule:
 	r.before_hints = _as_string_array(d.get("before", []))
 	r.after_hints = _as_string_array(d.get("after", []))
 	r.scope = str(d.get("scope", ""))
+	if d.has("lod") and d["lod"] is Dictionary:
+		r.lod = _normalize_lod(d["lod"] as Dictionary)
 	return r
+
+
+## ADR 0017 — normalize LOD config. Supports two forms:
+##   1. {radius: 200, ...}  → expanded to enter=190, leave=210 (5% hysteresis)
+##   2. {enter_radius: 200, leave_radius: 240, ...}  → used as-is
+## Warns if leave_radius <= enter_radius (no hysteresis = boundary jitter).
+static func _normalize_lod(raw: Dictionary) -> Dictionary:
+	var out: Dictionary = raw.duplicate(true)
+	if not out.has("anchor"):
+		out["anchor"] = "active_actor"
+	if not out.has("fallback"):
+		out["fallback"] = "freeze"
+	# Shorthand: single radius → 5% hysteresis on each side
+	if out.has("radius") and not (out.has("enter_radius") or out.has("leave_radius")):
+		var r := float(out["radius"])
+		out["enter_radius"] = r * 0.95
+		out["leave_radius"] = r * 1.05
+	# Defaults if neither form provided
+	if not out.has("enter_radius"):
+		out["enter_radius"] = 200.0
+	if not out.has("leave_radius"):
+		out["leave_radius"] = float(out["enter_radius"]) * 1.10
+	# Hysteresis check
+	if float(out["leave_radius"]) <= float(out["enter_radius"]):
+		push_warning("Rule lod: leave_radius (%.1f) <= enter_radius (%.1f) — entities will flip-flop on the boundary" % [out["leave_radius"], out["enter_radius"]])
+	return out
 
 
 ## Load a list of Rule objects from a rules JSON file (any of
