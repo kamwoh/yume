@@ -1798,6 +1798,208 @@
         "skin": "#e0b094",
         "shirt": "#5b9bff"
       }
+    },
+    "merchant_shop_building": {
+      "_comment": "The player's shop \u2014 bigger than townie houses, warm amber wood, brass door, hanging sign on top.",
+      "primitives": [
+        {
+          "op": "rect",
+          "pos": [
+            -2,
+            -38
+          ],
+          "size": [
+            4,
+            6
+          ],
+          "color": "$post"
+        },
+        {
+          "op": "rect",
+          "pos": [
+            -18,
+            -42
+          ],
+          "size": [
+            36,
+            10
+          ],
+          "color": "$sign_plate"
+        },
+        {
+          "op": "polygon",
+          "points": [
+            [
+              -32,
+              -8
+            ],
+            [
+              0,
+              -32
+            ],
+            [
+              32,
+              -8
+            ]
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "rect",
+          "pos": [
+            -28,
+            -8
+          ],
+          "size": [
+            56,
+            28
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "rect",
+          "pos": [
+            -7,
+            6
+          ],
+          "size": [
+            14,
+            14
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "circle",
+          "pos": [
+            4,
+            13
+          ],
+          "radius": 1.5,
+          "color": "$handle"
+        }
+      ],
+      "params": {
+        "wall": "#c89860",
+        "roof": "#8a3020",
+        "door": "#8a6020",
+        "handle": "#f0d040",
+        "post": "#5a3818",
+        "sign_plate": "#d8b070"
+      }
+    },
+    "merchant_counter": {
+      "_comment": "Wooden shop counter \u2014 long horizontal bar",
+      "primitives": [
+        {
+          "op": "rect",
+          "pos": [
+            -90,
+            -8
+          ],
+          "size": [
+            180,
+            16
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "rect",
+          "pos": [
+            -90,
+            6
+          ],
+          "size": [
+            180,
+            4
+          ],
+          "color": "$dark"
+        }
+      ],
+      "params": {
+        "wood": "#a07050",
+        "dark": "#5a3818"
+      }
+    },
+    "merchant_shelf": {
+      "_comment": "Display shelf \u2014 wooden rack, 3 slots visible",
+      "primitives": [
+        {
+          "op": "rect",
+          "pos": [
+            -30,
+            -8
+          ],
+          "size": [
+            60,
+            16
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "circle",
+          "pos": [
+            -20,
+            0
+          ],
+          "radius": 3,
+          "color": "$slot"
+        },
+        {
+          "op": "circle",
+          "pos": [
+            0,
+            0
+          ],
+          "radius": 3,
+          "color": "$slot"
+        },
+        {
+          "op": "circle",
+          "pos": [
+            20,
+            0
+          ],
+          "radius": 3,
+          "color": "$slot"
+        }
+      ],
+      "params": {
+        "wood": "#704020",
+        "slot": "#c0a060"
+      }
+    },
+    "merchant_door": {
+      "_comment": "Open shop door \u2014 frame + dark interior",
+      "primitives": [
+        {
+          "op": "rect",
+          "pos": [
+            -12,
+            -16
+          ],
+          "size": [
+            24,
+            32
+          ],
+          "color": "$frame"
+        },
+        {
+          "op": "rect",
+          "pos": [
+            -8,
+            -12
+          ],
+          "size": [
+            16,
+            28
+          ],
+          "color": "$dark"
+        }
+      ],
+      "params": {
+        "frame": "#a06030",
+        "dark": "#1a1015"
+      }
     }
   }
 }
