@@ -14,10 +14,10 @@
          "anchor": "top_center", "y_offset": 80,
          "font_size": 56, "color": "#dab048", "halign": "center"},
         {"type": "label", "text": "@strings.menu.subtitle",
-         "anchor": "top_center", "y_offset": 150,
+         "anchor": "top_center", "y_offset": 160,
          "font_size": 24, "color": "#a07040", "halign": "center"},
         {"type": "vbox",
-         "anchor": "center", "y_offset": -40, "separation": 12,
+         "anchor": "center", "y_offset": 40, "separation": 16,
          "children": [
            {"type": "button", "text": "@strings.menu.new_game",
             "width": 240, "height": 48, "font_size": 22,

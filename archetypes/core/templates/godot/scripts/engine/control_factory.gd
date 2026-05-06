@@ -181,18 +181,40 @@ static func _apply_common(node: Control, spec: Dictionary) -> void:
 		node.size_flags_vertical = _size_flag(str(spec["size_flags_v"]))
 
 
+## Apply an anchor preset. For horizontally-centered presets, also set
+## grow_horizontal = BOTH so the control expands symmetrically around the
+## anchor point (instead of pinning its left edge to center). Same trick
+## for vertically-centered presets via grow_vertical. Without these,
+## "anchor: top_center" labels appear right-of-center because Godot's
+## default GROW_DIRECTION_END pushes the element to the right.
 static func _apply_anchor(node: Control, anchor: String) -> void:
 	match anchor:
-		"top_left":      node.set_anchors_preset(Control.PRESET_TOP_LEFT)
-		"top_center":    node.set_anchors_preset(Control.PRESET_CENTER_TOP)
-		"top_right":     node.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		"center_left":   node.set_anchors_preset(Control.PRESET_CENTER_LEFT)
-		"center":        node.set_anchors_preset(Control.PRESET_CENTER)
-		"center_right":  node.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
-		"bottom_left":   node.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-		"bottom_center": node.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-		"bottom_right":  node.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-		"fill":          node.set_anchors_preset(Control.PRESET_FULL_RECT)
+		"top_left":
+			node.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		"top_center":
+			node.set_anchors_preset(Control.PRESET_CENTER_TOP)
+			node.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		"top_right":
+			node.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		"center_left":
+			node.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+			node.grow_vertical = Control.GROW_DIRECTION_BOTH
+		"center":
+			node.set_anchors_preset(Control.PRESET_CENTER)
+			node.grow_horizontal = Control.GROW_DIRECTION_BOTH
+			node.grow_vertical = Control.GROW_DIRECTION_BOTH
+		"center_right":
+			node.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+			node.grow_vertical = Control.GROW_DIRECTION_BOTH
+		"bottom_left":
+			node.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+		"bottom_center":
+			node.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+			node.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		"bottom_right":
+			node.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		"fill":
+			node.set_anchors_preset(Control.PRESET_FULL_RECT)
 		_: pass  # unknown anchor — leave default
 
 
