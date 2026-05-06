@@ -2131,3 +2131,98 @@ Distinct from:
 
 "Yume generates the JSON that makes any game work. Complex stuff
 is engine code, done during development."
+
+
+## Engine implementation backlog (durable mirror of TaskList, 2026-05-06)
+
+The session-level TaskList is per-machine and per-session; this
+section mirrors it into the repo so it survives `git clone` + new
+sessions. Update both when status changes.
+
+### Shell-layer engine (ADRs 0010–0013)
+
+- [x] **#77 ADR 0011** — declarative screen flow / Godot Control
+  exposure. Landed: control_factory + screen_flow + 4 effects
+  (`transition_screen`, `quit_app`, `show_toast`, `load_data`) +
+  freeze_world hook. Reference content: `data/demo_sokoban/screens.json`.
+  Commits `6f6a8d4` (Phase A) + `2b9c112` (anchor centering fix).
+- [ ] **#76 ADR 0010** — save/load engine. `save_state` + `load_state`
+  effects via Godot FileAccess + JSON. Reads per-game `save_policy.json`.
+  Slot management. Refuse-on-mismatch for schema version.
+- [ ] **#78 ADR 0012** — tutorial overlay primitive. `show_overlay` +
+  `dismiss_overlay` effects. Highlight via ShaderMaterial+Tween.
+  Reads tutorial.json. Composes with #77's modal stack.
+- [ ] **#79 ADR 0013** — settings schema + Godot ConfigFile.
+  `set_audio_bus_volume` + `set_input_mapping` effects. settings_renderer
+  Control element type. Composes with #77.
+- [ ] **#98** — ADR 0011 Phase B: ui/theme.json → Godot Theme conversion.
+
+### Open-world / multi-actor / macros (ADRs 0014–0020, build order)
+
+Tech-director reviewed; build in this order:
+
+1. [ ] **#80 ADR 0017** — spatial-LOD rule scheduling (pure
+   optimization, no contract change, lowest risk). Hysteresis
+   required (enter_radius < leave_radius).
+2. [ ] **#81 ADR 0019** — rule plugin / macro layer. Load-time-only
+   expansion. Depth ≤ 4, max-expanded-effects ≤ 50, cycle detection.
+   Per-game scoped. Blocked by #80.
+3. [ ] **#82 ADR 0016** — multi-actor framework. Synthesized-default-
+   actors at load (single code path). Per-actor input lists. Blocked
+   by #81.
+4. [ ] **#83 ADR 0015** — vehicle physics primitive. **NOTE**: review
+   under ADR 0021 framing — may be superseded by #87 (Godot rigid-body
+   exposure). Decide before implementing.
+5. [ ] **#84 ADR 0014** — open-world chunked substrate. Biggest surface
+   change. Blocked by #80, #82.
+6. [ ] **#85 ADR 0018** — in-process actor policy interface (Paths A +
+   D). Blocked by #82.
+7. [ ] **#86 ADR 0020** — external agent IPC (DEFERRED — proposed,
+   activates when first dependent game queues).
+
+### Capability-exposure ADRs (ADRs 0022–0028, drafted reactively)
+
+Per ADR 0021's expose-don't-reimplement framing. Each maps one Godot
+subsystem to JSON-declarative primitives. Drafted when the first game
+in the relevant genre queues for /yume-design.
+
+- [ ] **#87 ADR 0022** — Godot rigid-body physics + joints
+  (`godot_rigidbody`, `godot_joint`). Unlocks: manipulation games
+  (CALVIN-shaped), realistic driving, ragdolls.
+- [ ] **#88 ADR 0023** — Godot animation system integration
+  (AnimationPlayer + AnimationTree).
+- [ ] **#89 ADR 0024** — Godot pathfinding (NavigationServer3D /
+  NavigationAgent3D).
+- [ ] **#90 ADR 0025** — Godot particles + advanced VFX
+  (GPUParticles3D / CPUParticles3D).
+- [ ] **#91 ADR 0026** — Godot AudioServer (buses, effects, ducking).
+- [ ] **#92 ADR 0027** — Godot character body / kinematic
+  (CharacterBody3D, slope sliding, step climbing).
+- [ ] **#93 ADR 0028** — Godot 2D physics (parallel to #87 for 2D).
+
+### Compliance debt (deferred to capability-ADR era)
+
+- [ ] **#94** — Refactor ADR 0004 (`blocks_motion`) to use Godot
+  `PhysicsServer3D` instead of custom GDScript AABB. Blocked by #87.
+- [ ] **#95** — Refactor ADR 0005 (`raycast_hit`) to use Godot
+  `intersect_ray()`. Blocked by #87.
+
+### Content / pipeline tasks
+
+- [ ] **#96** — Build first complete game: JRPG fantasy merchant
+  (Recettear-shaped). Drives demand for #76–79 implementations.
+- [ ] **#97** — Build deferred genre-extension skills (reactive
+  cadence): platformer, td, roguelike, life-sim, rts, merchant.
+
+---
+
+### Status tracking convention
+
+When a task changes status:
+1. Update `[ ]` ↔ `[x]` here.
+2. Update via TaskUpdate in the session.
+3. If the task touched architecture, also update the relevant ADR
+   status field.
+
+The session TaskList is the working hand; this section is the
+durable record. They should not drift.
