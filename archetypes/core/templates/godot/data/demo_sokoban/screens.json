@@ -22,7 +22,6 @@
            {"type": "button", "text": "@strings.menu.new_game",
             "width": 240, "height": 48, "font_size": 22,
             "on_click": [
-              {"type": "load_data", "args": {"reset": true}},
               {"type": "transition_screen", "target": "game"}
             ]},
            {"type": "button", "text": "@strings.menu.continue",
