@@ -1,7 +1,7 @@
 # ADR 0010 — Save / load persistence
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accepted (TD review 2026-05-06)**_
 
 ## Context
 
@@ -193,3 +193,74 @@ property we want.
 - ADR 0009 Phase 2d (variants) — variants persist via this same
   `world_state_keys` mechanism
 - Tier 2.6a — structured engine errors for save version mismatch
+
+## Tech-director review (2026-05-06, post-ADR-0021 framing)
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | save_policy.json is content; engine reads |
+| #2 No semantic effect types | ✓ | save_state / load_state are mechanical |
+| #3 No entity-class hierarchy | ✓ | none |
+| #5 Queries first-class | ✓ | save uses tag-based filtering |
+| #8 Engine = primitives + interpreter | ✓ | bounded primitive surface |
+| #9 Phase ordering | ✓ | save/load runs between ticks (deferred-effect pattern) |
+
+### Re-evaluation under ADR 0021
+
+The save/load case is genuinely Yume-specific in a way that JUSTIFIES
+engine code:
+
+- The DATA being saved is Yume's entity dictionary + world_state +
+  relations — this is Yume's data model, not Godot's.
+- The POLICY (which world_state keys, which entity tags) is Yume-
+  shaped; Godot has no equivalent concept.
+- Godot's `ResourceSaver` saves Resource subclasses; Yume's Entity
+  is a Node, not a Resource. Wrapping every entity in a Resource
+  for the sole purpose of saving would be reimplementation of the
+  wrong shape.
+- Godot's `ConfigFile` is for flat key-value (settings); not
+  appropriate for nested entity state with positions, tags,
+  relations.
+
+What Yume's save/load USES from Godot:
+- `FileAccess` for I/O (already in plan)
+- `JSON.stringify` / `JSON.parse_string` (already in plan)
+- `user://` path resolution (Godot's cross-platform user data dir)
+
+So Yume's save logic IS legitimate engine code, but it COMPOSES
+Godot primitives (FileAccess, JSON, user://) rather than reimplementing
+them. This is consistent with ADR 0021's "expose-Godot-where-it-fits"
+principle.
+
+### Concerns
+
+1. **Future binary save format**. JSON saves are debuggable but
+   slow and large for big worlds. If future games need binary saves
+   (open-world with thousands of persistent entities), consider
+   Godot's `Resource` system as an alternative serialization layer.
+   Not required now; flag as future option.
+
+2. **Save policy validation**. ADR mentions schema version + refuse-
+   on-mismatch. Good. Add explicit check that `world_state_keys` +
+   `entity_tags_persistent` actually exist in the loaded game (warn
+   on unknowns; don't silently drop).
+
+3. **Atomic save**. A crash during save would corrupt the slot file.
+   Recommend write-to-temp-then-rename pattern (Godot's FileAccess
+   supports this). Standard atomicity pattern; trivial to add.
+
+### Verdict
+
+**Status: accepted (conditions resolved at implementation time).**
+
+Conditions:
+- Composes Godot's FileAccess + JSON (per existing ADR text)
+- Atomic write-then-rename for save robustness
+- Schema validation: warn on unknown keys/tags
+- Future binary format via Godot `Resource` flagged as future option
+
+Tier classification: this is **infrastructure** (T5 "shell layer" /
+"gameplay experience" — making the game a complete product). Cleanly
+fits the user's tier framing.

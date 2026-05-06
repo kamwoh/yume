@@ -41,10 +41,10 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | 0006 | Multi-level architecture | accepted | 2026-05-04 |
 | 0007 | Complex collision + GLB assets | accepted | 2026-05-04 |
 | 0009 | World/game/flow separation | accepted | 2026-05-05 |
-| 0010 | Save/load persistence | proposed | 2026-05-06 |
-| 0011 | Declarative screen flow | proposed | 2026-05-06 |
-| 0012 | Tutorial overlay primitive | proposed | 2026-05-06 |
-| 0013 | Settings schema + config | proposed | 2026-05-06 |
+| [0010](./0010-save-load-persistence.md) | Save/load persistence | accepted (TD review) | 2026-05-06 |
+| [0011](./0011-declarative-screen-flow.md) | Declarative screen flow → Godot Control exposure (foundational for shell tier) | revise — refactor under ADR 0021 | 2026-05-06 |
+| [0012](./0012-tutorial-overlay-primitive.md) | Tutorial overlay primitive | accept-with-conditions (depends on 0011 refactor) | 2026-05-06 |
+| [0013](./0013-settings-schema-and-config.md) | Settings schema + config (use ConfigFile) | accept-with-conditions | 2026-05-06 |
 | [0014](./0014-open-world-foundational-substrate.md) | Open-world foundational substrate | accepted (conditions resolved) | 2026-05-06 |
 | [0015](./0015-vehicle-physics-primitive.md) | Vehicle physics primitive (+ never-list anchor) | accepted (conditions resolved) | 2026-05-06 |
 | [0016](./0016-multi-actor-framework.md) | Multi-actor framework | accepted (conditions resolved) | 2026-05-06 |

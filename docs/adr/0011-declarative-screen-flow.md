@@ -1,7 +1,7 @@
 # ADR 0011 — Declarative screen flow (main menu, pause, settings)
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **revise — refactor under ADR 0021 framing (TD review 2026-05-06)**_
 
 ## Context
 
@@ -238,3 +238,131 @@ Splitting lets tech-director gate them separately.
 - ADR 0013 (settings) — settings_renderer element delegates to
   settings interpreter
 - Existing `hud.json` — provides element types this ADR extends
+
+## Tech-director review (2026-05-06, post-ADR-0021 framing)
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | screens.json is content |
+| #2 No semantic effect types | ✓ | transition_screen / show_toast are mechanical |
+| #8 Engine = primitives + interpreter | ⚠⚠ | conflicts with ADR 0021 — see below |
+
+### Major concern: reimplementation under ADR 0021
+
+This ADR was drafted BEFORE ADR 0021 (Yume = JSON layer over Godot +
+external) was accepted. Re-reading it under that framing reveals a
+problem:
+
+The proposed `screens.json` interpreter essentially **reimplements
+menu UI** that Godot already does well:
+- `Button` → already a Godot Control
+- `Label` → already a Godot Control
+- `VBoxContainer`/`HBoxContainer` → already a Godot Control
+- Theme + styling → already Godot Theme system
+- Focus management, keyboard nav → Godot Control's built-in
+- `CanvasLayer` for modals → already a Godot node
+
+Yume's existing HUD already does this correctly: `hud.json` declares
+elements; `game_shell.gd` instantiates Godot Control hierarchy from
+the JSON. Per ADR 0021, this is the right pattern.
+
+This ADR's text talks about "rendering screen UI" as if Yume engine
+has its own UI renderer. It doesn't (and shouldn't, per ADR 0021).
+The interpreter should INSTANTIATE Godot Control nodes, not render
+text + handle clicks itself.
+
+### Required refactor
+
+The ADR needs to explicitly frame `screens.json` as **a JSON
+declaration of Godot Control hierarchies**, not a custom UI renderer.
+
+Specifically:
+
+```jsonc
+{"type": "button", "text": "@strings.new_game",
+ "on_click": [{"type": "transition_screen", "target": "game"}]}
+```
+
+Engine translation:
+1. Instantiate Godot `Button` node
+2. Set `text` property (resolve `@strings.X` reference)
+3. Connect `pressed` signal to a callable that invokes the
+   `on_click` effect chain via existing scheduler.queue_input or
+   direct effect dispatch
+4. Add to current screen's CanvasLayer
+
+Same authoring outcome as the proposed ADR. Different engine work
+(node instantiation + signal wiring, NOT custom rendering +
+custom click detection).
+
+This is the SAME PATTERN as `hud.json` already uses. Consistent.
+
+### Element type → Godot node mapping
+
+| JSON `type` | Godot node |
+|---|---|
+| `label` | Label |
+| `button` | Button |
+| `image` | TextureRect |
+| `vbox` | VBoxContainer |
+| `hbox` | HBoxContainer |
+| `progress_bar` | ProgressBar |
+| `spacer` | Control with custom_minimum_size |
+| `settings_renderer` | dynamic — generates Control hierarchy from settings_schema |
+| `entity_world` | (special — the World subviewport, not a Control) |
+
+This mapping table must be in the ADR. Engine code maps JSON `type`
+to Godot constructor; sets common properties (anchor, position,
+size); applies type-specific properties.
+
+### Concerns beyond the framing issue
+
+1. **Theme integration**: Godot has a Theme resource for consistent
+   styling. ADR doesn't mention it. Should screens.json reference
+   a theme file (e.g. `data/<game>/ui/theme.tres` or similar)?
+   Or should theme be configurable via `ui/theme.json` that the
+   engine converts to a Theme resource? Decide.
+
+2. **Modal stack**: ADR mentions modal: true for pause overlays.
+   Implementation: stack CanvasLayers; topmost has input focus.
+   Godot's CanvasLayer + Control mouse_filter handles this naturally.
+
+3. **freeze_world semantics**: when current screen has
+   freeze_world: true, scheduler.tick() shouldn't run. Implementation:
+   game_shell checks current_screen.freeze_world before invoking
+   tick(). Trivial.
+
+4. **enabled_if formula evaluation**: button might be disabled
+   based on world state (`enabled_if: "world.has_save"`). Engine
+   evaluates the formula; sets Button's `disabled` property.
+
+### Verdict
+
+**Status: revise.**
+
+Refactor needed:
+
+1. **Reframe ADR explicitly under ADR 0021**: screens.json is
+   "JSON declaration of Godot Control hierarchies that translates
+   to live Control nodes at runtime."
+2. **Add element-type → Godot-node mapping table** (above).
+3. **Spec Theme integration** (likely a separate `ui/theme.json`
+   that engine converts to Godot Theme resource).
+4. **Spec freeze_world implementation** (game_shell checks before
+   tick; mark current screen modal stack).
+5. **Spec the on_click → effect chain dispatch** (Button.pressed
+   signal → invoke effect list via scheduler).
+
+After refactor, this ADR effectively BECOMES the "Godot UI exposure"
+foundational capability — the same pattern hud.json already uses,
+applied to full screens. ADRs 0012 (overlays) + 0013 (settings UI)
+COMPOSE on top of this primitive.
+
+### Tier framing
+
+User's "T5 gameplay experience / shell layer" classification holds
+exactly. Screens are the most visible part of game-shell.
+
+Re-reviewer needed after refactor lands.

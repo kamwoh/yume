@@ -1,7 +1,7 @@
 # ADR 0013 — Settings schema + config persistence
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accept-with-conditions (TD review 2026-05-06; ConfigFile + ADR 0011 refactor)**_
 
 ## Context
 
@@ -264,3 +264,137 @@ three awkward.
 - ADR 0011 — screens host the settings menu
 - Godot 4.6 AudioServer + InputMap APIs (verify in
   `docs/engine-reference/godot/`)
+
+## Tech-director review (2026-05-06, post-ADR-0021 framing)
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | settings_schema.json is content |
+| #2 No semantic effect types | ✓ | apply_setting and friends are mechanical |
+| #8 Engine = primitives + interpreter | ⚠ | persistence path conflicts with ADR 0021 — see below |
+
+### Re-evaluation under ADR 0021
+
+This ADR explicitly mentions Godot's `AudioServer` + `InputMap` for
+the apply-setting effects. Good. But the PERSISTENCE path
+(`user://config.json` via custom JSON I/O) reimplements what Godot's
+**`ConfigFile`** is literally designed for.
+
+`ConfigFile` is the standard Godot pattern for this exact use case:
+- Section + key-value structure (perfect fit for settings categories)
+- Cross-session persistence at `user://`
+- `.ini`-style format that's human-editable + standard
+- `ConfigFile.load()` / `ConfigFile.save()` are the API
+
+Custom JSON I/O for settings is reimplementation per ADR 0021. Using
+ConfigFile is the right move.
+
+(Note: ADR 0010's save data is different — that's nested entity
+state, not flat key-value. JSON is correct there. But settings ARE
+flat key-value.)
+
+### Required refactor
+
+1. **Replace `user://config.json` with `user://settings.cfg` via
+   ConfigFile.**
+   - Persistence: `ConfigFile.set_value("audio", "master_volume", 0.7)`
+   - Load: `ConfigFile.get_value("audio", "master_volume", 0.7)` —
+     last arg is default
+   - File: `user://settings.cfg` (`.cfg` is Godot's convention for
+     ConfigFile)
+
+2. **Settings UI rendering composes with ADR 0011's refactor.**
+   The `settings_renderer` element in ADR 0011's screens.json
+   should iterate the schema + generate Godot Control hierarchy
+   (Slider for slider type, CheckBox for bool, OptionButton for
+   enum, special handler for key_binding).
+
+3. **`apply_setting` effect dispatches to existing engine effects.**
+   The schema's `apply` block can use existing primitives:
+   - `state_set target=world` (already exists)
+   - `set_audio_bus_volume` (new — wraps AudioServer.set_bus_volume_db)
+   - `set_input_mapping` (new — wraps InputMap manipulation)
+
+   Only the AudioServer + InputMap wrappers are NEW Yume effects.
+   Both are thin Godot exposures, ADR-0021-compliant.
+
+### Concerns
+
+1. **Schema validation**. settings_schema.json must validate at
+   load — types are valid (slider/bool/enum/key_binding); `min ≤
+   default ≤ max` for sliders; enum options non-empty. Engine
+   errors at load if invalid.
+
+2. **Migration when schema changes**. If author adds a new setting
+   to the schema, existing user configs won't have it. Engine must
+   apply schema default. Already handled by ConfigFile's default-
+   value pattern. ✓
+
+3. **Reset to defaults**. Settings menu should have a "Reset"
+   button. Implementation: iterate schema; for each setting, run
+   `apply` with the default value. Effect chain.
+
+4. **Per-actor key bindings**. Per ADR 0016 (multi-actor),
+   different actors have different input devices. Settings should
+   distinguish "global key bindings" vs "per-actor remap." Current
+   ADR doesn't make this distinction. Recommend: settings_schema
+   for global; per-actor maps stay in actors.json. Document the
+   split.
+
+5. **Localization of setting labels**. `@strings.cat_audio` etc.
+   resolve at render time. ✓ already in plan.
+
+### Verdict
+
+**Status: accept-with-conditions.**
+
+Conditions:
+
+1. **Use Godot's `ConfigFile` for persistence**, not custom JSON.
+   Replace `user://config.json` with `user://settings.cfg`.
+2. **Settings UI rendering composes with ADR 0011's refactor**
+   (settings_renderer element in screens.json).
+3. **Spec the new effect types** (`set_audio_bus_volume`,
+   `set_input_mapping`) as thin Godot wrappers; document in
+   api-manifest.
+4. **Spec global vs per-actor key remap** distinction per ADR 0016
+   composition.
+5. **Schema validation at load** with structured errors.
+6. **Test plan**: settings persist across session restart;
+   per-effect apply runs correctly; reset-to-defaults works.
+
+After conditions resolved, this ADR is a clean composition: JSON
+declares the schema; Godot's ConfigFile + AudioServer + InputMap +
+Control hierarchy do the work.
+
+### Tier framing
+
+T5 (gameplay experience / shell layer) — yes. Settings are platform-
+level UX.
+
+### Cross-ADR observation: Godot UI exposure capability
+
+User asked whether ADRs 0010-0013 collectively represent a "Godot
+UI exposure capability" that should land as ADR 0029. After review:
+
+**Answer: ADR 0011 IS that foundational capability** (after
+refactor). Its "JSON declares Godot Control hierarchy + button
+clicks dispatch effect chains" pattern IS the Godot UI exposure.
+
+ADR 0012 (overlays) and ADR 0013 (settings UI) compose with it —
+they reuse the same JSON-to-Control mechanism.
+
+ADR 0010 (save/load) is separate — it's data-layer infrastructure
+that uses Godot's FileAccess + JSON, not UI.
+
+So no new ADR 0029 needed. The split is:
+- ADR 0010: data-layer infrastructure (save/load + Godot FileAccess)
+- ADR 0011 (refactored): UI capability — JSON-to-Godot-Control
+  primitive (foundational)
+- ADR 0012: composes 0011 for overlays
+- ADR 0013: composes 0011 for settings UI + uses ConfigFile
+
+This is the cleanest organization. Land 0011 first (refactored);
+0012 + 0013 follow naturally.

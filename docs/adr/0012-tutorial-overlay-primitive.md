@@ -1,7 +1,7 @@
 # ADR 0012 — Tutorial overlay primitive
 
 _Date: 2026-05-06_
-_Status: **proposed**_
+_Status: **accept-with-conditions (TD review 2026-05-06; depends on ADR 0011 refactor)**_
 
 ## Context
 
@@ -237,3 +237,93 @@ overlays. The author picks the right one per moment. Not really
 - ADR 0011 — screens and overlays compose; pause screen is a screen,
   tutorial hint during play is an overlay
 - Existing signal trigger system — overlay sequencing reuses it
+
+## Tech-director review (2026-05-06, post-ADR-0021 framing)
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | tutorial.json is content |
+| #2 No semantic effect types | ✓ | show_overlay / dismiss_overlay are mechanical |
+| #5 Queries first-class | ✓ | highlight_tag uses tag query |
+| #8 Engine = primitives + interpreter | ✓ | overlay primitive composes with Godot Control + ADR 0011 |
+| #9 Phase ordering | ✓ | overlay show/dismiss buffer like other effects |
+
+### Re-evaluation under ADR 0021
+
+The OVERLAY mechanic (show modal text + advance condition) is
+genuinely Yume-specific:
+- The advance-condition state machine (action / signal / timer)
+  is Yume's contribution
+- Highlight-by-tag traversal is Yume-shape (uses entity dict +
+  tag queries)
+- Tutorial sequencing as rule chains is pure Yume-primitive
+  composition
+
+What it DOESN'T need to reimplement:
+- Overlay rendering itself = Godot Control + CanvasLayer (same as
+  ADR 0011's screen UI)
+- Text rendering = Label
+- Backdrop dim = ColorRect with semitransparent color
+- Highlight visual = Sprite2D / shader-based outline (renderer-side,
+  not engine-side)
+
+### Required refactor (depends on ADR 0011 refactor)
+
+The overlay's UI rendering should compose with ADR 0011's
+"JSON-to-Godot-Control" pattern. Specifically:
+
+- `show_overlay` effect creates a CanvasLayer + Control hierarchy
+  from the overlay's title/body content (same engine helper as
+  screens use)
+- The advance-condition logic is engine code (state machine
+  monitoring action/signal/timer)
+- The highlight rendering uses existing renderer (renderer reads
+  `world.highlighted_entity_ids`; renders outlines via shader or
+  sprite)
+
+If ADR 0011 lands as the Godot-Control-exposure capability, this
+ADR's `show_overlay` is just "instantiate a tagged Control hierarchy
+from this overlay config." Clean composition.
+
+### Concerns
+
+1. **Highlight visual style is hardcoded**. ADR mentions "engine
+   pulses an outline." How? Shader? Sprite? Per ADR 0021 this
+   should use Godot's `ShaderMaterial` or `Sprite2D` rather than
+   custom rendering. Spec.
+
+2. **Overlay stacking semantics**. Multiple overlays can be shown
+   (e.g. story-cutscene overlay + tutorial overlay). Topmost handles
+   input. Same as modal stack in ADR 0011 — refactor consistently.
+
+3. **freeze_world: false case**. Overlay shown DURING gameplay
+   (e.g. "press X to interact" hint while game continues). Engine
+   must continue ticking; overlay just sits on top. Verify ADR 0011's
+   modal stack supports this distinction.
+
+4. **Multi-language support**. `@strings.X` references resolve at
+   show-time. Godot's UI auto-handles this if Label.text is set via
+   the resolved string. ✓ already in plan.
+
+### Verdict
+
+**Status: accept-with-conditions.**
+
+Conditions:
+
+1. **Depends on ADR 0011's refactor landing first** — overlay
+   rendering reuses the JSON-to-Godot-Control mechanism.
+2. **Spec highlight visual implementation** (recommend: ShaderMaterial
+   on a Sprite2D positioned at entity world coords; pulse via Tween).
+3. **Stack semantics consistent with ADR 0011's modal stack**.
+4. **Test plan**: scenario tests for show/dismiss/advance/highlight.
+
+The Yume-engine code IS justified here (advance-condition state
+machine, sequencing logic). UI rendering uses Godot. Clean composition.
+
+### Tier framing
+
+T5 (gameplay experience / shell layer) — yes. Tutorials are
+classic shell-layer onboarding UX.
