@@ -1,0 +1,30 @@
+export const entry29 = {
+  id: "29",
+  date: "2026-05-06",
+  type: "decision",
+  title: "Architectural realization — Yume = JSON layer over Godot + external",
+  summary:
+    "Foundational architectural commitment locked in. Driven by user pressure on 'can Yume support continuous physics like CALVIN/LIBERO?' Initially answered no (per ADR 0015 never-list); user pushed back: physics is just calculation, JSON can express calculation, why can't Yume? Honest engagement led to clearer framing: Yume engine should not REIMPLEMENT specialized capabilities (physics, rendering, audio mixing); Yume engine should EXPOSE platform/external capabilities through JSON-declarative primitives. The never-list applies to Yume's own engine code; Yume content can use full Godot or PyBullet capabilities when ADRs expose them. Codified as ADR 0021 alongside ADR 0001 as durable architectural commitments.",
+  highlights: [
+    "<strong>The catalyst</strong>: user asked whether Yume could generate CALVIN/LIBERO-style robot manipulation datasets. First answered no (continuous physics out of scope). User pushed: 'physics are just calculation, calculation can be json-configured, do you agree?' Honest engagement revealed the framing was incomplete.",
+    "<strong>The reframe (user's words)</strong>: 'the ideal goal is yume generate all the jsons that can make a game work, no matter how complex is that game. then all the complex stuff are engine code, which should be done during development.' This is the architecture statement; ADR 0021 codifies it.",
+    "<strong>Layer responsibilities locked in</strong>: (1) Game content = pure JSON, no per-game GDScript; (2) Yume engine = interpreters that orchestrate Godot + external; (3) Godot platform = physics/rendering/audio/animation/pathfinding (Yume exposes, never reimplements); (4) External tools (via IPC ADR 0020) = LLMs, RL agents, specialized solvers (Yume orchestrates, never bundles).",
+    "<strong>Never-list refinement (ADR 0015)</strong>: 'Yume engine WILL NEVER REIMPLEMENT continuous physics' (still true; preserves performance + stability + primitive elegance). 'Yume CONTENT MAY USE continuous physics when an ADR exposes Godot's PhysicsServer3D / RigidBody3D / joints' (new: opens the door to manipulation games, real vehicle physics, character physics — via Godot, not via Yume reimplementation).",
+    "<strong>Capability exposure as recurring ADR pattern</strong>: each Godot subsystem becomes a future ADR. Future numbered placeholders: 0022 (Godot rigid body physics), 0023 (animation system), 0024 (NavigationServer pathfinding), 0025 (particles), 0026 (advanced audio), 0027 (character body / kinematic motion). Build reactively when first game needs each.",
+    "<strong>Performance position explicit</strong>: deferred. Per user 'i think it is ok to be slow at the moment, i understand our limitation, to have actual performance, we eventually need to convert the game into the compiled code, but that will be the super super final step.' Architectural commitment is correct-first; fast-eventually.",
+    "<strong>What CALVIN/LIBERO can/can't be</strong>: the GAMES they ship (robot picks up cube, places it) ARE expressible in Yume — discrete-action manipulation with relation-based held-by, gravity tick rule, etc. The DATASETS they ship for visuomotor RL training need continuous-control physics; that requires Godot physics integration ADR (0022 future) OR external PyBullet integration (0020 territory).",
+    "<strong>Key insight on JSON's role</strong>: 'Calculation can be JSON-expressed' is true philosophically; 'should be' depends. JSON is great for declarative SPECIFICATION (scene config, parameters, references). Specialized tools are great for COMPUTATIONAL evaluation (numerical methods, solvers). Yume's value is the JSON layer; it leverages the platform for compute.",
+    "<strong>Implications for existing ADR work</strong>: ADRs 0014-0019 + 0020 fit cleanly under this framing — none reimplement; all orchestrate (rule scheduling, multi-actor input routing, JSON-declared content). ADR 0015's vehicle physics is the only one that adds engine-level math; refined to coexist with future Godot-physics-exposure ADR for cases that need real dynamics.",
+    "<strong>Implications for genre matrix</strong>: every genre flagged 'out of scope' might be in scope under this framing if Godot has the capability + an ADR exposes it. Twitch platformer needs Godot's animation + character body integration (ADR 0023+0027). Racing sim needs Godot's VehicleBody3D (ADR 0022+). Manipulation games need Godot rigidbody + joints (ADR 0022). LLM agents need ADR 0020 IPC.",
+    "<strong>The user's framing reaffirms the original Yume vision</strong>: JSON-driven content + LLM-generability are the value. The architectural realization is that Yume shouldn't try to be self-sufficient — it should be the orchestration layer that lets non-programmers (and LLMs) generate working games on top of a serious platform (Godot) plus external tools when needed.",
+    "<strong>Tech-director responsibility expanded</strong>: ADR 0021 becomes a primary reference for future reviews. 'Is this proposed engine work REIMPLEMENTING or EXPOSING?' becomes a key question. Reimplementing rejected by default; exposing accepted with capability-exposure-pattern compliance.",
+  ],
+  files: [
+    "docs/adr/0021-yume-as-json-layer-over-platform.md (new — foundational)",
+    "docs/adr/0015-vehicle-physics-primitive.md (never-list refined)",
+    "docs/30_framework_primitives.md (architectural framing section added)",
+    "docs/adr/README.md (index updated)",
+    "task_plan.md (capability roadmap to be appended)",
+    "docs/timeline/entries/29 (this entry)",
+  ],
+};

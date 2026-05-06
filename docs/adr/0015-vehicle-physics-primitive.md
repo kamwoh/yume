@@ -260,12 +260,20 @@ it, the next ADR (0020? 0030?) erodes the boundary.
 
 ## Revisions per tech-director review (2026-05-06)
 
-### 1. Physics never-list (CONTRACT ANCHOR)
+### 1. Physics never-list (CONTRACT ANCHOR — refined per ADR 0021)
 
-**Yume engine WILL NEVER implement these features.** Future ADRs
-proposing them must FIRST modify this never-list (which itself
-requires extensive cross-cutting review). This anchors the discrete-
-arcade-physics boundary.
+**Yume engine WILL NEVER REIMPLEMENT these features in GDScript or
+JSON formulas.** Yume CONTENT MAY USE these features when an ADR
+exposes Godot's built-in subsystem (or an external tool via IPC)
+through JSON-declarative primitives.
+
+Per ADR 0021 (Yume = JSON layer over Godot + external):
+- Yume engine reimplementing physics = NO (performance, stability,
+  primitive bloat)
+- Yume content declaring a Godot RigidBody3D + joints in JSON = YES
+  (when ADR 0022+ ships the exposure)
+
+The never-list below applies to YUME-ENGINE-OWNED CODE only:
 
 | Banned feature | Why |
 |---|---|

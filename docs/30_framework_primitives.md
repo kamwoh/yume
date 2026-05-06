@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-04-22_
+_Last updated: 2026-05-06_
 
 ## Purpose
 
@@ -8,6 +8,31 @@ This is the contract the engine is built against. It defines **seven primitives*
 such that any simulation-shaped game (ecology, farming, shooter, RPG, survival,
 tower-defense, roguelike, puzzle-with-state, chess) can be expressed as JSON
 config over a single GDScript engine. No genre-specific engine code.
+
+## Architectural framing (2026-05-06, codified in ADR 0021)
+
+Yume is **the JSON layer over Godot + external capabilities**.
+
+- **Game content**: pure JSON. Entities, rules, layouts, physics
+  scenes, animations, behaviors, narrative, economy, dialog —
+  everything game-specific.
+- **Yume engine** (GDScript): interpreters that read JSON and
+  dispatch to Godot or external tools.
+- **Godot platform**: physics, rendering, audio, input, animation,
+  pathfinding, scene graph. Yume EXPOSES these capabilities through
+  JSON-declarative primitives; never reimplements them.
+- **External tools** (via IPC, ADR 0020 pattern): LLMs, RL agents,
+  specialized solvers, ML models. Yume orchestrates; never bundles.
+
+Adding a capability = ADR exposing one Godot subsystem (or external
+tool) through JSON. The vocabulary grows reactively; compositions
+stay in JSON.
+
+**Yume engine never reimplements what Godot or specialized tools
+already do.** This generalizes Invariant #8 — primitives can be
+"expose Godot capability X" rather than "implement X from scratch."
+
+See ADR 0021 for the full architectural commitment.
 
 **Invariants** — non-negotiable design constraints:
 

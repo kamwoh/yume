@@ -2016,3 +2016,118 @@ Build order locked:
 7. ADR 0020 (external IPC) — when needed
 
 Awaiting user "start implementing" signal.
+
+## ADR 0021 landed — capability roadmap (2026-05-06)
+
+Foundational architectural commitment locked in. Yume = JSON layer
+over Godot + external capabilities. Engine NEVER reimplements
+specialized capabilities; engine EXPOSES them through JSON-declarative
+primitives. Each capability addition is a "capability-exposure ADR"
+that maps a Godot subsystem (or external tool) to JSON.
+
+See `docs/adr/0021-yume-as-json-layer-over-platform.md` for the full
+commitment + `docs/timeline/entries/29` for the realization moment.
+
+### Implications for prior never-list (ADR 0015)
+
+REFINED: "Yume engine WILL NEVER REIMPLEMENT continuous physics in
+GDScript or JSON formulas" (still locked in). "Yume CONTENT CAN
+USE continuous physics when an ADR exposes Godot's PhysicsServer3D
+or external tool" (NEW — opens the door for manipulation games,
+sim racing, character physics).
+
+### Capability exposure ADRs (queued, build reactively)
+
+Each ADR maps ONE Godot subsystem to JSON-declarative primitives.
+Build when the first game needing the capability queues for
+/yume-design.
+
+- [ ] **ADR 0022 — Godot rigid-body physics integration**
+  Tags: `godot_rigidbody` + `godot_joint`. JSON declares mass,
+  joints, constraints; engine instantiates RigidBody3D + joint
+  nodes; reads back state into entity state; rules can apply
+  forces. Unlocks: manipulation games (CALVIN-shaped), realistic
+  driving (Godot's VehicleBody3D), character physics, ragdolls.
+- [ ] **ADR 0023 — Godot animation system integration**
+  Tags: `animated`. JSON declares animation tree / state machine /
+  blend tree; engine instantiates AnimationPlayer + AnimationTree.
+  Unlocks: character action games, twitch platformers, polished
+  visuals.
+- [ ] **ADR 0024 — Godot pathfinding integration**
+  JSON declares NavigationRegion + nav-mesh derivation rules;
+  engine uses NavigationServer3D / NavigationAgent3D. Unlocks:
+  AI navigation (RTS unit movement, NPC routing), GPS/minimap
+  for open-world games.
+- [ ] **ADR 0025 — Godot particles + advanced VFX**
+  JSON declares particle effect parameters; engine instantiates
+  GPUParticles3D / CPUParticles3D. Unlocks: visual juice,
+  weather, environmental effects.
+- [ ] **ADR 0026 — Godot advanced audio (buses, effects)**
+  JSON declares audio bus topology + per-bus effects; engine
+  routes through AudioServer. Unlocks: dynamic mixing, sidechain
+  ducking, spatial audio.
+- [ ] **ADR 0027 — Godot character body / kinematic motion**
+  Tags: `kinematic_body` for player-controlled characters with
+  collision response (slope sliding, step climbing). Unlocks:
+  twitch platformers, character action games, third-person.
+- [ ] **ADR 0028 — Godot 2D physics** (parallel to 0022 for 2D)
+  Tags: `godot_rigidbody2d`. Same pattern; 2D variant.
+
+### Implications for genre matrix (revisited)
+
+Many genres previously marked "out of scope" or "needs major work"
+become in-scope when capability ADRs land:
+
+| Genre | Path |
+|---|---|
+| Manipulation games (CALVIN-shaped) | ADR 0022 (rigid body + joints) |
+| Twitch platformer (Celeste-style) | ADR 0023 (animation) + ADR 0027 (character body) |
+| Racing sim (Forza-shaped) | ADR 0022 (Godot's VehicleBody3D + WheelJoint) |
+| Character action (Devil May Cry) | ADR 0023 + ADR 0027 + complex animation tree |
+| Stealth (MGS) | ADR 0024 (pathfinding for guard AI) |
+| RTS / 4X (Civ) | ADR 0024 (pathfinding) + multi-actor + selection (could be skill, not engine) |
+| LLM-agent simulation (Smallville) | ADR 0020 + multi-actor |
+
+Sim racing still requires careful tuning (tire physics ARE specialized
+even in Godot) but is no longer fundamentally out of scope.
+
+### Build trigger
+
+Each capability-exposure ADR is drafted reactively when a game in
+the relevant genre queues. Don't speculatively commit to all six
+at once. Pattern is well-established (each ADR is bounded surface).
+
+### Performance commitment (per user direction)
+
+Performance optimization is the LAST step. Architectural commitment
+is "correct first; fast eventually." Future optimization work:
+- Profile interpreted JSON dispatch hot paths
+- Move hot paths to compiled GDScript or gdextension
+- Eventually: compile games to native Godot projects with all JSON
+  pre-resolved (long-future)
+
+These are engineering optimizations, not architectural changes.
+JSON layer's value (LLM-generability, declarative authoring) is
+preserved.
+
+### Strategic positioning
+
+Yume is now positioned clearly: **the JSON-declarative content
+layer that lets non-programmers (and LLMs) generate working games
+on top of Godot + external tools, without writing GDScript per
+game**.
+
+Distinct from:
+- "Game engines" (Godot, Unity) — Yume is a layer ON TOP of
+  Godot, not a competitor
+- "Visual scripting tools" (Godot's GraphEdit) — Yume targets
+  text-based JSON authoring, LLM-friendly
+- "Game frameworks" (Phaser, MonoGame) — Yume is content-driven,
+  not code-driven
+- "RL benchmarks" (CALVIN, LIBERO) — Yume is content-generation,
+  not policy-evaluation; could COMPLEMENT them via task generation
+
+### Updated mission statement (provisional)
+
+"Yume generates the JSON that makes any game work. Complex stuff
+is engine code, done during development."

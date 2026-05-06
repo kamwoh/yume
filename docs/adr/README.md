@@ -52,6 +52,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0018](./0018-actor-policy-interface.md) | In-process actor policy interface (split: in-process only) | accepted (conditions resolved) | 2026-05-06 |
 | [0019](./0019-rule-plugin-macro-layer.md) | Rule plugin / macro layer | accepted (conditions resolved) | 2026-05-06 |
 | [0020](./0020-external-agent-ipc.md) | External agent IPC (split from 0018) | proposed — deferred until first dependent game | 2026-05-06 |
+| [0021](./0021-yume-as-json-layer-over-platform.md) | **Yume = JSON layer over Godot + external** (foundational) | accepted | 2026-05-06 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 
