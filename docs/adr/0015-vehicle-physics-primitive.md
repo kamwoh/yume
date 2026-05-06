@@ -171,3 +171,89 @@ opt-in tag preserves clarity.
   interactive open worlds
 - Yume non-goals doc — confirms continuous physics out of scope; this
   ADR is bounded to discrete-time momentum exchange
+
+## Tech-director review
+
+_Date: 2026-05-06_
+_Reviewer: yume-tech-director_
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | mass / restitution are properties; tag is content |
+| #2 No semantic effect types | ✓ | `apply_impulse` is generic vector→velocity; not a semantic verb |
+| #3 No entity-class hierarchy | ✓ | physics_dynamic is a tag, not a class |
+| #5 Queries first-class | ✓ | tag-based query for collision pair detection |
+| #8 Engine = primitives + interpreter | ⚠ | adds collision-response math to engine; bounded but real |
+| #9 Phase ordering | ⚠ | collision response queues velocity_set effects; need explicit phase placement |
+
+### Concerns
+
+1. **Where's the line on continuous physics?** This is the most
+   important unanswered question. Newtonian discrete collision
+   response is fine. But this ADR opens the conceptual door:
+   "well, if we have mass + momentum, why not friction-aware
+   sliding? Why not suspension? Why not continuous integration?"
+   Without an explicit "never list," each future ADR has to
+   re-litigate the boundary.
+
+2. **`physics_dynamic` semantic ambiguity**. The ADR's narrative
+   says "pedestrian inherits velocity" but the math (j/m * normal)
+   gives an impulse. These are different — impulse gives a kick;
+   inheritance gives full coupling. Authors will mistune unless
+   the ADR is explicit.
+
+3. **Performance budget unspecified**. Pair-resolution is
+   potentially O(n²) without spatial partitioning. Spatial index
+   narrows but doesn't eliminate. At 100 dynamic entities, ~5000
+   potential pairs per tick. Need budget statement: "engine targets
+   ≤16ms total physics-response time at 100 dynamic entities."
+
+4. **Phase ordering interaction with Invariant #9**. Collision
+   response generates velocity_set effects. Where in the tick
+   pipeline do these queue? Same react phase as contact rules?
+   Or separate? If react, the existing flush rules apply — fine.
+   If a separate "physics phase" is added, that's a phase ordering
+   change requiring its own scrutiny.
+
+5. **`blocks_motion` integration**. ADR says dynamic vs
+   blocks_motion-only = reflection. Spec the reflection: full
+   elastic? restitution-modulated? If a 1500kg car hits a 1500kg
+   wall (technically infinite), what's the post-velocity?
+   Probably v' = -v * restitution. Make explicit.
+
+6. **Velocity inheritance vs impulse semantics** (concern #2 detail).
+   Recommend: collision response is IMPULSE-based always
+   (post-velocity = pre-velocity + impulse/mass * normal). Authors
+   tune mass ratios to get inheritance-like effects (heavy-on-light
+   ≈ inheritance). Document this clearly so authors don't expect
+   "set velocity = the other's velocity."
+
+### Verdict
+
+**accept-with-conditions**.
+
+Conditions before implementation:
+
+1. **Add explicit "never list" of physics features Yume will not
+   implement**: continuous force integration over time (springs,
+   suspension), constraint solvers (joints, ropes), continuous-time
+   deformation (soft body), sub-tick continuous collision detection
+   (CCD). State these in the ADR. This anchors future scope debates.
+2. **Clarify impulse vs inheritance semantics**: math is impulse-
+   based; inheritance is the perceptual outcome at heavy-vs-light
+   mass ratios. Document explicitly.
+3. **Performance budget**: spec ≤16ms physics-response time at 100
+   dynamic entities; CI/perf test should track this.
+4. **Phase ordering**: collision response runs in react phase as
+   queued velocity_set effects (composes with existing flush rules).
+   Don't introduce a new phase.
+5. **`blocks_motion` reflection spec**: post-velocity = pre-velocity
+   reflected over collision normal, scaled by restitution. Wall has
+   effective mass ∞.
+6. **Mass property contract**: must be > 0 (engine errors on mass=0
+   for physics_dynamic entities).
+
+This is a contract-edge ADR. The "never list" is critical. Without
+it, the next ADR (0020? 0030?) erodes the boundary.

@@ -239,3 +239,101 @@ users plug in their preferred backend.
   policy types + observation configs
 - Smallville / Generative Agents paper — reference architecture
 - task_plan.md "simulation input layer" — earlier flag, now formal
+
+## Tech-director review
+
+_Date: 2026-05-06_
+_Reviewer: yume-tech-director_
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ⚠ | scripted policies are JSON; godot_resource path is GDScript per game (path D); external paths require non-Yume code |
+| #2 No semantic effect types | ✓ | actions are existing input events |
+| #3 No entity-class hierarchy | ✓ | policies are config + interpreter, not classes |
+| #5 Queries first-class | ✓ | observation builder uses existing query mechanisms |
+| #8 Engine = primitives + interpreter | ⚠⚠ | external IPC adds significant engine surface — see verdict |
+
+### Major concern: scope conflation
+
+This ADR conflates TWO distinct concerns:
+
+**Concern A: In-process actor policies**
+- Path A (scripted JSON) — pure JSON, in-process. Clean.
+- Path D (godot_resource) — GDScript per game. Borderline Invariant #1
+  but defensible (it's at the actor-AI layer, not game-rule layer).
+
+**Concern B: External agent IPC**
+- Path B (stdio subprocess) — spawns external process per actor.
+- Path C (ZMQ) — adds ZMQ dependency, networking layer.
+
+Concern A is bounded engine work. Concern B is a NEW DEPENDENCY
+SURFACE — Yume currently has zero network/process integration.
+Adding both at once is scope creep.
+
+Specific risks of B+C:
+- Subprocess management: lifecycle, deadlock, error propagation,
+  cleanup on quit. Each is non-trivial.
+- ZMQ adds a build-time dependency (gdextension or similar).
+- Cross-platform support (Windows/Mac/Linux subprocess differs).
+- Security: external policy can do anything its host process can.
+- Performance: serialization + IPC + LLM call = 100ms-2s. Engine
+  must handle async; current architecture is sync-tick.
+
+### Concerns specific to this ADR
+
+1. **Where does Yume's responsibility end?** ADR doesn't draw the
+   line clearly. Recommend explicit:
+   - Yume engine MUST: define observation/action protocol, route
+     between actor and policy, handle policy unavailability gracefully.
+   - Yume engine SHOULD NOT: ship LLM clients, ZMQ broker, RL
+     environment wrappers, sample policies.
+
+2. **Action staleness on async policies**. ADR mentions "engine
+   reuses last action." But if policy says "move north" 3 ticks ago
+   and the world has changed (wall in the way), should engine
+   re-validate? Or trust the policy? Spec needed.
+
+3. **Observation serialization cost**. At many-actor scale (100+ AI
+   NPCs, each observing 50 nearby entities), observation building
+   dominates CPU. ADR doesn't budget this.
+
+4. **Recommendation: split this ADR**. Two ADRs:
+   - **0018 (this) — In-process actor policies**: Paths A + D only.
+     Scripted JSON + godot_resource. Bounded engine work (interpreter
+     + GDScript dispatch). Sufficient for: multi-protagonist games,
+     scripted bots, behavior trees. Most use cases.
+   - **0020 (future) — External agent IPC**: Paths B + C.
+     Subprocess + ZMQ. Land when first LLM/RL game is queued, not
+     speculatively. Allows separate scope review.
+
+### Verdict
+
+**revise**.
+
+Recommendation: SPLIT this ADR. The in-process subset (Paths A + D)
+is acceptable as ADR 0018. The external subset (Paths B + C) becomes
+a future ADR (0020 — External Agent IPC) gated separately.
+
+Reasons:
+1. External IPC is a major dependency surface deserving its own
+   tech-director gate.
+2. Most use cases (multi-protagonist, scripted NPC AI, behavior
+   trees) work with in-process policies. External IPC is an
+   advanced feature.
+3. Scope discipline: don't commit to ZMQ + subprocess management
+   speculatively. Wait for the first real game that needs it.
+4. The architectural insight (observation/action protocol) is the
+   same; only the transport differs. Land transport-specific work
+   when needed.
+
+If user wants ALL paths in this ADR, the conditions are:
+- Explicit "Yume MUST / SHOULD NOT" responsibility statement
+- Action staleness spec
+- Observation budget
+- Subprocess lifecycle spec (start, error, kill, cleanup)
+- ZMQ dependency declared in build docs
+- Sample reference impls in tests, not engine
+
+But splitting is the cleaner answer.

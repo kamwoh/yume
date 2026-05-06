@@ -246,3 +246,102 @@ its own patterns; a central engine vocabulary doesn't scale.
 - W4.5 (deferred AST whitelist for Formula) — complementary
 - ADR 0009 (world/game/flow split) — macros could be per-layer
   (world physics has its own macros vs game rules)
+
+## Tech-director review
+
+_Date: 2026-05-06_
+_Reviewer: yume-tech-director_
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | macros are JSON; expansion produces existing primitives |
+| #2 No semantic effect types | ✓ | THE invariant this ADR is designed around — macros expand to primitives only; tech-director-checkable |
+| #3 No entity-class hierarchy | ✓ | none |
+| #5 Queries first-class | ✓ | none changed |
+| #8 Engine = primitives + interpreter | ✓ | macros are CONTENT composition; engine still ships fixed primitives |
+| #9 Phase ordering | ✓ | doesn't change phase ordering |
+
+This ADR is the cleanest of the six on invariant grounds. Designed
+for invariants from the start. Excellent contract-conscious design.
+
+### Concerns
+
+1. **Recursion bound insufficient as stated**. Depth ≤ 4 prevents
+   infinite recursion within a chain, but doesn't prevent EXPANSION
+   EXPLOSION: 4 levels × 5 sub-effects each = 625 effects from one
+   rule call. Recommend additional bound: max-expanded-effect-count
+   per rule (suggest 50). Both bounds enforced; load fails with
+   structured error if exceeded.
+
+2. **Mutual recursion not addressed**. Macro A calls B, B calls A.
+   The depth bound catches this eventually (at depth 4) but the
+   error is opaque. Add explicit cycle detection at load time —
+   parse macro graph, detect cycles, error before any expansion.
+
+3. **Expand-at-load vs expand-at-fire-time**. ADR recommends load-
+   time. Concur, but be explicit: load-time substitutes ONLY the
+   macro's `params`; runtime context bindings (self, target, a, b)
+   are unchanged at fire time. This makes macros COMPILE-TIME
+   templates, not runtime functions. Cleaner.
+
+4. **Per-game scoping**. Macros are per-game by file location.
+   Confirm explicitly that no cross-game macro reference is
+   possible. If sokoban defines `deal_damage`, it's not visible to
+   doomarena3d.
+
+5. **Tech-director ongoing burden**. ADR says I must verify
+   Invariant #2 "on every game's macros file." This is a real cost
+   per new game. Mitigation: extend the existing api-manifest CI
+   check to scan all `data/<game>/macros.json` and flag any macro
+   whose `name` matches a forbidden semantic word (damage, heal,
+   attack, etc.). Make the check automated, not human.
+
+6. **Backward compat is genuine**. macros.json absent → empty
+   registry → expansion no-op. No risk to existing demos. Confirmed.
+
+7. **Cross-ADR concern (raised by user)**: macros change the
+   rule-loading pipeline. Every demo's rules pass through the
+   macro expander.
+   - In CONTRACT terms (preserves invariants), this IS low risk.
+   - In IMPLEMENTATION terms, the rule-loading code path changes
+     for every demo. Test plan must include regression tests for
+     all 13 demos: each should load + run with identical rule
+     behavior to pre-macro-expander baseline.
+   - This is NOT as low-risk as ADR claims for implementation,
+     even though it's contract-clean.
+
+8. **`$param.field` traversal underspecified**. Example shows
+   `"$target.properties.max_hp"`. Is this a Formula, a path lookup,
+   or a special macro syntax? Spec the resolution rules:
+   - `$param` = direct substitution of the param value
+   - `$param.field` = if param is an entity ref, look up the field
+     via existing context-binding rules
+   - Anything else = parse as Formula at fire time
+
+### Verdict
+
+**accept-with-conditions**.
+
+Conditions before implementation:
+
+1. **Add max-expanded-effect-count bound** (suggest 50) per rule.
+   Both depth ≤ 4 AND total expanded effects ≤ 50.
+2. **Add explicit cycle detection** at load time. Cycle = error
+   with macro_id chain identified.
+3. **Spec load-time vs fire-time**: load-time substitutes `$param`;
+   fire-time substitutes context bindings. Document with examples.
+4. **Confirm per-game scoping**: macros are NOT cross-game. State
+   in ADR.
+5. **Automate Invariant #2 check** in api-manifest CI: scan all
+   macros.json for semantic-effect-name macros; fail build if found.
+6. **Test plan**: regression tests confirming all 13 demos load
+   + tick identically pre/post macro-expander integration.
+7. **Spec `$param.field` traversal** semantics (recommend: same
+   as Formula's binding resolution, applied at fire time even for
+   load-time-expanded macros).
+
+This ADR can land FIRST in the build order (lowest contract risk;
+biggest authoring win). Implementation risk is moderate (rule-loader
+change), but tests catch regressions if covered.

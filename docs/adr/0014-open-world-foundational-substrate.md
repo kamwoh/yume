@@ -205,3 +205,74 @@ multi-level; an open-world RPG is naturally chunked. Keep both.
   streaming
 - ADR 0017 (spatial-LOD rule scheduling) — perf-critical for chunked
   worlds with many active rules
+
+## Tech-director review
+
+_Date: 2026-05-06_
+_Reviewer: yume-tech-director_
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | chunk content is JSON; engine reads, no per-game GDScript |
+| #2 No semantic effect types | ✓ | no new semantic effects introduced |
+| #3 No entity-class hierarchy | ✓ | chunk_streamer is a module, not an entity subclass |
+| #5 Queries first-class | ⚠ | persistent entities + spatial index interaction underspecified — see condition below |
+| #8 Engine = primitives + interpreter | ✓ | streaming is orchestration on existing primitives; no new vocabulary |
+| #9 Phase ordering | ✓ | streaming runs between ticks (process_pending_level_transition pattern); no change to flush ordering |
+
+### Concerns
+
+1. **Persistent-entity ghost in spatial index** (Invariant #5 risk).
+   ADR hand-waves this: "Persistent-tag entities may have stale
+   spatial-index entries when their chunk is unloaded. Need a
+   'ghost' representation in spatial index so they're still
+   queryable." This is a real loose end. If a tick rule fires "all
+   NPCs within 1000 units" and a persistent NPC's chunk is unloaded,
+   does the rule see them? Without spec, behavior is undefined.
+
+2. **Chunk-size unit semantics**. ADR says `chunk_size: [320, 320]`
+   without naming the units. 2D pixel games use pixels (32 = 1 cell);
+   3D games use world units (typically meters). Author must know which.
+
+3. **Chunks vs levels confusion**. The "chunks=spatial, levels=flow"
+   distinction is intuitive for some genres (RPG: levels=acts, chunks=
+   regions) but fuzzy for others (sokoban: rooms could be either).
+   Authoring guidance needed in the open-world-designer skill (when
+   built).
+
+4. **Cross-chunk rule queries**. Contact rules at chunk boundaries
+   need explicit semantics. The stream_radius covers the basic case
+   (adjacent chunks load), but edge cases at the radius boundary
+   need testing.
+
+5. **Save/load (ADR 0010) interaction**. If save fires while player
+   is in chunk (5,3), what serializes? Per save_policy this should
+   be persistent-tag entities + world_state, not the loaded chunks
+   themselves (those reload from disk). State this explicitly.
+
+### Verdict
+
+**accept-with-conditions**.
+
+Conditions before implementation:
+
+1. **Spec the persistent-entity-in-spatial-index** mechanism
+   concretely. Either: (a) ghost entry remains in spatial_index with
+   a flag that says "loaded=false," and queries skip ghosts unless
+   the rule opts in; or (b) persistent entities never leave spatial
+   index but their entity instance is freed.
+2. **Define chunk_size unit semantics** per renderer (pixels for 2D,
+   world units for 3D); add to ADR.
+3. **Spec cross-chunk query semantics** — radius queries that span
+   adjacent loaded chunks work; queries beyond stream_radius do not.
+4. **Spec save/load interaction** — what persists vs reloads from
+   disk. Likely: persistent_tag entities + world_state save; chunk
+   content reloads.
+5. **Add scenario test plan** — at minimum: (a) player crosses
+   chunk boundary; (b) persistent NPC survives chunk unload; (c)
+   save+reload while in non-starting chunk preserves state.
+
+These are clarifications, not redesigns. Once addressed, implementation
+is gated only on dependency ADRs (0016 first per build order).

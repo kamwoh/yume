@@ -154,3 +154,82 @@ optimization. Use general LOD instead.
 - ADR 0014 (open-world) — composable
 - ADR 0016 (multi-actor) — active_actor anchor
 - yume-crowd-designer skill (future) — primary consumer
+
+## Tech-director review
+
+_Date: 2026-05-06_
+_Reviewer: yume-tech-director_
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | LOD config in rules (already JSON) |
+| #2 No semantic effect types | ✓ | no new effects |
+| #3 No entity-class hierarchy | ✓ | none |
+| #5 Queries first-class | ✓ | uses spatial-index radius queries (existing) |
+| #8 Engine = primitives + interpreter | ✓ | optimization on existing scheduler; no new vocabulary |
+| #9 Phase ordering | ✓ | doesn't change phase ordering |
+
+This is the cleanest ADR of the six. No new vocabulary, no new
+content channels, no new dependencies. Pure optimization layer.
+
+### Concerns
+
+1. **LOD radius hysteresis missing**. A tick rule with
+   `radius: 200` will jitter — entities at 199 units fire it; at
+   201 don't. ADR 0014 (open-world) uses load_radius < unload_radius
+   for chunks; same pattern needed here. Recommend: add `enter_radius`
+   and `leave_radius` (or `radius` + `hysteresis`) so entities don't
+   flip-flop on the boundary.
+
+2. **`tick_slowed` implementation cost**. Per-rule per-entity tracking
+   of "last fired tick" adds state. If 500 entities × 50 rules with
+   tick_slowed, that's 25k state entries. Manageable but not free.
+   Spec: storage location + lifecycle.
+
+3. **Determinism implications underspecified**. `freeze` mode = entity
+   stops behaving when player walks away. Acceptable for crowds
+   (anonymous pedestrian doesn't matter). Not acceptable for named
+   NPCs (Stardew villager Marie should keep aging at her shop even
+   when player isn't there). Authoring guidance: freeze for crowds,
+   tick_slowed for named NPCs.
+
+4. **lod_anchor_position computation**. Computed each tick from
+   active_actor or camera. Spec: ONE computation per tick, cached
+   in env, reused across all LOD-tagged rules. Don't recompute per
+   rule.
+
+5. **No-LOD baseline preserved**. Rules without `lod` config run on
+   all entities (current behavior). Make this explicit in the schema
+   doc.
+
+6. **Interaction with ADR 0014 streaming**. LOD scheduling AND chunk
+   streaming both filter "what's near player." Risk of double-filter:
+   chunk unloads entity → entity gone → LOD doesn't see it (correct).
+   But what if LOD radius > stream_radius? Author assumes entity is
+   visible at LOD distance, but it's been unloaded. Need: either LOD
+   radius ≤ stream_radius (enforced at load), or document this is
+   author's responsibility.
+
+### Verdict
+
+**accept-with-conditions**.
+
+Conditions before implementation:
+
+1. **Add hysteresis**: split `radius` into `enter_radius` /
+   `leave_radius` (or use a single radius + hysteresis offset). Avoid
+   boundary flip-flop.
+2. **Spec tick_slowed state location** (recommend: scheduler-internal
+   dictionary keyed by (rule_id, entity_id) → last_fired_tick).
+3. **Document determinism implications**: freeze for anonymous,
+   tick_slowed for named. Bake into yume-crowd-designer skill.
+4. **Cache lod_anchor_position once per tick** in env.
+5. **Validate LOD radius ≤ ADR 0014 stream_radius** at load (or warn).
+6. **Test plan**: (a) entity entering/leaving LOD radius behaves
+   correctly; (b) tick_slowed reduces fire frequency by expected
+   factor; (c) rules without LOD config still run on all entities.
+
+Lowest-risk ADR of the six. Reasonable to land before 0014/0015 if
+user wants quick win on existing demo perf at scale.

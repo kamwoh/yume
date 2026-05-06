@@ -176,3 +176,86 @@ camera + perception + AI. Actor abstraction is the right layer.
 - ADR 0018 (actor policy interface) — depends on this; can't have
   AI-driven actors without multi-actor framework
 - Tier 3 (Actors) — this ADR is the foundation
+
+## Tech-director review
+
+_Date: 2026-05-06_
+_Reviewer: yume-tech-director_
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | actors.json is content |
+| #2 No semantic effect types | ✓ | switch_actor / queue_input_for_actor are mechanical, not semantic |
+| #3 No entity-class hierarchy | ✓ | actors are config records, not classes |
+| #5 Queries first-class | ✓ | actor entity lookup via existing tag/id mechanisms |
+| #8 Engine = primitives + interpreter | ✓ | adds dispatch layer; doesn't add new effect vocabulary beyond switch_actor + queue_input_for_actor |
+| #9 Phase ordering | ⚠ | switch_actor mid-tick semantics underspecified |
+
+### Concerns
+
+1. **Backward compat creates dual code paths**. ADR proposes "if
+   actors.json absent, fall back to legacy actor_tag." Two paths =
+   maintenance debt. Every change to input handling must consider
+   both. Better path: at world load, if actors.json absent, the
+   engine SYNTHESIZES a default actors.json with one actor pointing
+   to the actor_tag-tagged entity. Then there's only ONE code path.
+
+2. **`input_actions_press` location underspecified**. Currently lives
+   on the World scene as @export. ADR says "each actor has its own
+   input_actions_press config" but doesn't say where. Either:
+   (a) per-actor in actors.json, or (b) global with actor-routing
+   based on input device. Pick one explicitly.
+
+3. **switch_actor mid-tick semantics**. If a rule fires
+   `switch_actor` during a tick, do subsequent input rules in the
+   SAME tick route to the new actor or the old? Need spec. Recommend:
+   take effect at next tick boundary (consistent with other state
+   changes that flush at phase boundaries).
+
+4. **Camera follow on switch**. ADR mentions camera follows
+   active_actor. But camera config lives in scene.json (asset-designer
+   owns it per ADR 0009 reorg). When active actor changes,
+   does the camera config change? Or is "follow active_actor" a
+   camera mode that adapts automatically? Likely the latter —
+   add `camera.mode: follow_active_actor` as the new mode.
+
+5. **Per-actor state location**. GTA-style multi-protag has separate
+   inventories. ADR doesn't show how. Two options:
+   (a) per-entity state with naming convention (player_main.hp,
+   player_alt.hp); (b) per-actor state slot in world_state
+   (world.actors.player_main.hp). Recommend (a) — entity-tied state
+   is the natural place. Document this.
+
+6. **Migration path for existing demos**. Sokoban / harvestcore use
+   actor_tag = "player". After this ADR lands, what migration is
+   required? Per concern #1: synthesized default actors.json means
+   ZERO migration. Confirm + document.
+
+### Verdict
+
+**accept-with-conditions**.
+
+Conditions before implementation:
+
+1. **Replace dual-code-path with synthesized-default**. If
+   actors.json absent, engine constructs one in memory at load:
+   single actor pointing to actor_tag entity. Single code path.
+2. **Spec input_actions_press location**: per-actor in actors.json
+   (recommended; allows per-character control schemes).
+3. **Spec switch_actor timing**: takes effect at next tick boundary,
+   not mid-tick.
+4. **Add `camera.mode: follow_active_actor`** as part of this ADR
+   or coordinate with asset-designer skill update.
+5. **Spec per-actor state**: lives on the entity that the actor
+   controls; multi-actor games use distinct entities per character.
+   No new "per-actor state slot" needed.
+6. **Migration confirmation**: explicit "zero migration required for
+   existing demos" statement.
+7. **Test plan**: scenario tests for (a) switch_actor at tick N
+   takes effect at tick N+1; (b) input route change after switch;
+   (c) camera reframe after switch.
+
+Foundational ADR; depends on nothing; gates ADRs 0014, 0017, 0018.
+Should land first if user approves all six.
