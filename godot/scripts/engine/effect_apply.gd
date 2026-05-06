@@ -69,11 +69,13 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"dismiss_overlay":   _dismiss_overlay_effect(effect, env, context)
 		"set_audio_bus_volume": _set_audio_bus_volume(effect, env, context)
 		"set_input_mapping":    _set_input_mapping(effect, env, context)
+		"switch_actor":         _switch_actor(effect, env, context)
+		"queue_input_for_actor": _queue_input_for_actor(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor.",
 				"warning")
 	return {}
 
@@ -914,3 +916,37 @@ static func _set_input_mapping(e: Dictionary, env: Dictionary, ctx: Dictionary) 
 	var new_ev := InputEventKey.new()
 	new_ev.keycode = keycode
 	InputMap.action_add_event(action, new_ev)
+
+
+# ============================================================
+# MULTI-ACTOR EFFECTS (ADR 0016)
+# ============================================================
+
+## Switch the active actor. DEFERRED — takes effect at next tick boundary
+## (per TD condition #3). Subsequent rules in the SAME tick still see the
+## old active_actor_id; world.gd processes _pending_active_actor between
+## ticks (matches transition_level / save_state pattern).
+static func _switch_actor(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var target := str(_value(e.get("target_id", e.get("target", "")), ctx, env))
+	if target == "":
+		push_warning("switch_actor: missing target_id (rule=%s)"
+			% str(ctx.get("_rule_id", "")))
+		return
+	env["_pending_active_actor"] = target
+
+
+## Synthesize input for a specific (typically non-human) actor.
+## Foundation for AI policies (ADR 0018). Pushes onto the scheduler's
+## input queue with the actor_id in the params dict.
+static func _queue_input_for_actor(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var actor_id := str(_value(e.get("actor_id", ""), ctx, env))
+	var action := str(_value(e.get("action", ""), ctx, env))
+	if actor_id == "" or action == "":
+		push_warning("queue_input_for_actor: missing actor_id or action (rule=%s)"
+			% str(ctx.get("_rule_id", "")))
+		return
+	var parent_node = env.get("parent", null)
+	if parent_node == null or parent_node.get("scheduler") == null: return
+	var sched = parent_node.scheduler
+	if sched.has_method("queue_input"):
+		sched.queue_input(action, {"actor": actor_id, "synthesized": true})

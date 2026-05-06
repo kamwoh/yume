@@ -70,6 +70,11 @@ var save_policy: Dictionary = {}
 ## any rules file (world/physics.json, game/rules.json, levels/<n>/rules.json,
 ## tutorial.json) are expanded uniformly.
 var macro_expander = null
+## ADR 0016 — multi-actor manager. Loaded at game start; synthesizes a
+## default single-actor config if no actors.json present (zero-migration
+## for legacy demos). active_actor_id mirrored into world_state for
+## binding readers (camera follow, input dispatch).
+var actor_manager = null
 
 
 # ============================================================
@@ -149,6 +154,12 @@ func load_data() -> void:
 	# tutorial.json) can reference the same macro vocabulary. Empty
 	# expander if no macros.json present (no-op pass-through).
 	macro_expander = MacroExpander.load_from_data_root(root, _build_env())
+	# ADR 0016: load (or synthesize) actor config. Single code path —
+	# legacy single-player demos get a synthesized default actor whose
+	# starting_entity_tag = the existing actor_tag export var. Mirror
+	# active_actor_id into world_state so bindings can read it.
+	actor_manager = ActorManager.load_or_synthesize(root, actor_tag)
+	world_state["active_actor_id"] = actor_manager.active_actor_id
 	# ADR 0006: multi-level support. If game/flow.json exists, load
 	# progression + the starting level's content. Persistent entities come
 	# from the root's entities.json. Otherwise (single-level games), load
@@ -548,6 +559,10 @@ func _on_tick(count: int) -> void:
 	_decrement_lifetimes()
 	process_pending_level_transition()
 	process_pending_save_load()
+	# ADR 0016: switch_actor takes effect at next tick boundary. We process
+	# AFTER scheduler.tick() so the current tick's rules saw the OLD
+	# active_actor; the next tick's input phase will see the NEW one.
+	process_pending_actor_switch()
 	if verbose and count % 4 == 0:
 		_print_tick_summary(count)
 
@@ -772,12 +787,35 @@ func _poll_input() -> void:
 				scheduler.queue_input(stop_action_on_idle, {"actor": actor_id})
 
 
+## ADR 0016: resolve which entity should receive input this frame.
+## Routes through actor_manager to find the entity controlled by the
+## current active actor. Falls back to the legacy actor_tag scan if
+## the manager isn't initialized (defensive — shouldn't happen post-load).
 func _find_actor_id() -> String:
+	if actor_manager != null:
+		var id: String = actor_manager.resolve_active_entity(entities)
+		if id != "": return id
+	# Defensive fallback (matches pre-ADR-0016 behavior)
 	for id in entities.keys():
 		var ent = entities[id]
 		if ent is Entity and (ent as Entity).has_tag(actor_tag):
 			return id
 	return ""
+
+
+## ADR 0016: process queued switch_actor between ticks. Effect handlers
+## set env._pending_active_actor; we read + clear it here so input
+## routing changes happen at tick boundaries, not mid-rule.
+func process_pending_actor_switch() -> void:
+	var env: Dictionary = scheduler.env
+	var pending = env.get("_pending_active_actor", null)
+	if pending == null or actor_manager == null: return
+	env.erase("_pending_active_actor")
+	var target := str(pending)
+	if actor_manager.set_active(target):
+		world_state["active_actor_id"] = target
+		if verbose:
+			print("[World] active actor → ", target)
 
 
 ## Integrate velocity → position each frame for smooth motion.

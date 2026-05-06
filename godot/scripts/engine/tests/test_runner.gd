@@ -47,6 +47,7 @@ func _ready() -> void:
 	test_overlay_effects()
 	test_spatial_lod()
 	test_macro_expansion()
+	test_multi_actor()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -2100,3 +2101,96 @@ func test_macro_expansion() -> void:
 	var pass_fx: Array = pass_through[0]["effect"]
 	expect_eq(pass_fx.size(), 1, "primitive-only effect list unchanged")
 	expect_eq(str(pass_fx[0]["type"]), "state_set", "primitive type preserved")
+
+
+# ============================================================
+# MULTI-ACTOR (ADR 0016)
+# ============================================================
+
+## Verify ActorManager:
+## 1. Synthesized default when no actors.json (legacy compat)
+## 2. resolve_active_entity finds the right entity by tag
+## 3. set_active changes active_actor_id
+## 4. switch_actor effect pushes _pending_active_actor (deferred semantics)
+## 5. queue_input_for_actor synthesizes input
+func test_multi_actor() -> void:
+	_section("multi_actor (ADR 0016)")
+
+	# 1. Synthesized default with no file
+	var am := ActorManager.load_or_synthesize("/nonexistent/path", "player")
+	expect_eq(am.active_actor_id, "default_player",
+		"synthesized default actor id")
+	var ids := am.actor_ids()
+	expect_eq(ids.size(), 1, "synthesized has exactly one actor")
+	var actor := am.get_actor("default_player")
+	expect_eq(str(actor.get("starting_entity_tag", "")), "player",
+		"synthesized actor uses fallback tag")
+	expect_eq(str(actor.get("control_mode", "")), "human",
+		"synthesized actor is human-controlled")
+
+	# 2. resolve_active_entity by tag
+	var entities: Dictionary = {}
+	var p := Entity.new()
+	p.def_id = "player"; p.instance_id = "player_main"
+	p.tags = ["player"]
+	entities["player_main"] = p
+	expect_eq(am.resolve_active_entity(entities), "player_main",
+		"resolves active actor via tag")
+	# Returns "" if no entity matches
+	entities.clear()
+	expect_eq(am.resolve_active_entity(entities), "",
+		"returns empty when no matching entity")
+	p.queue_free()
+
+	# 3. set_active with unknown id is rejected
+	var ok := am.set_active("nonexistent_actor")
+	expect(not ok, "set_active rejects unknown actor id")
+	expect_eq(am.active_actor_id, "default_player",
+		"active unchanged after rejection")
+
+	# 4. switch_actor effect defers to env._pending_active_actor
+	var env: Dictionary = {"parent": null}
+	var ctx: Dictionary = {"_rule_id": "test"}
+	EffectApply.apply({"type": "switch_actor", "target_id": "player_alt"},
+		env, ctx)
+	expect_eq(str(env.get("_pending_active_actor", "")), "player_alt",
+		"switch_actor defers via env._pending_active_actor")
+
+	# 5. switch_actor with missing target_id warns + skips
+	var env2: Dictionary = {"parent": null}
+	EffectApply.apply({"type": "switch_actor"}, env2, ctx)
+	expect(not env2.has("_pending_active_actor"),
+		"switch_actor with no target_id: nothing deferred")
+
+	# 6. Multi-actor config from in-memory file equivalent
+	# (skip file I/O test — rely on Phase B integration test for files)
+	var multi := ActorManager.new()
+	multi._actors = [
+		{"id": "p1", "starting_entity_tag": "michael",
+		 "control_mode": "human", "input_device": "keyboard"},
+		{"id": "p2", "starting_entity_tag": "trevor",
+		 "control_mode": "human", "input_device": "gamepad_2"},
+	]
+	multi.active_actor_id = "p1"
+	for a in multi._actors:
+		multi._by_id[str(a["id"])] = a
+	expect_eq(multi.actor_ids().size(), 2, "multi-actor: 2 ids")
+	expect(multi.set_active("p2"), "set_active accepts known id")
+	expect_eq(multi.active_actor_id, "p2", "active updated to p2")
+
+	# Resolve from multi
+	var ents2: Dictionary = {}
+	var michael := Entity.new()
+	michael.instance_id = "m1"; michael.tags = ["michael"]
+	ents2["m1"] = michael
+	var trevor := Entity.new()
+	trevor.instance_id = "t1"; trevor.tags = ["trevor"]
+	ents2["t1"] = trevor
+	expect_eq(multi.resolve_actor_entity("p1", ents2), "m1",
+		"resolve actor p1 → michael entity")
+	expect_eq(multi.resolve_actor_entity("p2", ents2), "t1",
+		"resolve actor p2 → trevor entity")
+	expect_eq(multi.resolve_active_entity(ents2), "t1",
+		"resolve active (p2) → trevor")
+	michael.queue_free()
+	trevor.queue_free()

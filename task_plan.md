@@ -2190,9 +2190,15 @@ Tech-director reviewed; build in this order:
    loads expander once at game start; persists across level transitions.
    332/332 tests pass (+22 macro assertions). api-manifest CI scan
    deferred to Phase B (currently runtime guard only).
-3. [ ] **#82 ADR 0016** — multi-actor framework. Synthesized-default-
-   actors at load (single code path). Per-actor input lists. Blocked
-   by #81.
+3. [x] **#82 ADR 0016** — multi-actor framework. Phase A landed:
+   ActorManager module synthesizes default config when actors.json
+   absent (single code path; zero-migration for legacy demos). 2 new
+   effects (switch_actor deferred to next-tick boundary, queue_input_
+   for_actor for AI policies). active_actor_id mirrored in world_state.
+   _find_actor_id routes through ActorManager. 348/348 tests pass
+   (+16 actor assertions). Backward compat verified: tinypond +
+   sokoban scenario tests unchanged. Phase B: per-actor input lists,
+   multi-device routing, follow_active_actor camera mode.
 4. [ ] **#83 ADR 0015** — vehicle physics primitive. **NOTE**: review
    under ADR 0021 framing — may be superseded by #87 (Godot rigid-body
    exposure). Decide before implementing.
