@@ -100,7 +100,12 @@ static func _normalize_lod(raw: Dictionary) -> Dictionary:
 ##
 ## Pass `env` to capture load-time errors as structured records in
 ## `env.error_buffer`. Without env, errors only hit the dev console.
-static func load_from_file(path: String, env: Dictionary = {}) -> Array[Rule]:
+##
+## ADR 0019: optional `macro_expander` substitutes macro effect references
+## with primitive sequences before Rule.from_dict parses them. When null
+## (no macros.json for this game), rules pass through unchanged.
+static func load_from_file(path: String, env: Dictionary = {},
+						   macro_expander = null) -> Array[Rule]:
 	var out: Array[Rule] = []
 	if not FileAccess.file_exists(path):
 		EngineError.raise(env, EngineError.RULE_FILE_MISSING,
@@ -124,6 +129,11 @@ static func load_from_file(path: String, env: Dictionary = {}) -> Array[Rule]:
 			{"file": path, "field": "rules", "got_type": _type_name(list)},
 			"Wrap your rule entries in an array: { \"rules\": [ {...}, {...} ] }.")
 		return out
+	# ADR 0019: expand macros before parsing into Rule instances. After
+	# expansion, every effect's `type` is a primitive (state_set, spawn, ...).
+	# Rule.from_dict sees only primitives — no macro logic at runtime.
+	if macro_expander != null and macro_expander.has_method("expand_rules"):
+		list = macro_expander.expand_rules(list as Array, env)
 	for entry in list:
 		if entry is Dictionary:
 			out.append(Rule.from_dict(entry))

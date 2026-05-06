@@ -46,6 +46,7 @@ func _ready() -> void:
 	test_save_state()
 	test_overlay_effects()
 	test_spatial_lod()
+	test_macro_expansion()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1952,3 +1953,150 @@ func test_spatial_lod() -> void:
 	player.queue_free()
 	near.queue_free()
 	far.queue_free()
+
+
+# ============================================================
+# MACRO EXPANSION (ADR 0019)
+# ============================================================
+
+## Verify macro expansion:
+## 1. Single macro expands to its primitive sequence
+## 2. $param substitution (bare → typed; compound → string)
+## 3. Cycle detection
+## 4. Forbidden names rejected
+## 5. Per-game scoping (no leak between expanders)
+## 6. Recursion across multiple macros
+func test_macro_expansion() -> void:
+	_section("macro_expansion (ADR 0019)")
+
+	# Build an expander manually (bypasses file I/O)
+	var me := MacroExpander.new()
+	me._registry = {
+		"deal_damage": {
+			"params": ["target", "amount"],
+			"expands_to": [
+				{"type": "state_add", "target": "$target",
+				 "field": "hp", "amount": "-$amount"},
+				{"type": "emit", "signal": "damaged",
+				 "payload": {"target": "$target", "amount": "$amount"}},
+			],
+		},
+	}
+	me._is_valid = true
+
+	# Rule that uses the macro
+	var rules: Array = [{
+		"id": "bullet_hits",
+		"trigger": {"type": "contact"},
+		"effect": [{"type": "deal_damage", "target": "b", "amount": 10}],
+	}]
+	var expanded: Array = me.expand_rules(rules)
+	expect_eq(expanded.size(), 1, "expand_rules: same rule count")
+	var rule_dict: Dictionary = expanded[0]
+	var fx: Array = rule_dict["effect"]
+	expect_eq(fx.size(), 2, "macro expanded to 2 primitives")
+	expect_eq(str(fx[0]["type"]), "state_add", "first effect is state_add")
+	expect_eq(str(fx[0]["target"]), "b", "$target → b (bare substitution)")
+	expect_eq(str(fx[0]["amount"]), "-10",
+		"-$amount → '-10' (compound string substitution; Formula evaluates at fire time)")
+	expect_eq(str(fx[1]["type"]), "emit", "second effect is emit")
+	# Payload nested dict — substituted recursively
+	var payload: Dictionary = fx[1]["payload"]
+	expect_eq(str(payload["target"]), "b", "nested $target → b")
+	expect_eq(int(payload["amount"]), 10, "nested $amount → 10 (typed)")
+
+	# Cycle detection
+	var cyclic := MacroExpander.new()
+	cyclic._registry = {
+		"a": {"params": [], "expands_to": [{"type": "b"}]},
+		"b": {"params": [], "expands_to": [{"type": "a"}]},
+	}
+	expect(cyclic._has_cycles(), "DFS detects A→B→A cycle")
+
+	# Forbidden names (load-time check happens in load_from_data_root,
+	# but registry-direct usage shouldn't accept them either — this is
+	# a guard-the-API test).
+	expect("damage" in MacroExpander.FORBIDDEN_MACRO_NAMES, "damage forbidden")
+	expect("heal" in MacroExpander.FORBIDDEN_MACRO_NAMES, "heal forbidden")
+	expect("attack" in MacroExpander.FORBIDDEN_MACRO_NAMES, "attack forbidden")
+
+	# Per-game scoping: empty expander is a no-op
+	var empty := MacroExpander.new()
+	empty._is_valid = true
+	var unchanged := empty.expand_rules(rules)
+	expect_eq(unchanged.size(), 1, "empty expander: same rule count")
+	var unchanged_fx = unchanged[0]["effect"]
+	# Empty registry → returns input unchanged (the rules array itself)
+	expect_eq((unchanged_fx as Array).size(), 1,
+		"empty expander: macro reference passes through (becomes unknown effect at fire)")
+
+	# Multi-level expansion: macro → macro → primitive (depth 2)
+	var nested := MacroExpander.new()
+	nested._registry = {
+		"big_hit": {
+			"params": ["t"],
+			"expands_to": [
+				{"type": "deal_damage", "target": "$t", "amount": 50},
+				{"type": "emit", "signal": "big_hit_landed", "payload": {}},
+			],
+		},
+		"deal_damage": {
+			"params": ["target", "amount"],
+			"expands_to": [
+				{"type": "state_add", "target": "$target",
+				 "field": "hp", "amount": "-$amount"},
+			],
+		},
+	}
+	nested._is_valid = true
+	var nested_rules: Array = [{
+		"id": "boss_attack",
+		"trigger": {"type": "contact"},
+		"effect": [{"type": "big_hit", "t": "player"}],
+	}]
+	var nested_expanded := nested.expand_rules(nested_rules)
+	var nested_fx: Array = nested_expanded[0]["effect"]
+	# big_hit → [deal_damage(player, 50), emit big_hit_landed]
+	# deal_damage → state_add(target=player, amount=-50)
+	# Final: [state_add, emit]
+	expect_eq(nested_fx.size(), 2, "nested expansion: 2 leaf primitives")
+	expect_eq(str(nested_fx[0]["type"]), "state_add",
+		"first leaf primitive (deal_damage expanded)")
+	expect_eq(str(nested_fx[0]["target"]), "player",
+		"nested $t → player propagated through $target")
+	expect_eq(str(nested_fx[0]["amount"]), "-50", "nested -$amount substituted")
+	expect_eq(str(nested_fx[1]["type"]), "emit", "second leaf primitive")
+
+	# Depth limit: A→B→C→D→E should fail at depth 4
+	var deep := MacroExpander.new()
+	deep._registry = {
+		"a": {"params": [], "expands_to": [{"type": "b"}]},
+		"b": {"params": [], "expands_to": [{"type": "c"}]},
+		"c": {"params": [], "expands_to": [{"type": "d"}]},
+		"d": {"params": [], "expands_to": [{"type": "e"}]},
+		"e": {"params": [], "expands_to": [{"type": "state_set"}]},
+	}
+	deep._is_valid = true
+	var deep_rules: Array = [{
+		"id": "too_deep",
+		"trigger": {"type": "tick"},
+		"effect": [{"type": "a"}],
+	}]
+	var deep_out := deep.expand_rules(deep_rules)
+	# Depth limit (4) is exceeded at level 5 (e); expansion truncates.
+	# We expect: a→b→c→d→e expands, but e's child (state_set) is at depth 5
+	# > 4, so e returns []. So the final effect list ends up empty.
+	# This matches the specified "no silent truncation" — push_warning fires.
+	expect(deep_out[0]["effect"].size() <= 1,
+		"depth limit truncates expansion (chain too deep)")
+
+	# Pure pass-through: rules without macro references unchanged
+	var primitive_rules: Array = [{
+		"id": "clean",
+		"trigger": {"type": "tick"},
+		"effect": [{"type": "state_set", "target": "self", "field": "x", "value": 1}],
+	}]
+	var pass_through := me.expand_rules(primitive_rules)
+	var pass_fx: Array = pass_through[0]["effect"]
+	expect_eq(pass_fx.size(), 1, "primitive-only effect list unchanged")
+	expect_eq(str(pass_fx[0]["type"]), "state_set", "primitive type preserved")

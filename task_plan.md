@@ -2183,9 +2183,13 @@ Tech-director reviewed; build in this order:
    computed once per tick from world.actor_tag. 310/310 tests pass
    (+15 LOD assertions). Independent of ADR 0014 stream radius
    validation (defer to when ADR 0014 lands).
-2. [ ] **#81 ADR 0019** — rule plugin / macro layer. Load-time-only
-   expansion. Depth ≤ 4, max-expanded-effects ≤ 50, cycle detection.
-   Per-game scoped. Blocked by #80.
+2. [x] **#81 ADR 0019** — rule plugin / macro layer. Landed:
+   MacroExpander module + load-time $param substitution + DFS cycle
+   detection + depth/count limits + forbidden-name guard. Wired into
+   Rule.load_from_file via optional macro_expander param; world.gd
+   loads expander once at game start; persists across level transitions.
+   332/332 tests pass (+22 macro assertions). api-manifest CI scan
+   deferred to Phase B (currently runtime guard only).
 3. [ ] **#82 ADR 0016** — multi-actor framework. Synthesized-default-
    actors at load (single code path). Per-actor input lists. Blocked
    by #81.

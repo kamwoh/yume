@@ -65,6 +65,11 @@ var error_buffer: Array = []
 ## Empty if the game hasn't opted in to persistence; save_state /
 ## load_state effects are no-ops when empty.
 var save_policy: Dictionary = {}
+## ADR 0019 — per-game macro expander. Loaded once at game start;
+## passed into every Rule.load_from_file call so macro references in
+## any rules file (world/physics.json, game/rules.json, levels/<n>/rules.json,
+## tutorial.json) are expanded uniformly.
+var macro_expander = null
 
 
 # ============================================================
@@ -139,6 +144,11 @@ func load_data() -> void:
 	# procedurally-generated layouts reproducible — same seed = same map.
 	# Omit for stochastic per-session randomization.
 	_apply_level_seed_if_set(root)
+	# ADR 0019: load per-game macros (if any) BEFORE rules, so every
+	# rules file (world/physics.json, game/rules.json, levels/<n>/rules.json,
+	# tutorial.json) can reference the same macro vocabulary. Empty
+	# expander if no macros.json present (no-op pass-through).
+	macro_expander = MacroExpander.load_from_data_root(root, _build_env())
 	# ADR 0006: multi-level support. If game/flow.json exists, load
 	# progression + the starting level's content. Persistent entities come
 	# from the root's entities.json. Otherwise (single-level games), load
@@ -281,7 +291,10 @@ func _load_rules_file(path: String, append: bool = false) -> void:
 	if not FileAccess.file_exists(path):
 		return
 	var env := _build_env()
-	var rules := Rule.load_from_file(path, env)
+	# ADR 0019: macro_expander expands per-game macro effect references
+	# in this file's rules to primitive sequences before parsing into
+	# Rule instances. Null when game has no macros.json.
+	var rules := Rule.load_from_file(path, env, macro_expander)
 	var errors := Rule.validate_all(rules)
 	for record in errors:
 		EngineError.report(env, record)
