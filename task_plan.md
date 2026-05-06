@@ -2160,9 +2160,14 @@ sessions. Update both when status changes.
   data/demo_sokoban/tutorial.json welcome step. 295/295 tests pass.
   Visual gate: capture verifies overlay renders with title/body/dim
   backdrop. Highlight rendering deferred to #100 (Phase B).
-- [ ] **#79 ADR 0013** — settings schema + Godot ConfigFile.
-  `set_audio_bus_volume` + `set_input_mapping` effects. settings_renderer
-  Control element type. Composes with #77.
+- [x] **#79 ADR 0013** — settings schema + Godot ConfigFile. Landed:
+  SettingsManager module (loads schema + user://settings.cfg via Godot
+  ConfigFile per ADR 0021), 2 new effects (set_audio_bus_volume,
+  set_input_mapping), 4 new ControlFactory element types
+  (slider/checkbox/option_button/settings_renderer). Reference:
+  data/demo_sokoban/settings_schema.json + Settings screen. Visual gate
+  passed. 295/295 tests pass. Press-to-rebind + renderer integration
+  deferred to #101 (Phase B).
 - [ ] **#98** — ADR 0011 Phase B: ui/theme.json → Godot Theme conversion.
 
 ### Open-world / multi-actor / macros (ADRs 0014–0020, build order)

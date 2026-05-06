@@ -78,10 +78,14 @@ func _ready() -> void:
 	_toast_layer = CanvasLayer.new()
 	_toast_layer.layer = 50
 	add_child(_toast_layer)
-	# Push starting screen
+	# Defer starting-screen push until after all sibling _ready()s have
+	# completed. SettingsManager loads its schema in its own _ready, and
+	# the settings screen's settings_renderer needs that schema to populate.
+	# call_deferred runs after the current frame's idle tasks (post-_ready
+	# for all nodes).
 	_starting_screen = str(_cfg.get("starting_screen", ""))
 	if _starting_screen != "" and _screens_by_id.has(_starting_screen):
-		_push_screen(_starting_screen, false)
+		call_deferred("_push_screen", _starting_screen, false)
 
 
 func _process(_delta: float) -> void:
@@ -151,6 +155,10 @@ func _push_screen(screen_id: String, as_modal: bool) -> void:
 	for elem in spec.get("elements", []):
 		if elem is Dictionary:
 			ControlFactory.build(elem as Dictionary, root, dispatcher, bound)
+	# ADR 0013: fill any settings_renderer placeholders. ControlFactory
+	# leaves them as empty VBoxes; we walk the schema + populate per-setting
+	# UI here, where we have access to the SettingsManager sibling.
+	_populate_settings_renderers(root, dispatcher)
 	# Push entry
 	_stack.append({"id": screen_id, "spec": spec, "layer": layer,
 				   "bound": bound})
@@ -397,3 +405,103 @@ func _set_world_state(key: String, value) -> void:
 	var ws = _world.get("world_state")
 	if ws is Dictionary:
 		(ws as Dictionary)[key] = value
+
+
+# ============================================================
+# SETTINGS RENDERER (ADR 0013)
+# ============================================================
+
+## Walk the just-built control tree for any settings_renderer placeholders
+## and fill them with per-setting UI generated from the schema.
+## Each generated control's value-changed signal calls SettingsManager.set
+## (which persists + runs the apply block).
+func _populate_settings_renderers(root: Control, dispatcher: Callable) -> void:
+	if _world == null: return
+	var settings_mgr = _world.get_node_or_null("SettingsManager")
+	if settings_mgr == null: return
+	# Find every node with the "settings_spec" meta (set by ControlFactory)
+	var queue: Array = [root]
+	while not queue.is_empty():
+		var node: Node = queue.pop_back()
+		if node.has_meta("settings_spec"):
+			_populate_one_settings_renderer(node, settings_mgr, dispatcher)
+		for child in node.get_children():
+			queue.push_back(child)
+
+
+## For one settings_renderer placeholder (a VBoxContainer): iterate the
+## schema's categories + settings, generate a Control per setting,
+## connect its change signal to SettingsManager.set_value.
+func _populate_one_settings_renderer(host: Control, settings_mgr,
+									 dispatcher: Callable) -> void:
+	var categories: Array = settings_mgr.categories()
+	for cat in categories:
+		if not (cat is Dictionary): continue
+		var cat_dict: Dictionary = cat
+		# Category header
+		var header := Label.new()
+		header.text = ControlFactory._resolve_text(cat_dict.get("label", cat_dict.get("id", "")))
+		header.add_theme_font_size_override("font_size", 24)
+		header.add_theme_color_override("font_color", Color("#fdd068"))
+		host.add_child(header)
+		# Per-setting row
+		for s in cat_dict.get("settings", []):
+			if not (s is Dictionary): continue
+			_build_setting_row(host, s as Dictionary, settings_mgr)
+
+
+## One row = HBox with Label (setting name) + appropriate Control.
+func _build_setting_row(host: Control, s: Dictionary, settings_mgr) -> void:
+	var key := str(s.get("key", ""))
+	if key == "": return
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 16)
+	host.add_child(row)
+	# Label
+	var lbl := Label.new()
+	lbl.text = ControlFactory._resolve_text(s.get("label", key))
+	lbl.custom_minimum_size = Vector2(220, 0)
+	row.add_child(lbl)
+	# Control by type
+	var current = settings_mgr.get_value(key)
+	var ctrl: Control = null
+	match str(s.get("type", "")):
+		"slider":
+			var sl := HSlider.new()
+			sl.min_value = float(s.get("min", 0.0))
+			sl.max_value = float(s.get("max", 1.0))
+			sl.step = float(s.get("step", 0.05))
+			sl.value = float(current)
+			sl.custom_minimum_size = Vector2(220, 20)
+			sl.value_changed.connect(func(v): settings_mgr.set_value(key, v))
+			ctrl = sl
+		"bool":
+			var cb := CheckBox.new()
+			cb.button_pressed = bool(current)
+			cb.text = "  "  # padding so the box has visible footprint
+			cb.custom_minimum_size = Vector2(220, 30)
+			cb.toggled.connect(func(v): settings_mgr.set_value(key, v))
+			ctrl = cb
+		"enum":
+			var ob := OptionButton.new()
+			var options: Array = s.get("options", [])
+			for opt in options:
+				ob.add_item(ControlFactory._resolve_text(str(opt)))
+			var idx := options.find(current)
+			if idx >= 0: ob.select(idx)
+			ob.item_selected.connect(func(i):
+				var v = options[i] if i < options.size() else null
+				settings_mgr.set_value(key, v))
+			ctrl = ob
+		"key_binding":
+			# Phase A: read-only label showing current key. Click-to-rebind
+			# is Phase B (needs press-to-bind state machine).
+			var kb := Button.new()
+			kb.text = str(current)
+			kb.disabled = true
+			ctrl = kb
+		_:
+			var l := Label.new()
+			l.text = "(unknown setting type)"
+			ctrl = l
+	row.add_child(ctrl)

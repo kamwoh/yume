@@ -31,6 +31,11 @@
               {"type": "load_state", "slot": 0},
               {"type": "transition_screen", "target": "game"}
             ]},
+           {"type": "button", "text": "@strings.menu.settings",
+            "width": 240, "height": 48, "font_size": 22,
+            "on_click": [
+              {"type": "transition_screen", "target": "settings"}
+            ]},
            {"type": "button", "text": "@strings.menu.quit",
             "width": 240, "height": 48, "font_size": 22,
             "on_click": [{"type": "quit_app"}]}
@@ -42,6 +47,30 @@
       "id": "game",
       "freeze_world": false,
       "elements": []
+    },
+
+    {
+      "id": "settings",
+      "modal": true,
+      "freeze_world": true,
+      "background_color": "#1a1410",
+      "background_alpha": 0.95,
+      "elements": [
+        {"type": "label", "text": "@strings.menu.settings",
+         "anchor": "top_center", "y_offset": 60,
+         "font_size": 40, "color": "#dab048", "halign": "center"},
+        {"type": "vbox",
+         "anchor": "center", "y_offset": -20, "separation": 12,
+         "children": [
+           {"type": "settings_renderer"},
+           {"type": "spacer", "height": 16},
+           {"type": "button", "text": "@strings.menu.back",
+            "width": 240, "height": 48, "font_size": 22,
+            "on_click": [
+              {"type": "transition_screen", "target": "title"}
+            ]}
+         ]}
+      ]
     },
 
     {

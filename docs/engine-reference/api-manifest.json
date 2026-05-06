@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-06T15:15:25+00:00",
+  "generated_at": "2026-05-06T15:39:47+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -136,6 +136,14 @@
     },
     {
       "type": "dismiss_overlay",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "set_audio_bus_volume",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "set_input_mapping",
       "source": "effect_apply.gd"
     }
   ],

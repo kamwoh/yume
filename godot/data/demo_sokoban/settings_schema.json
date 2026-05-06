@@ -1,0 +1,49 @@
+{
+  "_comment": "Sokoban settings — minimal initial set per ADR 0013. Audio (Master + Music) volume sliders + accessibility (reduced_motion + font_scale). No key remap in v1 since sokoban only has WASD/arrows + R/Q. The `apply` block on each setting fires when the value changes (boot or via UI).",
+
+  "categories": [
+    {
+      "id": "audio",
+      "label": "Audio",
+      "settings": [
+        {"key": "master_volume",
+         "type": "slider",
+         "label": "Master volume",
+         "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.7,
+         "apply": [
+           {"type": "set_audio_bus_volume", "bus": "Master", "linear": "value"}
+         ]},
+        {"key": "music_volume",
+         "type": "slider",
+         "label": "Music volume",
+         "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.5,
+         "apply": [
+           {"type": "set_audio_bus_volume", "bus": "Music", "linear": "value"}
+         ]}
+      ]
+    },
+    {
+      "id": "accessibility",
+      "label": "Accessibility",
+      "settings": [
+        {"key": "reduced_motion",
+         "type": "bool",
+         "label": "Reduced motion",
+         "default": false,
+         "apply": [
+           {"type": "state_set", "target": "world",
+            "field": "reduced_motion", "value": "value"}
+         ]},
+        {"key": "color_blind",
+         "type": "enum",
+         "label": "Color-blind palette",
+         "options": ["off", "deuteranopia", "protanopia", "tritanopia"],
+         "default": "off",
+         "apply": [
+           {"type": "state_set", "target": "world",
+            "field": "color_blind", "value": "value"}
+         ]}
+      ]
+    }
+  ]
+}

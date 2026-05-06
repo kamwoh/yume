@@ -180,6 +180,14 @@ func load_data() -> void:
 		world_state["has_save"] = 1 if SaveState.has_any_save(_game_name(), slots) else 0
 	else:
 		world_state["has_save"] = 0
+	# ADR 0013: now that scheduler + env are built, run SettingsManager's
+	# apply_all so each setting's `apply` block fires (set_audio_bus_volume,
+	# set_input_mapping, state_set target=world). SettingsManager is a Node
+	# sibling — it loaded the schema + config in its own _ready, but
+	# deferred apply_all here so EffectApply has a valid env.
+	var settings_mgr := get_node_or_null("SettingsManager")
+	if settings_mgr != null and settings_mgr.has_method("apply_all"):
+		settings_mgr.apply_all()
 	scheduler.flush_effects()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""

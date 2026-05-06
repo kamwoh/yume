@@ -52,13 +52,27 @@ static func build(spec: Dictionary, parent: Node, dispatcher: Callable,
 	var t := str(spec.get("type", ""))
 	var node: Control = null
 	match t:
-		"label":      node = _build_label(spec)
-		"button":     node = _build_button(spec, dispatcher)
-		"vbox":       node = _build_vbox(spec, dispatcher, bound_elements)
-		"hbox":       node = _build_hbox(spec, dispatcher, bound_elements)
-		"color_rect": node = _build_color_rect(spec)
-		"spacer":     node = _build_spacer(spec)
-		"image":      node = _build_image(spec)
+		"label":         node = _build_label(spec)
+		"button":        node = _build_button(spec, dispatcher)
+		"vbox":          node = _build_vbox(spec, dispatcher, bound_elements)
+		"hbox":          node = _build_hbox(spec, dispatcher, bound_elements)
+		"color_rect":    node = _build_color_rect(spec)
+		"spacer":        node = _build_spacer(spec)
+		"image":         node = _build_image(spec)
+		# ADR 0013 — settings UI primitives. on_change dispatches an effect
+		# chain with the new value bound as ctx.value.
+		"slider":        node = _build_slider(spec, dispatcher)
+		"checkbox":      node = _build_checkbox(spec, dispatcher)
+		"option_button": node = _build_option_button(spec, dispatcher)
+		"settings_renderer":
+			# Special: not a generic primitive. Rendered separately by the
+			# screen/overlay layer that has access to the SettingsManager
+			# reference. ControlFactory creates a placeholder VBox that the
+			# settings layer fills in.
+			node = _build_vbox({}, dispatcher, bound_elements)
+			node.name = "SettingsRenderer"
+			# Stash the spec so settings layer can find it
+			node.set_meta("settings_spec", spec)
 		_:
 			push_warning("ControlFactory: unknown element type '%s'" % t)
 			return null
@@ -155,6 +169,62 @@ static func _build_image(spec: Dictionary) -> TextureRect:
 		tr.texture = load(path)
 	tr.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	return tr
+
+
+# ============================================================
+# SETTINGS UI PRIMITIVES (ADR 0013)
+# ============================================================
+#
+# slider / checkbox / option_button each emit on_change with the new
+# value. The dispatcher receives the effect chain + a context dict
+# containing {"value": <new>}. SettingsManager-aware screens use
+# settings_renderer (above) instead of these directly.
+
+static func _build_slider(spec: Dictionary, dispatcher: Callable) -> HSlider:
+	var sl := HSlider.new()
+	sl.min_value = float(spec.get("min", 0.0))
+	sl.max_value = float(spec.get("max", 1.0))
+	sl.step = float(spec.get("step", 0.05))
+	sl.value = float(spec.get("value", spec.get("default", sl.min_value)))
+	sl.custom_minimum_size = Vector2(
+		float(spec.get("width", 200)),
+		float(spec.get("height", 20))
+	)
+	var on_change = spec.get("on_change", null)
+	if on_change != null:
+		sl.value_changed.connect(func(new_v):
+			dispatcher.call(on_change, {"_source": "slider", "value": new_v}))
+	return sl
+
+
+static func _build_checkbox(spec: Dictionary, dispatcher: Callable) -> CheckBox:
+	var cb := CheckBox.new()
+	cb.text = _resolve_text(spec.get("text", ""))
+	cb.button_pressed = bool(spec.get("value", spec.get("default", false)))
+	var on_change = spec.get("on_change", null)
+	if on_change != null:
+		cb.toggled.connect(func(new_v):
+			dispatcher.call(on_change, {"_source": "checkbox", "value": new_v}))
+	return cb
+
+
+static func _build_option_button(spec: Dictionary, dispatcher: Callable) -> OptionButton:
+	var ob := OptionButton.new()
+	var options: Array = spec.get("options", [])
+	for opt in options:
+		ob.add_item(_resolve_text(str(opt)))
+	# Select current value
+	var current = spec.get("value", spec.get("default", null))
+	if current != null:
+		var idx := options.find(current)
+		if idx >= 0:
+			ob.select(idx)
+	var on_change = spec.get("on_change", null)
+	if on_change != null:
+		ob.item_selected.connect(func(idx):
+			var v = options[idx] if idx < options.size() else null
+			dispatcher.call(on_change, {"_source": "option_button", "value": v}))
+	return ob
 
 
 # ============================================================

@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 ; Sokoban — top-down 2D grid. Camera position + zoom are computed each
 ; frame from data/demo_sokoban/scene.json's camera config (center_on_tag
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
 [ext_resource type="Script" path="res://scripts/engine/screen_flow.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/engine/overlay.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/engine/settings_manager.gd" id="5"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -32,5 +33,10 @@ script = ExtResource("3")
 ; conditions. No-op until a show_overlay effect fires.
 [node name="OverlayManager" type="Node" parent="."]
 script = ExtResource("4")
+
+; ADR 0013: SettingsManager loads data/demo_sokoban/settings_schema.json +
+; user://settings.cfg. apply_all() runs once World env is built.
+[node name="SettingsManager" type="Node" parent="."]
+script = ExtResource("5")
 
 [node name="Camera2D" type="Camera2D" parent="."]
