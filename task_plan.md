@@ -1838,3 +1838,125 @@ Engine ADRs in this section land when the first game needing them is
 queued. The orchestrator should refuse to build a "twitch platformer"
 or "life-sim long-arc" until the prerequisite ADR lands and is
 accepted.
+
+## Open-world foundational + agent simulation (2026-05-06)
+
+Major architectural expansion proposed. 6 new ADRs drafted (status:
+proposed, awaiting tech-director review). Skill files will follow.
+
+### The reframe
+
+User clarified: open-world is FOUNDATIONAL, not a genre extension.
+Harvest Moon, Final Fantasy, GTA, Stardew, the proposed JRPG-themed
+shop game (Recettear-flavor) are all open-world. They share spatial
+substrate; differ in physics rules, game rules, NPCs, economy,
+narrative, and game-specific logic.
+
+ADR 0014 promotes open-world from "future genre work" to a base
+substrate every Yume game can rest on. Single-level prototypes
+become a degenerate case (one chunk, no streaming).
+
+### 6 ADRs proposed (in dependency order)
+
+- [ ] **ADR 0014 — Open-world foundational substrate**
+  Chunked-world architecture. `world.json` declares chunk size +
+  streaming radius + persistent-tag policy. Per-chunk content under
+  `chunks/<x>_<y>/entities.json`. Existing multi-level (ADR 0006)
+  coexists; chunks are spatial, levels are flow.
+
+- [ ] **ADR 0015 — Vehicle physics primitive**
+  `physics_dynamic` tag with mass + restitution. Engine handler
+  computes Newtonian collision response (momentum exchange,
+  reflection). Cars hit pedestrians, pedestrians fly. NOT sim
+  racing (no tire/suspension/weight-transfer); arcade collision
+  response only.
+
+- [ ] **ADR 0016 — Multi-actor framework**
+  Promote actor from singleton to first-class. `actors.json`
+  declares N actors; each has input device + control mode (human /
+  ai_policy). `world.active_actor_id` routes input + camera. New
+  effects: switch_actor, queue_input_for_actor.
+
+- [ ] **ADR 0017 — Spatial-LOD rule scheduling**
+  Per-rule `lod` config: anchor (active_actor / camera / entity_tag),
+  radius, fallback (freeze / tick_slowed / frozen_state). Scheduler
+  uses spatial index to narrow scan; skips behaviors for distant
+  entities. Foundation for crowd simulation at 200-500 NPCs.
+
+- [ ] **ADR 0018 — Actor policy interface (LLM/RL/scripted)**
+  Defines policy interface: observe(env, actor_id) → action. Three
+  paths: scripted JSON, external (stdio/ZMQ to LLM/RL agent),
+  godot_resource (GDScript-based). Foundation for Smallville-style
+  social sims, RL training, scripted bots, "simulation input layer."
+
+- [ ] **ADR 0019 — Rule plugin / macro layer**
+  Per-game `macros.json` defines new effect names that expand to
+  sequences of existing primitives + parameter substitution. Stays
+  within Invariant #1 (pure JSON) and Invariant #8 (engine ships
+  primitives, content composes). Solves "lambda function in Python"
+  request — game-specific patterns abstract without GDScript per
+  game.
+
+### What this unlocks
+
+The 6 ADRs together unlock a CLASS of games:
+
+- GTA-shaped open-world top-down (driving + shooting + missions)
+- Harvest Moon / Stardew (open-world farming sim with town traversal)
+- Final Fantasy / JRPG overworld (sword-and-magic 剑与魔法 with
+  city/dungeon transitions) — TARGET FOR SHOP GAME
+- Sims-like with control-anyone (multi-actor + crowd)
+- Smallville / AI-Town clones (LLM-driven NPC sandboxes)
+- Disaster simulation (evacuation, panic with crowd + vehicle physics)
+- RL training pipelines (agent + Yume sandbox + actor policy)
+
+### Implementation gating (per user)
+
+ADRs first. PLAN well. User says when implementation starts.
+
+Build order (after gates):
+
+1. ADR 0019 (macros) — small surface; lets existing demos benefit
+   immediately. Also has lowest risk.
+2. ADR 0016 (multi-actor) — foundational for everything else.
+3. ADR 0017 (spatial-LOD) — perf foundation; needed before crowd work.
+4. ADR 0015 (vehicle physics) — independent; can land in parallel
+   with 0016/0017.
+5. ADR 0014 (open-world streaming) — depends on 0016 (which actor
+   drives streaming).
+6. ADR 0018 (actor policy interface) — depends on 0016. Last because
+   most speculative; ships with first LLM-agent demo.
+
+### Skills queued (post-ADR-acceptance)
+
+- [ ] `yume-open-world-designer` — districts, density, POI placement,
+  traversal rhythm, streaming policy
+- [ ] `yume-vehicle-physics-designer` — world-level physics (mass,
+  restitution, collision damage thresholds; distinct from
+  racing-designer's per-vehicle tuning)
+- [ ] `yume-crowd-designer` — anonymous NPC density + behavior layers
+  + LOD radii
+- [ ] `yume-multi-actor-designer` — protagonist switching, per-character
+  ability profiles, input-device binding
+- [ ] `yume-actor-policy-designer` — observation configs, perception
+  shapes, policy types per actor
+- [ ] `yume-macro-designer` — per-game macro authoring guidance
+  (when to abstract; how to name; recursion safety)
+
+### Game design notes
+
+- **Shop tale game** (Recettear-flavor): JRPG fantasy / 剑与魔法
+  theme. Open-world village + shop interior + dungeon (traveler
+  origins). Uses every feature: open-world (multi-area), vehicle
+  physics (carts? horses? skip if trivial), crowd (visiting
+  travelers), multi-actor (player + assistant?), economy, combining
+  (recipes), story (news from far-off events).
+- **Realistic ambition**: shop game is "complete game" target, but
+  bounded by what 6 ADRs unlock. Estimated 30+ working sessions for
+  ADRs + skills + first complete shop game.
+
+### Honest scope acknowledgement
+
+This is comparable in size to everything Yume has shipped to date.
+Multi-month commitment, not weekend work. Decision logged: aim big,
+build incrementally, log everything.

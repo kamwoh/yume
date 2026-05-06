@@ -1,0 +1,156 @@
+# ADR 0017 — Spatial-LOD rule scheduling (perf for crowds + open worlds)
+
+_Date: 2026-05-06_
+_Status: **proposed**_
+
+## Context
+
+Yume's `PhaseScheduler.tick()` currently scans ALL entities each
+tick for each rule. This is O(rules × entities) per tick. At Yume's
+historical scale (~100 entities, ~50 rules) it's fine — 5000 checks
+per tick at 20 Hz = 100k checks/sec, well within budget.
+
+At open-world scale (target: ~1000-2000 entities) and crowd scale
+(~100-500 NPCs each with their own behaviors), the math gets hostile:
+
+- 1000 entities × 100 rules = 100k checks per tick
+- At 20 Hz tick = 2M checks/sec
+- Spatial-index radius queries (existing) reduce this significantly
+  for radius-bounded queries; but tick-trigger rules without radius
+  scan everything
+
+The next-largest demo (harvestcore) has 6 defs × ~80 instances ×
+~50 rules = ~4000 checks/tick. Adequate. Pushing 10x beyond that
+without optimization will be slow.
+
+## Decision
+
+Add **spatial-LOD scheduling**: each rule can declare "only run me
+on entities within R of an anchor point" (default anchor = active
+actor's position). The scheduler uses the spatial index to narrow
+the entity scan, skipping behaviors for distant entities.
+
+This is opt-in — backwards-compatible. Rules without LOD config run
+on all entities (current behavior).
+
+### Rule schema additions
+
+```jsonc
+{
+  "id": "pedestrian_walk_idle",
+  "trigger": {"type": "tick", "interval": 8},
+  "lod": {
+    "anchor": "active_actor",
+    "radius": 480,
+    "fallback": "freeze"
+    // freeze = entity stops moving; alternate: "tick_slowed:1.0"
+    // (run rule but at 1Hz instead of 20Hz)
+  },
+  "query": {"tags_all": ["pedestrian"]},
+  "effect": [
+    {"type": "velocity_set", "value": "<random walk formula>"}
+  ]
+}
+```
+
+Three LOD anchors:
+- `active_actor` — uses ADR 0016's active actor's position
+- `camera` — uses camera's center (may differ from actor on dolly)
+- `<entity_tag>` — uses entity matching tag (rare)
+
+Three fallback modes for entities outside LOD radius:
+- `freeze` — rule doesn't fire on them; they stop moving / behaving
+- `tick_slowed:N` — rule still fires but at N Hz instead of full
+  rate. Use for "NPCs still age over time but don't waste CPU on
+  fine-grained behavior"
+- `frozen_state` — explicit freeze + state_set to a "stationary"
+  state field
+
+### Engine work
+
+1. `phase_scheduler.gd` extended:
+   - On rule registration, compute `lod` config
+   - On tick, for each rule, narrow entity scan via spatial-index
+     `query_radius_ids` instead of `entities.values()`
+   - Apply fallback mode for entities outside radius
+
+2. New env binding: `env.lod_anchor_position` — Vector2/Vector3
+   computed each tick from active actor or camera.
+
+3. Spatial index already supports radius queries (W3.1); just call it
+   for LOD-tagged rules.
+
+4. Diagnostics: log `[lod] rule X: scanned N (was M)` so authors can
+   verify their LOD config saves work.
+
+### LOD radius defaults (for skill guidance)
+
+- "Near player only" = 200-400 units (1-2 chunks)
+- "In view" = up to camera bounds
+- "Same neighborhood" = 1000+ units
+- "Anywhere" = no LOD (run on all entities)
+
+The `yume-crowd-designer` skill (when built) will have a section on
+appropriate LOD radii per behavior type.
+
+### Backward compat
+
+Existing rules work unchanged. LOD is opt-in via the `lod` field.
+Demos remain unaffected.
+
+### Composition with existing ADRs
+
+- **ADR 0014 (open-world)** — chunk-streaming + LOD scheduling are
+  complementary. Chunks load/unload entities; LOD scheduling skips
+  behaviors for entities loaded but distant.
+- **ADR 0016 (multi-actor)** — `active_actor` is the default LOD
+  anchor.
+
+## Consequences
+
+**Enables:**
+- Crowds at 200-500 NPCs with selective behavior simulation
+- Open-world games where pathfinding-heavy AI runs only near player
+- Selective economy ticking (distant shops don't recompute prices
+  every tick)
+- Performance budget for rich behaviors when player is near, cheap
+  fallbacks when far
+
+**Constrains:**
+- Per-rule LOD authoring is a real cognitive load — author must
+  decide "should this rule run far away?" Must be honest: some
+  rules MUST run globally (timekeeping; world.day += 1 per tick)
+- Frozen-mode artifacts: NPCs stop completely when player walks
+  away. May feel uncanny ("everyone's a statue when I'm not
+  looking"). `tick_slowed` is the mitigation.
+
+**Doesn't enable:**
+- Visual LOD (different sprite quality per distance) — separate
+  concern; renderer extension if needed
+- True parallelism — Yume's tick is single-threaded. LOD reduces
+  total work; doesn't parallelize remainder.
+
+## Alternatives considered
+
+### A. Engine-wide rule-frequency throttling
+
+Run all rules at lower Hz when entity count exceeds threshold.
+Crude; degrades game-feel uniformly. Better to let authors decide
+per-rule.
+
+### B. Implicit LOD (engine guesses)
+
+"If a rule's query has tag X and player isn't near any X, skip it."
+Heuristic; unreliable. Explicit config better.
+
+### C. Spatial partitioning of the rule registration
+
+Pre-bucket rules by their typical query type. Premature
+optimization. Use general LOD instead.
+
+## References
+
+- W3.1 SpatialIndex — already supports radius queries
+- ADR 0014 (open-world) — composable
+- ADR 0016 (multi-actor) — active_actor anchor
+- yume-crowd-designer skill (future) — primary consumer
