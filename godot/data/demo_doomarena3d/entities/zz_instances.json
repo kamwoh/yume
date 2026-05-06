@@ -1,9 +1,0 @@
-{
-  "_comment": "Root instances (v3.0 — ADR 0006 multi-level). Only the PERSISTENT player lives here. Everything else (clock, walls, pillars, machinery, floor) is per-chamber and lives under levels/<name>/zz_instances.json. Player.tags includes 'persistent' so HP/ammo/score/weapon/facing survive transition_level effect calls between chambers.",
-
-  "initial_instances": [
-    {"def": "player", "id": "player", "position": [0, 0, 0]}
-  ],
-
-  "initial_relations": []
-}

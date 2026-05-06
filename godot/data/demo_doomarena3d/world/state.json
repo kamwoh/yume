@@ -1,4 +1,0 @@
-{
-  "_comment": "Initial world state — empty. arena_clock entity carries timing state, not world.",
-  "tick": 0
-}

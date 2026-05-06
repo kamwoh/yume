@@ -5,13 +5,13 @@ JSON-driven game framework on Godot 4. The engine ships seven primitives
 
 ## Run a demo
 
-```bash
-./scripts/play.sh sokoban       # turn-based puzzle
-./scripts/play.sh tinypond      # ecology sandbox
-./scripts/play.sh doomarena3d   # FPS arena
-```
+Demos are not tracked in git — generate them locally via the
+text-to-game pipeline (see below) or copy from a colleague's
+working copy. Once a demo exists at `godot/data/demo_<name>/`:
 
-Demos live under `godot/data/demo_<name>/`.
+```bash
+./scripts/play.sh <name>        # falls back to scenes/play.tscn --game=<name>
+```
 
 ## Generate a new game
 

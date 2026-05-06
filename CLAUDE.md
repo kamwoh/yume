@@ -8,16 +8,10 @@ are pure JSON.
 
 ## Quick Start
 
-To run an existing demo:
-
-```bash
-./scripts/play.sh sokoban       # play sokoban
-./scripts/play.sh tinypond      # ecology sandbox
-./scripts/play.sh doomarena3d   # FPS arena
-
-# With auto-capture (3s) for visual QA:
-./scripts/play.sh sokoban --capture
-```
+This repo ships the **framework** (engine, skills, scaffolding scenes,
+shared engine libraries) but NOT specific game demos. Demos live at
+`godot/data/demo_<name>/` and are gitignored — generate locally via the
+pipeline below or copy from another working tree.
 
 To generate a new game from a prose pitch:
 
@@ -25,8 +19,16 @@ To generate a new game from a prose pitch:
 /yume-design "a roguelike where vampires steal HP from light sources" --autonomous
 ```
 
-The `/yume-design` skill orchestrates the text → GDD → world plan → level
-design → rules → JSON → assets → QA pipeline.
+The `/yume-design` skill orchestrates text → GDD → world plan → level
+design → rules → JSON → assets → QA. Output lands at
+`godot/data/demo_<slug>/`.
+
+To run a locally-generated demo:
+
+```bash
+./scripts/play.sh <name>            # falls back to scenes/play.tscn --game=<name>
+./scripts/play.sh <name> --capture  # auto-capture for visual QA
+```
 
 ## Framework structure
 
@@ -35,8 +37,12 @@ yume/
 ├── .claude/                            ← Skills + rules + settings
 │   ├── skills/yume-*/SKILL.md          (28 specialist skills, Tier 2.6)
 │   └── rules/                          (path-scoped invariants)
-├── godot/    ← THE ENGINE + DEMOS (active)
-│   ├── data/demo_<name>/               (per-game JSON content)
+├── godot/    ← Godot project (engine + scaffolding; demos gitignored)
+│   ├── data/                           ← shared engine libraries (TRACKED)
+│   │   ├── shapes.json                 (code-draw shape library)
+│   │   ├── meshes.json                 (3D mesh library)
+│   │   └── sounds.json                 (procedural SFX library)
+│   ├── data/demo_<name>/               (per-game content — NOT TRACKED, gitignored)
 │   │   ├── entities/                   (definitions + initial instances)
 │   │   ├── world/physics.json          (world physics rules — ADR 0009)
 │   │   ├── game/rules.json             (game logic — win/score/transition)
@@ -49,9 +55,13 @@ yume/
 │   │   ├── hud.json                    (HUD elements)
 │   │   ├── screens.json                (title/pause/etc. — ADR 0011, optional)
 │   │   ├── save_policy.json            (what persists — ADR 0010, optional)
+│   │   ├── settings_schema.json        (settings — ADR 0013, optional)
 │   │   └── tutorial.json               (overlay sequencing — ADR 0012, optional)
 │   ├── scripts/engine/                 (engine: rule, query, effect, scheduler, etc.)
-│   ├── scenes/                         (per-game .tscn launchers + universal play.tscn)
+│   ├── scenes/                         (TRACKED scaffolding only)
+│   │   ├── play.tscn                   (universal launcher — `--game=<name>`)
+│   │   ├── test_main.tscn              (engine unit tests)
+│   │   └── scenario_test.tscn          (per-game scenario test runner)
 │   └── project.godot
 ├── docs/                               ← Documentation (active)
 │   ├── 30_framework_primitives.md      (the contract — invariant-bearing)

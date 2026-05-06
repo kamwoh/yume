@@ -1,4 +1,0 @@
-{
-  "_comment": "Sokoban initial world state — empty. Per-level clock entity carries level state.",
-  "tick": 0
-}

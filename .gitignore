@@ -22,6 +22,24 @@ session_log.txt
 # Capture screenshots — local artifacts, regenerable via play.sh --capture
 captures/
 
+# Per-game demo content + per-game scene launchers — generate locally via
+# /yume-design or copy from upstream. The framework keeps only:
+#   godot/scenes/play.tscn         (universal launcher with --game= arg)
+#   godot/scenes/test_main.tscn    (engine unit tests)
+#   godot/scenes/scenario_test.tscn (per-game scenario test runner)
+# And shared engine data libraries:
+#   godot/data/shapes.json, meshes.json, sounds.json
+godot/data/demo_*/
+godot/data/entities.json
+godot/scenes/*.tscn
+!godot/scenes/play.tscn
+!godot/scenes/test_main.tscn
+!godot/scenes/scenario_test.tscn
+
+# User saves (Godot user:// resolves to platform appdata, but if anyone
+# sets data_root to a tracked path, this prevents leakage)
+godot/data/*/saves/
+
 # Generated output
 output/
 

@@ -1,6 +1,0 @@
-{
-  "_comment": "DoomArena initial world state. Empty — clock entity owns everything game-relevant.",
-  "state": {
-    "tick": 0
-  }
-}
