@@ -59,11 +59,15 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"transition_level":  _transition_level(effect, env, context)
 		"emit":              _emit(effect, env, context)
 		"emit_shell_event":  _emit_shell_event(effect, env, context)
+		"transition_screen": _transition_screen(effect, env, context)
+		"quit_app":          _quit_app(effect, env, context)
+		"show_toast":        _show_toast(effect, env, context)
+		"load_data":         _load_data(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, load_data.",
 				"warning")
 	return {}
 
@@ -728,3 +732,55 @@ static func _transition_level(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 	var target := str(_value(e.get("target", "next"), ctx, env))
 	if target == "": return
 	env["_pending_level_transition"] = target
+
+
+# ============================================================
+# SCREEN FLOW EFFECTS (ADR 0011)
+# ============================================================
+#
+# Same pattern as emit_shell_event: push a record onto env.screen_event_buffer.
+# ScreenFlow drains it each frame (see screen_flow.gd _drain_screen_events).
+# Effects don't touch CanvasLayers directly — that's screen_flow's job.
+
+static func _push_screen_event(env: Dictionary, record: Dictionary) -> void:
+	var buf_v = env.get("screen_event_buffer", null)
+	var buf: Array
+	if buf_v is Array:
+		buf = buf_v
+	else:
+		buf = []
+		env["screen_event_buffer"] = buf
+	buf.append(record)
+
+
+## Transition to a named screen. ScreenFlow handles modal-vs-replace based
+## on the target screen's spec. Special target "@previous" pops the modal
+## stack (returns from settings → pause).
+static func _transition_screen(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var target := str(_value(e.get("target", ""), ctx, env))
+	if target == "":
+		push_warning("transition_screen effect missing target (rule=%s)"
+			% str(ctx.get("_rule_id", "")))
+		return
+	_push_screen_event(env, {"event": "transition_screen", "target": target})
+
+
+## Quit the application. ScreenFlow calls get_tree().quit() when drained.
+static func _quit_app(_e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
+	_push_screen_event(env, {"event": "quit_app"})
+
+
+## Show a transient toast label (e.g. "Saved!" after save_state).
+## text resolves @strings.X refs. duration in seconds.
+static func _show_toast(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var text := str(_value(e.get("text", ""), ctx, env))
+	var duration := float(_value(e.get("duration", 2.0), ctx, env))
+	_push_screen_event(env, {"event": "show_toast", "text": text,
+							 "duration": duration})
+
+
+## Re-init the world from JSON. Used by "New Game" buttons. Optional args:
+##   reset: true → also clears any saved state (composes with ADR 0010 later)
+static func _load_data(e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
+	var args = e.get("args", {})
+	_push_screen_event(env, {"event": "load_data", "args": args})

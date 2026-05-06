@@ -496,6 +496,12 @@ func _start_clock() -> void:
 
 
 func _on_tick(count: int) -> void:
+	# ADR 0011: when a screen with freeze_world=true is active (pause,
+	# settings, game-over modal, etc.), suppress simulation. Renderer keeps
+	# drawing the frozen scene behind the modal. Input still routes to the
+	# active screen via ScreenFlow's _process; we just skip scheduler.tick().
+	if int(world_state.get("screen_freeze_world", 0)) != 0:
+		return
 	scheduler.tick()
 	_decrement_lifetimes()
 	process_pending_level_transition()
@@ -1132,4 +1138,9 @@ func _build_env() -> Dictionary:
 		"parent": self,
 		"next_id": next_id_seq,
 		"error_buffer": error_buffer,
+		# ADR 0011: ScreenFlow drains transition_screen / quit_app /
+		# show_toast / load_data effects from this buffer. Lazily created
+		# by effect_apply if no ScreenFlow is mounted (harmless — events
+		# accumulate and stay quiet).
+		"screen_event_buffer": [],
 	}

@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-05T22:05:33+00:00",
+  "generated_at": "2026-05-06T13:51:24+00:00",
   "generated_from": "archetypes/core/templates/godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -104,6 +104,22 @@
     },
     {
       "type": "emit_shell_event",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transition_screen",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "quit_app",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "show_toast",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "load_data",
       "source": "effect_apply.gd"
     }
   ],

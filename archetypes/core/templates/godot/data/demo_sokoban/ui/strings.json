@@ -7,5 +7,20 @@
     "controls_hint": "WASD/arrows to move · R to restart · Q to quit"
   },
 
-  "win_message": "🌟 ALL LEVELS CLEARED 🌟\nThe archive is sorted.\nYou may rest."
+  "win_message": "🌟 ALL LEVELS CLEARED 🌟\nThe archive is sorted.\nYou may rest.",
+
+  "menu": {
+    "title": "Sokoban",
+    "subtitle": "The Archive",
+    "new_game": "New Game",
+    "continue": "Continue",
+    "settings": "Settings",
+    "quit": "Quit",
+    "paused": "Paused",
+    "resume": "Resume",
+    "main_menu": "Main Menu",
+    "save": "Save",
+    "saved": "Saved!",
+    "back": "Back"
+  }
 }

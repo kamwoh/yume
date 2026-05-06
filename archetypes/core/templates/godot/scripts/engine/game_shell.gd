@@ -113,10 +113,20 @@ func _process(_delta: float) -> void:
 ## the window's X to close, or alt-tab away). Second press while cursor
 ## is already visible: quit the game. Q also quits anytime.
 ##
+## ADR 0011: when ScreenFlow has an active non-game screen (title, pause,
+## settings), defer ESC to it — GameShell stops handling input. ScreenFlow
+## owns the pause flow via global_inputs.
+##
 ## Tracked via _esc_was_pressed so we only fire once per keypress, not
 ## every frame the key is held.
 var _esc_was_pressed: bool = false
 func _handle_pause_input() -> void:
+	# Defer to ScreenFlow when a screen is active (other than the gameplay one)
+	var ws: Dictionary = (_world.get("world_state") as Dictionary) if _world != null else {}
+	var current_screen := str(ws.get("current_screen", ""))
+	if current_screen != "" and current_screen != "game":
+		_esc_was_pressed = Input.is_key_label_pressed(KEY_ESCAPE)
+		return
 	if Input.is_key_label_pressed(KEY_Q):
 		get_tree().quit()
 		return

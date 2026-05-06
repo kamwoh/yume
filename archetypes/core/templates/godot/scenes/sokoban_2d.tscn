@@ -7,6 +7,7 @@
 
 [ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/engine/screen_flow.gd" id="3"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -20,5 +21,10 @@ stop_action_on_idle = ""
 
 [node name="GameShell" type="Node" parent="."]
 script = ExtResource("2")
+
+; ADR 0011: ScreenFlow loads data/demo_sokoban/screens.json (title / game /
+; pause). When current_screen != "game", world ticks are suppressed.
+[node name="ScreenFlow" type="Node" parent="."]
+script = ExtResource("3")
 
 [node name="Camera2D" type="Camera2D" parent="."]

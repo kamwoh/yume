@@ -41,6 +41,8 @@ func _ready() -> void:
 	test_blocks_motion()
 	test_raycast_hit()
 	test_instance_patterns()
+	test_screen_flow_effects()
+	test_control_factory()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -1515,3 +1517,108 @@ func test_instance_patterns() -> void:
 		var pb: Array = (batch_b[0] as Dictionary)["position"]
 		expect_eq(float(pa[0]), float(pb[0]), "deterministic: same seed → same x[0]")
 		expect_eq(float(pa[2]), float(pb[2]), "deterministic: same seed → same z[0]")
+
+
+# ============================================================
+# SCREEN FLOW (ADR 0011)
+# ============================================================
+
+## Verify the four new effect types push correctly into env.screen_event_buffer.
+## Full ScreenFlow integration (CanvasLayer instantiation, modal stack) requires
+## a SceneTree, so we verify the effect-buffer contract here and the rendering
+## layer in scene-based playthrough tests.
+func test_screen_flow_effects() -> void:
+	_section("screen_flow_effects (ADR 0011)")
+	var env: Dictionary = {"screen_event_buffer": []}
+	var ctx: Dictionary = {"_rule_id": "test"}
+
+	EffectApply.apply({"type": "transition_screen", "target": "pause"}, env, ctx)
+	expect_eq(env["screen_event_buffer"].size(), 1, "transition_screen: buffer size")
+	var ev: Dictionary = env["screen_event_buffer"][0]
+	expect_eq(str(ev.get("event", "")), "transition_screen", "transition_screen: event name")
+	expect_eq(str(ev.get("target", "")), "pause", "transition_screen: target")
+
+	EffectApply.apply({"type": "quit_app"}, env, ctx)
+	expect_eq(env["screen_event_buffer"].size(), 2, "quit_app: buffer grew")
+	expect_eq(str((env["screen_event_buffer"][1] as Dictionary).get("event", "")),
+		"quit_app", "quit_app: event name")
+
+	EffectApply.apply({"type": "show_toast", "text": "Saved!", "duration": 1.5},
+		env, ctx)
+	expect_eq(env["screen_event_buffer"].size(), 3, "show_toast: buffer grew")
+	var t: Dictionary = env["screen_event_buffer"][2]
+	expect_eq(str(t.get("text", "")), "Saved!", "show_toast: text passed")
+	expect_eq(float(t.get("duration", 0)), 1.5, "show_toast: duration passed")
+
+	EffectApply.apply({"type": "load_data", "args": {"reset": true}}, env, ctx)
+	expect_eq(env["screen_event_buffer"].size(), 4, "load_data: buffer grew")
+
+	# transition_screen with no target should warn but not crash
+	EffectApply.apply({"type": "transition_screen"}, env, ctx)
+	expect_eq(env["screen_event_buffer"].size(), 4,
+		"transition_screen with no target: no event pushed")
+
+	# Buffer auto-creates if env didn't have one (edge case)
+	var fresh_env: Dictionary = {}
+	EffectApply.apply({"type": "transition_screen", "target": "title"}, fresh_env, ctx)
+	expect(fresh_env.has("screen_event_buffer"), "lazy buffer creation")
+	expect_eq((fresh_env["screen_event_buffer"] as Array).size(), 1,
+		"lazy buffer: event landed")
+
+
+## Spot-check ControlFactory builds correct Godot Control types for each
+## element kind. Free nodes after to avoid ObjectDB leaks.
+func test_control_factory() -> void:
+	_section("control_factory (ADR 0011)")
+	var parent := Control.new()
+	var bound: Array = []
+	var dispatcher := func(_a, _b): pass
+
+	var lbl: Control = ControlFactory.build({"type": "label", "text": "Hello"},
+		parent, dispatcher, bound)
+	expect(lbl is Label, "label → Label")
+	if lbl is Label:
+		expect_eq((lbl as Label).text, "Hello", "label text set")
+
+	var btn: Control = ControlFactory.build({"type": "button", "text": "Click",
+		"on_click": [{"type": "quit_app"}]}, parent, dispatcher, bound)
+	expect(btn is Button, "button → Button")
+
+	var vb: Control = ControlFactory.build({"type": "vbox",
+		"children": [{"type": "label", "text": "A"}, {"type": "label", "text": "B"}]},
+		parent, dispatcher, bound)
+	expect(vb is VBoxContainer, "vbox → VBoxContainer")
+	if vb is VBoxContainer:
+		expect_eq((vb as VBoxContainer).get_child_count(), 2, "vbox has 2 children")
+
+	var hb: Control = ControlFactory.build({"type": "hbox",
+		"children": [{"type": "label", "text": "X"}]},
+		parent, dispatcher, bound)
+	expect(hb is HBoxContainer, "hbox → HBoxContainer")
+
+	var cr: Control = ControlFactory.build({"type": "color_rect",
+		"color": "#000000", "alpha": 0.6, "anchor": "fill"},
+		parent, dispatcher, bound)
+	expect(cr is ColorRect, "color_rect → ColorRect")
+	if cr is ColorRect:
+		expect(abs((cr as ColorRect).color.a - 0.6) < 0.001, "color_rect alpha set")
+
+	var sp: Control = ControlFactory.build({"type": "spacer", "height": 12},
+		parent, dispatcher, bound)
+	expect(sp != null, "spacer built")
+	if sp != null:
+		expect_eq(sp.custom_minimum_size.y, 12.0, "spacer height set")
+
+	# visible_if/enabled_if elements should be tracked in bound array
+	var conditional: Control = ControlFactory.build({"type": "button",
+		"text": "Continue", "enabled_if": "world.has_save"},
+		parent, dispatcher, bound)
+	expect(conditional != null, "conditional element built")
+	expect(bound.size() >= 1, "bound element registered for re-eval")
+
+	# Unknown type returns null and warns (don't fail the test on warning)
+	var unknown: Control = ControlFactory.build({"type": "futuristic_widget"},
+		parent, dispatcher, bound)
+	expect(unknown == null, "unknown element type returns null")
+
+	parent.queue_free()
