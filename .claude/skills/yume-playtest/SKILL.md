@@ -152,32 +152,53 @@ case — common causes:
   setup updates.
 - Entity not removed when expected → kill/sale rule didn't fire.
 
-### Gate 5 — boot smoke test (catches startup warnings)
+### Gate 5 — per-screen smoke walk (`--smoke-screens` engine mode)
 
-Boot the game headlessly with capture + ui_accept input, grep stdout
-for warnings:
+Boot with `--smoke-screens` — engine walks every screen in
+`screens.json`, pushes each one, captures the viewport, pops, and
+records any warnings. Catches: missing screens (transition to unknown
+id), broken Control hierarchies (parse errors), missing
+visible_if/enabled_if bindings, blank-render bugs.
 
 ```bash
 cd "$TEMPLATE_DST" && "$GODOT_BIN" --path . --rendering-driver opengl3 \
-  scenes/<name>_3d.tscn -- --capture-after=8 --capture-input='ui_accept,2.0' \
-  --capture-output='user://<name>_smoke.png' 2>&1 | tee /tmp/smoke.log > /dev/null &
+  scenes/<name>_3d.tscn -- --smoke-screens \
+  --smoke-out='user://smoke_<name>/' 2>&1 | tee /tmp/smoke.log > /dev/null &
 
-until grep -qE "Capture saved|aborting|Quit" /tmp/smoke.log || ! pgrep -f "Godot.*<name>" > /dev/null; do sleep 2; done
+until grep -qE "ScreenSmokeRunner.*visited|FAIL|SCRIPT ERROR" /tmp/smoke.log; do sleep 2; done
 
-# Grep for warnings:
+# Verify screens all visited + zero warnings:
+grep "ScreenSmokeRunner" /tmp/smoke.log | tail -25
 grep -iE "push_warning|SCRIPT ERROR|Parse Error|unknown screen" /tmp/smoke.log
 ```
 
-**Any match is a fail.** Expected output: title screen rendered, no
-warnings, capture saved.
+**Pass criteria**: every screen logged with ✓; zero warning grep
+matches; exit code 0.
 
-Caveats:
-- `ui_accept` triggers ACTION events but NOT Button.pressed in
-  ScreenFlow. So this gate catches BOOT-time warnings (rules firing
-  on tick 0/1, pause/resume listeners) but not click-only bugs.
-- Real click-flow coverage requires the engine's `--smoke-screens`
-  mode (proposed Session 6 work) which walks every screen + fires
-  every on_click programmatically.
+The runner is in `godot/scripts/engine/screen_smoke_runner.gd` (sibling
+of ScreenFlow under World). No-op without `--smoke-screens` flag.
+
+Captures land at `user://<smoke-out-dir>/<screen_id>.png` — feed
+into Gate 6.
+
+### Gate 5b — boot smoke (catches startup-only warnings)
+
+Sometimes a rule fires on tick 0/1 with bad transition target. Run a
+quick boot capture to catch that class:
+
+```bash
+cd "$TEMPLATE_DST" && "$GODOT_BIN" --path . --rendering-driver opengl3 \
+  scenes/<name>_3d.tscn -- --capture-after=8 \
+  --capture-output='user://<name>_boot.png' 2>&1 | tee /tmp/boot.log > /dev/null &
+
+until grep -qE "Capture saved|aborting" /tmp/boot.log; do sleep 2; done
+grep -iE "push_warning|SCRIPT ERROR|Parse Error|unknown screen" /tmp/boot.log
+```
+
+Note: still doesn't fire button on_click — that's a known gap. Click-
+chain bugs (effects-after-destructive, missing target on a button
+that fires only mid-game) need a future `--click-walk` mode that
+synthesizes Button.pressed signals; not yet built.
 
 ### Gate 6 — visual capture + VQA read
 
