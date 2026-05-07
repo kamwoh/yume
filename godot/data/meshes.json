@@ -327,6 +327,147 @@
         {"op": "cylinder", "pos": [0, 0.12, 0], "radius": 0.4, "height": 0.05, "color": "#ffffff"}
       ],
       "params": {"glow": "#3adb40"}
+    },
+
+    "merchant_player_3d": {
+      "primitives": [
+        {"op": "capsule",  "pos": [0, 0.85, 0], "radius": 0.25, "height": 1.4, "color": "$shirt"},
+        {"op": "sphere",   "pos": [0, 1.65, 0], "radius": 0.22,                "color": "$skin"},
+        {"op": "cylinder", "pos": [0, 1.85, 0], "radius": 0.28, "height": 0.18, "color": "$hat"}
+      ],
+      "params": {"shirt": "#3aa050", "skin": "#f4d6b4", "hat": "#5040a0"}
+    },
+
+    "merchant_npc_3d": {
+      "primitives": [
+        {"op": "capsule", "pos": [0, 0.8, 0], "radius": 0.22, "height": 1.3, "color": "$shirt"},
+        {"op": "sphere",  "pos": [0, 1.55, 0], "radius": 0.2,                "color": "$skin"}
+      ],
+      "params": {"shirt": "#7a6050", "skin": "#d8b894"}
+    },
+
+    "merchant_slime_3d": {
+      "primitives": [
+        {"op": "sphere", "pos": [0, 0.4, 0], "radius": 0.45, "color": "$body"},
+        {"op": "sphere", "pos": [-0.15, 0.55, 0.3], "radius": 0.06, "color": "#000000"},
+        {"op": "sphere", "pos": [0.15, 0.55, 0.3], "radius": 0.06, "color": "#000000"}
+      ],
+      "params": {"body": "#90c060"}
+    },
+
+    "merchant_chest_t1_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.3, 0], "size": [0.8, 0.5, 0.5], "color": "$wood"},
+        {"op": "box", "pos": [0, 0.6, 0], "size": [0.85, 0.15, 0.55], "color": "$lid"},
+        {"op": "box", "pos": [0, 0.4, 0.27], "size": [0.1, 0.1, 0.05], "color": "$lock"}
+      ],
+      "params": {"wood": "#7a5030", "lid": "#5a3820", "lock": "#d8b048"}
+    },
+
+    "merchant_chest_t2_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.32, 0], "size": [0.9, 0.55, 0.55], "color": "$wood"},
+        {"op": "box", "pos": [0, 0.65, 0], "size": [0.95, 0.18, 0.6], "color": "$lid"},
+        {"op": "box", "pos": [0, 0.45, 0.3], "size": [0.12, 0.12, 0.05], "color": "$lock"}
+      ],
+      "params": {"wood": "#5a4040", "lid": "#3a2828", "lock": "#c0c0c0"}
+    },
+
+    "merchant_chest_t3_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.35, 0], "size": [1.0, 0.6, 0.6], "color": "$wood"},
+        {"op": "box", "pos": [0, 0.7, 0], "size": [1.05, 0.2, 0.65], "color": "$lid"},
+        {"op": "box", "pos": [0, 0.5, 0.32], "size": [0.14, 0.14, 0.06], "color": "$lock"},
+        {"op": "sphere", "pos": [0, 0.9, 0], "radius": 0.08, "color": "$gem"}
+      ],
+      "params": {"wood": "#3a2840", "lid": "#1a1428", "lock": "#ffd040", "gem": "#a040ff"}
+    },
+
+    "merchant_counter_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.5, 0], "size": [3.0, 1.0, 0.8], "color": "$wood"},
+        {"op": "box", "pos": [0, 1.05, 0], "size": [3.1, 0.1, 0.9], "color": "$top"}
+      ],
+      "params": {"wood": "#7a5030", "top": "#a07040"}
+    },
+
+    "merchant_shelf_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.8, 0], "size": [2.0, 1.6, 0.4], "color": "$wood"},
+        {"op": "box", "pos": [0, 0.5, 0.05], "size": [2.05, 0.1, 0.5], "color": "$shelf"},
+        {"op": "box", "pos": [0, 1.0, 0.05], "size": [2.05, 0.1, 0.5], "color": "$shelf"},
+        {"op": "box", "pos": [0, 1.5, 0.05], "size": [2.05, 0.1, 0.5], "color": "$shelf"}
+      ],
+      "params": {"wood": "#6a4828", "shelf": "#9a7050"}
+    },
+
+    "merchant_door_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 1.0, 0], "size": [1.0, 2.0, 0.1], "color": "$wood"},
+        {"op": "sphere", "pos": [0.35, 1.0, 0.06], "radius": 0.05, "color": "$knob"}
+      ],
+      "params": {"wood": "#5a3820", "knob": "#d8b048"}
+    },
+
+    "merchant_shop_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 1.5, 0], "size": [4.0, 3.0, 4.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 3.5, 0], "size": [4.5, 1.4, 4.5], "color": "$roof"},
+        {"op": "box", "pos": [0, 1.0, 2.05], "size": [0.8, 1.8, 0.1], "color": "$door"},
+        {"op": "box", "pos": [-1.2, 1.8, 2.05], "size": [0.6, 0.6, 0.1], "color": "$window"},
+        {"op": "box", "pos": [1.2, 1.8, 2.05], "size": [0.6, 0.6, 0.1], "color": "$window"}
+      ],
+      "params": {"wall": "#b89878", "roof": "#7a3a2a", "door": "#5a3820", "window": "#a8c8e0"}
+    },
+
+    "merchant_lamppost_3d": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 1.5, 0], "radius": 0.05, "height": 3.0, "color": "$post"},
+        {"op": "sphere",   "pos": [0, 3.1, 0], "radius": 0.18,                "color": "$lamp"}
+      ],
+      "params": {"post": "#3a2818", "lamp": "#ffe080"}
+    },
+
+    "merchant_pillar_3d": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 1.25, 0], "radius": 0.35, "height": 2.5, "color": "$stone"},
+        {"op": "cylinder", "pos": [0, 0.1, 0], "radius": 0.45, "height": 0.2, "color": "$base"},
+        {"op": "cylinder", "pos": [0, 2.4, 0], "radius": 0.45, "height": 0.2, "color": "$base"}
+      ],
+      "params": {"stone": "#9a9a9a", "base": "#6a6a6a"}
+    },
+
+    "merchant_portal_3d": {
+      "primitives": [
+        {"op": "torus", "pos": [0, 1.5, 0], "inner_radius": 0.6, "outer_radius": 0.9, "color": "$ring"},
+        {"op": "cylinder", "pos": [0, 1.5, 0], "radius": 0.55, "height": 0.05, "color": "$swirl"}
+      ],
+      "params": {"ring": "#5040a0", "swirl": "#a070ff"}
+    },
+
+    "merchant_fountain_3d": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.2, 0], "radius": 1.0, "height": 0.4, "color": "$basin"},
+        {"op": "cylinder", "pos": [0, 0.5, 0], "radius": 0.15, "height": 0.6, "color": "$pillar"},
+        {"op": "sphere",   "pos": [0, 1.0, 0], "radius": 0.2,                "color": "$water"}
+      ],
+      "params": {"basin": "#909090", "pillar": "#a08070", "water": "#5090c0"}
+    },
+
+    "merchant_signpost_3d": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.7, 0], "radius": 0.04, "height": 1.4, "color": "$post"},
+        {"op": "box",      "pos": [0, 1.3, 0], "size": [0.8, 0.4, 0.05],     "color": "$sign"}
+      ],
+      "params": {"post": "#5a3820", "sign": "#c8a878"}
+    },
+
+    "merchant_stall_3d": {
+      "primitives": [
+        {"op": "box",      "pos": [0, 0.5, 0], "size": [2.0, 1.0, 1.2], "color": "$wood"},
+        {"op": "prism",    "pos": [0, 1.5, 0], "size": [2.4, 0.8, 1.6], "color": "$canopy"}
+      ],
+      "params": {"wood": "#a07050", "canopy": "#c04040"}
     }
   }
 }
