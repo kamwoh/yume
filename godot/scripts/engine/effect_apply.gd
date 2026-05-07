@@ -510,6 +510,14 @@ static func _resolve_id(v, ctx: Dictionary) -> String:
 ## Array-valued effect param (e.g. state_set's `value`, emit's payload
 ## fields, spawn's `position`) evaluates per-element. Vector2/Vector3 still
 ## return as-is (they're concrete numeric types, not formula containers).
+##
+## 2026-05-07 dict recursion: added Dictionary recursion symmetric to Array.
+## Empirically caught in merchant Session 2: haggle screen emits a signal with
+## payload {signal: {sale_price: "world.haggle_player_offer"}}; without dict
+## recursion, "world.haggle_player_offer" survived as a literal string
+## through to sale_complete's state_add amount field, which then coerced it
+## to 0.0 → silent gold-add-of-zero bug. With dict recursion the formula
+## resolves at emit time, payload carries the int.
 static func _value(v, ctx: Dictionary, env: Dictionary = {}):
 	if v is float or v is int or v is bool: return v
 	if v is Vector2 or v is Vector3: return v
@@ -518,6 +526,11 @@ static func _value(v, ctx: Dictionary, env: Dictionary = {}):
 		for item in (v as Array):
 			out.append(_value(item, ctx, env))
 		return out
+	if v is Dictionary:
+		var out_d: Dictionary = {}
+		for k in (v as Dictionary).keys():
+			out_d[k] = _value((v as Dictionary)[k], ctx, env)
+		return out_d
 	if v is String:
 		var s := str(v)
 		# Bare context binding (e.g. "actor" → context["actor"])
