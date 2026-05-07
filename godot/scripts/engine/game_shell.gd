@@ -58,6 +58,31 @@ var _flash_overlay: ColorRect = null
 var _flash_remaining: int = 0
 var _flash_color: Color = Color(1, 0, 0, 0.5)
 
+# Screen-fade overlay (separate CanvasLayer above HUD so fades cover
+# everything: world, HUD, overlays). Driven by `screen_fade` effect and
+# by `transition_level` with `fade_duration > 0`.
+#
+# State machine for fade-driven transitions:
+#   IDLE       — no transition pending
+#   FADING_OUT — alpha lerping toward 1.0; on completion, sets
+#                env._pending_level_transition so World swaps next tick,
+#                then enters FADING_IN.
+#   FADING_IN  — alpha lerping back to 0.0; on completion, returns to IDLE.
+# Plain `screen_fade` effects bypass the state machine — they just retarget
+# alpha + duration without queuing a transition.
+var _fade_layer: CanvasLayer = null
+var _fade_overlay: ColorRect = null
+var _fade_alpha: float = 0.0
+var _fade_target_alpha: float = 0.0
+var _fade_duration_remaining: float = 0.0
+var _fade_color: Color = Color(0, 0, 0, 1)
+const FADE_PHASE_IDLE := 0
+const FADE_PHASE_OUT := 1
+const FADE_PHASE_IN := 2
+var _fade_phase: int = FADE_PHASE_IDLE
+var _fade_pending_target: String = ""
+var _fade_half_duration: float = 0.0
+
 # Per-element binding state — { Control_node : binding_spec_dict }
 var _bound_elements: Array = []
 
@@ -83,6 +108,7 @@ func _ready() -> void:
 		_world.set("tick_seconds", float(_scene_cfg["tick_seconds"]))
 	_build_bounds()
 	_build_hud()
+	_build_fade_overlay()
 	# Wire shell_event_buffer into the world's env so EffectApply._emit_shell_event
 	# has somewhere to push. Scheduler holds the env reference.
 	var sched = _world.get("scheduler")
@@ -92,7 +118,7 @@ func _ready() -> void:
 			env["shell_event_buffer"] = []
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _won or _lost:
 		# After freeze, only listen for restart or quit
 		if Input.is_action_just_pressed("ui_accept") or Input.is_key_label_pressed(KEY_R):
@@ -106,6 +132,7 @@ func _process(_delta: float) -> void:
 	_update_floor_tint()
 	_drain_shell_events()
 	_update_shake_and_flash()
+	_update_fade(delta)
 	_check_win_lose()
 
 
@@ -249,6 +276,44 @@ func _drain_shell_events() -> void:
 				var bus = get_node_or_null("/root/AudioBus")
 				if bus != null and bus.has_method("play"):
 					bus.play(sound_name)
+			"screen_fade":
+				# Standalone alpha tween — does NOT engage the fade-transition
+				# state machine. Just retargets alpha + duration; per-frame
+				# lerp in _update_fade applies it.
+				var alpha := float(ev.get("alpha", 1.0))
+				var duration := float(ev.get("duration", 0.0))
+				var color = ev.get("color", "#000000")
+				_fade_color = _color(color)
+				_fade_target_alpha = clamp(alpha, 0.0, 1.0)
+				_fade_duration_remaining = max(duration, 0.0)
+				if _fade_duration_remaining <= 0.0:
+					_fade_alpha = _fade_target_alpha
+			"transition_level_fade_request":
+				# 3-phase state machine: fade out, swap mid-fade, fade in.
+				# Skip if already mid-transition (idempotent under repeated
+				# trigger fires).
+				if _fade_phase == FADE_PHASE_IDLE:
+					var target := str(ev.get("target", ""))
+					if target == "":
+						continue
+					var dur := float(ev.get("fade_duration", 0.5))
+					var color = ev.get("color", "#000000")
+					_fade_color = _color(color)
+					_fade_pending_target = target
+					_fade_half_duration = max(dur * 0.5, 0.0)
+					_fade_target_alpha = 1.0
+					_fade_duration_remaining = _fade_half_duration
+					_fade_phase = FADE_PHASE_OUT
+					if _fade_duration_remaining <= 0.0:
+						# fade_duration was 0 → behave like instant transition.
+						# Skip the state machine entirely.
+						_fade_alpha = 0.0
+						_fade_phase = FADE_PHASE_IDLE
+						if _world != null:
+							var sched_inst = _world.get("scheduler")
+							if sched_inst != null and sched_inst.get("env") != null:
+								(sched_inst.env as Dictionary)["_pending_level_transition"] = target
+						_fade_pending_target = ""
 
 
 ## Apply current shake offset to camera + flash alpha to overlay. Both
@@ -278,6 +343,72 @@ func _update_shake_and_flash() -> void:
 			_flash_remaining -= 1
 		elif _flash_overlay.color.a > 0.0:
 			_flash_overlay.color = Color(0, 0, 0, 0)
+
+
+## Build a dedicated CanvasLayer above the HUD (layer=20 vs HUD's 10) that
+## holds a single full-rect ColorRect for screen fades. Separate from the
+## flash overlay (which lives inside the HUD CanvasLayer) so fades can hide
+## HUD too — a level transition with fade should black-out everything.
+func _build_fade_overlay() -> void:
+	_fade_layer = CanvasLayer.new()
+	_fade_layer.layer = 20
+	add_child(_fade_layer)
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade_layer.add_child(root)
+	_fade_overlay = ColorRect.new()
+	_fade_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade_overlay.color = Color(_fade_color.r, _fade_color.g, _fade_color.b, 0.0)
+	root.add_child(_fade_overlay)
+
+
+## Per-frame fade lerp + state-machine progress. delta is real seconds.
+##
+## When _fade_duration_remaining > 0, lerp alpha toward target by the
+## per-frame fraction. When it hits 0, alpha snaps to target and the
+## state machine advances (if engaged):
+##   FADING_OUT done → fully black: queue level transition, flip to FADING_IN
+##   FADING_IN done  → fully clear: return to IDLE
+func _update_fade(delta: float) -> void:
+	if _fade_overlay == null: return
+	if _fade_duration_remaining > 0.0:
+		var step: float = min(delta, _fade_duration_remaining)
+		var t: float = step / _fade_duration_remaining
+		_fade_alpha = lerp(_fade_alpha, _fade_target_alpha, t)
+		_fade_duration_remaining -= step
+		if _fade_duration_remaining <= 0.0:
+			_fade_alpha = _fade_target_alpha
+			_fade_duration_remaining = 0.0
+			_advance_fade_phase()
+	# Apply current alpha + color to overlay every frame (cheap; lets
+	# external state edits like color swaps land immediately).
+	_fade_overlay.color = Color(_fade_color.r, _fade_color.g, _fade_color.b,
+		clamp(_fade_alpha, 0.0, 1.0))
+
+
+## Called when _fade_duration_remaining hits zero. Drives the
+## transition_level state machine forward; no-op for plain screen_fade.
+func _advance_fade_phase() -> void:
+	match _fade_phase:
+		FADE_PHASE_OUT:
+			# Mid-transition: fully black. Queue the level swap; world.gd
+			# processes _pending_level_transition between ticks. Then flip
+			# into FADING_IN to bring the new level back into view.
+			if _world != null and _fade_pending_target != "":
+				var sched = _world.get("scheduler")
+				if sched != null and sched.get("env") != null:
+					(sched.env as Dictionary)["_pending_level_transition"] = _fade_pending_target
+			_fade_pending_target = ""
+			_fade_target_alpha = 0.0
+			_fade_duration_remaining = _fade_half_duration
+			_fade_phase = FADE_PHASE_IN
+			if _fade_duration_remaining <= 0.0:
+				_fade_alpha = 0.0
+				_fade_phase = FADE_PHASE_IDLE
+		FADE_PHASE_IN:
+			_fade_phase = FADE_PHASE_IDLE
 
 
 ## Lerp the floor color between night (low) and day (high) based on the

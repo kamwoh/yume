@@ -63,6 +63,8 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"quit_app":          _quit_app(effect, env, context)
 		"show_toast":        _show_toast(effect, env, context)
 		"reload_scene":      _reload_scene(effect, env, context)
+		"scene_change":      _scene_change(effect, env, context)
+		"screen_fade":       _screen_fade(effect, env, context)
 		"save_state":        _save_state(effect, env, context)
 		"load_state":        _load_state(effect, env, context)
 		"show_overlay":      _show_overlay_effect(effect, env, context)
@@ -76,7 +78,7 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world.",
 				"warning")
 	return {}
 
@@ -737,10 +739,88 @@ static func _to_vec3_v(v) -> Vector3:
 ## target name; world.gd processes this between ticks (after the current
 ## rule's effect chain finishes) so we don't mutate entities mid-rule.
 ## target = "next" → engine looks up the next level in progression.levels.
+##
+## Optional `fade_duration` (seconds): when present and > 0, the transition
+## is delegated to GameShell which runs a 3-phase state machine:
+##   1. FADING_OUT (fade_duration/2 s): overlay alpha 0→1
+##   2. SWAP at midpoint: GameShell sets env._pending_level_transition so
+##      World picks it up on next tick (atomicity preserved)
+##   3. FADING_IN (fade_duration/2 s): overlay alpha 1→0
+## Without fade_duration the original instant-swap behavior is preserved.
+##
+## DESTRUCTIVE — like all transition_level paths, the level swap will
+## remove non-persistent entities. Effect-chain validation gate applies:
+## anything queued AFTER this effect that depends on the OLD level's
+## entities will be silently dropped on swap.
 static func _transition_level(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var target := str(_value(e.get("target", "next"), ctx, env))
 	if target == "": return
+	var fade_dur := float(_value(e.get("fade_duration", 0.0), ctx, env))
+	if fade_dur > 0.0:
+		# Delegate to GameShell. It will set _pending_level_transition at
+		# fade midpoint, so world.gd's existing process_pending_level_transition
+		# does the actual swap on the next tick boundary.
+		var color = e.get("color", "#000000")
+		var buf_v = env.get("shell_event_buffer", null)
+		var buf: Array
+		if buf_v is Array:
+			buf = buf_v
+		else:
+			buf = []
+			env["shell_event_buffer"] = buf
+		buf.append({
+			"event": "transition_level_fade_request",
+			"target": target,
+			"fade_duration": fade_dur,
+			"color": color,
+		})
+		return
 	env["_pending_level_transition"] = target
+
+
+## Tween the screen-fade overlay's alpha to a target value over `duration`
+## seconds. GameShell owns the overlay (lives on a CanvasLayer above the
+## HUD) and the per-frame lerp. duration=0 → instant.
+##   {type: screen_fade, alpha: 0.8, duration: 0.3, color: "#000000"}
+##
+## Additive (non-destructive) — stacks fine with effects after it in a chain.
+static func _screen_fade(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var alpha := float(_value(e.get("alpha", 1.0), ctx, env))
+	var duration := float(_value(e.get("duration", 0.0), ctx, env))
+	var color = e.get("color", "#000000")
+	var buf_v = env.get("shell_event_buffer", null)
+	var buf: Array
+	if buf_v is Array:
+		buf = buf_v
+	else:
+		buf = []
+		env["shell_event_buffer"] = buf
+	buf.append({
+		"event": "screen_fade",
+		"alpha": alpha,
+		"duration": duration,
+		"color": color,
+	})
+
+
+## Hard Godot scene swap via SceneTree.change_scene_to_file. DESTRUCTIVE —
+## anything queued after this in the same effect chain is silently dropped
+## when the scene reload lands at end-of-frame. See `.claude/rules/
+## engine-scripts.md` § effect-chain validation gate. Pushes a screen
+## event so ScreenFlow drains and performs the swap (same pattern as
+## reload_scene/quit_app).
+##   {type: scene_change, target: "res://scenes/title.tscn"}
+##
+## Target is read raw (no _value formula evaluation) — `res://...` paths
+## contain `/`, `:`, and `.` which Formula.looks_like_formula treats as
+## expression syntax. Resource paths are always literal.
+static func _scene_change(e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
+	var target := str(e.get("target", ""))
+	if target == "":
+		push_warning("scene_change effect missing target (rule=%s)"
+			% str(_ctx.get("_rule_id", "")))
+		return
+	_push_screen_event(env, {"event": "scene_change", "target": target})
 
 
 # ============================================================
@@ -781,11 +861,34 @@ static func _quit_app(_e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void
 
 ## Show a transient toast label (e.g. "Saved!" after save_state).
 ## text resolves @strings.X refs. duration in seconds.
+##
+## NOTE: text uses _value_text() (literal-or-@-only), NOT _value(). Display
+## prose like "Debt installment paid" contains spaces, which would trip
+## Formula.looks_like_formula and cause a runtime parse error. show_toast's
+## text field is meant for human-readable strings, not computation. If you
+## need a computed message, build it in a state_set rule first then reference
+## the state via @strings.<key> resolved at HUD time.
 static func _show_toast(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var text := str(_value(e.get("text", ""), ctx, env))
+	var text := _value_text(e.get("text", ""), ctx)
 	var duration := float(_value(e.get("duration", 2.0), ctx, env))
 	_push_screen_event(env, {"event": "show_toast", "text": text,
 							 "duration": duration})
+
+
+## Resolve a value intended for human display (toast text, overlay body,
+## etc.). Unlike _value(), does NOT run Formula.evaluate — display strings
+## like "New day arrives" contain spaces and dots that would cause spurious
+## formula parse failures. Resolves only:
+##   - bare context bindings (e.g. "self" → ctx["self"])
+##   - @-prefixed indirection refs (e.g. "@strings.welcome") — passed through
+##     for HUD/GameShell to resolve at consumption time.
+##   - everything else: literal pass-through
+## Empirically caught in merchant 2026-05-07 — see task #112.
+static func _value_text(v, ctx: Dictionary) -> String:
+	if not (v is String): return str(v)
+	var s := str(v)
+	if ctx.has(s): return str(ctx[s])
+	return s
 
 
 ## Reload the entire current Godot scene. DESTRUCTIVE — anything queued

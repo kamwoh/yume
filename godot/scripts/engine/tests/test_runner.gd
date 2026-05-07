@@ -42,6 +42,9 @@ func _ready() -> void:
 	test_raycast_hit()
 	test_instance_patterns()
 	test_screen_flow_effects()
+	test_screen_fade()
+	test_scene_change_dispatches()
+	test_transition_level_fade()
 	test_control_factory()
 	test_save_state()
 	test_overlay_effects()
@@ -1572,6 +1575,100 @@ func test_screen_flow_effects() -> void:
 	expect(fresh_env.has("screen_event_buffer"), "lazy buffer creation")
 	expect_eq((fresh_env["screen_event_buffer"] as Array).size(), 1,
 		"lazy buffer: event landed")
+
+
+## screen_fade: pushes a shell event with alpha + duration + color so the
+## GameShell's per-frame lerper can apply it. Dispatch-only test — actual
+## fade animation requires a live SceneTree (out of scope for unit tests).
+func test_screen_fade() -> void:
+	_section("screen_fade")
+	var env: Dictionary = {}
+	var ctx: Dictionary = {"_rule_id": "test"}
+
+	EffectApply.apply({"type": "screen_fade", "alpha": 0.8, "duration": 0.3,
+		"color": "#000000"}, env, ctx)
+	expect(env.has("shell_event_buffer"), "screen_fade: buffer created")
+	var buf: Array = env["shell_event_buffer"]
+	expect_eq(buf.size(), 1, "screen_fade: one event queued")
+	var ev: Dictionary = buf[0]
+	expect_eq(str(ev.get("event", "")), "screen_fade", "screen_fade: event name")
+	expect_eq(float(ev.get("alpha", 0)), 0.8, "screen_fade: alpha forwarded")
+	expect_eq(float(ev.get("duration", 0)), 0.3, "screen_fade: duration forwarded")
+	expect_eq(str(ev.get("color", "")), "#000000", "screen_fade: color forwarded")
+
+	# Defaults: missing fields use safe fallbacks (alpha=1.0, duration=0,
+	# color="#000000"). Instant-opaque is a sane default for a fade primitive.
+	EffectApply.apply({"type": "screen_fade"}, env, ctx)
+	expect_eq(buf.size(), 2, "screen_fade with defaults: still pushed")
+	var ev2: Dictionary = buf[1]
+	expect_eq(float(ev2.get("alpha", -1)), 1.0, "screen_fade default alpha = 1.0")
+	expect_eq(float(ev2.get("duration", -1)), 0.0, "screen_fade default duration = 0")
+
+
+## scene_change: pushes a screen-buffer event (drained by ScreenFlow which
+## calls SceneTree.change_scene_to_file). DESTRUCTIVE per effect-chain
+## validation gate.
+func test_scene_change_dispatches() -> void:
+	_section("scene_change")
+	var env: Dictionary = {"screen_event_buffer": []}
+	var ctx: Dictionary = {"_rule_id": "test"}
+
+	EffectApply.apply({"type": "scene_change", "target": "res://scenes/title.tscn"},
+		env, ctx)
+	var buf: Array = env["screen_event_buffer"]
+	expect_eq(buf.size(), 1, "scene_change: buffer size")
+	var ev: Dictionary = buf[0]
+	expect_eq(str(ev.get("event", "")), "scene_change", "scene_change: event name")
+	expect_eq(str(ev.get("target", "")), "res://scenes/title.tscn",
+		"scene_change: target forwarded")
+
+	# Missing target → warn, no event pushed (cheap-fail like transition_screen)
+	EffectApply.apply({"type": "scene_change"}, env, ctx)
+	expect_eq(buf.size(), 1, "scene_change with no target: no event pushed")
+
+
+## transition_level with fade_duration: pushes a transition_level_fade_request
+## shell event instead of setting _pending_level_transition directly. Without
+## fade_duration (or with 0), the original instant-swap path runs.
+func test_transition_level_fade() -> void:
+	_section("transition_level_fade")
+	# Path A: no fade_duration → original behavior (sets _pending_level_transition)
+	var env_a: Dictionary = {}
+	EffectApply.apply({"type": "transition_level", "target": "level_shop"},
+		env_a, {"_rule_id": "test"})
+	expect_eq(str(env_a.get("_pending_level_transition", "")), "level_shop",
+		"no fade_duration: instant-swap path sets pending transition")
+	expect(not env_a.has("shell_event_buffer") or
+		(env_a["shell_event_buffer"] as Array).is_empty(),
+		"no fade_duration: no shell event pushed")
+
+	# Path B: fade_duration=0 → also instant-swap path (preserves backward compat)
+	var env_b: Dictionary = {}
+	EffectApply.apply({"type": "transition_level", "target": "level_shop",
+		"fade_duration": 0}, env_b, {"_rule_id": "test"})
+	expect_eq(str(env_b.get("_pending_level_transition", "")), "level_shop",
+		"fade_duration=0: instant-swap path preserved")
+
+	# Path C: fade_duration > 0 → shell event, NOT _pending_level_transition.
+	# GameShell's state machine sets _pending at the fade midpoint.
+	var env_c: Dictionary = {}
+	EffectApply.apply({"type": "transition_level", "target": "level_shop",
+		"fade_duration": 0.4, "color": "#000000"}, env_c, {"_rule_id": "test"})
+	expect(env_c.has("shell_event_buffer"), "fade_duration>0: buffer created")
+	var buf: Array = env_c["shell_event_buffer"]
+	expect_eq(buf.size(), 1, "fade_duration>0: one event queued")
+	var ev: Dictionary = buf[0]
+	expect_eq(str(ev.get("event", "")), "transition_level_fade_request",
+		"fade event name")
+	expect_eq(str(ev.get("target", "")), "level_shop", "fade event target")
+	expect_eq(float(ev.get("fade_duration", 0)), 0.4, "fade event duration")
+	expect_eq(str(ev.get("color", "")), "#000000", "fade event color")
+	# Critical: must NOT also set _pending_level_transition synchronously.
+	# The state machine in GameShell sets it at the midpoint (after fade-out).
+	# If both paths fired, you'd get a double-swap and broken visuals.
+	expect(not env_c.has("_pending_level_transition") or
+		str(env_c.get("_pending_level_transition", "")) == "",
+		"fade path does NOT set _pending_level_transition synchronously")
 
 
 ## Spot-check ControlFactory builds correct Godot Control types for each

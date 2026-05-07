@@ -2314,3 +2314,41 @@ When a task changes status:
 
 The session TaskList is the working hand; this section is the
 durable record. They should not drift.
+
+---
+
+## 2026-05-07 autonomous overnight run — merchant polish
+
+User said: "i wonder why the autonomous cannot run end-to-end without me intervene? i am going to sleep, hope when i wake up everything is done perfectly."
+
+Committed plan for tonight (recorded so it survives compaction):
+
+### Goal
+Get demo_merchant from "1% playable" to "feels like a real merchant game" without user intervention. Use scenario tests + --capture-input visual QA at every milestone instead of waiting for user feedback.
+
+### Tasks (priority order)
+
+- [x] #107 customer variety — verified via 3 scenario tests (warrior 75g, townie 30g, noble 120g). Spawn override + b.state.gold_value formula resolves correctly.
+- [ ] #112 show_toast formula-detection bug — multi-word toast text like "Debt installment paid" triggers Formula.looks_like_formula because of spaces, then fails as binding lookup. Fix: skip _value() on `text` field for show_toast OR mark literal strings explicitly. Engine fix.
+- [ ] #108 real haggle UI — re-enable screens.json, build accept/counter/reject via ADR 0011 Control nodes. On customer contact, suspend tick + show 3-button overlay. Each button triggers a different effect chain (full sale / haggle / walkout).
+- [ ] #109 dungeon entry + simple combat — wire up E key + dungeon-portal contact rule → transition_level to level_dungeon_1 with fade_duration. Re-enable enemy spawning + simple HP combat in dungeon.
+- [ ] #110 named regulars on schedule — Henrick (warrior) appears day 1+, Garron (mage) day 3+, Vela (noble) day 5+, etc. Tick rule with day_eq filter spawns named entity once per day.
+- [ ] #111 visual scene transitions — apply fade_duration: 0.3 to all transition_level effects (already done for shop_door_enter by builder agent). Verify with --capture-input.
+- [ ] visual-QA pass — capture-input run through: walk to shop → enter → sale → close shop → night → debt → next morning. Fix any visual issues.
+- [ ] commit progressive snapshots so user can review.
+
+### Constraints
+
+- Don't ask for user input.
+- If schema bug found: fix, document in `.claude/rules/data-demo.md` under "Schema gotchas".
+- If engine wall hit: propose ADR + implement (per ADR 0021 framing — expose Godot capability via JSON).
+- Use scenario_runner + capture_runner heavily — they're the autonomous-QA tools.
+- Commit on milestones (not too granular).
+
+### Engine prerequisites (already landed by builder agent ac7812f3 tonight)
+
+- `screen_fade` effect (3-phase fade-out → swap → fade-in)
+- `scene_change` effect (full Godot scene swap)
+- `transition_level` extended with `fade_duration` parameter
+- 430 tests passing (was 407)
+

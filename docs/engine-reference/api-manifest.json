@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-06T17:33:50+00:00",
+  "generated_at": "2026-05-07T00:05:50+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -120,6 +120,14 @@
     },
     {
       "type": "reload_scene",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "scene_change",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "screen_fade",
       "source": "effect_apply.gd"
     },
     {

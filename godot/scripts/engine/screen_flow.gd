@@ -258,6 +258,18 @@ func _drain_screen_events() -> void:
 				# Per `.claude/rules/engine-scripts.md` § effect-chain
 				# validation, reload_scene must be LAST in any chain.
 				get_tree().reload_current_scene()
+			"scene_change":
+				# DESTRUCTIVE — full Godot scene swap to target .tscn path.
+				# Like reload_scene, must be LAST in any chain (anything
+				# queued after gets dropped at end-of-frame).
+				var path := str(ev.get("target", ""))
+				if path == "":
+					push_warning("ScreenFlow: scene_change missing target")
+					continue
+				var err: int = get_tree().change_scene_to_file(path)
+				if err != OK:
+					push_warning("ScreenFlow: scene_change failed (path=%s err=%d)"
+						% [path, err])
 
 
 # ============================================================

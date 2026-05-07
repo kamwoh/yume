@@ -91,10 +91,18 @@ broken effect chains (button click → nothing happens). When adding
 or modifying an effect type that interacts with screen flow, save
 state, or scene lifecycle:
 
-- `transition_screen`, `transition_level`, `reload_scene`
+- `transition_screen`, `transition_level`, `reload_scene`, `scene_change`
 - `save_state`, `load_state`
 - `quit_app`
 - Any effect that reloads, destroys, or replaces the active scene
+
+`screen_fade` is **non-destructive** — it tweens an overlay's alpha and
+can safely be queued anywhere in a chain (e.g. a fade-flash before a
+transition is fine). `transition_level` with `fade_duration > 0` is
+still destructive at the swap midpoint: the level swap happens between
+ticks once the fade-out completes, so any effect queued after it that
+references the OLD level's entities will be silently dropped, same as
+ordinary `transition_level`.
 
 **Rule**: trace every `on_click` (and `on_submit`, `on_change`,
 `on_press`) chain end-to-end before shipping. If any effect in the
