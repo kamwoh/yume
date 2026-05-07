@@ -138,8 +138,11 @@ content-defined, but these have engine-side semantics):
 |---|---|---|
 | `blocks_motion` | Static obstacle. Motion integrator slides moving entities around its AABB; projectile-tagged entities stop dead at the boundary. | `properties.aabb_extents: [hx, hy, hz]` (and optional `aabb_offset`) |
 | `projectile` | Different motion-resolution path: no slide on collision (stop dead). Used by motion integrator to distinguish bullets from creatures. | None (just the tag) |
+| `walkable_floor` | Contributes a walkable rectangle to the level's NavigationMesh (ADR 0024). NPCs invoking `pathfind_to` route over the union of these rectangles. | `properties.aabb_extents: [hx, _, hz]` (Y ignored — floor at `position.y`) |
+| `pathfinding_obstacle` | Punches a hole in the walkable region (ADR 0024). Distinct from `blocks_motion`: a wall typically wants both, but a low fence might want one or the other. | `properties.aabb_extents: [hx, _, hz]` |
 
-Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`.
+Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`,
+`docs/adr/0024-npc-pathfinding.md`.
 
 **Engine-recognized scene config** (in `scene.json`):
 
@@ -185,6 +188,30 @@ hand-coded `initial_instances`. Primitives: `ring`, `grid`, `line`,
 Use for instant-hit weapons (rifles, lasers, sniper) and AI line-of-sight
 checks. Pairs with `spawn` (use spawn for slow visible projectiles, raycast
 for hitscan-feeling weapons).
+
+**Pathfinding effect** (added by ADR 0024):
+
+```jsonc
+{
+  "type": "pathfind_to",
+  "target": "self",
+  "destination_x": <float|formula>,    // e.g. "self.state.goal_x"
+  "destination_y": <float|formula>,
+  "destination_z": <float|formula>,
+  "speed": <float|formula>             // m/s along the path
+}
+```
+
+Each invocation lazily attaches a `NavigationAgent3D` to the target,
+sets its `target_position`, reads the next path waypoint, and writes
+a velocity pointing at that waypoint. The motion integrator advances
+the entity along that velocity on the same tick. Build the navmesh
+by tagging floor entities `walkable_floor` and obstacle entities
+`pathfinding_obstacle` (the engine assembles the mesh on level
+load). Per ADR 0024, 3D-only — no-op for Vector2-positioned entities.
+
+Use for NPC schedules, escort missions, A → B sim agents, or any
+case where straight-line + AABB-slide deadlocks in concave geometry.
 
 ### 3. Rule
 

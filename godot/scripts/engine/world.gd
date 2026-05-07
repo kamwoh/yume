@@ -202,6 +202,11 @@ func load_data() -> void:
 		_load_rules_file(root + "/tutorial.json", true)
 		_load_world_file(root + "/world/state.json")
 		_load_entities_path(root)
+		# ADR 0024: build navmesh for single-level games (multi-level
+		# games build inside _load_level). No-op when no walkable_floor
+		# entities exist.
+		if scheduler != null:
+			Pathfinding.build_navmesh_for_level(scheduler.env)
 	# ADR 0014: open-world chunk streaming. world.json declares chunked-world
 	# mode; absent means single-chunk legacy mode (no streaming, no chunks
 	# directory consulted). When present:
@@ -1182,6 +1187,14 @@ func _load_level(name: String) -> void:
 	var lvl_dir := levels_root + "/" + name
 	_load_rules_file(lvl_dir + "/rules.json", true)
 	_load_entities_path(lvl_dir)
+	# ADR 0024: build the navigation mesh from walkable_floor +
+	# pathfinding_obstacle entities. No-op when the level doesn't tag
+	# any (legacy / 2D / non-routing levels). The scheduler's env is the
+	# stable dict effect handlers see, so build directly against that —
+	# Pathfinding stashes the region under `_navigation_region` and the
+	# pathfind_to effect reads it from the same key.
+	if scheduler != null:
+		Pathfinding.build_navmesh_for_level(scheduler.env)
 
 
 ## Process a queued level transition (set by transition_level effect).
@@ -1203,6 +1216,11 @@ func _do_level_transition(target: String) -> void:
 	if not level_order.has(target):
 		push_warning("[World] transition_level target '%s' not in progression.levels" % target)
 		return
+	# ADR 0024: tear down old level's navigation region BEFORE removing
+	# entities — agents bound to it will be freed alongside their parent
+	# entities below, but the region itself must go too.
+	if scheduler != null:
+		Pathfinding.teardown_navmesh(scheduler.env)
 	# Remove non-persistent entities.
 	var to_remove: Array[String] = []
 	for id in entities.keys():

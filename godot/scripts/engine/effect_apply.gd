@@ -55,6 +55,7 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"velocity_lerp":     _velocity_lerp(effect, env, context)
 		"velocity_set_relative": _velocity_set_relative(effect, env, context)
 		"velocity_add_relative": _velocity_add_relative(effect, env, context)
+		"pathfind_to":       _pathfind_to(effect, env, context)
 		"raycast_hit":       _raycast_hit(effect, env, context)
 		"transition_level":  _transition_level(effect, env, context)
 		"emit":              _emit(effect, env, context)
@@ -78,7 +79,7 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world.",
 				"warning")
 	return {}
 
@@ -391,6 +392,28 @@ static func _velocity_lerp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> v
 	if current is Vector2: current_v = current
 	var lerped: Vector2 = current_v.lerp(Vector2(tx, ty), rate)
 	ent.set_velocity(lerped)
+
+
+## ADR 0024 — pathfind_to. Wraps Pathfinding.tick_pathfind:
+## resolves destination_x/y/z + speed (formula bindings supported),
+## delegates to the Pathfinding module which writes velocity. No-op
+## when target is 2D-positioned or when no navmesh has been built
+## for the current level.
+##
+## Schema:
+##   {"type": "pathfind_to", "target": "self",
+##    "destination_x": <float|formula>,
+##    "destination_y": <float|formula>,
+##    "destination_z": <float|formula>,
+##    "speed": <float|formula>}
+static func _pathfind_to(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var ent: Entity = _target(e, env, ctx)
+	if ent == null: return
+	var dx := float(_value(e.get("destination_x", 0), ctx, env))
+	var dy := float(_value(e.get("destination_y", 0), ctx, env))
+	var dz := float(_value(e.get("destination_z", 0), ctx, env))
+	var speed := float(_value(e.get("speed", 1.0), ctx, env))
+	Pathfinding.tick_pathfind(env, ent, dx, dy, dz, speed)
 
 
 # ============================================================
