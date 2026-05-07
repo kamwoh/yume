@@ -233,6 +233,41 @@ rule overrides (per ADR 0009 tech-director condition #4).
 - Hardcoded magic numbers without GDD justification
 - No `_comment` on win/lose conditions
 
+## Input-coverage discipline (MANDATORY, 2026-05-07)
+
+**Empirical case** (merchant 2026-05-07): The build shipped with
+`attack` action declared in `input.json`, all attack-related rules
+under `tags_all: ["__disabled__"]`. Player pressed Space and nothing
+happened. Two more dead keys (F=interact, Q=return-to-town) were
+declared but had no rules subscribing.
+
+**Before declaring your work done**:
+
+1. **Read `<root>/ui/input.json`** — every action MUST have ≥1
+   enabled rule subscribing. Grep:
+   ```bash
+   for action in $(jq -r '.actions[].name' < ui/input.json); do
+     count=$(grep -c "\"action\": \"$action\"" world/physics.json game/rules.json)
+     echo "$action: $count rules"
+   done
+   ```
+   If any action shows 0: either wire it to a rule OR remove from
+   input.json. Don't ship dead keys.
+
+2. **Read `<root>/hud.json` controls_hint** — every key shown there
+   must have a rule whose effect produces a VISIBLE response (state
+   delta visible in HUD, level transition, screen change, toast).
+   "WASD: walk" → must move the player. "SPACE: attack" → must
+   reduce enemy HP or remove enemy. Promise = effect.
+
+3. **For every `__disabled__` rule you leave in JSON**, add a comment
+   stating WHY it's disabled and when it should be re-enabled. Future
+   you (or QA) needs to know "is this dead code or pending content?"
+
+4. **For every `phase_eq: "X"` query**, verify a rule exists that
+   SETS the phase to X AND a rule exists that USES X-state to gate
+   verbs. If phase is set but never read, it's a useless flag.
+
 ## What you DON'T do
 
 - ❌ Write world physics. yume-systems-designer's job. Hand back if

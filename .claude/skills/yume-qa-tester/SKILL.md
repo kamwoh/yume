@@ -350,6 +350,110 @@ post-input. This combines with `tests.json` scenario tests
 Use both. Logic-only tests miss "rule fires but UI doesn't update";
 visual-only tests miss "UI looks right but state is wrong."
 
+## Input-coverage gate (MANDATORY, 2026-05-07)
+
+A correctness-clean game can still ship UNPLAYABLE. Empirical case
+(merchant 2026-05-07 build): all 12 scenario tests passed; cascades
+reached the goal; no engine errors. Yet the actual game had:
+- `attack` action declared in `input.json`, all attack-related rules
+  buried under `__disabled__` tag → Space did nothing
+- `interact` (F) declared, no rule subscribed → dead key
+- `dungeon_portal_enter` rule with `radius: 60`, but player spawn
+  was 600px from portal across an obstacle → unreachable via natural
+  walking
+- `b.state.gold_value` formula in spawn-effect path returned 0
+  (returned correctly via setup-spawn path in tests)
+
+The root cause: scenario tests + visual capture verify CORRECTNESS
+(state-cascades fire when manually positioned) but never verify
+PLAYABILITY (every player verb in `input.json` actually does
+something visible from where the player can natively reach).
+
+**Mandatory checks before declaring a game passed**:
+
+### Check A — Input action coverage
+
+For each entry in `<root>/ui/input.json` actions array:
+1. Grep `<root>/world/physics.json` + `<root>/game/rules.json` for
+   `"action": "<name>"` AND verify enclosing rule is NOT under
+   `tags_all: ["__disabled__"]`.
+2. If no enabled rule subscribes: **FAIL** with
+   "Input action `<name>` is declared but no rule subscribes. Either
+   wire it to a rule or remove from input.json."
+
+```bash
+# Quick scan
+python3 -c "
+import json
+with open('godot/data/<game>/ui/input.json') as f: inp = json.load(f)
+for a in inp['actions']:
+    name = a['name']
+    # Search rules for this action; flag if all matches are under __disabled__
+    # ...
+"
+```
+
+### Check B — Player-verb reachability test
+
+For each action in `controls_hint` (HUD displayed text), write a
+scenario test:
+1. Drive the input via `actions: [{tick: 1, input: "<name>"}]`
+2. Assert at least one **visible state change** within ~5 ticks
+   (gold delta, entity removed, screen transitioned, level changed,
+   toast emitted via shell event).
+
+If a controls hint says "SPACE: attack" but no scenario proves Space
+causes a state change, **FAIL**: the player will press Space and
+nothing happens.
+
+### Check C — Contact-rule natural-reach test
+
+For each contact rule with `radius: N`:
+1. Identify the typical (a, b) entity positions at level load.
+2. Compute the natural-walk distance under the player's `velocity_set`
+   amount.
+3. Verify a scripted-input scenario can position the player such
+   that the contact fires. Concretely: write a `--capture-input`
+   walkthrough and assert the rule fires (via state delta or toast).
+
+If a contact-rule radius is too small for the player to walk into,
+**FAIL with suggested radius**.
+
+### Check D — Spawn-effect override survival test
+
+When a `spawn` effect carries `overrides: {state: {<field>: V}}`:
+1. Write a scenario where a tick-rule fires the spawn effect (NOT
+   `setup.spawn` — the path is different).
+2. Assert the spawned entity has `state.<field> == V` after spawn.
+
+The merchant's `b.state.gold_value` formula returned 0 because
+spawn-effect path applied overrides differently than setup-spawn
+path. Tests covered the setup-spawn path only.
+
+### Check E — Phase fidelity (genre-conforming GDDs)
+
+If the GDD declares N distinct gameplay phases (Morning / Adventure
+/ Shop / Night for merchant; Day / Night for harvestcore; etc.),
+verify each phase has:
+- A trigger rule that enters it
+- ≥1 player verb that's UNIQUE to that phase
+- A different visible state-set (HUD, level, screen)
+
+A game that has only "wander" but the GDD specifies "Morning =
+supplier UI; Adventure = combat; Shop = haggle; Night = audit" is at
+~25% of scope and **MUST FAIL the phase-fidelity check**, regardless
+of how many sub-systems pass scenario tests.
+
+### Failure handling
+
+When any of A-E fails, the qa-tester verdict is "FAIL — playability
+gate" even if the cascades work. Surface to user with:
+- Which check failed
+- Which input/rule/phase has the gap
+- A 1-line repro path the user can verify themselves
+
+Do NOT mark a game `accept` until all 5 checks land green.
+
 ## What you DON'T do
 
 - ❌ Modify entities.json / world_rules.json (content-designer's job —

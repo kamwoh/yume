@@ -144,6 +144,41 @@ Real signals you need a new primitive:
 
 Write the ADR following `docs/adr/README.md` format.
 
+## Spatial AI discipline (MANDATORY, 2026-05-07)
+
+**Empirical anti-pattern** (merchant 2026-05-07): Customer NPCs were
+wired to walk toward the player via radial homing
+(`(player.x - npc.x) / dist * speed`). Looked broken — every
+customer in the shop ran at the player like a zombie. Real merchant
+games (Recettear, Moonlighter) have customers walk to specific
+fixtures (counter, shelves) and WAIT.
+
+**Rule**: when designing AI for any non-combatant NPC (shopper,
+villager, schedule-following NPC), the homing target should be a
+NAMED FIXTURE (counter, shelf_3, well, market_stall_b), not the
+player. Player-homing AI is for combat enemies and pets.
+
+**Checklist before sketching homing rules**:
+
+1. What's this AI's intent? (Combat → home on player. Shopping →
+   home on counter. Resting → home on bed. Idling → ring/scatter
+   pattern around an anchor entity.)
+2. Is the target a tagged FIXTURE entity in the level? (e.g.
+   `tags_all: ["counter"]` in the b-binding query.)
+3. What stops the homing when target is reached? (`clamp((dist - X)
+   * 0.1, 0, 1)` trick zeros velocity in the browse-zone.)
+4. What makes the NPC LEAVE? (timeout, served-by-player signal,
+   walkout signal). If no leave-condition, NPCs accumulate.
+
+**Anti-patterns to flag for review**:
+- AI homes radially on player without combat intent
+- AI homes on a literal position binding (`x=120, y=80`) instead of
+  a fixture entity (brittle to level redesigns)
+- No clamp/zero in homing formula → NPC orbits target forever
+- No despawn / leave-rule → NPCs pile up over time
+- Multiple NPCs all home on the SAME single fixture → they bunch up.
+  Use scatter pattern around the fixture or assign-on-arrival.
+
 ## What you DON'T do
 
 - ❌ Write entities.json / world_rules.json (that's content-designer)
