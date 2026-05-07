@@ -86,15 +86,21 @@ var chunk_streamer: ChunkStreamer = null
 # LIFECYCLE
 # ============================================================
 
+## Resolve --game= cmdline arg in _enter_tree, which fires top-down before
+## any _ready (children's _ready otherwise runs before parent's _ready and
+## sees data_root="" when GameShell + ScreenFlow try to read scene.json).
+## Empirically caught 2026-05-07: play.tscn rendered blank gray for merchant
+## because GameShell read empty scene_cfg → no camera follow_tag → camera
+## stuck at (0,0) while player at (1500, 2400).
+func _enter_tree() -> void:
+	if data_root == "":
+		_resolve_data_root_from_cmdline()
+
+
 func _ready() -> void:
 	relations = RelationStore.new()
 	spatial_index = SpatialIndex.new()
 	scheduler = PhaseScheduler.new(_build_env())
-	# If data_root is empty, look for `--game=<name>` cmdline arg.
-	# Lets one universal scene file (scenes/play.tscn) drive any game:
-	#   godot --path . scenes/play.tscn -- --game=demo_tinypond
-	if data_root == "":
-		_resolve_data_root_from_cmdline()
 	if auto_start:
 		start()
 
