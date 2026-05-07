@@ -336,6 +336,60 @@ bind to this for the game-cleared screen).
 navigation game using this pattern. Read it as the reference for
 small multi-level games.
 
+## Flavor / voice / barker fields (REQUIRED for named NPCs + items)
+
+Per the soul-layer convention (yume-flavor-writer skill), entity defs
+that represent named NPCs or named items MUST carry these optional
+fields, populated from `flavor-design.md`:
+
+```jsonc
+{
+  "id": "npc_garron",
+  "tags": ["named_npc", "customer", "warrior_class"],
+  "properties": {
+    "voice": "gruff, terse, ends with 'aye'",
+    "barker_lines": [
+      "Looking for a flamberge — something that bites.",
+      "Heard the south road has bandits.",
+      "My old blade snapped in the cellar."
+    ]
+  },
+  "state_init": {...},
+  "flavor_text": "A swordsman past his prime. Still the best in town."
+}
+```
+
+```jsonc
+{
+  "id": "item_iron_sword",
+  "tags": ["weapon", "item", "tier_1"],
+  "properties": {
+    "base_price": 75,
+    "category": "weapon"
+  },
+  "flavor_text": "Dented from a fight with a wolf. The previous owner walked away."
+}
+```
+
+Field semantics:
+- **`flavor_text`** (string, ≤15 words) — single line shown in HUD
+  inventory tooltip on hover/select. Format `[observation] +
+  [history hint]`.
+- **`properties.voice`** (string) — voice descriptor for downstream
+  rule writers and screen-flow-designer composing dialogue. Not
+  rendered directly; informs prose generation.
+- **`properties.barker_lines`** (array of strings) — pool of thought-
+  bubble / muttered-aside lines surfaced via `show_overlay` rules on
+  contact / arrival.
+
+If a named NPC has no `voice` + `barker_lines`, OR a named item has
+no `flavor_text`, the corresponding flavor-design.md is incomplete —
+reject back to flavor-writer. Generic descriptions (`"A used iron
+sword."`) are forbidden.
+
+Engine reads these fields as data only — same path as any other
+property/state field. No engine work needed.
+
 ## Schema validation
 
 Before declaring done, run mental schema validation:

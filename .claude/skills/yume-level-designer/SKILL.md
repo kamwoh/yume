@@ -360,6 +360,58 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Genre density archetypes (REQUIRED check)
+
+A "city" with 4 buildings reads as a hamlet. A "dungeon" with 2 rooms
+reads as a closet. Whatever GDD-claimed scope the level has, your
+layout must support it.
+
+Empirical precedent: merchant 2026-05-08 user reaction
+*"the place feels so empty, just one house?"* — Pendrel was speced
+as a city, had 14 buildings + 10 decoratives placed, but camera
+framing + clustering meant the player saw 2-3 at a time. Reads as
+"one house," not "city."
+
+**Genre minimums (per camera-frustum view, not total count)**:
+
+| Claim | Required visible from typical player vantage |
+|---|---|
+| Hamlet / village | ≥3 buildings + ≥2 decorative props (well, signpost, fence) + ≥1 ambient NPC path |
+| Town | ≥5 buildings + ≥4 decoratives + ≥2 NPC paths + named district hint (sign, statue) |
+| City | ≥8 buildings of ≥3 distinct shapes + ≥6 decoratives + ≥3 ambient NPCs + multiple district types (market, residential, civic) + horizon implies more |
+| Dungeon (Tier 1) | ≥3 rooms with ≥2 corridors + ≥1 chest + ≥1 enemy spawn + ≥1 secret |
+| Dungeon (Tier 2+) | ≥6 rooms + ≥3 enemy types + ≥2 chests + ≥1 mini-boss + sightline-breaking pillars |
+| Wilderness | ≥10 distinct trees / rocks / props per 50m² + ≥1 trail + ≥2 distance landmarks (mountain silhouette, ruined tower) |
+| Arena (shooter) | bounds + ≥3 cover pieces + ≥2 distinct elevations OR multiple sightline-breakers |
+| TD path | ≥4 waypoints with ≥2 turns + ≥3 tower slots covering ≥2 segments each |
+
+**Street-life entities (ambient occupants)**: a city/town WITHOUT
+ambient activity reads as abandoned. Add to placement:
+- Idle townies walking pathways (≥3 in a town, ≥6 in a city)
+- Stationary occupants (smith at forge, baker at counter, gravekeeper)
+- Animated decoratives (chickens, pigs, banners, cart-with-mule,
+  smoking chimney emit)
+- Found prose surfaces (signs, signposts, statue inscriptions,
+  gravestones — ties to flavor-writer's world-text density)
+
+**Camera-frustum check** (the rule that catches the merchant gap):
+walk the player to 3 representative vantages in the level and ask
+"what would the player see?" If the answer is "≤2 buildings"
+when the GDD says "city," the layout fails. Cluster more or zoom
+the camera.
+
+**Background depth** (3D specifically): a 3D city scene's sky must
+imply more world beyond the playable area. Generic procedural sky
+without distant-town silhouette reads as "ten buildings on a tan
+plane." Add:
+- Distance-faded building silhouettes outside playable bounds
+- Atmospheric perspective (color-shifted distant elements)
+- Sky-with-content (banners, ravens, smoke trails) for ambient
+  drama
+
+For 2D scenes: `bounds` polygon color + texture + parallax
+background entities serve the same role.
+
 ## What you DON'T do
 
 - ❌ Write JSON. content-designer translates your level-design into

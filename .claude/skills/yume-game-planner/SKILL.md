@@ -41,6 +41,11 @@ For each named character:
   - Schedule: time-of-day → location pattern (e.g. home 0.0-0.3, work 0.3-0.7, tavern 0.7-0.9, home 0.9-1.0)
   - Triggers: what events they respond to or fire (greet, give_quest, sell_item)
   - Visual hint: silhouette description (color, hat, posture)
+  - **Voice**: 3-5 word descriptor matching the GDD's tone (e.g.
+    "gruff, terse, drops 'aye'", "lyrical, hesitant, half-finished
+    sentences", "warm, plain, swears in old-tongue"). REQUIRED.
+  - **Sample line**: 1 line that demonstrates the voice. Helps
+    flavor-writer expand the per-NPC arc later.
 
 ## Items catalog
 
@@ -50,6 +55,12 @@ For each item:
   - Source: starting inventory / shop / harvest / drop
   - Effect: what state changes happen when used
   - Sell value: gold (if applicable)
+  - **Flavor (1 line, ≤15 words)**: format `[observation] + [history
+    hint]`. REQUIRED for every named item — generic descriptions
+    ("a sword for combat") forbidden. Examples:
+    - "Dented from a fight with a wolf. The previous owner walked away."
+    - "Smells of bog mint and iron."
+    - "A signet ring. The crest is worn smooth."
 
 ## Plant / crop catalog (if applicable)
 

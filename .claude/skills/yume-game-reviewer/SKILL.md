@@ -1,6 +1,6 @@
 ---
 name: yume-game-reviewer
-description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 13 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ MUST run ripple-analysis: when a revision adds structural primitives (multi-level, persistent state, new modes), prior-round axis acceptance does NOT carry over to axes those primitives ripple into — re-interpret under the new design frame.
+description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 14 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ MUST run ripple-analysis: when a revision adds structural primitives (multi-level, persistent state, new modes), prior-round axis acceptance does NOT carry over to axes those primitives ripple into — re-interpret under the new design frame.
 ---
 
 # /yume-game-reviewer
@@ -353,9 +353,66 @@ strong Axis 10 (Theme) AND Axis 1 (Mechanics) coverage that implies
 spatial structure. Use judgment — but if you can't picture the level
 in your head from the GDD, that's a fail signal.
 
+### Axis 14 — Voice & texture density (soul gate)
+
+**Question**: Does the GDD have a "Voice & texture" section that
+specifies tone, per-NPC voice convention, item-flavor convention,
+and prose-density targets? Does it name signature voice moments?
+
+**Why this axis exists**: empirical precedent — merchant 2026-05-08
+user feedback: *"the game has features but no soul."* Every named
+regular was gold-value + day-gate; bailiff visits used 3 generic
+lines no matter the day; items piled up as inventory rows with
+zero flavor; walking into a customer instant-despawned them.
+
+All systems, zero authorial voice. Caught at QA time, not design
+time, after JSON commits cost ~6 hours to retrofit.
+
+This axis catches the bug class at GDD review — before any
+flavor-writer / content-designer / screen-flow-designer commits
+JSON.
+
+**Heuristic minimums**:
+- A "Voice & texture" section EXISTS in the GDD
+- Tone explicitly named (gruff / lyrical / wry / etc.)
+- Reference texture named (Recettear-tier / Stardew-tier /
+  Hollow-Knight-tier)
+- Per-NPC voice convention specified (≥3-5 word descriptor per
+  named NPC convention)
+- Item flavor convention specified (≥1 line per item, format
+  named)
+- Density targets quantified (signs/region, barker variants/
+  archetype, dialogue beats/NPC arc, reactive lines/milestone)
+- ≥2 signature voice moments named (specific scenes the prose
+  MUST land)
+
+**Red flags**:
+- GDD has "characters: 5 villagers" with no voice spec
+- Items listed as "iron sword: weapon, 75g" with no flavor
+- "Bailiff threatens" with no specified voice or change-over-time
+- Reference-game cited only for mechanics, never for prose
+- "We'll add dialogue later" — defers soul, ships features
+- Density targets unspecified — flavor-writer has no budget
+  signal, will guess
+
+**Severity calibration**:
+- Section absent: blocker (revise; without it, flavor-writer can't
+  start)
+- Section present but no per-NPC voice convention: major
+- Section present but no signature moments: major
+- Section present, conventions OK, density targets vague: minor
+- Section thorough but tone mismatched to aesthetic (e.g.
+  "Submission" + "hardboiled" voice): major (voice fights
+  intent)
+
+**Caveat**: pure-mechanic games (puzzle, abstract arcade) don't
+need deep voice — but they DO need theme + tone (Tetris's
+silent dignity, Threes's warm color personality). For these,
+section can be brief but must exist.
+
 ## Round-N+1 ripple analysis (MANDATORY for round 2+)
 
-A naive reviewer runs the 13 axes in isolation each round, treats
+A naive reviewer runs the 14 axes in isolation each round, treats
 prior-round acceptance as carrying forward, and looks for "did
 round-1 issues get fixed." This **misses the most common failure
 mode in iterative GDDs**: a structural change in round N+1
@@ -363,7 +420,7 @@ re-interprets axes that PASSED in round N — not because the prior
 review was wrong, but because the design frame the axes were
 evaluated against has changed.
 
-**Empirical case** (doomarena3d v3.0, 2026-05-04): all 13 axes
+**Empirical case** (doomarena3d v3.0, 2026-05-04): all 14 axes
 passed cleanly in v2.6 (single 90s arena). v3.0 added a 3-chamber
 campaign. Naive reviewer would carry forward all 13 axis-passes
 and approve. Ripple analysis surfaced 5 tuning notes: wave-beats
@@ -377,7 +434,7 @@ chambers exist.
 
 ### Ripple analysis procedure
 
-**Before** running the 13-axis pass on round 2+:
+**Before** running the 14-axis pass on round 2+:
 
 1. **Diff against prior round.** What structural primitives changed?
    (Not text edits — design-level additions: a new mode, a new
@@ -385,7 +442,7 @@ chambers exist.
 2. **Consult the ripple table below.** For each structural change,
    mark which axes need RE-INTERPRETATION (not just re-check) under
    the new design frame.
-3. **Run the 13 axes.** Axes the change DOESN'T ripple into may
+3. **Run the 14 axes.** Axes the change DOESN'T ripple into may
    inherit prior-round acceptance. Axes the change ripples into get
    a fresh evaluation: ask "does the prior axis-rationale still
    hold under the new frame, or did the new primitive change what
@@ -419,7 +476,7 @@ If yes, which?" Add the row mentally.
 
 ### When ripple analysis is NOT needed
 
-- **Round 1**: nothing to compare against. Run 13 axes fresh.
+- **Round 1**: nothing to compare against. Run 14 axes fresh.
 - **Round 2+ with text-only edits** (typo fixes, clarity rewrites,
   re-ordering sections): no design-frame change. Re-check round-1
   fix-list only.
@@ -439,9 +496,9 @@ done the ripple analysis. Stop and do it.
 
 ## Verdict guidelines
 
-- **accept**: All 13 axes meet minimum bar. Game-designer can ship the
+- **accept**: All 14 axes meet minimum bar. Game-designer can ship the
   GDD to game-planner.
-- **accept with notes**: All 13 axes pass but tuning items remain
+- **accept with notes**: All 14 axes pass but tuning items remain
   (typically 3-7). Notes are non-blocking; designer can address
   during the same revision cycle as content-designer handoff. Use
   this verdict when ripple analysis surfaces tuning items that
@@ -453,7 +510,7 @@ done the ripple analysis. Stop and do it.
   or descope.
 
 **On round 2+**: don't auto-accept just because round-1 issues were
-addressed. Run the ripple analysis (above) FIRST. Apply ALL 13 axes
+addressed. Run the ripple analysis (above) FIRST. Apply ALL 14 axes
 again, marking which inherit prior acceptance and which are re-
 interpreted under a new frame. Revisions sometimes expose new gaps
 (e.g., adding theme might reveal mechanics don't match theme; adding

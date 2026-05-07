@@ -198,6 +198,91 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Contact-radius vs entity-scale rule (REQUIRED check)
+
+For every contact rule (`trigger.type == "contact"`) the rule's
+`query.radius` must respect the entity AABB scales involved.
+
+Rule of thumb: `radius ≤ max(entity_a.extent, entity_b.extent) × 1.2`.
+For 1.7m-tall human-scale player + 1.7m human-scale NPC, this gives
+~0.6 + 0.6 = 1.2m max contact radius. A radius of 2.0+ feels like
+"interaction triggers when you're STILL 1m apart from the body" —
+players read this as "I bumped them" before they actually touched.
+
+Empirical precedent: merchant 2026-05-08 contact-as-sale rule used
+radius=2.5 with 0.6m-radius entities → effective interaction at
+3m. User reaction: "why does walking near them despawn them?" The
+visible body said "still 1m away," the rule said "in contact."
+
+When you write a rule sketch with `contact` trigger, document the
+expected entity scales involved + show the radius math:
+
+```
+Rule: customer_arrives_at_counter
+Trigger: contact (player × customer_class, radius 1.0)
+Scales: player AABB ~0.6m, customer AABB ~0.6m
+  → 0.6 + 0.6 + slack = 1.2m max
+  → 1.0m chosen for slight pre-contact (lets sale screen open
+    just before bodies overlap)
+```
+
+If radius needs to be larger (e.g. ranged interaction like
+"customer waves you down from across the room"), state the design
+intent explicitly so reviewers don't flag it as a feel bug.
+
+## Core verb spec — multi-tick sequences (REQUIRED for signature interactions)
+
+Every game has a "core verb" — the moment-to-moment thing the
+player does (sell to customer, attack enemy, harvest crop, build
+tower). For each core verb, your rule sketch MUST express it as a
+**multi-tick sequence with player-readable intermediate states**,
+NOT a single-tick collapse.
+
+A single-tick collapse fires `state_add gold + remove customer + emit
+sale_complete` all in one tick. To the player it looks like the
+customer vanished. Example anti-pattern:
+
+```
+Rule: instant_sale_on_contact   ← BAD
+Trigger: contact (player × customer)
+Effects: [state_add gold, remove customer, emit sale_complete]
+```
+
+The multi-tick sequence has at least one *visible* intermediate
+state the player can read:
+
+```
+Rule chain: customer_negotiates_then_leaves   ← GOOD
+1. on_contact (player × customer): transition_screen haggle_screen
+   + state_set haggle_active_id, freeze_world
+2. on_haggle_accept: state_add gold, state_set walk_out=1,
+   state_set velocity=walkout_direction
+3. on_tick + walk_out=1 + reached_door: remove customer,
+   emit sale_complete (final despawn)
+```
+
+Three ticks; three intermediate states; the customer visibly walks
+out instead of vanishing. Same effect, completely different feel.
+
+**Heuristic minimums for core verbs**:
+- ≥1 intermediate visible state between trigger and final effect
+- ≥1 player-readable signal (overlay, screen, velocity change,
+  state mutation visible in HUD)
+- Despawn / removal is the LAST tick, not the first
+
+Genres where this matters most:
+- Merchant / shop / trade: sell verb (NEVER instant-despawn)
+- Combat: attack verb (windup → damage → recover → kill,
+  not single-tick HP drop)
+- Crafting: combine verb (place ingredients → bench animates →
+  result appears)
+- Dialogue / NPC: talk verb (overlay opens → response selected →
+  effect applied → overlay closes)
+
+Single-tick collapse is OK for ambient events the player isn't
+focused on (e.g. crops growing in a tick, weather updating,
+clock advancing). NOT for player-driven core interactions.
+
 ## What you DON'T do
 
 - ❌ Write entities.json / world_rules.json (that's content-designer)

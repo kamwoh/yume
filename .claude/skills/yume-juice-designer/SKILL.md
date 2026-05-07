@@ -253,6 +253,63 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Transition feel standards (REQUIRED)
+
+Level / scene / screen transitions are signature moments. Without
+deliberate timing, they feel like teleports + camera snaps.
+Standard timings to apply unless GDD overrides:
+
+| Transition | Out | Pause | In | Camera |
+|---|---|---|---|---|
+| Level → level (transition_level) | fade_out 0.6s | hold black 0.2s | fade_in 0.4s | lerp_to_player 0.5s post-fade-in |
+| Screen open (modal pop) | none | none | scale_in 0.15s | none |
+| Screen close (modal dismiss) | scale_out 0.12s | none | none | none |
+| Combat hit | none | hit_pause 0.04s | none | shake amplitude≥0.3 |
+| Death / KO | flash 0.1s red | hit_pause 0.15s | fade_to_grey 0.4s | shake 0.2s heavy |
+| Significant pickup | none | none | particle_burst | small_shake 0.1s |
+| Major milestone (tier up, ending) | flash gold 0.2s | hit_pause 0.3s | particle_rain 1.2s | zoom_in 0.5s + lerp_back |
+
+**The camera-snap-on-transition gap**: `transition_level` swaps the
+scene at fade midpoint. The new scene's camera typically starts at
+its default vantage with the player at spawn. If the camera is just
+"set, no lerp," it teleports — the player feels yanked.
+
+Spec it explicitly: after fade-in completes, lerp camera from a
+neutral starting position to the player's spawn position over 0.4-
+0.6s. This costs nothing implementation-wise (one rule with
+camera_lerp + state_set) but transforms transition feel.
+
+Empirical precedent: merchant 2026-05-08 user reaction *"the camera
+just shift is abit weird"* — exactly this gap. Fade hides the
+teleport, but the post-fade camera snap is jarring on close watch.
+
+## Signature moments (REQUIRED — pull from GDD)
+
+The GDD's "Voice & texture" section names ≥2-4 signature voice
+moments. Your juice-design.md MUST include a juice spec for each.
+
+For each named signature moment, list:
+- The triggering signal (`funeral_dismissed`,
+  `boss_killed`, `last_ally_falls`, etc.)
+- Sequence of juice effects in order with timings
+- Audio coordinator (which cue fires when, ducking other audio)
+- Camera behavior (zoom, shake, freeze, pan)
+- Text/screen treatment (fade-in, hold, dismiss)
+
+Signature moments are the player-remembered beats. Generic juice
+(every-tick particle, every-hit shake) is texture; signature
+juice is the iconic stuff. The GDD names which beats deserve
+signature treatment; this skill commits the actual orchestration.
+
+Heuristic minimums:
+- Every "ending screen" gets a unique signature opener (not just
+  fade-in)
+- Every named miniboss/boss gets a stinger (1.2-2.5s window of
+  hit-pause, slow-mo, sound, camera)
+- Every major narrative beat (funeral, return-to-town after loss,
+  recruit-ally) gets at least 1 unique juice element distinguishing
+  it from ambient feedback
+
 ## What you DON'T do
 
 - ❌ Implement engine effect types (camera_shake, etc. — that's

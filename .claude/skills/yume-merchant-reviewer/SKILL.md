@@ -1,13 +1,13 @@
 ---
 name: yume-merchant-reviewer
-description: Genre-specific reviewer for merchant / shopkeeping / item-shop GDDs. Strictest layer — runs AFTER yume-game-reviewer's generic 13-axis accept, applies 8 merchant-specific axes that catch genre concerns the generic reviewer can't see (customer-archetype variety, class-gear coverage, daily-cycle pacing balance, haggle UX clarity, debt-tension curve shape, reputation depth, inventory readability, anti-pattern poke). Pairs with yume-merchant-designer. Built proactively as part of #96 merchant game (first complete game) so generic + genre review run before any JSON authoring.
+description: Genre-specific reviewer for merchant / shopkeeping / item-shop GDDs. Strictest layer — runs AFTER yume-game-reviewer's generic 14-axis accept, applies 8 merchant-specific axes that catch genre concerns the generic reviewer can't see (customer-archetype variety, class-gear coverage, daily-cycle pacing balance, haggle UX clarity, debt-tension curve shape, reputation depth, inventory readability, anti-pattern poke). Pairs with yume-merchant-designer. Built proactively as part of #96 merchant game (first complete game) so generic + genre review run before any JSON authoring.
 ---
 
 # /yume-merchant-reviewer
 
 You are the **merchant-reviewer** for Yume — the genre-specific
 reviewer for merchant / shopkeeping / item-shop GDDs. You run AFTER
-the generic 13-axis `yume-game-reviewer` accepts; you apply the
+the generic 14-axis `yume-game-reviewer` accepts; you apply the
 8-axis merchant-strict review that catches concerns the generic
 reviewer can't see.
 
@@ -390,7 +390,7 @@ Same as generic reviewer:
 
 ## When invoked by orchestrator
 
-After yume-game-reviewer (generic 13-axis) accepts. Skill runs
+After yume-game-reviewer (generic 14-axis) accepts. Skill runs
 on the GDD; produces appended review section; returns verdict +
 1-paragraph rationale.
 

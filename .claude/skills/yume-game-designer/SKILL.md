@@ -42,6 +42,35 @@ Which of LeBlanc's 8 aesthetic categories matter most? Pick 2-3.
 
 Justify briefly: WHY these for this game.
 
+## Voice & texture (REQUIRED — blocks downstream skills if missing)
+
+This section gives the game *soul* — the prose density that turns
+"stat tables" into "characters and worlds." Without it, downstream
+content ships as features without feeling. Specify:
+
+- **Tone**: 1-3 word handle (gruff / lyrical / wry / earnest / arch
+  / hardboiled / fairy-tale / clinical). Anchors all NPC voice.
+- **Reference texture**: name a game whose prose density you're
+  matching (e.g. "Recettear-tier per-customer barker lines",
+  "Stardew-tier per-NPC heart events", "Hollow Knight-tier
+  environmental signs").
+- **Per-NPC voice convention**: rule for distinguishing characters
+  by speech (e.g. "every named regular has a 3-5 word voice
+  descriptor + signature verbal tic").
+- **Item flavor convention**: format for item flavor (e.g. "1 line
+  per item, format: [observation] + [history hint], ≤15 words").
+- **Density targets** (numbers): signs per region, barker variants
+  per archetype, dialogue beats per named NPC arc, reactive lines
+  per milestone threshold.
+- **Signature voice moments**: 2-4 named beats that the game's
+  prose MUST land (e.g. "the funeral cinematic", "Garron's
+  loyalty-8 farewell", "the bailiff's final visit").
+
+**This section feeds yume-flavor-writer** which produces
+flavor-design.md (per-NPC voice profiles, item-flavor table, barker
+lines, world-text surfaces, reactive prose). Without this section,
+flavor-writer rejects back to game-designer.
+
 ## Dynamics intended
 
 What cascades / feedback loops / phase transitions should emerge?
