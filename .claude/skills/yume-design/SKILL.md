@@ -429,27 +429,32 @@ Per ADR 0009 expanded scope: also writes audio/cues.json + ui/strings.json.
      `complete` (correctness verified), run gdd-coverage-tracker:
      `Skill(skill="yume-gdd-coverage-tracker", args=<game-name>)`.
 
-23b. Read its `coverage.md` output:
-     - **coverage ≥ 80%** AND no required-severity ✗ → proceed to
-       Phase 7 wrap-up. The build delivers on the GDD.
-     - **coverage 50-80%** OR any required-severity ✗ → LOOP:
-       parse the gap list as a checklist, hand items 1-5 back to
-       content-designer + game-rules-designer + asset-designer
-       (whichever owns each gap), re-run their phases, then re-run
-       qa-tester + gdd-coverage-tracker. Cap at 3 loop iterations
-       to avoid infinite cycles. Report final coverage to user even
-       if loop cap hit.
-     - **coverage < 50%** → REJECT. Surface to user. The game is
-       fundamentally underbuilt against its GDD. Either (a) descope
-       the GDD (game-designer rewrites with shorter promise list)
-       OR (b) accept a lower coverage delivery with explicit user
-       sign-off OR (c) flag engine gaps that block the missing
-       promises (tech-director may need to ship new primitives).
+23b. Read its `coverage.md` output. Severity-weighted thresholds:
+     - **REQUIRED = 100% AND IMPORTANT ≥ 90% AND NICE gaps all
+       documented** → proceed to Phase 7 wrap-up.
+     - **Any required ✗ OR important < 90%** → LOOP: parse the gap
+       list as a checklist, hand items back to the right designer
+       (content / game-rules / asset / etc. per gap type), re-run
+       their phases, then re-run qa-tester + gdd-coverage-tracker.
+       Cap at 3 loop iterations.
+     - **After 2 loops, any same required ✗ persists** → STOP. The
+       gap is a structural / engine block, not a content gap. Read
+       the tracker's "GDD-revision proposal" section and surface
+       it to the user verbatim. User picks: (1) build engine
+       extension, (2) edit GDD to remove the promise, (3) accept
+       a substitute design. DO NOT pick on the user's behalf.
 
 23c. NEVER declare `accept` to user before reading coverage.md.
-     The merchant 2026-05-07 build shipped at 32% coverage with
-     qa-tester verdict `complete` — without this gate, that
-     happens silently and the user discovers the gap themselves.
+     If the user accepts a "with explicit GDD revisions" verdict,
+     reflect that in the final summary verbatim — never collapse
+     to "accept" alone. Future sessions need the audit trail.
+
+23d. The principle: a GDD is a CONTRACT. Anything written in it
+     either lands in the build OR gets cut from the GDD with the
+     user's explicit acknowledgment. There is no silent-drop path.
+     Empirical case: merchant 2026-05-07 shipped at 32% coverage
+     with qa-tester verdict `complete` — that loophole is closed
+     by this gate.
 
 ### Phase 6 — Optional: asset generation (only if --with-assets)
 

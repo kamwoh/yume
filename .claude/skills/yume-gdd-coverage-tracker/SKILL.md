@@ -243,17 +243,99 @@ When invoked:
 
 ## Verdict thresholds
 
-- **accept**: coverage ≥ 80% AND all required-severity promises ✓.
-  Game ships as is or with minor polish.
-- **revise**: coverage 50-80% OR any required-severity ✗. Loop back
-  to content/rules designers with the gap list as a checklist.
-  Orchestrator runs another pass.
-- **reject**: coverage < 50% OR build fails to load. Fundamental
-  scope mismatch — surface to user; might need GDD revision OR
-  major engine work.
+**Principle**: a GDD is a CONTRACT. Anything written in it is a
+promise. The tracker's job is to enforce that promises either land
+in the build OR get cut from the GDD with explicit rationale. There
+is no third option ("silently dropped" is the failure mode this
+skill exists to prevent).
 
-These thresholds are tuneable per-game. For an MVP demo a 50% bar
-might be acceptable; for a "complete game" 80%+ is the target.
+**Severity-weighted threshold (replaces the prior 80% global)**:
+
+- **Required-severity ✓ rate: must be 100%.** No exceptions.
+  Required = anything the GDD calls signature, core mechanic,
+  win/lose path, named in the one-line pitch, or part of the
+  primary aesthetic target. If a required promise can't be
+  delivered this session, the orchestrator MUST surface it with a
+  GDD-revision proposal (see below); it cannot be silently
+  deferred.
+- **Important-severity ✓ rate: ≥ 90%.** Important = secondary
+  mechanics, named NPCs/items not pitch-essential, polish layers.
+  Misses must be itemized (not aggregated as "8% gap").
+- **Nice-to-have ✓ rate: ≥ 60%, but every gap must be NAMED.**
+  Nice = audio variants, decorative entities, alternate visuals.
+  No silent drops. Each missing nice-to-have has a one-line
+  reason in the report.
+
+### Verdict types
+
+- **accept**: required = 100%, important ≥ 90%, every nice gap
+  has a documented reason. Game ships.
+- **revise**: any required ✗, OR important < 90%. Loop back to
+  designers with the gap list as a checklist. Orchestrator runs
+  another pass.
+- **reject + propose**: a required-severity gap CANNOT be closed
+  in this iteration cycle (engine block, design contradiction,
+  scope-out-of-bounds). Skill emits a **GDD-revision proposal**
+  alongside the coverage report. Surface to user.
+
+### GDD-revision proposal (when required gaps can't be closed)
+
+When the tracker detects a required ✗ that's been the same for ≥ 2
+loop iterations, it stops looping and outputs a section in
+`coverage.md`:
+
+```markdown
+## GDD-revision proposal — required gaps that cannot be closed
+
+Two iterations have not closed these required-severity promises.
+Either the implementation needs an engine extension, OR the GDD
+should be amended.
+
+### Gap: <promise name>
+
+- **GDD ref**: docs/games/<name>/GDD.md § <section>, line <n>
+- **Block**: <why it can't be implemented now>
+- **Options for user**:
+  1. Build the engine extension (estimated: ADR + N hours).
+     Specifically, need primitive `<X>` to express `<Y>`.
+  2. Cut from GDD: edit GDD.md § <section> to remove `<promise>`.
+     Aesthetic impact: <what changes about the game's feel>.
+  3. Substitute with a simpler design: `<concrete alternative>`.
+
+User picks 1 / 2 / 3.
+```
+
+The orchestrator surfaces this to the user. It does NOT pick on
+the user's behalf. Required-severity gaps require explicit
+acknowledgment.
+
+### Why not just demand 100% of everything
+
+A literal 100% on the entire GDD is unrealistic for a single
+autonomous run because:
+
+1. The GDD is written before any code lands; some promises turn
+   out to be impossible / contradictory once the engine constraints
+   are felt.
+2. Some nice-to-haves (8th audio cue, a specific decorative entity
+   color) genuinely don't break the game if missed.
+3. Engine gaps may require ADRs that are out-of-scope for THIS
+   session.
+
+But the skill MUST track 100% across iterations and surface drops
+explicitly, not silently. Every drop is a user decision, not an
+implicit "good enough" call by the build pipeline.
+
+### Tier-honest reporting
+
+If a build is shipped at less than 100% required (because user
+explicitly accepted via the GDD-revision proposal flow), the
+coverage report's verdict line MUST say:
+
+> "accept (with explicit GDD revisions: <list>)"
+
+Not "accept" alone. Future readers (and future sessions) need to
+know what was promised vs delivered.
 
 ## How to be honest, not punitive
 
