@@ -31,6 +31,7 @@ cat ~/yume/.claude/rules/data-demo.md
 | `data-demo.md` | `godot/data/**` | Schema discipline, formula whitelist, no hardcoded engine paths |
 | `docs.md` | `docs/**` | Primitive changes need ADRs; contract doc is load-bearing |
 | `tests.md` | `godot/scripts/engine/tests/**` | Tests ship with phase, no fixture-specific engine code |
+| `visual-qa.md` | (skill-applied, not path-scoped) | Visual capture + Read mandatory after any rendering-affecting change; subagent prompts must include the gate |
 
 Each rule file links back to relevant **invariants** from
 `docs/30_framework_primitives.md`. If a rule and an invariant ever conflict,

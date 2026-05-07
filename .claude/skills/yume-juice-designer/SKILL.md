@@ -234,6 +234,25 @@ Punchy without overwhelming. Profile:
 ❌ **Magnitude untuned to genre** — sokoban with 1.0-magnitude shake
    on push contradicts contemplative aesthetic.
 
+
+## Visual QA gate (mandatory)
+
+Per `.claude/rules/visual-qa.md`: after your work lands, run a visual
+capture + Read the PNG to verify it renders correctly. Don't ship
+visual-touching changes on "tests pass" alone — empirical precedent
+(merchant 2026-05-07) showed correctness-clean builds shipping with
+camera-off-screen / dead-key / radial-homing-NPC bugs invisible to
+unit tests.
+
+Quick command:
+```bash
+godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
+  --rendering-driver opengl3 -- --game=<name> \
+  --capture-after=2 --capture-output=user://verify.png
+```
+Then `Read("/mnt/c/.../verify.png")` and verify your specific change
+rendered as intended. See visual-qa.md for the full per-skill checklist.
+
 ## What you DON'T do
 
 - ❌ Implement engine effect types (camera_shake, etc. — that's
