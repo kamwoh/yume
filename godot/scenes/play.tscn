@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -17,6 +17,7 @@
 [ext_resource type="Script" path="res://scripts/engine/settings_manager.gd" id="5"]
 [ext_resource type="Script" path="res://scripts/engine/lighting_director.gd" id="6"]
 [ext_resource type="Script" path="res://scripts/engine/party_director.gd" id="7"]
+[ext_resource type="Script" path="res://scripts/engine/screen_smoke_runner.gd" id="8"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -54,6 +55,12 @@ script = ExtResource("6")
 ; (typically the player). No-op when no entities have the tag.
 [node name="PartyDirector" type="Node" parent="."]
 script = ExtResource("7")
+
+; Per-screen smoke harness — activates only with `--smoke-screens`.
+; Walks every screen in screens.json, captures each, exits.
+; Used by yume-playtest skill Gate 5 + 6.
+[node name="ScreenSmokeRunner" type="Node" parent="."]
+script = ExtResource("8")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(0, 0)
