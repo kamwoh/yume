@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://scripts/engine/screen_flow.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/engine/overlay.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/engine/settings_manager.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/engine/lighting_director.gd" id="6"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -40,6 +41,12 @@ script = ExtResource("4")
 ; No-op if no schema. World.start() calls apply_all() once env is built.
 [node name="SettingsManager" type="Node" parent="."]
 script = ExtResource("5")
+
+; ADR 0025: LightingDirector reads scene.json's lighting block and drives
+; a DirectionalLight3D + WorldEnvironment for day/night cycles. No-op if
+; scene.json has no lighting block (2D demos and static-lighting 3D demos).
+[node name="LightingDirector" type="Node" parent="."]
+script = ExtResource("6")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(0, 0)

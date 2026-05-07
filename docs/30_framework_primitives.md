@@ -150,6 +150,7 @@ Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`,
 |---|---|
 | `ground` | `{y, clamp_tags, despawn_tags}`. Each frame after motion integration, entities matching `clamp_tags` get Y-clamped to `y`; entities matching `despawn_tags` are removed if Y < `y`. Defaults: clamp_tags=["creature"], despawn_tags=["projectile"]. Replaces per-game creature_bounds + projectile_floor_despawn content rules. |
 | `level_seed` | Integer applied to Godot's global PRNG at world load. Makes `randf()`-driven instance patterns (scatter / cluster) deterministic across sessions — same seed = same map. Omit for stochastic randomization. |
+| `lighting` | Optional. `{directional_light, ambient, sky}` — each sub-block optional. Drives a `DirectionalLight3D` + `WorldEnvironment` from a bound state field (default `world_clock.time_of_day` on a 0.0–24.0 hour scale). Sun rotation, light color/energy, ambient color/energy, and sky horizon colors interpolate per-frame. Omit to keep static lighting (2D demos and existing 3D scenes). See ADR 0025. |
 
 **Declarative placement patterns** (in `entities.json` /
 `zz_instances.json` `patterns` block — Tier 2.6q + v2.6):

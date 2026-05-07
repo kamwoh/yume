@@ -57,6 +57,9 @@ func _ready() -> void:
 	test_reset_world_effect()
 	test_scripted_policy()
 	test_chunk_streaming()
+	test_lighting_director_helpers()
+	test_lighting_director_resolves_binding()
+	test_lighting_director_color_endpoints()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -2774,6 +2777,111 @@ func _write_text_file(path: String, contents: String) -> void:
 		return
 	f.store_string(contents)
 	f.close()
+
+
+# ============================================================
+# LIGHTING DIRECTOR (ADR 0025)
+# ============================================================
+
+## Pure-static helper coverage. day_factor, sun_color_at, sun_direction_at
+## are all stateless math — no SceneTree, no World, no env needed.
+func test_lighting_director_helpers() -> void:
+	_section("lighting_director helpers (ADR 0025)")
+
+	# day_factor: 0 at midnight, 1 at noon, 0.5 at dawn/dusk, wraps.
+	expect_eq(LightingDirector.day_factor(0.0), 0.0, "day_factor midnight = 0")
+	expect_eq(LightingDirector.day_factor(12.0), 1.0, "day_factor noon = 1")
+	# Dawn/dusk should be ~0.5; allow tiny float error
+	expect(abs(LightingDirector.day_factor(6.0) - 0.5) < 0.001, "day_factor dawn ~ 0.5")
+	expect(abs(LightingDirector.day_factor(18.0) - 0.5) < 0.001, "day_factor dusk ~ 0.5")
+	# Wrap-around: 24 == 0
+	expect_eq(LightingDirector.day_factor(24.0), 0.0, "day_factor wraps at 24")
+	# Negative input also wraps (fposmod)
+	expect_eq(LightingDirector.day_factor(-12.0), 1.0, "day_factor -12 == noon")
+
+	# sun_direction_at: light direction (where photons go), unit length.
+	# t=0 (midnight): light points UP (+Y) — sun is below ground
+	var d_mid := LightingDirector.sun_direction_at(0.0)
+	expect(d_mid.is_equal_approx(Vector3(0, 1, 0)), "sun direction midnight = +Y (up)")
+	# t=12 (noon): light points DOWN (-Y) — sun overhead
+	var d_noon := LightingDirector.sun_direction_at(12.0)
+	expect(d_noon.is_equal_approx(Vector3(0, -1, 0)), "sun direction noon = -Y (down)")
+	# t=6 (dawn): light horizontal +X
+	var d_dawn := LightingDirector.sun_direction_at(6.0)
+	expect(d_dawn.is_equal_approx(Vector3(1, 0, 0)), "sun direction dawn = +X (horizontal)")
+	# t=18 (dusk): light horizontal -X
+	var d_dusk := LightingDirector.sun_direction_at(18.0)
+	expect(d_dusk.is_equal_approx(Vector3(-1, 0, 0)), "sun direction dusk = -X (horizontal)")
+	# All directions are unit length
+	expect(abs(d_noon.length() - 1.0) < 0.001, "sun direction is unit-length")
+
+
+## Verify color endpoints land on the noon / horizon / night anchors at
+## the right times, and that energy interpolation makes sense.
+func test_lighting_director_color_endpoints() -> void:
+	_section("lighting_director color (ADR 0025)")
+
+	var c_noon := Color("#fff8e0")
+	var c_horizon := Color("#ff9060")
+	var c_night := Color("#3050a0")
+
+	# At midnight, day_factor = 0 → night zone, lerp t=0 → exact c_night
+	var col_mid := LightingDirector.sun_color_at(0.0, c_noon, c_horizon, c_night)
+	expect(col_mid.is_equal_approx(c_night), "sun color midnight = c_night exactly")
+
+	# At noon, day_factor = 1 → horizon→noon lerp at t=1 → exact c_noon
+	var col_noon := LightingDirector.sun_color_at(12.0, c_noon, c_horizon, c_night)
+	expect(col_noon.is_equal_approx(c_noon), "sun color noon = c_noon exactly")
+
+	# At t corresponding to day_factor=0.25 → exactly c_horizon.
+	# Solve (1-cos(2π·n))/2 = 0.25 → cos(2π·n) = 0.5 → 2π·n = π/3 → n = 1/6
+	# → t = 24·n = 4.0 hours. So at t=4, color should equal c_horizon.
+	var col_horizon := LightingDirector.sun_color_at(4.0, c_noon, c_horizon, c_night)
+	expect(col_horizon.is_equal_approx(c_horizon), "sun color at f=0.25 = c_horizon (t=4)")
+
+	# Energy: at noon, max energy. At midnight, near-zero energy.
+	var e_noon := LightingDirector.sun_energy_at(12.0, 1.0, 0.7, 0.05)
+	var e_mid := LightingDirector.sun_energy_at(0.0, 1.0, 0.7, 0.05)
+	expect(abs(e_noon - 1.0) < 0.001, "sun energy noon = e_noon")
+	expect(abs(e_mid - 0.05) < 0.001, "sun energy midnight = e_night")
+	expect(e_noon > e_mid, "sun energy noon > midnight")
+
+
+## Director resolves a binding from either env.world dict OR a tagged
+## entity's state. We test the resolution helper directly by constructing
+## a minimal env and calling the instance method — the per-frame
+## _update_lighting path is exercised in the lighting demo QA cycle, not
+## here (no live SceneTree in unit tests).
+func test_lighting_director_resolves_binding() -> void:
+	_section("lighting_director binding (ADR 0025)")
+
+	# Build a director instance to exercise _resolve_time_of_day directly.
+	# It's an instance method but only reads env — no World parent needed.
+	var ld := LightingDirector.new()
+	# Manually set the binding fields the way _load_config would.
+	ld._bind_tag = "world_clock"
+	ld._bind_field = "time_of_day"
+
+	# Case A: env.world dict has the field — wins over entity scan.
+	var env_a: Dictionary = {"world": {"time_of_day": 9.5}, "entities": {}}
+	expect_eq(ld._resolve_time_of_day(env_a), 9.5,
+		"binding from env.world dict")
+
+	# Case B: env.entities has a tagged entity with state — found by tag.
+	var def: Dictionary = {"id": "world_clock", "tags": ["world_clock"], "state_init": {}}
+	var ent := Entity.create(def, "wc_1")
+	ent.set_state("time_of_day", 17.25)
+	var env_b: Dictionary = {"world": {}, "entities": {"wc_1": ent}}
+	expect_eq(ld._resolve_time_of_day(env_b), 17.25,
+		"binding via tag scan when world dict empty")
+
+	# Case C: no clock at all → fallback to noon (12.0)
+	var env_c: Dictionary = {"world": {}, "entities": {}}
+	expect_eq(ld._resolve_time_of_day(env_c), 12.0,
+		"missing clock falls back to noon")
+
+	ent.queue_free()
+	ld.queue_free()
 
 
 ## Stub used by test_chunk_streaming as env.parent. Implements the
