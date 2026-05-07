@@ -423,11 +423,40 @@ Per ADR 0009 expanded scope: also writes audio/cues.json + ui/strings.json.
 23. Interactive: show QA report + capture path, ask approval.
     Autonomous: proceed.
 
+### Phase 5b — gdd-coverage-tracker (audit)
+
+23a. **MANDATORY** in autonomous mode. After qa-tester reports
+     `complete` (correctness verified), run gdd-coverage-tracker:
+     `Skill(skill="yume-gdd-coverage-tracker", args=<game-name>)`.
+
+23b. Read its `coverage.md` output:
+     - **coverage ≥ 80%** AND no required-severity ✗ → proceed to
+       Phase 7 wrap-up. The build delivers on the GDD.
+     - **coverage 50-80%** OR any required-severity ✗ → LOOP:
+       parse the gap list as a checklist, hand items 1-5 back to
+       content-designer + game-rules-designer + asset-designer
+       (whichever owns each gap), re-run their phases, then re-run
+       qa-tester + gdd-coverage-tracker. Cap at 3 loop iterations
+       to avoid infinite cycles. Report final coverage to user even
+       if loop cap hit.
+     - **coverage < 50%** → REJECT. Surface to user. The game is
+       fundamentally underbuilt against its GDD. Either (a) descope
+       the GDD (game-designer rewrites with shorter promise list)
+       OR (b) accept a lower coverage delivery with explicit user
+       sign-off OR (c) flag engine gaps that block the missing
+       promises (tech-director may need to ship new primitives).
+
+23c. NEVER declare `accept` to user before reading coverage.md.
+     The merchant 2026-05-07 build shipped at 32% coverage with
+     qa-tester verdict `complete` — without this gate, that
+     happens silently and the user discovers the gap themselves.
+
 ### Phase 6 — Optional: asset generation (only if --with-assets)
 
 24. Invoke the offline `yume assets generate <data_root>` tool (Tier
     2.5k — defer to its own workflow; not part of this skill).
-25. Re-run qa-tester to verify assets load.
+25. Re-run qa-tester + gdd-coverage-tracker to verify assets load
+    AND that coverage hasn't regressed.
 
 ### Phase 7 — Wrap up
 
