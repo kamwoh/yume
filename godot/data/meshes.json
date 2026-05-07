@@ -468,6 +468,137 @@
         {"op": "prism",    "pos": [0, 1.5, 0], "size": [2.4, 0.8, 1.6], "color": "$canopy"}
       ],
       "params": {"wood": "#a07050", "canopy": "#c04040"}
+    },
+
+    "merchant_cottage_3d": {
+      "primitives": [
+        {"op": "box",   "pos": [0, 1.2, 0], "size": [3.5, 2.4, 3.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 3.0, 0], "size": [4.0, 1.2, 3.5], "color": "$roof"},
+        {"op": "box",   "pos": [0, 0.8, 1.55], "size": [0.7, 1.6, 0.1], "color": "$door"},
+        {"op": "box",   "pos": [-1.0, 1.6, 1.55], "size": [0.5, 0.5, 0.1], "color": "$window"},
+        {"op": "box",   "pos": [1.0, 1.6, 1.55], "size": [0.5, 0.5, 0.1], "color": "$window"}
+      ],
+      "params": {"wall": "#c8a878", "roof": "#7a4838", "door": "#5a3820", "window": "#a8c8e0"}
+    },
+
+    "merchant_forge_3d": {
+      "primitives": [
+        {"op": "box",      "pos": [0, 1.2, 0], "size": [4.0, 2.4, 3.5], "color": "$wall"},
+        {"op": "prism",    "pos": [0, 2.9, 0], "size": [4.5, 1.0, 4.0], "color": "$roof"},
+        {"op": "cylinder", "pos": [-1.4, 3.6, 0], "radius": 0.3, "height": 1.4, "color": "$chimney"},
+        {"op": "sphere",   "pos": [-1.4, 4.4, 0], "radius": 0.2, "color": "$smoke"},
+        {"op": "box",      "pos": [0, 0.8, 1.8], "size": [1.2, 1.6, 0.1], "color": "$door"},
+        {"op": "box",      "pos": [1.2, 1.4, 1.8], "size": [0.6, 0.4, 0.1], "color": "$forge_glow"}
+      ],
+      "params": {"wall": "#6a5040", "roof": "#3a2818", "chimney": "#404040", "smoke": "#909090", "door": "#3a2010", "forge_glow": "#ff6020"}
+    },
+
+    "merchant_tavern_3d": {
+      "primitives": [
+        {"op": "box",   "pos": [0, 1.5, 0], "size": [5.0, 3.0, 4.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 3.6, 0], "size": [5.5, 1.4, 4.5], "color": "$roof"},
+        {"op": "box",   "pos": [0, 1.0, 2.05], "size": [1.0, 2.0, 0.1], "color": "$door"},
+        {"op": "box",   "pos": [-1.5, 2.0, 2.05], "size": [0.7, 0.7, 0.1], "color": "$window"},
+        {"op": "box",   "pos": [1.5, 2.0, 2.05], "size": [0.7, 0.7, 0.1], "color": "$window"},
+        {"op": "box",   "pos": [0, 3.2, 2.1], "size": [1.6, 0.5, 0.05], "color": "$sign"}
+      ],
+      "params": {"wall": "#9a7050", "roof": "#5a2820", "door": "#4a2810", "window": "#ffe080", "sign": "#c89060"}
+    },
+
+    "merchant_guild_3d": {
+      "primitives": [
+        {"op": "box",   "pos": [0, 2.0, 0], "size": [4.5, 4.0, 4.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 4.6, 0], "size": [5.0, 1.4, 4.5], "color": "$roof"},
+        {"op": "cylinder", "pos": [-1.8, 2.0, -1.8], "radius": 0.4, "height": 4.0, "color": "$column"},
+        {"op": "cylinder", "pos": [1.8, 2.0, -1.8], "radius": 0.4, "height": 4.0, "color": "$column"},
+        {"op": "box",   "pos": [0, 1.5, 2.05], "size": [1.4, 3.0, 0.1], "color": "$door"},
+        {"op": "box",   "pos": [-1.5, 3.0, 2.05], "size": [0.6, 1.2, 0.1], "color": "$window"},
+        {"op": "box",   "pos": [1.5, 3.0, 2.05], "size": [0.6, 1.2, 0.1], "color": "$window"}
+      ],
+      "params": {"wall": "#a89878", "roof": "#404040", "column": "#dcd0b0", "door": "#5a3a2a", "window": "#406090"}
+    },
+
+    "merchant_chapel_3d": {
+      "primitives": [
+        {"op": "box",   "pos": [0, 1.5, 0], "size": [3.5, 3.0, 5.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 3.7, 0], "size": [4.0, 1.4, 5.5], "color": "$roof"},
+        {"op": "cylinder", "pos": [0, 5.5, -2.0], "radius": 0.5, "height": 3.0, "color": "$steeple_base"},
+        {"op": "sphere", "pos": [0, 7.5, -2.0], "radius": 0.4, "color": "$steeple_top"},
+        {"op": "box",   "pos": [0, 1.4, 2.55], "size": [1.0, 2.4, 0.1], "color": "$door"},
+        {"op": "box",   "pos": [-1.0, 2.0, 2.55], "size": [0.4, 1.0, 0.1], "color": "$window"},
+        {"op": "box",   "pos": [1.0, 2.0, 2.55], "size": [0.4, 1.0, 0.1], "color": "$window"}
+      ],
+      "params": {"wall": "#d0c0a0", "roof": "#605040", "steeple_base": "#605040", "steeple_top": "#d4af37", "door": "#5a3a2a", "window": "#80a0c0"}
+    },
+
+    "merchant_watchtower_3d": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 3.0, 0], "radius": 1.2, "height": 6.0, "color": "$stone"},
+        {"op": "cylinder", "pos": [0, 6.4, 0], "radius": 1.5, "height": 0.4, "color": "$crown"},
+        {"op": "prism",    "pos": [0, 7.0, 0], "size": [2.6, 1.0, 2.6], "color": "$roof"},
+        {"op": "box",      "pos": [0, 4.5, 1.15], "size": [0.4, 0.8, 0.1], "color": "$window"},
+        {"op": "box",      "pos": [1.15, 4.5, 0], "size": [0.1, 0.8, 0.4], "color": "$window"},
+        {"op": "box",      "pos": [0, 4.5, -1.15], "size": [0.4, 0.8, 0.1], "color": "$window"},
+        {"op": "box",      "pos": [-1.15, 4.5, 0], "size": [0.1, 0.8, 0.4], "color": "$window"}
+      ],
+      "params": {"stone": "#909090", "crown": "#707070", "roof": "#404040", "window": "#000000"}
+    },
+
+    "merchant_barracks_3d": {
+      "primitives": [
+        {"op": "box",   "pos": [0, 1.0, 0], "size": [6.0, 2.0, 3.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 2.4, 0], "size": [6.5, 1.0, 3.5], "color": "$roof"},
+        {"op": "box",   "pos": [-1.5, 0.8, 1.55], "size": [0.7, 1.6, 0.1], "color": "$door"},
+        {"op": "box",   "pos": [1.5, 0.8, 1.55], "size": [0.7, 1.6, 0.1], "color": "$door"},
+        {"op": "box",   "pos": [0, 1.4, 1.55], "size": [0.5, 0.5, 0.1], "color": "$window"}
+      ],
+      "params": {"wall": "#7a6050", "roof": "#403028", "door": "#3a2010", "window": "#404040"}
+    },
+
+    "merchant_market_hall_3d": {
+      "primitives": [
+        {"op": "box",      "pos": [0, 0.1, 0], "size": [6.0, 0.2, 4.0], "color": "$floor"},
+        {"op": "cylinder", "pos": [-2.5, 1.5, -1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
+        {"op": "cylinder", "pos": [2.5, 1.5, -1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
+        {"op": "cylinder", "pos": [-2.5, 1.5, 1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
+        {"op": "cylinder", "pos": [2.5, 1.5, 1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
+        {"op": "prism",    "pos": [0, 3.4, 0], "size": [6.5, 0.8, 4.5], "color": "$roof"},
+        {"op": "box",      "pos": [0, 0.8, 0], "size": [3.0, 1.0, 1.5], "color": "$counter"}
+      ],
+      "params": {"floor": "#a89070", "column": "#dcd0b0", "roof": "#705040", "counter": "#7a5030"}
+    },
+
+    "merchant_field_3d": {
+      "primitives": [
+        {"op": "box", "pos": [0, 0.05, 0], "size": [4.0, 0.1, 4.0], "color": "$soil"},
+        {"op": "cylinder", "pos": [-1.0, 0.4, -1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
+        {"op": "cylinder", "pos": [1.0, 0.4, -1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
+        {"op": "cylinder", "pos": [-1.0, 0.4, 1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
+        {"op": "cylinder", "pos": [1.0, 0.4, 1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
+        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.1, "height": 0.6, "color": "$crop"}
+      ],
+      "params": {"soil": "#5a3a20", "crop": "#80a050"}
+    },
+
+    "merchant_well_3d": {
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.7, "height": 0.8, "color": "$stone"},
+        {"op": "cylinder", "pos": [0, 0.85, 0], "radius": 0.55, "height": 0.05, "color": "$water"},
+        {"op": "cylinder", "pos": [-0.7, 1.4, 0], "radius": 0.06, "height": 1.4, "color": "$post"},
+        {"op": "cylinder", "pos": [0.7, 1.4, 0], "radius": 0.06, "height": 1.4, "color": "$post"},
+        {"op": "box",      "pos": [0, 2.05, 0], "size": [1.6, 0.1, 0.6], "color": "$beam"},
+        {"op": "prism",    "pos": [0, 2.4, 0], "size": [1.8, 0.5, 0.8], "color": "$roof"}
+      ],
+      "params": {"stone": "#9a9a9a", "water": "#3070a0", "post": "#5a3820", "beam": "#5a3820", "roof": "#5a2820"}
+    },
+
+    "merchant_statue_3d": {
+      "primitives": [
+        {"op": "box",      "pos": [0, 0.3, 0], "size": [1.0, 0.6, 1.0], "color": "$base"},
+        {"op": "capsule",  "pos": [0, 1.4, 0], "radius": 0.25, "height": 1.4, "color": "$marble"},
+        {"op": "sphere",   "pos": [0, 2.3, 0], "radius": 0.22, "color": "$marble"}
+      ],
+      "params": {"base": "#605040", "marble": "#dcd0c0"}
     }
   }
 }

@@ -91,6 +91,72 @@ Report: PASS / FAIL with the criterion that failed + observed evidence."
 The question SHAPES what Claude looks at. Generic "does it look
 right" misses bugs the focused question would catch.
 
+## Baseline environmental checks (MANDATORY, always runs first)
+
+**Empirical lesson, 2026-05-07**: Session 1's merchant_3d capture
+showed the player + NPCs against a tan-gradient sky and we (orchestrator
++ all builder agents) said "PASS" — but the scene had NO Ground node.
+The sky's `ground_horizon_color` gradient looked LIKE a floor at first
+glance, so context-specific change-prompts (which asked about entity
+visibility, scale, camera) returned PASS without anyone noticing the
+floor was structurally missing. Took THE USER pointing it out.
+
+**Fix**: every visual capture MUST run this baseline checklist BEFORE
+the change-specific prompt. If any baseline fails, FAIL the gate
+regardless of what the change-prompt says.
+
+### For 3D scenes — required baseline criteria
+
+1. **Ground plane visible**: a flat surface (not the sky's gradient)
+   under the entities? Entities cast SHADOWS on a real surface?
+2. **Sky / horizon present**: distinguishable from ground (color +
+   shape change at horizon line)?
+3. **Lighting working**: directional light direction visible in shadow
+   angles? Ambient not zero (shadowed faces still partially lit)?
+4. **Player visible at expected position**: not collapsed at origin,
+   not below ground, not floating?
+5. **HUD readable**: text + bars rendered, not clipping off-screen?
+6. **No placeholder geometry**: no untextured pink boxes, no default
+   cubes, no missing-mesh warning planes?
+
+### For 2D scenes — required baseline criteria
+
+1. **Floor color visible**: bounds polygon rendered (not blank gray)?
+2. **HUD readable**: text + bars rendered?
+3. **Camera positioned over content**: entities in viewport, not at
+   (0,0) when they're at (1500, 2400)?
+4. **No placeholder shapes**: pink-fallback or grey-box visible
+   anywhere?
+
+### Reference-template comparison check
+
+If your change creates or modifies a `.tscn` scene file: compare
+node-list against the canonical reference for the renderer mode:
+
+- 3D scenes: compare against `godot/scenes/doomarena3d.tscn` OR
+  `godot/scenes/towerdef3d.tscn` — list missing nodes. Canonical
+  3D scene needs at minimum: World, WorldEnvironment, Sun
+  (DirectionalLight3D), **Ground (MeshInstance3D + PlaneMesh +
+  Material)**, GameShell, ScreenFlow, OverlayManager,
+  SettingsManager, LightingDirector (for ADR 0025), Camera3D.
+- 2D scenes: compare against `godot/scenes/play.tscn`. Needs at
+  minimum: World, GameShell, ScreenFlow, OverlayManager,
+  SettingsManager, Camera2D.
+
+Write the comparison into your VQA prompt:
+
+```
+"After creating <name>_3d.tscn, compare its node structure to
+godot/scenes/doomarena3d.tscn. List any nodes present in doomarena3d
+but missing in <name>_3d, OR any required node types absent. Required
+3D nodes: WorldEnvironment, DirectionalLight3D, MeshInstance3D
+(Ground), Camera3D. FAIL if any required node type is missing,
+even if the capture renders something plausible."
+```
+
+This catches the merchant-no-floor class of bugs at frame 1, not
+3 sessions later.
+
 ## Context-specific prompt examples (by change type)
 
 ### After adding/modifying entity defs (content-designer)
@@ -265,23 +331,55 @@ phase (content-designer, asset-designer, etc.) should also do at
 least one capture + read after their work, before handing off. This
 catches issues earlier in the pipeline.
 
-## When launching subagents
+## When launching subagents — race-free architecture
 
-If you spawn a `builder` agent (or any subagent) for visual-touching
-work, INCLUDE in their prompt:
+CRITICAL: when MULTIPLE builder agents run in parallel (per yume-design
+parallel-execution discipline), they share `/mnt/c/.../YumeTemplate/`.
+If each agent runs `cp -r → godot`, the cp's race-overwrite each
+other and godot processes see mixed state → non-deterministic tests
+and corrupt captures. Empirically observed (Session 2 nearly hit
+this — got lucky from accidental serialization).
+
+**Rule for parallel builder agents**:
+- ✅ DO write source files in `/home/kamwoh/yume/godot/` (their
+  owned files only, per file-ownership pre-allocation)
+- ❌ DO NOT `cp -r` to YumeTemplate
+- ❌ DO NOT run godot binary
+- ❌ DO NOT run unit tests OR visual QA
+
+**Rule for orchestrator**:
+- Wait for ALL parallel agents to complete
+- Run a SINGLE `cp -r` sync to YumeTemplate
+- Run unit tests once (after integration)
+- Run visual QA once (after integration), with context-specific
+  prompts per the integrated state
+
+This means parallel agents report back staged files only. The
+orchestrator validates the integrated whole.
+
+**Rule for solo / sequential builder agents**:
+- May `cp -r` + run godot themselves (no race risk)
+- Visual QA per the standard pattern
+
+**Pattern for parallel-agent prompt** (use this in their
+instructions, not the previous version):
 
 ```
-After your implementation passes unit tests, run visual QA:
-1. Sync framework: cp -r /home/kamwoh/yume/godot/. /mnt/c/.../YumeTemplate/
-2. Capture: godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
-   --rendering-driver opengl3 -- --capture-after=2 \
-   --capture-output=user://verify.png
-3. Read the PNG and verify your change rendered correctly.
-4. If broken, debug + retry (max 3) before reporting back.
+After your implementation completes:
+1. Verify your written files exist with correct content
+2. DO NOT sync to YumeTemplate (the orchestrator owns sync)
+3. DO NOT run godot or any test/capture commands
+4. Report back: files written + line counts + any concerns
 
-The path-scoped rule .claude/rules/visual-qa.md applies to your work.
+The orchestrator will sync once, run unit tests, run visual QA
+across the integrated state, and report whether YOUR change
+landed correctly.
 ```
 
-This is non-negotiable for: rendering-primitive changes, scene
-changes, mesh/shape additions, screen/overlay/HUD changes, particle
-effects, shader work.
+For solo / sequential agent prompts (when only 1 agent at a time
+modifies the source tree), the previous sync+godot pattern is fine.
+
+This is non-negotiable for parallel execution: rendering-primitive
+changes, scene changes, mesh/shape additions, screen/overlay/HUD
+changes, particle effects, shader work — ALL require orchestrator-
+owned validation when parallelized.

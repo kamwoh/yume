@@ -512,6 +512,25 @@ Litmus test for "parallel-safe":
 3. Can I describe the deliverable's file-list in 1 sentence with
    no overlaps? (yes → parallel-safe)
 
+### Sync race — parallel agents must NOT sync to YumeTemplate
+
+CRITICAL constraint discovered Session 2 (2026-05-07): multiple
+parallel agents each running `cp -r /home/kamwoh/yume/godot/. /mnt/c/
+.../YumeTemplate/` race to overwrite the SAME shared template
+directory. If two agents run godot binaries against this shared
+template at overlapping times, godot processes see mixed source
+state — non-deterministic tests, corrupt captures, file-not-found
+errors mid-load.
+
+**Rule: parallel agents WRITE source files only. They do NOT sync
+to YumeTemplate. They do NOT run godot. The orchestrator (me) owns
+the single integration sync + unit tests + visual QA across the
+integrated state.**
+
+This is also why parallel agents stage their rules into files like
+`rules_haggle_staged.json` — the orchestrator splices them into
+`game/rules.json` AFTER all agents land, BEFORE the single sync.
+
 ### Spawning parallel builder agents
 
 When launching a `builder` subagent for parallel work, use this
@@ -542,9 +561,11 @@ WHAT TO BUILD:
 ...
 
 VERIFY:
-- Unit tests run via: <command>
-- Visual QA via: <command + capture-input + Read PNG with
-  context-specific prompt per .claude/rules/visual-qa.md>
+- DO NOT sync to YumeTemplate. DO NOT run godot binary.
+- DO NOT run unit tests or visual QA — orchestrator owns these
+  across the integrated state.
+- After writing your files, verify they parse as valid JSON / GDScript
+  via Read/grep. That's your verification scope.
 
 CONSTRAINTS:
 - Per ADR 0021: expose Godot capabilities, don't reimplement
