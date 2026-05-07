@@ -2352,3 +2352,35 @@ Get demo_merchant from "1% playable" to "feels like a real merchant game" withou
 - `transition_level` extended with `fade_duration` parameter
 - 430 tests passing (was 407)
 
+
+### Autonomous run results — wake-up summary
+
+What landed tonight (in commit order):
+
+1. **Engine: scenario_runner tag overrides** (commit `9b94d3c`) — setup spawn schema now accepts `tags` + `properties` on instance specs. Required for testing rules that match by override-tag (e.g. dungeon-portal `town_to_dungeon` variant).
+
+2. **Engine: fade primitives** (commit `3c17ea1`, builder agent ac7812f3) — `screen_fade`, `scene_change`, `transition_level fade_duration`. 3 new effects, 23 new tests (407 → 430 passing).
+
+3. **Engine: show_toast bug fix** (commit `3c17ea1`) — multi-word toast text like "Debt installment paid" was tripping `Formula.looks_like_formula` due to spaces. New `_value_text()` helper resolves bare bindings + @-refs only, no formula step.
+
+4. **Engine: --game= cmdline resolved in _enter_tree** (commit `cc7384b`) — children's _ready fires before parent's, so when GameShell + ScreenFlow tried to read scene.json, data_root was still empty. Caused `play.tscn` to render blank gray for any cmdline-driven game. 430/430 tests still pass.
+
+Demo merchant content (gitignored, local only):
+
+- Customer variety (warrior 75g, townie 30g, mage 55g, archer 45g, noble 120g) — verified via 3 scenario tests.
+- Dungeon entry via south-walk (portal at 1500, 3000) — fade transition, separate town_to_dungeon vs dungeon_to_town tags.
+- Simple combat: walk into enemy → +gold_reward, removed.
+- Chest opens on contact: random 30-100g.
+- 5 named regulars on schedule (Henrick day 1, Garron day 3, Vela day 5, Tannic day 7, Mireille day 12 + tier 2). Each has gold_value override + a per-day visited flag reset on morning_phase_enter.
+- HUD now shows "Where: <current_level>" so player knows location.
+- Camera zoom 2.0, lerp 0.18 — entities visible and readable.
+
+Tests: 12 scenario tests pass. 430 engine unit tests pass.
+
+Visual QA captures landed at `captures/merchant_<timestamp>/`. Walkthrough script at `scripts/vqa/merchant_walkthrough.sh` for repeating the QA sweep.
+
+Deferred to next session:
+
+- **#108 Real haggle UI** — needs threaded customer_id through emit signal; explained in task description. Required either (a) world_clock-stored haggle_active_id with custom resolver in `target:`, or (b) transient relation. Both need engine extension. MVP "instant sale on contact" is the current shipping state.
+- **#106 Schema gotchas in skill files** — partially done; remaining items in description. Touched data-demo.md + 3 skills already; rest is grunt work.
+
