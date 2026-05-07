@@ -172,6 +172,10 @@ func _apply_setup(world: World, setup: Dictionary) -> void:
 			override["position"] = s["position"]
 		if s.has("state"):
 			override["state"] = s["state"]
+		if s.has("tags"):
+			override["tags"] = s["tags"]
+		if s.has("properties"):
+			override["properties"] = s["properties"]
 		var inst_id := str(s.get("id", "%s_setup_%d" % [template, randi()]))
 		var ent := Entity.create(defs[template], inst_id, override)
 		world.scheduler.env.get("entities", {})[inst_id] = ent
