@@ -130,21 +130,66 @@ juice), additional skills compose: yume-screen-flow-designer,
 yume-save-policy-designer, yume-tutorial-designer, yume-audio-designer,
 yume-juice-designer.
 
-## Running tests
+## Running Godot (tests / scenarios / captures)
+
+`scripts/play.sh` is the single source of truth for `GODOT_BIN` and
+`TEMPLATE_DST`. Both are env-overridable: `YUME_GODOT_BIN`,
+`YUME_TEMPLATE_DST`. Source them in any other workflow:
 
 ```bash
-# Sync framework to Godot test project + run unit tests
-cp -r godot/. /mnt/c/.../YumeTemplate/
-godot --headless --path C:/.../YumeTemplate scenes/test_main.tscn
+eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
+# Now $GODOT_BIN and $TEMPLATE_DST are set.
 ```
 
-Should report `passed: NN  failed: 0  total: NN`. Test source:
-`godot/scripts/engine/tests/test_runner.gd`.
+### Standard 3-step workflow
 
-Per-game scenario tests:
 ```bash
-godot --headless --path C:/.../YumeTemplate scenes/scenario_test.tscn -- --game=demo_sokoban
+eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
+
+# 1. Sync framework to template (orchestrator-only per parallel-execution discipline)
+cp -r godot/. "$TEMPLATE_DST/"
+
+# 2. Rebuild class cache if a NEW `class_name X` GDScript was added (otherwise skip)
+"$GODOT_BIN" --path "$TEMPLATE_DST" --headless --import 2>&1 | tail -5
+
+# 3. Run tests / scenarios / captures (always tee; direct stdout from the
+#    Windows .exe through WSL pipes is unreliable)
+"$GODOT_BIN" --path "$TEMPLATE_DST" --headless scenes/test_main.tscn 2>&1 | tee /tmp/test_out.log
+"$GODOT_BIN" --path "$TEMPLATE_DST" --headless scenes/scenario_test.tscn -- --game=demo_<name> 2>&1 | tee /tmp/scen_out.log
+"$GODOT_BIN" --path "$TEMPLATE_DST" --rendering-driver opengl3 scenes/<name>_3d.tscn -- --capture-after=4 --capture-output='user://x.png' 2>&1 | tee /tmp/cap.log
 ```
+
+Unit tests should report `passed: NN  failed: 0  total: NN`. Test source:
+`godot/scripts/engine/tests/test_runner.gd`. Per-game scenarios are
+defined in `godot/data/demo_<name>/tests.json`.
+
+### Long-running runs
+
+Godot test_main.tscn often takes 60-120s and timeout 90 will SIGTERM
+it before it finishes. Either bump `timeout` to ≥240, or run via
+`run_in_background: true` + `Monitor` with the pattern:
+
+```
+until grep -qE "passed:|RESULTS|ERROR" /tmp/file; do sleep 2; done; tail -20 /tmp/file
+```
+
+### Class-cache rebuild — when `class_name X` is new
+
+Symptom: `Parse Error: Identifier "X" not declared in the current
+scope` even though the file exists. Run `--import` once before the
+test scene; verify the cache picked it up:
+
+```bash
+grep "class_name_X" "$TEMPLATE_DST/.godot/global_script_class_cache.cfg"
+```
+
+### Capture output path
+
+`--capture-output='user://X.png'` resolves to the platform's Godot
+user-data path. On WSL2+Windows it lands under
+`/mnt/c/Users/.../AppData/Roaming/Godot/app_userdata/<project_name>/X.png`.
+Find with `find /mnt/c -path "*/app_userdata/*" -name "X.png"`. Read
+with the Read tool — it's a regular PNG.
 
 ## Yume design principles
 

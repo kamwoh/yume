@@ -140,9 +140,10 @@ content-defined, but these have engine-side semantics):
 | `projectile` | Different motion-resolution path: no slide on collision (stop dead). Used by motion integrator to distinguish bullets from creatures. | None (just the tag) |
 | `walkable_floor` | Contributes a walkable rectangle to the level's NavigationMesh (ADR 0024). NPCs invoking `pathfind_to` route over the union of these rectangles. | `properties.aabb_extents: [hx, _, hz]` (Y ignored — floor at `position.y`) |
 | `pathfinding_obstacle` | Punches a hole in the walkable region (ADR 0024). Distinct from `blocks_motion`: a wall typically wants both, but a low fence might want one or the other. | `properties.aabb_extents: [hx, _, hz]` |
+| `party_member` | Marks an NPC as a leashed companion of another entity (typically the player). The PartyDirector reads `state.party_index` + the outgoing `party_member_of` relation to leash the member behind their leader each frame (ADR 0026). | `state.party_index: int` (set by `party_join`); outgoing `party_member_of` relation. |
 
 Adding to this list is ADR-gated. See `docs/adr/0004-blocks-motion-tag.md`,
-`docs/adr/0024-npc-pathfinding.md`.
+`docs/adr/0024-npc-pathfinding.md`, `docs/adr/0026-party-member-primitive.md`.
 
 **Engine-recognized scene config** (in `scene.json`):
 
@@ -213,6 +214,46 @@ load). Per ADR 0024, 3D-only — no-op for Vector2-positioned entities.
 
 Use for NPC schedules, escort missions, A → B sim agents, or any
 case where straight-line + AABB-slide deadlocks in concave geometry.
+
+**Party Director** (added by ADR 0026):
+
+Three convenience effects compose existing primitives (relate +
+tag_add + state_set) into a single declarative verb per author intent
+for "follow-the-leader" companion NPCs:
+
+```jsonc
+{"type": "party_join",  "target": "<npc_id>", "leader": "<player_id>"}
+{"type": "party_leave", "target": "<npc_id>"}
+{"type": "party_ko",    "target": "<npc_id>"}
+```
+
+`party_join` adds the `party_member` tag, creates a
+`party_member_of` relation `npc → leader`, sets `state.party_index`
+to the next slot, and increments `leader.state.party_count`.
+`party_leave` reverses these. `party_ko` sets `state.ko=1`,
+`state.hp=1`, snaps the member to the leader's position, and zeroes
+their velocity — but does NOT remove the entity from `env.entities`.
+This preserves the "knocked-out, not killed" narrative beat: the
+companion stays in the world for revival.
+
+The PartyDirector module (sibling node of LightingDirector under
+`play.tscn`) runs each frame: it reads every `party_member`-tagged
+entity, looks up its leader via `relations.targets("party_member_of",
+member_id)`, and lerps the member's position toward the leader plus
+a per-index offset (defaults: slot 0 = back-left, 1 = back-right, 2
+= deeper-behind). KO'd members snap directly onto the leader instead
+of standing in formation. The director also drains the
+`signal_buffer` for `party_revival` signals — when one arrives, every
+`party_member` has its `ko` cleared and `hp` restored to `hp_max`
+(read from state, fall back to properties).
+
+Combat is intentionally NOT director-coordinated: companions fight
+via the same `contact`-rule + tag-match pattern as the player, and
+content rules choose targeting policy (closest enemy, leader's
+target, etc.) per game.
+
+Use for: 2-3 hireable companions following the player into dungeons
+with revival at safe locations (the kingdom-sim Acts 3-4 pattern).
 
 ### 3. Rule
 

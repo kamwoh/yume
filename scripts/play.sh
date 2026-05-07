@@ -67,8 +67,9 @@ DATA_FOLDER="demo_${GAME_NAME}"
 
 YUME_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE_SRC="${YUME_ROOT}/godot"
-TEMPLATE_DST="/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate"
-GODOT_BIN="/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe"
+# Override via env vars: YUME_TEMPLATE_DST, YUME_GODOT_BIN.
+TEMPLATE_DST="${YUME_TEMPLATE_DST:-/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate}"
+GODOT_BIN="${YUME_GODOT_BIN:-/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe}"
 
 # Sanity checks
 if [ ! -d "${TEMPLATE_SRC}/data/${DATA_FOLDER}" ]; then

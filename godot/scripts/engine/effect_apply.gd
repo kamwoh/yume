@@ -75,11 +75,14 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"switch_actor":         _switch_actor(effect, env, context)
 		"queue_input_for_actor": _queue_input_for_actor(effect, env, context)
 		"reset_world":          _reset_world(effect, env, context)
+		"party_join":           _party_join(effect, env, context)
+		"party_leave":          _party_leave(effect, env, context)
+		"party_ko":             _party_ko(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko.",
 				"warning")
 	return {}
 
@@ -1111,3 +1114,132 @@ static func _queue_input_for_actor(e: Dictionary, env: Dictionary, ctx: Dictiona
 ## (transition_screen, etc.) fire normally.
 static func _reset_world(_e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
 	env["_pending_world_reset"] = true
+
+
+# ============================================================
+# PARTY EFFECTS (ADR 0026)
+# ============================================================
+#
+# Three convenience effects that compose existing primitives (relate /
+# tag_add / tag_remove / state_set / unrelate) into a single declarative
+# verb per author intent. Per ADR 0026, the engine ships these because
+# every party game would otherwise spell out the same 6-line effect chain.
+# The PartyDirector module reads the resulting tag + relation + state to
+# drive per-frame leashing.
+
+## party_join — add an NPC to the player's party.
+##   {target: <npc>, leader: <player_id>}
+##
+## Effects:
+##   1. Add `party_member` tag to target.
+##   2. Create `party_member_of` relation: target → leader.
+##   3. Set target.state.party_index = leader.state.party_count (next slot).
+##   4. Increment leader.state.party_count by 1.
+##   5. Initialize target.state.ko = 0 (so KO intercept rules read it).
+##
+## Idempotent on tag/relation (RelationStore dedup; tag_add no-ops on
+## already-present tag) but party_index is only valid for the first call —
+## a second party_join would push the count up and reassign a new slot,
+## leaving the original index dangling. Authors should gate joins on
+## `tags_none: ["party_member"]` to avoid double-add.
+static func _party_join(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var member: Entity = _target(e, env, ctx)
+	if member == null: return
+	var leader_id := _resolve_id(e.get("leader", "player"), ctx)
+	if leader_id == "": return
+	var entities: Dictionary = env.get("entities", {})
+	if not entities.has(leader_id): return
+	var leader = entities[leader_id]
+	if not (leader is Entity): return
+	var leader_ent: Entity = leader
+	# 1. Tag membership.
+	member.add_tag("party_member")
+	# 2. Relation: member → leader.
+	var store: RelationStore = env.get("relations", null)
+	if store != null:
+		store.relate("party_member_of", member.instance_id, leader_id)
+	# 3. + 4. Slot assignment via leader's party_count counter.
+	var slot: int = int(leader_ent.get_state("party_count", 0))
+	member.set_state("party_index", slot)
+	leader_ent.add_state("party_count", 1)
+	# 5. Initialize KO state so intercept rules can read it cleanly.
+	if member.get_state("ko", null) == null:
+		member.set_state("ko", 0)
+
+
+## party_leave — remove an NPC from the party.
+##   {target: <npc>}
+##
+## Effects:
+##   1. Remove `party_member` tag.
+##   2. Drop the `party_member_of` relation (resolved via the store —
+##      authors don't pass leader explicitly).
+##   3. Decrement leader's state.party_count if a relation existed.
+##   4. Clear ko + party_index on the target.
+##
+## NOTE: this does NOT compact remaining members' party_index. If
+## index 0 leaves and indices 1+2 remain, they stay at 1 and 2 — the
+## director's offset table treats slots as positions, not order, so
+## leaving "slot 0 empty" just means no companion stands there.
+## Authors who want re-shuffling can issue party_leave + party_join
+## on the remaining members.
+static func _party_leave(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var member: Entity = _target(e, env, ctx)
+	if member == null: return
+	var store: RelationStore = env.get("relations", null)
+	# 2. + 3. Drop relation; track leader for count decrement.
+	var entities: Dictionary = env.get("entities", {})
+	if store != null:
+		var leaders: Array = store.targets("party_member_of", member.instance_id)
+		for leader_id in leaders:
+			store.unrelate("party_member_of", member.instance_id, str(leader_id))
+			if entities.has(str(leader_id)):
+				var leader = entities[str(leader_id)]
+				if leader is Entity:
+					(leader as Entity).add_state("party_count", -1)
+	# 1. Tag.
+	member.remove_tag("party_member")
+	# 4. Clear member's party state.
+	member.set_state("ko", 0)
+	member.set_state("party_index", -1)
+
+
+## party_ko — knock out a party member without removing them.
+##   {target: <npc>}
+##
+## Effects:
+##   1. Set state.ko = 1 (intercept rules check this).
+##   2. Set state.hp = 1 (so subsequent damage doesn't re-fire KO logic
+##      every tick — a hp=0 entity would keep matching an `hp_lte: 0`
+##      query indefinitely).
+##   3. Snap state.position to leader's current position (so KO'd
+##      companions visibly fall next to the player).
+##   4. Zero state.velocity (no drift while KO'd).
+##
+## Author-side: pair with a tick rule that emits `party_revival` on
+## reaching a town to wake the member back up. The director listens
+## for that signal and resets ko + hp.
+static func _party_ko(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var member: Entity = _target(e, env, ctx)
+	if member == null: return
+	# 1. + 2. KO + hp pin.
+	member.set_state("ko", 1)
+	member.set_state("hp", 1)
+	# 3. Snap to leader. Resolve leader via relation; fall back to no-op
+	# if no relation (orphaned ko'd entity stays where it died).
+	var store: RelationStore = env.get("relations", null)
+	if store != null:
+		var leaders: Array = store.targets("party_member_of", member.instance_id)
+		if leaders.size() == 1:
+			var entities: Dictionary = env.get("entities", {})
+			var leader_id: String = str(leaders[0])
+			if entities.has(leader_id) and entities[leader_id] is Entity:
+				member.set_position((entities[leader_id] as Entity).get_position())
+	# 4. Stop motion.
+	# Use Vector3.ZERO if the member's position is 3D, Vector2.ZERO if 2D —
+	# matches Entity.set_velocity's normalization expectations.
+	var pos = member.get_position()
+	if pos is Vector3:
+		member.set_velocity(Vector3.ZERO)
+	else:
+		member.set_velocity(Vector2.ZERO)

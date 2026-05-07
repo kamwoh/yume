@@ -60,6 +60,9 @@ func _ready() -> void:
 	test_lighting_director_helpers()
 	test_lighting_director_resolves_binding()
 	test_lighting_director_color_endpoints()
+	test_party_join_creates_relation()
+	test_party_leashing_position_follows_player()
+	test_party_ko_preserves_entity()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -3077,3 +3080,141 @@ func test_pathfind_no_op_on_2d() -> void:
 			has_agent = true; break
 	expect(not has_agent, "no NavigationAgent3D attached to 2D entity")
 	ent.queue_free()
+
+
+# ============================================================
+# PARTY DIRECTOR (ADR 0026)
+# ============================================================
+
+## party_join effect adds tag, creates relation, assigns slot, increments count.
+## Verifies all five state mutations from EffectApply._party_join.
+func test_party_join_creates_relation() -> void:
+	_section("party_join_creates_relation (ADR 0026)")
+	var defs := {
+		"player": {"id": "player", "tags": ["actor"], "state_init": {"party_count": 0}},
+		"npc":    {"id": "npc",    "tags": ["villager"], "state_init": {"hp": 10}},
+	}
+	var leader := Entity.create(defs.player, "p1")
+	var npc_a := Entity.create(defs.npc, "npc_a")
+	var npc_b := Entity.create(defs.npc, "npc_b")
+	var entities: Dictionary = {"p1": leader, "npc_a": npc_a, "npc_b": npc_b}
+	var rs := RelationStore.new()
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+	# Join npc_a as the first companion.
+	EffectApply.apply({"type": "party_join", "target": "npc_a", "leader": "p1"},
+		env, {"self": "npc_a"})
+	expect(npc_a.has_tag("party_member"), "npc_a tagged party_member")
+	expect(rs.has_edge("party_member_of", "npc_a", "p1"),
+		"party_member_of relation npc_a → p1 created")
+	expect_eq(npc_a.get_state("party_index"), 0, "first joiner gets party_index 0")
+	expect_eq(leader.get_state("party_count"), 1, "leader party_count incremented to 1")
+	expect_eq(npc_a.get_state("ko"), 0, "ko initialized to 0 on join")
+	# Join npc_b — second slot.
+	EffectApply.apply({"type": "party_join", "target": "npc_b", "leader": "p1"},
+		env, {"self": "npc_b"})
+	expect_eq(npc_b.get_state("party_index"), 1, "second joiner gets party_index 1")
+	expect_eq(leader.get_state("party_count"), 2, "leader party_count = 2 after second join")
+	# party_leave drops tag + relation + decrements count.
+	EffectApply.apply({"type": "party_leave", "target": "npc_a"},
+		env, {"self": "npc_a"})
+	expect(not npc_a.has_tag("party_member"), "party_leave removes tag")
+	expect(not rs.has_edge("party_member_of", "npc_a", "p1"),
+		"party_leave breaks relation")
+	expect_eq(leader.get_state("party_count"), 1, "leader party_count decremented to 1")
+	expect_eq(npc_a.get_state("party_index"), -1, "party_index reset to -1 on leave")
+	leader.queue_free(); npc_a.queue_free(); npc_b.queue_free()
+
+
+## Director's offset table + leashing helper place each member at the
+## expected XZ slot behind the leader. We test the static helper directly
+## (no SceneTree needed) plus the per-member apply via a director instance.
+func test_party_leashing_position_follows_player() -> void:
+	_section("party_leashing_position_follows_player (ADR 0026)")
+	# Static helper: index 0/1/2 produce the documented offsets.
+	expect(PartyDirector.offset_for_index(0).is_equal_approx(Vector3(-1.0, 0, 1.5)),
+		"offset slot 0 = (-1, 0, 1.5)")
+	expect(PartyDirector.offset_for_index(1).is_equal_approx(Vector3(1.0, 0, 1.5)),
+		"offset slot 1 = (+1, 0, 1.5)")
+	expect(PartyDirector.offset_for_index(2).is_equal_approx(Vector3(0, 0, 2.5)),
+		"offset slot 2 = (0, 0, 2.5)")
+	# Index out-of-bounds falls back to last entry (no crash).
+	expect(PartyDirector.offset_for_index(99).is_equal_approx(Vector3(0, 0, 2.5)),
+		"out-of-range index falls back to last slot")
+	expect(PartyDirector.offset_for_index(-1).is_equal_approx(Vector3.ZERO),
+		"negative index returns ZERO (treated as unassigned)")
+	# Leader-relative target position.
+	var leader_pos := Vector3(10, 0, 20)
+	expect(PartyDirector.target_position_for(leader_pos, 0).is_equal_approx(Vector3(9, 0, 21.5)),
+		"slot 0 target = leader + (-1, 0, +1.5)")
+	expect(PartyDirector.target_position_for(leader_pos, 1).is_equal_approx(Vector3(11, 0, 21.5)),
+		"slot 1 target = leader + (+1, 0, +1.5)")
+	# Per-member leash apply: build a member far from target → director
+	# lerps a fraction toward it (LEASH_LERP_RATE = 0.18).
+	var leader_def := {"id": "p", "tags": ["actor"], "state_init": {}}
+	var member_def := {"id": "npc", "tags": ["villager", "party_member"], "state_init": {"party_index": 0, "ko": 0}}
+	var leader := Entity.create(leader_def, "p1")
+	leader.set_position(Vector3(0, 0, 0))
+	var member := Entity.create(member_def, "m1")
+	member.set_position(Vector3(0, 0, 0))   # NOT yet at target — lerp will pull
+	var director := PartyDirector.new()
+	director._apply_leash_to_member(member, leader)
+	# Expected target = (-1, 0, 1.5). After one lerp at rate 0.18 from
+	# (0, 0, 0): pos = (0 + 0.18 * -1, 0, 0 + 0.18 * 1.5) = (-0.18, 0, 0.27).
+	var moved: Vector3 = member.get_position()
+	expect(abs(moved.x - (-0.18)) < 0.001, "leash lerp x toward target")
+	expect(abs(moved.z - 0.27) < 0.001, "leash lerp z toward target")
+	# When member is far past SNAP_DISTANCE, director snaps directly.
+	member.set_position(Vector3(500, 0, 500))   # leader teleported away
+	director._apply_leash_to_member(member, leader)
+	var snapped: Vector3 = member.get_position()
+	# Snapped to leader_pos + offset(0) = (-1, 0, 1.5)
+	expect(snapped.is_equal_approx(Vector3(-1, 0, 1.5)),
+		"distance > SNAP_DISTANCE snaps to target (got %s)" % snapped)
+	director.queue_free(); leader.queue_free(); member.queue_free()
+
+
+## party_ko sets ko/hp/position but the entity STAYS in env.entities — this
+## is the core distinction from `remove`. Revival via the public revive_all
+## helper restores hp_max + clears ko.
+func test_party_ko_preserves_entity() -> void:
+	_section("party_ko_preserves_entity (ADR 0026)")
+	var defs := {
+		"player": {"id": "player", "tags": ["actor"], "state_init": {"party_count": 0}},
+		"hireling": {"id": "hireling", "tags": ["villager"],
+			"properties": {"hp_max": 25},
+			"state_init": {"hp": 25, "ko": 0}},
+	}
+	var leader := Entity.create(defs.player, "p1")
+	leader.set_position(Vector3(7, 0, 11))
+	var member := Entity.create(defs.hireling, "h1")
+	member.set_position(Vector3(50, 0, 50))   # far from leader pre-KO
+	var entities: Dictionary = {"p1": leader, "h1": member}
+	var rs := RelationStore.new()
+	rs.relate("party_member_of", "h1", "p1")
+	member.add_tag("party_member")
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+	# Apply party_ko.
+	EffectApply.apply({"type": "party_ko", "target": "h1"}, env, {"self": "h1"})
+	expect_eq(member.get_state("ko"), 1, "ko set to 1")
+	expect_eq(member.get_state("hp"), 1, "hp pinned to 1 (not 0 — prevents re-KO)")
+	expect(entities.has("h1"), "entity STILL in env.entities (NOT removed)")
+	var raw_pos = member.get_position()
+	expect(raw_pos is Vector3, "position remains Vector3 after KO snap")
+	var pos: Vector3 = raw_pos if raw_pos is Vector3 else Vector3.ZERO
+	expect(pos.is_equal_approx(Vector3(7, 0, 11)),
+		"position snapped to leader (got %s)" % pos)
+	var vel = member.get_velocity()
+	expect(vel is Vector3 and (vel as Vector3).is_equal_approx(Vector3.ZERO),
+		"velocity zeroed on KO")
+	# Revival: PartyDirector.revive_all restores hp_max + clears ko.
+	var director := PartyDirector.new()
+	director.revive_all(env)
+	expect_eq(member.get_state("ko"), 0, "revive clears ko")
+	expect_eq(member.get_state("hp"), 25.0, "revive restores hp to hp_max from properties")
+	director.queue_free(); leader.queue_free(); member.queue_free()
