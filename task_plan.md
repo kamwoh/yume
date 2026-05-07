@@ -2384,3 +2384,32 @@ Deferred to next session:
 - **#108 Real haggle UI** — needs threaded customer_id through emit signal; explained in task description. Required either (a) world_clock-stored haggle_active_id with custom resolver in `target:`, or (b) transient relation. Both need engine extension. MVP "instant sale on contact" is the current shipping state.
 - **#106 Schema gotchas in skill files** — partially done; remaining items in description. Touched data-demo.md + 3 skills already; rest is grunt work.
 
+
+
+---
+
+## 2026-05-08 — Session 5 close (Tier B start)
+
+### Landed
+
+- ADR 0026 party primitive (commit `52ac196`) — engine: party_join / party_leave / party_ko effects + PartyDirector node. 488/488 tests pass. Documented in 30_framework_primitives.md.
+- Brookhaven Act 1 content (gitignored): 9 villager defs, 50m × 50m village, funeral cinematic + debt-papers screens, 6 cinematic/tutorial rules.
+- Forest road Act 3 zone 1 content (gitignored): 4 wilderness enemies (bandit/wolf/harpy/captain), bandit ambush + portal pair.
+- Workflow: scripts/play.sh paths now env-overridable (`YUME_GODOT_BIN`, `YUME_TEMPLATE_DST`). CLAUDE.md gains "Running Godot" section sourcing from play.sh. Memory file documents generically.
+- Screen-flow validator (`tools/validate_screens.py`) — catches dangling transition_screen.target refs at sync time. Wired into play.sh non-blocking. Strict mode for agents/CI per visual-qa.md screen-flow gate.
+
+### Bugs caught + fixed
+
+- 11 `transition_screen target='_close'` instances in merchant screens.json (and 3 staged backups) — `_close` was never an engine sentinel; correct token is `@previous`. Replaced via sed. User caught at first play; headless tests can't fire on_click chains.
+- merchant_2d.tscn was a vestigial stub causing 2D fallback grey-with-dots render — deleted both source + template copies.
+- starting_level=level_brookhaven broke 8 Tier A scenarios (they assume default Pendrel). Reverted defaults; Brookhaven now reachable only via temporary flow.json flip until New Game flow is wired.
+
+### Deferred to Session 6
+
+- Brookhaven + forest_road visual QA — need a New Game→Brookhaven flow harness OR scenario_runner --starting-level= override.
+- 12 dangling rule-fired transitions to never-built screens (bailiff_dialogue, win_screen, lose_seizure, festival_arrival, tier_up_celebration, settings, etc.) — either build screens or remove the rules.
+- Pendrel→forest_road portal (only forest→pendrel currently wired).
+- ADR 0026 party-combat content rules (party_join/_ko firing on hp_lte 0; party_revival emit on town entry).
+- Mountain pass + ruined fort levels (Act 3 zones 2-3).
+- Engine: `--smoke-screens` mode (runtime click-flow smoke test) — walks every screen + every on_click chain, fails on push_warning. See visual-qa.md screen-flow gate Layer 2.
+

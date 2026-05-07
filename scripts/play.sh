@@ -89,6 +89,15 @@ if [ "${SKIP_SYNC}" != "1" ]; then
   cp -r "${TEMPLATE_SRC}/." "${TEMPLATE_DST}/"
 fi
 
+# Pre-launch screen-flow validation (non-blocking; prints WARN lines for
+# dangling transition_screen targets). Catches the bug class where a button
+# fires `transition_screen target='_close'` (or any other unknown id) which
+# silently warns at runtime instead of dismissing the modal. See
+# .claude/rules/visual-qa.md § screen-flow gate. Skip with SKIP_VALIDATE=1.
+if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
+  python3 "${YUME_ROOT}/tools/validate_screens.py" "${DATA_FOLDER}" || true
+fi
+
 # Build cmdline args for Godot's user-args section (after `--`)
 USER_ARGS=()
 if [ -n "$CAPTURE_DELAY" ]; then

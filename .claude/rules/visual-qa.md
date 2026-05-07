@@ -9,6 +9,15 @@ passing, qa-tester verdict "complete," but shipped invisible to the
 player (camera off-screen, ESC quit instead of pause, Q dead key, all
 customers radial-homing on player). All caught only by visual capture.
 
+Second precedent (2026-05-08): merchant pause-menu / haggle / funeral
+buttons all wired `transition_screen target='_close'`, an author
+convention the engine never recognized — every dismiss button silently
+warned instead of popping the modal. 11 broken buttons across 13
+screens, 488 unit tests + 12 scenarios passed cleanly because headless
+tests don't fire on_click. The user hit it on first play. Fix:
+screen-flow gate now runs `tools/validate_screens.py` at sync time AND
+this rule mandates a click-flow smoke test before declaring done.
+
 ## Who must run this gate
 
 Skills that write/modify content or code that affects rendering:
@@ -254,6 +263,57 @@ Aim for 3-5 falsifiable criteria + 2-3 specific fail flags per VQA
 prompt. Each criterion should be answerable with PASS/FAIL by
 looking at the image. If you can't write a fail flag, you don't
 know what you're checking.
+
+## Screen-flow gate (MANDATORY for any skill touching screens.json or rule effects)
+
+The visual capture catches "scene renders wrong" but not "button click
+does nothing because target is unrecognized." This gate has two layers:
+
+### Layer 1 — static validator (cheap, runs at sync time)
+
+Run `tools/validate_screens.py` against the game's data dir. It scans
+every `transition_screen` effect across screens.json + game/rules.json
++ levels/*/rules.json + game/*_staged.json and verifies the `target` is
+either a known screen id OR the special token `@previous`.
+
+```bash
+# Strict mode (exits 1 on broken refs) — agents + CI use this
+python3 tools/validate_screens.py demo_<name> --strict
+
+# Non-strict (warns, exits 0) — play.sh uses this so the user can still
+# play with known dangling refs. Skill agents must NOT rely on this mode.
+python3 tools/validate_screens.py demo_<name>
+```
+
+Wired into `scripts/play.sh` as a non-blocking pre-launch check. Set
+`SKIP_VALIDATE=1` to bypass.
+
+**Skills that MUST run --strict before declaring done**:
+- yume-screen-flow-designer (writes screens.json)
+- yume-game-rules-designer (rule effects often fire transitions)
+- yume-tutorial-designer (overlay → screen handoffs)
+- any skill that splices a `*_staged.json` into the active config
+
+### Layer 2 — click-flow smoke test (engine work — Session 6 scope)
+
+Static validator can't catch effect-chain bugs (effects after a
+destructive transition silently dropped — see § effect-chain gate in
+`.claude/rules/engine-scripts.md`). For full coverage:
+
+1. Boot the game with `--capture-input='ui_accept,N'` to fire ui_accept
+   N times, walking through advance_action='ui_accept' overlays + the
+   default-focused button on each screen.
+2. Capture stdout to a log.
+3. `grep -E "push_warning|SCRIPT ERROR|Parse Error" /tmp/play.log` —
+   any match is a fail.
+
+This catches: latent rule-fired transitions to never-built screens,
+mistyped action names, broken on_change handlers, missing effects.
+
+The `--smoke-screens` mode that walks every screen + every button
+programmatically is Session 6 engine work. Until it lands, run the
+boot+ui_accept variant manually after any change to screens.json or
+screen-firing rules.
 
 ## Per-skill prompt cheat sheets
 
