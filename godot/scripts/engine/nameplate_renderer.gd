@@ -223,7 +223,11 @@ static func collect_named_npcs(entities: Dictionary) -> Array:
 		if world_pos == null: continue
 		var name_str := str(ent.get_property("display_name", ""))
 		if name_str == "":
-			name_str = str(ent.instance_id) if ent.get("instance_id") != null else "?"
+			# Fallback: instance_id (e.g. "npc_garron") so a misconfigured
+			# entity still renders SOMETHING legible — debug aid for
+			# content authors who tag named_npc but forget display_name.
+			var iid = ent.get("instance_id")
+			name_str = str(iid) if iid != null and str(iid) != "" else "?"
 		out.append({
 			"entity": ent,
 			"world_pos": world_pos,
