@@ -114,7 +114,40 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 ## Returns true if a string looks like a formula (has math operators or
 ## dotted paths). Cheap heuristic to avoid evaluating plain context refs
 ## like "self" or "actor" as formulas.
+##
+## Two-layer check: (1) FIRST char must be a formula-starting char
+## (lowercase ident, digit, `(`, `-`, `+`, `_`, `@`); rejects English
+## text like "Find your shop." which starts with a capital.
+## (2) THEN must contain at least one operator/access char.
+##
+## Empirical: 2026-05-08 objective text "Find your shop in Pendrel..."
+## tripped the old `find any of [space + - * / ( ) .]` heuristic
+## because it has all of those — got passed to Expression.parse which
+## crashed. Fix: require a formula-START char too.
 static func looks_like_formula(s: String) -> bool:
+	if s == "": return false
+	var first := s.unicode_at(0)
+	# Formulas start with: lowercase a-z (binding), digit (literal),
+	# `(` (grouped expr), `-`/`+` (signed), `_` (private binding), `@`
+	# (indirection ref). Anything else (capital letters, punctuation,
+	# etc.) is not a formula.
+	var lower_a := "a".unicode_at(0)
+	var lower_z := "z".unicode_at(0)
+	var digit_0 := "0".unicode_at(0)
+	var digit_9 := "9".unicode_at(0)
+	var first_is_formula_start := \
+		(first >= lower_a and first <= lower_z) \
+		or (first >= digit_0 and first <= digit_9) \
+		or first == "(".unicode_at(0) \
+		or first == "-".unicode_at(0) \
+		or first == "+".unicode_at(0) \
+		or first == "_".unicode_at(0) \
+		or first == "@".unicode_at(0)
+	if not first_is_formula_start:
+		return false
+	# Then must have at least one operator/access char (else it's a
+	# bare binding name, handled separately by ctx-lookup before
+	# this function is called).
 	for ch in [" ", "+", "-", "*", "/", "(", ")", "."]:
 		if s.find(ch) >= 0:
 			return true

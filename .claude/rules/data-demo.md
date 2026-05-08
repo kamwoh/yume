@@ -60,6 +60,41 @@ multiple context bindings via search. Rule fires per (clock × a) combination.
 For pure tick rules wanting state-gating, use FLAT pattern:
 `query: {tags_all: ["world_clock"], state: {field_op: value}}`.
 
+## ⚠ CRITICAL: state_set / show_toast values are HUMAN TEXT vs FORMULAS
+
+`_value()` routes string values through `Formula.looks_like_formula()`
+→ `Formula.evaluate()` if it looks formula-shaped. As of 2026-05-08
+the heuristic requires a formula-START char (lowercase / digit /
+`(` / `-` / `+` / `_` / `@`), so capital-letter-starting English
+text bypasses parsing safely.
+
+When authoring `state_set value: "..."` or `show_toast text: "..."`:
+
+**Safe — passes through as literal text**:
+- `"Find your shop in Pendrel."`     (starts capital)
+- `"Day 6 — bailiff returns soon."`  (starts capital)
+- `"→ Open the shop"`                (starts arrow / non-letter)
+- `"Eugene joins your party."`       (starts capital)
+
+**Treated as formula — must evaluate cleanly or it crashes**:
+- `"world.gold"`                     (starts lowercase, has `.`)
+- `"signal.sale_price"`              (lowercase + `.`)
+- `"a.state.hp + 10"`                (lowercase + math)
+- `"(a.state.hp - 5) * 2"`           (paren start, math)
+
+If you want literal text that LOOKS formula-like, prefix with a
+capital letter or `→` to opt out:
+
+- `"→ world.gold"`         ← treated as text
+- `"World.gold"`           ← treated as text (capital W)
+
+Empirical: 2026-05-08 the `current_objective` field set to
+`"Find your shop in Pendrel. Walk to the shop door (south-west of
+the fountain)."` crashed `Expression.parse` because the old
+`looks_like_formula` only checked for any-of `[space + - * / ( ) .]`
+without a start-character filter. Fixed in formula.gd; this gate
+documents the convention so future authors don't have to discover it.
+
 ## ⚠ CRITICAL: bindings in payload values are BARE, not `{...}`
 
 ❌ **WRONG**: `"new_tier": "{world.reputation_tier}"` — engine sends the
