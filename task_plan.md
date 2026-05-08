@@ -2413,3 +2413,74 @@ Deferred to next session:
 - Mountain pass + ruined fort levels (Act 3 zones 2-3).
 - Engine: `--smoke-screens` mode (runtime click-flow smoke test) — walks every screen + every on_click chain, fails on push_warning. See visual-qa.md screen-flow gate Layer 2.
 
+
+## 2026-05-08 — Soul layer added to design pipeline
+
+Commit `ca734a9` ships **Phase A (soul) + Phase B (mechanical feel)** as
+upgrades to the design skills. Caught the bug class "game has features but
+no soul" at GDD-review time, not playtest time.
+
+### Skills added / changed
+
+**Added**:
+- `yume-flavor-writer` — owns prose density (per-NPC voice profiles, item
+  flavor, barker pools, world-text surfaces, reactive prose). Outputs
+  `flavor-design.md`.
+
+**Updated** (Phase A — soul layer):
+- `yume-game-designer` — GDD now requires "Voice & texture" section. Without
+  it, flavor-writer rejects.
+- `yume-game-planner` — world-plan now requires per-NPC voice + per-item
+  flavor scaffolds.
+- `yume-content-designer` — schema canonicalizes `flavor_text` / `voice` /
+  `barker_lines` entity fields.
+- `yume-game-reviewer` — NEW Axis 14 (voice & texture density). 13 → 14 across
+  genre reviewers (merchant, shooter).
+
+**Updated** (Phase B — mechanical-feel layer):
+- `yume-systems-designer` — REQUIRED contact-radius vs entity-scale check
+  (radius ≤ max(extent_a, extent_b) × 1.2). REQUIRED core-verb multi-tick
+  spec (signature interactions get player-readable intermediate states;
+  despawn last, never first). Catches "instant-despawn customer on contact"
+  at design time.
+- `yume-level-designer` — REQUIRED genre density archetypes + camera-
+  frustum check. A "city" needs ≥8 buildings of ≥3 distinct shapes visible
+  from typical vantage + multiple districts + distance silhouettes. Catches
+  "feels like one house" at level-design.md review.
+- `yume-juice-designer` — REQUIRED transition-feel timing standards (level
+  swap = fade 0.6 + hold 0.2 + fade 0.4 + camera lerp 0.5). REQUIRED
+  signature-moment juice spec. Catches "camera shift is abit weird."
+
+### Phase C — applied retroactively to merchant (gitignored content)
+
+- `docs/games/merchant/GDD.md` → "Voice & texture" addendum
+- `docs/games/merchant/flavor-design.md` → 5 voice profiles, 23 item
+  flavors, 20 barker lines, 12 world-text surfaces, 8 reactive lines,
+  5 signature voice moments
+- `entities/items.json` → `flavor_text` on all 23 items
+- `entities/named_regulars.json` → `voice` + `barker_lines` + `flavor_text`
+  on 5 regulars
+- `entities/customer_generics.json` → `barker_lines` on 5 archetypes
+- `game/rules.json` → 5 barker-on-contact rules + 7 contact-radius
+  reductions (attack 3.75→1.5; haggle 2.0→1.2; chest/portal 3.12→1.5)
+- Verification: 488/488 unit tests, 12/12 scenarios, 19/19 smoke-screens,
+  strict screen-flow validator clean.
+
+### Pattern
+
+Soul/feel gaps are bug classes caught cheapest at design time. Same
+logic as `validate_screens.py` (catch at sync, not runtime),
+`yume-game-reviewer` (catch at GDD, not build), `yume-tech-director`
+(catch at merge, not production). Skill upgrades are the durable
+framework win; merchant Phase C is the proof case.
+
+### Open work
+
+- 15 character-arc dialogue screens (5 regulars × 3 beats) — content-
+  designer + screen-flow-designer next pass.
+- Inventory tooltip widget (engine work) for hover-to-show flavor_text —
+  alternative is "barker on item-pickup" using existing show_overlay.
+- Per-named-regular loyalty tracking in sale rule (currently only
+  generic reputation).
+- Camera-lerp post-transition rule (juice-designer's transition-feel
+  spec; needs new juice effect or content-rule pattern).
