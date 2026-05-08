@@ -355,6 +355,28 @@ re-entry will be silently ignored by this guard. Document this in
 the content-designer skill so authoring intent matches engine
 behavior.
 
+**Refinement (2026-05-08): position teleport carve-out.** The
+guard separates STATE (carries across levels) from POSITION
+(level-decides). When the new level's instance declares a
+`position`, the guard applies it as a teleport on the existing
+persistent — state stays intact, location updates. Logged as
+`[PERSIST-TELEPORT]` vs the regular `[PERSIST-SKIP]`.
+
+Empirical case: 2026-05-08 merchant pendrel→shop transition. User
+entered shop, saw pendrel scene through the shop wall. Cause:
+persistent player kept pendrel coords (46, 75); shop interior is
+(0..8, 0..6). Camera followed player to pendrel. Fix: the shop
+level's `player_in_shop` instance at position (0, -1.9) now
+TELEPORTS the persistent player there.
+
+**For any change touching the persistent guard:** preserve the
+state-vs-position separation. State overwrite remains forbidden
+(would clobber HP/inventory/world_state). Position update is
+ALLOWED and required (each level owns its spawn points). Other
+fields (tags, properties, visual) — TBD; current behavior is
+"no overwrite," but if a use case appears, treat it like
+position (per-level override allowed).
+
 ## My authority
 
 The contract (`docs/30_framework_primitives.md`) is law. Invariants are
