@@ -250,28 +250,46 @@ When editing files matching certain globs, **read the corresponding rule first**
 
 See `.claude/rules/README.md` for the index.
 
-## Post-mortem ritual (ALWAYS-ON)
+## Post-mortem ritual (ALWAYS-ON — every bug must harden a skill)
 
-When the user surfaces ANY bug — anything from "this doesn't work" to
-a stack trace — do not just fix it. Run the 4-step ritual from
-`.claude/rules/post-mortem.md`:
+User invariant: **whenever a bug appears, find out who is
+responsible, and improve the skill so it can't recur.**
+
+When the user surfaces ANY bug — "this doesn't work" / "still
+nothing happens" / a stack trace / "why didn't this..." — do NOT
+just fix it. Run the 4-step ritual from `.claude/rules/post-mortem.md`:
 
 1. **Fix the bug.**
-2. **Identify the gate that should have caught it** — name a
-   specific skill/rule/validator/test, or flag that no gate exists
-   for this bug class.
-3. **Harden the gate** — concrete checklist item, grep command,
-   reviewer axis, or new validator. Not "be careful" — enforceable.
-4. **Commit both** — bug fix + gate hardening in the same commit
-   message, citing the empirical case + date.
+2. **Identify WHO is responsible.** Name the specific skill / rule /
+   validator / test that should have caught it. Every bug has an
+   owner — if it slipped through, the owner's gate was missing a
+   check. If no gate exists for this bug class, flag the gap and
+   create one.
+3. **Harden the gate.** Concrete checklist item, grep command,
+   reviewer axis, new validator, or new skill section. Not "be
+   careful" — *enforceable*. The skill update must make this exact
+   bug class impossible to recur.
+4. **Commit both** — bug fix + gate hardening in the same commit,
+   citing the empirical case + date.
 
-The gate update is not optional. Skipping it means the same bug
-class re-surfaces in a future session. Read `.claude/rules/
-post-mortem.md` for the full ritual + empirical precedents.
+The gate update is **not optional**. Skipping it means the same bug
+class re-surfaces in a future session, in a future game, in a
+future design pipeline. Read `.claude/rules/post-mortem.md` for
+the full ritual + empirical precedents (every bug since 2026-05-04
+followed this pattern).
+
+Step 3a (bug-class generalization): when fixing one site, ask "are
+there OTHER call sites that could trigger the same bug class?" If
+yes, fix the underlying primitive, not just the symptom site.
 
 Each gate hardening makes the system stronger. A bug that gets
 fixed but not gated will re-occur. A bug that gets gated cannot
 re-occur in that exact form.
+
+**When the user asks "who is responsible?" they are running the
+post-mortem ritual on you.** Answer specifically: name the skill,
+explain what its gate should have included, and harden it before
+moving on.
 
 **Visual validation gate** — when modifying rendering primitives
 (control_factory, screen_flow, overlay, renderer_2d/*, renderer_3d/*,

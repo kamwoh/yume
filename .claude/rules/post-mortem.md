@@ -13,11 +13,16 @@ design pipeline.
 Diagnose, fix, verify. Standard work. Output: a commit with the
 fix.
 
-### Step 2 — Identify the gate that should have caught it
+### Step 2 — Identify who is responsible (which gate should have caught it)
 
-Ask: *which existing skill, rule, validator, or test should have
-prevented this?* Be specific. Not "QA should be more careful" —
-name the file. Examples:
+Ask the user's question explicitly: **"who is responsible?"**
+
+Translate it: *which existing skill / rule / validator / test
+should have prevented this?* Be specific. Not "QA should be more
+careful" — **name the file**. Every bug has an owner; if it slipped
+through, the owner's skill was missing a check.
+
+Examples of accountability:
 
 - `yume-tech-director` Invariant #N — engine review missed it
 - `yume-playtest` Gate M — playability harness didn't probe it
