@@ -336,9 +336,13 @@ static func _velocity_set_relative(e: Dictionary, env: Dictionary, ctx: Dictiona
 	# Forward in world: rotate (0,0,-1) by yaw around Y → (-sin, 0, -cos)
 	var fx := -sin(facing) * fwd
 	var fz := -cos(facing) * fwd
-	# Strafe right = forward rotated 90° clockwise → (-cos, 0, sin)
-	var sx := -cos(facing) * strafe
-	var sz := sin(facing) * strafe
+	# Strafe right (player's right when facing yaw): R_y(-90°) of forward.
+	# At facing=0 (looking -Z), right = +X (east). General: right = (cos,
+	# -sin) in (X, Z). Bug fix 2026-05-08 — previous formula computed
+	# 90° CCW (player's left) and the comment misclaimed it was CW. User:
+	# "first person view, the left and right are reversed".
+	var sx := cos(facing) * strafe
+	var sz := -sin(facing) * strafe
 	# Final velocity: combine and store. If the entity stores Vector2 position
 	# (top-down 2D content), project onto XZ via Vector2(x_total, z_total).
 	var pos = ent.get_position()

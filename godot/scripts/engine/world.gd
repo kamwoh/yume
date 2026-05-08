@@ -568,8 +568,26 @@ func _spawn_initial(inst: Dictionary) -> void:
 			var existing = entities[inst_id]
 			if existing != null and existing.has_method("has_tag") \
 					and existing.has_tag("persistent"):
-				print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
-					"' instead of overwriting from level data")
+				# 2026-05-08 (refinement): the new level instance can still
+				# declare a SPAWN POSITION for the persistent. State (HP,
+				# inventory, etc.) survives the swap untouched, but the
+				# entity teleports to the new level's coords. Without this,
+				# the player stayed at pendrel coords inside the shop level
+				# → user saw pendrel through the shop wall.
+				if inst.has("position"):
+					var new_pos = inst["position"]
+					if new_pos is Array and new_pos.size() >= 2:
+						existing.set_position(new_pos)
+						if spatial_index != null:
+							spatial_index.update_entity(inst_id, existing.get_planar_position())
+						print("[PERSIST-TELEPORT] '", inst_id,
+							"' to ", new_pos, " (new level spawn position)")
+					else:
+						print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
+							"' (no valid position in new instance)")
+				else:
+					print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
+						"' instead of overwriting from level data")
 				continue
 		var ent := Entity.create(defs[def_id], inst_id, overrides)
 		entities[inst_id] = ent
