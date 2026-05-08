@@ -188,6 +188,11 @@ func _load_configs() -> void:
 	var root := str(_world.get("data_root"))
 	if root == "": return
 	root = root.rstrip("/")
+	# ADR 0027: ensure lib cache is populated BEFORE scene.json/hud.json
+	# parsing — Godot _ready order fires this child's lifecycle before
+	# the parent World runs its load_data(). Idempotent: World will call
+	# init_cache again later but the second call is a no-op.
+	LibResolver.init_cache(root)
 	_scene_cfg = _read_json(root + "/scene.json")
 	_hud_cfg = _read_json(root + "/hud.json")
 
@@ -196,8 +201,14 @@ func _read_json(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path): return {}
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
-	if data is Dictionary: return data
-	return {}
+	if not (data is Dictionary): return {}
+	# ADR 0027: route scene.json / hud.json / etc. through lib resolver
+	# so `$extends: @lib.cameras.X` and `@lib.X.Y` refs expand to the
+	# preset values before consumption.
+	var resolved = LibResolver.resolve(data)
+	if resolved is Dictionary:
+		return resolved as Dictionary
+	return data as Dictionary
 
 
 # ============================================================
