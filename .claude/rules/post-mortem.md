@@ -45,6 +45,45 @@ If no gate exists for this bug class, CREATE one. New invariant in
 the relevant skill, new axis in the relevant reviewer, new test in
 the suite, new rule in `.claude/rules/`, new validator in `tools/`.
 
+#### Step 3a — Bug-class generalization check (REQUIRED before declaring step 3 done)
+
+Before committing the gate update, ask:
+
+> *"Does this fix address the SYMPTOM site, or the underlying
+> primitive / heuristic / pattern?"*
+
+A symptom-site fix patches the one rule / file / button where the
+bug surfaced. A primitive fix repairs the underlying mechanism so
+the bug class can't reach any consumer.
+
+Empirical case (2026-05-08): `state_set value="Find your shop..."`
+crashed `Formula.evaluate` because `looks_like_formula` was too
+permissive. The SAME bug class hit show_toast weeks earlier (commit
+`caabe39`). The fix back then was localized — a `_value_text()`
+helper for show_toast only. State_set still used the broken
+heuristic. Fixing show_toast and not generalizing left the trap
+loaded for state_set, future effects, and any new caller of
+`_value()`. Today's fix tightened `looks_like_formula` itself,
+eliminating the bug everywhere.
+
+**Litmus test**: name two other call sites that could trigger the
+same bug under similar input. If either could, the fix is
+symptom-level — return to the primitive layer.
+
+**Common patterns where this matters**:
+- A wrong heuristic in shared code → fix the heuristic, not just
+  the one caller that exposed it.
+- A missing engine carve-out (e.g. freeze-policy) → audit ALL
+  pending pipelines, not just the one that hit the bug.
+- A schema-discipline gap (e.g. effect-chain ordering) → add a
+  validator, don't fix one rule's chain by hand.
+- A reviewer-axis miss → if axis N missed bug X, ask "would axis
+  N also miss bugs Y, Z, W?" and broaden the axis.
+
+If the bug-class generalization step would take 5x longer than the
+symptom-site fix, document the gap and ship the symptom fix WITH a
+TODO referencing this rule. Don't skip silently.
+
 ### Step 4 — Commit the gate update + cite the bug
 
 Commit message must mention BOTH the bug fix AND the gate change.

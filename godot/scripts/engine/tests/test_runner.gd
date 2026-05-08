@@ -731,6 +731,17 @@ func test_formulas() -> void:
 	expect(Formula.looks_like_formula("(a + b) / 2"), "looks_like_formula: parens")
 	expect(not Formula.looks_like_formula("actor"), "bare name not a formula")
 	expect(not Formula.looks_like_formula("hello_world"), "underscored name not a formula")
+	# Prose-rejection (2026-05-08 bug fix — capital-letter starts are text, not formula)
+	expect(not Formula.looks_like_formula("Find your shop in Pendrel."),
+		"prose: 'Find your shop in Pendrel.' (starts capital) — NOT a formula")
+	expect(not Formula.looks_like_formula("Walk to the shop door (south-west)."),
+		"prose with parens: 'Walk to the shop door (south-west).' — NOT a formula")
+	expect(not Formula.looks_like_formula("Day 6 — bailiff returns."),
+		"prose with em-dash: 'Day 6 — bailiff returns.' — NOT a formula")
+	expect(not Formula.looks_like_formula("→ Open the shop"),
+		"prose with arrow prefix: '→ Open the shop' — NOT a formula")
+	expect(not Formula.looks_like_formula(""),
+		"empty string — NOT a formula")
 
 	# Basic arithmetic with state path
 	var ctx := {"self": e}
