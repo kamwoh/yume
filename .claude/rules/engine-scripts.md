@@ -203,11 +203,33 @@ tutorial.json file (or rule that fires `transition_*` / `*_state`):
    releases. screen_fade is non-destructive so it stays intact
    through the whole chain.
 
-   **The check**: any button whose on_click chain pops a modal
-   (via `@previous` or `@root`) AND emits a signal consumed by a
-   rule that opens another modal — must start with screen_fade.
-   Visual gate misses it (flash too brief to capture); effect-
-   chain gate only checks ordering not inter-tick reveal.
+   **PAIRING (added 2026-05-08)**: every `screen_fade alpha=1.0`
+   raised by a modal-close MUST be paired with a `screen_fade
+   alpha=0.0` somewhere downstream — typically in the LAST
+   modal's close-button chain — so the persistent black overlay
+   fades back to transparent when the modal sequence ends.
+   Without it, after the final modal closes the player is left
+   staring at a solid black screen (the fade overlay is on
+   CanvasLayer 20, modals at 20+stack_size; modals cover the
+   overlay while open, but reveal it when they pop).
+
+   - First modal close in a sequence: `[screen_fade 1.0, ..., @previous]`
+   - Middle modal closes: just `[..., @previous]` (overlay still up)
+   - LAST modal close: `[..., @previous, screen_fade 0.0]`
+
+   For the Travel-to-Brookhaven case, `transition_level`'s own
+   fade state machine handles the fade-back, so no explicit
+   alpha=0 needed there. But for SIGNAL-RULE chains (no
+   transition_level), every alpha=1 needs a matching alpha=0.
+
+   **The check**: trace every chain that raises alpha to 1.0; trace
+   downstream until the modal sequence ends; verify a screen_fade
+   alpha=0 exists. Visual gate misses it (flash too brief to
+   capture); effect-chain gate only checks ordering not pairing.
+
+   Empirical case: 2026-05-08 funeral_splash → debt_papers_arrive →
+   "just dark." Funeral close raised alpha=1; debt_papers Continue
+   only popped, left overlay black. Fix: added alpha=0 to Continue.
 
 Effect documentation must spell out destructive-vs-additive semantics.
 See `docs/engine-reference/api-manifest.json` (auto-generated).
