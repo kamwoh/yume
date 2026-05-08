@@ -161,17 +161,37 @@ tutorial.json file (or rule that fires `transition_*` / `*_state`):
    follow-up via a one-shot rule that fires after the destruction
    completes.
 5. **Modal-pop reveals world (added 2026-05-08)**: any chain that
-   pops a modal stack BEFORE `transition_level` will briefly reveal
-   the OLD level (the one currently underneath the modals) for ~2
-   frames before transition_level's fade-out kicks in. Mitigation:
-   prepend a `screen_fade {alpha: 1.0, duration: 0.2}` so the world
-   is hidden by an opaque overlay BEFORE @root pops the modals. The
-   subsequent `transition_level` with its own `fade_duration` then
-   fades back out cleanly. Empirical case: merchant Travel-to-
-   Brookhaven button — user: "first load level_town_pendrel map
-   then only load the hud conversation". Visual gate missed it
-   because the flash was too brief to capture, and effect-chain
-   gate only checks ordering not modal-revelation timing.
+   pops a modal (`transition_screen @previous` or `@root`) reveals
+   the world underneath. The world is visible until the NEXT thing
+   covers it. Two flavors:
+
+   a) **Pop → transition_level**: pop reveals OLD level for ~2
+      frames before transition_level's fade-out kicks in.
+      Empirical: merchant Travel-to-Brookhaven (user: "first load
+      level_town_pendrel map then only load the hud conversation").
+
+   b) **Pop → wait-for-signal-rule → next modal**: pop reveals
+      world for ~1 tick (~0.1s) until the rule listening for the
+      button's emitted signal fires `transition_screen` to push
+      the next modal. Empirical: merchant funeral_splash "Goodbye,
+      Uncle" → emits funeral_dismissed → @previous pops, leaving
+      brookhaven world visible for 1 tick before
+      brookhaven_debt_papers_trigger rule opens debt_papers_arrive
+      (user: "between the funeral canvas and the next button, I
+      see the default sky and grey ground").
+
+   **Mitigation (both flavors)**: prepend a `screen_fade {alpha:
+   1.0, duration: 0.15-0.2}` to the on_click chain. The opaque
+   overlay covers the world BEFORE the modal pops; the next modal
+   (or transition_level fade) takes over before the overlay
+   releases. screen_fade is non-destructive so it stays intact
+   through the whole chain.
+
+   **The check**: any button whose on_click chain pops a modal
+   (via `@previous` or `@root`) AND emits a signal consumed by a
+   rule that opens another modal — must start with screen_fade.
+   Visual gate misses it (flash too brief to capture); effect-
+   chain gate only checks ordering not inter-tick reveal.
 
 Effect documentation must spell out destructive-vs-additive semantics.
 See `docs/engine-reference/api-manifest.json` (auto-generated).
