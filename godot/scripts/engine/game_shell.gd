@@ -325,6 +325,19 @@ func _drain_shell_events() -> void:
 					if target == "":
 						continue
 					var dur := float(ev.get("fade_duration", 0.5))
+					# 2026-05-08: when fade_duration=0 (instant swap),
+					# DO NOT touch fade state. A preceding screen_fade
+					# in the same drain may have raised alpha to mask
+					# the swap; overriding here would expose it. Just
+					# queue the level swap + camera snap, leave fade
+					# alone.
+					if dur <= 0.0:
+						if _world != null:
+							var sched_inst = _world.get("scheduler")
+							if sched_inst != null and sched_inst.get("env") != null:
+								(sched_inst.env as Dictionary)["_pending_level_transition"] = target
+						_camera_snap_pending = true
+						continue
 					var color = ev.get("color", "#000000")
 					_fade_color = _color(color)
 					_fade_pending_target = target
@@ -332,17 +345,6 @@ func _drain_shell_events() -> void:
 					_fade_target_alpha = 1.0
 					_fade_duration_remaining = _fade_half_duration
 					_fade_phase = FADE_PHASE_OUT
-					if _fade_duration_remaining <= 0.0:
-						# fade_duration was 0 → behave like instant transition.
-						# Skip the state machine entirely.
-						_fade_alpha = 0.0
-						_fade_phase = FADE_PHASE_IDLE
-						if _world != null:
-							var sched_inst = _world.get("scheduler")
-							if sched_inst != null and sched_inst.get("env") != null:
-								(sched_inst.env as Dictionary)["_pending_level_transition"] = target
-						_fade_pending_target = ""
-						_camera_snap_pending = true
 
 
 ## Apply current shake offset to camera + flash alpha to overlay. Both
