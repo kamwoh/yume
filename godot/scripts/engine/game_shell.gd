@@ -276,6 +276,21 @@ func _drain_shell_events() -> void:
 				var bus = get_node_or_null("/root/AudioBus")
 				if bus != null and bus.has_method("play"):
 					bus.play(sound_name)
+			"play_music":
+				# 2026-05-08 — looped BGM via AudioBus._music_player.
+				# Idempotent: same name re-play is a no-op (already playing).
+				var music_name := str(ev.get("name", ""))
+				if music_name == "": continue
+				if music_name.begins_with("@"):
+					music_name = _resolve_at_ref(music_name)
+					if music_name == "": continue
+				var bus_m = get_node_or_null("/root/AudioBus")
+				if bus_m != null and bus_m.has_method("play_music"):
+					bus_m.play_music(music_name)
+			"stop_music":
+				var bus_s = get_node_or_null("/root/AudioBus")
+				if bus_s != null and bus_s.has_method("stop_music"):
+					bus_s.stop_music()
 			"screen_fade":
 				# Standalone alpha tween — does NOT engage the fade-transition
 				# state machine. Just retargets alpha + duration; per-frame
@@ -437,7 +452,36 @@ func _update_floor_tint() -> void:
 func _update_camera_follow() -> void:
 	var cam_cfg: Dictionary = _scene_cfg.get("camera", {}) as Dictionary
 	if cam_cfg.is_empty(): return
-	var mode := str(cam_cfg.get("mode", "top_down_2d"))
+	# Tier 2.6 (2026-05-08): per-frame override from world_state. Lets a
+	# rule fire `state_set target=world field=camera_mode value="third_person_3d"`
+	# to swap the live camera mode without engine code changes. No-op when
+	# the override field isn't set. Empirical case: merchant V-key
+	# toggle_camera couldn't actually do anything because there was no
+	# runtime-mutable camera-mode path. Now: declare a simple cycle rule
+	# in game/rules.json that reads world.camera_mode and rotates it.
+	# Override camera mode from world_clock entity's state.camera_mode if set.
+	# Lets a rule fire `state_set target=self field=camera_mode value=...`
+	# (with query.tags_all=["world_clock"]) to swap modes at runtime without
+	# engine code changes. Empirical case: merchant V-key toggle 2026-05-08.
+	var override_mode := ""
+	if _world != null:
+		var sched = _world.get("scheduler")
+		if sched != null and sched.get("env") != null:
+			var ents: Dictionary = sched.env.get("entities", {}) as Dictionary
+			for eid in ents:
+				var e = ents[eid]
+				if e == null: continue
+				if e.has_method("has_tag") and e.has_tag("world_clock"):
+					var st: Dictionary = e.state as Dictionary
+					override_mode = str(st.get("camera_mode", ""))
+					break
+	# NB: avoid Godot 4.6.1 ternary `a if c else b` — broken (always returns
+	# IF branch). Use explicit branch.
+	var mode: String = ""
+	if override_mode != "":
+		mode = override_mode
+	else:
+		mode = str(cam_cfg.get("mode", "top_down_2d"))
 	# 2D modes need Camera2D; 3D modes need Camera3D. If wrong type missing,
 	# silent skip — content responsibility.
 	match mode:
@@ -612,7 +656,16 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 	var offset := Vector3(distance * 0.6, distance * 0.7, distance * 0.6)
 	var desired := target + offset
 	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
-	_camera3d.look_at(target, Vector3.UP)
+	# Fixed-orientation iso: compute basis from offset direction ONCE per
+	# frame against the FINAL desired position (not the mid-lerp position),
+	# so camera never visibly rotates while player walks. Empirical bug
+	# 2026-05-08 — user: "when I walk in iso3d view, I feel like the camera
+	# trying to rotate a bit". Root cause: previous look_at(target) used
+	# the lerping camera position to compute orientation each frame, so
+	# orientation drifted DURING the lerp (target moves east, camera trails,
+	# look_at re-aims forward each tick → tiny rotation per frame).
+	var basis := Basis.looking_at(target - desired, Vector3.UP, true)
+	_camera3d.global_transform.basis = basis
 	_apply_ortho(cam_cfg, true)
 
 

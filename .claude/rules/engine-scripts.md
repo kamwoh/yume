@@ -58,6 +58,37 @@ grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|a
 
 Should return zero matches.
 
+## Camera-stability anti-patterns
+
+When writing Camera2D / Camera3D follow code, never combine
+**position-lerp + per-frame look_at**. The orientation re-aims each
+tick using the LERPING (mid-flight) camera position, so during the
+lerp the camera visibly rotates as the target translates. Symptom:
+"when I walk in iso3d, I feel like the camera is trying to rotate."
+
+✅ **Correct pattern**: compute a FIXED orientation (basis from
+target-direction relative to FINAL desired position, not current
+lerping position), then only the camera POSITION lerps:
+
+```gdscript
+var desired := target + offset
+_camera3d.global_position = _camera3d.global_position.lerp(desired, t)
+# Orient against the desired (final) position so basis is steady
+# even while position is mid-lerp.
+var basis := Basis.looking_at(target - desired, Vector3.UP, true)
+_camera3d.global_transform.basis = basis
+```
+
+❌ **Wrong**:
+```gdscript
+_camera3d.global_position = _camera3d.global_position.lerp(desired, t)
+_camera3d.look_at(target, Vector3.UP)   # ← uses lerping position
+```
+
+Empirical case: 2026-05-08 merchant iso-3d. Subtle "drift" on every
+walk step that the user noticed but couldn't articulate. Fixed in
+`game_shell.gd::_camera_isometric_3d`.
+
 ## Visual validation gate (rendering primitives)
 
 **When modifying any of these files**, capture + invoke
@@ -129,6 +160,18 @@ tutorial.json file (or rule that fires `transition_*` / `*_state`):
    either combine into a single effect (preferred) OR queue the
    follow-up via a one-shot rule that fires after the destruction
    completes.
+5. **Modal-pop reveals world (added 2026-05-08)**: any chain that
+   pops a modal stack BEFORE `transition_level` will briefly reveal
+   the OLD level (the one currently underneath the modals) for ~2
+   frames before transition_level's fade-out kicks in. Mitigation:
+   prepend a `screen_fade {alpha: 1.0, duration: 0.2}` so the world
+   is hidden by an opaque overlay BEFORE @root pops the modals. The
+   subsequent `transition_level` with its own `fade_duration` then
+   fades back out cleanly. Empirical case: merchant Travel-to-
+   Brookhaven button — user: "first load level_town_pendrel map
+   then only load the hud conversation". Visual gate missed it
+   because the flash was too brief to capture, and effect-chain
+   gate only checks ordering not modal-revelation timing.
 
 Effect documentation must spell out destructive-vs-additive semantics.
 See `docs/engine-reference/api-manifest.json` (auto-generated).

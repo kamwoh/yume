@@ -63,7 +63,17 @@ def load_json(p: Path):
 
 # ---- check 1: HUD controls_hint covers every player-facing input ----
 
-inputs = load_json(GAME_DIR / "inputs.json")
+# Canonical path per ADR 0009 Phase 5b — `<game>/ui/input.json`. The
+# legacy root-level `inputs.json` is no longer read by the engine; if
+# we see one, warn so authors don't author into a dead file.
+inputs = load_json(GAME_DIR / "ui" / "input.json")
+legacy_inputs = GAME_DIR / "inputs.json"
+if legacy_inputs.exists():
+    errors.append(
+        f"legacy {legacy_inputs.name} present at data root — engine reads "
+        f"only `ui/input.json` since ADR 0009 Phase 5b. Move actions "
+        f"into ui/input.json or delete the dead file."
+    )
 hud = load_json(GAME_DIR / "hud.json")
 
 if inputs and hud:
@@ -75,6 +85,49 @@ if inputs and hud:
     hint = str(hud.get("controls_hint", ""))
     hint_lower = hint.lower()
 
+    # Aggregate all rule files to scan for input-trigger actions + screens
+    # global_inputs that consume actions. Bug class (2026-05-08): merchant
+    # declared `open_map` and `toggle_camera` in inputs.json but
+    # toggle_camera had no rule consuming it AND open_map was in the wrong
+    # canonical file. Player presses key, nothing happens.
+    rule_actions: set = set()
+
+    def collect_rule_input_actions(d):
+        if isinstance(d, dict):
+            t = d.get("trigger")
+            if isinstance(t, dict) and t.get("type") == "input":
+                act = t.get("action", "")
+                if isinstance(act, str) and act:
+                    rule_actions.add(act)
+            for v in d.values():
+                collect_rule_input_actions(v)
+        elif isinstance(d, list):
+            for x in d:
+                collect_rule_input_actions(x)
+
+    for path in [
+        GAME_DIR / "world" / "physics.json",
+        GAME_DIR / "game" / "rules.json",
+    ]:
+        rj = load_json(path)
+        if rj:
+            collect_rule_input_actions(rj)
+    for lvl_dir in (GAME_DIR / "levels").glob("level_*"):
+        for sub in ("rules.json", "physics.json"):
+            p = lvl_dir / sub
+            if p.exists():
+                rj = load_json(p)
+                if rj:
+                    collect_rule_input_actions(rj)
+    # screens.json global_inputs (action-driven on_press chains)
+    sj = load_json(GAME_DIR / "screens.json")
+    if sj and isinstance(sj.get("global_inputs"), list):
+        for g in sj["global_inputs"]:
+            if isinstance(g, dict):
+                act = g.get("action", "")
+                if isinstance(act, str) and act:
+                    rule_actions.add(act)
+
     for name in declared:
         keys = []
         for a in inputs.get("actions", []):
@@ -83,8 +136,7 @@ if inputs and hud:
                 break
         if not keys:
             continue
-        # any key listed must appear in hint (case-insensitive token match
-        # or full-name like "Escape" / "Space")
+        # Coverage 1: HUD controls_hint mentions keybind
         token_match = any(k.lower() in hint_lower for k in keys)
         name_match = name.lower().replace("_", " ") in hint_lower
         if not (token_match or name_match):
@@ -93,6 +145,18 @@ if inputs and hud:
                 f"(keys={keys}). Player has no way to discover this. "
                 f"Add to hud.json::controls_hint or prefix the action "
                 f"`ui_` if it's a built-in non-discoverable action."
+            )
+        # Coverage 2: action is consumed by SOME rule or global_input.
+        # A declared-but-unconsumed action means pressing the key does
+        # nothing — same player perspective as a missing keybind.
+        if name not in rule_actions and not name.startswith("move_"):
+            errors.append(
+                f"action '{name}' declared in ui/input.json with keys="
+                f"{keys} but no rule (game/rules.json or world/physics.json "
+                f"or screens.json global_inputs) consumes it. Pressing the "
+                f"key fires the input but nothing reacts. Either wire a "
+                f"rule with trigger.input.action='{name}' OR add "
+                f"`reserved: true` to the action def to skip this check."
             )
 
 

@@ -62,6 +62,49 @@
     "rocket_launch": {
       "wave": "square", "freq_start": 80, "freq_end": 200,
       "duration": 0.3, "attack": 0.02, "decay": 0.3, "volume": 0.5
+    },
+
+    "_comment_bgm": "Looped BGM tracks (added 2026-05-08). Each is a short melody (notes array) — audio_bus.gd::play_music duplicates the stream with loop_mode=LOOP_FORWARD so the arpeggio cycles. Procedural-only until .ogg pipeline lands.",
+
+    "bgm_pendrel_market": {
+      "wave": "sine", "volume": 0.18,
+      "notes": [
+        {"freq": 261.63, "dur": 0.3}, {"freq": 329.63, "dur": 0.3},
+        {"freq": 392.00, "dur": 0.3}, {"freq": 523.25, "dur": 0.3},
+        {"freq": 392.00, "dur": 0.3}, {"freq": 329.63, "dur": 0.3},
+        {"freq": 293.66, "dur": 0.3}, {"freq": 349.23, "dur": 0.3},
+        {"freq": 440.00, "dur": 0.3}, {"freq": 587.33, "dur": 0.3},
+        {"freq": 440.00, "dur": 0.3}, {"freq": 349.23, "dur": 0.3}
+      ]
+    },
+
+    "bgm_brookhaven_calm": {
+      "wave": "sine", "volume": 0.16,
+      "notes": [
+        {"freq": 220.00, "dur": 0.6}, {"freq": 261.63, "dur": 0.6},
+        {"freq": 329.63, "dur": 0.6}, {"freq": 261.63, "dur": 0.6},
+        {"freq": 220.00, "dur": 0.6}, {"freq": 196.00, "dur": 0.6},
+        {"freq": 174.61, "dur": 0.6}, {"freq": 220.00, "dur": 1.2}
+      ]
+    },
+
+    "bgm_dungeon": {
+      "wave": "sawtooth", "volume": 0.14,
+      "notes": [
+        {"freq": 110.00, "dur": 1.0}, {"freq": 130.81, "dur": 1.0},
+        {"freq": 146.83, "dur": 1.0}, {"freq": 130.81, "dur": 1.0},
+        {"freq": 116.54, "dur": 1.0}, {"freq": 130.81, "dur": 1.0}
+      ]
+    },
+
+    "bgm_shop": {
+      "wave": "sine", "volume": 0.16,
+      "notes": [
+        {"freq": 392.00, "dur": 0.4}, {"freq": 493.88, "dur": 0.4},
+        {"freq": 587.33, "dur": 0.4}, {"freq": 493.88, "dur": 0.4},
+        {"freq": 392.00, "dur": 0.4}, {"freq": 329.63, "dur": 0.4},
+        {"freq": 392.00, "dur": 0.4}, {"freq": 261.63, "dur": 0.8}
+      ]
     }
   }
 }

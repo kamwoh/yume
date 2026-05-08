@@ -49,6 +49,29 @@ Without an audio-architecture specialist, games either:
 This skill produces an audio-design.md with rationale + a music-bed
 section in audio/cues.json.
 
+## Engine-capability gate (MANDATORY before declaring complete)
+
+Before signing off, verify the cues you authored can ACTUALLY play.
+Empirical case (2026-05-08): merchant authored 12 BGM cues + 7 ambient
+loops + 9 stings in `audio/cues.json::music_beds`. User played:
+"where is the background music you said early?" Reason: `audio_bus.gd`
+was sfxr-only (one-shot procedural). The music_beds metadata was
+forward-compat but NO ENGINE CODE READ IT. BGM degraded to silence.
+
+Checklist before complete:
+1. Run `grep -E "play_music|loop_mode|_music_player" archetypes/core/templates/godot/scripts/engine/audio_bus.gd` — does the engine
+   have a play_music API? If NOT, your BGM cues will be silent.
+2. If absent, EITHER:
+   - Author short procedural melodies (`notes: [{freq, dur}, ...]` in
+     sounds.json) and document the rule wiring + the limitation.
+   - OR propose an ADR for ogg/loop playback. Don't claim BGM is
+     authored if the engine can't play it.
+3. Verify each BGM track has a corresponding rule in game/rules.json
+   that fires `emit_shell_event {event: "play_music", name: "..."}`
+   on level entry. Without the rule, the cue is dead JSON.
+4. Document in audio-design.md exactly which cues are PLAYABLE today
+   vs forward-compat metadata.
+
 ## Inputs
 
 - A GDD at `docs/games/<game>/GDD.md` (theme, aesthetic, emotional
