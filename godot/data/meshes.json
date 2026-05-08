@@ -409,6 +409,72 @@
       "params": {"wood": "#5a3820", "knob": "#d8b048"}
     },
 
+    "merchant_city_wall_segment_3d": {
+      "_comment": "Stone wall segment, 10m long × 4m tall × 1m thick. Tile multiple along perimeter for a continuous wall. Crenellated top (small box pattern) gives medieval keep silhouette.",
+      "primitives": [
+        {"op": "box", "pos": [0, 2.0, 0],   "size": [10.0, 4.0, 1.0], "color": "$stone"},
+        {"op": "box", "pos": [-4.0, 4.3, 0], "size": [1.5, 0.6, 1.2], "color": "$stone"},
+        {"op": "box", "pos": [-1.5, 4.3, 0], "size": [1.5, 0.6, 1.2], "color": "$stone"},
+        {"op": "box", "pos": [1.5, 4.3, 0],  "size": [1.5, 0.6, 1.2], "color": "$stone"},
+        {"op": "box", "pos": [4.0, 4.3, 0],  "size": [1.5, 0.6, 1.2], "color": "$stone"}
+      ],
+      "params": {"stone": "#6a5a4a"}
+    },
+
+    "merchant_city_gate_3d": {
+      "_comment": "Wider gate: 2 stone pillars + arched lintel. Place where roads meet city perimeter (4 cardinal gates).",
+      "primitives": [
+        {"op": "box", "pos": [-3.5, 3.0, 0], "size": [1.5, 6.0, 1.5], "color": "$stone"},
+        {"op": "box", "pos": [3.5, 3.0, 0],  "size": [1.5, 6.0, 1.5], "color": "$stone"},
+        {"op": "box", "pos": [0, 5.5, 0],    "size": [9.0, 1.0, 1.2], "color": "$stone"},
+        {"op": "box", "pos": [0, 6.3, 0],    "size": [10.0, 0.6, 1.4], "color": "$stone"},
+        {"op": "sphere", "pos": [-3.5, 6.7, 0], "radius": 0.4, "color": "$banner"},
+        {"op": "sphere", "pos": [3.5, 6.7, 0],  "radius": 0.4, "color": "$banner"}
+      ],
+      "params": {"stone": "#6a5a4a", "banner": "#aa3030"}
+    },
+
+    "merchant_lamppost_lit_3d": {
+      "_comment": "FAT lamppost — 0.3m radius lamp head (was 0.05 — invisible). Per visual-density vocabulary axis 4 (micro-lights every 8-15m, FAT, warm). Two-tone: dark post, bright warm sphere on top.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 1.5, 0], "radius": 0.07, "height": 3.0, "color": "$post"},
+        {"op": "box",      "pos": [0, 3.05, 0], "size": [0.4, 0.1, 0.4], "color": "$post"},
+        {"op": "sphere",   "pos": [0, 3.4, 0], "radius": 0.32, "color": "$lamp"},
+        {"op": "sphere",   "pos": [0, 3.4, 0], "radius": 0.42, "color": "$glow"}
+      ],
+      "params": {"post": "#2a1a10", "lamp": "#ffe080", "glow": "#ffaa40"}
+    },
+
+    "merchant_npc_hero_3d": {
+      "_comment": "Hero / player silhouette — capsule body + cape behind + helm. Distinct from generic townie at glance. Per visual-density axis 10 (silhouette readability).",
+      "primitives": [
+        {"op": "capsule",  "pos": [0, 0.9, 0],  "radius": 0.3, "height": 1.4, "color": "$body"},
+        {"op": "box",      "pos": [0, 1.35, -0.32], "size": [0.65, 1.0, 0.05], "color": "$cape"},
+        {"op": "sphere",   "pos": [0, 1.85, 0], "radius": 0.28, "color": "$skin"},
+        {"op": "box",      "pos": [0, 2.05, 0], "size": [0.55, 0.18, 0.55], "color": "$helm"}
+      ],
+      "params": {"body": "#3a4a6a", "cape": "#aa2828", "skin": "#dab098", "helm": "#888888"}
+    },
+
+    "merchant_npc_shopkeeper_3d": {
+      "_comment": "Shopkeeper silhouette — capsule + apron front. Used for supplier stalls + Tomas/Mireille shop owner.",
+      "primitives": [
+        {"op": "capsule",  "pos": [0, 0.9, 0],  "radius": 0.3, "height": 1.4, "color": "$body"},
+        {"op": "box",      "pos": [0, 0.6, 0.32], "size": [0.55, 0.7, 0.05], "color": "$apron"},
+        {"op": "sphere",   "pos": [0, 1.85, 0], "radius": 0.28, "color": "$skin"}
+      ],
+      "params": {"body": "#6a5040", "apron": "#a89860", "skin": "#dab098"}
+    },
+
+    "merchant_npc_child_3d": {
+      "_comment": "Child silhouette — smaller scale, no hat. For ambient cottage village kids.",
+      "primitives": [
+        {"op": "capsule",  "pos": [0, 0.55, 0],  "radius": 0.22, "height": 0.85, "color": "$body"},
+        {"op": "sphere",   "pos": [0, 1.18, 0], "radius": 0.22, "color": "$skin"}
+      ],
+      "params": {"body": "#8a6a48", "skin": "#dab098"}
+    },
+
     "merchant_cobblestone_tile_3d": {
       "_comment": "Flat road tile, ~5m square × 5cm thick. Dark-grey cobblestone color. Place in lines for cardinal roads connecting plaza to districts. Use small Y offset so tiles sit on top of the dirt ground without z-fighting.",
       "primitives": [
