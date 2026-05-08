@@ -623,8 +623,13 @@ func _on_tick(count: int) -> void:
 	var freeze := int(world_state.get("screen_freeze_world", 0)) != 0
 	freeze = freeze or int(world_state.get("overlay_freeze_world", 0)) != 0
 	if freeze:
-		# Still process pending save/load so a "Save" button in pause works
+		# Still process pending save/load so a "Save" button in pause works,
+		# AND pending level transitions so a "New Game / Travel" button on a
+		# freeze_world screen can swap the level (ScreenFlow buttons fire
+		# transition_level via shell_event_buffer; GameShell drives the
+		# fade + queues _pending_level_transition; this runs the swap).
 		process_pending_save_load()
+		process_pending_level_transition()
 		return
 	# ADR 0018 Phase A: tick AI policies BEFORE scheduler.tick so their
 	# synthesized actions land in the input queue and are processed in

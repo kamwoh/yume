@@ -78,14 +78,15 @@ func _ready() -> void:
 	_toast_layer = CanvasLayer.new()
 	_toast_layer.layer = 50
 	add_child(_toast_layer)
-	# Defer starting-screen push until after all sibling _ready()s have
-	# completed. SettingsManager loads its schema in its own _ready, and
-	# the settings screen's settings_renderer needs that schema to populate.
-	# call_deferred runs after the current frame's idle tasks (post-_ready
-	# for all nodes).
+	# Push starting screen SYNCHRONOUSLY (not deferred) so freeze_world lands
+	# before the world's first tick — eliminates the "1 frame of game then
+	# title" flash. Previously we used call_deferred to wait for
+	# SettingsManager's schema load, but only the settings screen depends
+	# on that, and the settings screen is never the starting_screen. The
+	# title / story splash / etc. don't read the settings schema.
 	_starting_screen = str(_cfg.get("starting_screen", ""))
 	if _starting_screen != "" and _screens_by_id.has(_starting_screen):
-		call_deferred("_push_screen", _starting_screen, false)
+		_push_screen(_starting_screen, false)
 
 
 func _process(_delta: float) -> void:
