@@ -250,6 +250,29 @@ When editing files matching certain globs, **read the corresponding rule first**
 
 See `.claude/rules/README.md` for the index.
 
+## Post-mortem ritual (ALWAYS-ON)
+
+When the user surfaces ANY bug — anything from "this doesn't work" to
+a stack trace — do not just fix it. Run the 4-step ritual from
+`.claude/rules/post-mortem.md`:
+
+1. **Fix the bug.**
+2. **Identify the gate that should have caught it** — name a
+   specific skill/rule/validator/test, or flag that no gate exists
+   for this bug class.
+3. **Harden the gate** — concrete checklist item, grep command,
+   reviewer axis, or new validator. Not "be careful" — enforceable.
+4. **Commit both** — bug fix + gate hardening in the same commit
+   message, citing the empirical case + date.
+
+The gate update is not optional. Skipping it means the same bug
+class re-surfaces in a future session. Read `.claude/rules/
+post-mortem.md` for the full ritual + empirical precedents.
+
+Each gate hardening makes the system stronger. A bug that gets
+fixed but not gated will re-occur. A bug that gets gated cannot
+re-occur in that exact form.
+
 **Visual validation gate** — when modifying rendering primitives
 (control_factory, screen_flow, overlay, renderer_2d/*, renderer_3d/*,
 game_shell HUD/camera sections), run `--capture` + `yume-visual-designer`
