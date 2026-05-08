@@ -122,6 +122,11 @@ static func load_from_file(path: String, env: Dictionary = {},
 			{"file": path},
 			"Run the file through a JSON linter — top-level must be an object with a 'rules' array.")
 		return out
+	# ADR 0027: expand @lib.X / $extends / $include refs before macros.
+	# $include splices lib rule arrays into the parent rules array.
+	var resolved = LibResolver.resolve(data)
+	if resolved is Dictionary:
+		data = resolved
 	var list = data.get("rules", [])
 	if not (list is Array):
 		EngineError.raise(env, EngineError.RULE_LIST_NOT_ARRAY,
@@ -129,6 +134,27 @@ static func load_from_file(path: String, env: Dictionary = {},
 			{"file": path, "field": "rules", "got_type": _type_name(list)},
 			"Wrap your rule entries in an array: { \"rules\": [ {...}, {...} ] }.")
 		return out
+	# ADR 0027 condition 3: id-collision detection on $include splice.
+	# A rule whose `id` already appeared in this load's rules array (from
+	# a $include or hand-authored sibling) is an error — rename either side
+	# to disambiguate. NB: only checks within THIS file. Cross-file dup-id
+	# is the scheduler's job (rules_by_trigger handles it).
+	var seen_ids: Dictionary = {}
+	for entry in list:
+		if not (entry is Dictionary): continue
+		var rid := str((entry as Dictionary).get("id", ""))
+		if rid == "": continue
+		if seen_ids.has(rid):
+			var prev_origin: String = str(seen_ids[rid])
+			var cur_origin: String = str((entry as Dictionary).get("_origin", "(local)"))
+			EngineError.raise(env, EngineError.RULE_DUPLICATE_ID,
+				"%s: duplicate rule id '%s' (sources: %s vs %s)"
+					% [path, rid, prev_origin, cur_origin],
+				{"file": path, "rule_id": rid,
+				 "first_origin": prev_origin, "second_origin": cur_origin},
+				"Rename one of the colliding rules. If a $include'd lib bundle "
+				+ "has the conflicting id, fork the bundle or rename the local rule.")
+		seen_ids[rid] = (entry as Dictionary).get("_origin", "(local)")
 	# ADR 0019: expand macros before parsing into Rule instances. After
 	# expansion, every effect's `type` is a primitive (state_set, spawn, ...).
 	# Rule.from_dict sees only primitives — no macro logic at runtime.

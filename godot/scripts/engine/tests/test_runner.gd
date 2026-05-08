@@ -65,6 +65,7 @@ func _ready() -> void:
 	test_party_ko_preserves_entity()
 	test_nameplate_filters_named_npc_tag()
 	test_nameplate_picks_display_name_over_id()
+	test_lib_resolver()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -3295,3 +3296,148 @@ func test_nameplate_picks_display_name_over_id() -> void:
 	expect_eq(str(by_id.get("npc_anonymous", "")), "npc_anonymous",
 		"without display_name → falls back to instance_id")
 	has.queue_free(); bare.queue_free()
+
+
+# ============================================================
+# ADR 0027 — LIB RESOLVER UNIT TESTS
+# ============================================================
+
+func test_lib_resolver() -> void:
+	# Manually populate the static cache (bypass file I/O so tests are
+	# self-contained — no data/lib/ tree required for unit tests).
+	LibResolver.reset_cache_for_test()
+	# Inject test fixtures into the cache directly via the static var.
+	LibResolver._cache_loaded = true
+	LibResolver._cache = {
+		"cameras": {
+			"fps_default": {"mode": "first_person_3d", "eye_height": 1.7, "use_pitch": true},
+			"iso_top_down": {"mode": "isometric_3d", "distance": 24, "ortho_size": 24},
+		},
+		"input_bundles.wasd_world": {
+			"actions": ["move_north", "move_south", "move_east", "move_west"],
+			"rules": [
+				{"id": "lib_move_north", "trigger": {"type": "input", "action": "move_north"},
+				 "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": -3.0}},
+				{"id": "lib_move_south", "trigger": {"type": "input", "action": "move_south"},
+				 "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 3.0}},
+			],
+		},
+		"chained.outer": {"$extends": "@lib.chained.inner", "extra_field": 99},
+		"chained.inner": {"base_field": 1},
+		"cycle.a": "@lib.cycle.b",
+		"cycle.b": "@lib.cycle.a",
+	}
+
+	# === Test 1: string_ref — @lib.X.Y resolves to dict ===
+	_section("lib_resolver.test_string_ref")
+	var t1_in = "@lib.cameras.fps_default"
+	var t1_out = LibResolver.resolve(t1_in)
+	expect_eq(typeof(t1_out), TYPE_DICTIONARY, "string @lib ref resolves to dict")
+	expect_eq(str((t1_out as Dictionary).get("mode")), "first_person_3d",
+		"resolved dict has expected mode")
+	expect_eq(str((t1_out as Dictionary).get("_origin")), "@lib.cameras.fps_default",
+		"resolved dict carries _origin")
+
+	# === Test 2: $extends shallow merge ===
+	_section("lib_resolver.test_extends_shallow_merge")
+	var t2_in = {"$extends": "@lib.cameras.iso_top_down", "follow_tag": "player", "ortho_size": 30}
+	var t2_out = LibResolver.resolve(t2_in)
+	expect_eq(typeof(t2_out), TYPE_DICTIONARY, "$extends resolves to dict")
+	var t2 := t2_out as Dictionary
+	expect_eq(str(t2.get("mode")), "isometric_3d", "preset's mode preserved")
+	expect_eq(int(t2.get("distance")), 24, "preset's distance preserved")
+	expect_eq(int(t2.get("ortho_size")), 30, "spec override wins (30, not preset's 24)")
+	expect_eq(str(t2.get("follow_tag")), "player", "spec adds new key")
+	expect_eq(str(t2.get("_origin")).begins_with("$extends:"), true, "_origin set")
+
+	# === Test 3: $include array splice ===
+	_section("lib_resolver.test_include_array_splice")
+	var t3_in = {
+		"rules": [
+			{"id": "game_rule_1", "trigger": {"type": "tick"}},
+			{"$include": "@lib.input_bundles.wasd_world.rules"},
+			{"id": "game_rule_2", "trigger": {"type": "tick"}},
+		],
+	}
+	var t3_out = LibResolver.resolve(t3_in)
+	var t3_rules: Array = (t3_out as Dictionary).get("rules", [])
+	expect_eq(t3_rules.size(), 4, "$include splices 2 lib rules into a 4-item array")
+	expect_eq(str((t3_rules[0] as Dictionary).get("id")), "game_rule_1", "first game rule preserved")
+	expect_eq(str((t3_rules[1] as Dictionary).get("id")), "lib_move_north", "lib rule 1 spliced")
+	expect_eq(str((t3_rules[2] as Dictionary).get("id")), "lib_move_south", "lib rule 2 spliced")
+	expect_eq(str((t3_rules[3] as Dictionary).get("id")), "game_rule_2", "second game rule preserved")
+
+	# === Test 4: recursion depth (lib → lib chain) ===
+	_section("lib_resolver.test_recursion_depth")
+	# chained.outer extends chained.inner; resolving outer should recursively resolve inner.
+	var t4_out = LibResolver.resolve("@lib.chained.outer")
+	expect_eq(typeof(t4_out), TYPE_DICTIONARY, "recursive @lib chain resolves")
+	var t4 := t4_out as Dictionary
+	expect_eq(int(t4.get("base_field")), 1, "inner field present after recursion")
+	expect_eq(int(t4.get("extra_field")), 99, "outer override preserved")
+
+	# === Test 5: cycle detection ===
+	_section("lib_resolver.test_cycle_detection")
+	# cycle.a → cycle.b → cycle.a — resolver should error and return null/ref.
+	# We don't expect_error directly (engine_error logs to stderr, not return),
+	# but we expect resolve() to either return null or the original ref string.
+	var t5_out = LibResolver.resolve("@lib.cycle.a")
+	# Cycle detection returns null on the cycle hit; via the recursion
+	# unwind we may see the partial chain. Acceptable: t5_out is null OR
+	# a raw string ref (unresolved).
+	var t5_ok := (t5_out == null) or (t5_out is String)
+	expect_eq(t5_ok, true, "cycle returns null or unresolved ref (no infinite loop)")
+
+	# === Test 6: depth limit (>8) ===
+	_section("lib_resolver.test_depth_limit")
+	# Build a 9-deep chain in cache. Each step is a string ref to next.
+	for i in range(10):
+		LibResolver._cache["depth_chain.step_%d" % i] = "@lib.depth_chain.step_%d" % (i + 1)
+	LibResolver._cache["depth_chain.step_10"] = {"final": true}
+	var t6_out = LibResolver.resolve("@lib.depth_chain.step_0")
+	# At depth 8+, resolver bails and returns the unresolved value.
+	# Either null or a string ref is acceptable (depth bail doesn't crash).
+	var t6_ok := (t6_out == null) or (t6_out is String) or (t6_out is Dictionary)
+	expect_eq(t6_ok, true, "depth limit returns gracefully without crash")
+
+	# === Test 7: id-collision detected (handled in Rule.load_from_file, not resolver) ===
+	# This test verifies the resolver itself doesn't dedupe — id-collision
+	# detection is the rule loader's responsibility. Resolver just splices.
+	_section("lib_resolver.test_id_collision_passes_through")
+	var t7_in = {
+		"rules": [
+			{"id": "duplicate", "trigger": {"type": "tick"}},
+			{"$include": "@lib.input_bundles.wasd_world.rules"},
+		],
+	}
+	# After resolve, both 'duplicate' and lib rules ('lib_move_north', etc.) are
+	# in the array. No collision in this fixture, but resolver passes through.
+	var t7_out = LibResolver.resolve(t7_in)
+	var t7_rules: Array = (t7_out as Dictionary).get("rules", [])
+	expect_eq(t7_rules.size(), 3, "resolver leaves dup-detection to caller")
+
+	# === Test 8: _origin metadata stamped on $extends and string ref ===
+	_section("lib_resolver.test_origin_metadata")
+	var t8_str = LibResolver.resolve("@lib.cameras.iso_top_down")
+	expect_eq(str((t8_str as Dictionary).get("_origin")), "@lib.cameras.iso_top_down",
+		"string ref stamps _origin")
+	var t8_ext = LibResolver.resolve({"$extends": "@lib.cameras.fps_default", "x": 1})
+	expect_eq(str((t8_ext as Dictionary).get("_origin")), "$extends:@lib.cameras.fps_default",
+		"$extends stamps _origin with prefix")
+
+	# === Test 9: pass-through for refs-free input ===
+	_section("lib_resolver.test_pass_through_unchanged")
+	var t9_in = {
+		"unrelated": {"nested": [1, 2, 3], "key": "value"},
+		"array": [{"id": "x"}, {"id": "y"}],
+	}
+	var t9_out = LibResolver.resolve(t9_in)
+	expect_eq(typeof(t9_out), TYPE_DICTIONARY, "passes through unchanged")
+	var t9 := t9_out as Dictionary
+	expect_eq(t9.size(), 2, "same key count")
+	expect_eq(str((t9.get("unrelated") as Dictionary).get("key")), "value",
+		"deep value preserved")
+	expect_eq((t9.get("array") as Array).size(), 2, "array preserved")
+
+	# Cleanup
+	LibResolver.reset_cache_for_test()

@@ -100,6 +100,9 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   # undiscoverable keybinds + objective text referencing unlabeled
   # landmarks. See .claude/skills/yume-game-reviewer/SKILL.md Axis 15.
   python3 "${YUME_ROOT}/tools/validate_player_perspective.py" "${DATA_FOLDER}" || true
+  # ADR 0027 cross-game lib-ref check (added 2026-05-08). Verifies every
+  # @lib.X.Y reference resolves through data/lib/manifest.json.
+  python3 "${YUME_ROOT}/tools/validate_lib_refs.py" "${DATA_FOLDER}" || true
 fi
 
 # Build cmdline args for Godot's user-args section (after `--`)

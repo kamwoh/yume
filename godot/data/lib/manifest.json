@@ -1,0 +1,34 @@
+{
+  "_comment": "ADR 0027 manifest — discoverability index. EVERY @lib.X.Y reference must resolve through here. Updated whenever a lib file is added/renamed. LLM authors read this file first to know what's available before composing.",
+
+  "categories": {
+    "cameras": {
+      "_shape": "camera_config",
+      "_path": "data/lib/cameras.json",
+      "entries": {
+        "iso_top_down":         "Isometric 3D follow with 24m ortho extent, 0.18 lerp. Default for tactical / city / management games.",
+        "top_down_3d":          "Camera directly above target, 16m ortho extent. Stardew-like overhead.",
+        "third_person_default": "Behind-shoulder follow, mouse-yaw, perspective. Action-adventure / MMO.",
+        "fps_default":          "First-person eye-height, mouse pitch+yaw, perspective. Doom / FPS feel."
+      }
+    },
+    "input_bundles": {
+      "_shape": "input_bundle",
+      "_path": "data/lib/input_bundles/<name>.json",
+      "entries": {
+        "wasd_world":           "4 rules: WASD → world-frame velocity_set (3 m/s). Iso/top-down/third-person modes.",
+        "wasd_with_fp_variant": "8 rules: 4 world-frame (camera_mode != first_person_3d) + 4 camera-relative (camera_mode == first_person_3d). Bundles BOTH so V-cycle works."
+      }
+    }
+  },
+
+  "shape_defs": {
+    "camera_config":  "Dict — must contain {mode} + mode-specific fields (distance/ortho_size/eye_height/...). Spliced into scene.json::camera.",
+    "input_bundle":   "Dict {actions: [<inputs.json action>...], rules: [<rule>...]}. The `rules` array is spliced into a parent rules array via $include @lib.input_bundles.NAME.rules. The `actions` array is for documentation; per-game inputs.json still authors its own action list.",
+    "entity_def":     "Dict {id, tags, properties, state_init, visual} matching entities.json def schema. Spliced into a `definitions` array via $include.",
+    "screen_spec":    "Dict {id, modal, freeze_world, background_color, elements, ...} matching screens.json schema. Spliced into a `screens` array via $include.",
+    "rule_array":     "Array of rule dicts. Spliced via $include into a parent rules array."
+  },
+
+  "_authoring_discipline": "When adding a new lib file, ALWAYS update this manifest's entries table. tools/validate_lib_refs.py checks every @lib.X.Y reference resolves through here AND that the lib file exists at the declared _path. Out-of-date manifest = sync failure."
+}

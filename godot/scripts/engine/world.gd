@@ -142,6 +142,11 @@ func _resolve_data_root_from_cmdline() -> void:
 ## world/physics.json (or split per Phase 3b classification).
 func load_data() -> void:
 	var root := data_root.rstrip("/")
+	# ADR 0027 — load shared `data/lib/**.json` into LibResolver cache
+	# BEFORE any per-game JSON loader runs. Resolver runs cache-once;
+	# subsequent calls are no-op. Lets later loaders (entities, rules,
+	# screens, scene, hud) call LibResolver.resolve transparently.
+	LibResolver.init_cache(root)
 	# Tier 2.6t — register per-game input actions from inputs.json (if any).
 	# Lets games own their input vocabulary; project.godot stays generic.
 	# v2.6r: registrar returns press/hold action names so the engine extends
@@ -366,6 +371,11 @@ func _read_entities_json(path: String, env: Dictionary) -> Dictionary:
 			{"file": path},
 			"Top-level must be a JSON object with 'definitions' / 'initial_instances' / 'initial_relations'.")
 		return {}
+	# ADR 0027: expand @lib.X / $extends / $include refs before consumption.
+	# Pass-through if no refs present.
+	var resolved = LibResolver.resolve(data)
+	if resolved is Dictionary:
+		return resolved as Dictionary
 	return data as Dictionary
 
 
