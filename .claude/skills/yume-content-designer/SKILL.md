@@ -390,6 +390,41 @@ sword."`) are forbidden.
 Engine reads these fields as data only — same path as any other
 property/state field. No engine work needed.
 
+## `persistent` tag — ONLY for entities that follow the player
+
+The `persistent` tag (per ADR 0006 multi-level) marks an entity as
+surviving level transitions. It must be applied with discipline:
+
+**SHOULD be persistent**:
+- `player` (the avatar)
+- `world_clock` (singleton state holder)
+- `party_member` entities (companions following the player)
+- Named regulars who narratively appear in multiple levels (the
+  story-critical recurring NPCs — usually 0-3 per game)
+
+**SHOULD NOT be persistent**:
+- Buildings, walls, fences, pillars (per-level architecture)
+- Lampposts, fountains, signposts, supplier stalls (per-level
+  street furniture)
+- Portals (per-level entry/exit; new portal in new level)
+- Generic NPCs / customers / enemies (spawned per level)
+- Decorative props (chickens, banners, smoke emitters)
+
+Empirical case: merchant 2026-05-08 — every building def
+(`prop_cottage` / `prop_forge` / `prop_tavern` / etc.) was tagged
+`persistent`. When the player walked from Pendrel into the shop
+(8m × 6m interior), all 14 Pendrel buildings + watchtowers +
+boundary walls came along. User reaction:
+*"why i enter the shop, the shop has counter, then also have
+buildings?"*
+
+The **mental check** for the persistent tag: if the entity is
+something a player would expect to *follow them* across a level
+transition (themselves, their party, the time-of-day clock), tag
+it persistent. If it's part of the SCENERY of one place, do NOT
+tag it persistent — re-author it in each level's
+`initial_instances`.
+
 ## Schema validation
 
 Before declaring done, run mental schema validation:
