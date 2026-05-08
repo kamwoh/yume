@@ -694,16 +694,21 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 		_camera_snap_pending = false
 	else:
 		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
-	# Fixed-orientation iso: compute basis from offset direction ONCE per
-	# frame against the FINAL desired position (not the mid-lerp position),
-	# so camera never visibly rotates while player walks. Empirical bug
-	# 2026-05-08 — user: "when I walk in iso3d view, I feel like the camera
-	# trying to rotate a bit". Root cause: previous look_at(target) used
-	# the lerping camera position to compute orientation each frame, so
-	# orientation drifted DURING the lerp (target moves east, camera trails,
-	# look_at re-aims forward each tick → tiny rotation per frame).
-	var basis := Basis.looking_at(target - desired, Vector3.UP, true)
-	_camera3d.global_transform.basis = basis
+	# Fixed-orientation iso: orient camera as if AT desired looking at
+	# target. For an orthographic camera, position-only translation with
+	# fixed orientation gives a stable iso view while the position lerps
+	# smoothly. Camera3D forward is -Z, so we use Basis.looking_at with
+	# use_model_front=FALSE (the default — aim -Z toward target). The
+	# direction is from desired (final vantage) → target, NOT from
+	# current_position → target, otherwise the basis re-aims while
+	# position lerps and the view visibly rotates. Empirical bug
+	# 2026-05-08: user reported "camera trying to rotate" while walking;
+	# fix took a previous attempt that used use_model_front=true,
+	# which flipped Camera3D forward to +Z and made the camera look
+	# AWAY from target — empty world. Reverted to default convention.
+	_camera3d.global_transform.basis = Basis.looking_at(
+		target - desired, Vector3.UP, false
+	)
 	_apply_ortho(cam_cfg, true)
 
 

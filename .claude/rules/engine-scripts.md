@@ -74,10 +74,26 @@ lerping position), then only the camera POSITION lerps:
 var desired := target + offset
 _camera3d.global_position = _camera3d.global_position.lerp(desired, t)
 # Orient against the desired (final) position so basis is steady
-# even while position is mid-lerp.
-var basis := Basis.looking_at(target - desired, Vector3.UP, true)
-_camera3d.global_transform.basis = basis
+# even while position is mid-lerp. Camera3D forward is -Z, so
+# use_model_front MUST be false (the default) — true flips +Z toward
+# target and makes the camera look AWAY from the world.
+_camera3d.global_transform.basis = Basis.looking_at(
+    target - desired, Vector3.UP, false
+)
 ```
+
+**Camera3D `use_model_front` trap (added 2026-05-08)**: `Basis.looking_at`
+takes `(target_direction, up, use_model_front=false)`. With `false`
+(default), -Z is aimed at the target — the Camera3D convention.
+With `true`, +Z is aimed at the target — used for *meshes* whose
+front-face is +Z, NOT for cameras. Setting `true` on a Camera3D
+makes it face exactly the wrong way; the world ends up empty
+(camera looks at the void behind it). Empirical case: 2026-05-08
+merchant iso-3d. Initial fix for "camera rotation while walking"
+used `true` and shipped a regression where pendrel + brookhaven
+both rendered as empty sky/ground. Caught by user playtest, not
+by visual gate (the regression capture LOOKED like the existing
+"empty world during transition" symptom we'd already been chasing).
 
 ❌ **Wrong**:
 ```gdscript

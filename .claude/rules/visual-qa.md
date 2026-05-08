@@ -127,6 +127,18 @@ regardless of what the change-prompt says.
 5. **HUD readable**: text + bars rendered, not clipping off-screen?
 6. **No placeholder geometry**: no untextured pink boxes, no default
    cubes, no missing-mesh warning planes?
+7. **At least one named entity visible (added 2026-05-08)**: any
+   sky+ground capture WITHOUT entities is a FAIL even if criteria
+   1-6 pass — entities being invisible is a regression class
+   masquerading as "empty scene". Look for ANY non-HUD non-ground
+   non-sky pixel: a building silhouette, a capsule (NPC), a sphere
+   (item), a colored prop. If the entire 3D viewport is just sky
+   gradient + flat ground horizon, FAIL the gate. Empirical case:
+   2026-05-08 — `Basis.looking_at(_, _, true)` typo flipped Camera3D
+   forward axis; pendrel/brookhaven shipped looking exactly correct
+   (sky + ground present, lighting working) but with the camera
+   pointing 180° away from all entities. Static baseline 1-6 missed
+   it; this entity-presence check catches it.
 
 ### For 2D scenes — required baseline criteria
 
