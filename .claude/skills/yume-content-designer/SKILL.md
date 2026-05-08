@@ -437,10 +437,55 @@ Before declaring done, run mental schema validation:
 | Tag references match definitions | Cross-ref tags between defs and queries |
 | Formula syntax | Try parsing — most syntax errors visible by eye; use Python-style ternary |
 | Positions in scene-bounds | Assume ±240 px for 2D demos |
+| `aabb_extents` matches `visual.mesh` footprint | See subsection below |
 
 The api-manifest is auto-generated from engine source — it's the
 canonical list of what verbs the engine supports. Hand-edited lists in
 this prompt may drift; the manifest does not.
+
+### `aabb_extents` must match the rendered mesh footprint
+
+When a def has both `properties.aabb_extents` (collision) AND
+`visual.mesh` (rendered shape), the two MUST describe the same
+physical object. The engine uses aabb_extents for motion blocking;
+the renderer draws whatever the mesh defines. If they disagree, you
+get **invisible-collider bugs** — the player walks into something
+that isn't there, or sees a wall but passes through it.
+
+**Audit per def with both fields**:
+
+1. Open `godot/data/meshes.json`, find the mesh referenced by
+   `visual.mesh`. Note its visible footprint (width × height ×
+   depth).
+2. Compare to `aabb_extents: [hx, hy, hz]` (HALF-extents — full
+   width is `2*hx`).
+3. If they differ by >20%, ONE of them is wrong:
+   - The mesh is too small for the intended collider → swap to a
+     proper-scale mesh in the library, or add one if missing.
+   - The aabb is wrong for the intended visual → fix the numbers.
+
+**Empirical case** (2026-05-09): `prop_city_wall_long` had
+`aabb_extents=[150, 2, 0.5]` (300m long collider) but referenced
+`merchant_pillar_3d` (0.35m radius pillar). Players saw nothing
+where the wall was supposed to be. Fix: authored
+`merchant_city_wall_segment_3d` (10m × 4m × 1m, crenellated) and
+tiled 104 segments along the perimeter; aabb_extents updated to
+`[5.0, 2.0, 0.5]` to match the 10m segment. The collision and
+visual now describe the same wall.
+
+**Rule of thumb**: any def tagged `blocks_motion` or `wall` or
+`building` is high-risk for this bug class — colliders without
+matching meshes are precisely the "I-don't-see-the-wall" complaint.
+Audit them first.
+
+### Mesh scale must match camera frustum
+
+A 0.05m-radius lamp head is invisible in an isometric ortho_size 24
+view (≈ 2 pixels wide). Mesh choice for ground-level decoration
+must respect the camera mode in `scene.json`. See
+`yume-asset-designer` SKILL § "Visual scale must match camera
+frustum" for the per-mode min-radius table. When picking a mesh
+for a def, check the active camera mode and reject specks.
 
 ## What good looks like
 

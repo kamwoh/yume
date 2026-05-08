@@ -256,6 +256,88 @@ Convention: art is drawn facing right; flip happens when moving west.
 - 1-word AI-gen prompts ("flower")
 - Backend config without auth_env
 
+## Mesh-footprint must match `aabb_extents` (added 2026-05-09)
+
+When an entity has `properties.aabb_extents: [hx, hy, hz]` (collision
+footprint) AND `visual.mesh: NAME`, the mesh MUST be authored at a
+size matching the footprint. Otherwise: collision works but the
+entity is invisible / wrong-sized to the player.
+
+Empirical case 2026-05-09: `prop_city_wall_long` had
+`aabb_extents=[150, 2, 0.5]` (150m collision footprint) but
+`visual.mesh="merchant_pillar_3d"` — a 0.35m radius pillar. Player
+walked into invisible walls everywhere; couldn't see the city
+boundary. Fix: authored `merchant_city_wall_segment_3d` (10m × 4m
+× 1m) and tiled segments along the perimeter.
+
+**Audit gate**: when authoring a new entity def with
+`aabb_extents`, immediately ask:
+
+1. Does the referenced mesh match those dimensions?
+2. If aabb is huge (≥10m on any axis), is the mesh a single big
+   primitive or should we tile multiple instances?
+3. If aabb is tiny but the mesh has visual flair (lampposts,
+   landmarks), should the mesh be larger than aabb so it READS at
+   camera distance? (See "Visual scale must match frustum" below.)
+
+## Visual scale must match camera frustum (added 2026-05-09)
+
+A 0.05m radius lamp head is invisible at `ortho_size: 24` (24m
+visible extent). Pixels per meter = viewport_width / ortho_size ≈
+40 px/m. A 0.05m head is 2 pixels — invisible. A 0.3m head is
+12 pixels — actually a lamp.
+
+**Rule**: feature elements (lamps, signs, doors, weapons, anything
+the player should NOTICE) need MIN-RADIUS scaling per camera mode:
+
+| Camera | ortho_size | min visible radius |
+|---|---|---|
+| iso_top_down | 24 | 0.3m |
+| top_down_3d | 16 | 0.2m |
+| third_person_3d | perspective | 0.15m (closer) |
+| first_person_3d | perspective | 0.1m (intimate) |
+
+If the same mesh is used across modes, take the LARGEST minimum
+(iso = 0.3m) so it's visible everywhere.
+
+This complements visual-density axis 4 (FAT lamps every 8-15m) —
+the spacing is one axis, the size-per-element is this gate.
+
+## Ambient-motion patterns (added 2026-05-09)
+
+Static NPCs read as "lifeless meshes" even with distinct silhouettes.
+Add motion via simple tagged tick rules:
+
+```jsonc
+// physics.json or via @lib.rules.ambient_wander when shipped
+{
+  "id": "ambient_npc_wander",
+  "trigger": {"type": "tick", "interval": 60},
+  "query": {"tags_all": ["ambient_walker"]},
+  "effect": {"type": "velocity_set", "target": "self",
+             "x": "(randf() - 0.5) * 1.0 * (1 - floor(randf() + 0.4))",
+             "y": "(randf() - 0.5) * 1.0 * (1 - floor(randf() + 0.4))"}
+}
+```
+
+Tag ambient NPCs with `ambient_walker`. Every 60 ticks (~6s) they
+get a small random velocity (~0.5 m/s, ~3m drift before re-roll).
+The `(1 - floor(randf() + 0.4))` term yields ~0 about 40% of the
+time, making NPCs occasionally stand still — looks more lifelike
+than constant motion.
+
+Variants worth authoring per game:
+- **patrol** (ping-pong between waypoints): velocity flips sign on
+  tick boundary
+- **schedule** (work-by-day, sleep-by-night): query gates on
+  world.time_of_day; different velocities per phase
+- **conversation cluster** (NPCs gather in pairs): low-priority
+  pathfind toward another tagged NPC for 1-2 ticks
+
+Even the simplest wander rule transforms the visual feel from
+"statue gallery" to "village." Per visual-density axis 8
+(purposeless flavor) + axis 5 (object density via motion).
+
 
 ## Visual QA gate (mandatory)
 
