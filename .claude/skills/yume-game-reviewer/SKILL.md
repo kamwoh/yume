@@ -438,6 +438,23 @@ freezes.
   signal milestone).
 - Highlighted target tags are declared per objective ("walk to
   shop_door", "find named_npc tagged warrior_class").
+- **Objective-text wayfinding (added 2026-05-08)**: every landmark
+  noun referenced in objective text ("the fountain", "the shop",
+  "the captain") is either (a) tagged `named_npc` with a matching
+  `display_name` so the nameplate widget labels it for the player,
+  OR (b) the LANDMARK is visible from the player spawn (within
+  camera frustum). Empirical case: merchant Day 1 objective said
+  "south-west of the fountain" but the fountain was 100m+ away,
+  off-screen. Player perspective: "i don't know where is the shop."
+  Reviewer must walk every objective text + verify the landmark
+  cue is actionable from spawn.
+- **HUD controls_hint enumerates every inputs.json action (added
+  2026-05-08)**: if the game declares an action in `inputs.json`,
+  the HUD `controls_hint` must mention its keybind. Empirical case:
+  merchant declared `open_map` (M key) wired to `world_map` screen,
+  but HUD hint omitted "M: map." Player perspective: "where is my
+  map?" Reviewer must diff `inputs.json::actions[].name` against
+  `hud.json::controls_hint` and call out missing keybinds.
 
 **Red flags**:
 - "Game is open-ended; player figures it out" — fine for sandbox

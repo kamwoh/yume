@@ -96,6 +96,10 @@ fi
 # .claude/rules/visual-qa.md § screen-flow gate. Skip with SKIP_VALIDATE=1.
 if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   python3 "${YUME_ROOT}/tools/validate_screens.py" "${DATA_FOLDER}" || true
+  # Player-perspective static check (added 2026-05-08). Catches
+  # undiscoverable keybinds + objective text referencing unlabeled
+  # landmarks. See .claude/skills/yume-game-reviewer/SKILL.md Axis 15.
+  python3 "${YUME_ROOT}/tools/validate_player_perspective.py" "${DATA_FOLDER}" || true
 fi
 
 # Build cmdline args for Godot's user-args section (after `--`)
