@@ -307,6 +307,54 @@ level_brookhaven` while zero brookhaven-tagged entities visible in
 viewport. Until that lands, this invariant is enforced by manual
 checklist on every transition-touching change.
 
+### Invariant #12: Persistent-entity instance clobber guard (2026-05-08)
+
+When a level's `entities.json` declares an instance with the same id
+as an existing entity tagged `persistent`, the engine MUST skip the
+new spawn rather than overwrite. The persistent's carried-over state
+(set by previous-level rules) must survive the level swap untouched.
+
+**Why this exists**: persistent entities (per ADR 0006) are designed
+to survive `transition_level` — a singleton like `world_clock` with
+all the campaign state belongs in this category. But if a downstream
+level redeclares the same id in its `entities.json`, the engine's
+spawn loop did `entities[inst_id] = ent` blindly, dropping the
+prior reference and re-running `state_init` on the new instance.
+
+Empirical case: 2026-05-08 merchant funeral→debt_papers chain.
+Travel button set `world_clock.current_level=level_brookhaven` on
+the persistent. transition_level brookhaven loaded brookhaven's
+own `world_clock` instance with same id, overwriting state →
+state_init defaults applied → `current_level` reset to
+"level_town_pendrel". `brookhaven_debt_papers_trigger` query
+required `current_level_eq=level_brookhaven` and rejected, so the
+modal never opened. Player saw a persistent black overlay (raised
+by funeral_splash close, never paired with a release because the
+debt_papers chain that would have released it never fired). Music
+played because tick rules don't touch state.
+
+**Engine code (world.gd::_spawn_initial)**: before `entities[inst_id]
+= ent`, check `if entities.has(inst_id) and entities[inst_id]
+.has_tag("persistent")`: SKIP, log `[PERSIST-SKIP]`, `continue`.
+
+**For any change that touches level loading or persistent-tag
+semantics, verify the guard still fires in this case:**
+
+1. Two levels A and B both declare an entity with same id.
+2. Mark def as tagged `persistent`.
+3. Boot in A → load B via transition_level.
+4. After transition, query the entity's state. It should be the
+   state set by rules during A's run, NOT B's `state_init` defaults.
+5. The `[PERSIST-SKIP]` log line should appear during B's load.
+
+**Companion data discipline (yume-content-designer):** when
+declaring a persistent entity in level entities.json, the level
+instance should be a "spawn point" only (no overrides on state) —
+authors who write state overrides expecting them to apply on
+re-entry will be silently ignored by this guard. Document this in
+the content-designer skill so authoring intent matches engine
+behavior.
+
 ## My authority
 
 The contract (`docs/30_framework_primitives.md`) is law. Invariants are

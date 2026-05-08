@@ -544,6 +544,23 @@ func _spawn_initial(inst: Dictionary) -> void:
 		else:
 			inst_id = "%s_%d" % [def_id, next_id_seq["_"]]
 			next_id_seq["_"] += 1
+		# 2026-05-08: persistent-clobber guard. If an entity with this id
+		# already exists AND is tagged `persistent`, SKIP the new instance
+		# — the persistent's state must survive the level swap untouched.
+		# Without this, level entities.json that re-declare a persistent
+		# (e.g. world_clock) would overwrite carry-over state with their
+		# state_init defaults. Empirical case: merchant funeral_dismissed
+		# signal-rule failed because brookhaven's world_clock instance
+		# overwrote the persistent one, resetting current_level back to
+		# state_init's default ('level_town_pendrel') so the rule's
+		# `current_level_eq=level_brookhaven` query rejected.
+		if entities.has(inst_id):
+			var existing = entities[inst_id]
+			if existing != null and existing.has_method("has_tag") \
+					and existing.has_tag("persistent"):
+				print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
+					"' instead of overwriting from level data")
+				continue
 		var ent := Entity.create(defs[def_id], inst_id, overrides)
 		entities[inst_id] = ent
 		add_child(ent)
