@@ -113,6 +113,52 @@ Engine ordering changes need an ADR — they're cross-cutting and the
 implications often don't surface until a specific rule chain hits
 them in the field.
 
+### Invariant #10: Freeze-policy audit on every pending-state pipeline (2026-05-08)
+
+When `screen_freeze_world=1` (modal up) or `overlay_freeze_world=1`
+(tutorial up), `world.gd::_on_tick` early-returns to suppress the
+simulation. **Every "pending X" pipeline must explicitly declare its
+freeze policy** — does it run under freeze, or skip?
+
+Existing pending pipelines and their declared policies:
+
+| Pipeline | env key | Runs under freeze? | Reason |
+|---|---|---|---|
+| Save/load | `_pending_save_load` | ✅ YES | "Save" button on pause-menu modal needs to drain |
+| Level transition | `_pending_level_transition` | ✅ YES (since 2026-05-08) | "Travel to X" buttons on title-screen modals need to swap levels |
+| World reset | `_pending_world_reset` | ⚠️ unclear — needs audit | Reset on pause might or might not need this |
+| Chunk streaming | `process_chunk_streaming()` | ❌ NO | Streaming is sim-state; can wait |
+| Switch actor | `process_switch_actor()` | ❌ NO | Actor swap is sim-state; can wait |
+
+**Audit gate**: when any new pending-state pipeline lands (search
+`grep -rE '_pending_[a-z_]+' scripts/engine/world.gd`), require the
+ADR to declare freeze policy explicitly. Otherwise the pipeline silently
+breaks under modals/overlays — exactly the bug class that bit
+"Travel to Brookhaven" button on 2026-05-08.
+
+**Empirical case**: ADR 0011 (declarative-screen-flow) introduced
+`screen_freeze_world` as a tick-skip flag but didn't audit
+`_pending_level_transition`. Result: a button on a freeze_world screen
+firing transition_level → effect queued correctly → swap never
+processed because `_on_tick` early-returned past the swap-runner.
+Caught by user testing, not by tech-director review. Adding this
+invariant so it can't recur.
+
+**The check before approving an ADR or engine change**:
+
+```bash
+# What pending pipelines exist?
+grep -rE '_pending_[a-z_]+\b' scripts/engine/world.gd
+# Where does each run? Is it inside the freeze early-return branch
+# or after it?
+grep -B2 -A8 'process_pending_' scripts/engine/world.gd
+```
+
+For each, the ADR must answer: "If a freeze_world screen is up, does
+this pipeline still need to drain? If yes, place its call BEFORE the
+freeze early-return. If no, document why — usually 'sim-state changes
+are paused, this can wait.'"
+
 ## How to review a change
 
 1. **Read the diff carefully.** What got added/changed/removed in

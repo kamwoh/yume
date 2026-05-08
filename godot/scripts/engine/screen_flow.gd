@@ -242,9 +242,18 @@ func _drain_screen_events() -> void:
 				if target == "":
 					push_warning("ScreenFlow: transition_screen missing target")
 					continue
-				# Special: "@previous" pops the modal stack.
+				# Special targets:
+				#   "@previous" pops the modal stack one level
+				#   "@root" pops the entire stack (back to no-screen / gameplay)
+				# @root is used by boot flows where multiple modals stack
+				# (title → difficulty → story_inheritance) and the user
+				# commits to gameplay — popping one-by-one would leave the
+				# underneath modals visible.
 				if target == "@previous":
 					_pop_screen()
+				elif target == "@root":
+					while not _stack.is_empty():
+						_pop_screen()
 				else:
 					_transition_to(target)
 			"quit_app":

@@ -181,24 +181,64 @@ of ScreenFlow under World). No-op without `--smoke-screens` flag.
 Captures land at `user://<smoke-out-dir>/<screen_id>.png` — feed
 into Gate 6.
 
-### Gate 5b — boot smoke (catches startup-only warnings)
+### Gate 5b — boot capture sequence (catches startup-only bugs)
 
-Sometimes a rule fires on tick 0/1 with bad transition target. Run a
-quick boot capture to catch that class:
+Capture TWO frames at boot, then compare. If the t=0.1s frame shows
+a different state than the t=4s frame, you've found a starting_screen
+race or boot-flow ordering bug.
 
 ```bash
+# Frame 0 — what does the game look like at the very first rendered
+# frame? Should match the intended boot state (typically: title screen
+# pushed, world frozen behind it).
 cd "$TEMPLATE_DST" && "$GODOT_BIN" --path . --rendering-driver opengl3 \
-  scenes/<name>_3d.tscn -- --capture-after=8 \
-  --capture-output='user://<name>_boot.png' 2>&1 | tee /tmp/boot.log > /dev/null &
+  scenes/<name>_3d.tscn -- --capture-after=0.1 \
+  --capture-output='user://<name>_boot_t0.png' 2>&1 | tee /tmp/boot_t0.log > /dev/null
+until grep -qE "Capture saved|aborting" /tmp/boot_t0.log; do sleep 2; done
 
-until grep -qE "Capture saved|aborting" /tmp/boot.log; do sleep 2; done
-grep -iE "push_warning|SCRIPT ERROR|Parse Error|unknown screen" /tmp/boot.log
+# Frame N — boot has settled (4s in for any deferred initialization).
+# If t0 ≠ tN, the boot is racy.
+cd "$TEMPLATE_DST" && "$GODOT_BIN" --path . --rendering-driver opengl3 \
+  scenes/<name>_3d.tscn -- --capture-after=4 \
+  --capture-output='user://<name>_boot_t4.png' 2>&1 | tee /tmp/boot_t4.log > /dev/null
+
+# Grep for warnings in both:
+grep -iE "push_warning|SCRIPT ERROR|Parse Error|unknown screen" /tmp/boot_t0.log /tmp/boot_t4.log
 ```
 
-Note: still doesn't fire button on_click — that's a known gap. Click-
-chain bugs (effects-after-destructive, missing target on a button
-that fires only mid-game) need a future `--click-walk` mode that
-synthesizes Button.pressed signals; not yet built.
+Read both PNGs and compare:
+- If both show the title screen cleanly → boot is correct
+- If t=0.1s shows the game scene + t=4s shows the title → starting_screen
+  race. Title pushed via `call_deferred` instead of synchronously.
+  Engine fix needed in screen_flow.gd's _ready.
+- If both show game scene + no title → starting_screen not configured;
+  add `"starting_screen": "title"` to screens.json.
+
+**Empirical case (2026-05-08)**: merchant boot showed 1 frame of
+Pendrel, then title appeared. Gate 5b at the time only ran t=4s
+capture, missed the race. Fixed in screen_flow.gd by switching from
+call_deferred to synchronous _push_screen.
+
+### Gate 5c — click-flow coverage (Session 6+ engine work, partial today)
+
+The `--smoke-screens` mode walks every screen and renders each — but
+does NOT click any buttons. Click-chain bugs (effects-after-
+destructive, missing modal-dismiss in a multi-modal flow, missing
+target on a button) require a `--click-walk` mode that synthesizes
+Button.pressed signals through the screen graph.
+
+Today's partial coverage: smoke-screens captures + manual button-
+chain audit catches most cases. Full click-walk is engine work
+(future ADR).
+
+**Empirical case**: merchant 2026-05-08 "Travel to Brookhaven" button
+fired transition_level correctly — the level swap logged — but the
+modal stack wasn't popped, so the new level was hidden under the
+opaque modal. Smoke-screens didn't catch (it pushes screens
+individually, doesn't chain). A click-walk mode would have caught.
+Workaround: every multi-modal boot flow's commit-button (the one
+that exits to gameplay) MUST include `transition_screen "@root"`
+before transition_level — pops entire stack to gameplay.
 
 ### Gate 6 — visual capture + VQA read
 

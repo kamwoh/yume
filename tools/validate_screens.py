@@ -31,7 +31,7 @@ import os
 import sys
 from pathlib import Path
 
-VALID_SPECIAL = {"@previous"}  # add new sentinels here as engine grows
+VALID_SPECIAL = {"@previous", "@root"}  # add new sentinels here as engine grows
 
 
 def find_transition_screen_effects(node, path):
