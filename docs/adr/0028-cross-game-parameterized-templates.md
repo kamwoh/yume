@@ -280,3 +280,181 @@ opening the runtime-resolution can of worms.
   — the resolver that gains `$params` substitution.
 - `archetypes/core/templates/godot/scripts/engine/macro_expander.gd`
   — existing per-game `$param` substitution; pattern to mirror.
+
+## Tech-director review
+
+_Date: 2026-05-08_
+_Reviewer: yume-tech-director_
+
+### Invariant checks
+
+| Invariant | Status | Notes |
+|---|---|---|
+| #1 JSON-only content channel | ✓ | substitution is interpreter on JSON; produces JSON; no GDScript game logic introduced |
+| #2 No semantic effect types | ✓ | doesn't add effect types |
+| #3 No entity-class hierarchy | ✓ | none |
+| #5 Queries first-class | ✓ | none |
+| #8 Engine = primitives + interpreter | ✓ | substitution is interpreter scope, not new VERB. Resolver now hosts 3 operators (`$extends`, `$include`, `$params`) — surface growing but each is a coherent JSON-template op. See concern #1 below for the cap. |
+| #9 Phase ordering | ✓ | load-time only |
+| #10 Freeze-policy | ✓ | no new pending pipelines |
+| #11 Level-discontinuity | ✓ | no transition_level changes |
+| #12 Persistent-clobber | ✓ | no spawn changes |
+
+Greps clean. The proposal is contract-compliant.
+
+### Specific concerns
+
+**1. Three-operator surface — declare the cap.** ADR 0027 added
+`$extends` and `$include`. ADR 0028 adds `$params`. That's a coherent
+JSON-template vocabulary: merge / splice / parameterize. But future
+ADRs will be tempted to add `$select`, `$transform`, `$loop`, etc.
+
+**Decision needed in this ADR**: explicitly declare these three are
+the COMPLETE set. Future composition operators require strong
+justification (a real combinatorial-explosion problem like `$params`
+solves) and another ADR. Loops + conditionals belong in macros + rule
+shape, not the load-time resolver.
+
+Add a § "Operator surface boundary" stating: "$extends + $include +
+$params are the ONLY load-time JSON-composition operators. Runtime
+logic uses rules + Formula + macros."
+
+**2. Pipe-syntax defaults are TOO MUCH new syntax.** `$params.k | 90`
+introduces parsing complexity (escaping the literal `|`, JSON-typed
+defaults vs string defaults, default values that are themselves
+strings containing `|`...). This grows the placeholder grammar.
+
+**Cleaner alternative**: declare defaults at the LIB ENTRY level,
+not inline:
+
+```jsonc
+// data/lib/cameras/fps.json
+{
+  "_param_defaults": {"fov": 90, "eye_height": 1.7, "sensitivity": 0.003},
+  "mode": "first_person_3d",
+  "fov_degrees": "$params.fov",
+  "eye_height": "$params.eye_height",
+  "mouse_sensitivity": "$params.sensitivity"
+}
+```
+
+Pros: separates concerns (lib author declares defaults, reference
+site supplies overrides). Placeholder grammar stays minimal —
+`"$params.<key>"` and string-interpolation only. Defaults can be
+arbitrary JSON values without escaping.
+
+**Require this revision** before merge. Pipe-syntax → out;
+`_param_defaults` block → in.
+
+**3. ADR 0019 boundary needs concrete syntax mapping.** The
+Alternatives section says "macros are effect-shape, this is generic-
+shape," which is accurate. But the SUBSTITUTION SYNTAX differs:
+
+- ADR 0019: `$<param_name>` (no prefix; flat namespace)
+- ADR 0028: `$params.<key>` (dict-keyed prefix)
+
+This is fine and acceptable distinction (different scope, different
+syntax = different mental model — good). But ADR 0028 should call
+this out explicitly so authors don't conflate them.
+
+**Add to Alternatives**: a paragraph listing which syntax to use
+when. Macros for new effect verbs in your game; lib `$params` for
+generic dict templates shared across games.
+
+**4. Missing-param semantics — both layers must fire.** Good ADR
+already says: structured `EngineError.LIB_PARAM_MISSING` + validator
+catches at sync time. Spell out: validator is the AUTHORATIVE gate
+(catches at sync, fails fast); resolver is the RUNTIME SAFETY NET
+(catches if validator was bypassed via `SKIP_VALIDATE=1` or
+direct-godot launch).
+
+Add to § "Validation": both layers fire; validator is canonical.
+
+**5. `_origin` for nested chains — recommend chain form.** Currently
+ADR 0027's resolver stamps `_origin` ONCE at the outermost expansion.
+If a 3-level $extends chain triggers, the leaf dict says `_origin:
+"@lib.entities.merchant_shopkeeper"` but the user can't see that
+merchant_shopkeeper itself extends shopkeeper which extends npc_base.
+
+For ADR 0028, with params now propagating through chains, debug
+breadcrumbs become more important. Recommend: change `_origin`
+(string) to `_origin_chain` (array of refs from leaf to root).
+Stamp on FIRST resolution; append on inner resolutions.
+
+```jsonc
+// resolved instance:
+{
+  "id": "garron",
+  "_origin_chain": [
+    "@lib.entities.merchant_shopkeeper",
+    "@lib.entities.shopkeeper",
+    "@lib.entities.npc_base"
+  ],
+  "_params": {"fov": 90}
+}
+```
+
+This is a minor revision to ADR 0027 + carries through 0028.
+Existing tests would need updating — small cost.
+
+**Optional**, but strongly recommended. If declined, document why
+in this ADR.
+
+**6. Land now vs wait — implement Phase 1, defer Phase 2.** Phase 1
+is the resolver extension + tests + validator. Cheap (~2-3 hours),
+contract-clean, doesn't touch any consumer game.
+
+Phase 2 (catalog conversion — replacing `fps_default` with `fps`-
+parameterized) WAITS until first multi-consumer use case. Specifically:
+
+- Merchant currently uses `@lib.cameras.iso_top_down` (no params).
+- Future shooter using `@lib.cameras.fps_default` will eventually
+  want different fov than merchant's FP toggle. THAT's when Phase 2
+  fires — convert `fps_default` to `fps` parameterized, both games
+  switch.
+
+Documenting this defer in the ADR avoids speculative data churn.
+
+**7. Test coverage list is good but missing one case.**
+
+Add Test 10: `lib_params.test_string_interpolation_with_special_chars`.
+Verify the interpolation handles strings with embedded `$`, `{`, `:`.
+For example: `"id": "merchant_$params.kind"` with kind = "$weird"
+should produce `"id": "merchant_$weird"` (literal substitution, not
+re-evaluated).
+
+### Verdict
+
+**accept-with-conditions**.
+
+Conditions before Phase 1 implementation:
+
+1. **Add operator-surface cap** to Decision: $extends + $include +
+   $params are the complete set; future composition needs new ADR.
+2. **Replace pipe-syntax defaults with `_param_defaults` block** at
+   lib-entry level. Cleaner grammar; arbitrary JSON defaults without
+   escaping.
+3. **Sharpen ADR 0019 boundary** in Alternatives — call out the
+   syntax differences explicitly.
+4. **Spell out validator + resolver dual layer** for missing-param
+   detection.
+5. **Recommend `_origin_chain` array form** (touches ADR 0027 too —
+   minor backport).
+6. **Defer Phase 2 catalog conversion** until first multi-consumer
+   use case. Document this in Implementation plan.
+7. **Add Test 10**: string interpolation with special chars.
+
+This ADR is well-shaped overall. The 3-operator vocabulary is
+coherent and matches the 3 OOP composition primitives users
+intuitively reach for (inherit / mixin / parameterize). The
+combinatorial-explosion alternative ("just author more presets")
+is a real failure mode worth preventing.
+
+Implementation risk is low (all load-time, no runtime impact, no
+new VERBS, no scheduler changes). Test coverage is comprehensive
+once concern #7 is added. Defer Phase 2 keeps speculative data
+churn off the table.
+
+After conditions land in ADR text → upgrade to **accepted** →
+implement Phase 1 → seed catalog conversion to a future session
+when first multi-consumer use case fires.
