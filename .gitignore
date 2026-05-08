@@ -18,6 +18,7 @@ findings.md
 progress.md
 session_log.txt
 .vqa.log
+CHANGELOG.md
 
 # Capture screenshots — local artifacts, regenerable via play.sh --capture
 captures/
