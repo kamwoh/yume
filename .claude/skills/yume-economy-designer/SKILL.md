@@ -21,7 +21,7 @@ Numeric balance is currently ad-hoc per game. Symptoms:
 - RPG progressions that cliff (level 8 → 9 takes 3× the XP of 7 → 8)
 - Merchant games with money pumps (buy from NPC A at 5, sell to NPC B at 15)
 - Crafting recipes that strictly dominate (1 herb + 1 water = 5 gold worth of potion, but 1 herb alone sells for 20)
-- Sims with runaway needs (hunger decay > food gain rate, player starves no matter what)
+- a life sim with runaway needs (hunger decay > food gain rate, player starves no matter what)
 - Currencies that become irrelevant (gold useful for 5 minutes, then everything's bought)
 
 These all surface in QA, after content + rules are written, costing
@@ -86,7 +86,7 @@ Where one resource turns into another. Justify each ratio.
 
 | From | To | Ratio | Where | Why |
 |---|---|---|---|---|
-| 2 herb | 1 minor_potion | 2:1 | alchemy bench | matches Stardew kettle |
+| 2 herb | 1 minor_potion | 2:1 | alchemy bench | matches an in-game cooking-pot |
 | ... | ... | ... | ... | ... |
 
 ## Pricing curves
@@ -227,14 +227,14 @@ randomly.
 
 Single currency vs multi. Most games use 2-3:
 
-- **Single (gold only)**: simplest. Stardew early game. Risks: gold
+- **Single (gold only)**: simplest. a farming sim early game. Risks: gold
   becomes trivial late-game.
 - **Two-currency (gold + premium)**: gold for normal trade; premium
   for rare unlocks. Most clean.
 - **Multi (gold + rep + favor + ...)**: each gates different content.
   Risks: cognitive overload; players ignore one of them.
 - **Resource-as-currency**: no abstract gold; trade in raw items
-  directly (Minecraft-style). Cleanest but limits scope.
+  directly (voxel-survival-style). Cleanest but limits scope.
 
 Each currency must have:
 - Distinct purpose (rep ≠ gold)
@@ -288,7 +288,7 @@ under-tuned for the intent.
 
 ## Common archetypes (use as starting point)
 
-### Merchant game (Recettear-like)
+### Merchant game (merchant-game-like)
 
 - 1 currency (gold)
 - Sources: sell items (60-150% margins per traveler type),
@@ -300,7 +300,7 @@ under-tuned for the intent.
 - Anti-degenerate: shelf life on raw ingredients, traveler types
   have preferences (poke checks)
 
-### TD game (BTD/PvZ-like)
+### TD game (TD/lane-based-TD-like)
 
 - 1 currency (cash); sometimes 2 (cash + score)
 - Sources: enemy kills (linear by enemy type), wave-clear bonus
@@ -309,7 +309,7 @@ under-tuned for the intent.
 - Pacing: wave 1 = $200; wave 20 = $5000/wave (roughly geometric)
 - Anti-degenerate: tower diversity (no single tower beats everything)
 
-### RPG (Stardew/JRPG)
+### RPG (a farming sim/JRPG)
 
 - 2-3 currencies (gold + XP + reputation)
 - Sources: combat XP, gold from drops, reputation from quests
@@ -319,7 +319,7 @@ under-tuned for the intent.
 - Anti-degenerate: cap on gold (or geometric inflation late-game),
   XP curves prevent over-leveling
 
-### Survival (Minecraft-style)
+### Survival (voxel-survival-style)
 
 - No abstract currency; resources ARE the economy
 - Sources: gathering nodes, mob drops, crafting yields
@@ -328,7 +328,7 @@ under-tuned for the intent.
 - Pacing: tier progression — wood → stone → iron → diamond
 - Anti-degenerate: durability + diminishing tier returns
 
-### City builder / Civilization
+### City builder / a 4X strategy
 
 - Multi-currency (gold + production + science + culture + faith)
 - Sources: per-tile yields, building outputs, trade routes

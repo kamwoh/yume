@@ -10,7 +10,7 @@
   },
 
   "top_down_3d": {
-    "_comment": "Stardew-like directly-overhead camera. Smaller extent (16m) for closer-quarters action.",
+    "_comment": "farming-sim-style directly-overhead camera. Smaller extent (16m) for closer-quarters action.",
     "mode": "top_down_3d",
     "height": 20.0,
     "ortho_size": 16,

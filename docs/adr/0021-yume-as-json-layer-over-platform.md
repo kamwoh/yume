@@ -164,7 +164,7 @@ Subsequent ADRs in this lineage:
   just Yume's hand-implemented subset
 - Sim2real / robot benchmarks become reachable via physics
   exposure ADR
-- The "complete game" ambition (Stardew quality, GTA-shaped, etc.)
+- The "complete game" ambition (a farming sim quality, open-world-shaped, etc.)
   is technically achievable at gameplay level; performance scales
   via Godot
 

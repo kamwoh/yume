@@ -1,6 +1,6 @@
 ---
 name: yume-story-planner
-description: Narrative arc + event scheduling + character progression designer for Yume games. Translates the GDD's narrative intent into a story-design.md with named beats, trigger conditions, character arc curves, branching/non-branching structure, and Yume primitive mapping (signals + world_state flags + level transitions). Distinct from yume-level-designer (which is spatial). Use for any game with a story arc, scripted events, named NPCs that change over time, or campaigns. Works for tightly-scripted (Final Fantasy, SAO Alicization) AND emergent-narrative (Dwarf Fortress, Crusader Kings) games.
+description: Narrative arc + event scheduling + character progression designer for Yume games. Translates the GDD's narrative intent into a story-design.md with named beats, trigger conditions, character arc curves, branching/non-branching structure, and Yume primitive mapping (signals + world_state flags + level transitions). Distinct from yume-level-designer (which is spatial). Use for any game with a story arc, scripted events, named NPCs that change over time, or campaigns. Works for tightly-scripted (a classic JRPG, the raised-AI life-sim anime arc) AND emergent-narrative (an emergent-narrative sim, a grand-strategy sim) games.
 ---
 
 # /yume-story-planner
@@ -38,11 +38,11 @@ Includes:
   after wave 10, NPC reveals secret after 5 visits)
 - **Character arcs** — NPCs whose dialogue / behavior / availability
   changes based on world state
-- **Campaign structure** — multi-act games with thematic shifts (SAO
-  Alicization: Synthesis → Rulid → Operation Underworld)
+- **Campaign structure** — multi-act games with thematic shifts (the isekai-life-sim anime
+  the raised-AI life-sim: Synthesis → Rulid → Operation Underworld)
 - **Branches** — multiple paths through the story (good/evil endings,
   faction choices)
-- **Emergent chronicle** — life sims (Dwarf Fortress, RimWorld,
+- **Emergent chronicle** — life sims (an emergent-narrative sim, a colony sim,
   harvestcore) where the engine narrates what HAPPENED rather than
   pre-scripting it
 - **Pacing escalation** — increasing stakes (waves get harder,
@@ -222,7 +222,7 @@ Read the GDD. Ask:
   author (multiplies content). Use sparingly: 1-2 major branches
   beats 5 minor ones.
 - **Emergent** — no scripted beats; the chronicle IS the story.
-  Dwarf Fortress, RimWorld, harvestcore. Engine generates events;
+  an emergent-narrative sim, a colony sim, harvestcore. Engine generates events;
   player constructs meaning.
 - **Hybrid** — most polished games. Linear backbone + emergent
   texture, OR emergent sim with scripted "tent-pole" events.
@@ -347,7 +347,7 @@ designer.
 - Yume mapping: world_state branch flag (`world.path = "good"`);
   rules query the flag
 
-### Emergent life-sim chronicle (Dwarf Fortress style)
+### Emergent life-sim chronicle (emergent-narrative-sim style)
 
 - Story shape: Emergent
 - 0 scripted beats (or just opening + closing); 10-30 chronicle event
@@ -363,7 +363,7 @@ designer.
 - ~10-20 beats, each tied to wave count
 - Yume mapping: `world.wave_count`-driven tick rule fires beats
 
-### Slice-of-life with arcs (Stardew Valley, harvestcore)
+### Slice-of-life with arcs (a slice-of-life farming sim, harvestcore)
 
 - Story shape: Hybrid — emergent daily routine + scripted personal
   beats (NPC heart events)
@@ -372,14 +372,14 @@ designer.
 - Yume mapping: relation between player and NPC + `world.day` +
   contact rules
 
-### Trapped-in-a-game (Aincrad arc of SAO; Doomarena escape)
+### Trapped-in-a-game (the trapped-in-MMO anime arc; Doomarena escape)
 
 - Story shape: Linear with floor/level milestones
 - Beats: floor transitions, boss intros, party joins, betrayals
 - 1 act per major hub area
 - Yume mapping: ADR 0006 levels = floors; signal chain between them
 
-### Long-arc raised-AI sim (Alicization arc of SAO)
+### Long-arc raised-AI sim (the raised-AI life-sim anime arc)
 
 - Story shape: Hybrid — emergent village life + scripted research
   beats (the "experiments")

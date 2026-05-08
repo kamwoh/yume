@@ -130,7 +130,7 @@ when entities split into per-def directory.
    NPCs don't have branching dialogue — they have schedules + ambient
    triggers only.
 
-3. **Lean on archetype hints from the prose.** "Harvest Moon-style"
+3. **Lean on archetype hints from the prose.** "a farming sim-style"
    implies certain NPC roles (mayor, blacksmith, fisher, doctor),
    item categories (tools, seeds, animal feed), plant rotation
    (seasonal crops), events (festivals). Use these as scaffolding.

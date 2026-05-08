@@ -155,8 +155,8 @@ Match keywords from the one-line pitch:
 | Genre | Triggers | Designer | Reviewer |
 |---|---|---|---|
 | **shooter** | "shooter", "fps", "doom", "arena shooter", "twin-stick", "first-person" | `yume-shooter-designer` | `yume-shooter-reviewer` |
-| **merchant** | "merchant", "shopkeeper", "item shop", "Recettear", "trader", "Moonlighter" | `yume-merchant-designer` | `yume-merchant-reviewer` |
-| **racing** | "racing", "kart", "F-Zero", "Wipeout", "Trackmania", "Burnout" | `yume-racing-designer` | (future: yume-racing-reviewer) |
+| **merchant** | "merchant", "shopkeeper", "item shop", "an item-shop merchant game", "trader", "a merchant-adventurer game" | `yume-merchant-designer` | `yume-merchant-reviewer` |
+| **racing** | "racing", "kart", "a high-speed futuristic racer", "a high-speed futuristic racer", "a time-attack racer", "an arcade combat racer" | `yume-racing-designer` | (future: yume-racing-reviewer) |
 | **td** | "tower defense", "td", "bloons", "kingdom rush", "pvz" | (future: yume-td-designer) | (future: yume-td-reviewer) |
 | **sim** | "sim", "ecology", "farming", "stardew", "harvest moon", "life sim" | (future) | (future) |
 | **puzzle** | "puzzle", "sokoban", "match", "block-push", "tile" | (future) | (future) |

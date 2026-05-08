@@ -107,7 +107,7 @@ A game with 1 enemy + 1 tower is a tutorial, not a game.
 
 **Hard rule — genre-claim minimums are NOT deferrable.** If the
 GDD claims the genre (one-line pitch says "Doom-style shooter,"
-"Bloons-style TD," "Stardew-style farming"), the minimums above
+"TD-style TD," "farming-sim-style farming"), the minimums above
 are mandatory for v1, not "v3 scope." A "Doom-style shooter" with
 1 weapon is not a Doom-style shooter — it's a single-weapon arcade
 that *uses* shooter mechanics. If the designer wants to ship a
@@ -241,8 +241,8 @@ Theme matters because:
 - Visual style has a target (rust + sparks vs glowing crystals vs pastel)
 - Player onboarding has a hook (what fantasy is this?)
 
-Even abstract games can have identity (Tetris = grid + falling
-geometry; Threes = numbers + warm palette).
+Even abstract games can have identity (a falling-block puzzle = grid + falling
+geometry; a tile-merge puzzle = numbers + warm palette).
 
 **Push for**: a 1-2 sentence "the game's vibe / fantasy / fictional
 context" statement.
@@ -375,7 +375,7 @@ JSON.
 **Heuristic minimums**:
 - A "Voice & texture" section EXISTS in the GDD
 - Tone explicitly named (gruff / lyrical / wry / etc.)
-- Reference texture named (Recettear-tier / Stardew-tier /
+- Reference texture named (merchant-game-tier / farming-sim-tier /
   Hollow-Knight-tier)
 - Per-NPC voice convention specified (≥3-5 word descriptor per
   named NPC convention)
@@ -406,8 +406,8 @@ JSON.
   intent)
 
 **Caveat**: pure-mechanic games (puzzle, abstract arcade) don't
-need deep voice — but they DO need theme + tone (Tetris's
-silent dignity, Threes's warm color personality). For these,
+need deep voice — but they DO need theme + tone (a falling-block puzzle's
+silent dignity, a tile-merge puzzle's warm color personality). For these,
 section can be brief but must exist.
 
 ### Axis 15 — Player perspective (does the player know what to do?)
@@ -477,7 +477,7 @@ freezes.
   Aesthetic explicitly names "Submission" or "Expression" as the
   primary aesthetic
 
-**Caveat**: NOT every game needs handholding. A Dwarf Fortress-style
+**Caveat**: NOT every game needs handholding. A an emergent-narrative sim-style
 emergent sim is broken if you tell the player what to do — the
 play IS figuring out what to do. But if the GDD claims "campaign,"
 "tutorial," "story," "progression," or any goal-shaped aesthetic,

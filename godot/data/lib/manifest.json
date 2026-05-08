@@ -7,7 +7,7 @@
       "_path": "data/lib/cameras.json",
       "entries": {
         "iso_top_down":         "Isometric 3D follow with 24m ortho extent, 0.18 lerp. Default for tactical / city / management games.",
-        "top_down_3d":          "Camera directly above target, 16m ortho extent. Stardew-like overhead.",
+        "top_down_3d":          "Camera directly above target, 16m ortho extent. farming-sim-style overhead.",
         "third_person_default": "Behind-shoulder follow, mouse-yaw, perspective. Action-adventure / MMO.",
         "fps_default":          "First-person eye-height, mouse pitch+yaw, perspective. Doom / FPS feel."
       }

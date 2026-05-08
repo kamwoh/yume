@@ -6,7 +6,7 @@ _Status: **accepted with conditions addressed (2026-05-06)**_
 ## Context
 
 The contract states "no continuous physics (driving sims, soft-body)
-out of scope." This rules out Forza-tier vehicle dynamics (tire grip
+out of scope." This rules out a racing sim-tier vehicle dynamics (tire grip
 slip-angles, weight transfer, suspension travel, deformation). It
 does NOT rule out **arcade-level Newtonian physics**: mass + momentum
 + elastic collision.
@@ -123,7 +123,7 @@ collision response = full reflection of incoming dynamic).
 ## Consequences
 
 **Enables:**
-- Vehicle-pedestrian interactions (GTA-flavor)
+- Vehicle-pedestrian interactions (an open-world crime sandbox-flavor)
 - Multi-car pile-ups
 - Knockback from explosions
 - Push physics (player shoves a barrel)
@@ -137,7 +137,7 @@ collision response = full reflection of incoming dynamic).
   conservation-of-energy guarantees in long simulations
   (acceptable; arcade aesthetic).
 - No suspension / tire model / weight transfer. Cars feel like
-  arcade-physics objects, not Forza vehicles.
+  arcade-physics objects, not a racing sim vehicles.
 
 **Doesn't enable:**
 - Sim racing (out of scope per contract)

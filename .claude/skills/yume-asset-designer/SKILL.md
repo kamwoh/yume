@@ -444,7 +444,7 @@ Style guidance:
 
 This HUD entry is non-negotiable for any game with multi-state
 progression (campaign, tutorial, quest chain). For pure ambient
-games (Dwarf Fortress-style), an objective-less HUD is fine.
+games (an emergent-narrative sim-style), an objective-less HUD is fine.
 
 ## What you DON'T do
 

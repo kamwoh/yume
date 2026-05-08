@@ -7,11 +7,11 @@ _Status: **accepted with conditions addressed (2026-05-06)**_
 
 Most games are open-world in their fundamental shape:
 
-- Harvest Moon = farm + town + mountain — open world with daily rhythm
-- Final Fantasy = overworld + dungeons + cities — open world with
+- a farming sim = farm + town + mountain — open world with daily rhythm
+- a classic JRPG = overworld + dungeons + cities — open world with
   loading transitions
-- GTA = LA-sized open world
-- Stardew Valley = village + caves + ocean — open world
+- an open-world crime sandbox = LA-sized open world
+- a slice-of-life farming sim = village + caves + ocean — open world
 - The proposed merchant game = shop + town + markets — also open world
 
 What differs between these is NOT the spatial structure — it's:
@@ -156,8 +156,8 @@ opt into chunked-world by adding the file.
 - Faster initial load times (only the starting chunk + persistent
   entities)
 - Larger total world content without memory bloat
-- Foundation for "explore the world" gameplay (Stardew, Harvest Moon,
-  Zelda, GTA-shaped)
+- Foundation for "explore the world" gameplay (a farming sim, a farming sim,
+  an action-adventure, open-world-shaped)
 
 **Constrains:**
 - Per-game authoring requires thinking in chunks. Larger upfront
@@ -186,7 +186,7 @@ genres.
 
 ### B. Load entire world at startup
 
-Works for small worlds (~1000 entities). Breaks at GTA scale. Picking
+Works for small worlds (~1000 entities). Breaks at an open-world crime sandbox scale. Picking
 chunked-world from the start is cleaner than retrofitting.
 
 ### C. Make every "level" a chunk (subsume ADR 0006)

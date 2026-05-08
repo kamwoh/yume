@@ -21,7 +21,7 @@ Any GDD whose aesthetic target includes any of:
 - **Discovery** (rewarded curiosity)
 - **Sensation** (raw feel)
 
-Pure-mechanic games (chess, Tetris, abstract puzzlers) get a
+Pure-mechanic games (chess, a falling-block puzzle, abstract puzzlers) get a
 lighter version — at minimum the visual identity layer and
 event-feedback juice layer.
 

@@ -10,7 +10,7 @@ Yume's input system currently assumes ONE actor. The world has an
 that tag and dispatch the input to it. This works for single-player
 games but fails for:
 
-- Multi-protagonist games (GTA's 3 characters; Trails of Cold Steel
+- Multi-protagonist games (an open-world crime sandbox's 3 characters; Trails of Cold Steel
   party switching)
 - Couch co-op (two players, two entities)
 - Multi-agent sandboxes where each NPC has its own perception+action
@@ -129,7 +129,7 @@ Demos opt into multi-actor by adding the file.
 ## Consequences
 
 **Enables:**
-- Multi-protagonist games (GTA / Trails / Live A Live)
+- Multi-protagonist games (an open-world crime sandbox / Trails / Live A Live)
 - Couch co-op (split-screen renderer is a separate concern)
 - AI-driven NPCs that "play" their own entity via policies
 - Foundation for ADR 0018 (LLM/RL actor policies)
@@ -221,7 +221,7 @@ _Reviewer: yume-tech-director_
    camera mode that adapts automatically? Likely the latter —
    add `camera.mode: follow_active_actor` as the new mode.
 
-5. **Per-actor state location**. GTA-style multi-protag has separate
+5. **Per-actor state location**. an open-world crime sandbox-style multi-protag has separate
    inventories. ADR doesn't show how. Two options:
    (a) per-entity state with naming convention (player_main.hp,
    player_alt.hp); (b) per-actor state slot in world_state

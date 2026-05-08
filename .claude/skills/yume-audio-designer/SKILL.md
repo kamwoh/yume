@@ -101,10 +101,10 @@ loop).
 
 **Per-screen tracks** — title has its own theme; each level has its
 own BGM; pause keeps current playing or mutes. Standard for most
-games. Stardew, FF1-6.
+games. a farming sim, FF1-6.
 
 **Layered intensity** — base layer always plays; combat/danger layer
-fades in on triggers. Used in Hollow Knight, Bloodborne, modern
+fades in on triggers. Used in a metroidvania, a soulslike, modern
 JRPGs. Most ambitious; requires separate stems.
 
 Default: per-screen, with one ambient layer that varies per level.
@@ -129,7 +129,7 @@ Stingers = short non-looping pieces fired by signals. Common ones:
 - **level_complete** — 2-4s flourish before next level loads
 - **boss_spawn** — 1-2s warning fanfare
 - **player_died** — 1-2s descending tone
-- **item_acquired** — 0.5-1s ding (Zelda treasure jingle)
+- **item_acquired** — 0.5-1s ding (an action-adventure treasure jingle)
 - **achievement_unlocked** — 1-2s chime
 
 Each stinger should have:
@@ -272,7 +272,7 @@ into state transitions.**
 - Combat layer: tense strings fade in when in_combat=true
 - 5 buses + Voice for dialogue
 
-### Stardew-style farming
+### farming-sim-style farming
 
 - BGM per season + per area (12+ tracks: spring/summer/fall/winter ×
   farm/town/mine/beach)

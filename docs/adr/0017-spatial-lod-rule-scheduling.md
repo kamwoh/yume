@@ -191,7 +191,7 @@ content channels, no new dependencies. Pure optimization layer.
 3. **Determinism implications underspecified**. `freeze` mode = entity
    stops behaving when player walks away. Acceptable for crowds
    (anonymous pedestrian doesn't matter). Not acceptable for named
-   NPCs (Stardew villager Marie should keep aging at her shop even
+   NPCs (a farming-sim villager Marie should keep aging at her shop even
    when player isn't there). Authoring guidance: freeze for crowds,
    tick_slowed for named NPCs.
 

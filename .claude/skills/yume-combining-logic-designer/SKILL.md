@@ -33,9 +33,9 @@ Some examples (the skill applies to all of these and many more):
 
 | Genre / mechanic | Example |
 |---|---|
-| Survival crafting | wood + stone → axe (Minecraft) |
-| Alchemy / cooking | herb + herb → potion (Skyrim, Stardew kettle) |
-| Plant breeding | rose + tulip → hybrid (Animal Crossing, Stardew) |
+| Survival crafting | wood + stone → axe (a voxel survival) |
+| Alchemy / cooking | herb + herb → potion (an open-world action-RPG, an in-game cooking-pot) |
+| Plant breeding | rose + tulip → hybrid (a village life-sim, a farming sim) |
 | Key combos | up + down + punch → uppercut (Street Fighter) |
 | Chemistry / factory | iron ore + coal → steel (Factorio) |
 | Spell weaving | fire + water → steam-spell (Magicka) |
@@ -123,7 +123,7 @@ world-plan's cast. Note which entities participate in combining.
 named entry) or EMERGENT (rule-based: any "wet" + any "fire" →
 "steam")?
 
-- **Explicit map** — Stardew, Minecraft, Skyrim alchemy. Each recipe
+- **Explicit map** — a farming sim, a voxel survival, an open-world action-RPG alchemy. Each recipe
   is named. Player learns through trial / book / NPC.
 - **Emergent rules** — Doodle God (early), Magicka. Rules combine
   properties, output computed from input properties.
@@ -145,7 +145,7 @@ Choose based on:
 
 - **Recipe book** — given upfront or unlocked through play. Low
   friction; high spoil-the-puzzle risk.
-- **NPC teaches** — story-driven (Stardew: get recipe from villager
+- **NPC teaches** — story-driven (a farming sim: get recipe from villager
   on heart event). Adds narrative weight.
 - **Free experimentation** — player tries combos blindly. High
   delight on success; high frustration on dead-ends. Doodle God,
@@ -179,10 +179,10 @@ use emergent rules.
 
 **Question**: What happens to inputs after combining?
 
-- **Consume** (most common) — inputs vanish, output appears. Minecraft
-  crafting, Stardew cooking.
+- **Consume** (most common) — inputs vanish, output appears. a voxel survival
+  crafting, farming-sim cooking.
 - **Copy** — inputs preserved, output added. Pokémon breeding (parents
-  remain), Stardew flower color genes.
+  remain), a farming-sim flower color genes.
 - **Partial consumption** — one input stays (catalyst / kiln / forge),
   others consumed. Factorio assemblers.
 - **Quantity transformations** — 4 stone → 1 stone block. N:1 ratios.
@@ -198,12 +198,12 @@ also active).
 inputs?
 
 - **Trash output** — produces "burnt food" / "useless paste" entity.
-  Recettear's "Junk Trader" pattern. Adds humor + light cost without
+  the item-shop merchant game's "Junk Trader" pattern. Adds humor + light cost without
   full denial.
 - **No effect** — combination just doesn't work, inputs preserved.
   Friendliest. Doodle God.
 - **Inputs lost** — punishes blind experimentation. Most punishing.
-  Used sparingly (Skyrim: bad alchemy = wasted ingredients).
+  Used sparingly (an open-world action-RPG: bad alchemy = wasted ingredients).
 - **Hybrid penalty** — small chance of trash + small chance of input
   loss. Most realistic; hardest to balance.
 
@@ -249,7 +249,7 @@ Common implementations:
 
 - **Contact rule + tag pair**: two ingredient entities adjacent →
   contact rule fires → spawn output + remove inputs. Works when
-  combining is spatial (Stardew kettle, drag onto bench).
+  combining is spatial (an in-game cooking-pot, drag onto bench).
 - **Input action + active selection**: player has selection state
   (state.held_item_a, state.held_item_b); input "combine" → rule
   reads state, looks up recipe, mutates. Works when combining is
@@ -312,7 +312,7 @@ Note any:
 
 ## Genre patterns library
 
-### Survival crafting (Minecraft-style)
+### Survival crafting (voxel-survival-style)
 
 - Recipe table: EXPLICIT, ~50-200 recipes
 - Discovery: hybrid (recipe book + NPC + experimentation)
@@ -321,7 +321,7 @@ Note any:
 - Engine: input-action + selection (workbench UI) or contact rule
   (drop items in a "crafting cell")
 
-### Alchemy (Skyrim/Stardew-style)
+### Alchemy (an open-world action-RPG/farming-sim-style)
 
 - Recipe table: HYBRID (explicit named potions + emergent for unnamed)
 - Discovery: free-experimentation + skill book
@@ -330,7 +330,7 @@ Note any:
   feel without zero-cost
 - Engine: contact rule with kettle + tag-paired ingredients
 
-### Plant breeding (Stardew/AC)
+### Plant breeding (a farming sim/AC)
 
 - Recipe table: EMERGENT (parents → child trait inherited)
 - Discovery: rule-based (genetic pattern is internal model player
@@ -357,7 +357,7 @@ Note any:
 - Failure: no-effect
 - Engine: input + selection (drag A onto B); single recipe lookup
 
-### Cooking with steps (Stardew kettle, Cooking Mama)
+### Cooking with steps (an in-game cooking-pot, a cooking minigame)
 
 - Recipe table: EXPLICIT or HYBRID
 - Discovery: recipe book + experimentation

@@ -695,7 +695,7 @@ func _camera_fixed(cam_cfg: Dictionary) -> void:
 
 
 ## Top-down 3D: Camera3D directly above entity, looking down. Orthographic.
-## Stardew-but-3D look. World up is +Y; camera at (target.x, +height, target.z).
+## an isometric farming sim look. World up is +Y; camera at (target.x, +height, target.z).
 func _camera_top_down_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
 	if target_v == null: return

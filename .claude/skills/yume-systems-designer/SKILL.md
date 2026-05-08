@@ -150,7 +150,7 @@ Write the ADR following `docs/adr/README.md` format.
 wired to walk toward the player via radial homing
 (`(player.x - npc.x) / dist * speed`). Looked broken — every
 customer in the shop ran at the player like a zombie. Real merchant
-games (Recettear, Moonlighter) have customers walk to specific
+games (an item-shop merchant game, a merchant-adventurer game) have customers walk to specific
 fixtures (counter, shelves) and WAIT.
 
 **Rule**: when designing AI for any non-combatant NPC (shopper,

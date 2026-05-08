@@ -26,7 +26,7 @@ SHALLOW because the generic reviewer can't catch:
   durations, transitions, or distinct verbs (one-phase boredom)
 - "Haggle is fun" — but no spec for the actual exchange shape
 - "Debt drives tension" — but linear `gold/day` curve flattens the
-  tension arc that makes Recettear iconic
+  tension arc that makes an item-shop merchant game iconic
 - "Reputation matters" — but only affects price (no meta-progression)
 - "Inventory: 20 slots" — but no UX plan for finding things
 
@@ -99,7 +99,7 @@ behavioral (different gear preferences, spending power, haggle
 toughness) or cosmetic (same buyer, different sprite)?
 
 **Heuristic minimum**: ≥3 archetypes for a "complete-game" merchant
-title. ≥4 for genre-honest. Recettear ships with ~6.
+title. ≥4 for genre-honest. an item-shop merchant game ships with ~6.
 
 **Red flags**:
 - "Customers" listed as one homogeneous group
@@ -181,7 +181,7 @@ does every other player verb produce a visible response?
 - Reputation is decorative (doesn't affect haggling)
 - **Empirical anti-pattern**: customers home-in on the player like
   zombies — no spatial structure, just radial chase. Real merchant
-  games (Recettear, Moonlighter, Potion Permit) have customers walk
+  games (an item-shop merchant game, a merchant-adventurer game, an alchemist-shop sim) have customers walk
   to a counter / shelf / register and WAIT.
 - **Empirical anti-pattern**: shop fixtures (counter, shelves,
   display) listed in entity table but no rules attach them to
@@ -199,7 +199,7 @@ input map was never validated).
 **Question**: Does the debt schedule have an emotionally-shaped
 curve, or is it linear?
 
-**Heuristic shape**: NON-LINEAR is the goal. Recettear's curve goes:
+**Heuristic shape**: NON-LINEAR is the goal. the item-shop merchant game's curve goes:
 - Week 1: panic (debt small but income unproven; tight margin)
 - Week 2: relief (player learned the loop; income > debt comfortably)
 - Week 3: stable (rhythm; planning ahead)
@@ -262,7 +262,7 @@ flat list = minor; no rarity signaling = minor.
 **Specific pokes**:
 - **Money pump**: is there ONE item-pair where buy-from-supplier <
   sell-to-customer reliably, with no constraint? If yes, optimal
-  play is grind that pair. (Real Recettear has supplier price
+  play is grind that pair. (the canonical merchant-game has supplier price
   randomization + customer hands changing daily to prevent this.)
 - **Adventure-skip**: can the player ignore the dungeon entirely and
   still win? If yes, half the game is dead. (Mitigation: only-from-
@@ -274,7 +274,7 @@ flat list = minor; no rarity signaling = minor.
 - **Inventory hoarding**: can the player buy 100 cheap items, never
   sell, exit the game? Need an inventory cap or a holding cost.
 - **Day-1 cheese**: is there a sequence in early game that wins
-  trivially? (Recettear's early game is famously tight precisely
+  trivially? (the item-shop merchant game's early game is famously tight precisely
   to prevent this.)
 
 **Red flags**: any of the above unanswered.
@@ -386,7 +386,7 @@ Same as generic reviewer:
 - `.claude/skills/yume-merchant-designer/SKILL.md` — paired skill
 - `.claude/skills/yume-shooter-reviewer/SKILL.md` — sibling genre-
   reviewer (template structure)
-- Recettear, Moonlighter, Potion Permit — reference games
+- an item-shop merchant game, a merchant-adventurer game, an alchemist-shop sim — reference games
 
 ## When invoked by orchestrator
 

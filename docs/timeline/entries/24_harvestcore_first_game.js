@@ -2,14 +2,14 @@ export const entry24 = {
   id: "24",
   date: "2026-05-02",
   type: "build",
-  title: "First end-to-end /yume-design run — HarvestCore (Stardew core sim)",
+  title: "First end-to-end /yume-design run — HarvestCore (core farming sim)",
   summary:
     "First empirical test of Tier 2.5's <code>/yume-design</code> pipeline producing a real game in autonomous mode. " +
-    "User asked for a Stardew/Harvest Moon-style core sim. Pipeline walked all 6 phases. " +
+    "User asked for a a farming sim/a farming sim-style core sim. Pipeline walked all 6 phases. " +
     "Engine boots clean after one autonomous formula fix. Three real harness gaps surfaced that would have " +
     "stayed hidden without an empirical run.",
   highlights: [
-    "<strong>Game</strong>: <code>data/demo_harvestcore/</code> — 27 defs, 81 instances, 50 rules. Farm + 3 animals + 4 NPCs + 8x8 tile grid + 4 seasons + weather. Stardew 'without the words.'",
+    "<strong>Game</strong>: <code>data/demo_harvestcore/</code> — 27 defs, 81 instances, 50 rules. Farm + 3 animals + 4 NPCs + 8x8 tile grid + 4 seasons + weather. a farming sim 'without the words.'",
     "<strong>Pipeline phases ran cleanly 1-4</strong>: game-designer → systems-designer → content-designer → asset-designer. Phase 5 (qa-tester) hit subagent auth policy block; ran qa role in main context as fallback. End-to-end runtime: ~90 min.",
     "<strong>Harness gap #1 — C-style ternary doesn't work</strong>: Yume docs and api-manifest claimed <code>cond ? a : b</code> was allowed in formulas. Empirically verified: Godot 4.6.1 Expression requires Python-style <code>a if cond else b</code>. Content-designer trusted the docs and shipped 4 broken formulas (392 parse errors per tick). Fixed: <code>formula.gd</code> hint, <code>data-demo.md</code>, <code>30_framework_primitives.md</code>, manifest generator.",
     "<strong>Harness gap #2 — Subagent path is fragile</strong>: <code>Agent(subagent_type='yume-qa-tester')</code> failed with 'organization has disabled Claude subscription access' after 83 minutes. Subagents authenticate through a path that org policies can block. Architectural follow-up: convert <code>.claude/agents/yume/*.md</code> to <code>.claude/skills/yume-&lt;role&gt;/SKILL.md</code> so role prompts always load into the orchestrator's main context. Tier 3 LLM-actor work will hit this same wall.",

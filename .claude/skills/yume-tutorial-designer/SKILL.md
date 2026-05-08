@@ -115,7 +115,7 @@ What can the player DO? Each verb gets at most one tutorial step.
 
 Sokoban: move (4 dirs), push, restart. → 3 tutorial verbs.
 Shooter: move, fire, reload. → 3.
-Stardew opener: move, talk to NPC, plant seed, water, sleep. → 5.
+a farming sim opener: move, talk to NPC, plant seed, water, sleep. → 5.
 
 Cap at ~7 verbs per tutorial. More = exhausting. Advanced verbs unlock
 through play, not tutorial.

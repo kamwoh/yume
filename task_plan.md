@@ -1653,20 +1653,20 @@ Decisions distilled here for roadmap state.
 
 ### Game candidates (ranked)
 
-- [ ] **Merchant-POV (Recettear-like)** — NEXT pipeline freshness test.
+- [ ] **Merchant-POV (merchant-game-like)** — NEXT pipeline freshness test.
   1 shop, ~5 traveler types, ~10 items, news as world.signal. Tests
   pipeline + combining-logic skill simultaneously. ~1 session scope.
-- [ ] **SAO Alicization-style life-sim** — second target. Researchers
+- [ ] **the raised-AI life-sim anime arc-style life-sim** — second target. Researchers
   raise Fluctlights from infancy in a virtual village. Two POV options
   (Fluctlight or researcher). Needs time-compression engine question
   answered first (year_counter binding? variable tick_seconds?).
-- [ ] **Sims-like** — harvestcore + needs systems + select-direct UI.
+- [ ] **life-sim-like** — harvestcore + needs systems + select-direct UI.
   Substrate mostly there.
 - [ ] **Pure-combining-magic** — small-scope test for combining-logic
   in isolation. Optional if merchant game doesn't exercise it enough.
-- [ ] Civilization — premature without Tier 3 (faction AI).
-- [ ] SAO mainline (Aincrad/ALO/GGO) — unbuildable without picking
-  the core mechanic. Alicization is the buildable arc.
+- [ ] a 4X strategy — premature without Tier 3 (faction AI).
+- [ ] the trapped-in-MMO arc (the trapped-in-MMO setting/ALO/GGO) — unbuildable without picking
+  the core mechanic. the raised-AI life-sim is the buildable arc.
 
 ### Engine surface findings
 
@@ -1677,7 +1677,7 @@ Decisions distilled here for roadmap state.
 - Simulation input layer EXISTS via `scenario_runner.queue_input`
   (same code path as live keyboard). Missing for runtime AI: non-headless
   variant + policy interface. Both are Tier 3 (Actors) work.
-- Time-compression for long-arc games (Alicization Fluctlight lifespans)
+- Time-compression for long-arc games (the raised-AI life-sim Fluctlight lifespans)
   is an open design question — engine extension or content convention?
   Decide before starting that game.
 
@@ -1770,7 +1770,7 @@ engine work first; others are buildable today.
 These are tracked so that when a genre needing them comes up, the
 work is scoped. Each becomes an ADR when a real game queues it.
 
-#### Twitch platformer (Celeste / Hollow Knight / Super Meat Boy)
+#### Twitch platformer (Celeste / a metroidvania / Super Meat Boy)
 
 - [ ] **`input_released` trigger** — fires when an input action is
   released. Needed for variable jump height (hold longer = higher).
@@ -1788,7 +1788,7 @@ work is scoped. Each becomes an ADR when a real game queues it.
   for "you can still jump for N ticks after leaving ledge". Doable
   in JSON today; document as a pattern rather than engine work.
 
-#### Life sim long-arc (SAO Alicization-style)
+#### Life sim long-arc (the raised-AI life-sim anime arc-style)
 
 - [ ] **Time compression mechanism** — Fluctlights live decades
   while observers see hours. Options: (a) variable `tick_seconds`
@@ -1796,7 +1796,7 @@ work is scoped. Each becomes an ADR when a real game queues it.
   rule, (c) compressed via tick interval (1 tick = 1 simulated
   year). Decide via ADR before building.
 
-#### RTS / 4X (Civilization-style)
+#### RTS / 4X (a 4X strategy-style)
 
 - [ ] **Selection state primitive** — player selects unit / city /
   tile; subsequent inputs route to that selected entity. Currently
@@ -1847,8 +1847,8 @@ proposed, awaiting tech-director review). Skill files will follow.
 ### The reframe
 
 User clarified: open-world is FOUNDATIONAL, not a genre extension.
-Harvest Moon, Final Fantasy, GTA, Stardew, the proposed JRPG-themed
-shop game (Recettear-flavor) are all open-world. They share spatial
+a farming sim, a classic JRPG, an open-world crime sandbox, a farming sim, the proposed JRPG-themed
+shop game (an item-shop merchant game-flavor) are all open-world. They share spatial
 substrate; differ in physics rules, game rules, NPCs, economy,
 narrative, and game-specific logic.
 
@@ -1901,11 +1901,11 @@ become a degenerate case (one chunk, no streaming).
 
 The 6 ADRs together unlock a CLASS of games:
 
-- GTA-shaped open-world top-down (driving + shooting + missions)
-- Harvest Moon / Stardew (open-world farming sim with town traversal)
-- Final Fantasy / JRPG overworld (sword-and-magic 剑与魔法 with
+- open-world-shaped open-world top-down (driving + shooting + missions)
+- a farming sim / a farming sim (open-world farming sim with town traversal)
+- a classic JRPG / JRPG overworld (sword-and-magic 剑与魔法 with
   city/dungeon transitions) — TARGET FOR SHOP GAME
-- Sims-like with control-anyone (multi-actor + crowd)
+- life-sim-like with control-anyone (multi-actor + crowd)
 - Smallville / AI-Town clones (LLM-driven NPC sandboxes)
 - Disaster simulation (evacuation, panic with crowd + vehicle physics)
 - RL training pipelines (agent + Yume sandbox + actor policy)
@@ -1945,7 +1945,7 @@ Build order (after gates):
 
 ### Game design notes
 
-- **Shop tale game** (Recettear-flavor): JRPG fantasy / 剑与魔法
+- **Shop tale game** (an item-shop merchant game-flavor): JRPG fantasy / 剑与魔法
   theme. Open-world village + shop interior + dungeon (traveler
   origins). Uses every feature: open-world (multi-area), vehicle
   physics (carts? horses? skip if trivial), crowd (visiting
@@ -2082,7 +2082,7 @@ become in-scope when capability ADRs land:
 |---|---|
 | Manipulation games (CALVIN-shaped) | ADR 0022 (rigid body + joints) |
 | Twitch platformer (Celeste-style) | ADR 0023 (animation) + ADR 0027 (character body) |
-| Racing sim (Forza-shaped) | ADR 0022 (Godot's VehicleBody3D + WheelJoint) |
+| Racing sim (a racing sim-shaped) | ADR 0022 (Godot's VehicleBody3D + WheelJoint) |
 | Character action (Devil May Cry) | ADR 0023 + ADR 0027 + complex animation tree |
 | Stealth (MGS) | ADR 0024 (pathfinding for guard AI) |
 | RTS / 4X (Civ) | ADR 0024 (pathfinding) + multi-actor + selection (could be skill, not engine) |
@@ -2284,7 +2284,7 @@ in the relevant genre queues for /yume-design.
   old reload_scene + transition_screen footgun). 353/353 tests pass.
   Sokoban New Game button now uses [reset_world, transition_screen].
 - [ ] **#96** — Build first complete game: JRPG fantasy merchant
-  (Recettear-shaped). Composes shell-layer + #85 + #99.
+  (merchant-shaped). Composes shell-layer + #85 + #99.
 - [ ] **#97** — Build deferred genre-extension skills (reactive
   cadence): platformer, td, roguelike, life-sim, rts, merchant.
 
@@ -2484,3 +2484,70 @@ framework win; merchant Phase C is the proof case.
   generic reputation).
 - Camera-lerp post-transition rule (juice-designer's transition-feel
   spec; needs new juice effect or content-rule pattern).
+
+---
+
+## Tier C — Cross-game JSON reuse + city visuals (2026-05-08, in-flight)
+
+User framing: *"we are building something like 'json language system' —
+although we use only json, we can build the whole game, and because
+these can be done by you/claude/codex/gemini, so we make sure this is
+friendly to you."*
+
+The city visual issues (boring ground, scattered town, no minimap)
+get parked behind a foundational ADR so subsequent work composes
+reusable building blocks instead of re-deriving them per game.
+
+### Build order
+
+1. **ADR 0027 — cross-game JSON reuse system (`@lib.X` + `$extends` +
+   `$include`)** — *foundational; blocks the rest*
+   - Drafted: `docs/adr/0027-cross-game-json-reuse-system.md`
+   - Tech-director review: accept-with-conditions; 8 conditions
+     listed in the ADR's review section
+   - Next: fold conditions into ADR text → mark accepted →
+     implement Phase 1 (resolver + tests) + Phase 2 (initial
+     `data/lib/cameras.json` + `data/lib/input_bundles/wasd_with_fp_
+     variant.json`) → separate PR for Phase 3 (merchant migration)
+
+2. **#5 Pendrel city redesign** — plaza, road grid, districts,
+   perimeter walls. Replaces scatter-pattern placement. ~30 min
+   level-designer pass + content-designer entities.json update.
+   *Uses ADR 0027 lib refs once landed* (road tile entities).
+
+3. **#3a Distinct house meshes** — 4-6 variants in
+   `data/meshes.json` (small_cottage, large_cottage, shop_2story,
+   tavern, forge, chapel). Drop into shared lib so all games
+   benefit. *Future: package via `@lib.entities.props.*`.*
+
+4. **#3b Tiled ground** — replace single 400×400 dirt plane with
+   placed tile entities (cobblestone, grass, plaza, dirt-path)
+   along Pendrel's road grid (depends on #5). *Future: package
+   tile defs via `@lib.entities.terrain.*`.*
+
+5. **#1b Visual minimap widget** — new `MapWidget` Control type in
+   `control_factory.gd`. Per-game declares which tags render as
+   dots, colors, "you are here" cursor. ~2h engine work. Per ADR
+   0021 expose-don't-reimplement (uses Godot Control + draw
+   primitives).
+
+### Why ADR 0027 first
+
+The user's "we always aim big" instinct + LLM-authoring framing.
+Once `@lib.X` works, the city redesign + house meshes + tiles +
+minimap all compose against shared building blocks instead of
+re-derivation per game. ~80% authoring-boilerplate reduction
+once the lib catalogs flesh out.
+
+### Reserved / unwritten ADR slots
+
+- 0022, 0023 — multiply-claimed by various docs (rigid-body, dialogue
+  tree, quest log, animation) but never drafted. Numbers free to
+  reuse for whichever lands first.
+
+### Open Tier A/B still pending (carried from prior tier)
+
+- 15 character-arc dialogue screens (5 regulars × 3 beats)
+- Inventory tooltip widget (hover-to-show flavor_text)
+- Per-named-regular loyalty tracking in sale rule
+- Camera-lerp post-transition rule (juice-designer's transition-feel)

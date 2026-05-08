@@ -328,13 +328,13 @@ serves it. If you can't, the prose isn't pulling its weight.
 
 When in doubt, target the prose density of these games:
 
-- **Recettear**: every regular customer has 3-5 idle lines. Tear the
+- **an item-shop merchant game**: every regular customer has 3-5 idle lines. Tear the
   fairy speaks in distinct voice every screen. Items have flavor.
-- **Stardew Valley**: every NPC has hundreds of contextual lines.
+- **a slice-of-life farming sim**: every NPC has hundreds of contextual lines.
   Heart events are scripted dialogue with character voice. Letters.
 - **Disco Elysium** (extreme end): every interaction is a sentence.
   Even the player's own thoughts have voices.
-- **Hollow Knight**: NPCs speak in 1-2 lines; environment prose
+- **a metroidvania**: NPCs speak in 1-2 lines; environment prose
   (carved tablets, sign posts) carries the lore.
 - **Outer Wilds**: world-text on signs, monitors, recorder logs IS
   the game.

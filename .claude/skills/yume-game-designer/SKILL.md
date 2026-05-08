@@ -51,8 +51,8 @@ content ships as features without feeling. Specify:
 - **Tone**: 1-3 word handle (gruff / lyrical / wry / earnest / arch
   / hardboiled / fairy-tale / clinical). Anchors all NPC voice.
 - **Reference texture**: name a game whose prose density you're
-  matching (e.g. "Recettear-tier per-customer barker lines",
-  "Stardew-tier per-NPC heart events", "Hollow Knight-tier
+  matching (e.g. "merchant-game-tier per-customer barker lines",
+  "farming-sim-tier per-NPC heart events", "metroidvania-tier
   environmental signs").
 - **Per-NPC voice convention**: rule for distinguishing characters
   by speech (e.g. "every named regular has a 3-5 word voice

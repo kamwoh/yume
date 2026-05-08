@@ -198,7 +198,7 @@ NPCs collapsed to origin."
 ```
 "After switching from top_down_3d to isometric_3d camera mode:
 1. Can I see entity BODIES (not just hat-tops)?
-2. Is the perspective tilted ~30-45° (Octopath HD-2D feel)?
+2. Is the perspective tilted ~30-45° (an HD-2D JRPG HD-2D feel)?
 3. Are shadows visible on the ground plane?
 4. Are buildings 3D-shaped (visible walls + roof) not flat tiles?
 Fail flags: still seeing only sphere-tops, sky filling >50% frame,

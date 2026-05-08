@@ -125,11 +125,11 @@ Match the genre to a spatial archetype. Apply genre-specific patterns:
 
 #### Tower defense
 
-- **Linear path** (Bloons, PvZ): single fixed route. Good for entry-level.
+- **Linear path** (a tower defense, lane-based TD): single fixed route. Good for entry-level.
 - **Multi-path** (Kingdom Rush): 2-3 spawn points. Forces split defense.
 - **Maze TD** (Element TD): no fixed path; towers block; pathfinding
   required. Engine-heavy, defer unless explicitly designed for.
-- **Lane-based** (PvZ): parallel rows. Simple, focused decisions.
+- **Lane-based** (lane-based TD): parallel rows. Simple, focused decisions.
 
 For each, key elements: spawn(s), waypoints with chokes, tower slots,
 base.
@@ -257,7 +257,7 @@ z range ±7m, x range ±9m. 6 waypoints, 4 tower slots at corners.
 
 Two paths merge before base. Tower at merge point covers both.
 
-### TD lane-based (PvZ-style)
+### TD lane-based (lane-based-TD-style)
 
 ```
 Lane 1: [spawn] ──────── [base]

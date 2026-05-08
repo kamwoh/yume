@@ -1,6 +1,6 @@
 ---
 name: yume-racing-designer
-description: Genre-specific designer for arcade racing games — kart racers (Mario Kart, CTR), high-speed (F-Zero, Wipeout), top-down (Micro Machines, Death Rally), time-attack (Trackmania arcade), checkpoint runners (Burnout). Owns the tuning discipline that makes a car FEEL like a car: vehicle profile, steering rate vs speed, drift mechanic, lateral-grip scrubbing, surface variety, AI rubber-banding, power-up taxonomy, race structure, camera. Reference-game driven — every design decision benchmarks against a named arcade racer. Does NOT cover sim racing (Forza, Gran Turismo) — that needs continuous physics out of Yume's scope.
+description: Genre-specific designer for arcade racing games — kart racers (an arcade kart racer, an arcade kart racer), high-speed (a high-speed futuristic racer, a high-speed futuristic racer), top-down (a top-down racer, a top-down combat racer), time-attack (a time-attack racer arcade), checkpoint runners (an arcade combat racer). Owns the tuning discipline that makes a car FEEL like a car: vehicle profile, steering rate vs speed, drift mechanic, lateral-grip scrubbing, surface variety, AI rubber-banding, power-up taxonomy, race structure, camera. Reference-game driven — every design decision benchmarks against a named arcade racer. Does NOT cover sim racing (a racing sim, a racing sim) — that needs continuous physics out of Yume's scope.
 ---
 
 # /yume-racing-designer
@@ -25,7 +25,7 @@ playtest iterations. Without a specialist:
   unresponsive at low speed)
 - "Drift" is just turning — no commit/reward mechanic
 - Lateral velocity isn't scrubbed, so cars hover-slide (Asteroids
-  feel, not Mario Kart feel)
+  feel, not an arcade kart racer feel)
 - AI either rubber-bands aggressively (cheats) or doesn't (boring
   blowouts)
 - Track design is a circle (no chicanes, no hairpins, no rhythm)
@@ -38,14 +38,14 @@ philosophy.
 ## Scope honesty
 
 **In scope** (Yume can ship):
-- Pure arcade (Mario Kart, F-Zero, CTR aesthetic)
-- Top-down arcade (Micro Machines, Death Rally)
+- Pure arcade (an arcade kart racer, a high-speed futuristic racer, an arcade kart racer aesthetic)
+- Top-down arcade (a top-down racer, a top-down combat racer)
 - Time-attack / time-trial racing
 - Checkpoint runners
 - Kart-style with power-ups
 
 **Out of scope** (don't propose):
-- Sim racing (Forza, Gran Turismo, iRacing) — needs continuous physics
+- Sim racing (a racing sim, a racing sim, iRacing) — needs continuous physics
 - Realistic damage / deformation
 - Tire temperature / wear simulation
 - Multi-car drafting / aerodynamic simulation
@@ -166,13 +166,13 @@ Common reference matrix:
 
 | Reference | Aesthetic | Drift model |
 |---|---|---|
-| Mario Kart 64 / Wii | Cartoon, power-ups, cup structure | Press-and-hold drift with mini-turbo boost on release |
-| F-Zero X / GX | High-speed sci-fi, no power-ups, hover | Active steering + side-attack |
-| CTR (Crash Team Racing) | Power slide with three-tier boost | Held-button slide with timed release |
-| Burnout 3 | Crash-focused, boost meter | Drift fills boost; aggressive AI |
-| Trackmania | Time-attack precision | Minimal drift; instant restart |
-| Micro Machines | Top-down chase camera | Minimal drift; bump-off-others |
-| Death Rally | Top-down combat racer | Drift + weapons |
+| an arcade kart racer 64 / Wii | Cartoon, power-ups, cup structure | Press-and-hold drift with mini-turbo boost on release |
+| a high-speed futuristic racer X / GX | High-speed sci-fi, no power-ups, hover | Active steering + side-attack |
+| an arcade kart racer (Crash Team Racing) | Power slide with three-tier boost | Held-button slide with timed release |
+| an arcade combat racer 3 | Crash-focused, boost meter | Drift fills boost; aggressive AI |
+| a time-attack racer | Time-attack precision | Minimal drift; instant restart |
+| a top-down racer | Top-down chase camera | Minimal drift; bump-off-others |
+| a top-down combat racer | Top-down combat racer | Drift + weapons |
 | Excitebike | Side-view 2D | Wheelie + temperature management |
 | Hill Climb Racing | Side-view physics | Vehicle articulation; out of Yume scope mostly |
 
@@ -190,7 +190,7 @@ Numerical starting points (asphalt, normal mode):
 | Style | Top speed | 0→top time | Drag | Notes |
 |---|---|---|---|---|
 | Kart (MK-style) | 80-120 u/s | 2.5-4s | 0.985 | snappy |
-| F-Zero (futuristic) | 250-400 u/s | 1.5-2s | 0.99 | very fast |
+| a high-speed futuristic racer (futuristic) | 250-400 u/s | 1.5-2s | 0.99 | very fast |
 | Top-down arcade | 100-180 u/s | 1.8-3s | 0.97 | tight |
 | Time-attack | 120-160 u/s | 3-5s | 0.99 | clean curves |
 
@@ -208,7 +208,7 @@ Formula starting point:
 turn_rate = base_turn_rate * clamp(1 - 0.5 * (speed / top_speed), 0.4, 1.0)
 ```
 
-Tune the `0.5` and `0.4` until the corners feel right. Mario Kart
+Tune the `0.5` and `0.4` until the corners feel right. an arcade kart racer
 Wii's coefficient is roughly 0.6 with a 0.35 floor.
 
 ### Step 4 — Drift (the secret sauce)
@@ -217,20 +217,20 @@ Drift is what separates "racing game" from "Asteroids with walls."
 
 Three drift models:
 
-**A — Press-and-hold (Mario Kart):**
+**A — Press-and-hold (an arcade kart racer):**
 - Player holds drift button while turning
 - Lateral grip drops to 30% during drift
 - Releasing drift mid-turn = mini-turbo boost (+20% speed for 1s)
 - Engine: state.drifting flag; tick rule scrubs lateral by 0.3 instead
   of 0.95 when drifting=1; signal on release triggers boost effect
 
-**B — Power slide (CTR-style):**
+**B — Power slide (an arcade kart racer-style):**
 - Three-tier boost: yellow → orange → red, each tier longer hold
 - Releasing too early = small boost; perfectly timed = big boost
 - Engine: state.drift_charge (counter); time-based tier thresholds;
   signal-on-release with payload of charge level
 
-**C — Active steering (F-Zero):**
+**C — Active steering (a high-speed futuristic racer):**
 - No explicit drift; lateral grip is just lower throughout
 - Side-attack effect handled separately (input → push opponents)
 - Engine: lower lateral grip constantly; no toggle
@@ -259,7 +259,7 @@ new_velocity = forward_vec + lateral_vec * (1 - lateral_grip)
 // lateral_grip = 0.0  → hovercraft (full slide; bad feel)
 // lateral_grip = 0.5  → slidey arcade
 // lateral_grip = 0.85 → kart-style (some slide, mostly grippy)
-// lateral_grip = 0.95 → tight arcade (very grippy; F-Zero-ish)
+// lateral_grip = 0.95 → tight arcade (very grippy; a high-speed futuristic racer-ish)
 // lateral_grip = 1.0  → on-rails (no slide; remote-control car)
 ```
 
@@ -295,14 +295,14 @@ Track elements:
 | Surface change | Variety + risk | 0-2 per lap |
 
 Track length:
-- Sprint: 30-60 second lap (Mario Kart short tracks)
-- Standard: 60-120 second lap (Mario Kart medium)
+- Sprint: 30-60 second lap (an arcade kart racer short tracks)
+- Standard: 60-120 second lap (an arcade kart racer medium)
 - Endurance: 120-300 second lap (Le Mans-style)
 
 Width considerations:
-- Single-car width: precision-test (Trackmania)
-- 2-3 car widths: combat-friendly (Mario Kart)
-- 4-5 car widths: open chaos (Burnout)
+- Single-car width: precision-test (a time-attack racer)
+- 2-3 car widths: combat-friendly (an arcade kart racer)
+- 4-5 car widths: open chaos (an arcade combat racer)
 
 ### Step 8 — AI design
 
@@ -316,16 +316,16 @@ AI cars need:
 
 | Approach | Pro | Con |
 |---|---|---|
-| Strong RB (Mario Kart) | Always close races | Player effort feels wasted |
+| Strong RB (an arcade kart racer) | Always close races | Player effort feels wasted |
 | Weak RB | Honest leaderboard | Blowouts when player ahead |
 | No RB | Pure skill | Can be lonely / boring |
 
-Pick based on aesthetic intent. Mario Kart casual = strong RB; F-Zero
-serious = weak; Trackmania purist = none.
+Pick based on aesthetic intent. an arcade kart racer casual = strong RB; a high-speed futuristic racer
+serious = weak; a time-attack racer purist = none.
 
 ### Step 9 — Power-ups (if applicable)
 
-Mario Kart taxonomy (the genre standard):
+an arcade kart racer taxonomy (the genre standard):
 
 | Class | Effect | Balance |
 |---|---|---|
@@ -337,10 +337,10 @@ Mario Kart taxonomy (the genre standard):
 | Disruption | Banana behind, oil slick | Lay traps |
 
 Distribution table (item box pull rates by position) is a tuning
-exercise. Mario Kart's table is asymmetric: 1st place gets weak items,
+exercise. an arcade kart racer's table is asymmetric: 1st place gets weak items,
 last place gets strong items. This IS the rubber-banding.
 
-If GDD says "no power-ups" (F-Zero / Trackmania mode), skip entirely.
+If GDD says "no power-ups" (a high-speed futuristic racer / a time-attack racer mode), skip entirely.
 
 ### Step 10 — Camera
 
@@ -394,7 +394,7 @@ A working car requires:
       "drifting": 0,           // boolean
       "current_surface_tag": "asphalt",
       "speed": 0,              // derived; cached for HUD
-      "drift_charge": 0        // for CTR-style
+      "drift_charge": 0        // for an arcade kart racer-style
     },
     "properties": {
       "top_speed": 100,
@@ -449,7 +449,7 @@ lap / drift / kart / racing).
 ## Quality ceiling honesty
 
 A first-pass Yume racing game will feel like a fan project. To feel
-like Mario Kart you need:
+like an arcade kart racer you need:
 - 50+ playtest iterations on tuning (10+ hours)
 - Possibly the future `yume-playtester` skill for iteration feedback
 - Reference-game-driven tuning (this skill enforces this)

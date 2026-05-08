@@ -85,7 +85,7 @@ depends on game pacing.
 
 - **1 slot**: simplest; "Continue" button. Most arcade games. Player
   expects auto-overwrite.
-- **3 slots**: Stardew/JRPG standard. Lets player branch playthroughs.
+- **3 slots**: a farming sim/JRPG standard. Lets player branch playthroughs.
 - **>3 slots**: only for games where save-scumming or branching is
   core (Souls, branching narrative).
 
@@ -125,7 +125,7 @@ Rationale: levels reload from disk; only progress (current_level +
 counters) needs to persist. No persistent entities (each level is
 fresh).
 
-### Stardew-like farming sim
+### farming-sim-style farming sim
 
 ```jsonc
 {
@@ -152,7 +152,7 @@ fresh).
 ```
 
 Rationale: many persistent NPCs + crops; 3 slots for branching
-playthroughs; autosave at day end (Stardew convention).
+playthroughs; autosave at day end (a farming sim convention).
 
 ### Action game / shooter
 
