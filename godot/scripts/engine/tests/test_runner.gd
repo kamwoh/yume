@@ -3439,5 +3439,39 @@ func test_lib_resolver() -> void:
 		"deep value preserved")
 	expect_eq((t9.get("array") as Array).size(), 2, "array preserved")
 
+	# === Test 10: multi-level $extends chain (OOP-like single inheritance) ===
+	_section("lib_resolver.test_multi_level_extends")
+	# Inheritance chain: base → shopkeeper → merchant_shopkeeper.
+	# Each level adds/overrides fields. Final resolved dict carries
+	# merged fields from all 3 levels via recursive resolve.
+	LibResolver._cache["entities.npc_base"] = {
+		"tags": ["npc"],
+		"properties": {"speed_base": 3.0, "max_hp": 100},
+		"state_init": {"hp": 100},
+	}
+	LibResolver._cache["entities.shopkeeper"] = {
+		"$extends": "@lib.entities.npc_base",
+		"tags": ["shopkeeper"],
+		"state_init": {"hp": 50, "gold": 200},
+	}
+	LibResolver._cache["entities.merchant_shopkeeper"] = {
+		"$extends": "@lib.entities.shopkeeper",
+		"properties": {"shop_id": "default"},
+	}
+	var ml_out = LibResolver.resolve({"$extends": "@lib.entities.merchant_shopkeeper", "id": "garron"})
+	expect_eq(typeof(ml_out), TYPE_DICTIONARY, "3-level chain resolves")
+	var ml := ml_out as Dictionary
+	expect_eq(str(ml.get("id")), "garron", "leaf instance's own field preserved")
+	# Top-level keys merge shallow — leaf level's value wins.
+	expect_eq(str((ml.get("properties") as Dictionary).get("shop_id")), "default",
+		"merchant_shopkeeper.properties wins (shallow merge takes whole dict)")
+	expect_eq(int((ml.get("state_init") as Dictionary).get("hp")), 50,
+		"shopkeeper.state_init wins (shallow merge — base's hp=100 dropped)")
+	# tags is an array; shallow merge = last writer wins, NOT array union.
+	# Documented intentional choice — predictable beats clever. Authors who
+	# want union must duplicate explicitly: tags: ["npc", "shopkeeper"].
+	expect_eq(str((ml.get("tags") as Array)[0]), "shopkeeper",
+		"tags array overridden by intermediate level (no implicit array union)")
+
 	# Cleanup
 	LibResolver.reset_cache_for_test()
