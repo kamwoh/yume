@@ -409,6 +409,44 @@
       "params": {"wood": "#5a3820", "knob": "#d8b048"}
     },
 
+    "merchant_cobblestone_tile_3d": {
+      "_comment": "Flat road tile, ~5m square × 5cm thick. Dark-grey cobblestone color. Place in lines for cardinal roads connecting plaza to districts. Use small Y offset so tiles sit on top of the dirt ground without z-fighting.",
+      "primitives": [
+        {"op": "box", "pos": [0, 0.05, 0], "size": [5.0, 0.1, 5.0], "color": "$tile"}
+      ],
+      "params": {"tile": "#5a5448"}
+    },
+
+    "merchant_plaza_tile_3d": {
+      "_comment": "Plaza paving stone, slightly lighter than road tile. Use in 3x3 grid around fountain.",
+      "primitives": [
+        {"op": "box", "pos": [0, 0.06, 0], "size": [6.0, 0.1, 6.0], "color": "$tile"}
+      ],
+      "params": {"tile": "#7a7060"}
+    },
+
+    "merchant_cottage_small_3d": {
+      "_comment": "Small townie cottage variant. 3m × 2.5m × 3m with steep red roof.",
+      "primitives": [
+        {"op": "box",   "pos": [0, 1.25, 0], "size": [3.0, 2.5, 3.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 3.0, 0],  "size": [3.5, 1.2, 3.5], "color": "$roof"},
+        {"op": "box",   "pos": [0, 0.9, 1.55], "size": [0.6, 1.5, 0.1], "color": "$door"}
+      ],
+      "params": {"wall": "#9a8868", "roof": "#6a3020", "door": "#3a2010"}
+    },
+
+    "merchant_cottage_large_3d": {
+      "_comment": "Larger cottage variant. 5m × 3.5m × 4m, brown roof, two windows.",
+      "primitives": [
+        {"op": "box",   "pos": [0, 1.75, 0],  "size": [5.0, 3.5, 4.0], "color": "$wall"},
+        {"op": "prism", "pos": [0, 3.95, 0],  "size": [5.5, 1.4, 4.5], "color": "$roof"},
+        {"op": "box",   "pos": [0, 1.0, 2.05],"size": [0.8, 2.0, 0.1], "color": "$door"},
+        {"op": "box",   "pos": [-1.5, 2.2, 2.05], "size": [0.7, 0.7, 0.1], "color": "$window"},
+        {"op": "box",   "pos": [1.5, 2.2, 2.05],  "size": [0.7, 0.7, 0.1], "color": "$window"}
+      ],
+      "params": {"wall": "#a89878", "roof": "#5a4030", "door": "#4a2818", "window": "#a8c8e0"}
+    },
+
     "merchant_shop_3d": {
       "primitives": [
         {"op": "box", "pos": [0, 1.5, 0], "size": [4.0, 3.0, 4.0], "color": "$wall"},
