@@ -360,6 +360,42 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Player spawn within camera frustum of content (REQUIRED)
+
+Empirical case: merchant 2026-05-08 audit pass — 4 wilderness/dungeon
+levels (forest_road, mountain_pass, ruined_fort, shadowkeep) all
+shipped with player spawn at level entry (z=5), but trees / pillars
+/ enemies were scattered at z=25-100. With iso camera frustum
+~24m visible, the entry spawn showed only player + signpost + entry
+portal. Player walked into the level → "this looks empty."
+
+**Rule**: player spawn position MUST be within the camera frustum
+of at least 30% of the level's content entities (props, enemies,
+NPCs, scatter patterns). Compute by:
+
+1. Camera frustum extent at iso/top-down = `ortho_size`
+   (default 14-24). 3D camera frustum is roughly that × 1.5.
+2. Take all `initial_instances` + pattern origins from the level's
+   entities.json.
+3. Bin entities by distance from player spawn. Anything within
+   `1.0 × frustum_extent` is "in frustum at spawn."
+4. If <30% of content is in frustum, the spawn is broken — player
+   sees mostly empty.
+
+**Fix patterns**:
+- **Move spawn into content area**: change spawn z from level-edge
+  (z=5) to mid-content (z=20-40). Portals at z=2 still serve as
+  "level entry" for transition rules, but player lands deeper in.
+- **Move content closer to spawn**: scatter origins shift toward
+  spawn coords; min_r=3-5 (not 8+) so content brushes against
+  player's frustum.
+- **Widen camera ortho_size**: applies to ALL levels using the
+  same scene.json — bumping from 14 to 24 doubled visible area.
+  Mind the movement-feel rule (cross-frustum in 5-10s).
+
+Default for new wilderness levels: **player spawn at z = level_extent
+× 0.15 to 0.25** (so spawn is 15-25% into the level, not at edge).
+
 ## Boundary walls (REQUIRED for any "open" level)
 
 Empirical case: merchant 2026-05-08 user feedback —
