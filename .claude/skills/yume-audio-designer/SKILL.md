@@ -15,6 +15,25 @@ on victory.
 This skill loads into the orchestrator's main context (Tier 2.6 — no
 subagent spawn).
 
+## Soul workflow membership — Layer 3 (Audio)
+
+You are **Layer 3 of 5** in the soul workflow (per
+`.claude/rules/soul.md`). Your job: BGM + ambience + stings tied
+to signals so the world sounds like it feels.
+
+Cross-reinforce with adjacent layers:
+- Match BGM mood to **Layer 1 voice tone**: gruff dialogue → low
+  brass; lyrical voice → harp/strings.
+- Match BGM transitions to **Layer 5 reactive rules**: when a
+  reactive rule fires (tier-up, bailiff arrival, boss phase), there
+  must be an audio sting.
+- Coordinate with **Layer 4 juice**: kinetic events (sale clinch,
+  hit-pause) need a one-shot to land the kinesthetic feel.
+
+**Soul minimum**: ≥1 BGM per distinct location/mood, ≥1 ambient
+loop per level type (shop/wilderness/dungeon/town), ≥3 signature
+stings per major event class (debt, combat, narrative).
+
 ## Why this skill exists
 
 Without an audio-architecture specialist, games either:

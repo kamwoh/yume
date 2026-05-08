@@ -250,6 +250,29 @@ When editing files matching certain globs, **read the corresponding rule first**
 
 See `.claude/rules/README.md` for the index.
 
+## Soul workflow (5-layer cross-skill check)
+
+If the GDD's aesthetic target includes Fellowship / Narrative /
+Submission / Discovery / Sensation, soul is REQUIRED. Soul = layered
+density across 5 channels. Skipping any layer = a soul-shaped hole
+the player will feel without being able to articulate.
+
+| Layer | Owner | Asks |
+|---|---|---|
+| 1. Writing | yume-flavor-writer | Per-NPC voice, item flavor, barker pools |
+| 2. Visual identity | yume-asset-designer + engine | Distinct silhouettes + nameplate widget |
+| 3. Audio | yume-audio-designer | BGM per location, ambience, stings |
+| 4. Kinetic juice | yume-juice-designer | Camera shake, flash, hit-pause, particles |
+| 5. Reactive density | yume-game-rules-designer + tutorial | Barker pools shift per tier, objectives update |
+
+For each signature beat in the GDD's "Voice & texture" section,
+verify all 5 layers are wired AND pull the same emotional direction.
+Mismatched layers (gruff dialogue + celebratory flash) = anti-soul.
+
+Read `.claude/rules/soul.md` for the full checklist + reinforcement-
+check workflow + the empirical merchant case (writing-only soul felt
+hollow → all 4 other layers added in parallel pass).
+
 ## Post-mortem ritual (ALWAYS-ON — every bug must harden a skill)
 
 User invariant: **whenever a bug appears, find out who is

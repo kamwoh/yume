@@ -275,6 +275,28 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Soul workflow membership — Layer 2 (Visual identity)
+
+You are **Layer 2 of 5** in the soul workflow (per
+`.claude/rules/soul.md`). Your job in this layer:
+
+1. **Per-NPC visual distinction** — every named NPC must have a
+   silhouette / color palette / posture that distinguishes them at
+   a glance. Two named warriors should NOT look identical. Pick
+   distinct meshes OR distinct visual.params (shirt, hat, scale)
+   per named NPC.
+2. **Nameplate widget integration** — engine ships a NameplateRenderer
+   that draws labels above any `named_npc` showing
+   `properties.display_name`. Verify every named NPC has
+   display_name set (fallback is entity_id, which reads as
+   "npc_garron" — ugly).
+3. **Per-archetype variation** — "warrior class customer" and
+   "noble class customer" should look different. Different mesh
+   ideal; same mesh + distinctive color palette acceptable.
+
+**Soul minimum**: every named NPC has nameplate + distinct visual.
+Every customer archetype has its own mesh OR distinctive palette.
+
 ## REQUIRED HUD: objective banner (added 2026-05-08)
 
 Every game's hud.json MUST include an `objective` (or equivalently

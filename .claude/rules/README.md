@@ -33,6 +33,7 @@ cat ~/yume/.claude/rules/data-demo.md
 | `tests.md` | `godot/scripts/engine/tests/**` | Tests ship with phase, no fixture-specific engine code |
 | `visual-qa.md` | (skill-applied, not path-scoped) | Visual capture + Read mandatory after any rendering-affecting change; subagent prompts must include the gate |
 | `post-mortem.md` | (always-on behavioral rule) | After every user-surfaced bug: fix → identify gate that should have caught it → harden gate → commit both. Skipping leaks the bug class into future sessions. |
+| `soul.md` | (cross-skill workflow rule) | The 5-layer soul checklist (writing / visual / audio / kinetic / reactive) for any game with aesthetic targets like Fellowship/Narrative/Submission/Discovery/Sensation. Soul comes from layer cross-reinforcement — every signature beat must hit all 5 layers, all pulling the same emotional direction. |
 
 Each rule file links back to relevant **invariants** from
 `docs/30_framework_primitives.md`. If a rule and an invariant ever conflict,

@@ -9,6 +9,26 @@ This skill loads into the orchestrator's main context (no subagent
 spawn). Tier 2.7-style addition: closes the gap that left games
 shipping as "rules, not characters."
 
+## Soul workflow membership
+
+You are **Layer 1 of 5** in the soul workflow (per
+`.claude/rules/soul.md`). Your output (writing — voice, flavor,
+barkers, world-text) is the foundation that the other 4 layers
+reinforce:
+- Layer 2 (yume-asset-designer): visual identity makes the voices
+  visible (Garron silhouette, nameplate)
+- Layer 3 (yume-audio-designer): BGM + stings give the dialogue
+  emotional weight
+- Layer 4 (yume-juice-designer): kinetic feedback makes
+  interactions felt
+- Layer 5 (yume-game-rules-designer): reactive rules surface the
+  writing at the right moments
+
+Your prose must be designed with the OTHER LAYERS IN MIND — the
+voice descriptor "gruff" only lands if the audio + visual + juice
+also pull gruff. Document any cross-layer notes in flavor-design.md
+so downstream skills can match.
+
 ## Why this skill exists
 
 Empirical precedent: merchant 2026-05-08 user feedback —

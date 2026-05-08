@@ -63,6 +63,8 @@ func _ready() -> void:
 	test_party_join_creates_relation()
 	test_party_leashing_position_follows_player()
 	test_party_ko_preserves_entity()
+	test_nameplate_filters_named_npc_tag()
+	test_nameplate_picks_display_name_over_id()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -3229,3 +3231,67 @@ func test_party_ko_preserves_entity() -> void:
 	expect_eq(member.get_state("ko"), 0, "revive clears ko")
 	expect_eq(member.get_state("hp"), 25.0, "revive restores hp to hp_max from properties")
 	director.queue_free(); leader.queue_free(); member.queue_free()
+
+
+## NameplateRenderer.collect_named_npcs is the static filter used to
+## decide which entities show floating display_name labels above their
+## head. Only entities tagged `named_npc` are included; ambient cylinder
+## townies (no tag) stay anonymous so the city doesn't get cluttered
+## with overlapping labels.
+func test_nameplate_filters_named_npc_tag() -> void:
+	_section("nameplate_filters_named_npc_tag")
+	var defs := {
+		"named":   {"id": "named",   "tags": ["named_npc"], "properties": {"display_name": "Garron"}},
+		"ambient": {"id": "ambient", "tags": ["townie"],    "properties": {}},
+		"persist": {"id": "persist", "tags": ["named_npc", "persistent"], "properties": {"display_name": "Vela"}},
+	}
+	var e_named := Entity.create(defs.named, "n1")
+	e_named.set_position(Vector3(10, 0, 5))
+	var e_ambient := Entity.create(defs.ambient, "a1")
+	e_ambient.set_position(Vector3(20, 0, 5))
+	var e_persist := Entity.create(defs.persist, "p1")
+	e_persist.set_position(Vector3(0, 0, 0))
+	var entities: Dictionary = {"n1": e_named, "a1": e_ambient, "p1": e_persist}
+	var collected: Array = NameplateRenderer.collect_named_npcs(entities)
+	expect_eq(collected.size(), 2,
+		"only the 2 named_npc-tagged entities collected (ambient excluded)")
+	# Build a set of display_names to verify both named entries made it through.
+	var names := []
+	for c in collected:
+		names.append(str(c["display_name"]))
+	expect(names.has("Garron"), "Garron picked up from properties.display_name")
+	expect(names.has("Vela"), "Vela picked up (persistent + named_npc both work)")
+	# world_pos must include the +2m head-anchor offset so the label
+	# floats above the entity. Garron is at y=0 → anchor at y=2.0.
+	for c in collected:
+		if str(c["display_name"]) == "Garron":
+			var wp = c["world_pos"]
+			expect(wp is Vector3, "Vector3 world_pos for 3D entity")
+			expect((wp as Vector3).is_equal_approx(Vector3(10, 2.0, 5)),
+				"head anchor lifted +2m above entity origin (got %s)" % wp)
+	e_named.queue_free(); e_ambient.queue_free(); e_persist.queue_free()
+
+
+## When properties.display_name is missing or empty, the renderer falls
+## back to the entity's instance_id so we never paint a blank nameplate.
+func test_nameplate_picks_display_name_over_id() -> void:
+	_section("nameplate_picks_display_name_over_id")
+	var defs := {
+		"with_name":    {"id": "with_name",    "tags": ["named_npc"], "properties": {"display_name": "Mireille"}},
+		"without_name": {"id": "without_name", "tags": ["named_npc"], "properties": {}},
+	}
+	var has := Entity.create(defs.with_name, "npc_mireille")
+	has.set_position(Vector3(0, 0, 0))
+	var bare := Entity.create(defs.without_name, "npc_anonymous")
+	bare.set_position(Vector3(0, 0, 0))
+	var entities: Dictionary = {"npc_mireille": has, "npc_anonymous": bare}
+	var collected: Array = NameplateRenderer.collect_named_npcs(entities)
+	expect_eq(collected.size(), 2, "both named_npc entries collected regardless of name presence")
+	var by_id := {}
+	for c in collected:
+		by_id[(c["entity"] as Entity).instance_id] = c["display_name"]
+	expect_eq(str(by_id.get("npc_mireille", "")), "Mireille",
+		"with display_name → uses display_name")
+	expect_eq(str(by_id.get("npc_anonymous", "")), "npc_anonymous",
+		"without display_name → falls back to instance_id")
+	has.queue_free(); bare.queue_free()

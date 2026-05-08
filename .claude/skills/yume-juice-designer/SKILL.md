@@ -14,6 +14,28 @@ single biggest difference between a finished game and a tech demo.
 This skill loads into the orchestrator's main context (Tier 2.6 — no
 subagent spawn).
 
+## Soul workflow membership — Layer 4 (Kinetic juice)
+
+You are **Layer 4 of 5** in the soul workflow (per
+`.claude/rules/soul.md`). Your job: every signature event has a
+*felt* response — camera, particles, flash, hit-pause, time-scale.
+
+Cross-reinforce with adjacent layers:
+- **Layer 3 audio**: every juice profile pairs with a one-shot
+  sting (sale clinch flash → coin sound; shadow-king phase shift
+  shake → low brass swell). Coordinate with audio-designer on
+  signal-name pairing.
+- **Layer 1 voice**: juice intensity matches dialogue intensity.
+  Mireille's farewell (formal, poised) gets gentle gold flash.
+  Shadow King phase 3 ("FROM ME?") gets violent screen-wide flash.
+- **Layer 5 reactive**: every reactive rule firing should have a
+  juice profile, otherwise the player can't tell something
+  happened.
+
+**Soul minimum**: every signature beat from GDD has a juice
+profile. Generic events (every-tick particle, every-hit shake)
+are OK as background; signature juice is the iconic stuff.
+
 ## Why this skill exists
 
 Game feel is the difference between "this works" and "this feels
