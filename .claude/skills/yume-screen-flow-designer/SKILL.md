@@ -296,6 +296,38 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## REQUIRED screens for any multi-level game (added 2026-05-08)
+
+Every game whose `flow.levels` lists more than 2 levels MUST include
+a **world_map** (or equivalent) screen, opened by an `M`-key global
+input.
+
+Empirical case: merchant 2026-05-08 user feedback —
+*"how the map look like? can i open and see the map too?"* — merchant
+shipped with 8 levels and zero map surface. Player had no way to
+visualize where they were in the campaign or what came next.
+
+**The world_map screen must show**:
+- Current level (binding to `world_clock.current_level`)
+- Current objective (binding to `world_clock.current_objective`)
+- **Route** — list / tree / ASCII-map showing all levels in
+  flow.levels with their narrative role + connection arrows
+- Status — day, gold, debt (or genre-equivalent core stats)
+
+**Wiring**:
+- screens.json declares the screen with modal: true, freeze_world: true
+- screens.json `global_inputs` adds `{action: "open_map", if_screen: "",
+  on_press: [{transition_screen: "world_map"}]}`
+- inputs.json declares the `open_map` action with key `"M"`
+
+**For pure single-level games**: a map screen is optional but still
+nice to have for "show me where I am in this room" overlays. Skip
+only for sandbox / 1-screen games where there's no spatial confusion.
+
+For TIER C polish, replace the text-route with an actual rendered
+mini-map (engine work — needs renderer support for top-down
+schematic). Tier B requirement is text-based.
+
 ## What you DON'T do
 
 - ❌ Author the visual theme (colors, fonts, sizes) — yume-asset-designer

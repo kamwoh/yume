@@ -198,6 +198,46 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Movement-feel reference (REQUIRED for any game with player avatar)
+
+Every player-controlled entity must declare `properties.speed_base`
+that's calibrated against the level's spatial extent + camera
+framing. Too slow → city feels enormous and traversal is tedious.
+Too fast → player overshoots interactive entities, motion blur in
+top-down framing.
+
+Empirical case: merchant 2026-05-08 user feedback —
+*"the walking speed is also slow?"* — merchant shipped with
+`speed_base: 1.5` (real-world walking pace, ~1.5 m/s). On a 330m
+× 330m city with isometric_3d camera (~30m visible at a time),
+crossing the full city was a 3+ minute trek. Bumped to 4.0 m/s
+(jog).
+
+**Reference table by camera mode + level extent**:
+
+| Camera | Level extent | Speed reference (m/s) |
+|---|---|---|
+| isometric_3d / top_down_3d (orthographic, ~30m visible) | ≤50m × 50m (interior) | 2.0-3.0 |
+| same | 100m × 100m (small town) | 3.0-4.5 |
+| same | 200m+ (city / open) | 4.0-6.0 |
+| third_person_3d (perspective, ~50m visible) | any | 4.0-6.0 |
+| first_person_3d (perspective, ~80m visible) | any | 5.0-8.0 |
+| 2D pixel (camera zoom 2.0, ~25m visible) | small | 2.0-4.0 |
+
+**Heuristic**: player should cross the visible camera frustum in
+**5-10 seconds** of held-direction movement. <5s = too fast (motion
+blur, miss interactions). >10s = too slow (tedious traversal).
+
+**Compute check**:
+```
+seconds_to_cross_frustum = visible_extent_meters / speed_base
+```
+If outside [5, 10] window, flag for adjustment.
+
+**Sprint multiplier**: if the GDD claims sprint, document
+`speed_multiplier` field on player state with sprint magnitude
+(usually 1.5×-2.0× base) and the input action that activates it.
+
 ## Contact-radius vs entity-scale rule (REQUIRED check)
 
 For every contact rule (`trigger.type == "contact"`) the rule's

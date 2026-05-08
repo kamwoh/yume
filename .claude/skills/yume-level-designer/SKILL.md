@@ -360,6 +360,46 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Boundary walls (REQUIRED for any "open" level)
+
+Empirical case: merchant 2026-05-08 user feedback —
+*"the city has no boundary?"* Pendrel rendered with 14 buildings
+inside but had no walls / fences / cliffs at the edges. Player could
+walk into the void past the city's rendered area.
+
+**Required for**: any level the GDD calls a "city", "village",
+"town", "arena", "courtyard", "fort", "compound", "garden", or
+"interior". Anything where the player should stop somewhere.
+
+**NOT required for**: open-world chunks (intentional infinite
+scroll), pure cinematic levels (no player movement), or levels
+where the GDD explicitly states "the player can fall off the edge."
+
+**Pattern**: declare 4 boundary walls (or 8 for octagonal) at the
+level's intended extents. Each wall is an entity with:
+- Tag: `wall`, `blocks_motion`, `persistent`
+- `properties.aabb_extents`: half-extents along each axis. Long-edge
+  walls use `[level_extent_half, height, 0.5]` (E-W) or `[0.5,
+  height, level_extent_half]` (N-S).
+- Position at `(level_extent + small_overlap, 0, level_extent_half)`
+  so the wall slightly extends past the playable area.
+- Visual is up to asset-designer (low pillar, high stone wall, fence,
+  treeline). Default to "barely visible" so it doesn't disrupt
+  framing.
+
+**For levels with portals (transitions)**: the portal's
+contact-trigger rule fires BEFORE the boundary wall blocks player
+motion (radius typically 1.5m vs wall's deeper aabb), so they
+don't conflict. But if the portal is OUTSIDE the boundary, players
+need a doorway gap — leave a 3-4m wide gap in the wall at the
+portal's z/x coordinate.
+
+**Camera-frustum rule** (extends genre density rule below): boundary
+walls should be just past the camera frustum's farthest visible
+extent so they're invisible-but-present from the player's normal
+viewpoint. If they're too obvious, the level reads as "fenced
+arena" rather than "open city."
+
 ## Genre density archetypes (REQUIRED check)
 
 A "city" with 4 buildings reads as a hamlet. A "dungeon" with 2 rooms
