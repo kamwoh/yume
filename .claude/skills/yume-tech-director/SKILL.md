@@ -251,6 +251,62 @@ If anything fails:
 - ❌ Approve a primitive addition without an ADR. The ADR is mandatory.
 - ❌ Block trivial fixes (typos, comments, test additions). Use judgment.
 
+### Invariant #11: Level-discontinuity engine-state cleanup audit (2026-05-08)
+
+`transition_level` destroys the OLD level's entities and spawns the
+NEW level's entities. Most engine state automatically follows because
+it's keyed on entity IDs that vanish (spatial_index, relations,
+scheduler context). But some engine state is **positionally coupled
+to entities** in the OLD level and survives the swap WITHOUT a reset
+hook — producing a visible discontinuity where the player perceives
+the new level INCORRECTLY for the duration of an internal smoothing
+process.
+
+Empirical case: 2026-05-08 `merchant_bug.mp4`. Travel-to-Brookhaven
+button → transition_level swaps pendrel→brookhaven. Camera-follow
+had `lerp_t=0.18` (smooth follow). Camera was at pendrel-player
+coords (~46, 75); new player at brookhaven coords (25, 25). Lerp
+covered ~55m at 18%/frame → ~0.3-0.5s for camera to arrive. During
+that window, brookhaven entities sat outside the camera frustum;
+player saw only sky+ground. Technical term: **camera-follow lerp
+lag across a level discontinuity** (informally: "missed cut",
+"unsnapped camera"). Fix: `_camera_snap_pending` flag set when
+level swap is queued (`_advance_fade_phase` FADE_PHASE_OUT branch +
+the zero-fade direct-swap path), consumed by each camera mode
+(top_down_2d, side_scroll_2d, top_down_3d, isometric_3d,
+third_person_3d) — set position directly, then clear flag.
+
+**For any change that touches `transition_level`, `transition_level_
+fade_request`, or `_pending_level_transition`:**
+
+1. Enumerate engine state coupled to OLD entity position/identity
+   that has its own smoothing/cache:
+   - Camera follow position (lerp)
+   - Camera shake offset
+   - HUD float-text positions targeting despawned entities
+   - Particle emitters parented to despawned entities
+   - Pathfinder waypoint cache
+   - Any per-entity facing/velocity tween
+2. For EACH, decide on swap behavior: snap, clear, or persist-with-
+   reset. Document the decision in the engine code with the
+   "Empirical case" pattern (date + bug filename + symptom).
+3. If a new piece of smoothed state is added later, this invariant
+   re-applies. The list above is generative, not exhaustive.
+
+**Why naive review missed it**: the bug doesn't appear in unit/
+scenario tests (those don't run game_shell's per-frame camera follow).
+The visual gate (capture) didn't catch it because static captures
+during fade-out look correctly black, not "world without entities."
+The bug only surfaces in a continuous live recording where the user
+sees frames between `transition_level` complete and the next modal
+covering.
+
+**Detection idea (future)**: a video-recording smoke that walks the
+title→travel flow and asserts no frame has `current_level=
+level_brookhaven` while zero brookhaven-tagged entities visible in
+viewport. Until that lands, this invariant is enforced by manual
+checklist on every transition-touching change.
+
 ## My authority
 
 The contract (`docs/30_framework_primitives.md`) is law. Invariants are

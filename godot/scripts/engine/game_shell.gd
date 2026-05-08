@@ -83,6 +83,19 @@ var _fade_phase: int = FADE_PHASE_IDLE
 var _fade_pending_target: String = ""
 var _fade_half_duration: float = 0.0
 
+# Camera-snap latch — set true when the world swaps levels via
+# transition_level. Each camera-follow method consumes the flag,
+# sets position directly (no lerp) for one frame, then clears it.
+# Without this, the smooth-follow lerp_t (~0.18) takes ~0.3-0.5s to
+# cover the per-level coordinate jump (e.g. pendrel-player at
+# ~(46,75) → brookhaven-player at (25,25), ~55m). During the lerp
+# the camera frustum sweeps over empty terrain, the new level's
+# entities sit OUTSIDE frustum, and the player sees only sky+ground
+# until the camera arrives. Empirical 2026-05-08: merchant_bug.mp4.
+# Technical term: "camera-follow lerp lag across a level
+# discontinuity" (informally: "missed cut", "unsnapped camera").
+var _camera_snap_pending: bool = false
+
 # Per-element binding state — { Control_node : binding_spec_dict }
 var _bound_elements: Array = []
 
@@ -329,6 +342,7 @@ func _drain_shell_events() -> void:
 							if sched_inst != null and sched_inst.get("env") != null:
 								(sched_inst.env as Dictionary)["_pending_level_transition"] = target
 						_fade_pending_target = ""
+						_camera_snap_pending = true
 
 
 ## Apply current shake offset to camera + flash alpha to overlay. Both
@@ -416,6 +430,10 @@ func _advance_fade_phase() -> void:
 				if sched != null and sched.get("env") != null:
 					(sched.env as Dictionary)["_pending_level_transition"] = _fade_pending_target
 			_fade_pending_target = ""
+			# Camera must snap to the new player position (next frame); the
+			# old smooth-follow lerp would interpolate from the OLD level's
+			# coords to the new level's coords, exposing empty terrain.
+			_camera_snap_pending = true
 			_fade_target_alpha = 0.0
 			_fade_duration_remaining = _fade_half_duration
 			_fade_phase = FADE_PHASE_IN
@@ -532,7 +550,11 @@ func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
 			var lerp_t := float(cam_cfg.get("lerp", 0.08))
 			var center_v = bbox["center"]
 			if center_v is Vector2:
-				_camera.position = _camera.position.lerp(center_v as Vector2, lerp_t)
+				if _camera_snap_pending:
+					_camera.position = center_v as Vector2
+					_camera_snap_pending = false
+				else:
+					_camera.position = _camera.position.lerp(center_v as Vector2, lerp_t)
 		# Auto-zoom-to-fit: optional. Only applies when bbox has size and
 		# fit_padding is set. Computes zoom so bbox + 2*padding fits the
 		# viewport. Values > 1 zoom IN (smaller world view); < 1 zoom OUT.
@@ -563,7 +585,11 @@ func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
 	var p = ent.get_position()
 	if p is Vector2:
 		var lerp_t := float(cam_cfg.get("lerp", 0.08))
-		_camera.position = _camera.position.lerp(p as Vector2, lerp_t)
+		if _camera_snap_pending:
+			_camera.position = p as Vector2
+			_camera_snap_pending = false
+		else:
+			_camera.position = _camera.position.lerp(p as Vector2, lerp_t)
 
 
 func _bbox_of_entities_with_tag(tag: String) -> Dictionary:
@@ -604,7 +630,11 @@ func _camera_side_scroll_2d(cam_cfg: Dictionary) -> void:
 	var lerp_t := float(cam_cfg.get("lerp", 0.08))
 	var fixed_y := float(cam_cfg.get("fixed_y", _camera.position.y))
 	var target := Vector2((p as Vector2).x, fixed_y)
-	_camera.position = _camera.position.lerp(target, lerp_t)
+	if _camera_snap_pending:
+		_camera.position = target
+		_camera_snap_pending = false
+	else:
+		_camera.position = _camera.position.lerp(target, lerp_t)
 
 
 ## Fixed camera: holds at camera.position from scene.json. No follow.
@@ -639,7 +669,11 @@ func _camera_top_down_3d(cam_cfg: Dictionary) -> void:
 	var height := float(cam_cfg.get("height", 20.0))
 	var lerp_t := float(cam_cfg.get("lerp", 0.1))
 	var desired := target + Vector3(0, height, 0)
-	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
+	if _camera_snap_pending:
+		_camera3d.global_position = desired
+		_camera_snap_pending = false
+	else:
+		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
 	_camera3d.look_at(target, Vector3(0, 0, -1))
 	_apply_ortho(cam_cfg, true)
 
@@ -655,7 +689,11 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 	# Standard isometric offset: 45° yaw + 30° pitch from target
 	var offset := Vector3(distance * 0.6, distance * 0.7, distance * 0.6)
 	var desired := target + offset
-	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
+	if _camera_snap_pending:
+		_camera3d.global_position = desired
+		_camera_snap_pending = false
+	else:
+		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
 	# Fixed-orientation iso: compute basis from offset direction ONCE per
 	# frame against the FINAL desired position (not the mid-lerp position),
 	# so camera never visibly rotates while player walks. Empirical bug
@@ -687,7 +725,11 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var fx := -sin(facing)
 	var fz := -cos(facing)
 	var desired := target + Vector3(-fx * distance, height, -fz * distance)
-	_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
+	if _camera_snap_pending:
+		_camera3d.global_position = desired
+		_camera_snap_pending = false
+	else:
+		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
 	_camera3d.look_at(target, Vector3.UP)
 	_apply_ortho(cam_cfg, false)
 
