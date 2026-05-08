@@ -31,6 +31,76 @@ waits for a condition, then advances.
   tutorials run there)
 - The verb list (movement, primary action, secondary actions)
 
+## REQUIRED: Player-perspective objective surface (added 2026-05-08)
+
+Empirical case: merchant 2026-05-08 user feedback —
+*"the scene is much richer, and? i still dont know what should i
+do?"* The game shipped with rich content, beautiful screens, named
+NPCs, but no answer to "what do I do next?" at any moment. Player
+saw stats (gold, day, debt) but no actionable instruction.
+
+**This is a tutorial-designer responsibility, not a game-designer
+afterthought.** Every tutorial.json must include:
+
+### 1. A `current_objective` (or equivalent) state field on the world singleton
+
+Single source of truth for "what should the player be doing right
+now?" Updated by rules at every key state transition. Always non-
+empty for the duration of a play session.
+
+### 2. A HUD binding to surface the objective
+
+Top-center or top-banner is canonical (most visible without
+overlapping critical HUD). Coordinated with asset-designer to ensure
+the binding lands.
+
+### 3. Objective-update rules at EVERY level transition
+
+For every level the player enters, the FIRST tick after arrival must
+update `current_objective` to reflect what the player should do in
+that level. Transition without an objective update = "player lands
+in unfamiliar space with no direction."
+
+### 4. Objective-update rules at every major state transition
+
+- After dismissing a cinematic / story screen → next-action hint
+- After first sale / first kill / first crafting → "the loop"
+  guidance
+- After threshold met (debt installment due, day milestone) →
+  warning + concrete next step
+- After end-game state (boss killed, debt paid, etc.) → epilogue
+  pointer
+
+### 5. Highlighted target entities
+
+For each objective referencing a specific in-world target ("walk to
+the shop", "talk to Garron"), the rule must include
+`show_overlay highlight_tag=<target_tag>` so the player visually
+knows where to go. The tutorial design must declare the highlight tag
+per beat.
+
+### 6. Objective vocabulary discipline
+
+Each objective string must be:
+- **Action-first**: starts with a verb ("Walk to...", "Find...",
+  "Talk to...", "Wait for..."). Not "There's a shop." (descriptive,
+  not actionable.)
+- **≤80 characters**: HUD space is precious; no walls of text.
+- **Single objective**: one thing at a time. "Find shop AND open it
+  AND wait for customer" → 3 separate objectives, advanced as the
+  player completes each.
+- **Concrete target**: name the entity / location / threshold. Not
+  "Make money." — "Earn 1500g for the next installment."
+
+### 7. Player-perspective audit
+
+Before shipping the tutorial, mentally walk a brand-new player
+through the game and at every 30-second window ask: "what would I
+think I should do right now?" If the answer is unclear or
+ambiguous, add an objective-update at that point.
+
+This is the **gate** that catches "richer scene, no direction" bugs.
+
 ## Outputs
 
 - `docs/games/<game>/tutorial-design.md` — design doc with step

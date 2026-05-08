@@ -1,6 +1,6 @@
 ---
 name: yume-game-reviewer
-description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 14 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ MUST run ripple-analysis: when a revision adds structural primitives (multi-level, persistent state, new modes), prior-round axis acceptance does NOT carry over to axes those primitives ripple into — re-interpret under the new design frame.
+description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 15 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ MUST run ripple-analysis: when a revision adds structural primitives (multi-level, persistent state, new modes), prior-round axis acceptance does NOT carry over to axes those primitives ripple into — re-interpret under the new design frame.
 ---
 
 # /yume-game-reviewer
@@ -410,9 +410,65 @@ need deep voice — but they DO need theme + tone (Tetris's
 silent dignity, Threes's warm color personality). For these,
 section can be brief but must exist.
 
+### Axis 15 — Player perspective (does the player know what to do?)
+
+**Question**: At every moment in the game — boot, after dismissing
+title, after each level transition, after each state milestone —
+can the player answer "what do I do next?" without the reviewer's
+help?
+
+**Why this axis exists**: empirical precedent — merchant 2026-05-08
+user feedback: *"the scene is much richer, and? i still dont know
+what should i do?"* The game shipped with 16 screens, 3 acts, 6
+named NPCs, 5 levels — and zero player-facing direction. HUD showed
+stats (gold/day/debt) but no instruction. Brookhaven has tutorial
+overlays; Pendrel has none; the player drops into a city and
+freezes.
+
+**Heuristic minimums**:
+- The GDD has a section explicitly answering "what does the player
+  see/think on first frame, on second screen, after dismissing each
+  cinematic, on level entry?" Player-perspective walkthrough.
+- A `current_objective` (or equivalently named) state field is
+  declared on the world singleton.
+- HUD spec includes an objective surface (label binding to that
+  field, prominent placement).
+- Tutorial design names the FIRST objective text + objective-update
+  rule for EVERY scripted state transition (level entry, story beat,
+  signal milestone).
+- Highlighted target tags are declared per objective ("walk to
+  shop_door", "find named_npc tagged warrior_class").
+
+**Red flags**:
+- "Game is open-ended; player figures it out" — fine for sandbox
+  ambient sims, NOT fine for campaign games with stated goals
+- HUD shows stats only, no objective label
+- Level transitions exist but no `current_objective` update at
+  transition signal
+- Tutorial.json fires only in level 1, ends, never re-engages on
+  later level entry
+- Objective text describes ("There's a shop somewhere") instead of
+  instructs ("Walk south to the shop")
+
+**Severity calibration**:
+- No objective field declared anywhere = blocker (revise; tutorial-
+  designer + asset-designer can't author against a missing surface)
+- Field exists but no rules update it after the first scene = major
+- Field exists, updates each transition, but objective text is
+  vague ("Continue") = minor — push for action-first vocabulary
+- Sandbox ambient game with no stated direction = ok if GDD's
+  Aesthetic explicitly names "Submission" or "Expression" as the
+  primary aesthetic
+
+**Caveat**: NOT every game needs handholding. A Dwarf Fortress-style
+emergent sim is broken if you tell the player what to do — the
+play IS figuring out what to do. But if the GDD claims "campaign,"
+"tutorial," "story," "progression," or any goal-shaped aesthetic,
+this axis is mandatory. Apply judgment.
+
 ## Round-N+1 ripple analysis (MANDATORY for round 2+)
 
-A naive reviewer runs the 14 axes in isolation each round, treats
+A naive reviewer runs the 15 axes in isolation each round, treats
 prior-round acceptance as carrying forward, and looks for "did
 round-1 issues get fixed." This **misses the most common failure
 mode in iterative GDDs**: a structural change in round N+1
@@ -420,7 +476,7 @@ re-interprets axes that PASSED in round N — not because the prior
 review was wrong, but because the design frame the axes were
 evaluated against has changed.
 
-**Empirical case** (doomarena3d v3.0, 2026-05-04): all 14 axes
+**Empirical case** (doomarena3d v3.0, 2026-05-04): all 15 axes
 passed cleanly in v2.6 (single 90s arena). v3.0 added a 3-chamber
 campaign. Naive reviewer would carry forward all 13 axis-passes
 and approve. Ripple analysis surfaced 5 tuning notes: wave-beats
@@ -434,7 +490,7 @@ chambers exist.
 
 ### Ripple analysis procedure
 
-**Before** running the 14-axis pass on round 2+:
+**Before** running the 15-axis pass on round 2+:
 
 1. **Diff against prior round.** What structural primitives changed?
    (Not text edits — design-level additions: a new mode, a new
@@ -442,7 +498,7 @@ chambers exist.
 2. **Consult the ripple table below.** For each structural change,
    mark which axes need RE-INTERPRETATION (not just re-check) under
    the new design frame.
-3. **Run the 14 axes.** Axes the change DOESN'T ripple into may
+3. **Run the 15 axes.** Axes the change DOESN'T ripple into may
    inherit prior-round acceptance. Axes the change ripples into get
    a fresh evaluation: ask "does the prior axis-rationale still
    hold under the new frame, or did the new primitive change what
@@ -476,7 +532,7 @@ If yes, which?" Add the row mentally.
 
 ### When ripple analysis is NOT needed
 
-- **Round 1**: nothing to compare against. Run 14 axes fresh.
+- **Round 1**: nothing to compare against. Run 15 axes fresh.
 - **Round 2+ with text-only edits** (typo fixes, clarity rewrites,
   re-ordering sections): no design-frame change. Re-check round-1
   fix-list only.
@@ -496,9 +552,9 @@ done the ripple analysis. Stop and do it.
 
 ## Verdict guidelines
 
-- **accept**: All 14 axes meet minimum bar. Game-designer can ship the
+- **accept**: All 15 axes meet minimum bar. Game-designer can ship the
   GDD to game-planner.
-- **accept with notes**: All 14 axes pass but tuning items remain
+- **accept with notes**: All 15 axes pass but tuning items remain
   (typically 3-7). Notes are non-blocking; designer can address
   during the same revision cycle as content-designer handoff. Use
   this verdict when ripple analysis surfaces tuning items that
@@ -510,7 +566,7 @@ done the ripple analysis. Stop and do it.
   or descope.
 
 **On round 2+**: don't auto-accept just because round-1 issues were
-addressed. Run the ripple analysis (above) FIRST. Apply ALL 14 axes
+addressed. Run the ripple analysis (above) FIRST. Apply ALL 15 axes
 again, marking which inherit prior acceptance and which are re-
 interpreted under a new frame. Revisions sometimes expose new gaps
 (e.g., adding theme might reveal mechanics don't match theme; adding

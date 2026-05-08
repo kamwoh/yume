@@ -275,6 +275,52 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## REQUIRED HUD: objective banner (added 2026-05-08)
+
+Every game's hud.json MUST include an `objective` (or equivalently
+named) label binding to a state field on the world singleton —
+typically `world_clock.current_objective`. Top-center anchor
+preferred; secondary acceptable choices: top-banner full-width,
+or just-below-stats.
+
+This is the player's answer to "what do I do next?" surfaced
+permanently. Without it, the player sees stats (gold, day, hp,
+score) but no direction.
+
+Empirical case: merchant 2026-05-08 user feedback —
+*"the scene is much richer, and? i still dont know what should i
+do?"*. The HUD showed day/gold/debt but had no objective field.
+yume-tutorial-designer authors the OBJECTIVE TEXT (rules that
+update the field at every state transition); yume-asset-designer
+authors the HUD SURFACE (binding + visual treatment).
+
+Example HUD entry:
+
+```jsonc
+{
+  "anchor": "top-center",
+  "elements": [
+    {
+      "type": "label",
+      "binds": "world_clock.current_objective",
+      "format": "→ {}",
+      "size": 18,
+      "color": "#f0d878"
+    }
+  ]
+}
+```
+
+Style guidance:
+- Visually distinct from stat readouts — slightly larger, warmer
+  color, leading arrow/marker (`→`, `★`, `◇`)
+- ≤80 chars wide so it fits any aspect ratio
+- Always non-empty (game-rules-designer authors initial value)
+
+This HUD entry is non-negotiable for any game with multi-state
+progression (campaign, tutorial, quest chain). For pure ambient
+games (Dwarf Fortress-style), an objective-less HUD is fine.
+
 ## What you DON'T do
 
 - ❌ Run `yume assets generate` — separate workflow

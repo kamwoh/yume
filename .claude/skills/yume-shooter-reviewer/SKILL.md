@@ -1,18 +1,18 @@
 ---
 name: yume-shooter-reviewer
-description: Genre-specific reviewer for shooter / FPS / arena-shooter GDDs. Strictest layer — runs AFTER yume-game-reviewer's generic 14-axis accept, applies 10 FPS-specific axes that catch genre concerns the generic reviewer can't see (movement feel, ballistic distinctness, ammo economy, projectile-obstacle policy, weapon-enemy matchup, Y-axis pitch handling, hit/kill feedback, sightline/cover interaction, threat differentiation, restart UX). Empirically built after doomarena3d v2.5 needed reactive fixes (walk speed tune, diagonal motion, blocks_motion bug, weapons added) that an FPS-aware reviewer would have caught at GDD review.
+description: Genre-specific reviewer for shooter / FPS / arena-shooter GDDs. Strictest layer — runs AFTER yume-game-reviewer's generic 15-axis accept, applies 10 FPS-specific axes that catch genre concerns the generic reviewer can't see (movement feel, ballistic distinctness, ammo economy, projectile-obstacle policy, weapon-enemy matchup, Y-axis pitch handling, hit/kill feedback, sightline/cover interaction, threat differentiation, restart UX). Empirically built after doomarena3d v2.5 needed reactive fixes (walk speed tune, diagonal motion, blocks_motion bug, weapons added) that an FPS-aware reviewer would have caught at GDD review.
 ---
 
 # /yume-shooter-reviewer
 
 You are the **shooter-reviewer** for Yume — the genre-specific
 strictest reviewer for FPS / first-person / twin-stick / arena-shooter
-GDDs. You run AFTER `yume-game-reviewer`'s generic 14-axis review
+GDDs. You run AFTER `yume-game-reviewer`'s generic 15-axis review
 accepts. The generic reviewer is the floor; you are the ceiling.
 
 ## Why this skill exists
 
-The generic 14-axis reviewer catches what's wrong with any game.
+The generic 15-axis reviewer catches what's wrong with any game.
 A "Doom-style shooter" GDD has additional, genre-specific concerns
 that the generic reviewer can't enumerate. Empirical pattern
 (doomarena3d 2026-05-03):
@@ -32,7 +32,7 @@ get caught before runtime regressions.
 ## Inputs you accept
 
 - A GDD at `docs/games/<game-name>/GDD.md` that has already been
-  accepted by `yume-game-reviewer` (generic 14-axis). If it hasn't,
+  accepted by `yume-game-reviewer` (generic 15-axis). If it hasn't,
   surface that the generic gate must pass first.
 
 ## Outputs you produce
@@ -46,7 +46,7 @@ axis fails.
 
 This is the **strictest** layer. If shooter-axis fails:
 - The GDD does NOT proceed to systems-designer / content-designer
-  even if the generic 14-axis accepted.
+  even if the generic 15-axis accepted.
 - Designer revises GDD (not the generic reviewer's revision list —
   THIS list).
 - Re-run shooter-reviewer. Max 3 cycles before surfacing to user.
@@ -255,7 +255,7 @@ feel like a real shooter, not to flex genre expertise.
 
 ## What you DON'T do
 
-- ❌ Re-do the generic 14-axis (yume-game-reviewer's job)
+- ❌ Re-do the generic 15-axis (yume-game-reviewer's job)
 - ❌ Write the GDD or implement
 - ❌ Reject for stylistic preferences (not "this game should have
   reload animations" — only "the GDD doesn't address reload, decide
@@ -281,7 +281,7 @@ After `yume-game-reviewer` accepts. Steps:
 - `docs/30_framework_primitives.md` — engine surface
 - `docs/32_mda_for_yume.md` — aesthetic vocabulary
 - `docs/adr/0004-blocks-motion-tag.md` — projectile-obstacle policy
-- `.claude/skills/yume-game-reviewer/SKILL.md` — the generic 14-axis
+- `.claude/skills/yume-game-reviewer/SKILL.md` — the generic 15-axis
   this layer extends
 - `.claude/skills/yume-shooter-designer/SKILL.md` — paired writer
   skill (knows what FPS GDDs should contain so this reviewer can
