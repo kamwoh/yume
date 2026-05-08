@@ -364,7 +364,13 @@ func _handle_global_inputs() -> void:
 		var action := str(g.get("action", ""))
 		if action == "" or not InputMap.has_action(action): continue
 		var screen_filter := str(g.get("if_screen", ""))
-		if screen_filter != "" and screen_filter != current: continue
+		# 2026-05-08: if_screen now matches symmetrically. `if_screen: ""`
+		# fires only when stack empty (current=""); `if_screen: "X"` fires
+		# only when current=X. Old behavior was "empty = always fire" which
+		# made M re-push world_map while world_map was already up. Lets
+		# data declare a paired close-rule (if_screen: "world_map" →
+		# transition_screen @previous) for toggle behavior.
+		if screen_filter != current: continue
 		var pressed := Input.is_action_pressed(action)
 		var was_pressed := bool(_last_action_state.get(action, false))
 		_last_action_state[action] = pressed
