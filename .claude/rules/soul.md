@@ -60,8 +60,35 @@ townie" without reading anything. Includes:
 signature. Every customer archetype has its own mesh OR distinctive
 color palette.
 
-**Skill responsible**: `yume-asset-designer` (visual styling) +
-engine (nameplate widget)
+**Soul EXTENSION (added 2026-05-09 — visual density vocabulary)**:
+NPC distinction is necessary but not sufficient. The world itself
+must feel inhabited via 10 axes of authoring density (not asset
+fidelity):
+
+1. Layered ground variation (no monochrome floors)
+2. Edge transitions (no hard borders)
+3. Vertical depth (raised foundations, sunken pits, steps)
+4. Micro-lights (FAT lamps, window glow, campfires every 8-15m)
+5. Object density (~1 entity per 9-12 m² in viewport)
+6. Diagonal accents (rotate every 4-6 entities by 5-30°)
+7. Background framing (foreground tree clusters / walls / cliffs)
+8. Soul-bearing details (15-25% purposeless flavor entities)
+9. Palette discipline per district (4-5 base + 1-2 accent)
+10. Silhouette readability (≥3 distinct humanoid templates)
+
+Empirical case: 2026-05-09 user provided an isometric pixel-art
+mobile-RPG reference set (12 screenshots). Even with simple pixel
+assets, every frame packs 50+ entities with deliberate density.
+Yume's clean code/JSON pipeline makes the framework strong; this
+extension makes the OUTPUT actually inhabited.
+
+Per-game analysis lives at `docs/games/<game>/style-references-
+*.md`. Full vocabulary in `yume-asset-designer` SKILL § Visual
+density vocabulary.
+
+**Skill responsible**: `yume-asset-designer` (visual styling +
+density audit) + engine (nameplate widget) + content-designer
+(actually placing the soul-bearing flavor entities).
 
 ### Layer 3 — Audio (yume-audio-designer)
 
