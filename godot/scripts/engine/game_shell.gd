@@ -502,6 +502,27 @@ func _update_camera_follow() -> void:
 		mode = override_mode
 	else:
 		mode = str(cam_cfg.get("mode", "top_down_2d"))
+	# 2026-05-08: detect transitions in/out of first_person_3d. Capture
+	# mouse on enter, release on leave. Reset _fp_initial_capture_done
+	# so re-entering FP via V-cycle re-captures cleanly. Also reset
+	# actor.facing on leaving FP so non-FP modes don't carry stale yaw.
+	if mode != _camera_mode_last:
+		var was_fp := _camera_mode_last == "first_person_3d"
+		var is_fp := mode == "first_person_3d"
+		if was_fp and not is_fp:
+			# Leaving FP — release cursor + reset facing/pitch so iso/
+			# top-down modes start fresh.
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+			_fp_initial_capture_done = false
+			var actor := _find_entity_by_tag(str(cam_cfg.get("follow_tag", "player")))
+			if actor != null:
+				actor.set_state("facing", 0.0)
+				actor.set_state("pitch", 0.0)
+		if not was_fp and is_fp:
+			# Entering FP — let _camera_first_person_3d's own capture path
+			# fire on this frame (it checks _fp_initial_capture_done).
+			_fp_initial_capture_done = false
+		_camera_mode_last = mode
 	# 2D modes need Camera2D; 3D modes need Camera3D. If wrong type missing,
 	# silent skip — content responsibility.
 	match mode:
@@ -838,6 +859,11 @@ func _update_viewmodel(actor, cam_cfg: Dictionary) -> void:
 # Without this, the FPS camera mode would auto-recapture every frame and
 # fight ESC's release.
 var _fp_initial_capture_done: bool = false
+
+# Last-frame camera mode — used to detect transitions in/out of FP so we
+# can capture/release the mouse cursor exactly once per transition (rather
+# than every frame, which would fight ESC). 2026-05-08.
+var _camera_mode_last: String = ""
 
 
 ## Drain accumulated mouse motion → update actor.state.facing (yaw) and
