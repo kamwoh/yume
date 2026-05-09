@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -24,6 +24,7 @@
 [ext_resource type="Script" path="res://scripts/engine/class_manager.gd" id="12"]
 [ext_resource type="Script" path="res://scripts/engine/faction_director.gd" id="13"]
 [ext_resource type="Script" path="res://scripts/engine/tech_tree.gd" id="14"]
+[ext_resource type="Script" path="res://scripts/engine/dynasty_director.gd" id="15"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -105,6 +106,17 @@ script = ExtResource("13")
 ; by absence).
 [node name="TechTreeDirector" type="Node" parent="."]
 script = ExtResource("14")
+
+; ADR 0034: DynastyDirector hosts the four succession effects
+; (transfer_inventory / transfer_reputation / transfer_techs /
+; transition_player_to) plus the heir-resolver helper used by
+; per-game succession rules. No boot-time data to load — heir state
+; lives on each actor entity (state.heirs + state.inheritance_policy)
+; and serializes via the normal entity snapshot path (ADR 0010). No-op
+; when no game ships heirs (existing demos unaffected — backward-compat
+; by absence of state.heirs on actor entities).
+[node name="DynastyDirector" type="Node" parent="."]
+script = ExtResource("15")
 
 ; Per-screen smoke harness — activates only with `--smoke-screens`.
 ; Walks every screen in screens.json, captures each, exits.

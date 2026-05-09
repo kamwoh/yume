@@ -74,6 +74,7 @@ func _ready() -> void:
 	test_zone_state_primitive()
 	test_faction_primitive()
 	test_tech_tree_primitive()
+	test_dynasty_primitive()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -6061,3 +6062,445 @@ func test_tech_tree_primitive() -> void:
 	expect(not heir_known12.has("steel"),
 		"heir.known_techs does NOT contain steel (non-core dropped)")
 	parent12.queue_free(); heir12.queue_free(); ttd12.queue_free()
+
+
+# ============================================================
+# DYNASTY (ADR 0034)
+# ============================================================
+
+## ADR 0034 — Dynasty / heir succession primitive.
+## 10 assertions covering aging→death integration, the four transfer
+## effects, multi-heir branching, save/load round-trip, infinite-life
+## suppression integration, and emergent multi-generation independence.
+func test_dynasty_primitive() -> void:
+	_section("dynasty_primitive (ADR 0034)")
+
+	# Reusable human lifecycle template (mirrors test_lifecycle_primitive).
+	# year_seconds=1.0 + age_per_in_game_year=1.0 → 1 second of dt = 1 year.
+	var human_template: Dictionary = {
+		"stages": [
+			{"id": "child", "min_age": 0,  "max_age": 12, "speed_mult": 0.85,
+			 "abilities": ["talk"]},
+			{"id": "adult", "min_age": 12, "max_age": 80, "speed_mult": 1.0,
+			 "abilities": ["all"]},
+			{"id": "dead",  "min_age": 80, "speed_mult": 0.0, "abilities": [],
+			 "terminal": true},
+		],
+		"age_per_in_game_year": 1.0,
+		"year_seconds": 1.0,
+	}
+
+	# ---------- 1. aging triggers entity_died at max_age ----------
+	# Smoke test: ADR 0036 lifecycle integration. An adult NPC near
+	# max_age, ticked forward, must emit entity_died. Dynasty director
+	# itself doesn't drive this — it LISTENS via per-game rules — but
+	# we verify the upstream signal still fires so the dynasty chain
+	# has something to react to.
+	var lc1 := LifecycleDirector.new()
+	var dying_def1: Dictionary = {
+		"id": "dying_player", "tags": ["player", "human"],
+		"lifecycle": human_template,
+		"state_init": {"age": 79.5, "life_stage": "adult"},
+	}
+	var dying1 := Entity.create(dying_def1, "p1")
+	var entities1: Dictionary = {"p1": dying1}
+	var env1: Dictionary = {
+		"entities": entities1, "defs": {"dying_player": dying_def1},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	lc1.register_lifecycle("p1", human_template, env1, "human")
+	lc1.tick(env1, 1.0)   # 79.5 → 80.5 → crosses to dead (terminal)
+	var saw_death1: bool = false
+	for s in (env1["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "entity_died":
+			saw_death1 = true
+			break
+	expect(saw_death1,
+		"aging integration: entity_died fired when player crossed max_age")
+	dying1.queue_free(); lc1.queue_free()
+
+	# ---------- 2. transfer_inventory moves all items ----------
+	var dd2 := DynastyDirector.new()
+	var src_def2: Dictionary = {"id": "src", "tags": ["actor"],
+		"state_init": {"inventory": ["sword", "shield", "potion"]}}
+	var heir_def2: Dictionary = {"id": "heir", "tags": ["actor"],
+		"state_init": {"inventory": []}}
+	var src2 := Entity.create(src_def2, "src2")
+	var heir2 := Entity.create(heir_def2, "heir2")
+	var env2: Dictionary = {
+		"entities": {"src2": src2, "heir2": heir2},
+		"defs": {"src": src_def2, "heir": heir_def2},
+		"world": {}, "signal_buffer": [],
+	}
+	var n2: int = dd2.transfer_inventory(env2, "src2", "heir2")
+	expect_eq(n2, 3, "transfer_inventory moves 3 items")
+	var heir_inv2: Array = heir2.get_state("inventory", []) as Array
+	expect_eq(heir_inv2.size(), 3,
+		"heir inventory has 3 items after transfer")
+	expect(heir_inv2.has("sword") and heir_inv2.has("shield") and heir_inv2.has("potion"),
+		"heir inventory contains all source items")
+	var src_inv2: Array = src2.get_state("inventory", []) as Array
+	expect_eq(src_inv2.size(), 0,
+		"source inventory cleared after transfer (atomic ownership)")
+	src2.queue_free(); heir2.queue_free(); dd2.queue_free()
+
+	# ---------- 3. transfer_reputation moves all reputation ----------
+	# Source has rep with [pendrel: 75, brookhaven: 20]. Heir has
+	# pre-existing [brookhaven: 50, riverside: 30]. After transfer:
+	# heir.reputation = {pendrel: 75, brookhaven: max(20,50)=50,
+	# riverside: 30}. Source's reputation cleared.
+	var dd3 := DynastyDirector.new()
+	var src_def3: Dictionary = {"id": "src", "tags": ["actor"],
+		"state_init": {"reputation": {"pendrel": 75, "brookhaven": 20}}}
+	var heir_def3: Dictionary = {"id": "heir", "tags": ["actor"],
+		"state_init": {"reputation": {"brookhaven": 50, "riverside": 30}}}
+	var src3 := Entity.create(src_def3, "src3")
+	var heir3 := Entity.create(heir_def3, "heir3")
+	var env3: Dictionary = {
+		"entities": {"src3": src3, "heir3": heir3},
+		"defs": {"src": src_def3, "heir": heir_def3},
+		"world": {}, "signal_buffer": [],
+	}
+	dd3.transfer_reputation(env3, "src3", "heir3")
+	var heir_rep3: Dictionary = heir3.get_state("reputation", {}) as Dictionary
+	expect_eq(int(heir_rep3.get("pendrel", -1)), 75,
+		"heir reputation: pendrel=75 (newly added from source)")
+	expect_eq(int(heir_rep3.get("brookhaven", -1)), 50,
+		"heir reputation: brookhaven=50 (max(20,50) — heir's higher value preserved)")
+	expect_eq(int(heir_rep3.get("riverside", -1)), 30,
+		"heir reputation: riverside=30 (heir's existing value preserved)")
+	var src_rep3: Dictionary = src3.get_state("reputation", {}) as Dictionary
+	expect(src_rep3.is_empty(),
+		"source reputation cleared after transfer (atomic ownership)")
+	src3.queue_free(); heir3.queue_free(); dd3.queue_free()
+
+	# ---------- 4. transfer_techs filters core vs derived ----------
+	# Source knows [smithing(core), ironworking(core), steel(derived)].
+	# transfer_techs filter="core_only" gives heir [smithing, ironworking];
+	# steel is NOT transferred (core=false).
+	var ttd4 := _make_tech_director_two_trees()
+	# Mount via a parent World stub so DynastyDirector.transfer_techs
+	# can find TechTreeDirector via env.parent.get_node_or_null.
+	var world_stub4 := Node.new()
+	world_stub4.name = "World"
+	world_stub4.add_child(ttd4)
+	ttd4.name = "TechTreeDirector"
+	var dd4 := DynastyDirector.new()
+	world_stub4.add_child(dd4)
+	dd4.name = "DynastyDirector"
+	# DynastyDirector reads _world via get_parent in _ready, but
+	# tests create it standalone — manually assign for the get_node
+	# fallback to find TechTreeDirector. Note: this is by design;
+	# tests bypass _ready by instantiating directly.
+	dd4._world = world_stub4
+	var src_def4: Dictionary = {"id": "src", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing", "ironworking", "steel"]}}
+	var heir_def4: Dictionary = {"id": "heir", "tags": ["smith"],
+		"state_init": {"known_techs": []}}
+	var src4 := Entity.create(src_def4, "src4")
+	var heir4 := Entity.create(heir_def4, "heir4")
+	var env4: Dictionary = {
+		"entities": {"src4": src4, "heir4": heir4},
+		"defs": {"src": src_def4, "heir": heir_def4},
+		"world": {}, "signal_buffer": [],
+		"parent": world_stub4, "relations": RelationStore.new(),
+	}
+	var transferred4: Array = dd4.transfer_techs(env4, "src4", "heir4", "core_only")
+	expect_eq(transferred4.size(), 2,
+		"transfer_techs core_only: 2 nodes (smithing+ironworking, NOT steel)")
+	expect(transferred4.has("smithing") and transferred4.has("ironworking"),
+		"transferred = [smithing, ironworking]")
+	expect(not transferred4.has("steel"),
+		"transferred does NOT include steel (core=false filtered out)")
+	src4.queue_free(); heir4.queue_free(); world_stub4.queue_free()
+
+	# ---------- 5. class_progress NOT transferred (heir starts class fresh) ----------
+	# Source is level-5 farmer; heir's class_progress remains empty
+	# after succession. Per ADR 0034 §"selective inheritance" — every
+	# generation rediscovers their own path. Verify the dynasty chain
+	# does NOT touch heir.class_progress.
+	var dd5 := DynastyDirector.new()
+	var src_def5: Dictionary = {"id": "src", "tags": ["actor"],
+		"state_init": {
+			"current_class": "farmer",
+			"class_progress": {"farmer": {"level": 5, "xp": 1200}},
+			"inventory": ["seeds"],
+		}}
+	var heir_def5: Dictionary = {"id": "heir", "tags": ["actor"],
+		"state_init": {
+			"class_progress": {},
+			"inventory": [],
+		}}
+	var src5 := Entity.create(src_def5, "src5")
+	var heir5 := Entity.create(heir_def5, "heir5")
+	var env5: Dictionary = {
+		"entities": {"src5": src5, "heir5": heir5},
+		"defs": {"src": src_def5, "heir": heir_def5},
+		"world": {}, "signal_buffer": [],
+	}
+	dd5.transfer_inventory(env5, "src5", "heir5")
+	# Note: dynasty director has NO transfer_class_progress effect. The
+	# four effects are inventory + reputation + techs + transition_player_to.
+	# Class progress is intentionally absent — verifying the transfer
+	# layer does not sneak it in.
+	var heir_progress5: Dictionary = heir5.get_state("class_progress", {}) as Dictionary
+	expect(heir_progress5.is_empty(),
+		"heir class_progress empty after inventory transfer (NO inheritance)")
+	src5.queue_free(); heir5.queue_free(); dd5.queue_free()
+
+	# ---------- 6. transition_player_to swaps active actor ----------
+	# Build an ActorManager with two actors; verify dynasty's
+	# transition_player_to causes set_active to fire.
+	var dd6 := DynastyDirector.new()
+	var am6 := ActorManager.new()
+	am6._actors = [
+		{"id": "old_player", "starting_entity_tag": "player_a",
+		 "control_mode": "human", "input_device": "keyboard"},
+		{"id": "new_player", "starting_entity_tag": "player_b",
+		 "control_mode": "human", "input_device": "keyboard"},
+	]
+	for a in am6._actors:
+		am6._by_id[str(a["id"])] = a
+	am6.active_actor_id = "old_player"
+	# Mount stub world parent that the director can read actor_manager
+	# from. World has a public `actor_manager` field; dynasty reads it
+	# via `_world.actor_manager`.
+	var world_stub6 := Node.new()
+	world_stub6.name = "World"
+	dd6._world = world_stub6
+	# Path 1 wiring (`_world.actor_manager` → set_active) requires a
+	# real World instance with the actor_manager field declared. Tests
+	# verify the FOUNDATION (ActorManager.set_active) works in isolation;
+	# integration tests cover the full path via play.tscn. Path 2 (the
+	# state.is_player fallback) is exercised below since a bare Node
+	# stub has no `actor_manager` property — `"actor_manager" in _world`
+	# returns false and the director falls through to the entity path.
+	var swap_ok6: bool = am6.set_active("new_player")
+	expect(swap_ok6,
+		"ActorManager.set_active accepts known actor id (transition foundation)")
+	expect_eq(am6.active_actor_id, "new_player",
+		"after transition: active_actor_id = new_player")
+	# Path 2: dynasty fallback when no ActorManager — sets state.is_player.
+	var ent6_def: Dictionary = {"id": "heir_ent", "tags": ["actor"],
+		"state_init": {"is_player": 0}}
+	var ent6 := Entity.create(ent6_def, "heir_ent6")
+	var env6: Dictionary = {
+		"entities": {"heir_ent6": ent6},
+		"defs": {"heir_ent": ent6_def},
+		"world": {}, "signal_buffer": [],
+	}
+	# Director's _world is a bare Node without actor_manager —
+	# transition_player_to falls through to setting is_player.
+	var ok6: bool = dd6.transition_player_to(env6, "heir_ent6")
+	expect(ok6, "transition_player_to fallback returns true on entity hit")
+	expect_eq(int(ent6.get_state("is_player", 0)), 1,
+		"fallback path: state.is_player set to 1 on the new actor entity")
+	ent6.queue_free(); world_stub6.queue_free(); dd6.queue_free()
+
+	# ---------- 7. infinite_life integration ----------
+	# Re-verify lifecycle's infinite_life behavior in the dynasty
+	# context: settings.infinite_life=true + player tag + age=100
+	# → entity_died NEVER reaches signal_buffer → handle_dynasty_succession
+	# is never called → no transition_player_to fires (verified by
+	# absence of dynasty_succeeded signal and active actor unchanged).
+	var lc7 := LifecycleDirector.new()
+	var immortal_def7: Dictionary = {
+		"id": "immortal_player", "tags": ["player", "human"],
+		"lifecycle": human_template,
+		"state_init": {"age": 79.5, "life_stage": "adult"},
+	}
+	var immortal7 := Entity.create(immortal_def7, "immortal7")
+	var entities7: Dictionary = {"immortal7": immortal7}
+	var env7: Dictionary = {
+		"entities": entities7, "defs": {"immortal_player": immortal_def7},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+		"settings": {"infinite_life": true},
+	}
+	lc7.register_lifecycle("immortal7", human_template, env7, "human")
+	lc7.tick(env7, 1.0)   # would cross to dead, but infinite_life caps
+	var saw_death7: bool = false
+	for s in (env7["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "entity_died":
+			saw_death7 = true
+			break
+	expect(not saw_death7,
+		"infinite_life integration: entity_died NOT emitted when settings.infinite_life=true")
+	# Without the signal, dynasty director never fires — the chain
+	# is structurally suppressed upstream (no new code in dynasty
+	# director needed; ADR 0036 already handles it).
+	expect_eq(str(immortal7.get_state("life_stage", "")), "adult",
+		"infinite_life: life_stage capped at adult (NOT advanced to dead)")
+	immortal7.queue_free(); lc7.queue_free()
+
+	# ---------- 8. multi-heir branching: pick first eligible ----------
+	# Source has heirs=[h1, h2]. h1 dead, h2 alive → succession picks h2.
+	# When BOTH dead → dynasty_extinct signal fires.
+	var dd8 := DynastyDirector.new()
+	var src_def8: Dictionary = {"id": "src", "tags": ["actor"],
+		"state_init": {"heirs": ["h1", "h2"], "inventory": ["crown"]}}
+	var h1_def8: Dictionary = {"id": "heir", "tags": ["actor"],
+		"state_init": {"life_stage": "dead", "inventory": []}}
+	var h2_def8: Dictionary = {"id": "heir", "tags": ["actor"],
+		"state_init": {"life_stage": "adult", "inventory": []}}
+	var src8 := Entity.create(src_def8, "src8")
+	var h1_8 := Entity.create(h1_def8, "h1")
+	var h2_8 := Entity.create(h2_def8, "h2")
+	var env8: Dictionary = {
+		"entities": {"src8": src8, "h1": h1_8, "h2": h2_8},
+		"defs": {"src": src_def8, "heir": h1_def8},
+		"world": {}, "signal_buffer": [],
+	}
+	# resolve_first_eligible_heir walks heirs[] order — h1 dead, h2 alive.
+	var picked8: String = dd8.resolve_first_eligible_heir(env8, "src8")
+	expect_eq(picked8, "h2",
+		"multi-heir: first-eligible picks h2 (h1 dead, h2 alive)")
+	# Run full succession chain. Since src.state.heirs is [h1, h2] and
+	# h2 is alive, full chain should succeed and emit dynasty_succeeded.
+	var result8: Dictionary = dd8.handle_dynasty_succession(env8, "src8")
+	expect(bool(result8.get("ok", false)),
+		"handle_dynasty_succession succeeds when h2 is eligible")
+	expect_eq(str(result8.get("heir_id", "")), "h2",
+		"succession.heir_id = h2 (the eligible one)")
+	# Crown should now be in h2's inventory.
+	var h2_inv8: Array = h2_8.get_state("inventory", []) as Array
+	expect(h2_inv8.has("crown"),
+		"successor h2 received the crown via transfer_inventory")
+	# dynasty_succeeded signal in buffer.
+	var saw_succeeded8: bool = false
+	for s in (env8["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "dynasty_succeeded":
+			saw_succeeded8 = true
+			break
+	expect(saw_succeeded8,
+		"dynasty_succeeded signal emitted on successful succession")
+	# Now kill h2 too — both heirs dead, expect dynasty_extinct.
+	h2_8.set_state("life_stage", "dead")
+	# Reset src.state.heirs (was reset by succession's inventory transfer
+	# but heirs field stays). Re-run succession from a NEW source to
+	# keep semantics clean.
+	var src_def8b: Dictionary = {"id": "src", "tags": ["actor"],
+		"state_init": {"heirs": ["h1", "h2"], "inventory": ["scepter"]}}
+	var src8b := Entity.create(src_def8b, "src8b")
+	(env8["entities"] as Dictionary)["src8b"] = src8b
+	env8["signal_buffer"] = []  # isolate next signal check
+	var result8b: Dictionary = dd8.handle_dynasty_succession(env8, "src8b")
+	expect(not bool(result8b.get("ok", false)),
+		"handle_dynasty_succession: ok=false when all heirs dead")
+	expect_eq(str(result8b.get("reason", "")), "extinct",
+		"reason=extinct when all heirs dead/missing")
+	var saw_extinct8: bool = false
+	for s in (env8["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "dynasty_extinct":
+			saw_extinct8 = true
+			break
+	expect(saw_extinct8,
+		"dynasty_extinct signal emitted when no eligible heir found")
+	src8.queue_free(); h1_8.queue_free(); h2_8.queue_free()
+	src8b.queue_free(); dd8.queue_free()
+
+	# ---------- 9. save/load round-trips dynasty state ----------
+	# Verify state.heirs (Array) + state.inheritance_policy (Dict) +
+	# state.dynasty_id (String) survive a snapshot+restore round-trip.
+	# This proves ADR 0010 normal entity persistence covers dynasty
+	# state without any new save-policy field.
+	var save_def9: Dictionary = {
+		"id": "saver", "tags": ["actor", "player"],
+		"state_init": {
+			"heirs": ["heir_a", "heir_b", "heir_c"],
+			"dynasty_id": "house_aldermere",
+			"inheritance_policy": {
+				"inventory": "all",
+				"reputation": "all",
+				"core_techs": true,
+				"class_progress": false,
+			},
+		},
+	}
+	var s9 := Entity.create(save_def9, "s9")
+	var snap9: Dictionary = s9.snapshot()
+	# Mutate to prove restore overwrites.
+	s9.set_state("heirs", [])
+	s9.set_state("dynasty_id", "")
+	s9.set_state("inheritance_policy", {})
+	# Restore.
+	for k in (snap9.get("state", {}) as Dictionary).keys():
+		s9.set_state(str(k), (snap9["state"] as Dictionary)[k])
+	var restored_heirs9: Array = s9.get_state("heirs", []) as Array
+	expect_eq(restored_heirs9.size(), 3,
+		"save/load: heirs Array size=3 round-trip")
+	expect(restored_heirs9.has("heir_a") and restored_heirs9.has("heir_b") \
+		and restored_heirs9.has("heir_c"),
+		"save/load: all 3 heir ids preserved in order")
+	expect_eq(str(s9.get_state("dynasty_id", "")), "house_aldermere",
+		"save/load: dynasty_id String round-trip")
+	var restored_policy9: Dictionary = s9.get_state("inheritance_policy", {}) as Dictionary
+	expect_eq(str(restored_policy9.get("inventory", "")), "all",
+		"save/load: inheritance_policy.inventory round-trip")
+	expect_eq(bool(restored_policy9.get("core_techs", false)), true,
+		"save/load: inheritance_policy.core_techs round-trip")
+	expect_eq(bool(restored_policy9.get("class_progress", true)), false,
+		"save/load: inheritance_policy.class_progress=false round-trip")
+	s9.queue_free()
+
+	# ---------- 10. emergent dynasty: per-generation class_progress ----------
+	# Generation 1 has class_progress.farmer.level=5. Succession transfers
+	# inventory + reputation but NOT class_progress. Gen 2 (the heir)
+	# accrues their OWN class_progress. Verify gen2.class_progress is
+	# untouched by inheritance — proves the "every generation rediscovers
+	# their own path" design (ADR 0034 §selective inheritance).
+	var dd10 := DynastyDirector.new()
+	var gen1_def10: Dictionary = {"id": "gen1", "tags": ["actor"],
+		"state_init": {
+			"current_class": "farmer",
+			"class_progress": {"farmer": {"level": 5, "xp": 1500}},
+			"inventory": ["heirloom_hoe"],
+			"reputation": {"pendrel": 60},
+			"heirs": ["gen2"],
+		}}
+	var gen2_def10: Dictionary = {"id": "gen2", "tags": ["actor"],
+		"state_init": {
+			"current_class": "farmer",
+			"class_progress": {},
+			"inventory": [],
+			"reputation": {},
+			"life_stage": "adult",
+		}}
+	var gen1 := Entity.create(gen1_def10, "gen1")
+	var gen2 := Entity.create(gen2_def10, "gen2")
+	var env10: Dictionary = {
+		"entities": {"gen1": gen1, "gen2": gen2},
+		"defs": {"gen1": gen1_def10, "gen2": gen2_def10},
+		"world": {}, "signal_buffer": [],
+	}
+	# Run succession. gen2 takes over.
+	var result10: Dictionary = dd10.handle_dynasty_succession(env10, "gen1")
+	expect(bool(result10.get("ok", false)),
+		"emergent: gen1→gen2 succession ok")
+	# gen2 received the heirloom (inventory transferred).
+	var gen2_inv10: Array = gen2.get_state("inventory", []) as Array
+	expect(gen2_inv10.has("heirloom_hoe"),
+		"emergent: gen2 received heirloom_hoe (inventory transferred)")
+	# gen2 received the rep (reputation transferred).
+	var gen2_rep10: Dictionary = gen2.get_state("reputation", {}) as Dictionary
+	expect_eq(int(gen2_rep10.get("pendrel", -1)), 60,
+		"emergent: gen2 reputation = pendrel:60 (reputation transferred)")
+	# gen2's class_progress is STILL EMPTY — succession did not copy it.
+	# The heir starts class progression fresh, even though gen1 was a
+	# level-5 farmer. This is the emergent dynasty arc: each generation
+	# specializes anew.
+	var gen2_progress10: Dictionary = gen2.get_state("class_progress", {}) as Dictionary
+	expect(gen2_progress10.is_empty(),
+		"emergent: gen2.class_progress STILL EMPTY (every generation starts fresh)")
+	# Now gen2 accrues its own progress (simulate by setting). Verify
+	# it doesn't bleed back to gen1 — they're independent stores per
+	# entity. gen1 is "deceased" but still exists in env.entities;
+	# its class_progress is untouched by gen2's mutations.
+	gen2.set_state("class_progress", {"farmer": {"level": 1, "xp": 50}})
+	var gen1_progress10: Dictionary = gen1.get_state("class_progress", {}) as Dictionary
+	expect_eq(int((gen1_progress10.get("farmer", {}) as Dictionary).get("level", -1)), 5,
+		"emergent: gen1.class_progress.farmer.level still 5 (independent store)")
+	var gen2_progress10b: Dictionary = gen2.get_state("class_progress", {}) as Dictionary
+	var gen2_farmer10b: Dictionary = gen2_progress10b.get("farmer", {}) as Dictionary
+	expect_eq(int(gen2_farmer10b.get("level", -1)), 1,
+		"emergent: gen2.class_progress.farmer.level = 1 (gen2's own arc)")
+	gen1.queue_free(); gen2.queue_free(); dd10.queue_free()

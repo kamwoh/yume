@@ -77,6 +77,10 @@ const TECH_NO_TREE             := "tech.no_tree"
 const TECH_PREREQ_MISSING      := "tech.prereq_missing"
 const TECH_PREREQ_CYCLE        := "tech.prereq_cycle"
 
+# ADR 0034 — dynasty / heir succession primitive
+const DYNASTY_NO_HEIR          := "dynasty.no_heir"
+const DYNASTY_EXTINCT          := "dynasty.extinct"
+
 
 # ============================================================
 # CONSTRUCTORS

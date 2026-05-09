@@ -93,11 +93,16 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"try_discover_tech":    return _try_discover_tech(effect, env, context)
 		"learn_from_master":    return _learn_from_master(effect, env, context)
 		"pass_to_apprentice":   return _pass_to_apprentice(effect, env, context)
+		# ADR 0034 — dynasty / heir succession primitive
+		"transfer_inventory":   return _transfer_inventory(effect, env, context)
+		"transfer_reputation":  return _transfer_reputation(effect, env, context)
+		"transfer_techs":       return _transfer_techs(effect, env, context)
+		"transition_player_to": return _transition_player_to(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, zone_state_set, zone_state_add, zone_state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place, switch_class, declare_war, sign_treaty, propose_alliance, swear_loyalty, try_discover_tech, learn_from_master, pass_to_apprentice.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, zone_state_set, zone_state_add, zone_state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place, switch_class, declare_war, sign_treaty, propose_alliance, swear_loyalty, try_discover_tech, learn_from_master, pass_to_apprentice, transfer_inventory, transfer_reputation, transfer_techs, transition_player_to.",
 				"warning")
 	return {}
 
@@ -1850,3 +1855,141 @@ static func _pass_to_apprentice(e: Dictionary, env: Dictionary, ctx: Dictionary)
 		"target": master_id,
 		"tree": tree_id,
 	}
+
+
+# ============================================================
+# DYNASTY (ADR 0034)
+# ============================================================
+#
+# Four declarative store-mover verbs:
+#   - transfer_inventory   {from, to}
+#   - transfer_reputation  {from, to}
+#   - transfer_techs       {from, to, filter="core_only"}
+#   - transition_player_to {target}
+#
+# Each delegates to the DynastyDirector node mounted as a sibling of
+# World (resolved via env.parent.get_node_or_null). When no director
+# is mounted (test harnesses without a SceneTree, OR demos that ship
+# no dynasty content), the effect logs a warning and no-ops.
+#
+# Per ADR 0034 §"New effects" these are GENERIC store-movers, not
+# semantic verbs. The same effects are reusable for non-dynasty
+# games (NG+ roguelike carry-over, factory subsidiary spawn,
+# corporate succession sim). Per ADR 0034 §"Atomic transition",
+# the four effects are non-destructive — they mutate per-entity
+# state stores; they don't tear down scene state, so they compose
+# safely in any chain position.
+
+static func _dynasty_director(env: Dictionary) -> Node:
+	var parent_node = env.get("parent", null)
+	if parent_node is Node:
+		return (parent_node as Node).get_node_or_null("DynastyDirector")
+	return null
+
+
+## transfer_inventory — move source.state.inventory → target.state.inventory.
+## Append-then-clear-source semantics. Returns {ok, count, from, to}.
+##
+## Effect dict shape:
+##   {"type": "transfer_inventory", "from": <entity_binding>, "to": <entity_binding>}
+##
+## `from` and `to` resolve via _resolve_id (context binding first,
+## literal fallback). Either side missing = warning + no-op.
+static func _transfer_inventory(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var dd := _dynasty_director(env)
+	if dd == null or not dd.has_method("transfer_inventory"):
+		EngineError.raise(env, EngineError.DYNASTY_NO_HEIR,
+			"transfer_inventory: no DynastyDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add DynastyDirector Node sibling under World in play.tscn (per ADR 0034).",
+			"warning")
+		return {"ok": false, "reason": "no_manager", "count": 0}
+	var from_id := _resolve_id(e.get("from", ""), ctx)
+	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var n: int = int(dd.call("transfer_inventory", env, from_id, to_id))
+	return {"ok": n > 0, "count": n, "from": from_id, "to": to_id}
+
+
+## transfer_reputation — move source.state.reputation → target.state.reputation.
+## Replace-merge with max() for overlapping faction keys. Source's
+## reputation is cleared after transfer. Returns {ok, count, from, to}.
+##
+## Effect dict shape:
+##   {"type": "transfer_reputation", "from": <entity_binding>, "to": <entity_binding>}
+static func _transfer_reputation(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var dd := _dynasty_director(env)
+	if dd == null or not dd.has_method("transfer_reputation"):
+		EngineError.raise(env, EngineError.DYNASTY_NO_HEIR,
+			"transfer_reputation: no DynastyDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add DynastyDirector Node sibling under World in play.tscn (per ADR 0034).",
+			"warning")
+		return {"ok": false, "reason": "no_manager", "count": 0}
+	var from_id := _resolve_id(e.get("from", ""), ctx)
+	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var n: int = int(dd.call("transfer_reputation", env, from_id, to_id))
+	return {"ok": n > 0, "count": n, "from": from_id, "to": to_id}
+
+
+## transfer_techs — copy filtered subset of source.known_techs → heir.known_techs.
+## Filter: "core_only" (default; uses ADR 0033 tech_tree.core flag) or "all".
+## Source's known_techs preserved (techs are knowledge, not items).
+## Returns {ok, transferred (Array), from, to, filter}.
+##
+## Effect dict shape:
+##   {"type": "transfer_techs", "from": <entity_binding>, "to": <entity_binding>,
+##    "filter": "core_only"}
+static func _transfer_techs(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var dd := _dynasty_director(env)
+	if dd == null or not dd.has_method("transfer_techs"):
+		EngineError.raise(env, EngineError.DYNASTY_NO_HEIR,
+			"transfer_techs: no DynastyDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add DynastyDirector Node sibling under World in play.tscn (per ADR 0034).",
+			"warning")
+		return {"ok": false, "reason": "no_manager", "transferred": []}
+	var from_id := _resolve_id(e.get("from", ""), ctx)
+	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var filter := str(_value(e.get("filter", "core_only"), ctx, env))
+	var transferred: Array = dd.call("transfer_techs", env, from_id, to_id, filter)
+	return {
+		"ok": not transferred.is_empty(),
+		"transferred": transferred,
+		"from": from_id,
+		"to": to_id,
+		"filter": filter,
+	}
+
+
+## transition_player_to — swap which entity is the active actor.
+## Composes ADR 0016's switch_actor: looks up ActorManager via
+## env.parent.actor_manager and calls set_active(new_actor_id).
+## Falls back to setting state.is_player=1 on the entity when no
+## ActorManager is mounted (test harness path).
+##
+## Returns {ok, target}.
+##
+## Effect dict shape:
+##   {"type": "transition_player_to", "target": <entity_binding|actor_id>}
+##
+## Note: unlike ADR 0016's switch_actor (which defers to next tick
+## via env._pending_active_actor), this effect applies immediately.
+## ADR 0034 §"Atomic transition" requires all succession transfers
+## (inventory + reputation + techs + actor swap) to land within the
+## same effect chain so save/load mid-transition is structurally
+## impossible.
+static func _transition_player_to(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var dd := _dynasty_director(env)
+	if dd == null or not dd.has_method("transition_player_to"):
+		EngineError.raise(env, EngineError.DYNASTY_NO_HEIR,
+			"transition_player_to: no DynastyDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add DynastyDirector Node sibling under World in play.tscn (per ADR 0034).",
+			"warning")
+		return {"ok": false, "reason": "no_manager", "target": ""}
+	var target_id := _resolve_id(e.get("target", ""), ctx)
+	if target_id == "":
+		# Some authors put the target in `target_id` (mirroring switch_actor).
+		target_id = str(_value(e.get("target_id", ""), ctx, env))
+	var ok: bool = bool(dd.call("transition_player_to", env, target_id))
+	return {"ok": ok, "target": target_id}

@@ -291,6 +291,18 @@ func load_data() -> void:
 	var tech_dir := get_node_or_null("TechTreeDirector")
 	if tech_dir != null and tech_dir.has_method("register_trees_from_data_root"):
 		tech_dir.register_trees_from_data_root(root, scheduler.env)
+	# ADR 0034: DynastyDirector hosts the four succession effects
+	# (transfer_inventory / transfer_reputation / transfer_techs /
+	# transition_player_to) plus the heir-resolver helper used by
+	# per-game succession rules. No boot-time data to load — heir
+	# state lives on each actor entity (state.heirs +
+	# state.inheritance_policy), serialized via the normal entity
+	# snapshot path (ADR 0010). Backward-compat: games without
+	# heirs never trigger the director (Node may be absent from the
+	# scene; the four effects log a no-manager warning and no-op).
+	var _dynasty_dir := get_node_or_null("DynastyDirector")
+	if _dynasty_dir != null and verbose:
+		print("[World] DynastyDirector mounted (ADR 0034)")
 	# ADR 0032: FactionDirector loads faction defs + initial relationships
 	# from <root>/factions.json if present. No-op for games without
 	# politics. Loaded after entities so member_count bindings can resolve
