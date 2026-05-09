@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -19,6 +19,7 @@
 [ext_resource type="Script" path="res://scripts/engine/party_director.gd" id="7"]
 [ext_resource type="Script" path="res://scripts/engine/screen_smoke_runner.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/engine/nameplate_renderer.gd" id="9"]
+[ext_resource type="Script" path="res://scripts/engine/schedule_director.gd" id="10"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -56,6 +57,15 @@ script = ExtResource("6")
 ; (typically the player). No-op when no entities have the tag.
 [node name="PartyDirector" type="Node" parent="."]
 script = ExtResource("7")
+
+; ADR 0029: ScheduleDirector reads entity defs' `schedule` blocks and
+; resolves the active slot each tick from a bound time-of-day source
+; (default world_clock.current_hour). Writes current_verb +
+; current_target onto the entity's state and emits
+; schedule_phase_changed on slot transitions. No-op when no entity
+; def carries a schedule block.
+[node name="ScheduleDirector" type="Node" parent="."]
+script = ExtResource("10")
 
 ; Per-screen smoke harness — activates only with `--smoke-screens`.
 ; Walks every screen in screens.json, captures each, exits.

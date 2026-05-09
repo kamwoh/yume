@@ -246,6 +246,19 @@ func _phase_input() -> void:
 ## Phase 2 (W1 + W2.1): tick rules + signal rules whose trigger fired before
 ## decide (signals queued during prior tick's react, or this tick's input).
 func _phase_decide() -> void:
+	# ADR 0029: ScheduleDirector resolves each scheduled entity's
+	# active slot BEFORE tick-rules fire — so consumer rules in this
+	# same decide phase read the just-resolved current_verb /
+	# current_target. Director writes state directly (same pattern as
+	# LightingDirector / PartyDirector); transition signals queue into
+	# env.signal_buffer for next-phase drain.
+	var parent_node = env.get("parent", null)
+	if parent_node != null:
+		var sd = parent_node.get_node_or_null("ScheduleDirector")
+		if sd != null and sd.has_method("tick"):
+			# Expose tick_count so director can mark LOD throttling.
+			env["tick_count"] = tick_count
+			sd.tick(env)
 	# Tick rules
 	var tick_rules: Array = rules_by_trigger.get("tick", [])
 	for r in tick_rules:

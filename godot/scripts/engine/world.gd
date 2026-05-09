@@ -248,6 +248,14 @@ func load_data() -> void:
 	var settings_mgr := get_node_or_null("SettingsManager")
 	if settings_mgr != null and settings_mgr.has_method("apply_all"):
 		settings_mgr.apply_all()
+	# ADR 0029: ScheduleDirector reads each entity def's `schedule` block
+	# (if present) and starts resolving slots once World ticks. Register
+	# AFTER entities are loaded so register_schedules_from_env can walk
+	# env.entities and find their defs. No-op for games shipping no
+	# schedules (existing demos unaffected).
+	var sched_dir := get_node_or_null("ScheduleDirector")
+	if sched_dir != null and sched_dir.has_method("register_schedules_from_env"):
+		sched_dir.register_schedules_from_env(scheduler.env)
 	scheduler.flush_effects()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""

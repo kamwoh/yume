@@ -23,9 +23,23 @@ class_name Entity
 ##                 itself ignores this, renderers read it
 ##
 ## Reserved state fields (engine-recognized, not hardcoded):
-##   position  — Vector2 or Vector3. Engine reads via get_position().
-##   velocity  — Vector2 or Vector3. Engine motion phase adds this to position.
-##   age       — convention: tick-incrementable; nothing special-cases it
+##   position    — Vector2 or Vector3. Engine reads via get_position().
+##   velocity    — Vector2 or Vector3. Engine motion phase adds this to position.
+##   age         — float, in-game years. ADR 0036 lifecycle director increments
+##                 per in-game year + crosses life_stage thresholds. Engine
+##                 itself doesn't read; primitive is interpreter-driven.
+##   life_stage  — string, one of {"infant", "child", "adult", "elder", "dead"}
+##                 by ADR 0036's standard human lifecycle, OR custom values
+##                 from a per-game @lib.lifecycles.X template. Engine doesn't
+##                 read; renderers may swap mesh on transitions.
+##   yaw         — float radians, Y-axis rotation. 3D + 2D renderers apply
+##                 if set (per state.yaw commit on 2026-05-09). Idempotent.
+##   class_progress — dict {class_id: {level, xp, ...}}. ADR 0030 class
+##                 primitive reads/writes; engine itself doesn't recognize.
+##   known_techs — Array of tech_id strings. ADR 0033 tech-tree primitive
+##                 reads/writes.
+##   dynasty_id  — string or null. ADR 0034 dynasty primitive reads. Phase 3
+##                 entities default to null for Phase 4 forward-compat.
 
 # ============================================================
 # DATA

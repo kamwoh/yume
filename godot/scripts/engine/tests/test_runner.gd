@@ -66,6 +66,7 @@ func _ready() -> void:
 	test_nameplate_filters_named_npc_tag()
 	test_nameplate_picks_display_name_over_id()
 	test_lib_resolver()
+	test_schedule_primitive()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -3502,3 +3503,347 @@ func test_lib_resolver() -> void:
 
 	# Cleanup
 	LibResolver.reset_cache_for_test()
+
+
+# ============================================================
+# SCHEDULE PRIMITIVE (ADR 0029)
+# ============================================================
+
+## 12 assertions covering the schedule director's slot resolution,
+## tendency-drift fallback, location_tag → entity resolution,
+## transition signals, malformed-input handling, mid-day spawn
+## semantics, and LOD throttling.
+##
+## All tests exercise the director directly via tick(env) — no
+## SceneTree, no World node. Tests construct env dicts the same
+## way other engine-unit tests do (see test_w2_integration).
+func test_schedule_primitive() -> void:
+	_section("schedule_primitive (ADR 0029)")
+
+	# Standard 7-key tendency dict per Aldenmere canonical_decisions.
+	# Used in fallback-verb test to verify all 7 keys round-trip.
+	var standard_tendency := {
+		"gather": 0, "hunt": 0, "tend": 0, "craft": 0,
+		"fish": 0, "talk": 0, "observe": 0,
+	}
+
+	# ---------- Assertion 1: boundary inclusivity ----------
+	# Slot [6, 12) — start (6.0) matches; end (12.0) does NOT.
+	var cache_b := {
+		"slots": [{"start": 6.0, "end": 12.0, "verb": "work", "location_tag": ""}],
+		"default_verb": "idle", "wraps_at": 24.0,
+	}
+	expect_eq(ScheduleDirector._pick_active_slot(6.0, cache_b), 0,
+		"slot [6,12) matches at hour 6.0 (start inclusive)")
+	expect_eq(ScheduleDirector._pick_active_slot(12.0, cache_b), -1,
+		"slot [6,12) does NOT match at hour 12.0 (end exclusive)")
+
+	# ---------- Assertion 2: wraparound slot (21..6) ----------
+	var cache_w := {
+		"slots": [{"start": 21.0, "end": 6.0, "verb": "sleep", "location_tag": "home"}],
+		"default_verb": "idle", "wraps_at": 24.0,
+	}
+	expect_eq(ScheduleDirector._pick_active_slot(23.0, cache_w), 0,
+		"wraparound slot (21..6) matches hour 23.0")
+	expect_eq(ScheduleDirector._pick_active_slot(5.0, cache_w), 0,
+		"wraparound slot (21..6) matches hour 5.0")
+	expect_eq(ScheduleDirector._pick_active_slot(12.0, cache_w), -1,
+		"wraparound slot (21..6) does NOT match hour 12.0")
+
+	# ---------- Assertion 3: mid-day spawn ----------
+	# Entity with current_hour=9 picks the [6,12) work slot on its
+	# very first tick (no warm-up required, no transition lag).
+	var sd1 := ScheduleDirector.new()
+	var villager_def := {
+		"id": "villager", "tags": ["villager"],
+		"state_init": {"current_verb": "", "current_target": "", "tendency": standard_tendency.duplicate()},
+		"schedule": {
+			"slots": [
+				{"start": 6.0, "end": 12.0, "verb": "work", "location_tag": ""},
+				{"start": 12.0, "end": 18.0, "verb": "rest", "location_tag": ""},
+			],
+		},
+	}
+	var v1 := Entity.create(villager_def, "v1")
+	var entities1: Dictionary = {"v1": v1}
+	var env1: Dictionary = {
+		"entities": entities1, "defs": {"villager": villager_def},
+		"world": {"current_hour": 9.0}, "signal_buffer": [], "tick_count": 1,
+	}
+	sd1.register_schedule("v1", villager_def["schedule"], env1)
+	sd1.tick(env1)
+	expect_eq(str(v1.get_state("current_verb", "")), "work",
+		"mid-day spawn at hour 9 picks [6,12) slot → verb=work")
+
+	# ---------- Assertion 4: slot transition emits signal ----------
+	# Reuse env1; advance time across the 12.0 boundary.
+	env1["world"]["current_hour"] = 13.0
+	env1["tick_count"] = 2
+	(env1["signal_buffer"] as Array).clear()
+	sd1.tick(env1)
+	expect_eq(str(v1.get_state("current_verb", "")), "rest",
+		"hour 13.0 → second slot fires (verb=rest)")
+	var buf1: Array = env1["signal_buffer"]
+	expect_eq(buf1.size(), 1, "exactly one schedule_phase_changed emitted on transition")
+	if buf1.size() == 1:
+		var sig1: Dictionary = buf1[0]
+		expect_eq(str(sig1.get("name", "")), "schedule_phase_changed",
+			"signal name is schedule_phase_changed")
+	v1.queue_free(); sd1.queue_free()
+
+	# ---------- Assertion 5: fallback verb uses tendency ----------
+	# Slot has fallback_verb_by_tendency: ["gather", "hunt", "tend"].
+	# Entity tendency picks the highest-scored verb.
+	var sd2 := ScheduleDirector.new()
+	var farmer_def := {
+		"id": "farmer", "tags": ["villager"],
+		"state_init": {"tendency": {"gather": 5, "hunt": 2, "tend": 8, "craft": 0, "fish": 0, "talk": 0, "observe": 0}},
+		"schedule": {
+			"slots": [
+				{"start": 7.0, "end": 12.0, "verb": "work", "location_tag": "",
+				 "fallback_verb_by_tendency": ["gather", "hunt", "tend"]},
+			],
+		},
+	}
+	var f1 := Entity.create(farmer_def, "f1")
+	var entities2: Dictionary = {"f1": f1}
+	var env2: Dictionary = {
+		"entities": entities2, "defs": {"farmer": farmer_def},
+		"world": {"current_hour": 10.0}, "signal_buffer": [], "tick_count": 1,
+	}
+	sd2.register_schedule("f1", farmer_def["schedule"], env2)
+	sd2.tick(env2)
+	expect_eq(str(f1.get_state("current_verb", "")), "tend",
+		"fallback_verb_by_tendency picks 'tend' (highest tendency=8)")
+	# Reset tendencies to all-zero — should fall through to slot.verb.
+	f1.set_state("tendency", standard_tendency.duplicate())
+	# Force a re-resolve by bumping the cached last_slot_index sentinel.
+	# (Same slot, same hour — but we still want verb re-evaluation.)
+	# Easiest path: bump hour into a different slot then back. But the
+	# director writes current_verb every tick regardless of transition,
+	# so just tick again.
+	sd2.tick(env2)
+	expect_eq(str(f1.get_state("current_verb", "")), "work",
+		"all-zero tendency → falls through to slot's primary verb='work'")
+	f1.queue_free(); sd2.queue_free()
+
+	# ---------- Assertion 6: location_tag resolves to entity ----------
+	# Build a villager + a field-tagged entity; verify current_target
+	# points at the field's id after slot resolution.
+	var sd3 := ScheduleDirector.new()
+	var villager_def_3 := {
+		"id": "villager3", "tags": ["villager"],
+		"state_init": {"current_verb": "", "current_target": ""},
+		"schedule": {
+			"slots": [{"start": 7.0, "end": 12.0, "verb": "work", "location_tag": "field"}],
+		},
+	}
+	var field_def := {"id": "field_def", "tags": ["field"], "state_init": {}}
+	var v3 := Entity.create(villager_def_3, "v3")
+	v3.set_position(Vector2(0, 0))
+	var fld := Entity.create(field_def, "fld_a")
+	fld.set_position(Vector2(10, 0))
+	var entities3: Dictionary = {"v3": v3, "fld_a": fld}
+	var env3: Dictionary = {
+		"entities": entities3, "defs": {"villager3": villager_def_3, "field_def": field_def},
+		"world": {"current_hour": 9.0}, "signal_buffer": [], "tick_count": 1,
+	}
+	sd3.register_schedule("v3", villager_def_3["schedule"], env3)
+	sd3.tick(env3)
+	expect_eq(str(v3.get_state("current_target", "")), "fld_a",
+		"location_tag='field' → current_target='fld_a'")
+	v3.queue_free(); fld.queue_free(); sd3.queue_free()
+
+	# ---------- Assertion 7: missing schedule = no-op ----------
+	# Existing demos without a schedule block see the director do nothing.
+	var sd4 := ScheduleDirector.new()
+	var no_sched_def := {"id": "rock", "tags": ["prop"], "state_init": {"hp": 100}}
+	var rock := Entity.create(no_sched_def, "r1")
+	var env4: Dictionary = {
+		"entities": {"r1": rock}, "defs": {"rock": no_sched_def},
+		"world": {"current_hour": 10.0}, "signal_buffer": [], "tick_count": 1,
+	}
+	sd4.register_schedules_from_env(env4)
+	sd4.tick(env4)
+	expect_eq(rock.get_state("current_verb", null), null,
+		"entity without schedule block has no current_verb written")
+	expect_eq(rock.get_state("current_target", null), null,
+		"entity without schedule block has no current_target written")
+	rock.queue_free(); sd4.queue_free()
+
+	# ---------- Assertion 8: malformed schedule → push_warning, no crash ----------
+	# Empty slots array → director skips entity. No exceptions.
+	var sd5 := ScheduleDirector.new()
+	var bad_def := {
+		"id": "bad", "tags": ["villager"],
+		"state_init": {},
+		"schedule": {"slots": []},  # malformed
+	}
+	var bad_ent := Entity.create(bad_def, "b1")
+	var env5: Dictionary = {
+		"entities": {"b1": bad_ent}, "defs": {"bad": bad_def},
+		"world": {"current_hour": 10.0}, "signal_buffer": [],
+		"tick_count": 1, "error_buffer": [],
+	}
+	sd5.register_schedule("b1", bad_def["schedule"], env5)
+	sd5.tick(env5)   # MUST NOT crash
+	expect(true, "malformed schedule (empty slots) does not crash director")
+	expect((env5["error_buffer"] as Array).size() >= 1,
+		"malformed schedule raised an EngineError")
+	bad_ent.queue_free(); sd5.queue_free()
+
+	# ---------- Assertion 9: tendency dict 7-key schema ----------
+	# Verify all 7 canonical Aldenmere tendency keys are usable
+	# (gather/hunt/tend/craft/fish/talk/observe).
+	expect(standard_tendency.has("gather") and standard_tendency.has("hunt") and
+		standard_tendency.has("tend") and standard_tendency.has("craft") and
+		standard_tendency.has("fish") and standard_tendency.has("talk") and
+		standard_tendency.has("observe"),
+		"7-key tendency schema (gather/hunt/tend/craft/fish/talk/observe)")
+	# The director uses these via _pick_verb. Build a fallback array
+	# covering all 7; entity with `talk: 99` and others zero picks 'talk'.
+	var t7 := standard_tendency.duplicate()
+	t7["talk"] = 99
+	var sd6 := ScheduleDirector.new()
+	var social_def := {
+		"id": "social", "tags": ["villager"],
+		"state_init": {"tendency": t7},
+		"schedule": {
+			"slots": [{"start": 6.0, "end": 22.0, "verb": "work", "location_tag": "",
+				"fallback_verb_by_tendency": ["gather", "hunt", "tend", "craft", "fish", "talk", "observe"]}],
+		},
+	}
+	var s_ent := Entity.create(social_def, "s1")
+	var env6: Dictionary = {
+		"entities": {"s1": s_ent}, "defs": {"social": social_def},
+		"world": {"current_hour": 12.0}, "signal_buffer": [], "tick_count": 1,
+	}
+	sd6.register_schedule("s1", social_def["schedule"], env6)
+	sd6.tick(env6)
+	expect_eq(str(s_ent.get_state("current_verb", "")), "talk",
+		"7-key fallback array picks 'talk' (highest tendency=99)")
+	s_ent.queue_free(); sd6.queue_free()
+
+	# ---------- Assertion 10: LOD throttles off-camera resolution ----------
+	# Entity at distance 50 with enter_radius=10, leave_radius=12,
+	# outside_mode=tick_slowed:0.1 → fires once per 10 ticks. 5 ticks
+	# at unique hours (forcing transitions) should result in ≤2 verb
+	# changes (initial fire + maybe one throttled).
+	var sd7 := ScheduleDirector.new()
+	var lod_def := {
+		"id": "lod_npc", "tags": ["villager"],
+		"state_init": {},
+		"schedule": {
+			"slots": [
+				{"start": 0.0, "end": 6.0, "verb": "sleep"},
+				{"start": 6.0, "end": 12.0, "verb": "work"},
+				{"start": 12.0, "end": 18.0, "verb": "rest"},
+				{"start": 18.0, "end": 24.0, "verb": "social"},
+			],
+			"lod": {"enter_radius": 10.0, "leave_radius": 12.0,
+				"outside_mode": "tick_slowed:0.1"},
+		},
+	}
+	var lod_ent := Entity.create(lod_def, "lod1")
+	lod_ent.set_position(Vector2(50, 0))
+	var env7: Dictionary = {
+		"entities": {"lod1": lod_ent}, "defs": {"lod_def": lod_def},
+		"world": {"current_hour": 3.0}, "signal_buffer": [],
+		"tick_count": 1, "lod_anchor_position": Vector2(0, 0),
+	}
+	sd7.register_schedule("lod1", lod_def["schedule"], env7)
+	# Tick 5 times across different slot hours. Without LOD this would
+	# produce 5 different verbs; with tick_slowed:0.1 (~1/10) we expect
+	# at most 1-2 verb changes total within 5 ticks.
+	var hours := [3.0, 9.0, 15.0, 21.0, 4.0]
+	var verbs_observed: Array = []
+	for i in range(5):
+		env7["world"]["current_hour"] = hours[i]
+		env7["tick_count"] = i + 1
+		sd7.tick(env7)
+		verbs_observed.append(str(lod_ent.get_state("current_verb", "")))
+	# Count distinct verbs encountered (proxy for resolution cadence).
+	var distinct: Dictionary = {}
+	for v in verbs_observed:
+		distinct[v] = 1
+	expect(distinct.size() <= 2,
+		"LOD outside_mode=tick_slowed:0.1 resolves ≤2 distinct verbs across 5 ticks (got %d)" % distinct.size())
+	lod_ent.queue_free(); sd7.queue_free()
+
+	# ---------- Assertion 11: multi-entity resolution ----------
+	# 5 villagers, each with different tendency, all advance correctly
+	# at hour 10 (within [6,12) work slot).
+	var sd8 := ScheduleDirector.new()
+	var multi_def := {
+		"id": "multi", "tags": ["villager"],
+		"state_init": {},
+		"schedule": {
+			"slots": [{"start": 6.0, "end": 12.0, "verb": "work", "location_tag": "",
+				"fallback_verb_by_tendency": ["gather", "hunt", "tend", "craft", "fish"]}],
+		},
+	}
+	var picks := ["gather", "hunt", "tend", "craft", "fish"]
+	var multi_entities: Dictionary = {}
+	var multi_ents: Array = []
+	for i in range(5):
+		var t_dict := standard_tendency.duplicate()
+		t_dict[picks[i]] = 10
+		var e := Entity.create(multi_def, "m%d" % i)
+		e.set_state("tendency", t_dict)
+		multi_entities["m%d" % i] = e
+		multi_ents.append(e)
+	var env8: Dictionary = {
+		"entities": multi_entities, "defs": {"multi": multi_def},
+		"world": {"current_hour": 10.0}, "signal_buffer": [], "tick_count": 1,
+	}
+	for i in range(5):
+		sd8.register_schedule("m%d" % i, multi_def["schedule"], env8)
+	sd8.tick(env8)
+	var all_correct: bool = true
+	for i in range(5):
+		if str(multi_ents[i].get_state("current_verb", "")) != picks[i]:
+			all_correct = false
+			break
+	expect(all_correct, "5 villagers each resolve to their highest-tendency verb")
+	for e in multi_ents:
+		e.queue_free()
+	sd8.queue_free()
+
+	# ---------- Assertion 12: signal payload schema ----------
+	# Build a minimal scenario, force a transition, inspect the signal
+	# payload — confirm {entity, prev_verb, new_verb, slot_id} keys.
+	var sd9 := ScheduleDirector.new()
+	var sig_def := {
+		"id": "sig", "tags": ["villager"],
+		"state_init": {"current_verb": "", "current_target": ""},
+		"schedule": {
+			"slots": [
+				{"start": 6.0, "end": 12.0, "verb": "work", "location_tag": ""},
+				{"start": 12.0, "end": 18.0, "verb": "rest", "location_tag": ""},
+			],
+			"emit_on_transition": true,
+		},
+	}
+	var sig_ent := Entity.create(sig_def, "sg1")
+	var env9: Dictionary = {
+		"entities": {"sg1": sig_ent}, "defs": {"sig": sig_def},
+		"world": {"current_hour": 10.0}, "signal_buffer": [], "tick_count": 1,
+	}
+	sd9.register_schedule("sg1", sig_def["schedule"], env9)
+	sd9.tick(env9)   # initial registration → first transition emits
+	(env9["signal_buffer"] as Array).clear()
+	# Move hour into second slot to force a transition.
+	env9["world"]["current_hour"] = 15.0
+	env9["tick_count"] = 2
+	sd9.tick(env9)
+	var bufp: Array = env9["signal_buffer"]
+	expect_eq(bufp.size(), 1, "exactly one signal emitted on slot transition")
+	if bufp.size() == 1:
+		var p: Dictionary = (bufp[0] as Dictionary).get("payload", {})
+		expect(p.has("entity") and p.has("prev_verb") and p.has("new_verb") and p.has("slot_id"),
+			"payload has {entity, prev_verb, new_verb, slot_id}")
+		expect_eq(str(p.get("entity", "")), "sg1", "payload.entity = sg1")
+		expect_eq(str(p.get("prev_verb", "")), "work", "payload.prev_verb = work")
+		expect_eq(str(p.get("new_verb", "")), "rest", "payload.new_verb = rest")
+		expect_eq(int(p.get("slot_id", -999)), 1, "payload.slot_id = 1")
+	sig_ent.queue_free(); sd9.queue_free()
