@@ -42,6 +42,9 @@ const EFFECT_UNKNOWN_TYPE      := "effect.unknown_type"
 const EFFECT_SPAWN_NO_DEF      := "effect.spawn_no_def"
 const EFFECT_TRANSFORM_NO_DEF  := "effect.transform_no_def"
 const EFFECT_EMIT_NO_BUFFER    := "effect.emit_no_buffer"
+const EFFECT_BUILD_PLACE_NO_DEF    := "effect.build_place_no_def"
+const EFFECT_BUILD_PLACE_INVALID   := "effect.build_place_invalid"
+const EFFECT_BUILD_PLACE_NO_SOURCE := "effect.build_place_no_source"
 
 const FORMULA_PARSE_FAILED     := "formula.parse_failed"
 const FORMULA_EXEC_FAILED      := "formula.exec_failed"
@@ -56,6 +59,8 @@ const MESH_FILE_MISSING        := "mesh.file_missing"
 const MESH_INVALID_JSON        := "mesh.invalid_json"
 
 const SCHEDULER_TOPO_CYCLE     := "scheduler.topo_cycle"
+
+const ANIMATION_NO_DEFAULT     := "animation.no_default"
 
 
 # ============================================================

@@ -78,11 +78,12 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"party_join":           _party_join(effect, env, context)
 		"party_leave":          _party_leave(effect, env, context)
 		"party_ko":             _party_ko(effect, env, context)
+		"build_place":          return _build_place(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place.",
 				"warning")
 	return {}
 
@@ -1247,3 +1248,146 @@ static func _party_ko(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 		member.set_velocity(Vector3.ZERO)
 	else:
 		member.set_velocity(Vector2.ZERO)
+
+
+# ============================================================
+# BUILD_PLACE (ADR 0037)
+# ============================================================
+#
+# Validates a candidate placement against a fixed predicate set, then
+# either spawns the entity (delegating to _spawn for renderer attach +
+# spatial-index registration + spawn-trigger dispatch — same lifecycle
+# as any other spawn) or fires `on_invalid` with the failure reason
+# bound into ctx as `failure_reason`.
+#
+# CRITICAL: this is the engine's 穿模-prevention gate. Every placement
+# touched at runtime MUST go through here, not raw `spawn`, so that
+# overlap / range / ground / boundary failures are caught BEFORE the
+# new entity enters the spatial index. See ADR 0037 §"Resolution flow".
+#
+# Predicates are coded in build_validators.gd and are NOT extensible
+# from JSON — adding a fifth predicate requires a primitive-expansion
+# ADR (per ADR 0021 / 0028 operator-surface reasoning).
+#
+# Out-of-scope for this implementation (per task spec):
+#   - Ghost-mesh PREVIEW rendering. The ADR proposes a separate
+#     build_preview_widget.gd Control for cursor-driven UIs. Phase 1's
+#     player Build verb uses the simpler "build immediately if valid,
+#     show toast if not" UX without a per-frame ghost. Future work,
+#     visual gate applies.
+#   - Multi-tick construction TICKING. Engine tags the spawned entity
+#     `under_construction` and seeds state.build_in_progress when
+#     construction_ticks > 0; the per-tick decrement + finalize rules
+#     are content (per ADR 0037 §"Multi-tick construction" — Invariant
+#     #2 forbids semantic effect names like complete_construction).
+
+## Apply each effect in a chain (Array-of-Dict). Used by build_place's
+## on_success / on_invalid sub-effects. Sub-effect failures don't abort
+## the chain — same semantics as a top-level effect array on a rule.
+static func _apply_chain(chain, env: Dictionary, ctx: Dictionary) -> void:
+	if chain == null: return
+	if chain is Dictionary:
+		# Single effect (not wrapped in an array) — accept and apply.
+		apply(chain, env, ctx)
+		return
+	if not (chain is Array): return
+	for sub in (chain as Array):
+		if sub is Dictionary:
+			apply(sub, env, ctx)
+
+
+## Validate placement, then spawn the blueprint via the existing _spawn
+## path. Returns {placed: bool, instance_id: String, reason: String}.
+##
+## reason is "" on success, "no_def" if blueprint is unknown, otherwise
+## the predicate name that failed (mirrors ADR test plan).
+static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var defs: Dictionary = env.get("defs", {})
+	var blueprint := str(_value(e.get("blueprint", ""), ctx, env))
+	if not defs.has(blueprint):
+		EngineError.raise(env, EngineError.EFFECT_BUILD_PLACE_NO_DEF,
+			"build_place: no def '%s'" % blueprint,
+			{"rule_id": ctx.get("_rule_id", ""), "field": "effect.blueprint",
+			 "got": blueprint, "known_defs": defs.keys()},
+			"Add a definition with id '%s' to entities.json, or fix the build_place blueprint." % blueprint)
+		# Per ADR 0037 test_no_def_error: neither on_success nor on_invalid
+		# fires when the def is missing — the structural error short-circuits.
+		return {"placed": false, "reason": "no_def", "instance_id": ""}
+
+	var def: Dictionary = defs[blueprint]
+	var pos = _position(e.get("position", [0, 0, 0]), env, ctx)
+	# Coerce to Vector3 — predicates assume 3D.
+	var pos3: Vector3 = _to_vec3_v(pos)
+	var yaw := float(_value(e.get("yaw", 0.0), ctx, env))
+	var owner_binding := str(e.get("owner", "self"))
+	var max_range := float(_value(e.get("max_range", 5.0), ctx, env))
+	var validate = e.get("validate", [])
+	if not (validate is Array):
+		validate = []
+
+	# Stash per-effect predicate options so build_validators can read them
+	# (e.g. ground_check_radius). Kept on env so we don't change the
+	# predicate signature for one-off knobs.
+	var prior_opts = env.get("_build_place_options", null)
+	env["_build_place_options"] = {
+		"ground_check_radius": float(e.get("ground_check_radius", 0.5)),
+		"ground_y_tolerance": float(e.get("ground_y_tolerance", 0.5)),
+	}
+
+	# Run predicates left-to-right; first failure short-circuits and the
+	# `failure_reason` propagates into the on_invalid context.
+	var failure_reason: String = ""
+	for pname in validate:
+		var pname_s := str(pname)
+		var result: Dictionary = BuildValidators.check(
+			pname_s, def, pos3, yaw, owner_binding, max_range, env, ctx)
+		if not bool(result.get("ok", false)):
+			failure_reason = str(result.get("reason", pname_s))
+			break
+
+	# Restore prior options (or clear if absent) so the env is clean.
+	if prior_opts == null:
+		env.erase("_build_place_options")
+	else:
+		env["_build_place_options"] = prior_opts
+
+	var sub_ctx: Dictionary = ctx.duplicate()
+	if failure_reason != "":
+		# Surface failure through env.error_buffer for qa-tester; severity
+		# warning so authors see the issue without aborting headless runs.
+		EngineError.raise(env, EngineError.EFFECT_BUILD_PLACE_INVALID,
+			"build_place: predicate '%s' rejected placement of '%s' at %s" % [failure_reason, blueprint, str(pos3)],
+			{"rule_id": ctx.get("_rule_id", ""), "field": "effect.validate",
+			 "predicate": failure_reason, "blueprint": blueprint, "position": str(pos3)},
+			"This is a normal validation failure — wire on_invalid to refund cost / show a toast / clear build mode.",
+			"warning")
+		sub_ctx["failure_reason"] = failure_reason
+		_apply_chain(e.get("on_invalid", []), env, sub_ctx)
+		return {"placed": false, "reason": failure_reason, "instance_id": ""}
+
+	# Validation passed → delegate to _spawn for renderer attach + spatial
+	# index registration + spawn-trigger dispatch (same lifecycle as any
+	# other spawn).
+	var spawn_overrides: Dictionary = {"state": {"yaw": yaw}}
+	var construction_ticks := int(_value(e.get("construction_ticks", 0), ctx, env))
+	if construction_ticks > 0:
+		(spawn_overrides["state"] as Dictionary)["build_in_progress"] = construction_ticks
+		(spawn_overrides["state"] as Dictionary)["build_progress_target"] = construction_ticks
+		spawn_overrides["tags"] = ["under_construction"]
+	var spawn_effect: Dictionary = {
+		"type": "spawn",
+		"template": blueprint,
+		"position": pos3,
+		"overrides": spawn_overrides,
+	}
+	var spawn_result: Dictionary = _spawn(spawn_effect, env, ctx)
+	var inst_id: String = str(spawn_result.get("spawned_id", ""))
+
+	# Fire on_success chain. Note: spawn-trigger rules already fired during
+	# _spawn's dispatch_lifecycle("spawn", inst_id) call — on_success is the
+	# author's hook for build-specific cleanup (e.g. clear build_blueprint
+	# state, decrement resource cost, emit a build-specific signal).
+	sub_ctx["spawned_id"] = inst_id
+	sub_ctx["build_id"] = inst_id
+	_apply_chain(e.get("on_success", []), env, sub_ctx)
+	return {"placed": true, "reason": "", "instance_id": inst_id}

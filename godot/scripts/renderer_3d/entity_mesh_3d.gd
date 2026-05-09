@@ -29,6 +29,10 @@ var _mesh_params: Dictionary = {}
 # Entity reference + position sync
 var _entity_ref: Entity = null
 
+# ADR 0035 — per-entity animation interpreter (null when mesh has no
+# `animations` block or when load-time validation failed).
+var _animation_director: AnimationDirector = null
+
 # Cached mesh library
 static var _mesh_lib_cache: MeshLib = null
 
@@ -70,6 +74,9 @@ func _ready() -> void:
 				(visual.get("params", {}) as Dictionary)
 			)
 			_build_mesh_children()
+			# ADR 0035 — instantiate animation director if mesh def declares
+			# animations. Returns null for static meshes (backwards-compat).
+			_animation_director = AnimationDirector.from_mesh_def(mesh_def, self, ent, {})
 			_mode = "mesh"
 			_apply_shadow_only_if_set(visual)
 			_sync_position()
@@ -110,6 +117,9 @@ func _set_shadow_only_recursive(node: Node) -> void:
 func _process(_dt: float) -> void:
 	_sync_position()
 	_sync_yaw()
+	# ADR 0035 — animate addressable mesh pieces per-frame.
+	if _animation_director != null:
+		_animation_director.tick(Time.get_ticks_msec() / 1000.0)
 
 
 # ============================================================

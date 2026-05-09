@@ -256,6 +256,13 @@ func load_data() -> void:
 	var sched_dir := get_node_or_null("ScheduleDirector")
 	if sched_dir != null and sched_dir.has_method("register_schedules_from_env"):
 		sched_dir.register_schedules_from_env(scheduler.env)
+	# ADR 0036: LifecycleDirector reads each entity def's `lifecycle` block
+	# and registers per-entity stage tables. No-op for games shipping no
+	# lifecycle templates (existing demos unaffected — backward-compat by
+	# absence of the field).
+	var lc_dir := get_node_or_null("LifecycleDirector")
+	if lc_dir != null and lc_dir.has_method("register_lifecycles_from_env"):
+		lc_dir.register_lifecycles_from_env(scheduler.env)
 	scheduler.flush_effects()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
@@ -691,6 +698,14 @@ func _on_tick(count: int) -> void:
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)
 	scheduler.tick()
+	# ADR 0036: LifecycleDirector advances entity ages + checks stage
+	# thresholds on the same per-tick cadence. dt = tick_seconds so a
+	# year_seconds=900 template ages an entity by tick_seconds/900 years
+	# per tick (Phase 1 default → schema-only when age_per_in_game_year=0).
+	# No-op when no entity has a lifecycle template registered.
+	var lc_dir2 := get_node_or_null("LifecycleDirector")
+	if lc_dir2 != null and lc_dir2.has_method("tick"):
+		lc_dir2.tick(scheduler.env, tick_seconds)
 	_decrement_lifetimes()
 	process_pending_level_transition()
 	# ADR 0014: chunk streaming runs after level transition (level changes

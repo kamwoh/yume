@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -20,6 +20,7 @@
 [ext_resource type="Script" path="res://scripts/engine/screen_smoke_runner.gd" id="8"]
 [ext_resource type="Script" path="res://scripts/engine/nameplate_renderer.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/engine/schedule_director.gd" id="10"]
+[ext_resource type="Script" path="res://scripts/engine/lifecycle_director.gd" id="11"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -66,6 +67,16 @@ script = ExtResource("7")
 ; def carries a schedule block.
 [node name="ScheduleDirector" type="Node" parent="."]
 script = ExtResource("10")
+
+; ADR 0036: LifecycleDirector reads entity defs' `lifecycle` blocks
+; (resolved from @lib.lifecycles.<species> via $extends). Per-tick
+; it increments state.age, checks life_stage thresholds, swaps
+; visual.mesh + tags + speed_mult on transitions, and emits
+; life_stage_changed / entity_died signals into env.signal_buffer.
+; No-op when no entity def carries a lifecycle block (existing
+; demos unaffected — backward-compat by absence).
+[node name="LifecycleDirector" type="Node" parent="."]
+script = ExtResource("11")
 
 ; Per-screen smoke harness — activates only with `--smoke-screens`.
 ; Walks every screen in screens.json, captures each, exits.

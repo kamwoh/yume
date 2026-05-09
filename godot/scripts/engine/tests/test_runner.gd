@@ -67,6 +67,9 @@ func _ready() -> void:
 	test_nameplate_picks_display_name_over_id()
 	test_lib_resolver()
 	test_schedule_primitive()
+	test_animation_primitive()
+	test_lifecycle_primitive()
+	test_build_place_primitive()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -3847,3 +3850,894 @@ func test_schedule_primitive() -> void:
 		expect_eq(str(p.get("new_verb", "")), "rest", "payload.new_verb = rest")
 		expect_eq(int(p.get("slot_id", -999)), 1, "payload.slot_id = 1")
 	sig_ent.queue_free(); sd9.queue_free()
+
+
+# ============================================================
+# ANIMATION PRIMITIVE (ADR 0035)
+# ============================================================
+
+## Build a Node3D root with named MeshInstance3D children matching a
+## bipedal mesh def (torso/head/left_arm/right_arm/left_leg/right_leg).
+## Returns {root, entity} for the caller to drive AnimationDirector.
+func _make_animation_fixture(state_overrides: Dictionary = {}, fixture_tags: Array = []) -> Dictionary:
+	var root := Node3D.new()
+	add_child(root)
+	for piece_name in ["torso", "head", "left_arm", "right_arm", "left_leg", "right_leg"]:
+		var mi := MeshInstance3D.new()
+		mi.name = piece_name
+		mi.mesh = BoxMesh.new()
+		# Authored rest pose: position differs per piece so we can detect
+		# baseline preservation. Authored rotation = (0, 0, 0).
+		match piece_name:
+			"torso": mi.position = Vector3(0, 1.0, 0)
+			"head": mi.position = Vector3(0, 1.55, 0)
+			"left_arm": mi.position = Vector3(-0.32, 1.0, 0)
+			"right_arm": mi.position = Vector3(0.32, 1.0, 0)
+			"left_leg": mi.position = Vector3(-0.12, 0.4, 0)
+			"right_leg": mi.position = Vector3(0.12, 0.4, 0)
+		root.add_child(mi)
+	var def: Dictionary = {"id": "animan", "tags": fixture_tags, "state_init": state_overrides}
+	var ent := Entity.create(def, "animan_1")
+	add_child(ent)
+	return {"root": root, "entity": ent}
+
+
+## Standard test mesh def with idle/walk/chop animations and the canonical
+## state-rule precedence (verb=chop_wood → chop, |vel|>0.1 → walk, default
+## → idle).
+func _standard_anim_mesh_def() -> Dictionary:
+	return {
+		"_origin": "test_animation_primitive",
+		"animations": {
+			"idle": {
+				"duration": 2.0,
+				"loop": true,
+				"tracks": [
+					{"piece": "head", "rotation_y": [0.0, 0.05, 0.0, -0.05, 0.0]},
+				],
+			},
+			"walk": {
+				"duration": 0.6,
+				"loop": true,
+				"tracks": [
+					{"piece": "left_arm",  "rotation_z": [0.0,  0.4, 0.0, -0.4, 0.0]},
+					{"piece": "right_arm", "rotation_z": [0.0, -0.4, 0.0,  0.4, 0.0]},
+					{"piece": "left_leg",  "rotation_x": [0.0,  0.3, 0.0, -0.3, 0.0]},
+					{"piece": "right_leg", "rotation_x": [0.0, -0.3, 0.0,  0.3, 0.0]},
+				],
+			},
+			"chop": {
+				"duration": 0.8,
+				"loop": true,
+				"tracks": [
+					{"piece": "right_arm", "rotation_x": [0.0, -1.4, -1.4, 0.0]},
+					{"piece": "torso",     "rotation_x": [0.0, -0.2,  0.0, 0.0]},
+				],
+			},
+		},
+		"animation_state_rules": [
+			{"if_state_eq": {"current_verb": "chop_wood"}, "state": "chop"},
+			{"if_velocity_gt": 0.1, "state": "walk"},
+			{"default": "idle"},
+		],
+	}
+
+
+func _free_anim_fixture(fix: Dictionary) -> void:
+	var root: Node3D = fix.get("root", null)
+	var ent: Entity = fix.get("entity", null)
+	if ent != null: ent.queue_free()
+	if root != null: root.queue_free()
+
+
+func test_animation_primitive() -> void:
+	_section("animation_primitive (ADR 0035)")
+
+	# ---------- Assertion 1: state pick — verb-based (`if_state_eq`) ----------
+	# current_verb = "chop_wood" → state="chop" (rule order: chop first;
+	# velocity-walk rule comes after and wouldn't fire even if vel were high).
+	var fix1 := _make_animation_fixture({"current_verb": "chop_wood", "velocity": Vector3(0.5, 0, 0)})
+	var dir1 := AnimationDirector.from_mesh_def(_standard_anim_mesh_def(), (fix1["root"] as Node3D), (fix1["entity"] as Entity), {})
+	expect(dir1 != null, "director constructs when animations + default rule present")
+	dir1.tick(0.0)
+	expect_eq(dir1._active_state, "chop", "verb=chop_wood picks 'chop' state")
+
+	# ---------- Assertion 2: state pick — velocity-based ----------
+	var fix2 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
+	var dir2 := AnimationDirector.from_mesh_def(_standard_anim_mesh_def(), (fix2["root"] as Node3D), (fix2["entity"] as Entity), {})
+	dir2.tick(0.0)
+	expect_eq(dir2._active_state, "walk", "|velocity|=0.5 > 0.1 picks 'walk' state")
+
+	# ---------- Assertion 3: state pick — default fallback ----------
+	var fix3 := _make_animation_fixture({"current_verb": "", "velocity": Vector3.ZERO})
+	var dir3 := AnimationDirector.from_mesh_def(_standard_anim_mesh_def(), (fix3["root"] as Node3D), (fix3["entity"] as Entity), {})
+	dir3.tick(0.0)
+	expect_eq(dir3._active_state, "idle", "no condition matches → default 'idle'")
+
+	# ---------- Assertion 4: interpolation at t=0 (boundary) ----------
+	# Walk's left_arm rotation_z keys = [0, 0.4, 0, -0.4, 0]. At t=0 → 0.0.
+	# First tick activates walk + sets _state_started_at; second tick at
+	# the SAME timestamp re-evaluates with elapsed=0 → t=0 → first key.
+	var fix4 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
+	var dir4 := AnimationDirector.from_mesh_def(_standard_anim_mesh_def(), (fix4["root"] as Node3D), (fix4["entity"] as Entity), {})
+	dir4.tick(10.0)
+	dir4.tick(10.0)
+	var left_arm4: Node3D = (fix4["root"] as Node3D).find_child("left_arm", true, false)
+	expect(abs(left_arm4.rotation.z - 0.0) < 0.001,
+		"at t=0 boundary, left_arm rotation_z = 0.0 (first keyframe)")
+
+	# ---------- Assertion 5: linear interpolation midpoint ----------
+	# 2 keys [0.0, 1.0] → at t=0.5 → 0.5.
+	var midpoint_def: Dictionary = {
+		"_origin": "midpoint_test",
+		"animations": {
+			"sweep": {
+				"duration": 1.0,
+				"loop": true,
+				"tracks": [{"piece": "torso", "rotation_x": [0.0, 1.0]}],
+			},
+		},
+		"animation_state_rules": [{"default": "sweep"}],
+	}
+	var fix5 := _make_animation_fixture()
+	var dir5 := AnimationDirector.from_mesh_def(midpoint_def, (fix5["root"] as Node3D), (fix5["entity"] as Entity), {})
+	dir5.tick(0.0)
+	dir5.tick(0.5)
+	var torso5: Node3D = (fix5["root"] as Node3D).find_child("torso", true, false)
+	expect(abs(torso5.rotation.x - 0.5) < 0.001,
+		"linear interp midpoint: t=0.5 between [0,1] → 0.5 (got %f)" % torso5.rotation.x)
+
+	# ---------- Assertion 6: loop wrap-around (fposmod) ----------
+	# elapsed > duration must wrap. dur=1.0, elapsed=2.5 → t=0.5 → val=0.5.
+	dir5.tick(2.5)
+	expect(abs(torso5.rotation.x - 0.5) < 0.001,
+		"loop wrap: elapsed=2.5 with dur=1.0 → t=0.5 → 0.5 (got %f)" % torso5.rotation.x)
+
+	# ---------- Assertion 7: multi-piece concurrent tracks ----------
+	# Walk state animates 4 pieces. After elapsed=0.15 (= 0.6/4), we're
+	# exactly on key[1] for each track: 0.4 / -0.4 / 0.3 / -0.3.
+	var fix7 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
+	var dir7 := AnimationDirector.from_mesh_def(_standard_anim_mesh_def(), (fix7["root"] as Node3D), (fix7["entity"] as Entity), {})
+	dir7.tick(0.0)
+	dir7.tick(0.15)
+	var la7: Node3D = (fix7["root"] as Node3D).find_child("left_arm", true, false)
+	var ra7: Node3D = (fix7["root"] as Node3D).find_child("right_arm", true, false)
+	var ll7: Node3D = (fix7["root"] as Node3D).find_child("left_leg", true, false)
+	var rl7: Node3D = (fix7["root"] as Node3D).find_child("right_leg", true, false)
+	expect(abs(la7.rotation.z - 0.4) < 0.001
+		and abs(ra7.rotation.z - (-0.4)) < 0.001
+		and abs(ll7.rotation.x - 0.3) < 0.001
+		and abs(rl7.rotation.x - (-0.3)) < 0.001,
+		"all 4 walk tracks animate concurrently to expected key[1] values")
+
+	# ---------- Assertion 8: state transition (idle → walk) ----------
+	# Velocity change mid-stream forces a state pick on the next tick.
+	var fix8 := _make_animation_fixture({"current_verb": "", "velocity": Vector3.ZERO})
+	var dir8 := AnimationDirector.from_mesh_def(_standard_anim_mesh_def(), (fix8["root"] as Node3D), (fix8["entity"] as Entity), {})
+	dir8.tick(5.0)
+	expect_eq(dir8._active_state, "idle", "starts in idle when velocity=0")
+	(fix8["entity"] as Entity).set_state("velocity", Vector3(0.5, 0, 0))
+	dir8.tick(7.0)
+	expect_eq(dir8._active_state, "walk", "transitions to walk after velocity change")
+
+	# ---------- Assertion 9: missing-piece graceful fallback ----------
+	# Track references "left_hand" (nonexistent) plus "left_arm" (exists).
+	# Director must not crash; left_arm still animates.
+	var fix9 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
+	var partial_def: Dictionary = {
+		"_origin": "missing_piece_test",
+		"animations": {
+			"walk": {
+				"duration": 0.6,
+				"loop": true,
+				"tracks": [
+					{"piece": "left_hand", "rotation_z": [0.0, 0.5, 0.0]},
+					{"piece": "left_arm",  "rotation_z": [0.0, 0.4, 0.0]},
+				],
+			},
+		},
+		"animation_state_rules": [
+			{"if_velocity_gt": 0.1, "state": "walk"},
+			{"default": "walk"},
+		],
+	}
+	var dir9 := AnimationDirector.from_mesh_def(partial_def, (fix9["root"] as Node3D), (fix9["entity"] as Entity), {})
+	expect(dir9 != null, "director still constructs when a track references a missing piece")
+	dir9.tick(0.0)
+	dir9.tick(0.3)  # midpoint of 0.6s loop, 3 keys → t=0.5 → key[1] = 0.4
+	var la9: Node3D = (fix9["root"] as Node3D).find_child("left_arm", true, false)
+	expect(abs(la9.rotation.z - 0.4) < 0.001,
+		"missing 'left_hand' track skipped silently; 'left_arm' still animates (got %f)" % la9.rotation.z)
+
+	# ---------- Assertion 10: backwards-compat — no animations field ----------
+	# Mesh def without animations key → from_mesh_def returns null. Existing
+	# 13 demos rely on this.
+	var fix10 := _make_animation_fixture()
+	var bare_def: Dictionary = {"primitives": [{"op": "box", "name": "torso"}]}
+	var dir10 := AnimationDirector.from_mesh_def(bare_def, (fix10["root"] as Node3D), (fix10["entity"] as Entity), {})
+	expect(dir10 == null,
+		"mesh def without animations field → director is null (backwards-compat)")
+
+	# ---------- Assertion 11: missing default rule → load-time error ----------
+	var fix11 := _make_animation_fixture()
+	var no_default_def: Dictionary = {
+		"_origin": "no_default_test",
+		"animations": {"idle": {"duration": 1.0, "tracks": []}},
+		"animation_state_rules": [
+			{"if_velocity_gt": 0.1, "state": "walk"},
+		],
+	}
+	var env11: Dictionary = {"error_buffer": []}
+	var dir11 := AnimationDirector.from_mesh_def(no_default_def, (fix11["root"] as Node3D), (fix11["entity"] as Entity), env11)
+	expect(dir11 == null, "missing `default` rule → from_mesh_def returns null")
+	var errs: Array = env11.get("error_buffer", [])
+	var saw_no_default := false
+	for rec in errs:
+		if rec is Dictionary and str((rec as Dictionary).get("code", "")) == EngineError.ANIMATION_NO_DEFAULT:
+			saw_no_default = true
+			break
+	expect(saw_no_default, "missing default rule emits ANIMATION_NO_DEFAULT to error_buffer")
+
+	# ---------- Assertion 12: baseline cached at construction ----------
+	# Authored rest pose preserved on the baseline. After applying a track
+	# that touches ONLY rotation_x, position stays at authored pos.
+	var fix12 := _make_animation_fixture()
+	var rot_only_def: Dictionary = {
+		"_origin": "baseline_test",
+		"animations": {
+			"twist": {
+				"duration": 1.0,
+				"loop": true,
+				"tracks": [{"piece": "left_arm", "rotation_x": [0.0, 1.0]}],
+			},
+		},
+		"animation_state_rules": [{"default": "twist"}],
+	}
+	var dir12 := AnimationDirector.from_mesh_def(rot_only_def, (fix12["root"] as Node3D), (fix12["entity"] as Entity), {})
+	dir12.tick(0.0)
+	dir12.tick(0.5)
+	var la12: Node3D = (fix12["root"] as Node3D).find_child("left_arm", true, false)
+	# Authored pos was Vector3(-0.32, 1.0, 0); rotation_x track must NOT
+	# disturb it. Baseline preserved.
+	expect(abs(la12.position.x - (-0.32)) < 0.001
+		and abs(la12.position.y - 1.0) < 0.001
+		and abs(la12.position.z - 0.0) < 0.001,
+		"baseline pos preserved when only rotation_x is animated (got %s)" % la12.position)
+
+	# Cleanup all fixtures
+	_free_anim_fixture(fix1)
+	_free_anim_fixture(fix2)
+	_free_anim_fixture(fix3)
+	_free_anim_fixture(fix4)
+	_free_anim_fixture(fix5)
+	_free_anim_fixture(fix7)
+	_free_anim_fixture(fix8)
+	_free_anim_fixture(fix9)
+	_free_anim_fixture(fix10)
+	_free_anim_fixture(fix11)
+	_free_anim_fixture(fix12)
+
+
+# ============================================================
+# LIFECYCLE PRIMITIVE (ADR 0036)
+# ============================================================
+# Tests the LifecycleDirector — per-tick aging + stage transitions
+# driven by JSON-declared lifecycle templates. Mirrors
+# test_schedule_primitive's pattern: build env stub, instantiate
+# director, call register/tick, assert state changes.
+
+func test_lifecycle_primitive() -> void:
+	_section("lifecycle_primitive (ADR 0036)")
+
+	# Standard human lifecycle template per ADR 0036's reference shape.
+	# 5 stages: infant / child / adult / elder / dead. Compressed
+	# year_seconds=1.0 + age_per_in_game_year=1.0 so 1 second of dt
+	# advances exactly 1 year — makes assertions clean.
+	var human_template := {
+		"stages": [
+			{"id": "infant", "min_age": 0,  "max_age": 2,
+			 "mesh": "human_infant_3d",
+			 "abilities": ["needs_caring"], "speed_mult": 0.4},
+			{"id": "child",  "min_age": 2,  "max_age": 12,
+			 "mesh": "human_child_3d",
+			 "abilities": ["gather", "talk"], "speed_mult": 0.85},
+			{"id": "adult",  "min_age": 12, "max_age": 50,
+			 "mesh": "merchant_npc_3d",
+			 "abilities": ["all"], "speed_mult": 1.0},
+			{"id": "elder",  "min_age": 50, "max_age": 80,
+			 "mesh": "human_elder_3d",
+			 "abilities": ["talk", "tend_fire", "teach"],
+			 "speed_mult": 0.6},
+			{"id": "dead",   "min_age": 80,
+			 "mesh": null, "abilities": [], "speed_mult": 0.0,
+			 "terminal": true},
+		],
+		"age_per_in_game_year": 1.0,
+		"year_seconds": 1.0,
+	}
+
+	# ---------- Assertion 1: age increments per in-game year ----------
+	var ld1 := LifecycleDirector.new()
+	var human_def := {
+		"id": "villager", "tags": ["villager", "human"],
+		"lifecycle": human_template,
+		"state_init": {"age": 5.0, "life_stage": "child"},
+		"visual": {"mesh": "human_child_3d"},
+	}
+	var v1 := Entity.create(human_def, "v1")
+	var entities1: Dictionary = {"v1": v1}
+	var env1: Dictionary = {
+		"entities": entities1, "defs": {"villager": human_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld1.register_lifecycle("v1", human_template, env1, "human")
+	ld1.tick(env1, 1.0)   # +1 year
+	var age_after_1y: float = float(v1.get_state("age", 0.0))
+	expect(abs(age_after_1y - 6.0) < 0.001,
+		"age increments by 1.0 after dt=1.0 with year_seconds=1, rate=1 (got %f)" % age_after_1y)
+	v1.queue_free(); ld1.queue_free()
+
+	# ---------- Assertion 2: stage transition at threshold ----------
+	# Child (max_age=12). Spawn at 11.5, tick +1 year → crosses to adult.
+	var ld2 := LifecycleDirector.new()
+	var v2 := Entity.create(human_def, "v2")
+	v2.set_state("age", 11.5)
+	v2.set_state("life_stage", "child")
+	var entities2: Dictionary = {"v2": v2}
+	var env2: Dictionary = {
+		"entities": entities2, "defs": {"villager": human_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld2.register_lifecycle("v2", human_template, env2, "human")
+	ld2.tick(env2, 1.0)   # 11.5 + 1.0 = 12.5 → crosses 12.0 → adult
+	expect_eq(str(v2.get_state("life_stage", "")), "adult",
+		"life_stage advances from child to adult when crossing max_age=12")
+	v2.queue_free(); ld2.queue_free()
+
+	# ---------- Assertion 3: mesh swap on transition ----------
+	# Same setup as #2; check visual.mesh swapped to adult mesh.
+	var ld3 := LifecycleDirector.new()
+	var v3 := Entity.create(human_def, "v3")
+	v3.set_state("age", 11.5)
+	v3.set_state("life_stage", "child")
+	var entities3: Dictionary = {"v3": v3}
+	var env3: Dictionary = {
+		"entities": entities3, "defs": {"villager": human_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld3.register_lifecycle("v3", human_template, env3, "human")
+	ld3.tick(env3, 1.0)
+	expect_eq(str(v3.visual.get("mesh", "")), "merchant_npc_3d",
+		"visual.mesh swaps to adult-stage mesh on transition")
+	v3.queue_free(); ld3.queue_free()
+
+	# ---------- Assertion 4: ability gating via tag mutation ----------
+	# Child entity carries child-stage abilities (gather + talk) plus
+	# species/role tags. On transition to adult (abilities="all"),
+	# previous abilities are removed but species tags survive.
+	var ld4 := LifecycleDirector.new()
+	var child_def := {
+		"id": "kid", "tags": ["villager", "human", "gather", "talk"],
+		"lifecycle": human_template,
+		"state_init": {"age": 11.5, "life_stage": "child"},
+		"visual": {"mesh": "human_child_3d"},
+	}
+	var v4 := Entity.create(child_def, "v4")
+	var entities4: Dictionary = {"v4": v4}
+	var env4: Dictionary = {
+		"entities": entities4, "defs": {"kid": child_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld4.register_lifecycle("v4", human_template, env4, "human")
+	ld4.tick(env4, 1.0)   # crosses to adult
+	expect(not v4.has_tag("gather"), "child ability 'gather' removed on adult transition")
+	expect(not v4.has_tag("talk"), "child ability 'talk' removed on adult transition")
+	expect(v4.has_tag("villager"), "non-ability tag 'villager' survives transition")
+	expect(v4.has_tag("human"), "non-ability tag 'human' survives transition")
+	v4.queue_free(); ld4.queue_free()
+
+	# ---------- Assertion 5: speed_mult applied ----------
+	# Elder stage has speed_mult=0.6. Spawn entity at age 49.5, tick
+	# +1 year → crosses to elder → state.speed_mult should be 0.6.
+	var ld5 := LifecycleDirector.new()
+	var elder_def := {
+		"id": "elder_v", "tags": ["villager", "human"],
+		"lifecycle": human_template,
+		"state_init": {"age": 49.5, "life_stage": "adult", "speed_mult": 1.0},
+		"visual": {"mesh": "merchant_npc_3d"},
+	}
+	var v5 := Entity.create(elder_def, "v5")
+	var entities5: Dictionary = {"v5": v5}
+	var env5: Dictionary = {
+		"entities": entities5, "defs": {"elder_v": elder_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld5.register_lifecycle("v5", human_template, env5, "human")
+	ld5.tick(env5, 1.0)
+	expect_eq(str(v5.get_state("life_stage", "")), "elder",
+		"adult → elder transition at age=50.5")
+	expect(abs(float(v5.get_state("speed_mult", 0.0)) - 0.6) < 0.001,
+		"elder stage speed_mult=0.6 written to state.speed_mult")
+	v5.queue_free(); ld5.queue_free()
+
+	# ---------- Assertion 6: entity_died signal on terminal stage ----------
+	# Spawn entity at 79.5, tick +1 year → crosses to dead (terminal).
+	# Expect both life_stage_changed AND entity_died in signal buffer.
+	var ld6 := LifecycleDirector.new()
+	var dying_def := {
+		"id": "dying", "tags": ["villager", "human"],
+		"lifecycle": human_template,
+		"state_init": {"age": 79.5, "life_stage": "elder"},
+		"visual": {"mesh": "human_elder_3d"},
+	}
+	var v6 := Entity.create(dying_def, "v6")
+	var entities6: Dictionary = {"v6": v6}
+	var env6: Dictionary = {
+		"entities": entities6, "defs": {"dying": dying_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld6.register_lifecycle("v6", human_template, env6, "human")
+	ld6.tick(env6, 1.0)
+	expect_eq(str(v6.get_state("life_stage", "")), "dead",
+		"elder → dead transition at age=80.5 (terminal stage)")
+	var buf6: Array = env6["signal_buffer"]
+	var saw_stage_changed: bool = false
+	var saw_died: bool = false
+	for s in buf6:
+		if s is Dictionary:
+			var name_s: String = str((s as Dictionary).get("name", ""))
+			if name_s == "life_stage_changed": saw_stage_changed = true
+			if name_s == "entity_died": saw_died = true
+	expect(saw_stage_changed and saw_died,
+		"terminal transition emits BOTH life_stage_changed AND entity_died signals")
+	v6.queue_free(); ld6.queue_free()
+
+	# ---------- Assertion 7: save/load mid-stage (state survives round-trip) ----------
+	# Build adult at age=23.5, snapshot, restore via Entity.create with
+	# overrides — verify age + life_stage round-trip cleanly. The
+	# director uses state.age + state.life_stage which serialize via
+	# normal entity-state path (ADR 0010), so this verifies that the
+	# director resumes correctly from a loaded entity without double-
+	# advancing or losing the stage.
+	var ld7 := LifecycleDirector.new()
+	var save_def := {
+		"id": "saver", "tags": ["villager", "human"],
+		"lifecycle": human_template,
+		"state_init": {"age": 23.5, "life_stage": "adult"},
+		"visual": {"mesh": "merchant_npc_3d"},
+	}
+	var v7_a := Entity.create(save_def, "v7")
+	var snap: Dictionary = v7_a.snapshot()
+	v7_a.queue_free()
+	var v7_b := Entity.create(save_def, "v7", {"state": snap.get("state", {})})
+	expect(abs(float(v7_b.get_state("age", 0.0)) - 23.5) < 0.001,
+		"state.age round-trips through snapshot (23.5)")
+	expect_eq(str(v7_b.get_state("life_stage", "")), "adult",
+		"state.life_stage round-trips through snapshot (adult)")
+	# Director resumes ticking cleanly — register + tick small dt should
+	# NOT advance stage (still well within adult range 12..50).
+	var entities7: Dictionary = {"v7": v7_b}
+	var env7: Dictionary = {
+		"entities": entities7, "defs": {"saver": save_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld7.register_lifecycle("v7", human_template, env7, "human")
+	ld7.tick(env7, 1.0)   # 23.5 → 24.5 — still adult
+	expect_eq(str(v7_b.get_state("life_stage", "")), "adult",
+		"director resumes ticking from loaded age without double-advancing")
+	v7_b.queue_free(); ld7.queue_free()
+
+	# ---------- Assertion 8: $extends from @lib.lifecycles.human ----------
+	# Per ADR 0027, lifecycle blocks may be authored as $extends-resolved
+	# variants of an @lib template. lib_resolver runs at JSON-load time
+	# so by the time register_lifecycles_from_env is called, the field
+	# is already a resolved Dictionary. We simulate that: a per-game
+	# def's lifecycle dict carries the same structural shape as the
+	# library entry (cross-game template reuse). This is a
+	# representational test — the resolver itself has its own
+	# test_lib_resolver section.
+	var ld8 := LifecycleDirector.new()
+	var extended_template := human_template.duplicate(true)
+	var lib_def := {
+		"id": "lib_villager", "tags": ["villager", "human"],
+		"lifecycle": extended_template,
+		"state_init": {"age": 11.5, "life_stage": "child"},
+		"visual": {"mesh": "human_child_3d"},
+	}
+	var v8 := Entity.create(lib_def, "v8")
+	var entities8: Dictionary = {"v8": v8}
+	var env8: Dictionary = {
+		"entities": entities8, "defs": {"lib_villager": lib_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld8.register_lifecycles_from_env(env8)
+	ld8.tick(env8, 1.0)   # crosses to adult
+	expect_eq(str(v8.get_state("life_stage", "")), "adult",
+		"$extends-resolved @lib.lifecycles.human template drives transitions identically")
+	v8.queue_free(); ld8.queue_free()
+
+	# ---------- Assertion 9: multiple lifecycle templates coexist ----------
+	# Human (5 stages), deer (3 stages: fawn/adult/dead), wolf
+	# (4 stages). Each entity uses its own template — no crossover.
+	var deer_template := {
+		"stages": [
+			{"id": "fawn",  "min_age": 0, "max_age": 1,
+			 "mesh": "deer_fawn_3d", "abilities": ["follow_mom"], "speed_mult": 0.6},
+			{"id": "adult", "min_age": 1, "max_age": 10,
+			 "mesh": "deer_3d", "abilities": ["forage", "flee"], "speed_mult": 1.2},
+			{"id": "dead",  "min_age": 10,
+			 "mesh": null, "abilities": [], "speed_mult": 0.0, "terminal": true},
+		],
+		"age_per_in_game_year": 1.0, "year_seconds": 1.0,
+	}
+	var wolf_template := {
+		"stages": [
+			{"id": "pup",   "min_age": 0, "max_age": 1,
+			 "mesh": "wolf_pup_3d", "abilities": ["yip"], "speed_mult": 0.5},
+			{"id": "adult", "min_age": 1, "max_age": 7,
+			 "mesh": "wolf_3d", "abilities": ["hunt", "howl"], "speed_mult": 1.4},
+			{"id": "elder", "min_age": 7, "max_age": 12,
+			 "mesh": "wolf_elder_3d", "abilities": ["howl"], "speed_mult": 0.8},
+			{"id": "dead",  "min_age": 12,
+			 "mesh": null, "abilities": [], "speed_mult": 0.0, "terminal": true},
+		],
+		"age_per_in_game_year": 1.0, "year_seconds": 1.0,
+	}
+	var ld9 := LifecycleDirector.new()
+	var h_def := {"id": "h", "tags": ["human"], "lifecycle": human_template,
+		"state_init": {"age": 11.5, "life_stage": "child"},
+		"visual": {"mesh": "human_child_3d"}}
+	var d_def := {"id": "d", "tags": ["deer"], "lifecycle": deer_template,
+		"state_init": {"age": 0.5, "life_stage": "fawn"},
+		"visual": {"mesh": "deer_fawn_3d"}}
+	var w_def := {"id": "w", "tags": ["wolf"], "lifecycle": wolf_template,
+		"state_init": {"age": 6.5, "life_stage": "adult"},
+		"visual": {"mesh": "wolf_3d"}}
+	var h_e := Entity.create(h_def, "h1")
+	var d_e := Entity.create(d_def, "d1")
+	var w_e := Entity.create(w_def, "w1")
+	var entities9: Dictionary = {"h1": h_e, "d1": d_e, "w1": w_e}
+	var env9: Dictionary = {
+		"entities": entities9,
+		"defs": {"h": h_def, "d": d_def, "w": w_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld9.register_lifecycle("h1", human_template, env9, "human")
+	ld9.register_lifecycle("d1", deer_template, env9, "deer")
+	ld9.register_lifecycle("w1", wolf_template, env9, "wolf")
+	ld9.tick(env9, 1.0)
+	expect_eq(str(h_e.get_state("life_stage", "")), "adult",
+		"human entity advances child→adult under human template")
+	expect_eq(str(d_e.get_state("life_stage", "")), "adult",
+		"deer entity advances fawn→adult under deer template (3-stage table)")
+	expect_eq(str(w_e.get_state("life_stage", "")), "elder",
+		"wolf entity advances adult→elder under wolf template (4-stage table)")
+	h_e.queue_free(); d_e.queue_free(); w_e.queue_free(); ld9.queue_free()
+
+	# ---------- Assertion 10: no-lifecycle backward-compat ----------
+	# Entity without lifecycle field — director skips silently. No age
+	# increment, no life_stage write, no signal emit. Existing demos
+	# unaffected by this primitive.
+	var ld10 := LifecycleDirector.new()
+	var plain_def := {
+		"id": "rock", "tags": ["inert"],
+		"state_init": {"hardness": 5},
+		"visual": {"mesh": "rock_3d"},
+	}
+	var rock := Entity.create(plain_def, "r1")
+	var entities10: Dictionary = {"r1": rock}
+	var env10: Dictionary = {
+		"entities": entities10, "defs": {"rock": plain_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+	}
+	ld10.register_lifecycles_from_env(env10)   # walks defs — no lifecycle field
+	ld10.tick(env10, 100.0)                    # huge dt — should be no-op
+	expect(rock.get_state("age", null) == null,
+		"entity without lifecycle field has no state.age set")
+	expect(rock.get_state("life_stage", null) == null,
+		"entity without lifecycle field has no state.life_stage set")
+	expect_eq((env10["signal_buffer"] as Array).size(), 0,
+		"no signals emitted for entities without a lifecycle template")
+	rock.queue_free(); ld10.queue_free()
+
+	# ---------- Assertion 11: infinite-life mode toggle ----------
+	# settings.infinite_life=true + entity tagged "player" → director
+	# REFUSES to advance into a terminal stage. Age pins just below
+	# the terminal threshold instead of crossing.
+	var ld11 := LifecycleDirector.new()
+	var player_def := {
+		"id": "player", "tags": ["player", "human"],
+		"lifecycle": human_template,
+		"state_init": {"age": 79.5, "life_stage": "elder"},
+		"visual": {"mesh": "human_elder_3d"},
+	}
+	var p := Entity.create(player_def, "p1")
+	var entities11: Dictionary = {"p1": p}
+	var env11: Dictionary = {
+		"entities": entities11, "defs": {"player": player_def},
+		"world": {}, "signal_buffer": [], "tick_count": 1,
+		"settings": {"infinite_life": true},
+	}
+	ld11.register_lifecycle("p1", human_template, env11, "human")
+	ld11.tick(env11, 1.0)   # would normally cross 80.0 → dead; suppressed
+	expect_eq(str(p.get_state("life_stage", "")), "elder",
+		"infinite_life mode suppresses player advancement into terminal stage")
+	# Verify entity_died NOT emitted.
+	var buf11: Array = env11["signal_buffer"]
+	var saw_died_p: bool = false
+	for s in buf11:
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "entity_died":
+			saw_died_p = true
+	expect(not saw_died_p,
+		"entity_died signal NOT emitted for player under infinite_life mode")
+	p.queue_free(); ld11.queue_free()
+
+
+# ============================================================
+# BUILD-PLACE PRIMITIVE (ADR 0037)
+# ============================================================
+
+## Helper — build a fresh env + a buildable blueprint def.
+func _make_build_env() -> Dictionary:
+	var defs: Dictionary = {
+		"prop_lean_to": {
+			"id": "prop_lean_to",
+			"tags": ["prop", "shelter", "blocks_motion"],
+			"properties": {"aabb_extents": [0.5, 1.0, 0.5]},
+			"state_init": {},
+			"visual": {"mesh": "lean_to"},
+		},
+		"prop_wall": {
+			"id": "prop_wall",
+			"tags": ["prop", "wall", "blocks_motion"],
+			"properties": {"aabb_extents": [0.5, 1.0, 0.5]},
+			"state_init": {},
+			"visual": {"mesh": "wall"},
+		},
+		"prop_ground_tile": {
+			"id": "prop_ground_tile",
+			"tags": ["ground_tile"],
+			"properties": {},
+			"state_init": {},
+			"visual": {"mesh": "ground"},
+		},
+		"villager": {
+			"id": "villager",
+			"tags": ["villager"],
+			"properties": {},
+			"state_init": {},
+			"visual": {},
+		},
+	}
+	var entities: Dictionary = {}
+	var rs := RelationStore.new()
+	var sx := SpatialIndex.new()
+	var env: Dictionary = {
+		"entities": entities, "defs": defs, "relations": rs,
+		"spatial_index": sx, "world": {}, "world_state": {}, "parent": null,
+		"next_id": {"_": 0},
+		"signal_buffer": [], "trigger_buffer": [], "error_buffer": [],
+		# scene_bounds wants Array (per build_validators._boundary_check;
+		# accepts [x,y] or [x,y,z]).
+		"scene_bounds": {"min": [-50, 0, -50], "max": [50, 0, 50]},
+	}
+	# Place a ground tile AT THE TYPICAL BUILD POSITION (2, 0, 0) so the
+	# ground_buildable predicate (default radius 0.5m) finds it. Tests that
+	# need the ground absent move it explicitly.
+	var ground := Entity.create(defs["prop_ground_tile"], "ground_origin")
+	ground.set_position(Vector3(2, 0, 0))
+	entities["ground_origin"] = ground
+	sx.update_entity("ground_origin", Vector2(2, 0))
+	# Place a player ("self") at origin too, to satisfy owner_in_range.
+	var player := Entity.create(defs["villager"], "self")
+	player.set_position(Vector3(0, 0, 0))
+	entities["self"] = player
+	sx.update_entity("self", Vector2(0, 0))
+	return env
+
+
+func test_build_place_primitive() -> void:
+	_section("build_place_primitive (ADR 0037)")
+
+	# ---------- 1. valid placement spawns entity ----------
+	var env1 := _make_build_env()
+	var result1: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["no_overlap", "ground_buildable"]},
+		env1, {})
+	expect(bool(result1.get("placed", false)),
+		"valid placement returns placed=true")
+	expect_eq(str(result1.get("reason", "x")), "",
+		"valid placement reason is empty")
+	expect((env1["entities"] as Dictionary).size() >= 3,
+		"valid placement adds new entity to entities")
+
+	# ---------- 2. overlap rejected ----------
+	var env2 := _make_build_env()
+	# Place a wall at (2, 0, 0) blocking the build site.
+	var wall := Entity.create((env2["defs"] as Dictionary)["prop_wall"], "wall_block")
+	wall.set_position(Vector3(2, 0, 0))
+	(env2["entities"] as Dictionary)["wall_block"] = wall
+	(env2["spatial_index"] as SpatialIndex).update_entity("wall_block", Vector2(2, 0))
+	# Add a ground tile too (so ground_buildable passes — only no_overlap should fail)
+	var ground2 := Entity.create((env2["defs"] as Dictionary)["prop_ground_tile"], "ground_2")
+	ground2.set_position(Vector3(2, 0, 0))
+	(env2["entities"] as Dictionary)["ground_2"] = ground2
+	(env2["spatial_index"] as SpatialIndex).update_entity("ground_2", Vector2(2, 0))
+	var size_before := (env2["entities"] as Dictionary).size()
+	var result2: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["no_overlap"]},
+		env2, {})
+	expect(not bool(result2.get("placed", true)),
+		"overlap placement rejected (placed=false)")
+	expect_eq(str(result2.get("reason", "")), "no_overlap",
+		"overlap rejection reason is 'no_overlap'")
+	expect_eq((env2["entities"] as Dictionary).size(), size_before,
+		"overlap rejection does NOT add entity to entities")
+
+	# ---------- 3. overlap clearance — adjacent passes ----------
+	var env3 := _make_build_env()
+	var wall3 := Entity.create((env3["defs"] as Dictionary)["prop_wall"], "wall_far")
+	wall3.set_position(Vector3(10, 0, 0))
+	(env3["entities"] as Dictionary)["wall_far"] = wall3
+	(env3["spatial_index"] as SpatialIndex).update_entity("wall_far", Vector2(10, 0))
+	var ground3 := Entity.create((env3["defs"] as Dictionary)["prop_ground_tile"], "ground_3")
+	ground3.set_position(Vector3(2, 0, 0))
+	(env3["entities"] as Dictionary)["ground_3"] = ground3
+	(env3["spatial_index"] as SpatialIndex).update_entity("ground_3", Vector2(2, 0))
+	var result3: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["no_overlap"]},
+		env3, {})
+	expect(bool(result3.get("placed", false)),
+		"adjacent (non-overlapping) placement passes")
+
+	# ---------- 4. ground_buildable predicate ----------
+	# env without a ground tile under the target position.
+	var env4 := _make_build_env()
+	# Move the existing ground tile away from build site.
+	var g4: Entity = (env4["entities"] as Dictionary)["ground_origin"]
+	g4.set_position(Vector3(20, 0, 20))
+	(env4["spatial_index"] as SpatialIndex).update_entity("ground_origin", Vector2(20, 20))
+	var result4: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["ground_buildable"]},
+		env4, {})
+	expect_eq(str(result4.get("reason", "")), "ground_buildable",
+		"missing ground tile → ground_buildable rejection")
+
+	# ---------- 5. owner_in_range — fails when source distant ----------
+	var env5 := _make_build_env()
+	# Move "self" far from build site.
+	var p5: Entity = (env5["entities"] as Dictionary)["self"]
+	p5.set_position(Vector3(50, 0, 50))
+	(env5["spatial_index"] as SpatialIndex).update_entity("self", Vector2(50, 50))
+	var result5: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["owner_in_range"], "max_range": 5.0},
+		env5, {"_source": "self"})
+	expect_eq(str(result5.get("reason", "")), "owner_in_range",
+		"distant source → owner_in_range rejection")
+
+	# ---------- 6. owner_in_range — passes when source near ----------
+	var env6 := _make_build_env()
+	var result6: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["owner_in_range"], "max_range": 5.0},
+		env6, {"_source": "self"})
+	expect(bool(result6.get("placed", false)),
+		"close source (dist=2 < max_range=5) → owner_in_range passes")
+
+	# ---------- 7. boundary_check — out of bounds rejected ----------
+	var env7 := _make_build_env()
+	var result7: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(100, 0, 0),  # beyond scene_bounds.max.x = 50
+		 "validate": ["boundary_check"]},
+		env7, {})
+	expect_eq(str(result7.get("reason", "")), "boundary_check",
+		"out-of-bounds position → boundary_check rejection")
+
+	# ---------- 8. multi_predicate compose — first failure short-circuits ----------
+	var env8 := _make_build_env()
+	# Move ground tile away so ground_buildable fails.
+	var g8: Entity = (env8["entities"] as Dictionary)["ground_origin"]
+	g8.set_position(Vector3(20, 0, 20))
+	(env8["spatial_index"] as SpatialIndex).update_entity("ground_origin", Vector2(20, 20))
+	# no_overlap would pass, ground_buildable fails — first failure wins.
+	var result8: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["no_overlap", "ground_buildable", "boundary_check"]},
+		env8, {})
+	expect_eq(str(result8.get("reason", "")), "ground_buildable",
+		"multi-predicate: first failure (ground_buildable) short-circuits")
+
+	# ---------- 9. construction_ticks — multi-tick build flow ----------
+	var env9 := _make_build_env()
+	var result9: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": [],
+		 "construction_ticks": 5},
+		env9, {})
+	expect(bool(result9.get("placed", false)),
+		"construction_ticks=5 still spawns the entity")
+	var inst_id9: String = str(result9.get("instance_id", ""))
+	if inst_id9 != "":
+		var spawned9: Entity = (env9["entities"] as Dictionary)[inst_id9]
+		expect_eq(int(spawned9.get_state("build_in_progress", 0)), 5,
+			"under-construction entity has build_in_progress=5")
+		expect(spawned9.has_tag("under_construction"),
+			"under-construction entity has 'under_construction' tag")
+
+	# ---------- 10. motion-integrator clearance contract ----------
+	# After valid placement, the new entity has its aabb_extents in
+	# spatial_index. A subsequent build at the SAME spot must reject —
+	# i.e. the just-built entity blocks the next build (proves spatial
+	# index registration completed atomically).
+	var env10 := _make_build_env()
+	var first: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["no_overlap", "ground_buildable"]},
+		env10, {})
+	expect(bool(first.get("placed", false)),
+		"first build at clean spot succeeds")
+	# Try to build a SECOND lean-to at the same spot — should reject.
+	var ground10b := Entity.create((env10["defs"] as Dictionary)["prop_ground_tile"], "g10b")
+	ground10b.set_position(Vector3(2, 0, 0))
+	(env10["entities"] as Dictionary)["g10b"] = ground10b
+	(env10["spatial_index"] as SpatialIndex).update_entity("g10b", Vector2(2, 0))
+	var second: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["no_overlap"]},
+		env10, {})
+	expect_eq(str(second.get("reason", "")), "no_overlap",
+		"穿模 contract: second build at same spot rejects (first build's aabb is registered)")
+
+	# ---------- 11. on_invalid chain receives failure_reason ----------
+	var env11 := _make_build_env()
+	var g11: Entity = (env11["entities"] as Dictionary)["ground_origin"]
+	g11.set_position(Vector3(20, 0, 20))
+	(env11["spatial_index"] as SpatialIndex).update_entity("ground_origin", Vector2(20, 20))
+	# Verify on_invalid effect chain fires on failure by emitting a signal
+	# and checking the signal buffer. (state_set target="world" routes
+	# through _target which only handles entities — would silently no-op.)
+	(env11["signal_buffer"] as Array).clear()
+	var result11: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "prop_lean_to",
+		 "position": Vector3(2, 0, 0),
+		 "validate": ["ground_buildable"],
+		 "on_invalid": [{"type": "emit", "signal": "build_failed"}]},
+		env11, {})
+	var on_invalid_fired := false
+	for s11 in (env11["signal_buffer"] as Array):
+		if s11 is Dictionary and str((s11 as Dictionary).get("name", "")) == "build_failed":
+			on_invalid_fired = true
+	expect(on_invalid_fired,
+		"on_invalid effect chain fires on failure (build_failed signal emitted)")
+
+	# ---------- 12. no_def → structured EngineError, no spawn ----------
+	var env12 := _make_build_env()
+	var size12_before := (env12["entities"] as Dictionary).size()
+	var result12: Dictionary = EffectApply.apply(
+		{"type": "build_place", "blueprint": "nonexistent_blueprint",
+		 "position": Vector3(2, 0, 0)},
+		env12, {})
+	expect(not bool(result12.get("placed", true)),
+		"missing blueprint → placed=false")
+	expect_eq(str(result12.get("reason", "")), "no_def",
+		"missing blueprint → reason='no_def'")
+	expect_eq((env12["entities"] as Dictionary).size(), size12_before,
+		"missing blueprint → no entity added")
+	expect((env12["error_buffer"] as Array).size() > 0,
+		"missing blueprint → EngineError raised into error_buffer")

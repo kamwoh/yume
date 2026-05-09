@@ -130,6 +130,10 @@ static func build_primitives_into(parent: Node3D, primitives: Array, params: Dic
 		if p.has("rotation_deg"):
 			var rd := _to_vec3(p["rotation_deg"])
 			mi.rotation_degrees = rd
+		# ADR 0035 — optional `name` makes the primitive addressable by
+		# AnimationDirector via parent.find_child(piece_name, ...).
+		if p.has("name"):
+			mi.name = str(p["name"])
 		parent.add_child(mi)
 
 
