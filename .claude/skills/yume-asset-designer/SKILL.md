@@ -425,6 +425,21 @@ fence posts, tilted crates, slightly off-square stalls. Strict
 grid reads "videogame test scene"; broken grid reads
 "inhabited space."
 
+**Authoring pattern (added 2026-05-09)**: set `state.yaw`
+(radians, Y-axis rotation) on instance overrides. The 3D + 2D
+renderers read this and apply rotation when set; idempotent
+when unset.
+
+```jsonc
+{"def": "prop_cottage", "id": "townie_house_1",
+ "position": [20, 0, 25], "state": {"yaw": 0.26}}  // ~15°
+```
+
+Apply via Python: hash the id deterministically into a small
+pool of varied angles (mix positive + negative + a few zeros so
+~30% stay axis-aligned). Empirical case: 14 of 16 buildings
+across pendrel rotated, 2026-05-09.
+
 ### 7. Background framing
 Every district has foreground framing on ≥2 sides — clusters of
 trees, walls, cliffs, or large props that visually contain the
@@ -447,6 +462,41 @@ and important UI ALWAYS use the accent — guarantees pop. Examples:
 
 NPC clothing follows district palette except heroes (red cape /
 blue armor — consistent pop across all districts).
+
+**Authoring pattern (added 2026-05-09)**: don't author one mesh
+def per district variant — use `visual.params` overrides on
+instances. The engine deep-merges `params`, so an instance only
+specifies the keys it wants to override; the def's other params
+survive.
+
+```jsonc
+// def (entities/buildings.json) — neutral default
+{
+  "id": "prop_cottage",
+  "visual": {"mesh": "merchant_cottage_3d"}  // mesh has its own params
+}
+
+// instance (levels/town/entities.json) — district override
+{
+  "def": "prop_cottage",
+  "id": "townie_house_1",
+  "position": [20, 0, 25],
+  "visual": {"params": {
+    "wall": "#d8b890",  // warm cream (NW residential)
+    "roof": "#a04830",  // terracotta
+    "window": "#f0d878"
+  }}
+}
+```
+
+Apply via small Python script that buckets by (x, z) into NW/NE/
+SW/SE/C and writes the palette dict. Empirical case: 23 buildings
+recolored across 4 districts in pendrel, 2026-05-09.
+
+**Audit gate**: every multi-district game must demonstrate at
+least 3 distinct district palettes via per-instance visual.params
+overrides on cottages / props / signs. Single-palette across the
+whole town = "videogame test scene" feel; failing this axis.
 
 ### 10. Silhouette readability
 ≥3 distinct silhouette templates per game. Within humanoids:
