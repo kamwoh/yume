@@ -171,6 +171,21 @@ func test_entity() -> void:
 	expect_eq(c2.get_state("yaw"), -0.17, "yaw from instance override")
 	c1.queue_free()
 	c2.queue_free()
+	# Per-instance visual.params deep-merge: instance-level params override
+	# individual keys without nuking the def's other params. Without this,
+	# districts couldn't recolor JUST `wall` while keeping `roof`/`door`.
+	var def4: Dictionary = {
+		"id": "house",
+		"visual": {"mesh": "cottage", "params": {
+			"wall": "#aaa", "roof": "#bbb", "door": "#ccc", "window": "#ddd"
+		}}
+	}
+	var h := Entity.create(def4, "h1", {"visual": {"params": {"wall": "#fff"}}})
+	expect_eq(h.visual["params"]["wall"], "#fff", "params.wall override applied")
+	expect_eq(h.visual["params"]["roof"], "#bbb", "params.roof preserved from def")
+	expect_eq(h.visual["params"]["door"], "#ccc", "params.door preserved from def")
+	expect_eq(h.visual["mesh"], "cottage", "mesh preserved from def")
+	h.queue_free()
 
 
 # ============================================================

@@ -93,7 +93,20 @@ func _apply_overrides(overrides: Dictionary) -> void:
 				tags.append(ts)
 	if overrides.has("visual") and overrides["visual"] is Dictionary:
 		for k in (overrides["visual"] as Dictionary):
-			visual[k] = overrides["visual"][k]
+			var v = (overrides["visual"] as Dictionary)[k]
+			# Deep-merge `params` so instances can override individual color
+			# slots (e.g. just `wall`) without nuking the def's other params
+			# (`roof`, `door`, `window`). Without this, content authors
+			# who want a per-instance color tweak have to re-specify ALL of
+			# the mesh's params on every instance — bloated and error-prone.
+			# Empirical case 2026-05-09: per-district palette discipline
+			# in pendrel needed to override 1-2 colors per cottage/forge/
+			# tavern; deep-merge makes that one-line per instance.
+			if k == "params" and v is Dictionary and visual.get("params", null) is Dictionary:
+				for pk in (v as Dictionary):
+					(visual["params"] as Dictionary)[pk] = (v as Dictionary)[pk]
+			else:
+				visual[k] = v
 	if overrides.has("position"):
 		state["position"] = _normalize_position(overrides["position"])
 
