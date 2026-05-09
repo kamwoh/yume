@@ -159,6 +159,18 @@ func test_entity() -> void:
 	expect_eq(snap["state"]["growth"], 50, "snapshot.state")
 	t.queue_free()
 	e.queue_free()
+	# state.yaw round-trips through state_init AND instance overrides.
+	# Renderer (entity_mesh_3d._sync_yaw / entity_sprite_2d._sync_static_yaw)
+	# reads this field per frame; here we only verify storage. Visual gate
+	# verifies the rotation actually applies.
+	var def3: Dictionary = {"id": "cottage", "tags": ["building"],
+		"state_init": {"yaw": 0.26}}
+	var c1 := Entity.create(def3, "c1")
+	expect_eq(c1.get_state("yaw"), 0.26, "yaw from state_init")
+	var c2 := Entity.create(def3, "c2", {"state": {"yaw": -0.17}})
+	expect_eq(c2.get_state("yaw"), -0.17, "yaw from instance override")
+	c1.queue_free()
+	c2.queue_free()
 
 
 # ============================================================

@@ -109,6 +109,7 @@ func _set_shadow_only_recursive(node: Node) -> void:
 
 func _process(_dt: float) -> void:
 	_sync_position()
+	_sync_yaw()
 
 
 # ============================================================
@@ -125,6 +126,18 @@ func _sync_position() -> void:
 		# Scale applies because the same data files are authored in 2D pixel
 		# units; 3D scenes scale them down to fit world-unit conventions.
 		position = Vector3(p.x, 0, p.y) * position_scale
+
+
+## Read state.yaw (radians, rotation around the Y axis) if set, and apply.
+## Idempotent — when state.yaw is unset, rotation is left untouched, so
+## existing data without yaw renders identically. Authoring use: instance
+## overrides set `state: {yaw: 0.26}` (~15°) on cottages / props to break
+## the strict-grid feel (visual-density axis 6 — diagonal accents).
+func _sync_yaw() -> void:
+	if _entity_ref == null: return
+	var yaw = _entity_ref.get_state("yaw", null)
+	if yaw == null: return
+	rotation.y = float(yaw)
 
 
 # ============================================================

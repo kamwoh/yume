@@ -113,8 +113,21 @@ func _process(_dt: float) -> void:
 		_sync_facing()
 	if _rotate_with_velocity:
 		_sync_rotation()
+	else:
+		_sync_static_yaw()
 	if _fade_with_lifetime:
 		_sync_alpha()
+
+
+## Mirror of EntityMesh3D._sync_yaw. Reads `state.yaw` (radians) and applies
+## as Node2D.rotation. Skipped when `_rotate_with_velocity` is true (that
+## handler already drives rotation per-frame from velocity). Idempotent —
+## writes nothing when state.yaw is unset.
+func _sync_static_yaw() -> void:
+	if _entity_ref == null: return
+	var yaw = _entity_ref.get_state("yaw", null)
+	if yaw == null: return
+	rotation = float(yaw)
 
 
 func _sync_position() -> void:
