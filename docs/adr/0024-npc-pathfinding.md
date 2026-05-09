@@ -1,7 +1,7 @@
 # ADR 0024 — NPC pathfinding via Godot's NavigationServer3D
 
 _Date: 2026-05-07_
-_Status: proposed_
+_Status: accepted (shipped — `scripts/engine/pathfinding.gd`, 2026-05-09)_
 
 ## Context
 

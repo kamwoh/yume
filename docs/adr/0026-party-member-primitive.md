@@ -1,7 +1,7 @@
 # ADR 0026 — Party-member primitive (leashed NPCs that fight + KO)
 
 _Date: 2026-05-07_
-_Status: proposed_
+_Status: accepted (shipped — `scripts/engine/party_director.gd`, 2026-05-09)_
 
 ## Context
 

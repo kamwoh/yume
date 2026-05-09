@@ -35,24 +35,32 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 |---|---|---|---|
 | [0001](./0001-seven-primitives.md) | Seven primitives + Engine = Primitives + Interpreter | accepted | 2026-04-22 |
 | [0002](./0002-renderer-agnostic-entity.md) | Entity extends Node (renderer-agnostic) | accepted | 2026-05-01 |
-| [0003](./0003-harness-engineering-tier-26.md) | Harness engineering as Tier 2.6 | proposed | 2026-05-01 |
-| [0004](./0004-blocks-motion-tag.md) | blocks_motion tag (compliance debt: refactor to Godot collision in ADR 0022 era) | accepted | 2026-05-03 |
-| [0005](./0005-raycast-hit-effect.md) | raycast_hit effect (compliance debt: refactor to Godot intersect_ray in ADR 0022 era) | accepted | 2026-05-03 |
+| [0003](./0003-harness-engineering-tier-26.md) | Harness engineering as Tier 2.6 | accepted (in-flight) | 2026-05-01 |
+| [0004](./0004-blocks-motion-tag.md) | blocks_motion tag | accepted | 2026-05-03 |
+| [0005](./0005-raycast-hit-effect.md) | raycast_hit effect | accepted | 2026-05-03 |
 | 0006 | Multi-level architecture | accepted | 2026-05-04 |
 | 0007 | Complex collision + GLB assets | accepted | 2026-05-04 |
+| 0008 | _(unused — slot reserved during sequencing; no decision needed)_ | — | — |
 | 0009 | World/game/flow separation | accepted | 2026-05-05 |
 | [0010](./0010-save-load-persistence.md) | Save/load persistence | accepted (TD review) | 2026-05-06 |
-| [0011](./0011-declarative-screen-flow.md) | Declarative screen flow → Godot Control exposure (foundational for shell tier) | accepted (refactored under ADR 0021) | 2026-05-06 |
+| [0011](./0011-declarative-screen-flow.md) | Declarative screen flow → Godot Control exposure | accepted (refactored under ADR 0021) | 2026-05-06 |
 | [0012](./0012-tutorial-overlay-primitive.md) | Tutorial overlay primitive | accepted | 2026-05-06 |
-| [0013](./0013-settings-schema-and-config.md) | Settings schema + config (uses ConfigFile) | accepted | 2026-05-06 |
+| [0013](./0013-settings-schema-and-config.md) | Settings schema + config | accepted | 2026-05-06 |
 | [0014](./0014-open-world-foundational-substrate.md) | Open-world foundational substrate | accepted (conditions resolved) | 2026-05-06 |
 | [0015](./0015-vehicle-physics-primitive.md) | Vehicle physics primitive (+ never-list anchor) | accepted (conditions resolved) | 2026-05-06 |
 | [0016](./0016-multi-actor-framework.md) | Multi-actor framework | accepted (conditions resolved) | 2026-05-06 |
 | [0017](./0017-spatial-lod-rule-scheduling.md) | Spatial-LOD rule scheduling | accepted (conditions resolved) | 2026-05-06 |
-| [0018](./0018-actor-policy-interface.md) | In-process actor policy interface (split: in-process only) | accepted (conditions resolved) | 2026-05-06 |
+| [0018](./0018-actor-policy-interface.md) | In-process actor policy interface | accepted (conditions resolved) | 2026-05-06 |
 | [0019](./0019-rule-plugin-macro-layer.md) | Rule plugin / macro layer | accepted (conditions resolved) | 2026-05-06 |
 | [0020](./0020-external-agent-ipc.md) | External agent IPC (split from 0018) | proposed — deferred until first dependent game | 2026-05-06 |
 | [0021](./0021-yume-as-json-layer-over-platform.md) | **Yume = JSON layer over Godot + external** (foundational) | accepted | 2026-05-06 |
+| 0022 | _(unused — slot reserved for "physics through Godot collision" refactor; not yet drafted. ADRs 0004 + 0005 carry the legacy hand-rolled approach in the meantime.)_ | — | — |
+| 0023 | _(unused — slot reserved during sequencing; no decision needed)_ | — | — |
+| [0024](./0024-npc-pathfinding.md) | NPC pathfinding via NavigationServer3D | accepted (shipped) | 2026-05-07 |
+| [0025](./0025-day-night-cycle.md) | Day/night cycle exposed via scene.json lighting block | accepted (shipped) | 2026-05-07 |
+| [0026](./0026-party-member-primitive.md) | Party-member primitive (leashed NPCs) | accepted (shipped) | 2026-05-07 |
+| [0027](./0027-cross-game-json-reuse-system.md) | Cross-game JSON reuse (`@lib.X` + `$extends`) | accepted (conditions addressed) | 2026-05-08 |
+| [0028](./0028-cross-game-parameterized-templates.md) | Cross-game parameterized templates (`$params`) | proposed — deferred until first dependent game | 2026-05-08 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 

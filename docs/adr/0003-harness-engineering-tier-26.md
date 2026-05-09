@@ -1,7 +1,7 @@
 # ADR 0003 — Harness engineering as Tier 2.6
 
 _Date: 2026-05-01_
-_Status: proposed_
+_Status: accepted (in-flight — Tier 2.6a–2.6r shipped 2026-05-01..2026-05-09; ongoing iterative deliverables)_
 
 ## Context
 

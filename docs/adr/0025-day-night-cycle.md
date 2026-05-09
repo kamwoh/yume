@@ -1,7 +1,7 @@
 # ADR 0025 — Day/night cycle exposed via scene.json lighting block
 
 _Date: 2026-05-07_
-_Status: proposed_
+_Status: accepted (shipped — `scripts/engine/lighting_director.gd`, 2026-05-09)_
 
 ## Context
 
