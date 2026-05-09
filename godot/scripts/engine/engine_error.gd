@@ -68,6 +68,15 @@ const CLASS_SWITCH_COOLDOWN    := "class.switch_cooldown"
 const CLASS_MISSING_ID         := "class.missing_id"
 const CLASS_INVALID_JSON       := "class.invalid_json"
 
+# ADR 0032 — faction primitive
+const FACTION_NO_DEF           := "faction.no_def"
+const FACTION_INVALID_STANCE   := "faction.invalid_stance"
+
+# ADR 0033 — tech-tree primitive
+const TECH_NO_TREE             := "tech.no_tree"
+const TECH_PREREQ_MISSING      := "tech.prereq_missing"
+const TECH_PREREQ_CYCLE        := "tech.prereq_cycle"
+
 
 # ============================================================
 # CONSTRUCTORS

@@ -72,6 +72,8 @@ func _ready() -> void:
 	test_build_place_primitive()
 	test_class_primitive()
 	test_zone_state_primitive()
+	test_faction_primitive()
+	test_tech_tree_primitive()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -5197,3 +5199,865 @@ func test_zone_state_primitive() -> void:
 		{"contained_by": "kingdom_aldenmere", "depth": -1}, env8)
 	expect_eq(contained.size(), 3,
 		"run_zones contained_by=kingdom depth=-1 returns 3 transitive descendants")
+
+
+# ============================================================
+# FACTION PRIMITIVE (ADR 0032)
+# ============================================================
+
+func _make_faction_data() -> Dictionary:
+	# ADR 0032 — three-faction setup mirroring the worked example in the
+	# ADR (traditionalists, innovators, militarists). Each test that needs
+	# fresh state calls this + register_factions on a new director.
+	return {
+		"factions": [
+			{"id": "traditionalists", "leader": "elder_morwen",
+			 "ideology": "preserve_old_ways", "color": "#8a6840",
+			 "home_zone": "village_riverside"},
+			{"id": "innovators", "leader": "scholar_lerian",
+			 "ideology": "embrace_change", "color": "#4080c0"},
+			{"id": "militarists", "leader": "captain_brennar",
+			 "ideology": "strength_first", "color": "#a04040"},
+		],
+		"relationships": [
+			{"from": "traditionalists", "to": "innovators",
+			 "stance": "rivals", "tension": 40},
+			{"from": "traditionalists", "to": "militarists",
+			 "stance": "allied", "tension": 10},
+			{"from": "innovators", "to": "militarists",
+			 "stance": "neutral", "tension": 10},
+		]
+	}
+
+
+func test_faction_primitive() -> void:
+	_section("faction_primitive (ADR 0032)")
+
+	# ---------- 1. Faction creation + state roundtrip ----------
+	# register_factions populates _factions + _relationships; bindings expose
+	# tension_with.<other> and stance_with.<other> per faction.
+	var fd1 := FactionDirector.new()
+	var data1: Dictionary = _make_faction_data()
+	var errs1: Array = fd1.register_factions(data1, {})
+	expect_eq(errs1.size(), 0,
+		"register_factions on valid data returns no errors")
+	expect(fd1.has_faction("traditionalists"),
+		"register_factions stores 'traditionalists' def")
+	expect(fd1.has_faction("innovators"),
+		"register_factions stores 'innovators' def")
+	expect(fd1.has_faction("militarists"),
+		"register_factions stores 'militarists' def")
+	# Initial relationship round-trip — tension reads back from the binding
+	# snapshot via the documented `faction.<id>.tension_with.<other>` path.
+	var snap1: Dictionary = fd1.binding_snapshot({})
+	expect(snap1.has("traditionalists"),
+		"binding_snapshot exposes faction ids as top-level keys")
+	var trad_entry: Dictionary = snap1["traditionalists"]
+	expect_eq(int((trad_entry["tension_with"] as Dictionary).get("innovators", -1)), 40,
+		"faction.traditionalists.tension_with.innovators reads back as 40")
+	expect_eq(str((trad_entry["stance_with"] as Dictionary).get("innovators", "")), "rivals",
+		"faction.traditionalists.stance_with.innovators reads back as 'rivals'")
+	expect_eq(str(trad_entry.get("leader", "")), "elder_morwen",
+		"faction.traditionalists.leader reads back as 'elder_morwen'")
+	fd1.queue_free()
+
+	# ---------- 2. Alliance formation (propose_alliance) ----------
+	# propose_alliance flips stance to "allied", drops tension to 0, emits
+	# faction_alliance_formed.
+	var fd2 := FactionDirector.new()
+	fd2.register_factions(_make_faction_data(), {})
+	var env2: Dictionary = {
+		"entities": {}, "defs": {}, "world": {},
+		"signal_buffer": [], "error_buffer": [],
+	}
+	# traditionalists ↔ innovators starts at "rivals", tension=40.
+	expect_eq(fd2.get_stance("traditionalists", "innovators"), "rivals",
+		"baseline stance is 'rivals' before alliance")
+	var res2: Dictionary = fd2.apply_propose_alliance(env2,
+		"traditionalists", "innovators")
+	expect(bool(res2.get("ok", false)),
+		"apply_propose_alliance returns ok=true for known factions")
+	expect_eq(fd2.get_stance("traditionalists", "innovators"), "allied",
+		"propose_alliance flips stance to 'allied'")
+	expect_eq(fd2.get_tension("traditionalists", "innovators"), 0,
+		"propose_alliance drops tension to 0")
+	# Signal must be on the buffer with from/to payload.
+	var saw_alliance: bool = false
+	for s in (env2["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "faction_alliance_formed":
+			var pl: Dictionary = (s as Dictionary).get("payload", {})
+			if str(pl.get("from", "")) == "traditionalists" \
+					and str(pl.get("to", "")) == "innovators":
+				saw_alliance = true
+				break
+	expect(saw_alliance,
+		"faction_alliance_formed signal emitted with from/to payload")
+	fd2.queue_free()
+
+	# ---------- 3. War declaration (declare_war) ----------
+	# declare_war sets stance="at_war", tension=100, emits
+	# faction_war_declared.
+	var fd3 := FactionDirector.new()
+	fd3.register_factions(_make_faction_data(), {})
+	var env3: Dictionary = {
+		"entities": {}, "defs": {}, "world": {},
+		"signal_buffer": [], "error_buffer": [],
+	}
+	var res3: Dictionary = fd3.apply_declare_war(env3,
+		"innovators", "militarists")
+	expect(bool(res3.get("ok", false)),
+		"apply_declare_war returns ok=true for known factions")
+	expect_eq(fd3.get_stance("innovators", "militarists"), "at_war",
+		"declare_war flips stance to 'at_war'")
+	expect_eq(fd3.get_tension("innovators", "militarists"), 100,
+		"declare_war pushes tension to 100")
+	var saw_war: bool = false
+	for s in (env3["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "faction_war_declared":
+			saw_war = true
+			break
+	expect(saw_war, "faction_war_declared signal emitted")
+	fd3.queue_free()
+
+	# ---------- 4. Treaty signing (sign_treaty) ----------
+	# After declare_war, sign_treaty resets stance to neutral (default) and
+	# tension to that stance's baseline (10).
+	var fd4 := FactionDirector.new()
+	fd4.register_factions(_make_faction_data(), {})
+	var env4: Dictionary = {
+		"entities": {}, "defs": {}, "world": {},
+		"signal_buffer": [], "error_buffer": [],
+	}
+	# Push to war first so we can verify treaty resets it.
+	fd4.apply_declare_war(env4, "innovators", "militarists")
+	expect_eq(fd4.get_tension("innovators", "militarists"), 100,
+		"war declaration pushes tension to 100 (pre-treaty)")
+	# Drain pre-treaty signals so the next saw_treaty check is clean.
+	(env4["signal_buffer"] as Array).clear()
+	var res4: Dictionary = fd4.apply_sign_treaty(env4,
+		"innovators", "militarists", "neutral")
+	expect(bool(res4.get("ok", false)),
+		"apply_sign_treaty returns ok=true for known factions")
+	expect_eq(fd4.get_stance("innovators", "militarists"), "neutral",
+		"sign_treaty resets stance to 'neutral'")
+	expect_eq(fd4.get_tension("innovators", "militarists"), 10,
+		"sign_treaty resets tension to neutral baseline (10)")
+	var saw_treaty: bool = false
+	for s in (env4["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "faction_treaty_signed":
+			saw_treaty = true
+			break
+	expect(saw_treaty, "faction_treaty_signed signal emitted")
+	fd4.queue_free()
+
+	# ---------- 5. NPC loyalty mutation (swear_loyalty) ----------
+	# swear_loyalty mutates entity.state.faction_loyalty[<id>], emits
+	# faction_loyalty_changed, clamps to 0-100.
+	var fd5 := FactionDirector.new()
+	fd5.register_factions(_make_faction_data(), {})
+	var smith_def: Dictionary = {
+		"id": "smith_haldor",
+		"tags": ["npc", "smith"],
+		"state_init": {"faction_loyalty": {}},
+	}
+	var smith := Entity.create(smith_def, "smith_haldor")
+	var entities5: Dictionary = {"smith_haldor": smith}
+	var env5: Dictionary = {
+		"entities": entities5, "defs": {"smith_haldor": smith_def},
+		"world": {}, "signal_buffer": [], "error_buffer": [],
+	}
+	# +30 delta against absent (=0) entry → 30.
+	var res5a: Dictionary = fd5.apply_swear_loyalty(env5,
+		"smith_haldor", "traditionalists", {"delta": 30})
+	expect(bool(res5a.get("ok", false)),
+		"apply_swear_loyalty returns ok=true for known faction + entity")
+	var loyalty_after_a: Dictionary = smith.get_state("faction_loyalty", {}) as Dictionary
+	expect_eq(int(loyalty_after_a.get("traditionalists", -1)), 30,
+		"swear_loyalty +30 from 0 lands at 30")
+	# +200 delta would overshoot 100 → clamps to 100.
+	fd5.apply_swear_loyalty(env5, "smith_haldor", "traditionalists",
+		{"delta": 200})
+	var loyalty_after_b: Dictionary = smith.get_state("faction_loyalty", {}) as Dictionary
+	expect_eq(int(loyalty_after_b.get("traditionalists", -1)), 100,
+		"swear_loyalty clamps to 100 (no overflow)")
+	# value-based set: hard-set to 25.
+	fd5.apply_swear_loyalty(env5, "smith_haldor", "traditionalists",
+		{"value": 25})
+	var loyalty_after_c: Dictionary = smith.get_state("faction_loyalty", {}) as Dictionary
+	expect_eq(int(loyalty_after_c.get("traditionalists", -1)), 25,
+		"swear_loyalty {value: 25} sets directly")
+	# Signal emitted at least once with from/to payload.
+	var saw_loyalty: bool = false
+	for s in (env5["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "faction_loyalty_changed":
+			saw_loyalty = true
+			break
+	expect(saw_loyalty, "faction_loyalty_changed signal emitted on swear_loyalty")
+	smith.queue_free(); fd5.queue_free()
+
+	# ---------- 6. Multi-faction NPC (split loyalty) ----------
+	# An NPC may belong to multiple factions concurrently. faction_loyalty
+	# is a dict — entries are independent; a smith can be 70% traditionalist
+	# AND 40% innovator without conflict.
+	var fd6 := FactionDirector.new()
+	fd6.register_factions(_make_faction_data(), {})
+	var split_def: Dictionary = {
+		"id": "split_npc",
+		"tags": ["npc"],
+		"state_init": {"faction_loyalty": {}},
+	}
+	var split_npc := Entity.create(split_def, "split_npc")
+	var entities6: Dictionary = {"split_npc": split_npc}
+	var env6: Dictionary = {
+		"entities": entities6, "defs": {"split_npc": split_def},
+		"world": {}, "signal_buffer": [], "error_buffer": [],
+	}
+	fd6.apply_swear_loyalty(env6, "split_npc", "traditionalists",
+		{"value": 70})
+	fd6.apply_swear_loyalty(env6, "split_npc", "innovators",
+		{"value": 40})
+	var split_loyalty: Dictionary = split_npc.get_state("faction_loyalty", {}) as Dictionary
+	expect_eq(int(split_loyalty.get("traditionalists", -1)), 70,
+		"split-loyalty NPC: traditionalists = 70")
+	expect_eq(int(split_loyalty.get("innovators", -1)), 40,
+		"split-loyalty NPC: innovators = 40 (independent channel)")
+	expect_eq(split_loyalty.size(), 2,
+		"split-loyalty NPC carries 2 faction entries")
+	split_npc.queue_free(); fd6.queue_free()
+
+	# ---------- 7. Query NPCs by faction (member_count binding) ----------
+	# faction.<id>.member_count counts entities whose loyalty[id] >=
+	# MEMBER_THRESHOLD (50). Mirrors the ADR's "query NPCs by faction"
+	# semantics without requiring the dotted-state-path query extension.
+	var fd7 := FactionDirector.new()
+	fd7.register_factions(_make_faction_data(), {})
+	var npc_def: Dictionary = {
+		"id": "npc_template",
+		"tags": ["npc"],
+		"state_init": {"faction_loyalty": {}},
+	}
+	# 4 NPCs: 3 are traditionalist members (loyalty >= 50), 1 isn't.
+	var n1 := Entity.create(npc_def, "n1")
+	n1.set_state("faction_loyalty", {"traditionalists": 80})
+	var n2 := Entity.create(npc_def, "n2")
+	n2.set_state("faction_loyalty", {"traditionalists": 60})
+	var n3 := Entity.create(npc_def, "n3")
+	n3.set_state("faction_loyalty", {"traditionalists": 50, "innovators": 90})
+	var n4 := Entity.create(npc_def, "n4")
+	n4.set_state("faction_loyalty", {"traditionalists": 30})  # below threshold
+	var entities7: Dictionary = {"n1": n1, "n2": n2, "n3": n3, "n4": n4}
+	var env7: Dictionary = {
+		"entities": entities7, "defs": {"npc_template": npc_def},
+		"world": {}, "signal_buffer": [],
+	}
+	var snap7: Dictionary = fd7.binding_snapshot(env7)
+	expect_eq(int((snap7["traditionalists"] as Dictionary).get("member_count", -1)), 3,
+		"member_count counts entities with loyalty >= 50 (n1, n2, n3)")
+	expect_eq(int((snap7["innovators"] as Dictionary).get("member_count", -1)), 1,
+		"member_count counts only n3 for innovators (loyalty=90 >= 50)")
+	expect_eq(int((snap7["militarists"] as Dictionary).get("member_count", -1)), 0,
+		"member_count is 0 for factions with no loyal entities")
+	n1.queue_free(); n2.queue_free(); n3.queue_free(); n4.queue_free()
+	fd7.queue_free()
+
+	# ---------- 8. Query factions by stance (find_factions_with_stance) ----------
+	# After a war declaration, find_factions_with_stance("at_war") returns
+	# the directed pair we set.
+	var fd8 := FactionDirector.new()
+	fd8.register_factions(_make_faction_data(), {})
+	var env8_f: Dictionary = {
+		"entities": {}, "defs": {}, "world": {}, "signal_buffer": [],
+	}
+	# Initial state has zero at_war pairs.
+	expect_eq(fd8.find_factions_with_stance("at_war").size(), 0,
+		"no at_war pairs before any war declaration")
+	# Initial state has 1 allied pair (traditionalists → militarists).
+	var allied_initial: Array = fd8.find_factions_with_stance("allied")
+	expect_eq(allied_initial.size(), 1,
+		"initial state has 1 allied pair (traditionalists → militarists)")
+	# Declare war between innovators and militarists.
+	fd8.apply_declare_war(env8_f, "innovators", "militarists")
+	var at_war_pairs: Array = fd8.find_factions_with_stance("at_war")
+	expect_eq(at_war_pairs.size(), 1,
+		"find_factions_with_stance('at_war') returns 1 pair after declare_war")
+	expect_eq(str((at_war_pairs[0] as Dictionary).get("from", "")), "innovators",
+		"at_war pair from = innovators")
+	expect_eq(str((at_war_pairs[0] as Dictionary).get("to", "")), "militarists",
+		"at_war pair to = militarists")
+	fd8.queue_free()
+
+	# ---------- 9. Save/load round-trip preserves faction state ----------
+	# Mid-war state (relationships) saves; restoring against a fresh
+	# director yields identical stance + tension. NPC loyalty rides on
+	# entity state (existing save plumbing) and is NOT this director's
+	# concern, so this test only covers the relationship state save.
+	var fd9a := FactionDirector.new()
+	fd9a.register_factions(_make_faction_data(), {})
+	var env9: Dictionary = {
+		"entities": {}, "defs": {}, "world": {}, "signal_buffer": [],
+	}
+	fd9a.apply_declare_war(env9, "innovators", "militarists")
+	# Tweak tension via sign_treaty + value to verify tension specifically
+	# survives save/load.
+	fd9a.apply_sign_treaty(env9, "traditionalists", "innovators", "hostile")
+	var saved: Dictionary = fd9a.to_save()
+	expect(saved.has("innovators:militarists"),
+		"to_save includes mutated relationship key")
+	expect_eq(str((saved["innovators:militarists"] as Dictionary).get("stance", "")), "at_war",
+		"to_save snapshots the at_war stance")
+	# Restore into a fresh director with the same factions but only the
+	# initial relationships. from_save should overwrite them with the saved
+	# mid-war state.
+	var fd9b := FactionDirector.new()
+	fd9b.register_factions(_make_faction_data(), {})
+	# Pre-restore baseline: still rivals.
+	expect_eq(fd9b.get_stance("traditionalists", "innovators"), "rivals",
+		"fresh director starts at initial 'rivals' before from_save")
+	fd9b.from_save(saved)
+	expect_eq(fd9b.get_stance("innovators", "militarists"), "at_war",
+		"from_save restores at_war stance")
+	expect_eq(fd9b.get_tension("innovators", "militarists"), 100,
+		"from_save restores war tension (100)")
+	expect_eq(fd9b.get_stance("traditionalists", "innovators"), "hostile",
+		"from_save restores treaty-set hostile stance")
+	# Saved key for unknown faction id should be silently dropped.
+	fd9b.from_save({"phantom_faction:other": {"stance": "at_war", "tension": 100}})
+	# (No assertion — just verify no crash; the sentinel here is the next
+	# call surviving cleanly.)
+	expect_eq(fd9b.get_stance("innovators", "militarists"), "at_war",
+		"unknown-faction save entries are dropped without disturbing valid state")
+	fd9a.queue_free(); fd9b.queue_free()
+
+	# ---------- 10. Unknown faction fails atomic (FACTION_NO_DEF) ----------
+	# declare_war / sign_treaty / propose_alliance / swear_loyalty against
+	# an unregistered faction id MUST leave state untouched and raise
+	# FACTION_NO_DEF in the error buffer. No signal emitted.
+	var fd10 := FactionDirector.new()
+	fd10.register_factions(_make_faction_data(), {})
+	var env10: Dictionary = {
+		"entities": {}, "defs": {}, "world": {},
+		"signal_buffer": [], "error_buffer": [],
+	}
+	# Capture baseline stance for traditionalists ↔ innovators.
+	var pre_stance: String = fd10.get_stance("traditionalists", "innovators")
+	var pre_tension: int = fd10.get_tension("traditionalists", "innovators")
+	var bad: Dictionary = fd10.apply_declare_war(env10,
+		"traditionalists", "phantom_faction")
+	expect(not bool(bad.get("ok", true)),
+		"declare_war on unknown faction returns ok=false")
+	expect_eq(str(bad.get("reason", "")), "no_def",
+		"declare_war failure carries reason='no_def'")
+	# State must NOT have been mutated by the failed declare_war.
+	expect_eq(fd10.get_stance("traditionalists", "innovators"), pre_stance,
+		"failed declare_war leaves unrelated stance unchanged (atomic)")
+	expect_eq(fd10.get_tension("traditionalists", "innovators"), pre_tension,
+		"failed declare_war leaves unrelated tension unchanged (atomic)")
+	# No faction_war_declared signal should be on the buffer.
+	var saw_emit: bool = false
+	for s in (env10["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "faction_war_declared":
+			saw_emit = true
+			break
+	expect(not saw_emit,
+		"failed declare_war emits NO faction_war_declared signal")
+	# Error buffer should carry FACTION_NO_DEF.
+	var saw_err: bool = false
+	for r in (env10["error_buffer"] as Array):
+		if r is Dictionary and str((r as Dictionary).get("code", "")) == EngineError.FACTION_NO_DEF:
+			saw_err = true
+			break
+	expect(saw_err,
+		"failed declare_war raises FACTION_NO_DEF in error_buffer")
+	fd10.queue_free()
+
+
+# ============================================================
+# TECH TREE (ADR 0033)
+# ============================================================
+
+## Build a fresh TechTreeDirector pre-loaded with two trees:
+##   - smithing: smithing → ironworking → steel (core: T/T/F)
+##   - magic_elemental: magic_basic → fire_school (core: T/F)
+## Returns the director. Tests own queue_free.
+func _make_tech_director_two_trees() -> TechTreeDirector:
+	var ttd := TechTreeDirector.new()
+	var trees := {
+		"trees": [
+			{
+				"id": "smithing",
+				"nodes": [
+					{"id": "smithing", "prereqs": [],
+					 "discovery_chance": 0.0, "core": true,
+					 "eligibility_tags": ["smith"]},
+					{"id": "ironworking", "prereqs": ["smithing"],
+					 "discovery_chance": 0.05, "core": true,
+					 "eligibility_tags": ["smith"]},
+					{"id": "steel", "prereqs": ["ironworking"],
+					 "discovery_chance": 0.02, "core": false,
+					 "eligibility_tags": ["smith"]},
+				],
+			},
+			{
+				"id": "magic_elemental",
+				"nodes": [
+					{"id": "magic_basic", "prereqs": [],
+					 "discovery_chance": 0.0, "core": true,
+					 "eligibility_tags": ["mage"]},
+					{"id": "fire_school", "prereqs": ["magic_basic"],
+					 "discovery_chance": 0.10, "core": false,
+					 "eligibility_tags": ["mage"]},
+				],
+			},
+		]
+	}
+	ttd.register_trees(trees, {})
+	return ttd
+
+
+func test_tech_tree_primitive() -> void:
+	_section("tech_tree_primitive (ADR 0033)")
+
+	# ---------- 1. discovery probability respects discovery_chance ----------
+	# Run 100 rolls at chance=0.05; expect ~5 successes. Allow 1-15 to keep
+	# the bound loose enough to avoid statistical flakes (P[<1] ≈ 0.6%,
+	# P[>15] ≈ 0.0001%). The point is "neither always-fires nor never-fires."
+	seed(42)  # deterministic seed for the rolls block
+	var ttd1 := _make_tech_director_two_trees()
+	var success_count: int = 0
+	for i in range(100):
+		var smith_def := {"id": "smith_npc", "tags": ["smith"],
+			"state_init": {"known_techs": ["smithing"]}}
+		var ent := Entity.create(smith_def, "s%d" % i)
+		var entities1: Dictionary = {"s%d" % i: ent}
+		var env1: Dictionary = {
+			"entities": entities1, "defs": {"smith_npc": smith_def},
+			"world": {}, "parent": null, "next_id": {"_": 0},
+			"signal_buffer": [], "relations": RelationStore.new(),
+		}
+		var awarded: String = ttd1.try_discover_tech(env1, "s%d" % i, "smithing", 1)
+		if awarded != "":
+			success_count += 1
+		ent.queue_free()
+	expect(success_count >= 1 and success_count <= 20,
+		"100 rolls at chance=0.05: expect 1-20 successes (got %d)" % success_count)
+	ttd1.queue_free()
+
+	# ---------- 2. prereq blocking ----------
+	# An NPC who knows ONLY 'smithing' cannot leap directly to 'steel'
+	# (prereq 'ironworking' missing). With chance forced to 1.0 via a
+	# custom tree, a known prereq path should fire steel only after
+	# ironworking is awarded.
+	var ttd2 := TechTreeDirector.new()
+	ttd2.register_trees({
+		"trees": [{"id": "smithing", "nodes": [
+			{"id": "smithing", "prereqs": [], "discovery_chance": 0.0,
+			 "core": true, "eligibility_tags": ["smith"]},
+			{"id": "ironworking", "prereqs": ["smithing"],
+			 "discovery_chance": 1.0, "core": true,
+			 "eligibility_tags": ["smith"]},
+			{"id": "steel", "prereqs": ["ironworking"],
+			 "discovery_chance": 1.0, "core": false,
+			 "eligibility_tags": ["smith"]},
+		]}]
+	}, {})
+	var smith_def2 := {"id": "smith_npc", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing"]}}
+	var ent2 := Entity.create(smith_def2, "s2")
+	var entities2: Dictionary = {"s2": ent2}
+	var env2: Dictionary = {
+		"entities": entities2, "defs": {"smith_npc": smith_def2},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": RelationStore.new(),
+	}
+	# First call should award ironworking (the only ready node — steel
+	# blocked by missing ironworking prereq).
+	var first_award: String = ttd2.try_discover_tech(env2, "s2", "smithing", 1)
+	expect_eq(first_award, "ironworking",
+		"prereq-gated chain: first award is ironworking (steel blocked)")
+	# Now ironworking is in known_techs; steel becomes eligible.
+	var second_award: String = ttd2.try_discover_tech(env2, "s2", "smithing", 1)
+	expect_eq(second_award, "steel",
+		"prereq-gated chain: steel awarded after ironworking earned")
+	ent2.queue_free(); ttd2.queue_free()
+
+	# ---------- 3. eligibility tags (class gating) ----------
+	# A 'farmer'-tagged NPC cannot discover smithing nodes even with
+	# chance=1.0 — eligibility_tags = ["smith"] must be on the entity.
+	var ttd3 := TechTreeDirector.new()
+	ttd3.register_trees({
+		"trees": [{"id": "smithing", "nodes": [
+			{"id": "smithing", "prereqs": [], "discovery_chance": 1.0,
+			 "core": true, "eligibility_tags": ["smith"]},
+		]}]
+	}, {})
+	var farmer_def3 := {"id": "farmer_npc", "tags": ["farmer"],
+		"state_init": {"known_techs": []}}
+	var ent3 := Entity.create(farmer_def3, "f3")
+	var entities3: Dictionary = {"f3": ent3}
+	var env3: Dictionary = {
+		"entities": entities3, "defs": {"farmer_npc": farmer_def3},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": RelationStore.new(),
+	}
+	var farmer_award: String = ttd3.try_discover_tech(env3, "f3", "smithing", 1)
+	expect_eq(farmer_award, "",
+		"farmer-tagged NPC cannot discover smith-only node (eligibility blocks)")
+	# Sanity: a smith CAN discover the same node.
+	var smith_def3 := {"id": "smith_npc", "tags": ["smith"],
+		"state_init": {"known_techs": []}}
+	var ent3b := Entity.create(smith_def3, "s3")
+	(env3["entities"] as Dictionary)["s3"] = ent3b
+	var smith_award: String = ttd3.try_discover_tech(env3, "s3", "smithing", 1)
+	expect_eq(smith_award, "smithing",
+		"smith-tagged NPC discovers smithing (eligibility passes at chance=1.0)")
+	ent3.queue_free(); ent3b.queue_free(); ttd3.queue_free()
+
+	# ---------- 4. master-to-apprentice transfer via party_member_of ----------
+	var ttd4 := _make_tech_director_two_trees()
+	var master_def4 := {"id": "master_smith", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing", "ironworking"]}}
+	var apprentice_def4 := {"id": "apprentice_smith", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing"]}}
+	var master4 := Entity.create(master_def4, "master4")
+	var apprentice4 := Entity.create(apprentice_def4, "apprentice4")
+	var rs4 := RelationStore.new()
+	# Apprentice's party_member_of edge points to master.
+	rs4.relate("party_member_of", "apprentice4", "master4")
+	var entities4: Dictionary = {"master4": master4, "apprentice4": apprentice4}
+	var env4: Dictionary = {
+		"entities": entities4,
+		"defs": {"master_smith": master_def4, "apprentice_smith": apprentice_def4},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": rs4,
+	}
+	var awarded4: String = ttd4.learn_from_master(env4, "apprentice4", "smithing")
+	expect_eq(awarded4, "ironworking",
+		"apprentice learns ironworking from master via party_member_of")
+	var apprentice_known4: Array = apprentice4.get_state("known_techs", []) as Array
+	expect(apprentice_known4.has("ironworking"),
+		"apprentice.known_techs contains ironworking after learn_from_master")
+	master4.queue_free(); apprentice4.queue_free(); ttd4.queue_free()
+
+	# ---------- 5. master-missing no-op ----------
+	# Apprentice with NO outgoing party_member_of edge: learn_from_master
+	# returns "" gracefully — no error, no signal, no state mutation.
+	var ttd5 := _make_tech_director_two_trees()
+	var solo_def5 := {"id": "solo", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing"]}}
+	var solo := Entity.create(solo_def5, "solo")
+	var rs5 := RelationStore.new()  # no edges
+	var env5: Dictionary = {
+		"entities": {"solo": solo}, "defs": {"solo": solo_def5},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": rs5,
+	}
+	var awarded5: String = ttd5.learn_from_master(env5, "solo", "smithing")
+	expect_eq(awarded5, "", "master-missing learn_from_master returns ''")
+	# State unchanged.
+	var solo_known: Array = solo.get_state("known_techs", []) as Array
+	expect_eq(solo_known.size(), 1,
+		"master-missing: known_techs unchanged (still has only 'smithing')")
+	# No tech_learned signal in buffer.
+	var saw_learned5: bool = false
+	for s in (env5["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "tech_learned":
+			saw_learned5 = true
+			break
+	expect(not saw_learned5,
+		"master-missing: NO tech_learned signal emitted")
+	solo.queue_free(); ttd5.queue_free()
+
+	# ---------- 6. multi-apprentice broadcast (pass_to_apprentice) ----------
+	var ttd6 := _make_tech_director_two_trees()
+	var master_def6 := {"id": "m6", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing", "ironworking"]}}
+	var ap_def6 := {"id": "ap6", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing"]}}
+	var master6 := Entity.create(master_def6, "m6")
+	var ap6_a := Entity.create(ap_def6, "a6_a")
+	var ap6_b := Entity.create(ap_def6, "a6_b")
+	var ap6_c := Entity.create(ap_def6, "a6_c")
+	var rs6 := RelationStore.new()
+	rs6.relate("party_member_of", "a6_a", "m6")
+	rs6.relate("party_member_of", "a6_b", "m6")
+	rs6.relate("party_member_of", "a6_c", "m6")
+	var env6: Dictionary = {
+		"entities": {"m6": master6, "a6_a": ap6_a, "a6_b": ap6_b, "a6_c": ap6_c},
+		"defs": {"master_smith6": master_def6, "ap_smith6": ap_def6},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": rs6,
+	}
+	var n6: int = ttd6.pass_to_apprentice(env6, "m6", "smithing",
+	                                       "party_member_of", 4, 1)
+	expect_eq(n6, 3, "pass_to_apprentice awards all 3 apprentices")
+	# Each apprentice should now have ironworking.
+	for ap_id in ["a6_a", "a6_b", "a6_c"]:
+		var ap = (env6["entities"] as Dictionary)[ap_id]
+		var ap_known: Array = (ap as Entity).get_state("known_techs", []) as Array
+		expect(ap_known.has("ironworking"),
+			"apprentice %s has ironworking after pass_to_apprentice" % ap_id)
+	master6.queue_free(); ap6_a.queue_free(); ap6_b.queue_free(); ap6_c.queue_free()
+	ttd6.queue_free()
+
+	# ---------- 7. multi-tree independence ----------
+	# Discovering on smithing tree must not appear on magic_elemental tree
+	# and vice versa. Use a hybrid NPC tagged both smith + mage.
+	var ttd7 := TechTreeDirector.new()
+	ttd7.register_trees({
+		"trees": [
+			{"id": "smithing", "nodes": [
+				{"id": "smithing", "prereqs": [], "discovery_chance": 1.0,
+				 "core": true, "eligibility_tags": ["smith"]},
+			]},
+			{"id": "magic_elemental", "nodes": [
+				{"id": "magic_basic", "prereqs": [], "discovery_chance": 1.0,
+				 "core": true, "eligibility_tags": ["mage"]},
+			]},
+		]
+	}, {})
+	var hybrid_def7 := {"id": "hybrid", "tags": ["smith", "mage"],
+		"state_init": {"known_techs": []}}
+	var hybrid := Entity.create(hybrid_def7, "h7")
+	var env7: Dictionary = {
+		"entities": {"h7": hybrid}, "defs": {"hybrid": hybrid_def7},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": RelationStore.new(),
+	}
+	# Discover on smithing — adds 'smithing', not 'magic_basic'.
+	ttd7.try_discover_tech(env7, "h7", "smithing", 1)
+	var known7a: Array = hybrid.get_state("known_techs", []) as Array
+	expect(known7a.has("smithing"),
+		"smithing tree discovery adds 'smithing'")
+	expect(not known7a.has("magic_basic"),
+		"smithing tree discovery does NOT add magic_elemental nodes")
+	# Discover on magic_elemental — adds 'magic_basic'.
+	ttd7.try_discover_tech(env7, "h7", "magic_elemental", 1)
+	var known7b: Array = hybrid.get_state("known_techs", []) as Array
+	expect(known7b.has("magic_basic"),
+		"magic tree discovery adds 'magic_basic'")
+	expect(known7b.has("smithing"),
+		"magic tree discovery preserves prior smithing")
+	hybrid.queue_free(); ttd7.queue_free()
+
+	# ---------- 8. query operator known_techs_has ----------
+	# state: {known_techs_has: "X"} filters entities whose Array contains X.
+	var smith_def8 := {"id": "smith8", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing", "ironworking"]}}
+	var farmer_def8 := {"id": "farmer8", "tags": ["farmer"],
+		"state_init": {"known_techs": ["farming"]}}
+	var bare_def8 := {"id": "bare8", "tags": ["actor"],
+		"state_init": {"known_techs": []}}
+	# An entity without known_techs at all (strict-missing — should not match).
+	var nokeys_def8 := {"id": "nokeys8", "tags": ["actor"],
+		"state_init": {"hp": 5}}
+	var s8 := Entity.create(smith_def8, "s8")
+	var f8 := Entity.create(farmer_def8, "f8")
+	var b8 := Entity.create(bare_def8, "b8")
+	var n8 := Entity.create(nokeys_def8, "n8")
+	var env8: Dictionary = {
+		"entities": {"s8": s8, "f8": f8, "b8": b8, "n8": n8},
+		"defs": {}, "world": {}, "parent": null, "next_id": {"_": 0},
+		"relations": RelationStore.new(),
+	}
+	var matches_iron: Array = QueryLib.run(
+		{"state": {"known_techs_has": "ironworking"}}, env8)
+	expect_eq(matches_iron.size(), 1,
+		"known_techs_has 'ironworking' returns exactly the smith")
+	expect_eq((matches_iron[0] as Entity).instance_id, "s8",
+		"matched entity is s8 (the smith with ironworking)")
+	var matches_farming: Array = QueryLib.run(
+		{"state": {"known_techs_has": "farming"}}, env8)
+	expect_eq(matches_farming.size(), 1,
+		"known_techs_has 'farming' returns exactly the farmer")
+	# 'bare8' has known_techs=[] so doesn't contain anything; n8 has no
+	# field at all. Both correctly fail to match.
+	var matches_missing: Array = QueryLib.run(
+		{"state": {"known_techs_has": "smithing"}}, env8)
+	expect_eq(matches_missing.size(), 1,
+		"known_techs_has 'smithing' returns only s8 (b8 empty, n8 absent)")
+	s8.queue_free(); f8.queue_free(); b8.queue_free(); n8.queue_free()
+
+	# ---------- 9. formula binding (state.known_techs as Array, 'in' op) ----------
+	# Per ADR 0033 §5, formulas treat known_techs as an Array reachable via
+	# self.state.known_techs. The Godot `in` operator tests membership:
+	#   '"smithing" in self.state.known_techs' → bool
+	# (`.has()` on the path is consumed by the path-substitution regex; the
+	# `in` operator is the working pattern. See ADR §5 + tech_tree.gd notes.)
+	var smith_def9 := {"id": "smith9", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing", "ironworking"]}}
+	var s9 := Entity.create(smith_def9, "s9")
+	var env9: Dictionary = {
+		"entities": {"s9": s9}, "defs": {}, "world": {},
+		"relations": RelationStore.new(),
+	}
+	var fctx9: Dictionary = {"self": s9, "world": {}}
+	var has_iron = Formula.evaluate('"ironworking" in self.state.known_techs', fctx9, env9)
+	expect_eq(bool(has_iron), true,
+		"formula '\"ironworking\" in self.state.known_techs' → true")
+	var has_steel = Formula.evaluate('"steel" in self.state.known_techs', fctx9, env9)
+	expect_eq(bool(has_steel), false,
+		"formula '\"steel\" in self.state.known_techs' → false")
+	s9.queue_free()
+
+	# ---------- 10. save/load preserves known_techs array ----------
+	# Entity state is a plain dict; serialization is a snapshot. Verify
+	# round-trip — save state, build a new Entity, restore state, the
+	# Array survives intact.
+	var smith_def10 := {"id": "smith10", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing", "ironworking"]}}
+	var s10 := Entity.create(smith_def10, "s10")
+	# Mutate via try_discover_tech (chance=1 forced) to confirm the
+	# mutation persists through .duplicate(true).
+	var ttd10 := TechTreeDirector.new()
+	ttd10.register_trees({
+		"trees": [{"id": "smithing", "nodes": [
+			{"id": "smithing", "prereqs": [], "discovery_chance": 0.0,
+			 "core": true, "eligibility_tags": ["smith"]},
+			{"id": "ironworking", "prereqs": ["smithing"],
+			 "discovery_chance": 0.0, "core": true,
+			 "eligibility_tags": ["smith"]},
+			{"id": "steel", "prereqs": ["ironworking"],
+			 "discovery_chance": 1.0, "core": false,
+			 "eligibility_tags": ["smith"]},
+		]}]
+	}, {})
+	var env10: Dictionary = {
+		"entities": {"s10": s10}, "defs": {"smith10": smith_def10},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": RelationStore.new(),
+	}
+	ttd10.try_discover_tech(env10, "s10", "smithing", 1)  # awards steel
+	var pre_save_known: Array = s10.get_state("known_techs", []) as Array
+	expect(pre_save_known.has("steel"),
+		"pre-save: steel was awarded via try_discover_tech")
+	# Snapshot state via deep-duplicate (the policy save layer uses).
+	var snapshot: Dictionary = s10.state.duplicate(true)
+	# Mutate further to prove restore overwrites correctly.
+	s10.set_state("known_techs", [])
+	expect_eq((s10.get_state("known_techs", []) as Array).size(), 0,
+		"between-save: cleared known_techs to []")
+	# Restore.
+	for k in snapshot.keys():
+		s10.set_state(str(k), snapshot[k])
+	var restored_known: Array = s10.get_state("known_techs", []) as Array
+	expect_eq(restored_known.size(), 3,
+		"post-restore: known_techs has all 3 nodes")
+	expect(restored_known.has("smithing") and restored_known.has("ironworking") \
+		and restored_known.has("steel"),
+		"post-restore: all node ids present (smithing+ironworking+steel)")
+	s10.queue_free(); ttd10.queue_free()
+
+	# ---------- 11. signals emitted: tech_discovered + tech_learned + tech_inherited ----------
+	var ttd11 := _make_tech_director_two_trees()
+	var smith_def11 := {"id": "s11", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing"]}}
+	var ap_def11 := {"id": "ap11", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing"]}}
+	var heir_def11 := {"id": "h11", "tags": ["smith"],
+		"state_init": {"known_techs": []}}
+	var s11 := Entity.create(smith_def11, "s11")
+	var ap11 := Entity.create(ap_def11, "ap11")
+	var h11 := Entity.create(heir_def11, "h11")
+	var rs11 := RelationStore.new()
+	rs11.relate("party_member_of", "ap11", "s11")
+	# Force chance=1.0 for ironworking by overriding the registered tree.
+	ttd11.register_trees({
+		"trees": [{"id": "smithing", "nodes": [
+			{"id": "smithing", "prereqs": [], "discovery_chance": 0.0,
+			 "core": true, "eligibility_tags": ["smith"]},
+			{"id": "ironworking", "prereqs": ["smithing"],
+			 "discovery_chance": 1.0, "core": true,
+			 "eligibility_tags": ["smith"]},
+		]}]
+	}, {})
+	var env11: Dictionary = {
+		"entities": {"s11": s11, "ap11": ap11, "h11": h11},
+		"defs": {}, "world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": rs11,
+	}
+	# (a) tech_discovered fires on try_discover_tech success.
+	ttd11.try_discover_tech(env11, "s11", "smithing", 1)
+	var saw_discovered: bool = false
+	for sig in (env11["signal_buffer"] as Array):
+		if sig is Dictionary and str((sig as Dictionary).get("name", "")) == "tech_discovered":
+			var pl: Dictionary = (sig as Dictionary).get("payload", {})
+			if str(pl.get("entity", "")) == "s11" \
+				and str(pl.get("node", "")) == "ironworking" \
+				and str(pl.get("source", "")) == "discovery":
+				saw_discovered = true
+				break
+	expect(saw_discovered,
+		"tech_discovered signal emitted with entity=s11, node=ironworking, source=discovery")
+	# (b) tech_learned fires on learn_from_master success.
+	ttd11.learn_from_master(env11, "ap11", "smithing")
+	var saw_learned: bool = false
+	for sig in (env11["signal_buffer"] as Array):
+		if sig is Dictionary and str((sig as Dictionary).get("name", "")) == "tech_learned":
+			var pl: Dictionary = (sig as Dictionary).get("payload", {})
+			if str(pl.get("entity", "")) == "ap11" \
+				and str(pl.get("node", "")) == "ironworking" \
+				and str(pl.get("source", "")) == "master" \
+				and str(pl.get("master_id", "")) == "s11":
+				saw_learned = true
+				break
+	expect(saw_learned,
+		"tech_learned signal emitted with entity=ap11, node=ironworking, master_id=s11")
+	# (c) tech_inherited fires on inherit_to.
+	# Use the two-tree fixture so we can test core/non-core filtering too.
+	# First seed s11 with all three smithing nodes.
+	s11.set_state("known_techs", ["smithing", "ironworking", "steel"])
+	# Reset signal buffer to isolate inherit signals.
+	env11["signal_buffer"] = []
+	# Re-register the original trees (smithing has core flags T/T/F).
+	var ttd11b := _make_tech_director_two_trees()
+	ttd11b.inherit_to(env11, "s11", "h11", "core_only")
+	var saw_inherited: bool = false
+	for sig in (env11["signal_buffer"] as Array):
+		if sig is Dictionary and str((sig as Dictionary).get("name", "")) == "tech_inherited":
+			var pl: Dictionary = (sig as Dictionary).get("payload", {})
+			if str(pl.get("entity", "")) == "h11" \
+				and str(pl.get("source", "")) == "heir" \
+				and str(pl.get("parent_id", "")) == "s11":
+				saw_inherited = true
+				break
+	expect(saw_inherited,
+		"tech_inherited signal emitted with entity=h11, source=heir, parent_id=s11")
+	s11.queue_free(); ap11.queue_free(); h11.queue_free()
+	ttd11.queue_free(); ttd11b.queue_free()
+
+	# ---------- 12. dynasty inheritance honors `core` flag ----------
+	# inherit_to(heir, parent, "core_only") transfers ONLY core nodes.
+	# Parent knows [smithing(core), ironworking(core), steel(non-core)] →
+	# heir gets [smithing, ironworking], NOT steel.
+	var ttd12 := _make_tech_director_two_trees()
+	var parent_def12 := {"id": "parent12", "tags": ["smith"],
+		"state_init": {"known_techs": ["smithing", "ironworking", "steel"]}}
+	var heir_def12 := {"id": "heir12", "tags": ["smith"],
+		"state_init": {"known_techs": []}}
+	var parent12 := Entity.create(parent_def12, "parent12")
+	var heir12 := Entity.create(heir_def12, "heir12")
+	var env12: Dictionary = {
+		"entities": {"parent12": parent12, "heir12": heir12},
+		"defs": {"parent12": parent_def12, "heir12": heir_def12},
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"signal_buffer": [], "relations": RelationStore.new(),
+	}
+	var inherited: Array = ttd12.inherit_to(env12, "parent12", "heir12", "core_only")
+	# Verify return: 2 nodes inherited (smithing + ironworking).
+	expect_eq(inherited.size(), 2,
+		"inherit_to core_only: 2 core nodes transferred (got %d)" % inherited.size())
+	expect(inherited.has("smithing"),
+		"inherit_to core_only: smithing transferred (core=true)")
+	expect(inherited.has("ironworking"),
+		"inherit_to core_only: ironworking transferred (core=true)")
+	expect(not inherited.has("steel"),
+		"inherit_to core_only: steel NOT transferred (core=false)")
+	# Verify heir state.
+	var heir_known12: Array = heir12.get_state("known_techs", []) as Array
+	expect_eq(heir_known12.size(), 2,
+		"heir.known_techs has exactly 2 nodes after core_only inheritance")
+	expect(heir_known12.has("smithing") and heir_known12.has("ironworking"),
+		"heir.known_techs = [smithing, ironworking] (core flag respected)")
+	expect(not heir_known12.has("steel"),
+		"heir.known_techs does NOT contain steel (non-core dropped)")
+	parent12.queue_free(); heir12.queue_free(); ttd12.queue_free()

@@ -84,11 +84,20 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"party_ko":             _party_ko(effect, env, context)
 		"build_place":          return _build_place(effect, env, context)
 		"switch_class":         return _switch_class(effect, env, context)
+		# ADR 0032 — faction primitive
+		"declare_war":          return _declare_war(effect, env, context)
+		"sign_treaty":          return _sign_treaty(effect, env, context)
+		"propose_alliance":     return _propose_alliance(effect, env, context)
+		"swear_loyalty":        return _swear_loyalty(effect, env, context)
+		# ADR 0033 — tech-tree primitive
+		"try_discover_tech":    return _try_discover_tech(effect, env, context)
+		"learn_from_master":    return _learn_from_master(effect, env, context)
+		"pass_to_apprentice":   return _pass_to_apprentice(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, zone_state_set, zone_state_add, zone_state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place, switch_class.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, zone_state_set, zone_state_add, zone_state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place, switch_class, declare_war, sign_treaty, propose_alliance, swear_loyalty, try_discover_tech, learn_from_master, pass_to_apprentice.",
 				"warning")
 	return {}
 
@@ -680,6 +689,19 @@ static func _formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 		out["zone"] = zs.binding_snapshot()
 	else:
 		out["zone"] = {}
+	# ADR 0032: faction state available as `faction.<id>.<field>`. Each
+	# entry contains member_count + leader + tension_with.<other> +
+	# stance_with.<other> + controls_zone (and the def's metadata).
+	# FactionDirector is a Node sibling under World — locate via env.parent.
+	var fd_parent = env.get("parent", null)
+	if fd_parent is Node:
+		var fd_node = (fd_parent as Node).get_node_or_null("FactionDirector")
+		if fd_node != null and fd_node.has_method("binding_snapshot"):
+			out["faction"] = fd_node.call("binding_snapshot", env)
+		else:
+			out["faction"] = {}
+	else:
+		out["faction"] = {}
 	# Pre-resolved entity bindings (e.g. self_entity from scan-rule firing)
 	var prebound: Array[String] = ["self_entity", "a_entity", "b_entity"]
 	for role_ent in prebound:
@@ -1560,3 +1582,271 @@ static func _switch_class(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Di
 					}
 				})
 	return result
+
+
+# ============================================================
+# FACTION (ADR 0032)
+# ============================================================
+#
+# Four declarative verbs for faction-state mutation:
+#   - declare_war       {from, to}
+#   - sign_treaty       {from, to, new_stance="neutral"}
+#   - propose_alliance  {from, to}
+#   - swear_loyalty     {target, faction, delta=10 OR value=int}
+#
+# All four are NON-DESTRUCTIVE (compose safely in any chain position) and
+# atomic on validation failure (unknown faction id leaves state untouched,
+# raises FACTION_NO_DEF). FactionDirector (sibling Node under World) hosts
+# the registered faction defs + relationship state. effect_apply locates
+# it via env.parent.
+
+## Locate FactionDirector. World is env.parent; FactionDirector is a
+## named sibling under it. Returns null if not mounted (test harnesses
+## without a SceneTree, OR demos that never registered any factions).
+static func _faction_director(env: Dictionary) -> Node:
+	var parent_node = env.get("parent", null)
+	if parent_node is Node:
+		var n = (parent_node as Node).get_node_or_null("FactionDirector")
+		if n != null:
+			return n
+	return null
+
+
+## Resolve a faction id reference (for from/to/faction fields).
+## Same policy as _resolve_id: context binding first, literal fallback.
+## Strings beginning with formula-start chars get evaluated through the
+## formula context (so `"world.active_faction"` resolves to the bound
+## faction id). Otherwise treated as a literal id.
+static func _resolve_faction_id(v, ctx: Dictionary, env: Dictionary) -> String:
+	if v == null: return ""
+	if v is String:
+		var s := str(v)
+		if ctx.has(s): return str(ctx[s])
+		if Formula.looks_like_formula(s):
+			var fctx := _formula_context(ctx, env)
+			if ctx.has("_rule_id"):
+				fctx["_rule_id"] = ctx["_rule_id"]
+			var resolved = Formula.evaluate(s, fctx, env)
+			return str(resolved) if resolved != null else ""
+		return s
+	return str(v)
+
+
+static func _declare_war(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var fd := _faction_director(env)
+	if fd == null or not fd.has_method("apply_declare_war"):
+		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+			"declare_war: no FactionDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add FactionDirector Node sibling under World in play.tscn (per ADR 0032).",
+			"warning")
+		return {"ok": false, "reason": "no_manager"}
+	var from_id := _resolve_faction_id(e.get("from", ""), ctx, env)
+	var to_id := _resolve_faction_id(e.get("to", ""), ctx, env)
+	return fd.call("apply_declare_war", env, from_id, to_id)
+
+
+static func _sign_treaty(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var fd := _faction_director(env)
+	if fd == null or not fd.has_method("apply_sign_treaty"):
+		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+			"sign_treaty: no FactionDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add FactionDirector Node sibling under World in play.tscn (per ADR 0032).",
+			"warning")
+		return {"ok": false, "reason": "no_manager"}
+	var from_id := _resolve_faction_id(e.get("from", ""), ctx, env)
+	var to_id := _resolve_faction_id(e.get("to", ""), ctx, env)
+	# Default new_stance is "neutral" — matches FactionDirector.apply_sign_treaty.
+	var new_stance := str(_value(e.get("new_stance", "neutral"), ctx, env))
+	return fd.call("apply_sign_treaty", env, from_id, to_id, new_stance)
+
+
+static func _propose_alliance(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var fd := _faction_director(env)
+	if fd == null or not fd.has_method("apply_propose_alliance"):
+		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+			"propose_alliance: no FactionDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add FactionDirector Node sibling under World in play.tscn (per ADR 0032).",
+			"warning")
+		return {"ok": false, "reason": "no_manager"}
+	var from_id := _resolve_faction_id(e.get("from", ""), ctx, env)
+	var to_id := _resolve_faction_id(e.get("to", ""), ctx, env)
+	return fd.call("apply_propose_alliance", env, from_id, to_id)
+
+
+## swear_loyalty — mutate target NPC's state.faction_loyalty[<faction>].
+##   {target: <entity_binding|id>, faction: <id>, amount: <int>}
+##     OR {target, faction, value: <int>}
+##
+## `amount` is the delta to add (default +10). `value` overrides to set
+## directly. Loyalty values clamp 0-100. Atomic on unknown faction.
+static func _swear_loyalty(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var fd := _faction_director(env)
+	if fd == null or not fd.has_method("apply_swear_loyalty"):
+		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+			"swear_loyalty: no FactionDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add FactionDirector Node sibling under World in play.tscn (per ADR 0032).",
+			"warning")
+		return {"ok": false, "reason": "no_manager"}
+	# Resolve target — same convention as _target() but we need the id
+	# string to pass to FactionDirector.apply_swear_loyalty.
+	var target_key := str(e.get("target", "self"))
+	var target_id := str(ctx.get(target_key, target_key))
+	var faction_id := _resolve_faction_id(e.get("faction", ""), ctx, env)
+	var opts: Dictionary = {}
+	# Author convention: `amount` for the delta-add (mirrors state_add). The
+	# FactionDirector internally uses `delta` for symmetry with its other
+	# helpers, so we translate here.
+	if e.has("amount"):
+		opts["delta"] = int(_value(e.get("amount"), ctx, env))
+	elif e.has("delta"):
+		opts["delta"] = int(_value(e.get("delta"), ctx, env))
+	if e.has("value"):
+		opts["value"] = int(_value(e.get("value"), ctx, env))
+	return fd.call("apply_swear_loyalty", env, target_id, faction_id, opts)
+
+
+# ============================================================
+# TECH-TREE (ADR 0033)
+# ============================================================
+#
+# Three new vocabulary items: try_discover_tech / learn_from_master /
+# pass_to_apprentice. Each delegates to the TechTreeDirector node mounted
+# as a sibling of World (resolved via env.parent.get_node_or_null). When
+# no director is mounted (test harnesses without a SceneTree, OR demos
+# that ship no tech_trees.json), the effect logs a warning and no-ops.
+#
+# Per ADR 0033 §3 these are NON-DESTRUCTIVE effects — they mutate
+# entity.state.known_techs and emit signals; they don't tear down scene
+# state, so they compose safely in any chain position.
+
+static func _tech_tree_director(env: Dictionary) -> Node:
+	var parent_node = env.get("parent", null)
+	if parent_node is Node:
+		return (parent_node as Node).get_node_or_null("TechTreeDirector")
+	return null
+
+
+## try_discover_tech — roll discovery_chance for one or more eligible
+## nodes on the target's tree.
+##
+## Effect dict shape:
+##   {
+##     "type": "try_discover_tech",
+##     "target": "self",                  # entity-binding key OR literal id
+##     "tree":   "smithing",              # tree id (string OR formula)
+##     "max_rolls_per_call": 1            # default 1 (safety cap)
+##   }
+##
+## Returns {ok, awarded, target, tree}. awarded="" on no-op. Per ADR
+## 0033 §3.1, only the FIRST roll that hits awards a node; subsequent
+## eligible candidates this call are silently skipped (rolls again next
+## tick).
+static func _try_discover_tech(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var ttd := _tech_tree_director(env)
+	if ttd == null or not ttd.has_method("try_discover_tech"):
+		EngineError.raise(env, EngineError.TECH_NO_TREE,
+			"try_discover_tech: no TechTreeDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add TechTreeDirector Node sibling under World in play.tscn (per ADR 0033).",
+			"warning")
+		return {"ok": false, "reason": "no_manager"}
+	var target_key := str(e.get("target", "self"))
+	var target_id := str(ctx.get(target_key, target_key))
+	var tree_id := str(_value(e.get("tree", ""), ctx, env))
+	var max_rolls: int = int(_value(e.get("max_rolls_per_call", 1), ctx, env))
+	var awarded: String = ttd.call("try_discover_tech", env, target_id, tree_id, max_rolls)
+	return {
+		"ok": awarded != "",
+		"awarded": awarded,
+		"target": target_id,
+		"tree": tree_id,
+	}
+
+
+## learn_from_master — transfer one node from master to apprentice via
+## the named relation (default party_member_of, ADR 0026).
+##
+## Effect dict shape:
+##   {
+##     "type": "learn_from_master",
+##     "target": "self",                  # apprentice entity-binding|id
+##     "tree":   "smithing",              # optional; "" = any tree
+##     "master_via_relation": "party_member_of",  # ADR 0026 default
+##     "master_id": ""                    # optional explicit override
+##     "max_per_call": 1                  # default 1
+##   }
+##
+## Returns {ok, awarded, target, tree, master_id}. Per ADR 0033 §3.2,
+## missing master = graceful no-op (no error, no signal).
+static func _learn_from_master(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var ttd := _tech_tree_director(env)
+	if ttd == null or not ttd.has_method("learn_from_master"):
+		EngineError.raise(env, EngineError.TECH_NO_TREE,
+			"learn_from_master: no TechTreeDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add TechTreeDirector Node sibling under World in play.tscn (per ADR 0033).",
+			"warning")
+		return {"ok": false, "reason": "no_manager"}
+	var target_key := str(e.get("target", "self"))
+	var apprentice_id := str(ctx.get(target_key, target_key))
+	var tree_id := str(_value(e.get("tree", ""), ctx, env))
+	var relation := str(e.get("master_via_relation", "party_member_of"))
+	# Optional explicit master override (rare — for test harnesses or
+	# rules that already have a master id in context).
+	var master_id := ""
+	if e.has("master_id"):
+		master_id = _resolve_id(e.get("master_id"), ctx)
+	var max_per_call: int = int(_value(e.get("max_per_call", 1), ctx, env))
+	var awarded: String = ttd.call("learn_from_master", env, apprentice_id, tree_id,
+	                                master_id, relation, max_per_call)
+	return {
+		"ok": awarded != "",
+		"awarded": awarded,
+		"target": apprentice_id,
+		"tree": tree_id,
+		"master_id": master_id,
+	}
+
+
+## pass_to_apprentice — broadcast: master fires from its own perspective,
+## director resolves all apprentices via inverse relation and runs
+## learn_from_master per apprentice.
+##
+## Effect dict shape:
+##   {
+##     "type": "pass_to_apprentice",
+##     "target": "self",                  # master entity-binding|id
+##     "tree":   "smithing",              # optional; "" = any tree
+##     "apprentice_via_relation": "party_member_of",
+##     "max_apprentices_per_call": 4,
+##     "max_per_apprentice": 1
+##   }
+##
+## Returns {ok, awarded_count, target, tree}.
+static func _pass_to_apprentice(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	var ttd := _tech_tree_director(env)
+	if ttd == null or not ttd.has_method("pass_to_apprentice"):
+		EngineError.raise(env, EngineError.TECH_NO_TREE,
+			"pass_to_apprentice: no TechTreeDirector mounted under World",
+			{"rule_id": ctx.get("_rule_id", "")},
+			"Add TechTreeDirector Node sibling under World in play.tscn (per ADR 0033).",
+			"warning")
+		return {"ok": false, "reason": "no_manager"}
+	var target_key := str(e.get("target", "self"))
+	var master_id := str(ctx.get(target_key, target_key))
+	var tree_id := str(_value(e.get("tree", ""), ctx, env))
+	var relation := str(e.get("apprentice_via_relation", "party_member_of"))
+	var max_apprentices: int = int(_value(e.get("max_apprentices_per_call", 4), ctx, env))
+	var max_per: int = int(_value(e.get("max_per_apprentice", 1), ctx, env))
+	var n: int = int(ttd.call("pass_to_apprentice", env, master_id, tree_id, relation,
+	                          max_apprentices, max_per))
+	return {
+		"ok": n > 0,
+		"awarded_count": n,
+		"target": master_id,
+		"tree": tree_id,
+	}

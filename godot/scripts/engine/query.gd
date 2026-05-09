@@ -133,6 +133,21 @@ static func _match_fields(fields: Dictionary, spec: Dictionary) -> bool:
 	for k in spec:
 		var key: String = str(k)
 		var target = spec[key]
+		# ADR 0033 — tech-tree primitive: `<field>_has` operator tests
+		# Array set membership. Treated as a separate op-suffix branch
+		# because OPERATOR_SUFFIXES is sized for scalar comparisons; set
+		# membership has different semantics (missing field = no match,
+		# non-Array field = no match, value present in array = match).
+		if key.ends_with("_has"):
+			var field_h: String = key.substr(0, key.length() - 4)
+			if not fields.has(field_h):
+				return false
+			var arr_v = fields[field_h]
+			if not (arr_v is Array):
+				return false
+			if not (arr_v as Array).has(target):
+				return false
+			continue
 		var op: String = "eq"
 		var field: String = key
 		for suffix in OPERATOR_SUFFIXES:

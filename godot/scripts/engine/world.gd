@@ -284,6 +284,18 @@ func load_data() -> void:
 	var class_mgr := get_node_or_null("ClassManager")
 	if class_mgr != null and class_mgr.has_method("register_classes_from_data_root"):
 		class_mgr.register_classes_from_data_root(root, scheduler.env)
+	# ADR 0033: TechTreeDirector loads tree defs from <root>/tech_trees.json
+	# if present. No-op for games without a tech tree (existing demos
+	# unaffected). Loaded after entities so signal listeners are wired
+	# before the first try_discover_tech / learn_from_master effect can fire.
+	var tech_dir := get_node_or_null("TechTreeDirector")
+	if tech_dir != null and tech_dir.has_method("register_trees_from_data_root"):
+		tech_dir.register_trees_from_data_root(root, scheduler.env)
+	# ADR 0032: FactionDirector loads faction defs + initial relationships
+	# from <root>/factions.json if present. No-op for games without
+	# politics. Loaded after entities so member_count bindings can resolve
+	# against the live entity set on first tick.
+	_load_factions_file(root + "/factions.json")
 	scheduler.flush_effects()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
@@ -592,6 +604,39 @@ func _load_zones_file(path: String) -> void:
 	if verbose:
 		print("[World] zone_store loaded: %d zones, %d errors" % [
 			zone_store.count(), errors.size()
+		])
+
+
+## ADR 0032 — load factions.json into FactionDirector.
+## Optional file; absent = no-op (FactionDirector keeps an empty registry,
+## full backward-compat). Validation errors (unknown faction in
+## relationship from/to, invalid stance) report to env.error_buffer but
+## don't halt engine boot.
+func _load_factions_file(path: String) -> void:
+	var fd := get_node_or_null("FactionDirector")
+	if fd == null or not fd.has_method("register_factions"):
+		return
+	if not FileAccess.file_exists(path): return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return
+	var raw := f.get_as_text()
+	f.close()
+	var data = JSON.parse_string(raw)
+	if not (data is Dictionary):
+		EngineError.raise(_build_env(), "faction.invalid_json",
+			"factions.json is not a JSON object",
+			{"file": path},
+			"The top-level value must be a dict like {\"factions\": [...], \"relationships\": [...]}.",
+			"warning")
+		return
+	var errors = fd.call("register_factions", data, _build_env())
+	if verbose:
+		var errs_size: int = (errors as Array).size() if errors is Array else 0
+		var known_count: int = 0
+		if fd.has_method("known_faction_ids"):
+			known_count = (fd.call("known_faction_ids") as Array).size()
+		print("[World] faction_director loaded: %d factions, %d errors" % [
+			known_count, errs_size
 		])
 
 

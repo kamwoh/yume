@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=14 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -22,6 +22,8 @@
 [ext_resource type="Script" path="res://scripts/engine/schedule_director.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/engine/lifecycle_director.gd" id="11"]
 [ext_resource type="Script" path="res://scripts/engine/class_manager.gd" id="12"]
+[ext_resource type="Script" path="res://scripts/engine/faction_director.gd" id="13"]
+[ext_resource type="Script" path="res://scripts/engine/tech_tree.gd" id="14"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -85,6 +87,24 @@ script = ExtResource("11")
 ; classes directory exists (existing demos unaffected).
 [node name="ClassManager" type="Node" parent="."]
 script = ExtResource("12")
+
+; ADR 0032: FactionDirector holds faction defs + inter-faction relationship
+; state (stance + tension), and hosts the four declarative effects:
+; declare_war / sign_treaty / propose_alliance / swear_loyalty. Loads
+; data/<game>/factions.json if present. No-op when factions.json is
+; absent (existing demos unaffected — backward-compat by absence).
+[node name="FactionDirector" type="Node" parent="."]
+script = ExtResource("13")
+
+; ADR 0033: TechTreeDirector holds tech tree definitions + hosts the
+; three declarative effects: try_discover_tech / learn_from_master /
+; pass_to_apprentice. Per-entity state.known_techs is the membership
+; set; no per-tick director work (discovery cadence is content-driven
+; via tick rules). Loads data/<game>/tech_trees.json if present. No-op
+; when the file is absent (existing demos unaffected — backward-compat
+; by absence).
+[node name="TechTreeDirector" type="Node" parent="."]
+script = ExtResource("14")
 
 ; Per-screen smoke harness — activates only with `--smoke-screens`.
 ; Walks every screen in screens.json, captures each, exits.
