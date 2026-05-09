@@ -62,6 +62,12 @@ const SCHEDULER_TOPO_CYCLE     := "scheduler.topo_cycle"
 
 const ANIMATION_NO_DEFAULT     := "animation.no_default"
 
+# ADR 0030 — class primitive
+const CLASS_SWITCH_NO_DEF      := "class.switch_no_def"
+const CLASS_SWITCH_COOLDOWN    := "class.switch_cooldown"
+const CLASS_MISSING_ID         := "class.missing_id"
+const CLASS_INVALID_JSON       := "class.invalid_json"
+
 
 # ============================================================
 # CONSTRUCTORS

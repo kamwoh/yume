@@ -80,6 +80,11 @@ var actor_manager = null
 ## legacy behavior; all entities live in env.entities for the whole run.
 ## When non-null, _on_tick calls update() each tick.
 var chunk_streamer: ChunkStreamer = null
+## ADR 0031 — zone-state primitive. Hierarchical aggregate scope alongside
+## entities + world_state. Always non-null (an empty store is fine);
+## populated from world/zones.json if that file exists. Passed through env
+## so effects (zone_state_*) and Formula (zone.X.Y bindings) can access it.
+var zone_store: ZoneStore = null
 
 
 # ============================================================
@@ -100,6 +105,10 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	relations = RelationStore.new()
 	spatial_index = SpatialIndex.new()
+	# ADR 0031: zone_store always exists (empty until zones.json loads).
+	# Empty store has no overhead and lets env.zone_store be non-null
+	# everywhere — backward-compat for demos with no zones file.
+	zone_store = ZoneStore.new()
 	scheduler = PhaseScheduler.new(_build_env())
 	if auto_start:
 		start()
@@ -212,6 +221,11 @@ func load_data() -> void:
 		# entities exist.
 		if scheduler != null:
 			Pathfinding.build_navmesh_for_level(scheduler.env)
+	# ADR 0031: load zones.json (optional). Backward-compat — absent file
+	# means no zones, no overhead. Loads AFTER entities + world_state so
+	# error reports can reach env.error_buffer; loads BEFORE save layer
+	# so saved zone_state restores on top of state_init.
+	_load_zones_file(root + "/world/zones.json")
 	# ADR 0014: open-world chunk streaming. world.json declares chunked-world
 	# mode; absent means single-chunk legacy mode (no streaming, no chunks
 	# directory consulted). When present:
@@ -263,6 +277,13 @@ func load_data() -> void:
 	var lc_dir := get_node_or_null("LifecycleDirector")
 	if lc_dir != null and lc_dir.has_method("register_lifecycles_from_env"):
 		lc_dir.register_lifecycles_from_env(scheduler.env)
+	# ADR 0030: ClassManager loads class defs from <root>/classes/*.json
+	# if the directory exists. No-op for games without occupations.
+	# Loaded after entities so signal listeners (game-rules) are already
+	# wired by the time the first switch_class effect can fire.
+	var class_mgr := get_node_or_null("ClassManager")
+	if class_mgr != null and class_mgr.has_method("register_classes_from_data_root"):
+		class_mgr.register_classes_from_data_root(root, scheduler.env)
 	scheduler.flush_effects()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
@@ -548,6 +569,32 @@ func _load_world_file(path: String) -> void:
 			world_state[str(k)] = s[k]
 
 
+## ADR 0031 — load world/zones.json into ZoneStore.
+## Optional file; absent = empty store, full backward-compat. Validation
+## errors (cycles, multi-parent, unknown ids) report to env.error_buffer
+## but don't halt engine boot — partial zones are still usable.
+func _load_zones_file(path: String) -> void:
+	if zone_store == null:
+		zone_store = ZoneStore.new()
+	if not FileAccess.file_exists(path): return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return
+	var raw := f.get_as_text()
+	f.close()
+	var data = JSON.parse_string(raw)
+	if not (data is Dictionary):
+		EngineError.raise(_build_env(), "zone.invalid_json",
+			"world/zones.json is not a JSON object",
+			{"file": path},
+			"The top-level value must be a dict like {\"zones\": [...]}.")
+		return
+	var errors := zone_store.load_from_dict(data, _build_env())
+	if verbose:
+		print("[World] zone_store loaded: %d zones, %d errors" % [
+			zone_store.count(), errors.size()
+		])
+
+
 func _spawn_initial(inst: Dictionary) -> void:
 	var def_id := str(inst.get("def", ""))
 	if not defs.has(def_id):
@@ -800,6 +847,10 @@ func _do_load(slot: int) -> void:
 		if cc is Array and (cc as Array).size() >= 2:
 			var saved_chunk := Vector2i(int(cc[0]), int(cc[1]))
 			_apply_saved_chunk(saved_chunk)
+	# ADR 0031: restore zone state. Zones in save but absent from current
+	# zones.json are dropped silently (forgiveness). Zones present in zones.json
+	# but absent from save retain their state_init defaults.
+	SaveState.restore_zone_state(_build_env(), payload)
 	# Apply saved persistent entities (overwrite the level's defaults)
 	_apply_saved_entities(payload.get("persistent_entities", []))
 	# Apply saved relations (additive — relations from level are kept,
@@ -1628,4 +1679,7 @@ func _build_env() -> Dictionary:
 		# ADR 0012: OverlayManager drains show_overlay / dismiss_overlay
 		# effects from this buffer.
 		"overlay_event_buffer": [],
+		# ADR 0031: zone-state primitive. Always non-null (empty store is
+		# fine — backward-compat for demos with no world/zones.json).
+		"zone_store": zone_store,
 	}

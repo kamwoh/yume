@@ -43,6 +43,10 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"state_add":         _state_add(effect, env, context)
 		"state_mul":         _state_mul(effect, env, context)
 		"state_clamp":       _state_clamp(effect, env, context)
+		# ADR 0031 — aggregated zone-state primitive
+		"zone_state_set":    _zone_state_set(effect, env, context)
+		"zone_state_add":    _zone_state_add(effect, env, context)
+		"zone_state_clamp":  _zone_state_clamp(effect, env, context)
 		"spawn":             return _spawn(effect, env, context)
 		"remove":            _remove(effect, env, context)
 		"transform":         return _transform(effect, env, context)
@@ -79,11 +83,12 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"party_leave":          _party_leave(effect, env, context)
 		"party_ko":             _party_ko(effect, env, context)
 		"build_place":          return _build_place(effect, env, context)
+		"switch_class":         return _switch_class(effect, env, context)
 		_:
 			EngineError.raise(env, EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				"Use one of: state_set, state_add, state_mul, state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place.",
+				"Use one of: state_set, state_add, state_mul, state_clamp, zone_state_set, zone_state_add, zone_state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place, switch_class.",
 				"warning")
 	return {}
 
@@ -140,6 +145,95 @@ static func _state_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 	var lo := float(e.get("min", -INF))
 	var hi := float(e.get("max", INF))
 	ent.set_state(field, clamp(float(ent.get_state(field, 0)), lo, hi))
+
+
+# ============================================================
+# ZONE STATE EFFECTS (ADR 0031)
+# ============================================================
+#
+# Three new vocabulary items: zone_state_set / _add / _clamp.
+# Schema: {type, zone, field, value | amount | min/max}.
+#
+# `zone` resolves like entity targets — context binding (e.g. "a.zone_id"
+# resolved through formulas, or a bare ctx key) first, literal id fallback.
+# Effects no-op silently (with a warning EngineError) if zone_store is
+# missing or the zone id is unknown — matches state_set's behavior on
+# missing entity targets.
+
+static func _resolve_zone_id(v, ctx: Dictionary, env: Dictionary) -> String:
+	# Mirror _resolve_id but accept formulas too (e.g. "world.active_kingdom").
+	if v == null: return ""
+	if v is String:
+		var s := str(v)
+		# Bare context binding (e.g. "kingdom" → ctx["kingdom"])
+		if ctx.has(s): return str(ctx[s])
+		# Formula? evaluate it (e.g. "world.active_kingdom", "self.home_zone")
+		if Formula.looks_like_formula(s):
+			var fctx := _formula_context(ctx, env)
+			if ctx.has("_rule_id"):
+				fctx["_rule_id"] = ctx["_rule_id"]
+			var resolved = Formula.evaluate(s, fctx, env)
+			return str(resolved) if resolved != null else ""
+		# Literal id
+		return s
+	return str(v)
+
+
+static func _zone_store(env: Dictionary):
+	return env.get("zone_store", null)
+
+
+static func _zone_state_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var zs = _zone_store(env)
+	if zs == null: return
+	var zid := _resolve_zone_id(e.get("zone"), ctx, env)
+	if zid == "" or not zs.has(zid):
+		EngineError.raise(env, "effect.zone_unknown",
+			"zone_state_set: unknown zone '%s'" % zid,
+			{"rule_id": ctx.get("_rule_id", ""), "field": "zone", "got": zid},
+			"Verify the zone id exists in world/zones.json or that the binding resolves to a known zone.",
+			"warning")
+		return
+	var field := str(e.get("field", ""))
+	var value = _value(e.get("value"), ctx, env)
+	zs.set_field(zid, field, value)
+
+
+static func _zone_state_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var zs = _zone_store(env)
+	if zs == null: return
+	var zid := _resolve_zone_id(e.get("zone"), ctx, env)
+	if zid == "" or not zs.has(zid):
+		EngineError.raise(env, "effect.zone_unknown",
+			"zone_state_add: unknown zone '%s'" % zid,
+			{"rule_id": ctx.get("_rule_id", ""), "field": "zone", "got": zid},
+			"Verify the zone id exists in world/zones.json or that the binding resolves to a known zone.",
+			"warning")
+		return
+	var field := str(e.get("field", ""))
+	# Per ADR §"Effects" — amount is the canonical key (mirrors state_add).
+	# Accept `delta` as a back-compat alias since the ADR's example JSON
+	# spelled it `delta`. Authors land on `amount` going forward.
+	var raw = e.get("amount", e.get("delta", 0))
+	var delta := float(_value(raw, ctx, env))
+	zs.add_field(zid, field, delta)
+
+
+static func _zone_state_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var zs = _zone_store(env)
+	if zs == null: return
+	var zid := _resolve_zone_id(e.get("zone"), ctx, env)
+	if zid == "" or not zs.has(zid):
+		EngineError.raise(env, "effect.zone_unknown",
+			"zone_state_clamp: unknown zone '%s'" % zid,
+			{"rule_id": ctx.get("_rule_id", ""), "field": "zone", "got": zid},
+			"Verify the zone id exists in world/zones.json or that the binding resolves to a known zone.",
+			"warning")
+		return
+	var field := str(e.get("field", ""))
+	var lo := float(_value(e.get("min", -INF), ctx, env))
+	var hi := float(_value(e.get("max", INF), ctx, env))
+	zs.clamp_field(zid, field, lo, hi)
 
 
 # ============================================================
@@ -578,6 +672,14 @@ static func _formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 				out[role] = entities[id]
 	# World state always available
 	out["world"] = env.get("world", {})
+	# ADR 0031: zone state always available as `zone.<id>.<field>`. The
+	# snapshot is a flat {zone_id: state_dict} — Formula._resolve_path
+	# walks the dotted path: root=zone → state_dict → field value.
+	var zs = env.get("zone_store", null)
+	if zs != null and zs.has_method("binding_snapshot"):
+		out["zone"] = zs.binding_snapshot()
+	else:
+		out["zone"] = {}
 	# Pre-resolved entity bindings (e.g. self_entity from scan-rule firing)
 	var prebound: Array[String] = ["self_entity", "a_entity", "b_entity"]
 	for role_ent in prebound:
@@ -1391,3 +1493,70 @@ static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 	sub_ctx["build_id"] = inst_id
 	_apply_chain(e.get("on_success", []), env, sub_ctx)
 	return {"placed": true, "reason": "", "instance_id": inst_id}
+
+
+# ============================================================
+# CLASS / OCCUPATION (ADR 0030)
+# ============================================================
+
+## switch_class — atomic occupation swap on a player-actor entity.
+##
+## Effect dict shape:
+##   {
+##     "type": "switch_class",
+##     "target": "self",           # entity-binding key OR literal id;
+##                                 # default "self".
+##     "to_class": "warrior",      # class id (string OR formula resolving
+##                                 # to a string).
+##     "cooldown_days": 1,         # optional, default 1. Set 0 to bypass.
+##     "on_failure_signal": "..."  # optional. If set AND validation fails,
+##                                 # emit this signal with reason payload
+##                                 # so game-rules can surface a toast.
+##   }
+##
+## Returns {ok, reason, from, to, instance_id} for the scheduler to
+## record. Per ADR 0030 §effect-chain ordering, switch_class is
+## NON-DESTRUCTIVE — composes safely in any chain position.
+##
+## ClassManager (sibling Node under World) hosts the registered class
+## defs and the validation logic. effect_apply locates it via the env's
+## parent reference. If no ClassManager is mounted (test harnesses
+## without a SceneTree, OR demos that never registered any classes),
+## the effect logs a warning and no-ops.
+static func _switch_class(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
+	# Resolve target — same convention as _target() but we need the id
+	# string, not the Entity, so we can pass it to ClassManager.switch_class.
+	var target_key := str(e.get("target", "self"))
+	var target_id := str(ctx.get(target_key, target_key))
+	var to_class := str(_value(e.get("to_class", ""), ctx, env))
+	var cooldown_days: int = int(_value(e.get("cooldown_days", 1), ctx, env))
+	# Locate ClassManager. World is env.parent; ClassManager is a
+	# named sibling under it.
+	var cm: Node = null
+	var parent_node = env.get("parent", null)
+	if parent_node is Node:
+		cm = (parent_node as Node).get_node_or_null("ClassManager")
+	if cm == null or not cm.has_method("switch_class"):
+		EngineError.raise(env, EngineError.CLASS_SWITCH_NO_DEF,
+			"switch_class: no ClassManager mounted under World",
+			{"rule_id": ctx.get("_rule_id", ""), "target": target_id, "to_class": to_class},
+			"Add ClassManager Node sibling under World in play.tscn (per ADR 0030).",
+			"warning")
+		return {"ok": false, "reason": "no_manager", "from": "", "to": to_class}
+	var result: Dictionary = cm.call("switch_class", env, target_id, to_class, cooldown_days)
+	# On failure, optionally emit on_failure_signal so game-rules can react.
+	if not bool(result.get("ok", false)):
+		var fail_sig := str(e.get("on_failure_signal", ""))
+		if fail_sig != "":
+			var buf = env.get("signal_buffer", null)
+			if buf is Array:
+				(buf as Array).append({
+					"name": fail_sig,
+					"payload": {
+						"target": target_id,
+						"to_class": to_class,
+						"reason": str(result.get("reason", "")),
+						"from": str(result.get("from", "")),
+					}
+				})
+	return result

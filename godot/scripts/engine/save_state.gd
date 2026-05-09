@@ -100,6 +100,10 @@ static func save_to_slot(env: Dictionary, policy: Dictionary, slot: int,
 		"world_state": _filter_world_state(env, policy),
 		"persistent_entities": _serialize_persistent_entities(env, policy),
 		"relations": _filter_relations(env, policy),
+		# ADR 0031: zone_state persists by default (analogous to world_state).
+		# Policy can opt out via "persist_zones": false; or filter via an
+		# array of allowed ids.
+		"zone_state": _serialize_zone_state(env, policy),
 	}
 	# ADR 0014: persist current_chunk if game is in chunked-world mode.
 	# Read from the live World node (env.parent) — chunk_streamer is the
@@ -221,6 +225,46 @@ static func _filter_relations(env: Dictionary, policy: Dictionary) -> Array:
 					"to":   str((p as Dictionary).get("to", "")),
 				})
 	return out
+
+
+## ADR 0031 — serialize zone state per `persist_zones` policy.
+##
+## persist_zones values:
+##   - true  / absent  → all zones persist (default)
+##   - false           → no zones persist (returns {})
+##   - Array[String]   → only the listed zone ids persist
+##
+## ZoneStore.to_save() returns flat {zone_id: {field: value, ...}, ...};
+## we filter that by the policy.
+static func _serialize_zone_state(env: Dictionary, policy: Dictionary) -> Dictionary:
+	var zs = env.get("zone_store", null)
+	if zs == null or not zs.has_method("to_save"): return {}
+	var policy_val = policy.get("persist_zones", true)
+	if policy_val is bool and not policy_val: return {}
+	var full: Dictionary = zs.to_save()
+	if policy_val is Array:
+		var allowed: Array = policy_val
+		var filtered: Dictionary = {}
+		for zid in full.keys():
+			for a in allowed:
+				if str(a) == str(zid):
+					filtered[zid] = full[zid]
+					break
+		return filtered
+	return full
+
+
+## ADR 0031 — restore zone state from a save payload's "zone_state" key.
+## Called by world.gd's load path after read_slot returns ok. Zones in the
+## save but absent from current zones.json are silently dropped (forgive-
+## ness — same as entity-state on def removal). Zones present in zones.json
+## but absent from save retain their state_init values.
+static func restore_zone_state(env: Dictionary, payload: Dictionary) -> void:
+	var zs = env.get("zone_store", null)
+	if zs == null or not zs.has_method("from_save"): return
+	var d = payload.get("zone_state", {})
+	if d is Dictionary:
+		zs.from_save(d)
 
 
 static func _position_to_array(p) -> Array:

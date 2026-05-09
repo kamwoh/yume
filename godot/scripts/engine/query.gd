@@ -199,6 +199,26 @@ static func _check_single_relation(entity: Entity, rel_type: String, target, sto
 	return false
 
 
+# ============================================================
+# ZONE QUERY (ADR 0031 — query_zone operator)
+# ============================================================
+
+## Run a zone query against env.zone_store. Returns Array of zone_ids.
+## Mirror of run() but over zones, not entities. See ZoneStore.find for
+## supported filter shape (id / type / contained_by / contains / state).
+##
+## Phase scheduler integration: rules with a `query_zone` clause iterate
+## these matches and bind `@matched` (the zone dict) into the rule's
+## context for effect evaluation. Wiring is phase_scheduler.gd's job
+## (out of this ADR's scope per task split — this static helper is the
+## stable entry point a future scheduler change can call).
+static func run_zones(spec: Dictionary, env: Dictionary) -> Array:
+	var zs = env.get("zone_store", null)
+	if zs == null or not zs.has_method("find"): return []
+	if spec == null or not (spec is Dictionary): return []
+	return zs.find(spec)
+
+
 ## For `radius` queries, find the spatial origin in planar (XZ) space.
 ## Priority:
 ##   1. context._origin_position (explicit Vector2 or Array)

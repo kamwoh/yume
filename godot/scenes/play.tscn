@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
@@ -21,6 +21,7 @@
 [ext_resource type="Script" path="res://scripts/engine/nameplate_renderer.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/engine/schedule_director.gd" id="10"]
 [ext_resource type="Script" path="res://scripts/engine/lifecycle_director.gd" id="11"]
+[ext_resource type="Script" path="res://scripts/engine/class_manager.gd" id="12"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -77,6 +78,13 @@ script = ExtResource("10")
 ; demos unaffected — backward-compat by absence).
 [node name="LifecycleDirector" type="Node" parent="."]
 script = ExtResource("11")
+
+; ADR 0030: ClassManager holds class definitions (data/<game>/classes/*.json
+; if present) and hosts the switch_class effect's atomic swap logic.
+; State.current_class is per-entity; no per-tick work. No-op when no
+; classes directory exists (existing demos unaffected).
+[node name="ClassManager" type="Node" parent="."]
+script = ExtResource("12")
 
 ; Per-screen smoke harness — activates only with `--smoke-screens`.
 ; Walks every screen in screens.json, captures each, exits.

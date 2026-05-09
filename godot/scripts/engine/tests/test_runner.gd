@@ -70,6 +70,8 @@ func _ready() -> void:
 	test_animation_primitive()
 	test_lifecycle_primitive()
 	test_build_place_primitive()
+	test_class_primitive()
+	test_zone_state_primitive()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -4741,3 +4743,457 @@ func test_build_place_primitive() -> void:
 		"missing blueprint → no entity added")
 	expect((env12["error_buffer"] as Array).size() > 0,
 		"missing blueprint → EngineError raised into error_buffer")
+
+
+func test_class_primitive() -> void:
+	_section("class_primitive (ADR 0030)")
+
+	# Two class defs sufficient for all 7 assertions: a "farmer" and a
+	# "warrior". Each is a minimal data dict — ClassManager treats the
+	# fields as opaque metadata; only `id` is required.
+	var farmer_def: Dictionary = {
+		"id": "farmer",
+		"display_name": "Farmer",
+		"verbs": ["plant", "water", "harvest"],
+		"camera_mode": "iso_top_down",
+		"switch_cooldown_days": 1,
+	}
+	var warrior_def: Dictionary = {
+		"id": "warrior",
+		"display_name": "Warrior",
+		"verbs": ["attack", "block"],
+		"camera_mode": "third_person_3d",
+		"switch_cooldown_days": 1,
+	}
+
+	# Build a player entity carrying current_class + class_progress +
+	# inventory + reputation + last_class_switch_day. Mirrors ADR 0030
+	# §player-actor state schema.
+	var player_def: Dictionary = {
+		"id": "player",
+		"tags": ["player", "actor"],
+		"state_init": {
+			"current_class": "farmer",
+			"class_progress": {
+				"farmer": {"level": 3, "xp": 240, "specialty": "wheat"},
+				"warrior": {"level": 1, "xp": 30}
+			},
+			"inventory": ["bread", "hoe", "seeds"],
+			"reputation": {"pendrel": 75, "brookhaven": 20},
+			"last_class_switch_day": 0,
+		},
+	}
+
+	# ---------- Assertion 1: class def loads from data dict ----------
+	var cm1 := ClassManager.new()
+	cm1.register_class("farmer", farmer_def)
+	cm1.register_class("warrior", warrior_def)
+	expect(cm1.has_class("farmer"), "register_class stores 'farmer' def")
+	expect(cm1.has_class("warrior"), "register_class stores 'warrior' def")
+	var got_def: Dictionary = cm1.get_class_def("farmer")
+	expect_eq(str(got_def.get("display_name", "")), "Farmer",
+		"get_class_def returns the stored def with metadata intact")
+	cm1.queue_free()
+
+	# ---------- Assertion 2: switch_class swaps current_class + emits signal ----------
+	var cm2 := ClassManager.new()
+	cm2.register_class("farmer", farmer_def)
+	cm2.register_class("warrior", warrior_def)
+	var p2 := Entity.create(player_def, "player")
+	var entities2: Dictionary = {"player": p2}
+	var env2: Dictionary = {
+		"entities": entities2,
+		"defs": {"player": player_def},
+		"world": {"current_day": 5},
+		"signal_buffer": [],
+	}
+	# Skip cooldown by using current_day=5 (last_class_switch_day=0,
+	# cooldown_days=1 → 5 - 0 >= 1 → ok).
+	var res2: Dictionary = cm2.switch_class(env2, "player", "warrior", 1)
+	expect(bool(res2.get("ok", false)),
+		"switch_class succeeds when class def exists + cooldown met")
+	expect_eq(str(p2.get_state("current_class", "")), "warrior",
+		"state.current_class is updated to 'warrior'")
+	# Signal should be in buffer with from/to/day payload.
+	var saw_class_switched: bool = false
+	for s in (env2["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "class_switched":
+			var pl: Dictionary = (s as Dictionary).get("payload", {})
+			if str(pl.get("from", "")) == "farmer" and str(pl.get("to", "")) == "warrior":
+				saw_class_switched = true
+				break
+	expect(saw_class_switched,
+		"class_switched signal emitted with from='farmer', to='warrior'")
+	p2.queue_free(); cm2.queue_free()
+
+	# ---------- Assertion 3: inventory persists across switch ----------
+	var cm3 := ClassManager.new()
+	cm3.register_class("farmer", farmer_def)
+	cm3.register_class("warrior", warrior_def)
+	var p3 := Entity.create(player_def, "player")
+	var entities3: Dictionary = {"player": p3}
+	var env3: Dictionary = {
+		"entities": entities3, "defs": {"player": player_def},
+		"world": {"current_day": 5}, "signal_buffer": [],
+	}
+	var inv_before: Variant = p3.get_state("inventory", null)
+	cm3.switch_class(env3, "player", "warrior", 1)
+	var inv_after: Variant = p3.get_state("inventory", null)
+	expect(inv_before == inv_after,
+		"state.inventory unchanged across switch (class-agnostic, persists)")
+	# Also verify the array contents survived intact.
+	expect((inv_after as Array).has("bread") and (inv_after as Array).has("hoe"),
+		"inventory contents survive switch (bread + hoe present)")
+	p3.queue_free(); cm3.queue_free()
+
+	# ---------- Assertion 4: reputation persists across switch ----------
+	var cm4 := ClassManager.new()
+	cm4.register_class("farmer", farmer_def)
+	cm4.register_class("warrior", warrior_def)
+	var p4 := Entity.create(player_def, "player")
+	var entities4: Dictionary = {"player": p4}
+	var env4: Dictionary = {
+		"entities": entities4, "defs": {"player": player_def},
+		"world": {"current_day": 5}, "signal_buffer": [],
+	}
+	var rep_before: Dictionary = (p4.get_state("reputation", {}) as Dictionary).duplicate(true)
+	cm4.switch_class(env4, "player", "warrior", 1)
+	var rep_after: Dictionary = p4.get_state("reputation", {}) as Dictionary
+	expect_eq(int(rep_after.get("pendrel", 0)), int(rep_before.get("pendrel", -1)),
+		"reputation.pendrel survives switch (class-agnostic, persists)")
+	expect_eq(int(rep_after.get("brookhaven", 0)), int(rep_before.get("brookhaven", -1)),
+		"reputation.brookhaven survives switch")
+	p4.queue_free(); cm4.queue_free()
+
+	# ---------- Assertion 5: class_progress per class isolated ----------
+	# Switching from farmer → warrior must NOT touch class_progress.farmer's
+	# level/xp/specialty record. The director only touches current_class
+	# and last_class_switch_day; class_progress is preserved as-is.
+	var cm5 := ClassManager.new()
+	cm5.register_class("farmer", farmer_def)
+	cm5.register_class("warrior", warrior_def)
+	var p5 := Entity.create(player_def, "player")
+	var entities5: Dictionary = {"player": p5}
+	var env5: Dictionary = {
+		"entities": entities5, "defs": {"player": player_def},
+		"world": {"current_day": 5}, "signal_buffer": [],
+	}
+	cm5.switch_class(env5, "player", "warrior", 1)
+	var cp: Dictionary = p5.get_state("class_progress", {}) as Dictionary
+	var farmer_cp: Dictionary = cp.get("farmer", {}) as Dictionary
+	expect_eq(int(farmer_cp.get("level", 0)), 3,
+		"class_progress.farmer.level still 3 after switching away from farmer")
+	expect_eq(int(farmer_cp.get("xp", 0)), 240,
+		"class_progress.farmer.xp still 240 after switch")
+	expect_eq(str(farmer_cp.get("specialty", "")), "wheat",
+		"class_progress.farmer.specialty preserved across switch")
+	p5.queue_free(); cm5.queue_free()
+
+	# ---------- Assertion 6: cooldown enforced ----------
+	# Switch on day 5 with cooldown_days=1; second switch on the SAME day
+	# should fail with reason='cooldown' and leave state untouched.
+	var cm6 := ClassManager.new()
+	cm6.register_class("farmer", farmer_def)
+	cm6.register_class("warrior", warrior_def)
+	var p6 := Entity.create(player_def, "player")
+	var entities6: Dictionary = {"player": p6}
+	var env6: Dictionary = {
+		"entities": entities6, "defs": {"player": player_def},
+		"world": {"current_day": 5}, "signal_buffer": [], "error_buffer": [],
+	}
+	# First switch — succeeds (last_switch_day=0, current=5, cooldown=1).
+	var first: Dictionary = cm6.switch_class(env6, "player", "warrior", 1)
+	expect(bool(first.get("ok", false)),
+		"first switch on day 5 succeeds (last=0, cooldown=1)")
+	# Second switch — same tick, current_day still 5, last_switch_day=5 →
+	# 5 - 5 = 0 < 1 → cooldown blocks.
+	var second: Dictionary = cm6.switch_class(env6, "player", "farmer", 1)
+	expect(not bool(second.get("ok", true)),
+		"second switch within cooldown_days fails (ok=false)")
+	expect_eq(str(second.get("reason", "")), "cooldown",
+		"cooldown failure carries reason='cooldown'")
+	# State must NOT have been mutated by the failed switch — current_class
+	# stays at 'warrior' (the successful first switch), not 'farmer'.
+	expect_eq(str(p6.get_state("current_class", "")), "warrior",
+		"failed cooldown switch leaves current_class unchanged")
+	p6.queue_free(); cm6.queue_free()
+
+	# ---------- Assertion 7: unknown class fails atomic ----------
+	# switch_class to a class id that was never registered MUST leave
+	# state untouched (no current_class change, no last_switch_day write,
+	# no signal emitted).
+	var cm7 := ClassManager.new()
+	cm7.register_class("farmer", farmer_def)
+	# Note: warrior NOT registered in this manager.
+	var p7 := Entity.create(player_def, "player")
+	# Ensure baseline current_class is 'farmer', last_class_switch_day is 0.
+	var baseline_class: String = str(p7.get_state("current_class", ""))
+	var baseline_day: int = int(p7.get_state("last_class_switch_day", -1))
+	var entities7: Dictionary = {"player": p7}
+	var env7: Dictionary = {
+		"entities": entities7, "defs": {"player": player_def},
+		"world": {"current_day": 5}, "signal_buffer": [], "error_buffer": [],
+	}
+	var bad: Dictionary = cm7.switch_class(env7, "player", "scribe", 1)
+	expect(not bool(bad.get("ok", true)),
+		"switch_class to unknown class id fails (ok=false)")
+	expect_eq(str(bad.get("reason", "")), "unknown_class",
+		"unknown class failure carries reason='unknown_class'")
+	expect_eq(str(p7.get_state("current_class", "")), baseline_class,
+		"unknown-class switch leaves current_class unchanged (atomic)")
+	expect_eq(int(p7.get_state("last_class_switch_day", -1)), baseline_day,
+		"unknown-class switch leaves last_class_switch_day unchanged (atomic)")
+	# No class_switched signal should have been emitted.
+	var saw_emit: bool = false
+	for s in (env7["signal_buffer"] as Array):
+		if s is Dictionary and str((s as Dictionary).get("name", "")) == "class_switched":
+			saw_emit = true
+			break
+	expect(not saw_emit,
+		"failed switch (unknown class) emits NO class_switched signal")
+	# An EngineError should have landed in the error buffer with the
+	# CLASS_SWITCH_NO_DEF code.
+	var saw_err: bool = false
+	for r in (env7["error_buffer"] as Array):
+		if r is Dictionary and str((r as Dictionary).get("code", "")) == EngineError.CLASS_SWITCH_NO_DEF:
+			saw_err = true
+			break
+	expect(saw_err,
+		"failed switch raises CLASS_SWITCH_NO_DEF in error_buffer")
+	p7.queue_free(); cm7.queue_free()
+
+
+# ============================================================
+# ZONE STATE (ADR 0031)
+# ============================================================
+
+func _make_zone_env() -> Dictionary:
+	# ADR 0031 — fresh env with a populated zone store reflecting the
+	# kingdom → region → city hierarchy from the ADR's worked example.
+	var zs := ZoneStore.new()
+	var cfg: Dictionary = {
+		"zones": [
+			{"id": "kingdom_aldenmere", "type": "kingdom",
+			 "contains": ["region_pendrel", "region_brookhaven"],
+			 "state_init": {"unrest": 0, "treasury": 1000}},
+			{"id": "region_pendrel", "type": "region",
+			 "contains": ["city_pendrel"],
+			 "state_init": {"iron_supply": 100, "rice_supply": 200}},
+			{"id": "region_brookhaven", "type": "region",
+			 "contains": [],
+			 "state_init": {"iron_supply": 50, "rice_supply": 80}},
+			{"id": "city_pendrel", "type": "city",
+			 "contains": [],
+			 "state_init": {"iron_supply": 30, "population": 1200}},
+		]
+	}
+	zs.load_from_dict(cfg, {})
+	return {
+		"entities": {}, "defs": {}, "relations": RelationStore.new(),
+		"world": {}, "parent": null, "next_id": {"_": 0},
+		"error_buffer": [],
+		"zone_store": zs,
+	}
+
+
+func test_zone_state_primitive() -> void:
+	_section("zone_state (ADR 0031)")
+
+	# Sanity: helper builds a 4-zone hierarchy with no validation errors
+	var env_init: Dictionary = _make_zone_env()
+	expect_eq((env_init["zone_store"] as ZoneStore).count(), 4,
+		"4-zone hierarchy loads without errors")
+
+	# ---------- 1. zone state set/get round-trip ----------
+	var env1: Dictionary = _make_zone_env()
+	EffectApply.apply(
+		{"type": "zone_state_set", "zone": "region_pendrel",
+		 "field": "iron_supply", "value": 87},
+		env1, {})
+	var zs1: ZoneStore = env1["zone_store"]
+	expect_eq(int(zs1.get_field("region_pendrel", "iron_supply", -1)), 87,
+		"zone_state_set + get_field round-trip stores the value")
+
+	# Binding shape: `zone.region_pendrel.iron_supply` resolves through
+	# Formula via _formula_context's "zone" namespace.
+	var snap1: Dictionary = zs1.binding_snapshot()
+	expect(snap1.has("region_pendrel"),
+		"binding_snapshot exposes zone ids as top-level keys")
+	expect_eq(int((snap1["region_pendrel"] as Dictionary).get("iron_supply", -1)), 87,
+		"binding_snapshot reflects mutations via set_field")
+
+	# ---------- 2. zone_state_add (delta math, positive + negative) ----------
+	var env2: Dictionary = _make_zone_env()
+	EffectApply.apply(
+		{"type": "zone_state_add", "zone": "region_pendrel",
+		 "field": "iron_supply", "amount": 25},
+		env2, {})
+	EffectApply.apply(
+		{"type": "zone_state_add", "zone": "region_pendrel",
+		 "field": "iron_supply", "amount": -10},
+		env2, {})
+	var zs2: ZoneStore = env2["zone_store"]
+	expect_eq(int(zs2.get_field("region_pendrel", "iron_supply", -1)), 115,
+		"zone_state_add applies positive + negative deltas (100 + 25 - 10)")
+
+	# Missing-field auto-init to 0 (matches state_add semantics)
+	EffectApply.apply(
+		{"type": "zone_state_add", "zone": "region_pendrel",
+		 "field": "tax_revenue", "amount": 5},
+		env2, {})
+	expect_eq(int(zs2.get_field("region_pendrel", "tax_revenue", -1)), 5,
+		"zone_state_add on missing field auto-inits to 0 then adds")
+
+	# ---------- 3. zone_state_clamp (min/max enforcement) ----------
+	var env3: Dictionary = _make_zone_env()
+	# Force iron_supply to 999 first, then clamp [0, 100]
+	EffectApply.apply(
+		{"type": "zone_state_set", "zone": "region_pendrel",
+		 "field": "iron_supply", "value": 999},
+		env3, {})
+	EffectApply.apply(
+		{"type": "zone_state_clamp", "zone": "region_pendrel",
+		 "field": "iron_supply", "min": 0, "max": 100},
+		env3, {})
+	var zs3: ZoneStore = env3["zone_store"]
+	expect_eq(int(zs3.get_field("region_pendrel", "iron_supply", -1)), 100,
+		"zone_state_clamp enforces max bound")
+	# Below-min case
+	EffectApply.apply(
+		{"type": "zone_state_set", "zone": "region_pendrel",
+		 "field": "iron_supply", "value": -50},
+		env3, {})
+	EffectApply.apply(
+		{"type": "zone_state_clamp", "zone": "region_pendrel",
+		 "field": "iron_supply", "min": 0, "max": 100},
+		env3, {})
+	expect_eq(int(zs3.get_field("region_pendrel", "iron_supply", -1)), 0,
+		"zone_state_clamp enforces min bound")
+
+	# ---------- 4. nested zone hierarchy (kingdom contains regions, region contains city) ----------
+	var env4: Dictionary = _make_zone_env()
+	var zs4: ZoneStore = env4["zone_store"]
+	expect_eq(zs4.parent_of("region_pendrel"), "kingdom_aldenmere",
+		"parent_of reports declared parent")
+	expect_eq(zs4.parent_of("city_pendrel"), "region_pendrel",
+		"parent_of resolves nested parent (city → region)")
+	expect_eq(zs4.parent_of("kingdom_aldenmere"), "",
+		"parent_of returns empty string for root zone")
+	# Direct children (depth=1)
+	var direct: Array = zs4.descendants_of("kingdom_aldenmere", 1)
+	expect_eq(direct.size(), 2, "depth=1 descendants returns direct children only")
+	expect(direct.has("region_pendrel"), "kingdom direct children include region_pendrel")
+	expect(direct.has("region_brookhaven"), "kingdom direct children include region_brookhaven")
+	expect(not direct.has("city_pendrel"), "depth=1 does NOT include grandchildren")
+	# All transitive descendants (depth=-1)
+	var all_descendants: Array = zs4.descendants_of("kingdom_aldenmere", -1)
+	expect(all_descendants.has("city_pendrel"),
+		"depth=-1 traverses to grandchildren")
+	expect_eq(all_descendants.size(), 3,
+		"depth=-1 returns all transitive descendants (2 regions + 1 city)")
+
+	# ---------- 5. cycle detected at load (A contains B; B contains A) ----------
+	var zs_cycle := ZoneStore.new()
+	var bad_cfg: Dictionary = {
+		"zones": [
+			{"id": "zone_a", "type": "test", "contains": ["zone_b"], "state_init": {}},
+			{"id": "zone_b", "type": "test", "contains": ["zone_a"], "state_init": {}},
+		]
+	}
+	var cycle_errors: Array = zs_cycle.load_from_dict(bad_cfg, {})
+	expect(cycle_errors.size() > 0, "cyclic zones.json reports load-time errors")
+	var saw_cycle := false
+	for rec in cycle_errors:
+		if rec is Dictionary and str((rec as Dictionary).get("code", "")).begins_with("zone."):
+			# multi-parent fires first in load order (B's contains_a links to
+			# zone_a which already has parent zone_a from its own contains list,
+			# i.e. the cycle manifests as a multi-parent OR a cycle code).
+			# Either is acceptable evidence the engine rejects the loop.
+			if str((rec as Dictionary).get("code", "")) == "zone.cycle_detected" \
+				or str((rec as Dictionary).get("code", "")) == "zone.multi_parent":
+				saw_cycle = true
+				break
+	expect(saw_cycle,
+		"cycle/multi-parent detected with structured EngineError code")
+
+	# ---------- 6. backward-compat (no zones.json → engine works as today) ----------
+	var zs_empty := ZoneStore.new()
+	# load_from_dict({}) — simulates zones.json absent. Should not error.
+	var empty_errs: Array = zs_empty.load_from_dict({}, {})
+	expect_eq(empty_errs.size(), 0,
+		"empty zone config loads without errors (backward-compat)")
+	expect_eq(zs_empty.count(), 0, "empty store has zero zones")
+	# Effects against empty store with unknown zone warn but don't crash
+	var env_empty: Dictionary = {
+		"entities": {}, "defs": {}, "world": {}, "parent": null,
+		"next_id": {"_": 0}, "error_buffer": [], "zone_store": zs_empty,
+	}
+	EffectApply.apply(
+		{"type": "zone_state_add", "zone": "any_zone", "field": "x", "amount": 1},
+		env_empty, {})
+	expect(true, "zone_state_* against empty store does not crash (warning only)")
+
+	# ---------- 7. save / load round-trip preserves zone state ----------
+	var env7a: Dictionary = _make_zone_env()
+	# Mutate region_pendrel.iron_supply away from state_init
+	EffectApply.apply(
+		{"type": "zone_state_set", "zone": "region_pendrel",
+		 "field": "iron_supply", "value": 42},
+		env7a, {})
+	var zs7a: ZoneStore = env7a["zone_store"]
+	var saved: Dictionary = zs7a.to_save()
+	expect(saved.has("region_pendrel"), "to_save includes a mutated zone")
+	expect_eq(int((saved["region_pendrel"] as Dictionary).get("iron_supply", -1)), 42,
+		"to_save snapshots current state")
+	# Build a fresh store with the same zones.json (state_init defaults),
+	# then restore from `saved`.
+	var env7b: Dictionary = _make_zone_env()
+	var zs7b: ZoneStore = env7b["zone_store"]
+	expect_eq(int(zs7b.get_field("region_pendrel", "iron_supply", -1)), 100,
+		"fresh store is at state_init (iron_supply=100) before restore")
+	zs7b.from_save(saved)
+	expect_eq(int(zs7b.get_field("region_pendrel", "iron_supply", -1)), 42,
+		"from_save restores mutated value over state_init")
+	# Zones in zones.json absent from save retain state_init (region_brookhaven)
+	expect_eq(int(zs7b.get_field("region_brookhaven", "iron_supply", -1)), 50,
+		"zones absent from save retain state_init defaults")
+	# Zones in save absent from current zones.json silently dropped
+	zs7b.from_save({"phantom_zone": {"x": 1}})
+	expect(not zs7b.has("phantom_zone"),
+		"saved zones not in current config are silently dropped (no crash)")
+
+	# ---------- 8. multi-zone update (independent zones don't interfere) ----------
+	var env8: Dictionary = _make_zone_env()
+	EffectApply.apply(
+		{"type": "zone_state_add", "zone": "region_pendrel",
+		 "field": "iron_supply", "amount": 10},
+		env8, {})
+	EffectApply.apply(
+		{"type": "zone_state_add", "zone": "region_brookhaven",
+		 "field": "iron_supply", "amount": -20},
+		env8, {})
+	EffectApply.apply(
+		{"type": "zone_state_set", "zone": "city_pendrel",
+		 "field": "iron_supply", "value": 5},
+		env8, {})
+	var zs8: ZoneStore = env8["zone_store"]
+	expect_eq(int(zs8.get_field("region_pendrel", "iron_supply", -1)), 110,
+		"region_pendrel updated independently (100 + 10)")
+	expect_eq(int(zs8.get_field("region_brookhaven", "iron_supply", -1)), 30,
+		"region_brookhaven updated independently (50 - 20)")
+	expect_eq(int(zs8.get_field("city_pendrel", "iron_supply", -1)), 5,
+		"city_pendrel updated independently (set to 5)")
+	# Confirm NO auto-aggregation: child mutation doesn't roll up to parent.
+	# Per ADR §"Decision": authors write explicit rollup rules.
+	expect_eq(int(zs8.get_field("kingdom_aldenmere", "treasury", -1)), 1000,
+		"no auto-aggregation: kingdom treasury unchanged by region/city mutations")
+
+	# Bonus: query_zone via QueryLib.run_zones (ADR-stable entry point).
+	var by_type: Array = QueryLib.run_zones({"type": "region"}, env8)
+	expect_eq(by_type.size(), 2, "run_zones {type: region} returns 2 regions")
+	var by_id: Array = QueryLib.run_zones({"id": "city_pendrel"}, env8)
+	expect_eq(by_id.size(), 1, "run_zones {id: X} returns 1 match for direct id")
+	var contained: Array = QueryLib.run_zones(
+		{"contained_by": "kingdom_aldenmere", "depth": -1}, env8)
+	expect_eq(contained.size(), 3,
+		"run_zones contained_by=kingdom depth=-1 returns 3 transitive descendants")
