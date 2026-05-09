@@ -1073,6 +1073,15 @@ func _build_element(parent: Container, cfg: Dictionary) -> void:
 			ch.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			ch.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			parent.add_child(ch)
+		"minimap":
+			# Drawn-dot top-down map. Live entity positions projected
+			# into widget pixel space each frame. See minimap_widget.gd
+			# for spec docs (size / world_bounds / tag_colors / etc.).
+			var mm := MinimapWidget.new()
+			mm.configure(cfg)
+			mm.bind_world(_world)
+			parent.add_child(mm)
+			_bound_elements.append({"node": mm, "cfg": cfg})
 
 
 func _apply_label_style(lbl: Label, font_size: int, color: Color) -> void:
@@ -1090,6 +1099,11 @@ func _update_bound_elements() -> void:
 	for entry in _bound_elements:
 		var node: Node = entry["node"]
 		var cfg: Dictionary = entry["cfg"]
+		# Minimap self-redraws per frame from live world.entities;
+		# no string binding needed.
+		if node is MinimapWidget:
+			(node as MinimapWidget).tick()
+			continue
 		var binding := str(cfg.get("binds", ""))
 		if binding == "": continue
 		var value = _resolve_binding(binding)
