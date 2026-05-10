@@ -930,10 +930,10 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 ## Cheap O(N) per frame — no spatial-index query. Skips:
 ##   - the actor itself (you don't look at yourself)
 ##   - entities with no `display_name` property
-## (Note: `decorative` tag is NOT a filter — for debug/identification UX
-## the player should be able to see "Pine Tree" / "River" / etc. when
-## pointing at flavor props. Content can hide a class by omitting
-## display_name on its def.)
+##   - entities tagged `decorative` (sand, dust, atmospheric clutter)
+##     UNLESS cam_cfg.crosshair_show_decorative=true. The opt-in lets
+##     the per-game scene.json choose: noisy debug labels everywhere
+##     vs. quiet "interactables-only" signal. Default false → quiet.
 func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	if _world == null or _camera3d == null: return
 	var sched = _world.get("scheduler")
@@ -942,6 +942,7 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	var entities: Dictionary = env.get("entities", {})
 	var max_distance := float(cam_cfg.get("crosshair_max_distance", 10.0))
 	var cone_cos := cos(float(cam_cfg.get("crosshair_cone_rad", 0.52)))  # ~30° (wider than tight crosshair; entities at ground are ~18° below horizon at 5m)
+	var show_decorative := bool(cam_cfg.get("crosshair_show_decorative", false))
 	var cam_pos: Vector3 = _camera3d.global_position
 	# Camera3D's forward is -Z in its local basis.
 	var fwd: Vector3 = -_camera3d.global_transform.basis.z
@@ -951,6 +952,7 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 		var ent = entities[id]
 		if not (ent is Entity): continue
 		if ent == actor: continue
+		if not show_decorative and (ent as Entity).has_tag("decorative"): continue
 		var name_v = (ent as Entity).get_property("display_name", "")
 		if str(name_v) == "": continue
 		var ep_v = (ent as Entity).get_position()
