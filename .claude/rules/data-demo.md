@@ -86,6 +86,73 @@ across the data files before being fixed.
 
 **Verify before writing**: `grep -A 4 '"type": "<effect>"' godot/data/demo_doomarena3d/world/physics.json` — if a working demo uses different names, follow the demo, not your intuition.
 
+## ⚠ CRITICAL: `self.nearest({...})` is NOT IMPLEMENTED — use contact-pair
+
+`formula.gd`'s top docstring declares `self.nearest({...})` as **deferred
+to Tier 3** — the formula evaluator does NOT actually resolve it.
+Writing it in any formula context (effect `value`, `destination_x`,
+`payload.X`, etc.) makes evaluate() see `self.nearest(...)` as a
+bare path lookup, returns null, and the downstream `.state.position`
+or `.id` access crashes with `"self can't be used because instance
+is null"`.
+
+❌ **WRONG**:
+```jsonc
+{"type": "pathfind_to",
+ "destination_x": "self.nearest({tags_all: [villager]}).state.position[0]",
+ "destination_z": "self.nearest({tags_all: [villager]}).state.position[2]"}
+```
+
+✅ **RIGHT** — use a CONTACT-pair query with `a` (the pursuer) +
+`b` (the target). The engine pre-binds both, formulas reference `b.X`
+directly:
+```jsonc
+{"trigger": {"type": "contact"},
+ "query": {
+   "a": {"tags_all": ["wolf"]},
+   "b": {"tags_all": ["villager"], "tags_none": ["in_shelter"]},
+   "radius": 40,
+   "once_per_a": true
+ },
+ "effect": {
+   "type": "pathfind_to",
+   "target": "a",
+   "destination_x": "b.state.position[0]",
+   "destination_z": "b.state.position[2]"
+ }}
+```
+
+Drawback: contact-pair fires per-tick (no `interval` field), and the
+binding picks "any matching b within radius" rather than `order_by`-
+sorted (e.g. lowest health). For most pursuer AI nearest-in-cone is
+acceptable; if priority sorting is essential, gate on additional
+state filters in `b`'s query (e.g. `state: {health_lt: 30}` → only
+chases wounded).
+
+**Empirical case 2026-05-11**: Aldenmere `wolf_pursue_villager` used
+the broken `self.nearest(...).state.position[0]` formula. Loaded
+fine (no parse error), then crashed at runtime the first tick a
+wolf existed — `formula.exec_failed` → "self can't be used because
+instance is null". Stack trace from world.gd::_on_tick. Fixed by
+collapsing to contact-pair + `once_per_a`.
+
+**The gate**: yume-systems-designer skill must NEVER author
+`self.nearest({...})` in any formula context. The three "find me a
+related entity" patterns the engine supports today:
+
+1. **Contact-pair** (`trigger: contact`, `query: {a, b, radius}`) —
+   the most common.
+2. **Single-binding tick** + a separate signal/contact rule that
+   sets `state.X_target_id` for later rules to bind via.
+3. **Spatial query inside a single-binding query** (`tags_all` +
+   `radius`) — but only ONE entity is bound (`self`), not "find
+   related to self."
+
+Until Tier-3 spatial helpers land, those three cover every real use.
+A new ADR is required before adding `nearest()` to the formula
+evaluator (it would need spatial-index integration + scoring/order
+semantics).
+
 ## ⚠ CRITICAL: 2-binding `{a, b, radius}` queries are CONTACT-only
 
 Pair-matching (find pairs of entities (a, b) within radius) is ONLY
