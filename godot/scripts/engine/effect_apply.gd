@@ -1465,6 +1465,13 @@ static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 	# Coerce to Vector3 — predicates assume 3D.
 	var pos3: Vector3 = _to_vec3_v(pos)
 	var yaw := float(_value(e.get("yaw", 0.0), ctx, env))
+	# ADR 0038: snap position + yaw to grid BEFORE running validation
+	# predicates. Means `no_overlap` checks the snapped cell, so authors
+	# can pass continuous cursor coords and the engine guarantees the
+	# placed entity lands on a grid cell. No-op when grid disabled.
+	if GridSnap.should_snap(def, env):
+		pos3 = GridSnap.snap_position(pos3, env)
+		yaw = GridSnap.snap_yaw(yaw, env)
 	var owner_binding := str(e.get("owner", "self"))
 	var max_range := float(_value(e.get("max_range", 5.0), ctx, env))
 	var validate = e.get("validate", [])

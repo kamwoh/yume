@@ -709,6 +709,26 @@ func _spawn_initial(inst: Dictionary) -> void:
 						"' instead of overwriting from level data")
 				continue
 		var ent := Entity.create(defs[def_id], inst_id, overrides)
+		# ADR 0038: snap initial position + yaw to grid IF
+		#   (a) scene.json declares a `grid` block (env.scene_grid non-empty),
+		#   (b) grid.snap_initial != false (default true),
+		#   (c) the def's tags don't intersect grid.exempt_tags.
+		# Drift warning fires when authored position is >0.1 * grid.size from
+		# the nearest cell (Condition C3 Gate B — surfaces source-JSON drift
+		# in QA logs without a separate static validator).
+		_load_grid_cfg()
+		if not _grid_cfg.is_empty() and bool(_grid_cfg.get("snap_initial", true)):
+			var snap_env := {"scene_grid": _grid_cfg}
+			if GridSnap.should_snap(defs[def_id], snap_env):
+				var p = ent.state.get("position", null)
+				if p is Vector3:
+					ent.state["position"] = GridSnap.snap_position_with_drift_check(
+						p, snap_env, inst_id)
+				elif p is Vector2:
+					ent.state["position"] = GridSnap.snap_position_2d(p, snap_env)
+				if ent.state.has("yaw"):
+					ent.state["yaw"] = GridSnap.snap_yaw(
+						float(ent.state["yaw"]), snap_env)
 		entities[inst_id] = ent
 		add_child(ent)
 		_attach_renderer(ent)
@@ -1389,6 +1409,27 @@ func _load_ground_cfg() -> void:
 	_ground_despawn_tags = g.get("despawn_tags", ["projectile"])
 
 
+# ADR 0038: grid-based placement config. Loaded once from scene.json's
+# `grid` block (mirroring _load_ground_cfg), exposed via env["scene_grid"]
+# in _build_env. Empty dict = grid disabled (default for 13 existing demos
+# that don't declare a grid block — backward-compat sentinel).
+var _grid_cfg_loaded: bool = false
+var _grid_cfg: Dictionary = {}
+func _load_grid_cfg() -> void:
+	if _grid_cfg_loaded: return
+	_grid_cfg_loaded = true
+	var path := data_root.rstrip("/") + "/scene.json"
+	if not FileAccess.file_exists(path): return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return
+	var json := JSON.new()
+	if json.parse(f.get_as_text()) != OK: return
+	if not (json.data is Dictionary): return
+	var cfg: Dictionary = json.data
+	if cfg.get("grid", null) is Dictionary:
+		_grid_cfg = cfg["grid"]
+
+
 # ============================================================
 # MULTI-LEVEL (ADR 0006)
 # ============================================================
@@ -1775,6 +1816,9 @@ func count_relations_of(type: String) -> int:
 # ============================================================
 
 func _build_env() -> Dictionary:
+	# ADR 0038: ensure grid config is loaded before any rule resolves it.
+	# Idempotent — first call from any path triggers; subsequent are no-op.
+	_load_grid_cfg()
 	return {
 		"entities": entities,
 		"defs": defs,
@@ -1795,4 +1839,7 @@ func _build_env() -> Dictionary:
 		# ADR 0031: zone-state primitive. Always non-null (empty store is
 		# fine — backward-compat for demos with no world/zones.json).
 		"zone_store": zone_store,
+		# ADR 0038: grid config (empty dict = grid disabled). Step runner +
+		# build_place + _spawn_initial all read this via GridSnap helpers.
+		"scene_grid": _grid_cfg,
 	}

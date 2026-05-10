@@ -76,6 +76,7 @@ func _ready() -> void:
 	test_tech_tree_primitive()
 	test_dynasty_primitive()
 	test_step_runner()
+	test_grid_snap()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -6709,4 +6710,129 @@ func test_step_runner() -> void:
 		"advance_one_tick: no input held, no rule fires")
 
 	# Cleanup
+	world.queue_free()
+
+
+# ============================================================
+# ADR 0038 — Grid-based placement (grid_snap)
+# ============================================================
+
+func test_grid_snap() -> void:
+	_section("grid_snap (ADR 0038)")
+
+	# ---------- 1. test_snap_math_round_trip ----------
+	# Idempotence + a few hand-checked values.
+	var env_size2: Dictionary = {"scene_grid": {"size": 2.0}}
+	var p1 := Vector3(12.347, 0, 47.918)
+	var s1 := GridSnap.snap_position(p1, env_size2)
+	expect_eq(s1.x, 12.0, "snap (12.347, _, 47.918) size=2 → x=12")
+	expect_eq(s1.z, 48.0, "snap (12.347, _, 47.918) size=2 → z=48")
+	expect_eq(s1.y, 0.0, "y default disabled → y unchanged at 0")
+	# Round-trip: snap(snap(x)) == snap(x)
+	var s2 := GridSnap.snap_position(s1, env_size2)
+	expect(s1 == s2, "snap idempotent (snap(snap(x)) == snap(x))")
+	# Yaw snap to π/2
+	var ya := GridSnap.snap_yaw(0.4, env_size2)
+	expect(abs(ya - 0.0) < 1e-5, "snap_yaw(0.4) → 0.0 with default π/2 increment")
+	var yb := GridSnap.snap_yaw(1.0, env_size2)
+	expect(abs(yb - PI / 2.0) < 1e-5, "snap_yaw(1.0) → π/2 (closest 90° multiple)")
+
+	# ---------- 2. test_y_size_default_disabled ----------
+	# Per Condition C2: y_size defaults to 0 (disabled). Vertical position
+	# passes through unchanged unless author opts in.
+	var p_y := Vector3(0, 1.7, 0)
+	var s_y := GridSnap.snap_position(p_y, env_size2)
+	expect(abs(s_y.y - 1.7) < 1e-4,
+		"y_size=0 default → y unchanged (1.7 stays 1.7)")
+	# Opt in: y_size=1.0 → y snaps to integer multiples
+	var env_y := {"scene_grid": {"size": 2.0, "y_size": 1.0}}
+	var s_y2 := GridSnap.snap_position(p_y, env_y)
+	expect_eq(s_y2.y, 2.0, "y_size=1 enabled → y=1.7 snaps to 2")
+
+	# ---------- 3. test_exempt_tags_skip ----------
+	var actor_def: Dictionary = {"id": "test_actor", "tags": ["actor", "human"]}
+	var prop_def: Dictionary = {"id": "test_prop", "tags": ["building"]}
+	expect(not GridSnap.should_snap(actor_def, env_size2),
+		"exempt_tags default includes 'actor' → should_snap=false")
+	expect(GridSnap.should_snap(prop_def, env_size2),
+		"non-exempt def tags → should_snap=true")
+	# Override: empty exempt_tags → even actors snap (chess-like games)
+	var env_chess := {"scene_grid": {"size": 2.0, "exempt_tags": []}}
+	expect(GridSnap.should_snap(actor_def, env_chess),
+		"exempt_tags=[] → actors snap (chess-mode)")
+
+	# ---------- 4. test_no_grid_block_unchanged (backward-compat sentinel) ----------
+	# Empty env (no scene_grid key) → snap is no-op for every shape.
+	var env_none: Dictionary = {}
+	expect(not GridSnap.is_enabled(env_none),
+		"no scene_grid → is_enabled=false")
+	var p_none := Vector3(12.347, 1.5, 47.918)
+	var s_none := GridSnap.snap_position(p_none, env_none)
+	expect(s_none == p_none, "no scene_grid → position unchanged (backward-compat)")
+	expect(GridSnap.snap_yaw(0.42, env_none) == 0.42,
+		"no scene_grid → yaw unchanged (backward-compat)")
+	# Empty dict for scene_grid also means disabled.
+	var env_empty := {"scene_grid": {}}
+	expect(not GridSnap.is_enabled(env_empty),
+		"empty scene_grid dict → is_enabled=false")
+
+	# ---------- 5. test_drift_check_warns ----------
+	# When authored position drifts >0.1*size from nearest cell, warning
+	# fires. Test by capturing warnings via push_warning side-effect — we
+	# can't capture push_warning output directly, so we verify behavior
+	# is non-crashing and snapped result is correct.
+	var drifted := Vector3(13.5, 0, 47.5)  # both axes drift 1.5 from cell at 12,48
+	var s_drift := GridSnap.snap_position_with_drift_check(
+		drifted, env_size2, "test_entity_drift")
+	expect_eq(s_drift.x, 14.0, "drift check returns snapped x=14 for input 13.5")
+	expect_eq(s_drift.z, 48.0, "drift check returns snapped z=48 for input 47.5")
+
+	# ---------- 6. test_initial_instances_snap (integration) ----------
+	# Build a minimal World, give it scene_grid via _grid_cfg, spawn an
+	# entity at a fractional position, verify it lands snapped.
+	var world := World.new()
+	world.auto_start = false
+	world.verbose = false
+	world.tick_seconds = 0.1
+	add_child(world)
+	# Inject grid config directly (bypassing scene.json read).
+	world._grid_cfg = {"size": 2.0, "snap_initial": true}
+	world._grid_cfg_loaded = true
+	# Set up minimal env so _spawn_initial works.
+	world.entities = {}
+	world.defs = {
+		"snap_test_def": {
+			"id": "snap_test_def",
+			"tags": ["building"],   # not exempt
+			"state_init": {"position": Vector3(12.347, 0, 47.918)},
+		}
+	}
+	world.next_id_seq = {"_": 0}
+	world.error_buffer = []
+	world.spatial_index = SpatialIndex.new()
+	world.relations = RelationStore.new()
+	world.world_state = {}
+	# Spawn via initial-instance dict (mirrors what world.gd does at load).
+	world._spawn_initial({"def": "snap_test_def", "id": "snap_inst_1"})
+	var spawned: Entity = world.entities.get("snap_inst_1", null)
+	expect(spawned != null, "initial_instances: entity spawned")
+	if spawned != null:
+		var pos: Vector3 = spawned.state["position"]
+		expect_eq(pos.x, 12.0, "initial_instances snap: x snapped to 12")
+		expect_eq(pos.z, 48.0, "initial_instances snap: z snapped to 48")
+	# Exempt actor at fractional pos: should NOT snap.
+	world.defs["snap_test_actor"] = {
+		"id": "snap_test_actor",
+		"tags": ["actor"],          # exempt by default
+		"state_init": {"position": Vector3(5.7, 0, 5.7)},
+	}
+	world._spawn_initial({"def": "snap_test_actor", "id": "snap_actor_1"})
+	var actor: Entity = world.entities.get("snap_actor_1", null)
+	expect(actor != null, "exempt actor entity spawned")
+	if actor != null:
+		var apos: Vector3 = actor.state["position"]
+		expect(abs(apos.x - 5.7) < 1e-4,
+			"exempt actor position.x preserved at 5.7")
+		expect(abs(apos.z - 5.7) < 1e-4,
+			"exempt actor position.z preserved at 5.7")
 	world.queue_free()
