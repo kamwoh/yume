@@ -377,42 +377,35 @@ sets velocity in WORLD axes (W = -Z = world-NORTH), but the screen
 shows that as diagonal up-left. User feedback led to swapping to
 `top_down_3d` for an intuitive feel.
 
-**Pre-ship check — camera mode ↔ input bundle variant must
-cross-reference (per ADR 0040, 2026-05-10):**
+**Pre-ship check — camera mode picks the input bundle variant
+(per ADR 0040, 2026-05-10):**
 
-| Camera mode picked | Required input bundle variant | Required deceleration mechanism |
-|---|---|---|
-| `top_down_3d` | world-frame WASD (existing default) | n/a (uses `velocity_set` per-axis — last writer overwrites; no accumulation) |
-| `third_person_3d` | world-frame WASD (mouse drives facing only; keys stay compass) | n/a (same as top_down) |
-| `isometric_3d` | iso-variant WASD with `state.zero_velocity_pretick: true` + `state.max_speed` declared. | `zero_velocity_pretick: true` (mandatory) |
-| `first_person_3d` | FP-variant WASD (`velocity_add_relative` reads `state.facing`) | **EITHER** `state.drag > 0` (e.g. 5.0) **OR** `state.zero_velocity_pretick: true`. **At least one is mandatory.** |
+| Camera mode picked | Required input bundle variant |
+|---|---|
+| `top_down_3d` | world-frame WASD (existing default) |
+| `third_person_3d` | world-frame WASD (mouse drives facing only; keys stay compass) |
+| `isometric_3d` | iso-variant WASD (`velocity_add_relative` + facing=π/4) |
+| `first_person_3d` | FP-variant WASD (`velocity_add_relative` reads `state.facing`) |
 
-**Why the deceleration requirement (per 2026-05-10 post-mortem of the
-"pulling" bug):** `velocity_add_relative` accumulates each tick by
-design. When `state.facing` changes (mouse turn), this tick's
-contribution adds in the NEW direction but the velocity vector
-already contains the OLD direction. After speed-clamp, the result
-lands BETWEEN old and new facing — velocity LAGS the camera. User
-feels this as "something pulling" the player. Both fixes work:
+**Cross-reference required** — when picking `isometric_3d` or
+`first_person_3d` (or any future mode using `velocity_add_relative`),
+the asset-designer's output MUST FLAG to the downstream
+yume-content-designer that the player's `state_init` needs a
+deceleration mechanism (either `zero_velocity_pretick: true` or
+`drag > 0`). Without it the player suffers the **facing-lag
+"pulling" bug** when mouse-turning mid-walk.
 
-- `state.drag > 0`: motion integrator decays accumulated velocity
-  each frame. Velocity converges to new-facing direction over a
-  handful of frames. Slight momentum-glide feel.
-- `state.zero_velocity_pretick: true`: engine zeros velocity at
-  start of each tick before input phase. Velocity equals JUST this
-  tick's contribution at current facing. Instant directional
-  response.
+Full rule + empirical case 2026-05-10 at
+`.claude/rules/data-demo.md` § "velocity_add_relative requires
+deceleration mechanism". That path-scoped rule is the canonical
+gate; asset-designer just hands off the requirement to content-designer
+downstream.
 
-Pick `zero_velocity_pretick` for tight responsive feel (FPS
-shooters); pick `drag` for slower momentum-bearing feel (driving
-sims, ice surfaces). Pick BOTH if you want pretick-zero AND
-additional damping. NEITHER = facing-lag pulling bug.
-
-**Empirical case (2026-05-10)**: Aldenmere Phase 1 FP rollout
-shipped with player `drag: 0` + no `zero_velocity_pretick`. User
-reported "movement is laggy as if something is pulling it" when
-mouse-turning mid-walk. Fix: re-enabled `zero_velocity_pretick:
-true`. Lag gone instantly.
+**Empirical case (2026-05-10)**: Aldenmere FP rollout. Asset-designer
+picked `first_person_3d` camera but the content-designer's player
+shipped with `drag: 0` + no `zero_velocity_pretick`. User reported
+"something pulling" on mouse-turn-mid-walk. Both skills' gates now
+cross-reference the path-scoped rule.
 
 **Empirical case (2026-05-10)**: Aldenmere shipped iso_top_down with
 the world-frame WASD bundle — pressing W produced screen-up-RIGHT

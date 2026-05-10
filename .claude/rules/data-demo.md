@@ -241,6 +241,70 @@ binding objects. Check the specific effect's spec.
 The merchant build had ~57 of these brace-wrapped bindings causing 31,000+
 formula.parse_failed errors per session.
 
+## ⚠ CRITICAL: `velocity_add_relative` requires deceleration mechanism
+
+Camera-relative WASD rules use `velocity_add_relative` (lib bundle's
+FP + iso variants). The effect ADDS to existing velocity each tick;
+speed-clamp normalizes magnitude to `state.max_speed`. When the actor's
+`state.facing` changes between ticks (e.g., player mouse-turning
+mid-walk), the previous tick's velocity points in the OLD facing
+direction; this tick adds in the NEW facing direction; sum-then-clamp
+lands BETWEEN old and new facing. Velocity LAGS the camera — player
+feels "something pulling" them back from where they're looking.
+
+❌ **WRONG** — `velocity_add_relative` actor with no decay:
+```jsonc
+"state_init": {
+  "facing": 0,
+  "max_speed": 3,
+  // missing: BOTH drag AND zero_velocity_pretick → facing-lag bug
+}
+```
+
+✅ **RIGHT** — pick ONE (or both) deceleration mechanism:
+```jsonc
+"state_init": {
+  "facing": 0,
+  "max_speed": 3,
+  "zero_velocity_pretick": true  // engine zeros vel each tick →
+                                  // tight FPS feel, instant direction match
+}
+// OR
+"state_init": {
+  "facing": 0,
+  "max_speed": 3,
+  "drag": 5.0  // motion integrator decays vel each frame →
+                // momentum-glide feel, converges over a few ticks
+}
+```
+
+**The rule**: any actor whose movement comes from `velocity_add_relative`
+rules MUST declare ONE of:
+- `state.zero_velocity_pretick: true` (engine zeros at start of each tick)
+- `state.drag > 0` (motion integrator decays each frame)
+
+Without either, velocity accumulates in stale-facing direction and produces
+the "pulling" feel when the mouse turns.
+
+**Camera mode → required check:**
+
+| Camera mode | Movement rules | Deceleration check |
+|---|---|---|
+| `top_down_3d`, `third_person_3d` | world-frame `velocity_set` per-axis | n/a (last-writer-wins handles direction) |
+| `isometric_3d` | iso variant `velocity_add_relative` (facing=π/4) | **MANDATORY**: zero_velocity_pretick=true OR drag>0 |
+| `first_person_3d` | FP variant `velocity_add_relative` (state.facing) | **MANDATORY**: zero_velocity_pretick=true OR drag>0 |
+
+**Empirical case 2026-05-10**: Aldenmere FP rollout shipped with player
+`drag: 0` + no `zero_velocity_pretick`. User reported "movement laggy as
+if something pulling it" on mouse-turn-mid-walk. Fix: re-enabled
+`zero_velocity_pretick: true`.
+
+**Gate**: skills authoring `entities/<actor>.json` (yume-content-designer)
+AND skills writing world/physics.json with WASD lib bundle splice
+(yume-systems-designer) MUST verify the actor's state_init satisfies
+this rule. The yume-asset-designer skill's camera-mode-pick must
+FLAG the requirement to the content-designer downstream.
+
 ## ⚠ CRITICAL: state.velocity dimensionality — Vector2 NOT Vector3 for floor-walkers
 
 The WASD lib bundle (`@lib.input_bundles.wasd_with_fp_variant.rules`)

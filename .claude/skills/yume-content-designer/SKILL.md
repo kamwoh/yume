@@ -487,6 +487,29 @@ must respect the camera mode in `scene.json`. See
 frustum" for the per-mode min-radius table. When picking a mesh
 for a def, check the active camera mode and reject specks.
 
+## Camera-relative WASD: player needs deceleration mechanism
+
+When the world/physics.json $includes a WASD lib bundle that uses
+`velocity_add_relative` (isometric_3d or first_person_3d camera
+modes), the player's `state_init` MUST include either
+`zero_velocity_pretick: true` or `drag > 0`. Without one of these,
+mouse-turning mid-walk produces the **facing-lag "pulling" bug**
+(velocity accumulates in OLD facing direction; this tick's add in
+NEW facing direction; clamp lands between them; player feels
+something is pulling them back from where the camera is pointing).
+
+| Scene's camera_mode | Required player state_init |
+|---|---|
+| `top_down_3d`, `third_person_3d` | n/a (velocity_set per-axis is fine) |
+| `isometric_3d` | `zero_velocity_pretick: true` (recommended) OR `drag > 0` |
+| `first_person_3d` | `zero_velocity_pretick: true` (tight FPS feel) OR `drag > 0` (momentum feel) |
+
+Full rule + empirical case 2026-05-10 at
+`.claude/rules/data-demo.md` § "velocity_add_relative requires
+deceleration mechanism". The path-scoped rule is canonical;
+content-designer must verify the player state matches the scene's
+camera mode before declaring entity authoring done.
+
 ## What good looks like
 
 - entity defs read top-to-bottom like a setup paragraph
