@@ -8,6 +8,68 @@ globs: godot/data/**
 Demos live as JSON folders under `data/`. They are **content**, not code —
 no GDScript files belong here.
 
+## ⚠ CRITICAL: never ship a rule with `effect: []`
+
+The engine's `_load_rules_file` reports `[rule.effect_empty]` as a
+hard error when a rule's effect list is empty. Empty-effect rules
+are a code-smell pattern — typically the result of removing the
+last effect during cleanup ("audio not shipped → remove play_music")
+without removing the now-no-op rule itself.
+
+❌ **WRONG**:
+```jsonc
+{"id": "bgm_proto_village",
+ "trigger": {"type": "tick", "interval": 60},
+ "query": {"tags_all": ["world_clock"]},
+ "effect": []}      // CRASH at load: rule.effect_empty
+```
+
+✅ **RIGHT** — delete the entire rule if it's no-op. If a rule MUST
+exist as a placeholder (e.g. for future audio wiring), use a
+trivial state-touch:
+```jsonc
+"effect": {"type": "state_set", "target": "world_clock",
+           "field": "_bgm_tick_count", "value": "world_clock.state._bgm_tick_count + 1"}
+```
+
+**Empirical case 2026-05-10**: Aldenmere `bgm_proto_village` shipped
+with `effect: []` after `play_music` was stripped (no audio assets
+yet). World load reported `rule.effect_empty` error. Fix: deleted
+the placeholder rule until audio-designer ships BGM.
+
+**Gate**: yume-content-designer + yume-game-rules-designer skills
+must NEVER ship a rule with `"effect": []`. If the cleanup pass
+removes the last effect, also remove the rule. Add to those skills'
+"final pass before declaring done" checklists.
+
+## ⚠ CRITICAL: engine-injected input actions need `engine_injected: true`
+
+Some input actions are not bound to keys — the engine queues them
+directly from internal state. Examples: `stop_x` / `stop_y` queued
+by `world.gd::_poll_input` on per-axis idle (when neither E nor W
+is held → queue stop_x).
+
+❌ **WRONG** — InputRegistrar warns + skips (action never reaches
+InputMap; scenario_runner can't fire it):
+```jsonc
+{"name": "stop_x", "edge": "press"}        // no key, no marker → warning
+```
+
+✅ **RIGHT** — explicit opt-in marker tells InputRegistrar to
+register a keyless action silently:
+```jsonc
+{"name": "stop_x", "edge": "press", "engine_injected": true}
+```
+
+The marker preserves typo detection for ordinary actions (`{"name":
+"jjjump"}` still warns) while supporting the legitimate
+engine-injected case.
+
+**Empirical case 2026-05-10**: Aldenmere shipped stop_x / stop_y /
+stop without the marker; three warnings per world load. Fix:
+added `engine_injected: true` to all three; updated InputRegistrar
+to handle the field.
+
 ## ⚠ CRITICAL: schema field-name landmines (memorize, then verify)
 
 These are exact field names the engine reads. Wrong name = silent failure

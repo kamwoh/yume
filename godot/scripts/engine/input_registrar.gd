@@ -92,10 +92,20 @@ static func _register_one(action_def: Dictionary) -> String:
 	# have to re-declare the keys redundantly. With it, inputs.json just
 	# says `{"name": "move_north", "edge": "hold"}` and the existing
 	# project.godot binding stays.
+	#
+	# 2026-05-10: `engine_injected: true` for actions queued by engine code
+	# (e.g. stop_x / stop_y queued by world.gd::_poll_input on per-axis
+	# idle, the lib_wasd_with_fp_variant bundle's stop actions). No key
+	# binding is intentional — engine queues directly. We still REGISTER
+	# the action (without events) so scenario_runner's Input.action_press
+	# can fire it programmatically. Silent — no typo warning.
 	if keys.is_empty():
 		if InputMap.has_action(name):
 			return name
-		push_warning("[InputRegistrar] action '%s' has no key bindings AND is not already in InputMap — skipping" % name)
+		if bool(action_def.get("engine_injected", false)):
+			InputMap.add_action(name)
+			return name
+		push_warning("[InputRegistrar] action '%s' has no key bindings AND is not already in InputMap — skipping (add `engine_injected: true` if intentional)" % name)
 		return ""
 
 	# Idempotent: clear pre-existing events for this action so re-loading
