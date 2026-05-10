@@ -96,6 +96,12 @@ fi
 # .claude/rules/visual-qa.md § screen-flow gate. Skip with SKIP_VALIDATE=1.
 if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   python3 "${YUME_ROOT}/tools/validate_screens.py" "${DATA_FOLDER}" || true
+  # Spawn-template static check (added 2026-05-10). Catches the bug class
+  # where a `spawn` effect references a `template` whose def id doesn't
+  # exist in entities/*.json (runtime fires [effect.spawn_no_def] error).
+  # Empirical case: Aldenmere had 7 `"template": "wolf"` refs while the
+  # def was `"animal_wolf"` — every wolf-spawn rule erroring at tick time.
+  python3 "${YUME_ROOT}/tools/validate_spawn_templates.py" "${DATA_FOLDER}" || true
   # Player-perspective static check (added 2026-05-08). Catches
   # undiscoverable keybinds + objective text referencing unlabeled
   # landmarks. See .claude/skills/yume-game-reviewer/SKILL.md Axis 15.
