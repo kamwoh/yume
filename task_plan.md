@@ -2551,3 +2551,29 @@ once the lib catalogs flesh out.
 - Inventory tooltip widget (hover-to-show flavor_text)
 - Per-named-regular loyalty tracking in sale rule
 - Camera-lerp post-transition rule (juice-designer's transition-feel)
+
+### Future ADR: procedural-generation primitives (deferred 2026-05-11)
+
+Current placement layer (`instance_patterns.gd`) supports scatter /
+cluster / ring / grid / line / mirror with `level_seed` determinism
+— sufficient for "scatter 40 trees" or "ring of 8 cover pillars."
+
+Not yet supported (would need new ADR(s)):
+
+- **Terrain heightmap / noise biomes** — ground is a flat plane;
+  no Perlin/Simplex, no per-tile generation. A `terrain` primitive
+  with `noise: {seed, scale, octaves}` + per-height-range tile
+  defs would let games procedurally generate forest/plains/coast
+  biomes.
+- **Room / dungeon layout generation** — Sokoban + merchant
+  dungeons are hand-authored ASCII diagrams. No BSP / Wave
+  Function Collapse / random-walk room generation. Would unblock
+  proper roguelike floor variation.
+- **Infinite/streaming procedural worlds** — `chunk_streamer.gd`
+  streams PRE-AUTHORED chunks. A "generate chunk on first visit"
+  hook + persistent-seed-per-chunk would let games author a
+  generator function instead of every chunk explicitly.
+
+Priority: low for current pipeline (no demo needs it). Revisit if a
+game pitch explicitly requires "different map every run" or
+"infinite world." Each is ~1 week of engine work + an ADR.
