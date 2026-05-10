@@ -26,6 +26,12 @@ func _ready() -> void:
 	# --capture-input=move_east,2.0;move_north,1.0 holds each action for the
 	# given seconds, then captures. Lets visual-QA loops drive game state
 	# (walk player to spot, press button) before snapshot. Empty = legacy.
+	# 2026-05-10 ext: `+` separator for SIMULTANEOUS actions in a single step.
+	# Example: --capture-input='move_north+move_west,1.5' presses both
+	# move_north AND move_west, holds for 1.5s, releases both. Lets VQA
+	# capture diagonal-input states (W+A pressed together) which the
+	# previous sequential format couldn't reach. Steps still separated
+	# by ; for sequencing.
 	var input_script := ""
 	for arg in OS.get_cmdline_user_args():
 		var s := str(arg)
@@ -45,14 +51,25 @@ func _ready() -> void:
 		for step in input_script.split(";"):
 			var parts := step.split(",")
 			if parts.size() != 2: continue
-			var action := parts[0].strip_edges()
+			var action_spec := parts[0].strip_edges()
 			var dur := float(parts[1])
-			if not InputMap.has_action(action):
-				push_warning("[CaptureRunner] unknown action: %s" % action)
+			# Simultaneous actions: split on `+` to get one or more action names.
+			var actions: Array[String] = []
+			for raw in action_spec.split("+"):
+				var name := raw.strip_edges()
+				if name == "":
+					continue
+				if not InputMap.has_action(name):
+					push_warning("[CaptureRunner] unknown action: %s" % name)
+					continue
+				actions.append(name)
+			if actions.is_empty():
 				continue
-			Input.action_press(action)
+			for name in actions:
+				Input.action_press(name)
 			await get_tree().create_timer(dur).timeout
-			Input.action_release(action)
+			for name in actions:
+				Input.action_release(name)
 	await get_tree().create_timer(delay).timeout
 	var img: Image = get_viewport().get_texture().get_image()
 	if img == null:

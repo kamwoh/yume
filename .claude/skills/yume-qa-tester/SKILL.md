@@ -296,6 +296,37 @@ gameplay** — customer arrival, haggle screen rendering, dungeon entry,
 debt-due splash. To capture those, drive scripted input first then
 snapshot.
 
+### ⚠ CRITICAL: title-screen-bearing games need a dismiss step FIRST
+
+**Empirical case 2026-05-10**: when debugging Aldenmere's WASD
+diagonals, capture-input scripts like `'move_north+move_west,1.5'`
+produced PNGs of the title screen, not gameplay. Reason: the title
+screen sets `screen_freeze_world: true`, blocking world simulation
+until the user clicks "New Campaign". `Input.action_press(move_north)`
+is dispatched globally, but no rule is firing while the screen is up.
+
+**The check**: before authoring ANY capture-input script for a game
+that has a `starting_screen` declared in screens.json, the FIRST step
+must dismiss the title. After ADR 0039 lands, this is one verb:
+
+```jsonc
+{ "click": "New Campaign" }   // step_runner.gd
+```
+
+Until ADR 0039 lands, the workaround is:
+- Send `ui_accept` if the title screen has a default-focused button
+  (still flaky — depends on Godot focus state)
+- OR temporarily comment out `starting_screen` in screens.json for
+  the capture session (revert before commit)
+
+**Skill harden (per ADR 0039 post-mortem ritual, 2026-05-10)**:
+qa-tester scripts targeting any game with a `starting_screen` MUST
+include a dismiss step before gameplay capture, OR the qa-tester must
+explicitly note in the capture report that the title screen is the
+intended capture subject. Empty captures of title screens are not
+"capture failed" — they're correct snapshots of the wrong scene.
+This rule prevents the empirical bug class from recurring.
+
 ### Direct godot invocation (bypasses play.sh wrapper)
 
 ```bash
