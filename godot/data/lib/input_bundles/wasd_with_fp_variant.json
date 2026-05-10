@@ -16,25 +16,25 @@
       "_comment": "World-frame WASD — fires when camera is NOT first_person_3d. W=north regardless of player facing. Spliced into game's physics.json rules array. Per-axis pattern (added 2026-05-10): each directional rule sets ONLY its own axis. Engine's velocity_set preserves the OTHER axis when the field is omitted, so W+D = north + east diagonal works (each rule contributes one axis; combined velocity is (3, -3) at 45°). With both axes set per rule, last-writer-wins broke diagonals.",
       "id": "lib_wasd_move_north_world",
       "trigger": {"type": "input", "action": "move_north"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d", "third_person_3d"]}},
       "effect": {"type": "velocity_set", "target": "actor", "y": -3.0}
     },
     {
       "id": "lib_wasd_move_south_world",
       "trigger": {"type": "input", "action": "move_south"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d", "third_person_3d"]}},
       "effect": {"type": "velocity_set", "target": "actor", "y": 3.0}
     },
     {
       "id": "lib_wasd_move_east_world",
       "trigger": {"type": "input", "action": "move_east"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d", "third_person_3d"]}},
       "effect": {"type": "velocity_set", "target": "actor", "x": 3.0}
     },
     {
       "id": "lib_wasd_move_west_world",
       "trigger": {"type": "input", "action": "move_west"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d", "third_person_3d"]}},
       "effect": {"type": "velocity_set", "target": "actor", "x": -3.0}
     },
     {
@@ -82,6 +82,31 @@
       "trigger": {"type": "input", "action": "move_west"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "first_person_3d"}},
       "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -3.0}
+    },
+    {
+      "_comment": "ADR 0040 — Camera-relative WASD for isometric_3d. Player presses W → moves where the camera is 'looking forward' (NW in world for SE-camera-looking-NW). facing=π/4 = 45° rotates the (forward, strafe) basis to align with the camera's XZ projection. Uses velocity_add_relative + per-tick zero (state.zero_velocity_pretick=true on the actor) so W+D both held → contributions sum to world-N (pure -Z) → projects to screen-up-right. Speed clamp via state.max_speed normalizes the diagonal sum to walking speed.",
+      "id": "lib_wasd_move_forward_iso",
+      "trigger": {"type": "input", "action": "move_north"},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 3.0, "strafe": 0, "facing": 0.7853982}
+    },
+    {
+      "id": "lib_wasd_move_back_iso",
+      "trigger": {"type": "input", "action": "move_south"},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": -3.0, "strafe": 0, "facing": 0.7853982}
+    },
+    {
+      "id": "lib_wasd_strafe_right_iso",
+      "trigger": {"type": "input", "action": "move_east"},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": 3.0, "facing": 0.7853982}
+    },
+    {
+      "id": "lib_wasd_strafe_left_iso",
+      "trigger": {"type": "input", "action": "move_west"},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -3.0, "facing": 0.7853982}
     }
   ]
 }

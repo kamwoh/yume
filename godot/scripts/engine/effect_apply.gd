@@ -458,7 +458,15 @@ static func _velocity_set_relative(e: Dictionary, env: Dictionary, ctx: Dictiona
 	if ent == null: return
 	var fwd := float(_value(e.get("forward", 0), ctx, env))
 	var strafe := float(_value(e.get("strafe", 0), ctx, env))
-	var facing := float(ent.get_state("facing", 0.0))
+	# ADR 0040: optional `facing` override. When present, fixes the rotation
+	# regardless of actor.state.facing — used by iso/top-down WASD variants
+	# where the camera yaw is constant. Default falls back to actor's facing
+	# (set by mouse-look in FP/TP modes).
+	var facing: float
+	if e.has("facing"):
+		facing = float(_value(e["facing"], ctx, env))
+	else:
+		facing = float(ent.get_state("facing", 0.0))
 	# Forward in world: rotate (0,0,-1) by yaw around Y → (-sin, 0, -cos)
 	var fx := -sin(facing) * fwd
 	var fz := -cos(facing) * fwd
@@ -493,21 +501,40 @@ static func _velocity_add_relative(e: Dictionary, env: Dictionary, ctx: Dictiona
 	if ent == null: return
 	var fwd := float(_value(e.get("forward", 0), ctx, env))
 	var strafe := float(_value(e.get("strafe", 0), ctx, env))
-	var facing := float(ent.get_state("facing", 0.0))
+	# ADR 0040: optional `facing` override (same shape as _velocity_set_relative).
+	var facing: float
+	if e.has("facing"):
+		facing = float(_value(e["facing"], ctx, env))
+	else:
+		facing = float(ent.get_state("facing", 0.0))
 	var fx := -sin(facing) * fwd
 	var fz := -cos(facing) * fwd
-	var sx := -cos(facing) * strafe
-	var sz := sin(facing) * strafe
+	# ADR 0040 Condition 1 (2026-05-10): strafe-sign harmonized with
+	# _velocity_set_relative. Was `sx = -cos(facing) * strafe; sz = sin(facing) * strafe`
+	# — opposite sign produced player's-LEFT instead of player's-RIGHT for
+	# positive strafe. Iso variant rules use strafe=0 so the bug doesn't
+	# manifest there, but third-person strafe was inverted relative to
+	# _set_relative's convention.
+	var sx := cos(facing) * strafe
+	var sz := -sin(facing) * strafe
 	var dvx := fx + sx
 	var dvz := fz + sz
-	var pos = ent.get_position()
+	# Branch on VELOCITY type, not position. Aldenmere-style entities use
+	# Vector2 velocity (per WASD lib convention) with Vector3 position;
+	# casting v_cur (Vector2) to Vector3 crashed previously. ADR 0040 fix
+	# 2026-05-10.
 	var v_cur = ent.get_velocity()
-	if pos is Vector3:
-		var base: Vector3 = Vector3.ZERO if v_cur == null else (v_cur as Vector3)
-		ent.set_velocity(base + Vector3(dvx, 0, dvz))
+	if v_cur is Vector2:
+		ent.set_velocity((v_cur as Vector2) + Vector2(dvx, dvz))
+	elif v_cur is Vector3:
+		ent.set_velocity((v_cur as Vector3) + Vector3(dvx, 0, dvz))
 	else:
-		var base2: Vector2 = Vector2.ZERO if v_cur == null else (v_cur as Vector2)
-		ent.set_velocity(base2 + Vector2(dvx, dvz))
+		# No prior velocity — pick dimensionality from position.
+		var pos = ent.get_position()
+		if pos is Vector3:
+			ent.set_velocity(Vector3(dvx, 0, dvz))
+		else:
+			ent.set_velocity(Vector2(dvx, dvz))
 
 
 ## Smoothly approach a target velocity each tick. Lets entities feel weighty —

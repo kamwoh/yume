@@ -377,14 +377,28 @@ sets velocity in WORLD axes (W = -Z = world-NORTH), but the screen
 shows that as diagonal up-left. User feedback led to swapping to
 `top_down_3d` for an intuitive feel.
 
-**Pre-ship check when choosing camera**: if the game uses world-
-frame WASD (i.e. `velocity_set` with `x` / `y` from the wasd lib),
-pick `top_down_3d`. If the game wants iso aesthetic + intuitive
-controls, ADR work is needed — either rotate the camera 45°
-in-engine OR add camera-relative WASD for iso mode (currently only
-`first_person_3d` has camera-relative via `velocity_add_relative`).
-For now, iso_top_down should be reserved for games where the
-disorientation is OK (chess-shaped, tactics, settlement-builder).
+**Pre-ship check — camera mode ↔ input bundle variant must
+cross-reference (per ADR 0040, 2026-05-10):**
+
+| Camera mode picked | Required input bundle variant |
+|---|---|
+| `top_down_3d` | world-frame WASD (existing default) |
+| `third_person_3d` | world-frame WASD (mouse drives facing only; keys stay compass) |
+| `isometric_3d` | iso-variant WASD with `state.zero_velocity_pretick: true` + `state.max_speed` declared on the player. Per ADR 0040. |
+| `first_person_3d` | FP-variant WASD (existing — `velocity_add_relative` reads `state.facing`) |
+
+**Empirical case (2026-05-10)**: Aldenmere shipped iso_top_down with
+the world-frame WASD bundle — pressing W produced screen-up-RIGHT
+diagonal motion instead of straight-up. Visual capture confirmed
+the bug class. Fixed by ADR 0040 + Aldenmere player opt-in.
+
+**The gate** every asset-designer pass must run before declaring
+camera selection done: state which input bundle variant goes with
+the picked camera mode. If the variant doesn't exist (e.g., a
+quarter-iso or back-view camera lands without an input bundle
+variant), flag the gap to the systems-designer for a follow-up
+ADR — DON'T ship the camera mode without the matching input
+contract.
 
 This complements visual-density axis 4 (FAT lamps every 8-15m) —
 the spacing is one axis, the size-per-element is this gate.

@@ -840,6 +840,19 @@ func _on_tick(count: int) -> void:
 ## call on their own freeze policy. The step runner intentionally bypasses
 ## freeze (tests need to advance state regardless of modal screens).
 func advance_one_tick() -> void:
+	# ADR 0040: pretick velocity zero for actors with the opt-in flag.
+	# Camera-relative WASD uses velocity_add_relative each tick; without
+	# this reset, contributions accumulate unbounded. Runs BEFORE
+	# scheduler.tick so the input phase's add contributions sum to a
+	# fresh value each tick.
+	for id in entities.keys():
+		var pre_ent = entities[id]
+		if pre_ent is Entity and bool((pre_ent as Entity).get_state("zero_velocity_pretick", false)):
+			var pre_vel = (pre_ent as Entity).get_velocity()
+			if pre_vel is Vector2:
+				(pre_ent as Entity).set_velocity(Vector2.ZERO)
+			elif pre_vel is Vector3:
+				(pre_ent as Entity).set_velocity(Vector3.ZERO)
 	# ADR 0018 Phase A: tick AI policies BEFORE scheduler.tick so their
 	# synthesized actions land in the input queue and are processed in
 	# the same tick as human input. AI actors decide simultaneously
@@ -847,6 +860,20 @@ func advance_one_tick() -> void:
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)
 	scheduler.tick()
+	# ADR 0040: post-input speed clamp for opt-in actors. Per Condition C4
+	# tightening (2026-05-10), default max_speed=INF means clamp DISABLED
+	# unless explicitly declared; only actors that need a speed cap pay
+	# the normalize cost.
+	for id in entities.keys():
+		var clamp_ent = entities[id]
+		if clamp_ent is Entity and bool((clamp_ent as Entity).get_state("zero_velocity_pretick", false)):
+			var max_s := float((clamp_ent as Entity).get_state("max_speed", INF))
+			if max_s < INF:
+				var v = (clamp_ent as Entity).get_velocity()
+				if v is Vector2 and (v as Vector2).length() > max_s:
+					(clamp_ent as Entity).set_velocity((v as Vector2).normalized() * max_s)
+				elif v is Vector3 and (v as Vector3).length() > max_s:
+					(clamp_ent as Entity).set_velocity((v as Vector3).normalized() * max_s)
 	# ADR 0036: LifecycleDirector advances entity ages + checks stage
 	# thresholds on the same per-tick cadence. dt = tick_seconds so a
 	# year_seconds=900 template ages an entity by tick_seconds/900 years
@@ -1152,23 +1179,40 @@ func _poll_input() -> void:
 	# Per-axis stop: if no key on the axis is held, queue per-axis stop.
 	# Read current velocity once; only queue when there's something to
 	# stop (avoid spamming the input queue with no-op events).
+	#
+	# ADR 0040 Defect #1 fix (2026-05-10): SUPPRESS per-axis stop
+	# injection for actors with `state.zero_velocity_pretick=true`. Those
+	# actors use camera-relative WASD via velocity_add_relative; their
+	# advance_one_tick zeroes velocity each tick BEFORE the input phase,
+	# so the pretick zero already handles the "no input → zero velocity"
+	# semantic. The per-axis stop logic was designed for the world-frame
+	# velocity_set model and would WIPE the camera-relative diagonal
+	# contributions (because _poll_input runs at 60Hz between ticks and
+	# would queue stop_x even while W is held — last-writer-wins in the
+	# input phase erases the x-component of the iso-W diagonal vector).
 	var actor_ent = entities.get(actor_id, null)
 	if actor_ent is Entity:
-		var v = (actor_ent as Entity).get_velocity()
-		var vx: float = 0.0
-		var vy: float = 0.0
-		if v is Vector2:
-			vx = (v as Vector2).x; vy = (v as Vector2).y
-		elif v is Vector3:
-			vx = (v as Vector3).x; vy = (v as Vector3).z
-		if not ew_held and absf(vx) > 0.001:
-			scheduler.queue_input("stop_x", {"actor": actor_id})
-		if not ns_held and absf(vy) > 0.001:
-			scheduler.queue_input("stop_y", {"actor": actor_id})
+		var pretick_zero := bool((actor_ent as Entity).get_state("zero_velocity_pretick", false))
+		if not pretick_zero:
+			var v = (actor_ent as Entity).get_velocity()
+			var vx: float = 0.0
+			var vy: float = 0.0
+			if v is Vector2:
+				vx = (v as Vector2).x; vy = (v as Vector2).y
+			elif v is Vector3:
+				vx = (v as Vector3).x; vy = (v as Vector3).z
+			if not ew_held and absf(vx) > 0.001:
+				scheduler.queue_input("stop_x", {"actor": actor_id})
+			if not ns_held and absf(vy) > 0.001:
+				scheduler.queue_input("stop_y", {"actor": actor_id})
 	# Legacy global stop (fully idle) — kept for backwards-compat with
 	# any existing demo using it. New games should use stop_x / stop_y
-	# (the lib_wasd_stop_x / lib_wasd_stop_y rules).
-	if stop_action_on_idle != "" and not any_movement_pressed and stop_action_on_idle != "stop_x" and stop_action_on_idle != "stop_y":
+	# (the lib_wasd_stop_x / lib_wasd_stop_y rules). ADR 0040: same
+	# pretick-zero suppression as per-axis stops above.
+	var legacy_stop_pretick_zero := false
+	if actor_ent is Entity:
+		legacy_stop_pretick_zero = bool((actor_ent as Entity).get_state("zero_velocity_pretick", false))
+	if not legacy_stop_pretick_zero and stop_action_on_idle != "" and not any_movement_pressed and stop_action_on_idle != "stop_x" and stop_action_on_idle != "stop_y":
 		var v2 = (actor_ent as Entity).get_velocity() if actor_ent is Entity else null
 		var v_nonzero: bool = false
 		if v2 is Vector2: v_nonzero = (v2 as Vector2) != Vector2.ZERO

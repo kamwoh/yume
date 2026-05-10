@@ -37,6 +37,9 @@ class_name QueryLib
 const OPERATOR_SUFFIXES: Array = [
 	"_eq", "_ne", "_gt", "_lt", "_gte", "_lte", "_atleast", "_atmost",
 ]
+# Note: `_has` (ADR 0033, set membership where field is array) and `_in`
+# (ADR 0040, where target is array) are handled as separate suffix branches
+# in _match_fields rather than via the scalar-comparison loop above.
 
 
 # ============================================================
@@ -146,6 +149,19 @@ static func _match_fields(fields: Dictionary, spec: Dictionary) -> bool:
 			if not (arr_v is Array):
 				return false
 			if not (arr_v as Array).has(target):
+				return false
+			continue
+		# ADR 0040 — `<field>_in` operator: tests scalar field is in target
+		# array. Mirror of `_has` with reversed direction. Used by lib bundle
+		# WASD variants to gate on `camera_mode_in: [top_down_3d,
+		# third_person_3d]` instead of multiple separate rules.
+		if key.ends_with("_in"):
+			var field_i: String = key.substr(0, key.length() - 3)
+			if not fields.has(field_i):
+				return false
+			if not (target is Array):
+				return false
+			if not (target as Array).has(fields[field_i]):
 				return false
 			continue
 		var op: String = "eq"
