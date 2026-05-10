@@ -179,6 +179,54 @@ binding objects. Check the specific effect's spec.
 The merchant build had ~57 of these brace-wrapped bindings causing 31,000+
 formula.parse_failed errors per session.
 
+## ⚠ CRITICAL: state.velocity dimensionality — Vector2 NOT Vector3 for floor-walkers
+
+The WASD lib bundle (`@lib.input_bundles.wasd_with_fp_variant.rules`)
+uses `velocity_set` with field name `y` to mean **"the second component
+of velocity"**. The renderer (entity_mesh_3d.gd:127) lifts a Vector2
+velocity into world Vector3 via:
+
+```gdscript
+position = Vector3(p.x, 0, p.y) * position_scale
+```
+
+So when velocity is Vector2 `(x, y)`, `y` becomes world-Z (north/south
+on the floor). When velocity is Vector3 `(x, y, z)`, `y` is the
+world-UP axis — pressing W literally launches the player upward.
+
+❌ **WRONG** for floor-walking actors (player, NPCs):
+```jsonc
+"velocity": [0, 0, 0]    // Vector3 — y is world-up, W makes player jump
+```
+
+✅ **RIGHT** for floor-walking actors:
+```jsonc
+"velocity": [0, 0]       // Vector2 — y is renderer-Z = north, W walks
+```
+
+✅ **Vector3 IS appropriate** for entities that legitimately move
+in 3D space (projectiles with arc trajectories, flying mobs, vertical
+elevators). Those entities' rules use `velocity_set z:` for horizontal
++ `y:` for vertical separately.
+
+**Empirical case 2026-05-10**: Aldenmere player + 8 villagers + 3
+animals shipped with Vector3 `[0,0,0]` velocity (11 entities total).
+Pressing W made the player float upward instead of walking north.
+User feedback: "why my 'w' is not on the floor, but is up and down?"
+
+**The check**: any entity tagged `actor`, `villager`, `ambient_walker`,
+`prey`, `wolf` (or any other ground-mover) MUST have 2-component
+velocity. Verify with grep before declaring content done:
+
+```bash
+# Find all 3-component zero-velocity inits on ground-walker entities:
+grep -B 6 '"velocity": \[\s*0,\s*0,\s*0\s*\]' entities/*.json
+```
+
+Each match needs to be either (a) collapsed to `[0, 0]` if the entity
+walks on the floor, or (b) explicitly justified as a 3D-mover (with
+a `_comment` so future readers know it's intentional).
+
 ## ⚠ CRITICAL: world-state singleton pattern (no env.world_state queries)
 
 The engine does NOT support querying `env.world_state` directly:
