@@ -37,6 +37,17 @@ fields. Also writes:
 
 - `data/<game-name>/scene.json` — camera, bounds, tick rate (read by GameShell)
 - `data/<game-name>/hud.json` — HUD layout, win/lose binding (display only)
+- **`data/<game-name>/ui/input.json` — InputMap action declarations.
+  REQUIRED for any game with player input. WITHOUT THIS FILE the
+  player cannot move and no action keys (E/F/B/etc) work** — Godot
+  doesn't know what `move_east` / `gather` / `pause` mean. Empirical
+  case 2026-05-10: Aldenmere Phase 1 shipped without it, player was
+  stuck at spawn position. Each action declares: `name` (matches the
+  rule's `trigger.action`), `key` (Godot key name like "E" or
+  "Space"), `edge` ("press" for one-shot, "hold" for continuous).
+  Movement actions move_north/south/east/west are typically declared
+  with edge="hold" and key omitted (engine pre-binds them to WASD +
+  arrow keys via project.godot).
 - `data/<game-name>/audio/cues.json` — semantic event → sound name
   (Phase 2b). Rules emit `@cues.<event>` which engine resolves through
   this table. Decouples rules from concrete sounds.
@@ -45,6 +56,57 @@ fields. Also writes:
   engine substitutes at render time. English default; future locales
   via `ui/strings.<lang>.json`.
 - New entries appended to `data/shapes.json` (root, shared library)
+
+### Pre-ship checklist (REQUIRED — added 2026-05-10)
+
+Before declaring asset-designer pass complete, verify:
+
+- [ ] `ui/input.json` exists AND every action referenced by a rule
+      `trigger: {type: "input", action: "X"}` is declared in this
+      file. Mismatch = silent no-op = player can't perform that
+      verb. Cross-check command:
+      ```bash
+      # Every input-action referenced in rules MUST be in input.json:
+      jq -r '.rules[]? | select(.trigger.type=="input") | .trigger.action' \
+        world/physics.json game/rules.json | sort -u > /tmp/want.txt
+      jq -r '.actions[].name' ui/input.json | sort -u > /tmp/have.txt
+      diff /tmp/want.txt /tmp/have.txt
+      ```
+      ANY want-not-have line = BROKEN INPUT.
+
+- [ ] `hud.json` panels use anchors the engine supports. As of
+      2026-05-10 these are: `top-left`, `top-right`, `bottom-left`,
+      `bottom-right`, `top-center`, `bottom-center`, `center`,
+      `center-left`, `center-right`. Check `game_shell.gd::_build_panel`
+      for current list. Authored anchor must match an arm in the
+      match statement; otherwise the panel falls through to default
+      and stacks on top-left with everything else.
+
+- [ ] All HUD `progress_bar` entries with `binds:` resolve to a real
+      state field. Empty bars → state field doesn't exist OR isn't
+      written by any rule. Use grep:
+      ```bash
+      jq -r '.. | objects | select(.type=="progress_bar") | .binds' \
+        hud.json | while read b; do grep -l "$b" world/physics.json \
+        game/rules.json entities/*.json || echo "ORPHAN: $b"; done
+      ```
+
+- [ ] `current_objective` (or equivalent objective field) is written
+      by AT LEAST ONE rule per phase or signature beat. If the only
+      writer is a tick rule that sets it once on Day 1, the bar will
+      stay frozen on the Day 1 string forever.
+
+- [ ] All HUD format strings use `{}` (single brace, no spec) not
+      `{:0}` or `{.0}` — engine doesn't implement Python format-spec
+      mini-language. Capital-letter or arrow prefix on literal text
+      to bypass formula evaluator (per data-demo.md formula
+      discipline).
+
+Empirical case 2026-05-10: Aldenmere shipped 4 simultaneous HUD
+bugs from missing input.json (no movement) + unsupported anchors
+(everything stacked top-left) + invalid format string ({:0}h) +
+silent label.text drop (engine bug, separately fixed). All would
+have been caught by this checklist.
 
 Optional:
 - `data/<game-name>/asset_gen.json` — style + backend config (if AI-gen)
