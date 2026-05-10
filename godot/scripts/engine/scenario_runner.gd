@@ -116,36 +116,59 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	var setup: Dictionary = sc.get("setup", {})
 	_apply_setup(world, setup)
 
-	# Run ticks; inject scripted inputs at scheduled tick numbers.
-	# Resolve actor id each iteration — multi-level playthroughs destroy and
-	# recreate the player entity across transitions, invalidating any cached id.
-	var actions: Array = sc.get("actions", [])
-	var n_ticks := int(sc.get("ticks", 30))
-	for t in range(1, n_ticks + 1):
-		var actor_id := _find_actor_id(world)
-		for a in actions:
-			if not (a is Dictionary):
-				continue
-			if int((a as Dictionary).get("tick", -1)) == t:
-				var act := str((a as Dictionary).get("input", ""))
-				if act != "" and actor_id != "":
-					world.scheduler.queue_input(act, {"actor": actor_id})
-		world.scheduler.tick()
-		if world.has_method("_decrement_lifetimes"):
-			world._decrement_lifetimes()
-		# ADR 0006: process any queued level transitions between ticks.
-		if world.has_method("process_pending_level_transition"):
-			world.process_pending_level_transition()
-		# Motion integration normally runs in World._process(delta) at
-		# frame rate. Headless scenario testing runs ticks discretely, so
-		# we simulate motion using tick_seconds as the delta.
-		if world.has_method("_integrate_motion"):
-			world._integrate_motion(float(world.tick_seconds))
+	# ADR 0039: dual-path execution. New format uses `steps[]` and runs
+	# through StepRunner. Legacy format uses `actions[]` + `ticks` +
+	# `assertions[]` and runs the original tick-stepped path. Per-scenario
+	# auto-detection lets a single tests.json mix formats during migration.
+	if sc.has("steps"):
+		var step_ctx: Dictionary = {
+			"data_root": data_root,
+			"scenario": name,
+			"verbose": verbose,
+			"passed": 0,
+			"failed": 0,
+			"failures": [],
+		}
+		var result = await StepRunner.run(sc["steps"], world, step_ctx)
+		passed += int(result.get("passed", 0))
+		failed += int(result.get("failed", 0))
+		for f in result.get("failures", []):
+			failures.append(str(f))
+	else:
+		# ADR 0039 Condition C5: deprecate legacy actions[] schema. Removal
+		# at ADR 0050 or last-demo-migration whichever first.
+		if sc.has("actions"):
+			push_warning("[scenario] '%s' uses legacy actions[] schema — migrate to steps[] (deprecated as of ADR 0039, removal at ADR 0050 or last-demo-migration)" % name)
+		# Run ticks; inject scripted inputs at scheduled tick numbers.
+		# Resolve actor id each iteration — multi-level playthroughs destroy and
+		# recreate the player entity across transitions, invalidating any cached id.
+		var actions: Array = sc.get("actions", [])
+		var n_ticks := int(sc.get("ticks", 30))
+		for t in range(1, n_ticks + 1):
+			var actor_id := _find_actor_id(world)
+			for a in actions:
+				if not (a is Dictionary):
+					continue
+				if int((a as Dictionary).get("tick", -1)) == t:
+					var act := str((a as Dictionary).get("input", ""))
+					if act != "" and actor_id != "":
+						world.scheduler.queue_input(act, {"actor": actor_id})
+			world.scheduler.tick()
+			if world.has_method("_decrement_lifetimes"):
+				world._decrement_lifetimes()
+			# ADR 0006: process any queued level transitions between ticks.
+			if world.has_method("process_pending_level_transition"):
+				world.process_pending_level_transition()
+			# Motion integration normally runs in World._process(delta) at
+			# frame rate. Headless scenario testing runs ticks discretely, so
+			# we simulate motion using tick_seconds as the delta.
+			if world.has_method("_integrate_motion"):
+				world._integrate_motion(float(world.tick_seconds))
 
-	# Assertions
-	var assertions: Array = sc.get("assertions", [])
-	for a in assertions:
-		_check_assertion(world, a, name)
+		# Assertions (legacy schema)
+		var assertions: Array = sc.get("assertions", [])
+		for a in assertions:
+			_check_assertion(world, a, name)
 
 	# Cleanup
 	world.queue_free()

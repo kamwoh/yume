@@ -22,17 +22,15 @@ extends Node
 func _ready() -> void:
 	var delay := -1.0
 	var output_path := "user://_capture.png"
-	# 2026-05-06 ext: scripted input for visual QA.
-	# --capture-input=move_east,2.0;move_north,1.0 holds each action for the
-	# given seconds, then captures. Lets visual-QA loops drive game state
-	# (walk player to spot, press button) before snapshot. Empty = legacy.
-	# 2026-05-10 ext: `+` separator for SIMULTANEOUS actions in a single step.
-	# Example: --capture-input='move_north+move_west,1.5' presses both
-	# move_north AND move_west, holds for 1.5s, releases both. Lets VQA
-	# capture diagonal-input states (W+A pressed together) which the
-	# previous sequential format couldn't reach. Steps still separated
-	# by ; for sequencing.
+	# 2026-05-06 ext: scripted input for visual QA via cmdline.
+	# --capture-input=move_east,2.0;move_north,1.0 holds each action.
+	# 2026-05-10 ext: `+` separator for SIMULTANEOUS actions.
+	# 2026-05-10 ext (ADR 0039): cmdline syntax now compiles to a step list
+	# and delegates to StepRunner. Same execution path as scenario tests.
+	# --capture-script=<path> loads a JSON step list directly (richer than
+	# fits on a cmdline — supports click, expect, screenshot, etc.).
 	var input_script := ""
+	var script_path := ""
 	for arg in OS.get_cmdline_user_args():
 		var s := str(arg)
 		if s.begins_with("--capture-after="):
@@ -41,36 +39,36 @@ func _ready() -> void:
 			output_path = s.substr(17)
 		elif s.begins_with("--capture-input="):
 			input_script = s.substr(16)
-	if delay <= 0.0:
+		elif s.begins_with("--capture-script="):
+			script_path = s.substr(17)
+	if delay <= 0.0 and script_path == "":
 		return  # no capture requested — no-op
-	# Detach from main scene tree timing — let the game's own _ready
-	# settle before we start counting.
 	await get_tree().process_frame
-	# Drive scripted input before the post-input capture delay.
-	if input_script != "":
-		for step in input_script.split(";"):
-			var parts := step.split(",")
-			if parts.size() != 2: continue
-			var action_spec := parts[0].strip_edges()
-			var dur := float(parts[1])
-			# Simultaneous actions: split on `+` to get one or more action names.
-			var actions: Array[String] = []
-			for raw in action_spec.split("+"):
-				var name := raw.strip_edges()
-				if name == "":
-					continue
-				if not InputMap.has_action(name):
-					push_warning("[CaptureRunner] unknown action: %s" % name)
-					continue
-				actions.append(name)
-			if actions.is_empty():
-				continue
-			for name in actions:
-				Input.action_press(name)
-			await get_tree().create_timer(dur).timeout
-			for name in actions:
-				Input.action_release(name)
-	await get_tree().create_timer(delay).timeout
+
+	# Find the World node — required for StepRunner. Look up via root since
+	# capture_runner is an autoload and World is in the scene tree.
+	var world := _find_world()
+
+	# --capture-script takes precedence if present (richer); else fall back
+	# to legacy cmdline parsing.
+	var steps: Array = []
+	if script_path != "":
+		steps = _load_script(script_path)
+	elif input_script != "":
+		steps = _compile_cmdline_to_steps(input_script)
+
+	if not steps.is_empty() and world != null:
+		var ctx: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+								"failures": [], "screenshots": []}
+		await StepRunner.run(steps, world, ctx)
+		for f in ctx.get("failures", []):
+			push_warning("[CaptureRunner] step failed: %s" % str(f))
+
+	# Settle delay before final capture (mirrors legacy behavior).
+	if delay > 0.0:
+		await get_tree().create_timer(delay).timeout
+
+	# Final viewport capture (the "post-script" frame).
 	var img: Image = get_viewport().get_texture().get_image()
 	if img == null:
 		push_warning("[CaptureRunner] viewport texture unavailable")
@@ -82,3 +80,63 @@ func _ready() -> void:
 	else:
 		push_error("[CaptureRunner] save_png error %d at %s" % [err, output_path])
 	get_tree().quit()
+
+
+# Compile legacy `'X,2.0;Y+Z,1.5'` cmdline format into ADR 0039 step list.
+func _compile_cmdline_to_steps(input_script: String) -> Array:
+	var steps: Array = []
+	for step_str in input_script.split(";"):
+		var parts := step_str.split(",")
+		if parts.size() != 2: continue
+		var action_spec := parts[0].strip_edges()
+		var dur := float(parts[1])
+		# `+` joins simultaneous actions into a hold array.
+		var actions: Array = []
+		for raw in action_spec.split("+"):
+			var name := raw.strip_edges()
+			if name != "":
+				actions.append(name)
+		if actions.is_empty():
+			continue
+		var step: Dictionary = {"for": dur}
+		if actions.size() == 1:
+			step["hold"] = actions[0]
+		else:
+			step["hold"] = actions
+		steps.append(step)
+	return steps
+
+
+# Load a JSON step list from disk. Accepts `{"steps": [...]}` or `[...]`.
+func _load_script(path: String) -> Array:
+	if not FileAccess.file_exists(path):
+		push_warning("[CaptureRunner] capture script not found: %s" % path)
+		return []
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null: return []
+	var raw := f.get_as_text()
+	f.close()
+	var json := JSON.new()
+	if json.parse(raw) != OK:
+		push_warning("[CaptureRunner] script JSON parse error: %s" %
+			json.get_error_message())
+		return []
+	if json.data is Array:
+		return json.data
+	if json.data is Dictionary:
+		var d: Dictionary = json.data
+		if d.has("steps") and d["steps"] is Array:
+			return d["steps"]
+	return []
+
+
+func _find_world() -> World:
+	var root := get_tree().root
+	for child in root.get_children():
+		if child is World:
+			return child
+		# World may be one level deeper (under the per-game scene root).
+		for grand in child.get_children():
+			if grand is World:
+				return grand
+	return null

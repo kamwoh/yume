@@ -77,6 +77,15 @@ const TECH_NO_TREE             := "tech.no_tree"
 const TECH_PREREQ_MISSING      := "tech.prereq_missing"
 const TECH_PREREQ_CYCLE        := "tech.prereq_cycle"
 
+# ADR 0039 — Playwright-style scenario steps
+const STEP_UNKNOWN_VERB        := "step.unknown_verb"
+const STEP_UNKNOWN_ACTION      := "step.unknown_action"
+const STEP_CLICK_NOT_FOUND     := "step.click_not_found"
+const STEP_CLICK_AMBIGUOUS     := "step.click_ambiguous"
+const STEP_EXPECT_FAILED       := "step.expect_failed"
+const STEP_RELEASE_NOT_HELD    := "step.release_not_held"
+const STEP_INVALID_DURATION    := "step.invalid_duration"
+
 # ADR 0034 — dynasty / heir succession primitive
 const DYNASTY_NO_HEIR          := "dynasty.no_heir"
 const DYNASTY_EXTINCT          := "dynasty.extinct"

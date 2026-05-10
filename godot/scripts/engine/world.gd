@@ -795,6 +795,25 @@ func _on_tick(count: int) -> void:
 		process_pending_save_load()
 		process_pending_level_transition()
 		return
+	advance_one_tick()
+	if verbose and count % 4 == 0:
+		_print_tick_summary(count)
+
+
+## ADR 0039: canonical tick body. Used by:
+##   1. The live clock callback `_on_tick` (above) after the freeze check.
+##   2. The step runner (`step_runner.gd`) for headless tests + capture VQA.
+##
+## Single source of truth — both paths exercise identical engine state
+## transitions, so scenario tests cannot pass while live play silently
+## diverges. Includes scheduler.tick(), LifecycleDirector.tick,
+## actor_manager.tick_policies, lifetime decrement, and all `process_pending_*`
+## drains in the original phase order.
+##
+## Does NOT include the freeze guard — callers are expected to gate the
+## call on their own freeze policy. The step runner intentionally bypasses
+## freeze (tests need to advance state regardless of modal screens).
+func advance_one_tick() -> void:
 	# ADR 0018 Phase A: tick AI policies BEFORE scheduler.tick so their
 	# synthesized actions land in the input queue and are processed in
 	# the same tick as human input. AI actors decide simultaneously
@@ -826,8 +845,6 @@ func _on_tick(count: int) -> void:
 	# without scene reload. Processed after other deferred ops so any
 	# in-flight save/load completes before the reset wipes state.
 	process_pending_world_reset()
-	if verbose and count % 4 == 0:
-		_print_tick_summary(count)
 
 
 ## ADR 0010: process pending save/load between ticks. Same deferred pattern

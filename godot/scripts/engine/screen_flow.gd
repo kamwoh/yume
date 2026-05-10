@@ -222,6 +222,16 @@ func _dispatch_effects(effects, _ctx: Dictionary) -> void:
 # SCREEN EVENT BUFFER (drained from env.screen_event_buffer each frame)
 # ============================================================
 
+## ADR 0039: public alias for _drain_screen_events. Step runner calls
+## this after a `click` verb fires `Button.pressed.emit()` so any
+## transition_screen / transition_level / load_state effects queued
+## by the on_click chain land BEFORE the next step. Without this drain,
+## the per-frame `_process` callback wouldn't run between scripted
+## steps in headless tests (no Godot main loop frame ticks).
+func drain() -> void:
+	_drain_screen_events()
+
+
 ## Drain pending screen events emitted by transition_screen / quit_app /
 ## show_toast / reload_scene effects. Same pattern as GameShell's
 ## shell_event_buffer.

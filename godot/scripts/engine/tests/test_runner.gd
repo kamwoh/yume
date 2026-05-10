@@ -75,6 +75,7 @@ func _ready() -> void:
 	test_faction_primitive()
 	test_tech_tree_primitive()
 	test_dynasty_primitive()
+	test_step_runner()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -6504,3 +6505,208 @@ func test_dynasty_primitive() -> void:
 	expect_eq(int(gen2_farmer10b.get("level", -1)), 1,
 		"emergent: gen2.class_progress.farmer.level = 1 (gen2's own arc)")
 	gen1.queue_free(); gen2.queue_free(); dd10.queue_free()
+
+
+# ============================================================
+# ADR 0039 — Playwright-style scenario steps (step_runner)
+# ============================================================
+
+func test_step_runner() -> void:
+	_section("step_runner (ADR 0039)")
+
+	# Build a minimal World fit for headless step_runner exercise. We need:
+	#   - a registered InputMap action so press/hold/release have a real
+	#     target
+	#   - a player entity tagged 'player' so expect-compact form resolves
+	#   - a tick rule that mutates state on the test action so we can
+	#     verify ticks ran
+	var test_action := "step_test_action"
+	if InputMap.has_action(test_action):
+		InputMap.action_erase_events(test_action)
+	else:
+		InputMap.add_action(test_action)
+
+	var defs: Dictionary = {
+		"player": {
+			"id": "player",
+			"tags": ["player"],
+			"state_init": {"counter": 0, "position": Vector3.ZERO},
+		},
+	}
+	var world := World.new()
+	world.auto_start = false
+	world.verbose = false
+	world.tick_seconds = 0.1
+	add_child(world)
+	world.scheduler = PhaseScheduler.new({})
+	var player := Entity.create(defs["player"], "p1", {})
+	var entities: Dictionary = {"p1": player}
+	world.scheduler.env = {
+		"entities": entities, "defs": defs,
+		"relations": RelationStore.new(), "spatial_index": SpatialIndex.new(),
+		"world": {}, "parent": world, "next_id": {"_": 0},
+		"error_buffer": [],
+	}
+	world.world_state = world.scheduler.env["world"]
+	# Register a rule that increments player.counter on the test action.
+	var rule := Rule.from_dict({
+		"id": "step_test_increment",
+		"trigger": {"type": "input", "action": test_action},
+		"query": {"tags_all": ["player"]},
+		"effect": {"type": "state_set", "target": "self",
+				   "field": "counter", "value": "self.state.counter + 1"},
+	})
+	world.scheduler.register_rules([rule])
+
+	# ---------- 1. test_press ----------
+	var ctx1: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	var r1 = await StepRunner.run([{"press": test_action}], world, ctx1)
+	expect_eq(int(player.get_state("counter", 0)), 1,
+		"press: rule fired exactly once → counter = 1")
+	expect(r1.get("failed", 0) == 0, "press: no failures")
+
+	# ---------- 2. test_hold (single action, multi-tick) ----------
+	player.state["counter"] = 0
+	var ctx2: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	# tick_seconds=0.1, for=0.5 → round(0.5/0.1) = 5 ticks; rule fires
+	# once per tick while held.
+	await StepRunner.run([{"hold": test_action, "for": 0.5}], world, ctx2)
+	expect(int(player.get_state("counter", 0)) == 5,
+		"hold for 0.5s = 5 ticks; rule fired 5×")
+
+	# ---------- 3. test_hold_multi (two simultaneous actions) ----------
+	# Register a second action; verify both can be held together without
+	# crashing. State assertion validated via WASD lib in real Aldenmere
+	# scenarios; here we just verify both actions are released after.
+	var test_action2 := "step_test_action2"
+	if InputMap.has_action(test_action2):
+		InputMap.action_erase_events(test_action2)
+	else:
+		InputMap.add_action(test_action2)
+	var ctx3: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	await StepRunner.run([
+		{"hold": [test_action, test_action2], "for": 0.3}
+	], world, ctx3)
+	expect(not Input.is_action_pressed(test_action),
+		"hold multi: action1 released after for")
+	expect(not Input.is_action_pressed(test_action2),
+		"hold multi: action2 released after for")
+
+	# ---------- 4. test_wait_seconds_vs_ticks ----------
+	player.state["counter"] = 0
+	var ctx4: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	# wait shouldn't fire any rule (no input held), but ticks advance.
+	await StepRunner.run([{"wait": 0.3}], world, ctx4)
+	expect(int(player.get_state("counter", 0)) == 0,
+		"wait: no input held, counter unchanged")
+	# wait with explicit ticks form
+	await StepRunner.run([{"wait": {"ticks": 2}}], world, ctx4)
+	expect(int(player.get_state("counter", 0)) == 0,
+		"wait ticks form: counter unchanged (no input)")
+
+	# ---------- 5. test_tick (deterministic count) ----------
+	var ctx5: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	await StepRunner.run([{"tick": 3}], world, ctx5)
+	# No-op for state (no input); just verify it ran without error.
+	expect(int(ctx5.get("failed", 0)) == 0,
+		"tick: 3-tick advance ran without error")
+
+	# ---------- 6. test_expect_legacy_form ----------
+	player.state["counter"] = 7
+	var ctx6: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	await StepRunner.run([
+		{"expect": [
+			{"entity_field": {"query": {"tags_all": ["player"]},
+				 "field": "state.counter", "op": "==", "value": 7}}
+		]}
+	], world, ctx6)
+	expect_eq(int(ctx6.get("passed", 0)), 1,
+		"expect legacy form: 1 pass")
+	expect_eq(int(ctx6.get("failed", 0)), 0,
+		"expect legacy form: 0 fails")
+
+	# ---------- 7. test_expect_compact_form ----------
+	player.state["counter"] = 42
+	var ctx7: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	await StepRunner.run([
+		{"expect": [
+			{"player.state.counter": {">=": 40}}
+		]}
+	], world, ctx7)
+	expect_eq(int(ctx7.get("passed", 0)), 1,
+		"expect compact: 1 pass for player.state.counter >= 40")
+
+	# ---------- 8. test_expect_failure_records ----------
+	player.state["counter"] = 5
+	var ctx8: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	await StepRunner.run([
+		{"expect": [{"player.state.counter": {">": 100}}]}
+	], world, ctx8)
+	expect_eq(int(ctx8.get("failed", 0)), 1,
+		"expect failure: 1 recorded fail")
+
+	# ---------- 9. test_unknown_verb ----------
+	var ctx9: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	# A step with no recognized verb. Must NOT crash; should raise an
+	# EngineError into env.error_buffer.
+	world.scheduler.env["error_buffer"] = []
+	await StepRunner.run([{"flubber": "X"}], world, ctx9)
+	var errs: Array = world.scheduler.env.get("error_buffer", [])
+	var saw_unknown_verb := false
+	for e in errs:
+		if e is Dictionary and str((e as Dictionary).get("code", "")) == EngineError.STEP_UNKNOWN_VERB:
+			saw_unknown_verb = true
+			break
+	expect(saw_unknown_verb,
+		"unknown verb: STEP_UNKNOWN_VERB raised into error_buffer")
+
+	# ---------- 10. test_unknown_action ----------
+	var ctx10: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	world.scheduler.env["error_buffer"] = []
+	await StepRunner.run([{"press": "no_such_action_xyz"}], world, ctx10)
+	var errs10: Array = world.scheduler.env.get("error_buffer", [])
+	var saw_unknown_action := false
+	for e in errs10:
+		if e is Dictionary and str((e as Dictionary).get("code", "")) == EngineError.STEP_UNKNOWN_ACTION:
+			saw_unknown_action = true
+			break
+	expect(saw_unknown_action,
+		"unknown action: STEP_UNKNOWN_ACTION raised into error_buffer")
+
+	# ---------- 11. test_invalid_duration ----------
+	var ctx11: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
+							 "failures": [], "screenshots": []}
+	world.scheduler.env["error_buffer"] = []
+	await StepRunner.run([{"hold": test_action, "for": 0}], world, ctx11)
+	var errs11: Array = world.scheduler.env.get("error_buffer", [])
+	var saw_invalid_dur := false
+	for e in errs11:
+		if e is Dictionary and str((e as Dictionary).get("code", "")) == EngineError.STEP_INVALID_DURATION:
+			saw_invalid_dur = true
+			break
+	expect(saw_invalid_dur,
+		"invalid duration: STEP_INVALID_DURATION raised when for=0")
+
+	# ---------- 12. test_advance_one_tick_parity ----------
+	# advance_one_tick must drive the same env transitions _on_tick does.
+	# Empirical check: a tick rule fires under advance_one_tick same as
+	# under scheduler.tick(). (Sanity test that the C4 refactor preserved
+	# behavior — full coverage lives in unit tests for each verb above.)
+	player.state["counter"] = 0
+	world.advance_one_tick()
+	# No held input → counter unchanged
+	expect(int(player.get_state("counter", 0)) == 0,
+		"advance_one_tick: no input held, no rule fires")
+
+	# Cleanup
+	world.queue_free()

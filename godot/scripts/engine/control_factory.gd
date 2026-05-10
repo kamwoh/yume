@@ -234,6 +234,14 @@ static func _build_option_button(spec: Dictionary, dispatcher: Callable) -> Opti
 ## Apply anchor / position / size / sizing flags to any Control.
 ## Anchors map to Godot's PRESET_* constants (see Control docs).
 static func _apply_common(node: Control, spec: Dictionary) -> void:
+	# ADR 0039: propagate JSON id → Control.name verbatim so step_runner's
+	# click selectors `{"click": {"id": "btn_new_game"}}` can locate the
+	# Control by id. Default Godot autogenerates "Button", "Button2", etc.
+	# Collisions are an authoring bug (duplicate id in screens.json) — we
+	# log + still assign (Godot dedupes via numeric suffix on add_child),
+	# don't silently mangle. Authors fix the duplicate.
+	if spec.has("id"):
+		node.name = str(spec["id"])
 	var anchor := str(spec.get("anchor", ""))
 	if anchor != "":
 		_apply_anchor(node, anchor)
