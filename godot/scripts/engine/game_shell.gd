@@ -1007,14 +1007,26 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 	var anchor := str(panel_cfg.get("anchor", "top-left"))
 	match anchor:
 		"top-left":
-			vbox.position = Vector2(20, 20)
+			# y=50 (was 20) to leave room for top-center objective banner
+			# above it. Banner occupies y=[12,44]; this starts at y=50.
+			vbox.position = Vector2(20, 50)
 			vbox.size = Vector2(360, 240)
 		"top-right":
+			# Author-overridable width: default 200 px (just enough for a
+			# 180-px minimap with 10px padding). Vbox is right-aligned so
+			# children sit flush against the screen's right edge.
+			# Empirical case 2026-05-10: Aldenmere only had a minimap in
+			# top-right; with a 360-wide vbox (default-aligned LEFT)
+			# the minimap sat ~200px from the right edge — looked
+			# "ugly", "not in the corner". Tightened to 200 + alignment
+			# END so children hug the right edge.
+			var w_tr: float = float(panel_cfg.get("width", 200))
 			vbox.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			vbox.offset_left = -380
-			vbox.offset_top = 20
-			vbox.offset_right = -20
-			vbox.offset_bottom = 240
+			vbox.offset_left = -(w_tr + 10)
+			vbox.offset_top = 12
+			vbox.offset_right = -10
+			vbox.offset_bottom = 12 + float(panel_cfg.get("height", 320))
+			vbox.alignment = BoxContainer.ALIGNMENT_END
 		"bottom-left":
 			vbox.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 			vbox.offset_left = 20
@@ -1036,15 +1048,25 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 			vbox.offset_bottom = h * 0.5
 			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 		"top-center":
-			# Centered along top edge. Used for objective banners, day-time
-			# strip, anything that wants horizontal centering. Width default
-			# 600 (most viewport widths fit), 80px from top.
-			var w_tc: float = float(panel_cfg.get("width", 600))
+			# Single-line objective banner along the top edge. Default
+			# height 32 (just one row), keeping it ABOVE the top-left
+			# day/time stack which starts at y=20 and extends down. If
+			# top-center bottom = 32 and top-left first row at y=20-44,
+			# they'd overlap on x where they cross. Mitigation: top-left
+			# is reserved for x∈[20,380]; top-center centers — at any
+			# resolution wider than 760px they don't overlap. For
+			# narrower viewports, author can override width to be smaller.
+			# Empirical case 2026-05-10: Aldenmere objective banner was
+			# 600px wide centered, day-text at top-left was 360px from
+			# x=20. At 960px viewport, banner spans [180,780], day
+			# spans [20,380] — overlap on [180,380]. Now: y separated
+			# (banner 12-44, day-stack starts at 50).
+			var w_tc: float = float(panel_cfg.get("width", 760))
 			vbox.set_anchors_preset(Control.PRESET_TOP_WIDE)
 			vbox.offset_left = -w_tc * 0.5
 			vbox.offset_top = 12
 			vbox.offset_right = w_tc * 0.5
-			vbox.offset_bottom = 80
+			vbox.offset_bottom = 44
 			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 		"bottom-center":
 			# Centered along bottom edge. Used for controls hint strip.
