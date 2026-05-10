@@ -860,20 +860,22 @@ func advance_one_tick() -> void:
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)
 	scheduler.tick()
-	# ADR 0040: post-input speed clamp for opt-in actors. Per Condition C4
-	# tightening (2026-05-10), default max_speed=INF means clamp DISABLED
-	# unless explicitly declared; only actors that need a speed cap pay
-	# the normalize cost.
+	# ADR 0040: post-input speed clamp. Per Condition C4 tightening
+	# (2026-05-10), default max_speed=INF means clamp DISABLED unless
+	# explicitly declared. Originally gated on zero_velocity_pretick (iso
+	# mode), but FP mode also wants this — without it, W+D in FP gives
+	# √2 × walking speed (classic Quake diagonal-fastrun bug). Refined
+	# 2026-05-10 (FP rollout): any actor with max_speed < INF gets clamped.
 	for id in entities.keys():
 		var clamp_ent = entities[id]
-		if clamp_ent is Entity and bool((clamp_ent as Entity).get_state("zero_velocity_pretick", false)):
-			var max_s := float((clamp_ent as Entity).get_state("max_speed", INF))
-			if max_s < INF:
-				var v = (clamp_ent as Entity).get_velocity()
-				if v is Vector2 and (v as Vector2).length() > max_s:
-					(clamp_ent as Entity).set_velocity((v as Vector2).normalized() * max_s)
-				elif v is Vector3 and (v as Vector3).length() > max_s:
-					(clamp_ent as Entity).set_velocity((v as Vector3).normalized() * max_s)
+		if not (clamp_ent is Entity): continue
+		var max_s := float((clamp_ent as Entity).get_state("max_speed", INF))
+		if max_s < INF:
+			var v = (clamp_ent as Entity).get_velocity()
+			if v is Vector2 and (v as Vector2).length() > max_s:
+				(clamp_ent as Entity).set_velocity((v as Vector2).normalized() * max_s)
+			elif v is Vector3 and (v as Vector3).length() > max_s:
+				(clamp_ent as Entity).set_velocity((v as Vector3).normalized() * max_s)
 	# ADR 0036: LifecycleDirector advances entity ages + checks stage
 	# thresholds on the same per-tick cadence. dt = tick_seconds so a
 	# year_seconds=900 template ages an entity by tick_seconds/900 years
