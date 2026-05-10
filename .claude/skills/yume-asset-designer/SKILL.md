@@ -362,6 +362,30 @@ the player should NOTICE) need MIN-RADIUS scaling per camera mode:
 If the same mesh is used across modes, take the LARGEST minimum
 (iso = 0.3m) so it's visible everywhere.
 
+### Camera mode picks WASD intuition (added 2026-05-10)
+
+| Camera mode | W = "up the screen" matches world axis? | WASD intuition |
+|---|---|---|
+| `top_down_3d` | YES — world-Z aligns with screen-Y | Pressing W walks the player straight up the screen. Best for action games / floor-walkers. |
+| `iso_top_down` | NO — world axes rotated 45° from screen | Pressing W walks world-NORTH which appears diagonal UP-LEFT on screen. Tactics-RPG convention. Looks pretty but disorients new players. |
+| `third_person_3d` / `first_person_3d` | YES via mouse-yaw — W means "forward in look direction" via velocity_set_relative | Standard 3D feel. |
+
+**Empirical case 2026-05-10**: Aldenmere shipped with `iso_top_down`
+camera. Player perceived W+A as "wrong direction" because the iso
+rotation makes world+screen axes mismatch. The world-frame WASD lib
+sets velocity in WORLD axes (W = -Z = world-NORTH), but the screen
+shows that as diagonal up-left. User feedback led to swapping to
+`top_down_3d` for an intuitive feel.
+
+**Pre-ship check when choosing camera**: if the game uses world-
+frame WASD (i.e. `velocity_set` with `x` / `y` from the wasd lib),
+pick `top_down_3d`. If the game wants iso aesthetic + intuitive
+controls, ADR work is needed — either rotate the camera 45°
+in-engine OR add camera-relative WASD for iso mode (currently only
+`first_person_3d` has camera-relative via `velocity_add_relative`).
+For now, iso_top_down should be reserved for games where the
+disorientation is OK (chess-shaped, tactics, settlement-builder).
+
 This complements visual-density axis 4 (FAT lamps every 8-15m) —
 the spacing is one axis, the size-per-element is this gate.
 
