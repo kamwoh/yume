@@ -930,7 +930,10 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 ## Cheap O(N) per frame — no spatial-index query. Skips:
 ##   - the actor itself (you don't look at yourself)
 ##   - entities with no `display_name` property
-##   - entities tagged `decorative` (sand, dust, atmospheric clutter)
+## (Note: `decorative` tag is NOT a filter — for debug/identification UX
+## the player should be able to see "Pine Tree" / "River" / etc. when
+## pointing at flavor props. Content can hide a class by omitting
+## display_name on its def.)
 func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	if _world == null or _camera3d == null: return
 	var sched = _world.get("scheduler")
@@ -948,7 +951,6 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 		var ent = entities[id]
 		if not (ent is Entity): continue
 		if ent == actor: continue
-		if (ent as Entity).has_tag("decorative"): continue
 		var name_v = (ent as Entity).get_property("display_name", "")
 		if str(name_v) == "": continue
 		var ep_v = (ent as Entity).get_position()
