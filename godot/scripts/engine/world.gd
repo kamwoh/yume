@@ -1067,6 +1067,23 @@ func _input(event: InputEvent) -> void:
 func _poll_input() -> void:
 	var actor_id := _find_actor_id()
 	if actor_id == "": return
+	# 2026-05-10: zero the actor's ground-plane velocity at START of every
+	# poll so per-axis directional rules accumulate from a clean slate.
+	# Without this: W+A held = velocity (-3, -3); user releases A, only
+	# W rule fires next tick → it sets y=-3 but velocity_set's per-axis
+	# preservation keeps x=-3 from last tick → player keeps drifting NW
+	# even though only W is held now. With pre-zero: each tick, velocity
+	# starts at (0, 0); only currently-held directions contribute.
+	# Vector3 actors keep their Y component (world-up) so vertical motion
+	# (jumps, projectile arcs) isn't disturbed.
+	var actor_ent_pre = entities.get(actor_id, null)
+	if actor_ent_pre is Entity:
+		var v_pre = (actor_ent_pre as Entity).get_velocity()
+		if v_pre is Vector2:
+			(actor_ent_pre as Entity).set_velocity(Vector2.ZERO)
+		elif v_pre is Vector3:
+			(actor_ent_pre as Entity).set_velocity(
+				Vector3(0, (v_pre as Vector3).y, 0))
 	var any_movement_pressed := false
 	# HOLD actions — fire every frame while held. Skip actions not in
 	# InputMap (per-game inputs.json may not register every default —
