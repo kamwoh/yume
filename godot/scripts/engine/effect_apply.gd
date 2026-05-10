@@ -415,15 +415,32 @@ static func _tag_remove(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var ent: Entity = _target(e, env, ctx)
 	if ent == null: return
-	var vx := float(_value(e.get("x", 0), ctx, env))
-	var vy := float(_value(e.get("y", 0), ctx, env))
+	# Per-axis preservation: if a key is OMITTED, the entity's current
+	# velocity component for that axis is retained. Lets independent
+	# directional rules (move_north sets y, move_east sets x) combine
+	# in the same tick instead of clobbering each other. Empirical case
+	# 2026-05-10: WASD lib's 4 separate velocity_set rules each
+	# specified BOTH x and y → W+D = whichever fired last won →
+	# diagonal motion broken. Now: move_east specifies only x; move_north
+	# specifies only y; they compose for diagonals.
+	var v_cur = ent.get_velocity()
+	var has_x := e.has("x")
+	var has_y := e.has("y")
+	var has_z := e.has("z")
+	var vx: float = float(_value(e.get("x", 0), ctx, env)) if has_x else \
+		(float((v_cur as Vector3).x) if v_cur is Vector3 else \
+		 (float((v_cur as Vector2).x) if v_cur is Vector2 else 0.0))
+	var vy: float = float(_value(e.get("y", 0), ctx, env)) if has_y else \
+		(float((v_cur as Vector3).y) if v_cur is Vector3 else \
+		 (float((v_cur as Vector2).y) if v_cur is Vector2 else 0.0))
 	# Presence of `z` decides 2D vs 3D output. Without z, classic Vector2
 	# (top-down 2D games). With z, Vector3 — required for 3D homing,
 	# vertical motion, etc. Empirically caught when doomarena3d's homing
 	# rule on imps with X=0 didn't move them (Z component was silently
 	# dropped).
-	if e.has("z"):
-		var vz := float(_value(e.get("z", 0), ctx, env))
+	if has_z or v_cur is Vector3:
+		var vz: float = float(_value(e.get("z", 0), ctx, env)) if has_z else \
+			(float((v_cur as Vector3).z) if v_cur is Vector3 else 0.0)
 		ent.set_velocity(Vector3(vx, vy, vz))
 	else:
 		ent.set_velocity(Vector2(vx, vy))

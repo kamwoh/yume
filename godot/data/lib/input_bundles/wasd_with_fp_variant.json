@@ -5,59 +5,67 @@
     {"name": "move_north", "edge": "hold", "_doc": "W key (canonical: ui/input.json)"},
     {"name": "move_south", "edge": "hold", "_doc": "S key"},
     {"name": "move_east",  "edge": "hold", "_doc": "D key"},
-    {"name": "move_west",  "edge": "hold", "_doc": "A key"}
+    {"name": "move_west",  "edge": "hold", "_doc": "A key"},
+    {"name": "stop",       "edge": "press", "_doc": "Engine-injected when no move_* key is held (world.gd::_poll_input → stop_action_on_idle). Per-game ui/input.json must declare {name:'stop', edge:'press'} so the InputRegistrar knows about it; without that, the engine's input queue never fires the stop rule and the player drifts after key release."}
   ],
 
   "rules": [
     {
-      "_comment": "World-frame WASD — fires when camera is NOT first_person_3d. W=north regardless of player facing. Spliced into game's physics.json rules array.",
+      "_comment": "World-frame WASD — fires when camera is NOT first_person_3d. W=north regardless of player facing. Spliced into game's physics.json rules array. Per-axis pattern (added 2026-05-10): each directional rule sets ONLY its own axis. Engine's velocity_set preserves the OTHER axis when the field is omitted, so W+D = north + east diagonal works (each rule contributes one axis; combined velocity is (3, -3) at 45°). With both axes set per rule, last-writer-wins broke diagonals.",
       "id": "lib_wasd_move_north_world",
       "trigger": {"type": "input", "action": "move_north"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": -3.0}
+      "effect": {"type": "velocity_set", "target": "actor", "y": -3.0}
     },
     {
       "id": "lib_wasd_move_south_world",
       "trigger": {"type": "input", "action": "move_south"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 3.0}
+      "effect": {"type": "velocity_set", "target": "actor", "y": 3.0}
     },
     {
       "id": "lib_wasd_move_east_world",
       "trigger": {"type": "input", "action": "move_east"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 3.0, "y": 0}
+      "effect": {"type": "velocity_set", "target": "actor", "x": 3.0}
     },
     {
       "id": "lib_wasd_move_west_world",
       "trigger": {"type": "input", "action": "move_west"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_ne": "first_person_3d"}},
-      "effect": {"type": "velocity_set", "target": "actor", "x": -3.0, "y": 0}
+      "effect": {"type": "velocity_set", "target": "actor", "x": -3.0}
     },
     {
-      "_comment": "Camera-relative WASD — fires when camera IS first_person_3d. Engine's velocity_set_relative reads actor.state.facing (mouse-driven by _camera_first_person_3d's _drain_mouse_facing) and rotates forward/strafe into world XZ. W=mouse-aim-forward, S=back, A=strafe-left, D=strafe-right.",
+      "_comment": "STOP — fires every tick when no movement key is held (engine queues 'stop' action via stop_action_on_idle in world.gd::_poll_input). Zeros both axes so player decelerates instantly. Without this rule, releasing W/A/S/D leaves velocity at the last non-zero value → player drifts forever. Empirical case 2026-05-10. Camera-mode-agnostic: works in both world-frame AND first_person_3d modes (FP mode also benefits from the explicit zero — relative-add lib didn't have this either).",
+      "id": "lib_wasd_stop",
+      "trigger": {"type": "input", "action": "stop"},
+      "query": {"tags_all": ["world_clock"]},
+      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
+    },
+    {
+      "_comment": "Camera-relative WASD — fires when camera IS first_person_3d. Engine's velocity_add_relative reads actor.state.facing (mouse-driven by _camera_first_person_3d's _drain_mouse_facing) and rotates forward/strafe into world XZ, then ADDS to current velocity. W=mouse-aim-forward, S=back, A=strafe-left, D=strafe-right. velocity_add (not _set) lets W+D combine into a forward-right diagonal in same tick. Drag in motion integrator decelerates when no key held — but stop rule below explicitly zeros to avoid drift.",
       "id": "lib_wasd_move_forward_fp",
       "trigger": {"type": "input", "action": "move_north"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "first_person_3d"}},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 3.0, "strafe": 0}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 3.0, "strafe": 0}
     },
     {
       "id": "lib_wasd_move_back_fp",
       "trigger": {"type": "input", "action": "move_south"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "first_person_3d"}},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": -3.0, "strafe": 0}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": -3.0, "strafe": 0}
     },
     {
       "id": "lib_wasd_strafe_right_fp",
       "trigger": {"type": "input", "action": "move_east"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "first_person_3d"}},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": 3.0}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": 3.0}
     },
     {
       "id": "lib_wasd_strafe_left_fp",
       "trigger": {"type": "input", "action": "move_west"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "first_person_3d"}},
-      "effect": {"type": "velocity_set_relative", "target": "actor", "forward": 0, "strafe": -3.0}
+      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -3.0}
     }
   ]
 }
