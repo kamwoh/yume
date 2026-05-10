@@ -980,9 +980,15 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 			best = ent
 	var world_state: Dictionary = env.get("world", {})
 	var new_target: String = ""
+	var new_target_id: String = ""
 	if best != null:
 		new_target = str(best.get_property("display_name", ""))
+		new_target_id = str(best.instance_id)
 	world_state["crosshair_target"] = new_target
+	# crosshair_target_id is consumed by interaction rules (gather / eat /
+	# examine) to bind the entity the player is pointing at. Empty when no
+	# entity in cone — rules require it non-empty before firing.
+	world_state["crosshair_target_id"] = new_target_id
 
 
 ## Resolve follow target's 3D position. Entity might store position as Vector2
