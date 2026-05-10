@@ -1035,6 +1035,47 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 			vbox.offset_right = w * 0.5
 			vbox.offset_bottom = h * 0.5
 			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		"top-center":
+			# Centered along top edge. Used for objective banners, day-time
+			# strip, anything that wants horizontal centering. Width default
+			# 600 (most viewport widths fit), 80px from top.
+			var w_tc: float = float(panel_cfg.get("width", 600))
+			vbox.set_anchors_preset(Control.PRESET_TOP_WIDE)
+			vbox.offset_left = -w_tc * 0.5
+			vbox.offset_top = 12
+			vbox.offset_right = w_tc * 0.5
+			vbox.offset_bottom = 80
+			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		"bottom-center":
+			# Centered along bottom edge. Used for controls hint strip.
+			var w_bc: float = float(panel_cfg.get("width", 920))
+			vbox.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+			vbox.offset_left = -w_bc * 0.5
+			vbox.offset_top = -40
+			vbox.offset_right = w_bc * 0.5
+			vbox.offset_bottom = -10
+			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+		"bottom-right":
+			# Mirror of bottom-left.
+			vbox.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+			vbox.offset_left = -380
+			vbox.offset_top = -240
+			vbox.offset_right = -20
+			vbox.offset_bottom = -20
+		"center-left":
+			# Vertically centered, anchored to left edge. Used for vitals
+			# stacks that should track the screen's vertical middle.
+			vbox.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+			vbox.offset_left = 20
+			vbox.offset_top = -120
+			vbox.offset_right = 220
+			vbox.offset_bottom = 120
+		"center-right":
+			vbox.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+			vbox.offset_left = -220
+			vbox.offset_top = -120
+			vbox.offset_right = -20
+			vbox.offset_bottom = 120
 	root.add_child(vbox)
 
 	for elem_cfg in panel_cfg.get("elements", []):
@@ -1048,11 +1089,21 @@ func _build_element(parent: Container, cfg: Dictionary) -> void:
 			var lbl := Label.new()
 			_apply_label_style(lbl, int(cfg.get("size", 18)),
 				_color(cfg.get("color", "#ffffff")))
+			# Static text — set immediately (binding-less labels would
+			# otherwise render empty since _apply_binding_to_node only
+			# fires when `binds` is set). Per data-demo.md text discipline:
+			# format strings start with capital letter or → to bypass
+			# the formula evaluator.
+			if cfg.has("text"):
+				lbl.text = str(cfg["text"])
 			parent.add_child(lbl)
 			_bound_elements.append({"node": lbl, "cfg": cfg})
 		"progress_bar":
 			var pb := ProgressBar.new()
-			pb.custom_minimum_size = Vector2(280, 16)
+			# Honor explicit width/height when authored; default 280x16 otherwise.
+			var pb_w: float = float(cfg.get("width", 280))
+			var pb_h: float = float(cfg.get("height", 16))
+			pb.custom_minimum_size = Vector2(pb_w, pb_h)
 			pb.max_value = float(cfg.get("max", 100))
 			pb.show_percentage = false
 			parent.add_child(pb)
