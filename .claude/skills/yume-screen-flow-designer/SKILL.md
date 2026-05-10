@@ -277,6 +277,34 @@ rule that fires after the destruction completes.
 ❌ **Effects after destructive effects** — see Footgun section above.
    Trace every chain end-to-end before shipping.
 
+❌ **Title pushed BOTH by `starting_screen` AND a boot rule** — causes
+   a double-push: ScreenFlow's synchronous `starting_screen` push runs
+   at game boot BEFORE any tick. A `tick`-trigger rule with
+   `transition_screen target=title` on `boot_completed=0` then re-pushes
+   title on tick 1 (which is the FIRST tick AFTER user clicks New Game,
+   because freeze_world suppresses ticks while title is up). Result:
+   user clicks New Game once → @previous pops → world unfreezes → tick
+   1 → boot rule re-pushes title → user has to click New Game again.
+
+   **Pick exactly one mechanism**:
+
+   - **Preferred**: `starting_screen: "title"` in screens.json. Pushed
+     synchronously at boot, before any tick. Eliminates the 1-frame
+     game-flash bug. No tick rule needed.
+
+   - **Or**: a `boot_show_title` tick rule with no `starting_screen`.
+     Causes a 1-frame flash because tick 1 fires with title down.
+     Generally worse UX.
+
+   **Never both**. If a boot tick rule exists for OTHER reasons
+   (e.g. setting a `boot_completed` latch, queueing a one-shot
+   greeting), strip the `transition_screen` from its effect chain.
+
+   Empirical case 2026-05-10: Aldenmere Phase 1 shipped both. User
+   clicked New Game twice on first play. Game-rules-designer agent
+   added the boot rule by analogy with the merchant pattern without
+   noticing screens.json already had starting_screen=title.
+
 
 ## Visual QA gate (mandatory)
 
