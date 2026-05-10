@@ -721,9 +721,15 @@ func _spawn_initial(inst: Dictionary) -> void:
 			var snap_env := {"scene_grid": _grid_cfg}
 			if GridSnap.should_snap(defs[def_id], snap_env):
 				var p = ent.state.get("position", null)
+				# Drift warning is verbose-mode only — fires per-entity in QA
+				# logs (yume-qa-tester runs verbose=true), suppressed during
+				# normal play. Snap result is identical either way.
 				if p is Vector3:
-					ent.state["position"] = GridSnap.snap_position_with_drift_check(
-						p, snap_env, inst_id)
+					if verbose:
+						ent.state["position"] = GridSnap.snap_position_with_drift_check(
+							p, snap_env, inst_id)
+					else:
+						ent.state["position"] = GridSnap.snap_position(p, snap_env)
 				elif p is Vector2:
 					ent.state["position"] = GridSnap.snap_position_2d(p, snap_env)
 				if ent.state.has("yaw"):
