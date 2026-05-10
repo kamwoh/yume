@@ -960,7 +960,14 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 		if ep_v is Vector3: ep = ep_v
 		elif ep_v is Vector2: ep = Vector3((ep_v as Vector2).x, 0, (ep_v as Vector2).y)
 		else: continue
-		var to_ent: Vector3 = ep - cam_pos
+		# Bias target up by ~head height (1.0m). Without this, ground-level
+		# entities at 5m appear ~18° below horizon — a tight cone won't catch
+		# them when player looks horizontal. 1.0m matches the visual
+		# upper-mass of typical entities (humanoids ~1.6m tall, props
+		# ~1-2m, fire pits ~1.4m flame). Per-entity override:
+		# properties.crosshair_y_offset.
+		var y_bias: float = float((ent as Entity).get_property("crosshair_y_offset", 1.0))
+		var to_ent: Vector3 = ep + Vector3(0, y_bias, 0) - cam_pos
 		var dist := to_ent.length()
 		if dist > max_distance or dist < 0.01: continue
 		var to_ent_n: Vector3 = to_ent / dist
