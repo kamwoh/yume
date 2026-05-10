@@ -802,6 +802,13 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	# swaps based on the actor's state field (e.g. current_weapon).
 	_setup_viewmodel(cam_cfg)
 	_update_viewmodel(actor, cam_cfg)
+	# 2026-05-10: crosshair target. Find nearest entity in the camera's
+	# forward cone within max_distance, write its display_name to
+	# world_state.crosshair_target for the HUD label to read. Falls
+	# back to "" when nothing in sight. Cheap O(N actors) per frame —
+	# no spatial index needed for the small entity counts typical
+	# of an FP game.
+	_update_crosshair_target(actor, cam_cfg)
 
 
 # ============================================================
@@ -912,6 +919,59 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 		pitch = clamp(pitch, -lim, lim)
 		actor.set_state("pitch", pitch)
 	return actor
+
+
+## 2026-05-10: FP crosshair target. Each frame, find the nearest entity
+## within `max_distance` (default 5m) that's in front of the camera
+## (angle from forward < `cone_half_angle_rad`, default 12°). Write its
+## display_name to `world_state.crosshair_target` so a HUD label can
+## bind `world.crosshair_target` and show what the player is looking at.
+##
+## Cheap O(N) per frame — no spatial-index query. Skips:
+##   - the actor itself (you don't look at yourself)
+##   - entities with no `display_name` property
+##   - entities tagged `decorative` (sand, dust, atmospheric clutter)
+func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
+	if _world == null or _camera3d == null: return
+	var sched = _world.get("scheduler")
+	if sched == null: return
+	var env: Dictionary = sched.env
+	var entities: Dictionary = env.get("entities", {})
+	var max_distance := float(cam_cfg.get("crosshair_max_distance", 10.0))
+	var cone_cos := cos(float(cam_cfg.get("crosshair_cone_rad", 0.52)))  # ~30° (wider than tight crosshair; entities at ground are ~18° below horizon at 5m)
+	var cam_pos: Vector3 = _camera3d.global_position
+	# Camera3D's forward is -Z in its local basis.
+	var fwd: Vector3 = -_camera3d.global_transform.basis.z
+	var best: Entity = null
+	var best_score: float = -INF  # higher dot * distance preference
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		if ent == actor: continue
+		if (ent as Entity).has_tag("decorative"): continue
+		var name_v = (ent as Entity).get_property("display_name", "")
+		if str(name_v) == "": continue
+		var ep_v = (ent as Entity).get_position()
+		var ep: Vector3
+		if ep_v is Vector3: ep = ep_v
+		elif ep_v is Vector2: ep = Vector3((ep_v as Vector2).x, 0, (ep_v as Vector2).y)
+		else: continue
+		var to_ent: Vector3 = ep - cam_pos
+		var dist := to_ent.length()
+		if dist > max_distance or dist < 0.01: continue
+		var to_ent_n: Vector3 = to_ent / dist
+		var dot: float = fwd.dot(to_ent_n)
+		if dot < cone_cos: continue  # outside cone
+		# Score: prefer closer + more centered. Inverse distance × dot.
+		var score: float = dot / max(dist, 0.5)
+		if score > best_score:
+			best_score = score
+			best = ent
+	var world_state: Dictionary = env.get("world", {})
+	var new_target: String = ""
+	if best != null:
+		new_target = str(best.get_property("display_name", ""))
+	world_state["crosshair_target"] = new_target
 
 
 ## Resolve follow target's 3D position. Entity might store position as Vector2
@@ -1062,16 +1122,29 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 			# spans [20,380] — overlap on [180,380]. Now: y separated
 			# (banner 12-44, day-stack starts at 50).
 			var w_tc: float = float(panel_cfg.get("width", 760))
-			vbox.set_anchors_preset(Control.PRESET_TOP_WIDE)
+			var y_top: float = float(panel_cfg.get("y_offset", 12))
+			var h_tc: float = float(panel_cfg.get("height", 32))
+			# PRESET_CENTER_TOP anchors the vbox to the top-middle of the
+			# viewport (anchor x=0.5, y=0); offsets are relative to that
+			# centerpoint so width = offset_right - offset_left = w_tc.
+			# Empirical case 2026-05-10: using PRESET_TOP_WIDE stretched the
+			# vbox full-viewport-width regardless of offsets, leaving Labels
+			# default-left-aligned at x=-w*0.5 (off-screen left). FP-mode
+			# crosshair-target text and objective banner both invisible.
+			vbox.set_anchors_preset(Control.PRESET_CENTER_TOP)
 			vbox.offset_left = -w_tc * 0.5
-			vbox.offset_top = 12
+			vbox.offset_top = y_top
 			vbox.offset_right = w_tc * 0.5
-			vbox.offset_bottom = 44
+			vbox.offset_bottom = y_top + h_tc
 			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 		"bottom-center":
 			# Centered along bottom edge. Used for controls hint strip.
+			# PRESET_CENTER_BOTTOM anchors to the bottom-middle of the
+			# viewport (anchor x=0.5, y=1); offsets relative so width =
+			# offset_right - offset_left = w_bc. See top-center note above
+			# for the empirical bug fixed 2026-05-10.
 			var w_bc: float = float(panel_cfg.get("width", 920))
-			vbox.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+			vbox.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 			vbox.offset_left = -w_bc * 0.5
 			vbox.offset_top = -40
 			vbox.offset_right = w_bc * 0.5
@@ -1100,11 +1173,16 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 			vbox.offset_bottom = 120
 	root.add_child(vbox)
 
+	# Centered anchors expect their child labels to render horizontally
+	# centered inside the vbox. Default Label alignment is LEFT, which
+	# pushes text to the container's left edge — invisible-feeling for
+	# centered panels. Pass an alignment hint to _build_element.
+	var center_children := anchor in ["center", "top-center", "bottom-center"]
 	for elem_cfg in panel_cfg.get("elements", []):
-		_build_element(vbox, elem_cfg as Dictionary)
+		_build_element(vbox, elem_cfg as Dictionary, center_children)
 
 
-func _build_element(parent: Container, cfg: Dictionary) -> void:
+func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) -> void:
 	var t := str(cfg.get("type", ""))
 	match t:
 		"label":
@@ -1118,6 +1196,15 @@ func _build_element(parent: Container, cfg: Dictionary) -> void:
 			# the formula evaluator.
 			if cfg.has("text"):
 				lbl.text = str(cfg["text"])
+			# Per-label `align` hint overrides panel default. Values:
+			# "left" / "center" / "right".
+			var align := str(cfg.get("align", ""))
+			if align == "center" or (align == "" and center_h):
+				lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+				lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			elif align == "right":
+				lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			parent.add_child(lbl)
 			_bound_elements.append({"node": lbl, "cfg": cfg})
 		"progress_bar":

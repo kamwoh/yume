@@ -105,6 +105,60 @@ Empirical case: 2026-05-08 merchant iso-3d. Subtle "drift" on every
 walk step that the user noticed but couldn't articulate. Fixed in
 `game_shell.gd::_camera_isometric_3d`.
 
+## HUD panel anchor preset — centered anchors need CENTER presets, NOT WIDE
+
+`game_shell.gd::_build_panel` maps panel `anchor` strings to Godot
+Control anchor presets. For anchors that should be *centered* on
+their axis (`top-center`, `bottom-center`, `center`):
+
+- ✅ Use `PRESET_CENTER_TOP` / `PRESET_CENTER_BOTTOM` / `PRESET_CENTER` —
+  these set the anchor x to 0.5 (single point), so authored offsets
+  (`offset_left = -w*0.5`, `offset_right = +w*0.5`) yield a vbox of
+  width `w` centered on screen.
+- ❌ Do NOT use `PRESET_TOP_WIDE` / `PRESET_BOTTOM_WIDE` for these
+  anchors. WIDE presets set anchor_left=0, anchor_right=1 (the
+  vbox stretches the full viewport regardless of offsets) — the
+  vbox ends up at `x ∈ [-w*0.5, viewport_w + w*0.5]`, e.g.
+  `[-380, 1660]` for w=760 on a 1280px viewport. Children labels
+  default to `HORIZONTAL_ALIGNMENT_LEFT` and render at the *left*
+  edge of that off-screen-extending box — invisibly.
+
+**Second-layer rule**: Labels inside centered panels must apply
+`horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER` AND
+`size_flags_horizontal = SIZE_EXPAND_FILL` so the text actually
+centers within the vbox. `_build_element` detects the panel anchor
+via a `center_h` arg from `_build_panel` and sets both. Authors can
+override per-label with `align: "center" | "left" | "right"`.
+
+**Empirical case 2026-05-10**: Aldenmere FP shard's crosshair-target
+HUD label (`anchor: top-center`, `y_offset: 60`, `binds:
+world.crosshair_target`) reported `node_pos=(-380, 62)` and never
+appeared on screen. Adding `+ Find food before nightfall.` objective
+banner at default `top-center` had the same fate (off-screen-left
+text was never visible in any prior demo because no one had ever
+authored a *short, isolated* centered label — the long bottom-center
+controls hint masked the bug by stretching past the visible area).
+The label text was generated correctly (`'→ Fire Pit'`); the bug
+was in the geometry of the vbox. Fixed in `_build_panel` +
+`_build_element`.
+
+**The check before approving any change to `_build_panel` or
+`_build_element`**: write a quick HUD scenario with a *short*
+label (≤ 20 chars) under each centered anchor (`top-center`,
+`bottom-center`, `center`), capture, and verify the text appears
+**centered horizontally** in the visible viewport. Diagnostic
+template:
+
+```gdscript
+# Temporary print to verify panel + child geometry
+push_warning("[LBL-DBG] panel=%s vbox_pos=%s vbox_size=%s label_pos=%s label_size=%s text='%s'" %
+    [anchor, vbox.global_position, vbox.size, lbl.global_position, lbl.size, lbl.text])
+```
+
+For a 1280×720 viewport with w=760, expected: `vbox_pos.x ≈ 100`
+(viewport_center - w*0.5), `vbox_size.x ≈ 760`, `label_pos.x ≈
+vbox_pos.x`, label text visibly centered.
+
 ## Visual validation gate (rendering primitives)
 
 **When modifying any of these files**, capture + invoke
