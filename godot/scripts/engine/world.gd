@@ -1067,23 +1067,25 @@ func _input(event: InputEvent) -> void:
 func _poll_input() -> void:
 	var actor_id := _find_actor_id()
 	if actor_id == "": return
-	# 2026-05-10: zero the actor's ground-plane velocity at START of every
-	# poll so per-axis directional rules accumulate from a clean slate.
-	# Without this: W+A held = velocity (-3, -3); user releases A, only
-	# W rule fires next tick → it sets y=-3 but velocity_set's per-axis
-	# preservation keeps x=-3 from last tick → player keeps drifting NW
-	# even though only W is held now. With pre-zero: each tick, velocity
-	# starts at (0, 0); only currently-held directions contribute.
-	# Vector3 actors keep their Y component (world-up) so vertical motion
-	# (jumps, projectile arcs) isn't disturbed.
-	var actor_ent_pre = entities.get(actor_id, null)
-	if actor_ent_pre is Entity:
-		var v_pre = (actor_ent_pre as Entity).get_velocity()
-		if v_pre is Vector2:
-			(actor_ent_pre as Entity).set_velocity(Vector2.ZERO)
-		elif v_pre is Vector3:
-			(actor_ent_pre as Entity).set_velocity(
-				Vector3(0, (v_pre as Vector3).y, 0))
+	# Per-axis idle detection (added 2026-05-10): track which movement
+	# axes have keys pressed. When ALL keys on an axis are released,
+	# queue a per-axis stop action. This fixes the "release one of two
+	# held movement keys" bug without zeroing velocity per frame
+	# (which was wrong because _poll_input runs at 60Hz but scheduler
+	# ticks at 10Hz — zeroing per frame meant motion integrator saw
+	# zero velocity 5 frames out of 6 → player effectively immobile).
+	#
+	# Axis pairs:
+	#   y axis (renderer-Z = north/south): move_north + move_south
+	#   x axis (east/west):                move_east  + move_west
+	#
+	# When neither N nor S is held, queue stop_y action. The stop_y
+	# rule sets only the y component to 0, preserving x. Same for stop_x.
+	# Result: holding W+A then releasing A correctly leaves velocity
+	# (0, -3) — pure north — because move_west fires no more AND
+	# stop_x zeros the x component while move_north keeps setting y.
+	var ns_held := false
+	var ew_held := false
 	var any_movement_pressed := false
 	# HOLD actions — fire every frame while held. Skip actions not in
 	# InputMap (per-game inputs.json may not register every default —
@@ -1092,24 +1094,44 @@ func _poll_input() -> void:
 		if not InputMap.has_action(action): continue
 		if Input.is_action_pressed(action):
 			scheduler.queue_input(action, {"actor": actor_id})
-			if (action as String).begins_with("move_"):
+			var act_s := str(action)
+			if act_s.begins_with("move_"):
 				any_movement_pressed = true
+				if act_s == "move_north" or act_s == "move_south":
+					ns_held = true
+				elif act_s == "move_east" or act_s == "move_west":
+					ew_held = true
 	# PRESS actions — fire once on press-edge
 	for action in input_actions_press:
 		if not InputMap.has_action(action): continue
 		if Input.is_action_just_pressed(action):
 			scheduler.queue_input(action, {"actor": actor_id})
-	# Stop action when no movement held (idempotent zero-velocity_set).
-	# Type-guard: Vector2 != Vector3 throws in Godot 4.6.1, so check by type.
-	if stop_action_on_idle != "" and not any_movement_pressed:
-		var actor_ent = entities.get(actor_id, null)
-		if actor_ent is Entity:
-			var v = (actor_ent as Entity).get_velocity()
-			var v_nonzero: bool = false
-			if v is Vector2: v_nonzero = (v as Vector2) != Vector2.ZERO
-			elif v is Vector3: v_nonzero = (v as Vector3) != Vector3.ZERO
-			if v_nonzero:
-				scheduler.queue_input(stop_action_on_idle, {"actor": actor_id})
+	# Per-axis stop: if no key on the axis is held, queue per-axis stop.
+	# Read current velocity once; only queue when there's something to
+	# stop (avoid spamming the input queue with no-op events).
+	var actor_ent = entities.get(actor_id, null)
+	if actor_ent is Entity:
+		var v = (actor_ent as Entity).get_velocity()
+		var vx: float = 0.0
+		var vy: float = 0.0
+		if v is Vector2:
+			vx = (v as Vector2).x; vy = (v as Vector2).y
+		elif v is Vector3:
+			vx = (v as Vector3).x; vy = (v as Vector3).z
+		if not ew_held and absf(vx) > 0.001:
+			scheduler.queue_input("stop_x", {"actor": actor_id})
+		if not ns_held and absf(vy) > 0.001:
+			scheduler.queue_input("stop_y", {"actor": actor_id})
+	# Legacy global stop (fully idle) — kept for backwards-compat with
+	# any existing demo using it. New games should use stop_x / stop_y
+	# (the lib_wasd_stop_x / lib_wasd_stop_y rules).
+	if stop_action_on_idle != "" and not any_movement_pressed and stop_action_on_idle != "stop_x" and stop_action_on_idle != "stop_y":
+		var v2 = (actor_ent as Entity).get_velocity() if actor_ent is Entity else null
+		var v_nonzero: bool = false
+		if v2 is Vector2: v_nonzero = (v2 as Vector2) != Vector2.ZERO
+		elif v2 is Vector3: v_nonzero = (v2 as Vector3) != Vector3.ZERO
+		if v_nonzero:
+			scheduler.queue_input(stop_action_on_idle, {"actor": actor_id})
 
 
 ## ADR 0016: resolve which entity should receive input this frame.
