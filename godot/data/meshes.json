@@ -76,9 +76,9 @@
     },
 
     "water_plane_3d": {
-      "_comment": "Flat blue water mesh — 10m × 20m at y=-0.05 (slight depression below ground). Static, no animation. Used for rivers, lakes, ponds — anywhere a body of water needs visual identification.",
+      "_comment": "Flat blue water mesh — 10m × 20m. Surface sits at y=0.05 (5cm above ground) so the top face is clearly visible and doesn't z-fight with the ground plane at y=0. Static, no animation. Used for rivers, lakes, ponds — anywhere a body of water needs visual identification.",
       "primitives": [
-        {"op": "box", "pos": [0, -0.05, 0], "size": [10.0, 0.1, 20.0], "color": "$water"}
+        {"op": "box", "pos": [0, 0.05, 0], "size": [10.0, 0.08, 20.0], "color": "$water"}
       ],
       "params": {"water": "#3a6a8c"}
     },
