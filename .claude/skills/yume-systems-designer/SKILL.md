@@ -270,6 +270,85 @@ If radius needs to be larger (e.g. ranged interaction like
 "customer waves you down from across the room"), state the design
 intent explicitly so reviewers don't flag it as a feel bug.
 
+## 2-binding `{a, b, radius}` queries are CONTACT-only (REQUIRED check)
+
+Pair-matching queries (find pairs of entities (a, b) within radius)
+ONLY work on `trigger: {type: "contact"}`. Other triggers (tick /
+signal / input) treat the query as a single-entity scan — `a`'s
+sub-spec becomes the scan filter, and `b` is silently NEVER bound.
+
+❌ **WRONG** — engine treats this as single-entity scan; b never binds:
+```jsonc
+{
+  "trigger": {"type": "tick", "interval": 5},
+  "query": {
+    "a": {"tags_all": ["mud_hut", "under_construction"]},
+    "b": {"tags_all": ["fire_pit", "burning"]},
+    "radius": 10.0
+  },
+  "effect": [
+    {"type": "tag_add", "target": "a", "tags": ["built"]},
+    {"type": "emit", "payload": {"id": "a.id"}}  // CRASH at tick 1
+  ]
+}
+```
+
+The rule fires per `a`-match with `self` bound to that entity. `a`
+and `b` aren't in context, so `target: "a"` resolves to the literal
+string "a" (no matching entity), and formulas `a.id` / `b.id`
+evaluate against null Entity → "self can't be used because instance
+is null" runtime error.
+
+✅ **Three correct patterns**:
+
+1. **Use `contact` trigger** if pair-matching is the design intent
+   (combat / pickup / proximity-effect). The engine pair-matches
+   per tick; `a` + `b` bind correctly:
+   ```jsonc
+   {"trigger": {"type": "contact"},
+    "query": {"a": {...}, "b": {...}, "radius": 5.0}, ...}
+   ```
+
+2. **Single-binding tick + nearest()-formula** for the partner:
+   ```jsonc
+   {"trigger": {"type": "tick", "interval": 5},
+    "query": {"tags_all": ["mud_hut", "under_construction"]},
+    "effect": [
+      {"type": "tag_add", "target": "self", "tags": ["built"]},
+      {"type": "state_set", "target": "world",
+       "field": "nearby_fire_id",
+       "value": "self.nearest({tags_all: [fire_pit]}).id"}
+    ]}
+   ```
+
+3. **Drop the partner condition** when proximity is a soft hint
+   rather than a hard constraint.
+
+**Empirical case 2026-05-10**: Aldenmere Phase 1 shipped with 15
+broken tick rules (`wolf_despawn_dawn`,
+`mudhut_construction_complete`, all six `warmth_decay_*`,
+`tend_fire_reignite`, `tend_fire_topup`, `rabbit_flee_villager`,
+`leanto_construction_progress`, `mudhut_construction_progress`,
+`npc_evening_gather_fire`, `npc_return_home_night`). All crashed
+at tick 1 with formula-exec errors. The systems-designer agent
+authored 2-binding tick queries by analogy with contact rules
+without realizing the engine asymmetry. Caught on user's first
+"New Campaign" click; fix: bulk-collapse each to single-binding.
+
+**The check before declaring rule-sketch done**:
+
+```bash
+# Find any 2-binding non-contact rule (manual; future: validator).
+# A rule has a 2-binding query if both `a` and `b` keys exist as
+# sibling sub-dicts under `query`. Cross-check trigger type.
+grep -E '"trigger":\s*\{"type":\s*"(tick|signal|input)"' physics.json
+# For each match, confirm the rule's `query` does NOT contain both
+# "a": and "b": at the same level.
+```
+
+If any 2-binding non-contact rule exists, REJECT the sketch back
+to your own desk before handing to content-designer / qa-tester.
+
 ## Core verb spec — multi-tick sequences (REQUIRED for signature interactions)
 
 Every game has a "core verb" — the moment-to-moment thing the

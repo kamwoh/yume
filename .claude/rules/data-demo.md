@@ -24,6 +24,77 @@ across the data files before being fixed.
 
 **Verify before writing**: `grep -A 4 '"type": "<effect>"' godot/data/demo_doomarena3d/world/physics.json` — if a working demo uses different names, follow the demo, not your intuition.
 
+## ⚠ CRITICAL: 2-binding `{a, b, radius}` queries are CONTACT-only
+
+Pair-matching (find pairs of entities (a, b) within radius) is ONLY
+supported on `trigger: {type: "contact"}`. The engine's
+`_fire_contact_rule` walks pairs; `_fire_scan_rule` (used by tick /
+input / signal triggers) does NOT.
+
+If you write a tick / signal / input rule with a 2-binding query:
+
+```jsonc
+// ❌ WRONG — engine treats this as single-entity scan; b never binds
+{
+  "trigger": {"type": "tick", "interval": 5},
+  "query": {
+    "a": {"tags_all": ["mud_hut", "under_construction"]},
+    "b": {"tags_all": ["fire_pit", "burning"]},
+    "radius": 10.0
+  },
+  "effect": [
+    {"type": "tag_add", "target": "a", "tags": ["built"]},
+    {"type": "emit", "payload": {"id": "a.id"}}  // CRASH: a not bound
+  ]
+}
+```
+
+The engine fires this as a single-entity scan: matches the FIRST sub-
+binding (`a`'s tags) and binds `self` to each match. **`a` and `b`
+are never bound** — `target: "a"` resolves to literal id "a" (no
+entity), and formulas `a.id` / `b.id` evaluate against null Entity →
+"self can't be used because instance is null" runtime error.
+
+✅ **Three correct patterns**:
+
+1. **Use `contact` trigger** if pair-matching is the intent (rare for
+   "complete construction"-style rules; common for combat / pickup):
+   ```jsonc
+   {"trigger": {"type": "contact"},  // engine pair-matches per tick
+    "query": {"a": {...}, "b": {...}, "radius": 5.0}, ...}
+   ```
+
+2. **Single-binding tick** + use `self.nearest({...})` formula to
+   resolve the partner inline:
+   ```jsonc
+   {"trigger": {"type": "tick", "interval": 5},
+    "query": {"tags_all": ["mud_hut", "under_construction"]},
+    "effect": [
+      {"type": "tag_add", "target": "self", "tags": ["built"]},
+      {"type": "state_set", "target": "world",
+       "field": "nearby_fire_id",
+       "value": "self.nearest({tags_all: [fire_pit]}).id"}
+    ]}
+   ```
+
+3. **Drop the partner condition** if it's a soft proximity hint and
+   exact pair semantics aren't required (acceptable when the radius
+   was vibes, not a hard constraint).
+
+**Empirical case 2026-05-10**: Aldenmere Phase 1 shipped with 15
+tick rules using broken `{a, b, radius}` queries — `wolf_despawn_dawn`,
+`mudhut_construction_complete`, `warmth_decay_*`, etc. All crashed at
+tick 1 with formula-exec errors. yume-systems-designer skill
+generated them; the gate below didn't exist. Bulk-fixed by
+collapsing each rule to single-binding `self` query.
+
+**The gate**: `yume-systems-designer` skill must NEVER write a 2-
+binding query under a non-contact trigger. Both:
+- The skill's role spec calls this out under "Common rule shapes"
+- A static validator check in `tools/validate_rules.py` (future)
+  can grep for `(tick|signal|input).*"a":\s*{.*"b":\s*{` shape and
+  fail at sync time
+
 ## ⚠ CRITICAL: query vs require — they are NOT interchangeable
 
 Wrong assumption (the merchant build cost ~40 broken rules to this):

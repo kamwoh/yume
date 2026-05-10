@@ -104,7 +104,7 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	if expr.has_execute_failed():
 		_last_error = "exec failed for '%s'" % s
 		EngineError.raise(env, EngineError.FORMULA_EXEC_FAILED,
-			"Formula exec failed: '%s'" % s,
+			"Formula exec failed: '%s' (rule=%s)" % [s, context.get("_rule_id", "?")],
 			{"rule_id": context.get("_rule_id", ""), "formula": s, "rewritten": rewritten, "input_values": input_values},
 			"A binding may have resolved to an unexpected type — check that all referenced fields exist on the bound entities.")
 		return 0.0
