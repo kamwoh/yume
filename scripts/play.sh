@@ -108,6 +108,15 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   # Empirical case: Aldenmere shipped without ScheduleDirector mounted;
   # all 8 villagers sat motionless despite their schedule blocks.
   python3 "${YUME_ROOT}/tools/validate_scene_directors.py" "${DATA_FOLDER}" || true
+  # Duplicate-mutation cross-file check (added 2026-05-11). Catches the
+  # bug class where two rules across physics.json + game/rules.json
+  # mutate the same (entity-tag, field) pair under overlapping queries.
+  # Empirical case: Aldenmere shipped with day_rollover (physics) +
+  # day_boundary_advance (game/rules) both mutating current_hour with
+  # different reset values (0 vs 6). WARN by default — authors decide
+  # if each overlap is intentional (physics sim baseline + game story
+  # override) or a real bug.
+  python3 "${YUME_ROOT}/tools/validate_duplicate_mutations.py" "${DATA_FOLDER}" || true
   # Player-perspective static check (added 2026-05-08). Catches
   # undiscoverable keybinds + objective text referencing unlabeled
   # landmarks. See .claude/skills/yume-game-reviewer/SKILL.md Axis 15.
