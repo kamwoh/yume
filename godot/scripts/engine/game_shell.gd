@@ -781,6 +781,25 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
 	if target_v == null: return
 	var target: Vector3 = target_v
+	# Modal / overlay open? Release the mouse so the player can click
+	# screen buttons (Continue, etc.). Skip mouse-look. When the modal
+	# closes (freeze flag → 0), _fp_initial_capture_done flip below
+	# re-captures on the next FP frame. Empirical case 2026-05-11:
+	# Aldenmere Morwen dialog opened with mouse still captured by FP
+	# → player couldn't reach the Continue button + ESC quit the game
+	# (game_shell._handle_pause_input second-press path).
+	var freeze_world := false
+	if _world != null:
+		var ws: Dictionary = _world.get("world_state") as Dictionary
+		if ws != null:
+			freeze_world = int(ws.get("screen_freeze_world", 0)) != 0 \
+				or int(ws.get("overlay_freeze_world", 0)) != 0
+	if freeze_world:
+		if Input.get_mouse_mode() != Input.MOUSE_MODE_VISIBLE:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		# Reset flag so re-entering gameplay grabs the mouse fresh.
+		_fp_initial_capture_done = false
+		return
 	# Initial capture only — don't fight ESC every frame
 	if not _fp_initial_capture_done:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)

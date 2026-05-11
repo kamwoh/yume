@@ -117,6 +117,7 @@ func _set_shadow_only_recursive(node: Node) -> void:
 func _process(_dt: float) -> void:
 	_sync_position()
 	_sync_yaw()
+	_sync_scale()
 	# ADR 0035 — animate addressable mesh pieces per-frame.
 	if _animation_director != null:
 		_animation_director.tick(Time.get_ticks_msec() / 1000.0)
@@ -136,6 +137,33 @@ func _sync_position() -> void:
 		# Scale applies because the same data files are authored in 2D pixel
 		# units; 3D scenes scale them down to fit world-unit conventions.
 		position = Vector3(p.x, 0, p.y) * position_scale
+
+
+## Read state.scale if set. Accepts:
+##   - float / int  → uniform scale (Vector3(s, s, s))
+##   - Vector3      → per-axis scale
+##   - Array [x,y,z] → per-axis scale
+##   - Array [x,y]   → 2D — treated as (x, x, y) so the same authoring
+##     works in iso views (x = horizontal, y = depth)
+## Idempotent — when state.scale is unset, scale is left at (1,1,1).
+## Used to vary tree size, prop sizes for visual density without
+## authoring multiple mesh defs. Empirical case 2026-05-11: Aldenmere
+## forest needed 2x-3x scale variation on trees for natural look.
+func _sync_scale() -> void:
+	if _entity_ref == null: return
+	var s = _entity_ref.get_state("scale", null)
+	if s == null: return
+	if s is float or s is int:
+		var f := float(s)
+		scale = Vector3(f, f, f)
+	elif s is Vector3:
+		scale = s
+	elif s is Array:
+		var a := s as Array
+		if a.size() == 3:
+			scale = Vector3(float(a[0]), float(a[1]), float(a[2]))
+		elif a.size() == 2:
+			scale = Vector3(float(a[0]), float(a[0]), float(a[1]))
 
 
 ## Read state.yaw (radians, rotation around the Y axis) if set, and apply.

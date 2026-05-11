@@ -75,12 +75,96 @@
       }
     },
 
-    "water_plane_3d": {
-      "_comment": "Flat blue water mesh — 10m × 20m. Surface sits at y=0.05 (5cm above ground) so the top face is clearly visible and doesn't z-fight with the ground plane at y=0. Static, no animation. Used for rivers, lakes, ponds — anywhere a body of water needs visual identification.",
+    "oak_tree_3d": {
+      "_comment": "Round broadleaf — bigger trunk, blob canopy. ~3.5m. Distinct silhouette from conifer (round vs triangular).",
       "primitives": [
-        {"op": "box", "pos": [0, 0.05, 0], "size": [10.0, 0.08, 20.0], "color": "$water"}
+        {"op": "cylinder", "pos": [0, 0.9, 0], "radius": 0.28, "height": 1.8, "color": "$trunk"},
+        {"op": "sphere", "pos": [0,  2.2, 0],     "radius": 1.1,  "color": "$canopy"},
+        {"op": "sphere", "pos": [0.5, 2.4, 0.3],  "radius": 0.7,  "color": "$canopy"},
+        {"op": "sphere", "pos": [-0.5, 2.4, -0.3],"radius": 0.7,  "color": "$canopy"},
+        {"op": "sphere", "pos": [0, 2.9, 0],      "radius": 0.6,  "color": "$canopy"}
       ],
-      "params": {"water": "#3a6a8c"}
+      "params": {
+        "trunk": "#4a2e18",
+        "canopy": "#3a6428"
+      }
+    },
+
+    "birch_tree_3d": {
+      "_comment": "Slim white-bark tree, sparse pale canopy. ~3m. Light accent against dark conifer mass.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 1.0, 0], "radius": 0.13, "height": 2.0, "color": "$bark"},
+        {"op": "sphere", "pos": [0, 2.4, 0],   "radius": 0.55, "color": "$canopy"},
+        {"op": "sphere", "pos": [0.3, 2.6, 0], "radius": 0.4,  "color": "$canopy"},
+        {"op": "sphere", "pos": [-0.2, 2.8, 0.2], "radius": 0.35, "color": "$canopy"}
+      ],
+      "params": {
+        "bark": "#dad6c8",
+        "canopy": "#9aa860"
+      }
+    },
+
+    "fruit_tree_3d": {
+      "_comment": "Apple/berry-bearing broadleaf. Reddish-orange fruit dots on green canopy. Player can identify edible trees at a glance. ~2.8m.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.8, 0], "radius": 0.22, "height": 1.6, "color": "$trunk"},
+        {"op": "sphere", "pos": [0, 2.0, 0],     "radius": 0.95, "color": "$canopy"},
+        {"op": "sphere", "pos": [0.4, 2.2, 0.3],  "radius": 0.55, "color": "$canopy"},
+        {"op": "sphere", "pos": [-0.4, 2.2, -0.3],"radius": 0.55, "color": "$canopy"},
+        {"op": "sphere", "pos": [0.5, 1.9, 0.1], "radius": 0.12, "color": "$fruit"},
+        {"op": "sphere", "pos": [-0.4, 2.1, 0.4],"radius": 0.10, "color": "$fruit"},
+        {"op": "sphere", "pos": [0.2, 2.4, -0.5],"radius": 0.11, "color": "$fruit"},
+        {"op": "sphere", "pos": [-0.5, 1.7, -0.2],"radius": 0.10, "color": "$fruit"}
+      ],
+      "params": {
+        "trunk": "#5a3820",
+        "canopy": "#487830",
+        "fruit": "#d83828"
+      }
+    },
+
+    "dead_tree_3d": {
+      "_comment": "Bare branches, no canopy. Reads as 'old' or 'winter' tree. ~3m. Lighter visual weight — fills space without overwhelming the forest.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 1.2, 0], "radius": 0.18, "height": 2.4, "color": "$bark"},
+        {"op": "cylinder", "pos": [0.4, 2.0, 0],   "radius": 0.05, "height": 0.8, "color": "$bark"},
+        {"op": "cylinder", "pos": [-0.3, 2.4, 0.2],"radius": 0.05, "height": 0.6, "color": "$bark"},
+        {"op": "cylinder", "pos": [0.1, 2.7, -0.3],"radius": 0.04, "height": 0.4, "color": "$bark"}
+      ],
+      "params": {
+        "bark": "#4a3828"
+      }
+    },
+
+    "water_plane_3d": {
+      "_comment": "Bigger river — 14m wide × 30m long. Three depth bands for visible depth: shallow edge (lighter blue), main flow (deeper blue), centerline ripple highlight. Sandy/muddy bank strips on each side (color $bank) to soften the water-to-ground transition. Surface sits at y=0.06 (no z-fight); banks at y=0.02 (just above ground, below water surface to read as a 'beach').",
+      "primitives": [
+        {"op": "box", "pos": [-7.5, 0.02, 0], "size": [1.0, 0.05, 30.0], "color": "$bank"},
+        {"op": "box", "pos": [ 7.5, 0.02, 0], "size": [1.0, 0.05, 30.0], "color": "$bank"},
+        {"op": "box", "pos": [-7.0, 0.04, 0], "size": [1.0, 0.05, 30.0], "color": "$shallow"},
+        {"op": "box", "pos": [ 7.0, 0.04, 0], "size": [1.0, 0.05, 30.0], "color": "$shallow"},
+        {"op": "box", "pos": [ 0.0, 0.06, 0], "size": [12.0, 0.08, 30.0], "color": "$water"},
+        {"op": "box", "pos": [ 0.0, 0.10, 0], "size": [2.0, 0.02, 30.0], "color": "$ripple"}
+      ],
+      "params": {
+        "water":   "#2a5878",
+        "shallow": "#5a98b8",
+        "bank":    "#8a7050",
+        "ripple":  "#a0c8d8"
+      }
+    },
+
+    "grass_tuft_3d": {
+      "_comment": "Tiny grass tuft — 3 angled blades on a small base. 0.3m wide × 0.4m tall. Scatter densely across village floor for ground texture; reads as 'this isn't bare earth.'",
+      "primitives": [
+        {"op": "box", "pos": [ 0.0, 0.07, 0.0], "size": [0.05, 0.30, 0.04], "color": "$blade"},
+        {"op": "box", "pos": [ 0.08, 0.05, 0.0], "size": [0.04, 0.22, 0.04], "color": "$blade"},
+        {"op": "box", "pos": [-0.08, 0.06, 0.0], "size": [0.04, 0.26, 0.04], "color": "$blade_dark"}
+      ],
+      "params": {
+        "blade":      "#588040",
+        "blade_dark": "#3a6028"
+      }
     },
 
     "deer_3d": {

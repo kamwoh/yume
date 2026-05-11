@@ -143,8 +143,12 @@ static func _line(p: Dictionary) -> Array:
 # ============================================================
 
 static func _scatter(p: Dictionary) -> Array:
+	# `def` for a single def, OR `def_choices: [a, b, c]` for random mix.
 	var def_id := str(p.get("def", ""))
-	var id_prefix := str(p.get("id_prefix", def_id))
+	var def_choices: Array = p.get("def_choices", [])
+	if def_choices.is_empty() and def_id != "":
+		def_choices = [def_id]
+	var id_prefix := str(p.get("id_prefix", def_id if def_id != "" else "scatter"))
 	var count := int(p.get("count", 1))
 	var min_r := float(p.get("min_r", 0.0))
 	var max_r := float(p.get("max_r", 5.0))
@@ -153,9 +157,18 @@ static func _scatter(p: Dictionary) -> Array:
 	var max_attempts := int(p.get("max_attempts", 100))
 	var origin := _to_vec3(p.get("origin", [0, 0, 0]))
 	var exclude_zones: Array = p.get("exclude_zones", [])
+	# Optional per-instance scale variation. Uniform random in [min, max].
+	# Default 1.0 (no variation). Useful for vegetation: scale_min: 0.7,
+	# scale_max: 2.5 yields a natural canopy mix.
+	var scale_min := float(p.get("scale_min", 1.0))
+	var scale_max := float(p.get("scale_max", 1.0))
+	# Optional yaw randomization. Uniform random in [-yaw_jitter, +yaw_jitter]
+	# radians. PI = ±180° (any direction). Useful for trees/rocks to break
+	# alignment.
+	var yaw_jitter := float(p.get("yaw_jitter", 0.0))
 	var out: Array = []
 	var placed: Array = []
-	if count <= 0 or def_id == "": return out
+	if count <= 0 or def_choices.is_empty(): return out
 	var attempts: int = 0
 	while placed.size() < count and attempts < count * max_attempts:
 		var t: float = randf()
@@ -176,11 +189,21 @@ static func _scatter(p: Dictionary) -> Array:
 			ok = not _in_exclude_zone(pos, exclude_zones)
 		if ok:
 			placed.append(pos)
-			out.append({
-				"def": def_id,
+			var picked_def := str(def_choices[randi() % def_choices.size()])
+			var inst: Dictionary = {
+				"def": picked_def,
 				"id": "%s_%d" % [id_prefix, placed.size()],
 				"position": [pos.x, pos.y, pos.z]
-			})
+			}
+			# Build state overrides if any randomized field varies.
+			var state_ov: Dictionary = {}
+			if scale_min != 1.0 or scale_max != 1.0:
+				state_ov["scale"] = lerp(scale_min, scale_max, randf())
+			if yaw_jitter > 0.0:
+				state_ov["yaw"] = (randf() - 0.5) * 2.0 * yaw_jitter
+			if not state_ov.is_empty():
+				inst["state"] = state_ov
+			out.append(inst)
 		attempts += 1
 	return out
 
