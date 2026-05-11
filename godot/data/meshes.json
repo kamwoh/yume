@@ -162,6 +162,25 @@
       }
     },
 
+    "log_pile_3d": {
+      "_comment": "Stacked split logs — 3-row pyramid. Bottom row 4 logs, middle row 3, top row 2. ~1.6m wide × 0.9m tall × 0.45m deep. Boxes rather than cylinders because the mesh primitive only does Y-axis cylinders (logs are horizontal). Light/dark wood color alternation gives stack texture.",
+      "primitives": [
+        {"op": "box", "pos": [-0.6, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
+        {"op": "box", "pos": [-0.2, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
+        {"op": "box", "pos": [ 0.2, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
+        {"op": "box", "pos": [ 0.6, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
+        {"op": "box", "pos": [-0.4, 0.54, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
+        {"op": "box", "pos": [ 0.0, 0.54, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
+        {"op": "box", "pos": [ 0.4, 0.54, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
+        {"op": "box", "pos": [-0.2, 0.90, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
+        {"op": "box", "pos": [ 0.2, 0.90, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"}
+      ],
+      "params": {
+        "wood": "#7a5028",
+        "wood_dark": "#5a3818"
+      }
+    },
+
     "grass_tuft_3d": {
       "_comment": "Tiny grass tuft — 3 angled blades on a small base. 0.3m wide × 0.4m tall. Scatter densely across village floor for ground texture; reads as 'this isn't bare earth.'",
       "primitives": [
