@@ -16,7 +16,7 @@ class_name GameShell
 ##
 ## Wiring: GameShell expects to be a child of a Node whose script is
 ## `World` (the data-driven simulation host). Scene structure:
-##   World (root, type=Node, script=res://scripts/engine/world.gd)
+##   World (root, type=Node, script=res://scripts/engine/core/world.gd)
 ##   ├─ GameShell (this node)
 ##   └─ Camera2D
 ## GameShell creates its own children at runtime: PondFloor, PondBorder,

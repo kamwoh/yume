@@ -5,7 +5,7 @@
 ;
 ;   godot --headless --path . scenes/scenario_test.tscn -- --game=doomarena3d
 
-[ext_resource type="Script" path="res://scripts/engine/scenario_runner.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/engine/qa/scenario_runner.gd" id="1"]
 
 [node name="ScenarioRunner" type="Node"]
 script = ExtResource("1")
