@@ -79,6 +79,10 @@ var actor_manager = null
 ## spawn pipeline + renderer-attach + persistent-clobber guard + grid
 ## snap + renderer_cfg cache. Single public entry: `spawn(inst)`.
 var _spawn_manager: SpawnManager = null
+## LevelTransitionCoordinator (extracted from world.gd 2026-05-12).
+## Owns ADR 0006 multi-level pipeline: process_pending(env),
+## do_transition(target), load_level(name).
+var _level_transitions: LevelTransitionCoordinator = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
@@ -118,6 +122,7 @@ func _ready() -> void:
 	zone_store = ZoneStore.new()
 	scheduler = PhaseScheduler.new(_build_env())
 	_spawn_manager = SpawnManager.new(self)
+	_level_transitions = LevelTransitionCoordinator.new(self)
 	if auto_start:
 		start()
 
@@ -216,7 +221,7 @@ func load_data() -> void:
 		# level transitions.
 		_load_entities_path(root)
 		if current_level != "":
-			_load_level(current_level)
+			_level_transitions.load_level(current_level)
 	else:
 		# Single-level layout
 		_load_rules_file(root + "/world/physics.json")
@@ -725,7 +730,7 @@ func _on_tick(count: int) -> void:
 		# transition_level via shell_event_buffer; GameShell drives the
 		# fade + queues _pending_level_transition; this runs the swap).
 		process_pending_save_load()
-		process_pending_level_transition()
+		_level_transitions.process_pending(scheduler.env)
 		return
 	advance_one_tick()
 	if verbose and count % 4 == 0:
@@ -791,7 +796,7 @@ func advance_one_tick() -> void:
 	if lc_dir2 != null and lc_dir2.has_method("tick"):
 		lc_dir2.tick(scheduler.env, tick_seconds)
 	_decrement_lifetimes()
-	process_pending_level_transition()
+	_level_transitions.process_pending(scheduler.env)
 	# ADR 0014: chunk streaming runs after level transition (level changes
 	# may relocate the actor) and before save/load (save needs to capture
 	# the post-stream current_chunk). No-op when chunk_streamer is null
@@ -872,7 +877,7 @@ func _do_load(slot: int) -> void:
 	# AFTER state apply so the level loader sees the saved current_level.
 	var saved_level := str(world_state.get("current_level", current_level))
 	if saved_level != "" and saved_level != current_level:
-		_do_level_transition(saved_level)
+		_level_transitions.do_transition(saved_level)
 	# ADR 0014: restore current_chunk if the save came from chunked-world
 	# mode. Re-anchor the streamer at the saved chunk; the next tick's
 	# update() will load the right neighbors. We unload everything first
@@ -971,18 +976,6 @@ func process_chunk_streaming() -> void:
 	if actor_id == "": return
 	chunk_streamer.update(scheduler.env, actor_id)
 
-
-## ADR 0006: process queued level transitions AFTER the tick's effect chain
-## has fully drained. Effect handlers set env._pending_level_transition;
-## we read + clear it here so entity teardown happens between ticks, not
-## mid-rule. Called from _on_tick AND from scenario_runner (which doesn't
-## go through _on_tick).
-func process_pending_level_transition() -> void:
-	var env: Dictionary = scheduler.env
-	var pending = env.get("_pending_level_transition", "")
-	if str(pending) != "":
-		env["_pending_level_transition"] = ""
-		_do_level_transition(str(pending))
 
 
 ## Tier 2.6j: entities with state.lifetime > 0 auto-decrement each tick;
@@ -1117,7 +1110,7 @@ func _do_world_reset() -> void:
 		world_state["current_level"] = current_level
 		_load_entities_path(root)            # re-load persistent root entities
 		if current_level != "":
-			_load_level(current_level)
+			_level_transitions.load_level(current_level)
 	else:
 		_load_entities_path(root)
 	# 4. Refresh has_save (ADR 0010) — reset doesn't delete saves; it just
@@ -1329,102 +1322,7 @@ func _load_progression(path: String) -> void:
 	world_state["current_level"] = current_level
 
 
-## Load the level subfolder at levels/<name>/. Per-level rules.json (if
-## present) appends to global scheduler. Entities load from entities.json
-## + entities/ directory.
-func _load_level(name: String) -> void:
-	if levels_root == "" or name == "": return
-	var lvl_dir := levels_root + "/" + name
-	_load_rules_file(lvl_dir + "/rules.json", true)
-	_load_entities_path(lvl_dir)
-	# ADR 0024: build the navigation mesh from walkable_floor +
-	# pathfinding_obstacle entities. No-op when the level doesn't tag
-	# any (legacy / 2D / non-routing levels). The scheduler's env is the
-	# stable dict effect handlers see, so build directly against that —
-	# Pathfinding stashes the region under `_navigation_region` and the
-	# pathfind_to effect reads it from the same key.
-	if scheduler != null:
-		Pathfinding.build_navmesh_for_level(scheduler.env)
-	# Note: ADR 0041 multimesh re-batching is called by load_data() at
-	# end-of-boot AND by _do_level_transition() after the new level loads —
-	# NOT here, to avoid duplicate batching when load_data also calls.
 
-
-## Process a queued level transition (set by transition_level effect).
-## Removes non-persistent entities, clears scheduler rules, reloads next
-## level's content. Player + persistent state survive.
-func _do_level_transition(target: String) -> void:
-	# Resolve "next" shorthand against progression order.
-	if target == "next":
-		var idx: int = level_order.find(current_level)
-		if idx >= 0 and idx + 1 < level_order.size():
-			target = str(level_order[idx + 1])
-		else:
-			# Past the last level — game won. Set a world-state flag so
-			# HUD's win condition can trigger (binds to clock/world).
-			world_state["all_levels_complete"] = 1
-			if verbose:
-				print("[World] all levels complete: ", on_all_complete_msg)
-			return
-	if not level_order.has(target):
-		push_warning("[World] transition_level target '%s' not in progression.levels" % target)
-		return
-	# ADR 0024: tear down old level's navigation region BEFORE removing
-	# entities — agents bound to it will be freed alongside their parent
-	# entities below, but the region itself must go too.
-	if scheduler != null:
-		Pathfinding.teardown_navmesh(scheduler.env)
-	# ADR 0041: free the old level's MultiMeshInstance3D nodes (per
-	# Invariant #11 — level-discontinuity engine-state cleanup audit).
-	# The corresponding entities are about to be destroyed below; the
-	# multimesh nodes are the only remaining references and would leak.
-	if _multimesh_director != null and scheduler != null:
-		var freed := _multimesh_director.cleanup(scheduler.env)
-		if verbose and freed > 0:
-			print("[MULTIMESH-CLEAR] freed %d nodes from level %s" % [freed, current_level])
-	# Remove non-persistent entities.
-	var to_remove: Array[String] = []
-	for id in entities.keys():
-		var ent = entities[id]
-		if ent is Entity and not (ent as Entity).has_tag("persistent"):
-			to_remove.append(str(id))
-	for rid in to_remove:
-		var rent: Entity = entities.get(rid, null)
-		if rent == null: continue
-		if relations != null:
-			relations.clear_entity(rid)
-		if spatial_index != null and spatial_index.has_method("remove_entity"):
-			spatial_index.remove_entity(rid)
-		entities.erase(rid)
-		rent.queue_free()
-	# Clear scheduler rules and reload globals (persistent across levels).
-	# physics first (register), game-rules appended. Per-level rules get
-	# appended in _load_level.
-	if scheduler != null and scheduler.has_method("clear_rules"):
-		scheduler.clear_rules()
-	var root := data_root.rstrip("/")
-	_load_rules_file(root + "/world/physics.json")
-	_load_rules_file(root + "/game/rules.json", true)
-	# ADR 0012: tutorial.json is global (not per-level), re-register here
-	# so sequencing rules survive level transitions.
-	_load_rules_file(root + "/tutorial.json", true)
-	# Load new level
-	current_level = target
-	world_state["current_level"] = target
-	_load_level(target)
-	scheduler.flush_effects()
-	# ADR 0041: re-batch the new level's static decoration. Mirrors the
-	# load_data() call at boot, but for mid-session level swaps.
-	_run_multimesh_director()
-	# ADR 0010 autosave: on_level_transition. Push a save into the env's
-	# pending slot so the next process_pending_save_load picks it up.
-	# Slot 0 = autosave by convention.
-	if not save_policy.is_empty():
-		var auto: Dictionary = save_policy.get("autosave", {}) as Dictionary
-		if bool(auto.get("on_level_transition", false)):
-			scheduler.env["_pending_save"] = 0
-	if verbose:
-		print("[World] transitioned to level: ", target)
 
 
 func _apply_level_seed_if_set(root: String) -> void:

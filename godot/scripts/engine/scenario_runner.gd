@@ -157,8 +157,10 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 			if world.has_method("_decrement_lifetimes"):
 				world._decrement_lifetimes()
 			# ADR 0006: process any queued level transitions between ticks.
-			if world.has_method("process_pending_level_transition"):
-				world.process_pending_level_transition()
+			# Routes through LevelTransitionCoordinator (extracted from
+			# world.gd 2026-05-12).
+			if world._level_transitions != null:
+				world._level_transitions.process_pending(world.scheduler.env)
 			# Motion integration normally runs in World._process(delta) at
 			# frame rate. Headless scenario testing runs ticks discretely, so
 			# we simulate motion using tick_seconds as the delta.
