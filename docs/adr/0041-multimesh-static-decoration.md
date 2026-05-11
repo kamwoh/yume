@@ -1,7 +1,7 @@
 # ADR 0041 — MultiMeshInstance3D for static decoration
 
 _Date: 2026-05-11_
-_Status: accepted-pending-implementation (2026-05-11) — tech-director reviewed + 6 conditions; 1-4 reflected in this revision; 5-6 apply at engine PR merge_
+_Status: **accepted (2026-05-11)** — implemented; all 6 conditions met; visual gate + scenario tests passing_
 
 ## Context
 
