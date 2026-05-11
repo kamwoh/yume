@@ -137,14 +137,22 @@
     },
 
     "water_plane_3d": {
-      "_comment": "Bigger river — 14m wide × 30m long. Three depth bands for visible depth: shallow edge (lighter blue), main flow (deeper blue), centerline ripple highlight. Sandy/muddy bank strips on each side (color $bank) to soften the water-to-ground transition. Surface sits at y=0.06 (no z-fight); banks at y=0.02 (just above ground, below water surface to read as a 'beach').",
+      "_comment": "Flat blue water — 10m × 10m square. Suited for ponds / small lakes. For long flowing rivers use `river_3d` instead. Surface at y=0.05 (no z-fight with ground at y=0).",
       "primitives": [
-        {"op": "box", "pos": [-7.5, 0.02, 0], "size": [1.0, 0.05, 30.0], "color": "$bank"},
-        {"op": "box", "pos": [ 7.5, 0.02, 0], "size": [1.0, 0.05, 30.0], "color": "$bank"},
-        {"op": "box", "pos": [-7.0, 0.04, 0], "size": [1.0, 0.05, 30.0], "color": "$shallow"},
-        {"op": "box", "pos": [ 7.0, 0.04, 0], "size": [1.0, 0.05, 30.0], "color": "$shallow"},
-        {"op": "box", "pos": [ 0.0, 0.06, 0], "size": [12.0, 0.08, 30.0], "color": "$water"},
-        {"op": "box", "pos": [ 0.0, 0.10, 0], "size": [2.0, 0.02, 30.0], "color": "$ripple"}
+        {"op": "box", "pos": [0, 0.05, 0], "size": [10.0, 0.08, 10.0], "color": "$water"}
+      ],
+      "params": {"water": "#3a6a8c"}
+    },
+
+    "river_3d": {
+      "_comment": "Long flowing river — 6m wide × 50m long (Z axis). Aspect 1:8 reads as 'river' not 'pond.' Three depth bands: sandy bank strips on each side, shallow lighter-blue edges, deeper blue main flow, and a thin centerline ripple highlight. Banks at y=0.02; shallow at y=0.04; main at y=0.06; ripple at y=0.10. Author at any position via instance; use state.yaw to angle the flow, state.scale to stretch (e.g. scale [1, 1, 2] = 100m river).",
+      "primitives": [
+        {"op": "box", "pos": [-3.5, 0.02, 0], "size": [1.0, 0.05, 50.0], "color": "$bank"},
+        {"op": "box", "pos": [ 3.5, 0.02, 0], "size": [1.0, 0.05, 50.0], "color": "$bank"},
+        {"op": "box", "pos": [-2.6, 0.04, 0], "size": [0.8, 0.05, 50.0], "color": "$shallow"},
+        {"op": "box", "pos": [ 2.6, 0.04, 0], "size": [0.8, 0.05, 50.0], "color": "$shallow"},
+        {"op": "box", "pos": [ 0.0, 0.06, 0], "size": [4.4, 0.08, 50.0], "color": "$water"},
+        {"op": "box", "pos": [ 0.0, 0.10, 0], "size": [0.8, 0.02, 50.0], "color": "$ripple"}
       ],
       "params": {
         "water":   "#2a5878",
