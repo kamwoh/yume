@@ -1,0 +1,13 @@
+{
+  "_origin": "lib/input/universal.json",
+  "_comment": "ADR 0043 — universal input verbs shared across all Yume games. Per-game ui/input.json $includes this to get WASD movement + stop_x/stop_y engine-injected actions without redeclaring. Authors override by listing the same action name AFTER the $include — last-writer-wins per JSON load order.",
+  "actions": [
+    {"name": "move_north", "edge": "hold", "keys": ["W", "Up"]},
+    {"name": "move_south", "edge": "hold", "keys": ["S", "Down"]},
+    {"name": "move_east",  "edge": "hold", "keys": ["D", "Right"]},
+    {"name": "move_west",  "edge": "hold", "keys": ["A", "Left"]},
+    {"name": "stop_x", "edge": "press", "engine_injected": true},
+    {"name": "stop_y", "edge": "press", "engine_injected": true},
+    {"name": "stop",   "edge": "press", "engine_injected": true}
+  ]
+}

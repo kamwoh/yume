@@ -58,7 +58,14 @@ static func register_from_data_root(data_root: String) -> Dictionary:
 		return out
 	if not (json.data is Dictionary):
 		return out
-	var spec: Dictionary = json.data
+	# ADR 0043 — resolve @lib + $include refs in input.json so
+	# `{"$include": "@lib.input.universal.actions"}` splices the universal
+	# WASD action set. LibResolver runs identically on rule files (rule.gd::
+	# from_dict); this call site brings input.json into the same pipeline.
+	var spec_raw = LibResolver.resolve(json.data)
+	if not (spec_raw is Dictionary):
+		return out
+	var spec: Dictionary = spec_raw
 	for action_def in spec.get("actions", []):
 		if not (action_def is Dictionary):
 			continue
@@ -85,20 +92,17 @@ static func _register_one(action_def: Dictionary) -> String:
 	if action_def.has("keys") and action_def["keys"] is Array:
 		for k in action_def["keys"]:
 			keys.append(str(k))
-	# 2026-05-05: keys-optional mode for already-registered InputMap actions.
-	# Lets per-game inputs.json declare edge-classification (hold vs press)
-	# for actions whose keys are already bound in project.godot (e.g.
-	# move_north). Without this, every game that wanted WASD movement would
-	# have to re-declare the keys redundantly. With it, inputs.json just
-	# says `{"name": "move_north", "edge": "hold"}` and the existing
-	# project.godot binding stays.
-	#
-	# 2026-05-10: `engine_injected: true` for actions queued by engine code
-	# (e.g. stop_x / stop_y queued by world.gd::_poll_input on per-axis
-	# idle, the lib_wasd_with_fp_variant bundle's stop actions). No key
-	# binding is intentional — engine queues directly. We still REGISTER
-	# the action (without events) so scenario_runner's Input.action_press
-	# can fire it programmatically. Silent — no typo warning.
+	# 2026-05-11 (ADR 0043): WASD bindings moved to
+	# `data/lib/input/universal.json` and spliced into each game's
+	# ui/input.json via `{"$include": "@lib.input.universal.actions"}`.
+	# project.godot [input] block deleted. The keys-optional path now
+	# serves ONE remaining case: `engine_injected: true` actions queued
+	# by engine code (e.g. stop_x / stop_y queued by world.gd::_poll_input
+	# on per-axis idle, the lib_wasd_with_fp_variant bundle's stop
+	# actions). No key binding is intentional — engine queues directly.
+	# We still REGISTER the action (without events) so scenario_runner's
+	# Input.action_press can fire it programmatically. Silent — no typo
+	# warning.
 	if keys.is_empty():
 		if InputMap.has_action(name):
 			return name

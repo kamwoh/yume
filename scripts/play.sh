@@ -124,6 +124,12 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   # ADR 0027 cross-game lib-ref check (added 2026-05-08). Verifies every
   # @lib.X.Y reference resolves through data/lib/manifest.json.
   python3 "${YUME_ROOT}/tools/validate_lib_refs.py" "${DATA_FOLDER}" || true
+  # ADR 0043 universal-input check (added 2026-05-11). After moving WASD
+  # bindings out of project.godot into data/lib/input/universal.json,
+  # gates against a game silently omitting the `$include
+  # @lib.input.universal.actions` line — bug class: WASD doesn't fire,
+  # engine code polling move_north no-ops at runtime.
+  python3 "${YUME_ROOT}/tools/validate_input_universal.py" "${DATA_FOLDER}" || true
 fi
 
 # Build cmdline args for Godot's user-args section (after `--`)
