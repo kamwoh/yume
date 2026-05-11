@@ -102,6 +102,12 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   # Empirical case: Aldenmere had 7 `"template": "wolf"` refs while the
   # def was `"animal_wolf"` — every wolf-spawn rule erroring at tick time.
   python3 "${YUME_ROOT}/tools/validate_spawn_templates.py" "${DATA_FOLDER}" || true
+  # Scene-director static check (added 2026-05-11). Catches the bug class
+  # where entity defs reference a subsystem (schedule, party, faction)
+  # but the matching director Node isn't mounted in the per-game .tscn.
+  # Empirical case: Aldenmere shipped without ScheduleDirector mounted;
+  # all 8 villagers sat motionless despite their schedule blocks.
+  python3 "${YUME_ROOT}/tools/validate_scene_directors.py" "${DATA_FOLDER}" || true
   # Player-perspective static check (added 2026-05-08). Catches
   # undiscoverable keybinds + objective text referencing unlabeled
   # landmarks. See .claude/skills/yume-game-reviewer/SKILL.md Axis 15.

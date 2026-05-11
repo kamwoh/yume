@@ -218,6 +218,91 @@ Fail flags: blank modal, 0-size buttons, all bands same color,
 slider clipped off-screen, no customer info."
 ```
 
+### After animation change (ADR 0035 — mesh-def animations / animation_state_rules)
+
+**Single-frame captures CANNOT verify animation.** They show one instant.
+A frozen-mid-stride limb and a properly-animated limb look identical in
+one frame. Any change to:
+
+- `mesh_def.animations` block (tracks, keyframes, state names)
+- `mesh_def.animation_state_rules` (state-selection logic)
+- `animation_director.gd` (interpreter)
+- mesh primitives with `name` field (addressable pieces)
+
+REQUIRES at least **two captures separated in time**, with the entity
+visibly in motion (or whatever state the animation depends on):
+
+```bash
+# Frame A at t=2s
+godot ... --capture-after=2.0 --capture-output='user://anim_A.png'
+
+# Frame B at t=2.3s (0.3s later — captures a different point in the
+# animation cycle; walk duration is typically 0.5-1.0s so 0.2-0.4s
+# gives a visible phase shift)
+godot ... --capture-after=2.3 --capture-output='user://anim_B.png'
+```
+
+Then **read BOTH PNGs and compare**:
+- Frame A: arm forward, leg back?
+- Frame B: arm back, leg forward (mid-stride swap)?
+- If both identical → animation isn't firing, OR entity isn't in the
+  expected state (e.g., velocity below threshold for walk).
+
+**Read prompt template** for the comparison:
+
+```
+"Compare anim_A.png (t=2.0s) and anim_B.png (t=2.3s). The entity
+<name> at position <p> should be walking toward <target>.
+
+1. Is the entity visible in both frames?
+2. Is its position different between A and B? (Walking)
+3. Are limb positions DIFFERENT in A vs B? (Animation firing)
+4. If yes to 1+3 but no to 2 — entity isn't moving but limbs animate
+   (maybe stuck against blocks_motion?).
+5. If yes to 1+2 but no to 3 — entity moves but limbs frozen
+   (animation_state_rules not selecting walk, OR ScheduleDirector /
+   ambient_wander not setting velocity, OR animation_director not
+   ticking).
+6. Fail flag: identical-looking entity across both frames + no
+   position delta + no limb delta → motion not happening at all
+   (likely missing director node or missing rule)."
+```
+
+**Empirical case 2026-05-11**: silent-idle fix in `villager_3d` shipped
+after a single capture-after=2 verified boot-clean. Multi-frame test
+was skipped. Could not have detected that ScheduleDirector wasn't
+mounted in `aldenmere_3d.tscn` — villagers were perfectly still in
+the still frame, which is exactly what the silent-idle change was
+SUPPOSED to do. Author was confidently wrong. User had to ask "did you
+actually check?" before the gap surfaced.
+
+**The gate**: any animation-affecting change must include at least one
+multi-frame comparison capture in the verification log before declaring
+done. Skipping this gate = false confidence.
+
+### After scene-tree change (mounting / unmounting engine director nodes)
+
+Adding or removing a `<Director>` Node in a per-game `.tscn` (e.g.,
+ScheduleDirector, PartyDirector, FactionDirector) changes whether a
+subsystem fires at runtime. Single-frame capture won't show it.
+
+For ADDED directors:
+- Capture a scene where the director's effect is visible (e.g.,
+  ScheduleDirector added → capture an NPC walking via schedule).
+- 2-frame sequence per the animation-gate pattern above.
+
+For REMOVED directors:
+- Capture the game booting cleanly (no missing-method errors in stderr).
+- Run scenario tests if they cover the subsystem.
+
+**Empirical case 2026-05-11**: `aldenmere_3d.tscn` shipped without
+ScheduleDirector mounted. All NPCs sat motionless. Villager schedule
+blocks existed in defs but engine had no node to drain them. Surfaced
+only when the user asked about animation. A pre-launch validator
+(`tools/validate_scene_directors.py`) catches this at sync time —
+see `.claude/rules/data-demo.md` § scene-director audit (to be added
+alongside this gate).
+
 ### After juice/effect change (juice-designer)
 
 ```
