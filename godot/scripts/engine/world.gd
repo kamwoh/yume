@@ -90,6 +90,13 @@ var _save_load: SaveLoadCoordinator = null
 ## WorldResetCoordinator (extracted from world.gd 2026-05-12). Owns
 ## Task #99 reset pipeline: process_pending(env), do_reset().
 var _world_reset: WorldResetCoordinator = null
+## WorldLoader (extracted from world.gd 2026-05-12). Owns boot-time
+## JSON parsers: load_entities_path, load_entities_file, load_rules_file,
+## load_world_file, load_zones_file, load_factions_file, load_progression,
+## apply_level_seed_if_set, load_ground_cfg, load_grid_cfg. Loader is
+## the SETTER; cached field values (ground_y, grid_cfg) live on World
+## so tick-time code can read them without going through the loader.
+var _loader: WorldLoader = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
@@ -132,6 +139,7 @@ func _ready() -> void:
 	_level_transitions = LevelTransitionCoordinator.new(self)
 	_save_load = SaveLoadCoordinator.new(self)
 	_world_reset = WorldResetCoordinator.new(self)
+	_loader = WorldLoader.new(self)
 	if auto_start:
 		start()
 
@@ -195,7 +203,7 @@ func load_data() -> void:
 	# Godot's global PRNG before any pattern/scatter/cluster runs. Makes
 	# procedurally-generated layouts reproducible — same seed = same map.
 	# Omit for stochastic per-session randomization.
-	_apply_level_seed_if_set(root)
+	_loader.apply_level_seed_if_set(root)
 	# ADR 0019: load per-game macros (if any) BEFORE rules, so every
 	# rules file (world/physics.json, game/rules.json, levels/<n>/rules.json,
 	# tutorial.json) can reference the same macro vocabulary. Empty
@@ -216,28 +224,28 @@ func load_data() -> void:
 	# entities + rules from the root directly.
 	var prog_path := root + "/game/flow.json"
 	if FileAccess.file_exists(prog_path):
-		_load_progression(prog_path)
+		_loader.load_progression(prog_path)
 		# Global rules (cross-level): physics first (register), game-rules
 		# appended. Per-level rules append on top in _load_level.
-		_load_rules_file(root + "/world/physics.json")
-		_load_rules_file(root + "/game/rules.json", true)
+		_loader.load_rules_file(root + "/world/physics.json")
+		_loader.load_rules_file(root + "/game/rules.json", true)
 		# ADR 0012: tutorial.json — optional, treated as additional rules
 		# at global scope. Steps are rules whose effects fire show_overlay /
 		# dismiss_overlay; sequencing via overlay_advanced signal + state.
-		_load_rules_file(root + "/tutorial.json", true)
-		_load_world_file(root + "/world/state.json")
+		_loader.load_rules_file(root + "/tutorial.json", true)
+		_loader.load_world_file(root + "/world/state.json")
 		# Per ADR 0006: tag persistent entities "persistent" to survive
 		# level transitions.
-		_load_entities_path(root)
+		_loader.load_entities_path(root)
 		if current_level != "":
 			_level_transitions.load_level(current_level)
 	else:
 		# Single-level layout
-		_load_rules_file(root + "/world/physics.json")
-		_load_rules_file(root + "/game/rules.json", true)
-		_load_rules_file(root + "/tutorial.json", true)
-		_load_world_file(root + "/world/state.json")
-		_load_entities_path(root)
+		_loader.load_rules_file(root + "/world/physics.json")
+		_loader.load_rules_file(root + "/game/rules.json", true)
+		_loader.load_rules_file(root + "/tutorial.json", true)
+		_loader.load_world_file(root + "/world/state.json")
+		_loader.load_entities_path(root)
 		# ADR 0024: build navmesh for single-level games (multi-level
 		# games build inside _load_level). No-op when no walkable_floor
 		# entities exist.
@@ -247,7 +255,7 @@ func load_data() -> void:
 	# means no zones, no overhead. Loads AFTER entities + world_state so
 	# error reports can reach env.error_buffer; loads BEFORE save layer
 	# so saved zone_state restores on top of state_init.
-	_load_zones_file(root + "/world/zones.json")
+	_loader.load_zones_file(root + "/world/zones.json")
 	# ADR 0014: open-world chunk streaming. world.json declares chunked-world
 	# mode; absent means single-chunk legacy mode (no streaming, no chunks
 	# directory consulted). When present:
@@ -260,7 +268,7 @@ func load_data() -> void:
 		# Persistent chunk first — its entities never leave env.entities.
 		var persist_dir := root + "/chunks/_persistent"
 		if DirAccess.dir_exists_absolute(persist_dir):
-			load_entities_file(persist_dir + "/entities.json")
+			_loader.load_entities_file(persist_dir + "/entities.json")
 		# Boot: load starting_chunk + stream_radius neighbors.
 		chunk_streamer.boot(_build_env())
 	# ADR 0009 Phase 2d: variant overlay applies after rules + world_state +
@@ -330,7 +338,7 @@ func load_data() -> void:
 	# from <root>/factions.json if present. No-op for games without
 	# politics. Loaded after entities so member_count bindings can resolve
 	# against the live entity set on first tick.
-	_load_factions_file(root + "/factions.json")
+	_loader.load_factions_file(root + "/factions.json")
 	scheduler.flush_effects()
 	# ADR 0041: render-side batching for static decoration. Runs AFTER all
 	# entities are loaded + rules registered (the director scans rules to
@@ -342,220 +350,6 @@ func load_data() -> void:
 		print("[World] loaded: %d defs, %d entities, %d relations%s" % [
 			defs.size(), entities.size(), relations.count_total(), lvl_str
 		])
-
-
-## Load entity data from `<root>/entities.json` and/or `<root>/entities/`.
-## Two-phase: collect all dicts first, then process (a) definitions before
-## (b) initial_instances + initial_relations so spawn-time def lookups work
-## regardless of file order.
-func _load_entities_path(root: String) -> void:
-	var env := _build_env()
-	var dicts: Array[Dictionary] = []
-
-	var single := root + "/entities.json"
-	if FileAccess.file_exists(single):
-		var d := _read_entities_json(single, env)
-		if not d.is_empty(): dicts.append(d)
-
-	var dir_path := root + "/entities"
-	if DirAccess.dir_exists_absolute(dir_path):
-		var dir := DirAccess.open(dir_path)
-		if dir != null:
-			var files: Array[String] = []
-			dir.list_dir_begin()
-			var fname := dir.get_next()
-			while fname != "":
-				if not dir.current_is_dir() and fname.ends_with(".json"):
-					files.append(fname)
-				fname = dir.get_next()
-			files.sort()
-			for f in files:
-				var d2 := _read_entities_json(dir_path + "/" + f, env)
-				if not d2.is_empty(): dicts.append(d2)
-
-	if dicts.is_empty():
-		EngineError.raise(env, EngineError.WORLD_ENTITIES_MISSING,
-			"No entities found at %s (checked entities.json + entities/)" % root,
-			{"file": root},
-			"Create entities.json or an entities/ directory with one JSON file per def.",
-			"warning")
-		return
-
-	# Phase 1: register all definitions
-	for d in dicts:
-		for def in d.get("definitions", []):
-			if def is Dictionary:
-				defs[str(def.get("id", ""))] = def
-	# Phase 1.5: expand declarative patterns into concrete instance dicts.
-	# Tier 2.6q — entities/zz_instances.json (and similar) can declare
-	# `patterns: [{def, pattern, count, ...}]` instead of hand-typing
-	# every position. Patterns expand to the same shape as initial_instances.
-	for d in dicts:
-		for p in d.get("patterns", []):
-			if p is Dictionary:
-				for inst in InstancePatterns.expand(p):
-					_spawn_manager.spawn(inst)
-	# Phase 2: process hand-coded initial instances + relations
-	for d in dicts:
-		for inst in d.get("initial_instances", []):
-			if inst is Dictionary:
-				_spawn_manager.spawn(inst)
-		for rel in d.get("initial_relations", []):
-			if rel is Dictionary:
-				relations.relate(
-					str(rel.get("type", "")),
-					str(rel.get("from", "")),
-					str(rel.get("to", "")),
-				)
-
-
-## ADR 0014: load a single entities JSON file (definitions + patterns +
-## initial_instances + initial_relations). Used by ChunkStreamer to
-## stream per-chunk content; reuses the same definition-then-instance
-## pipeline as `_load_entities_path` so chunk-loaded entities and
-## bootstrap entities follow identical semantics.
-##
-## Called at runtime — definitions appearing in chunk files are added
-## to `defs` if new; existing-id collisions are silently overwritten
-## (chunks may share defs with the root entities folder).
-func load_entities_file(path: String) -> void:
-	if not FileAccess.file_exists(path): return
-	var env := _build_env()
-	var d := _read_entities_json(path, env)
-	if d.is_empty(): return
-	# Definitions
-	for def in d.get("definitions", []):
-		if def is Dictionary:
-			defs[str(def.get("id", ""))] = def
-	# Patterns
-	for p in d.get("patterns", []):
-		if p is Dictionary:
-			for inst in InstancePatterns.expand(p):
-				_spawn_manager.spawn(inst)
-	# Initial instances
-	for inst in d.get("initial_instances", []):
-		if inst is Dictionary:
-			_spawn_manager.spawn(inst)
-	# Initial relations
-	for rel in d.get("initial_relations", []):
-		if rel is Dictionary:
-			relations.relate(
-				str(rel.get("type", "")),
-				str(rel.get("from", "")),
-				str(rel.get("to", "")),
-			)
-
-
-## Read one entities JSON file. Returns {} on missing/malformed; reports
-## structured errors via env.error_buffer. Public-ish — used by the
-## directory walker and the legacy single-file path.
-func _read_entities_json(path: String, env: Dictionary) -> Dictionary:
-	if not FileAccess.file_exists(path): return {}
-	var f := FileAccess.open(path, FileAccess.READ)
-	var data = JSON.parse_string(f.get_as_text())
-	if not (data is Dictionary):
-		EngineError.raise(env, EngineError.WORLD_ENTITIES_INVALID,
-			"Invalid JSON: %s" % path,
-			{"file": path},
-			"Top-level must be a JSON object with 'definitions' / 'initial_instances' / 'initial_relations'.")
-		return {}
-	# ADR 0027: expand @lib.X / $extends / $include refs before consumption.
-	# Pass-through if no refs present.
-	var resolved = LibResolver.resolve(data)
-	if resolved is Dictionary:
-		return resolved as Dictionary
-	return data as Dictionary
-
-
-func _load_rules_file(path: String, append: bool = false) -> void:
-	if not FileAccess.file_exists(path):
-		return
-	var env := _build_env()
-	# ADR 0019: macro_expander expands per-game macro effect references
-	# in this file's rules to primitive sequences before parsing into
-	# Rule instances. Null when game has no macros.json.
-	var rules := Rule.load_from_file(path, env, macro_expander)
-	var errors := Rule.validate_all(rules)
-	for record in errors:
-		EngineError.report(env, record)
-	if append and scheduler.has_method("append_rules"):
-		scheduler.append_rules(rules)
-	else:
-		scheduler.register_rules(rules)
-	if verbose:
-		print("[World] %d rules %s" % [rules.size(), "appended" if append else "registered"])
-func _load_world_file(path: String) -> void:
-	if not FileAccess.file_exists(path): return
-	var f := FileAccess.open(path, FileAccess.READ)
-	var data = JSON.parse_string(f.get_as_text())
-	if data is Dictionary:
-		# Merge `state` block into world_state (preserves any pre-set keys
-		# like current_level from progression.json).
-		var s: Dictionary = data.get("state", {}) as Dictionary
-		for k in s.keys():
-			world_state[str(k)] = s[k]
-
-
-## ADR 0031 — load world/zones.json into ZoneStore.
-## Optional file; absent = empty store, full backward-compat. Validation
-## errors (cycles, multi-parent, unknown ids) report to env.error_buffer
-## but don't halt engine boot — partial zones are still usable.
-func _load_zones_file(path: String) -> void:
-	if zone_store == null:
-		zone_store = ZoneStore.new()
-	if not FileAccess.file_exists(path): return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
-	var raw := f.get_as_text()
-	f.close()
-	var data = JSON.parse_string(raw)
-	if not (data is Dictionary):
-		EngineError.raise(_build_env(), "zone.invalid_json",
-			"world/zones.json is not a JSON object",
-			{"file": path},
-			"The top-level value must be a dict like {\"zones\": [...]}.")
-		return
-	var errors := zone_store.load_from_dict(data, _build_env())
-	if verbose:
-		print("[World] zone_store loaded: %d zones, %d errors" % [
-			zone_store.count(), errors.size()
-		])
-
-
-## ADR 0032 — load factions.json into FactionDirector.
-## Optional file; absent = no-op (FactionDirector keeps an empty registry,
-## full backward-compat). Validation errors (unknown faction in
-## relationship from/to, invalid stance) report to env.error_buffer but
-## don't halt engine boot.
-func _load_factions_file(path: String) -> void:
-	var fd := get_node_or_null("FactionDirector")
-	if fd == null or not fd.has_method("register_factions"):
-		return
-	if not FileAccess.file_exists(path): return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
-	var raw := f.get_as_text()
-	f.close()
-	var data = JSON.parse_string(raw)
-	if not (data is Dictionary):
-		EngineError.raise(_build_env(), "faction.invalid_json",
-			"factions.json is not a JSON object",
-			{"file": path},
-			"The top-level value must be a dict like {\"factions\": [...], \"relationships\": [...]}.",
-			"warning")
-		return
-	var errors = fd.call("register_factions", data, _build_env())
-	if verbose:
-		var errs_size: int = (errors as Array).size() if errors is Array else 0
-		var known_count: int = 0
-		if fd.has_method("known_faction_ids"):
-			known_count = (fd.call("known_faction_ids") as Array).size()
-		print("[World] faction_director loaded: %d factions, %d errors" % [
-			known_count, errs_size
-		])
-
-
-
 
 # ADR 0041 — bootstrap the multimesh director (lazy-init on first use).
 # Reads renderer.position_scale from SpawnManager's renderer_cfg cache
@@ -922,48 +716,16 @@ func _integrate_motion(delta: float) -> void:
 	_apply_ground()
 
 
-var _ground_cfg_loaded: bool = false
 var _ground_y: float = -INF
 var _ground_clamp_tags: Array = []
 var _ground_despawn_tags: Array = []
-func _load_ground_cfg() -> void:
-	if _ground_cfg_loaded: return
-	_ground_cfg_loaded = true
-	var path := data_root.rstrip("/") + "/scene.json"
-	if not FileAccess.file_exists(path): return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
-	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
-	var cfg: Dictionary = json.data
-	if not (cfg.get("ground", null) is Dictionary): return
-	var g: Dictionary = cfg["ground"]
-	if g.has("y"):
-		_ground_y = float(g["y"])
-	_ground_clamp_tags = g.get("clamp_tags", ["creature"])
-	_ground_despawn_tags = g.get("despawn_tags", ["projectile"])
 
 
 # ADR 0038: grid-based placement config. Loaded once from scene.json's
 # `grid` block (mirroring _load_ground_cfg), exposed via env["scene_grid"]
 # in _build_env. Empty dict = grid disabled (default for 13 existing demos
 # that don't declare a grid block — backward-compat sentinel).
-var _grid_cfg_loaded: bool = false
 var _grid_cfg: Dictionary = {}
-func _load_grid_cfg() -> void:
-	if _grid_cfg_loaded: return
-	_grid_cfg_loaded = true
-	var path := data_root.rstrip("/") + "/scene.json"
-	if not FileAccess.file_exists(path): return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
-	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
-	var cfg: Dictionary = json.data
-	if cfg.get("grid", null) is Dictionary:
-		_grid_cfg = cfg["grid"]
 
 
 # ============================================================
@@ -976,43 +738,15 @@ var levels_root: String = ""
 var on_all_complete_msg: String = ""
 
 
-func _load_progression(path: String) -> void:
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
-	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
-	var p: Dictionary = json.data
-	level_order = p.get("levels", [])
-	current_level = str(p.get("starting_level", level_order[0] if level_order.size() > 0 else ""))
-	levels_root = data_root.rstrip("/") + "/levels"
-	var oac = p.get("on_all_complete", null)
-	if oac is Dictionary:
-		on_all_complete_msg = str((oac as Dictionary).get("win_message", ""))
-	# Mirror current_level into world state for formula access.
-	world_state["current_level"] = current_level
 
 
 
 
 
-func _apply_level_seed_if_set(root: String) -> void:
-	var path := root + "/scene.json"
-	if not FileAccess.file_exists(path): return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
-	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
-	if not (json.data as Dictionary).has("level_seed"): return
-	var s: int = int((json.data as Dictionary).get("level_seed", 0))
-	seed(s)
-	if verbose:
-		print("[World] level_seed=%d applied — patterns are deterministic" % s)
 
 
 func _apply_ground() -> void:
-	_load_ground_cfg()
+	_loader.load_ground_cfg()
 	if _ground_y == -INF: return
 	var to_remove: Array[String] = []
 	for id in entities.keys():
@@ -1273,7 +1007,11 @@ func count_relations_of(type: String) -> int:
 func _build_env() -> Dictionary:
 	# ADR 0038: ensure grid config is loaded before any rule resolves it.
 	# Idempotent — first call from any path triggers; subsequent are no-op.
-	_load_grid_cfg()
+	# Null guard: _build_env can be called from PhaseScheduler.new() in
+	# _ready BEFORE _loader is set (one line later). Tests that construct
+	# World.new() without going through _ready also hit this.
+	if _loader != null:
+		_loader.load_grid_cfg()
 	return {
 		"entities": entities,
 		"defs": defs,

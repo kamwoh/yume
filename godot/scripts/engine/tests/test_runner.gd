@@ -6797,9 +6797,12 @@ func test_grid_snap() -> void:
 	world.tick_seconds = 0.1
 	add_child(world)
 	# Inject grid config directly (bypassing scene.json read).
+	# _grid_cfg stays on World (read by _build_env); _grid_cfg_loaded
+	# moved to WorldLoader on 2026-05-12 (cache flag is loader-internal).
 	world._grid_cfg = {"size": 2.0, "snap_initial": true}
-	world._grid_cfg_loaded = true
-	# Set up minimal env so _spawn_initial works.
+	if world._loader != null:
+		world._loader._grid_cfg_loaded = true
+	# Set up minimal env so spawn works.
 	world.entities = {}
 	world.defs = {
 		"snap_test_def": {

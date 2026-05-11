@@ -64,19 +64,19 @@ func do_reset() -> void:
 	# external references (env.world is a back-ref) stay valid.
 	_world.world_state.clear()
 	_world.world_state["tick"] = 0
-	_world._load_world_file(root + "/world/state.json")
+	_world._loader.load_world_file(root + "/world/state.json")
 	# 3. Reload entities + relations. For multi-level games, reset to
 	# the progression's starting_level. For single-level, just re-load
 	# root entities.
 	var prog_path := root + "/game/flow.json"
 	if FileAccess.file_exists(prog_path):
-		_world._load_progression(prog_path)         # resets current_level → starting_level
+		_world._loader.load_progression(prog_path)         # resets current_level → starting_level
 		_world.world_state["current_level"] = _world.current_level
-		_world._load_entities_path(root)             # re-load persistent root entities
+		_world._loader.load_entities_path(root)             # re-load persistent root entities
 		if _world.current_level != "":
 			_world._level_transitions.load_level(_world.current_level)
 	else:
-		_world._load_entities_path(root)
+		_world._loader.load_entities_path(root)
 	# 4. Refresh has_save (ADR 0010) — reset doesn't delete saves; it just
 	# clears in-memory state. has_save remains accurate.
 	if not _world.save_policy.is_empty():

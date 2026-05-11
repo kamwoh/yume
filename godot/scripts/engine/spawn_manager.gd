@@ -103,7 +103,10 @@ func spawn(inst: Dictionary) -> void:
 		# Drift warning fires when authored position is >0.1 * grid.size from
 		# the nearest cell (Condition C3 Gate B — surfaces source-JSON drift
 		# in QA logs without a separate static validator).
-		_world._load_grid_cfg()
+		# Defensive: _loader may be null in test contexts that bypass
+		# world.gd::_ready and inject _grid_cfg manually.
+		if _world._loader != null:
+			_world._loader.load_grid_cfg()
 		if not _world._grid_cfg.is_empty() and bool(_world._grid_cfg.get("snap_initial", true)):
 			var snap_env := {"scene_grid": _world._grid_cfg}
 			if GridSnap.should_snap(_world.defs[def_id], snap_env):
