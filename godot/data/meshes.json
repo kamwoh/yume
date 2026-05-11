@@ -62,6 +62,7 @@
 
     "conifer_tree_3d": {
       "_comment": "Proper conifer — brown trunk + green stacked-sphere canopy. 3m total height. Replaces the merchant_pillar_3d fallback (stone-color pillar) which didn't read as vegetation.",
+      "multimesh_eligible": true,
       "primitives": [
         {"op": "cylinder", "pos": [0, 0.75, 0], "radius": 0.2, "height": 1.5, "color": "$trunk"},
         {"op": "cylinder", "pos": [0, 1.8, 0], "radius": 0.85, "height": 0.05, "color": "$canopy"},
@@ -77,6 +78,7 @@
 
     "oak_tree_3d": {
       "_comment": "Round broadleaf — bigger trunk, blob canopy. ~3.5m. Distinct silhouette from conifer (round vs triangular).",
+      "multimesh_eligible": true,
       "primitives": [
         {"op": "cylinder", "pos": [0, 0.9, 0], "radius": 0.28, "height": 1.8, "color": "$trunk"},
         {"op": "sphere", "pos": [0,  2.2, 0],     "radius": 1.1,  "color": "$canopy"},
@@ -92,6 +94,7 @@
 
     "birch_tree_3d": {
       "_comment": "Slim white-bark tree, sparse pale canopy. ~3m. Light accent against dark conifer mass.",
+      "multimesh_eligible": true,
       "primitives": [
         {"op": "cylinder", "pos": [0, 1.0, 0], "radius": 0.13, "height": 2.0, "color": "$bark"},
         {"op": "sphere", "pos": [0, 2.4, 0],   "radius": 0.55, "color": "$canopy"},
@@ -106,6 +109,7 @@
 
     "fruit_tree_3d": {
       "_comment": "Apple/berry-bearing broadleaf. Reddish-orange fruit dots on green canopy. Player can identify edible trees at a glance. ~2.8m.",
+      "multimesh_eligible": true,
       "primitives": [
         {"op": "cylinder", "pos": [0, 0.8, 0], "radius": 0.22, "height": 1.6, "color": "$trunk"},
         {"op": "sphere", "pos": [0, 2.0, 0],     "radius": 0.95, "color": "$canopy"},
@@ -125,6 +129,7 @@
 
     "dead_tree_3d": {
       "_comment": "Bare branches, no canopy. Reads as 'old' or 'winter' tree. ~3m. Lighter visual weight — fills space without overwhelming the forest.",
+      "multimesh_eligible": true,
       "primitives": [
         {"op": "cylinder", "pos": [0, 1.2, 0], "radius": 0.18, "height": 2.4, "color": "$bark"},
         {"op": "cylinder", "pos": [0.4, 2.0, 0],   "radius": 0.05, "height": 0.8, "color": "$bark"},
@@ -390,6 +395,7 @@
 
     "grass_tuft_3d": {
       "_comment": "Tiny grass tuft — 3 angled blades on a small base. 0.3m wide × 0.4m tall. Scatter densely across village floor for ground texture; reads as 'this isn't bare earth.' cast_shadow:false — at this size shadow contribution is invisible, but each tuft shadow costs as much as its color pass.",
+      "multimesh_eligible": true,
       "cast_shadow": false,
       "primitives": [
         {"op": "box", "pos": [ 0.0, 0.07, 0.0], "size": [0.05, 0.30, 0.04], "color": "$blade"},

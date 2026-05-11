@@ -44,6 +44,13 @@ func _ready() -> void:
 		push_warning("EntityMesh3D requires an Entity parent")
 		return
 	_entity_ref = ent
+	# ADR 0041 — engine-managed tag set by multimesh_director when this
+	# entity is batched. Mark the renderer so the director can find +
+	# remove it cleanly; skip the mesh-build path so we don't waste work
+	# on nodes that'll be queue_freed in the same frame.
+	set_meta("_yume_renderer", true)
+	if ent.has_tag("_multimesh_managed"):
+		return
 	var visual: Dictionary = ent.visual
 
 	# Tier 1 — real model file

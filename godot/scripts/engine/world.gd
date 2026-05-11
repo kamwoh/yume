@@ -102,6 +102,9 @@ func _enter_tree() -> void:
 		_resolve_data_root_from_cmdline()
 
 
+var _multimesh_director: MultiMeshDirector = null
+
+
 func _ready() -> void:
 	relations = RelationStore.new()
 	spatial_index = SpatialIndex.new()
@@ -309,6 +312,11 @@ func load_data() -> void:
 	# against the live entity set on first tick.
 	_load_factions_file(root + "/factions.json")
 	scheduler.flush_effects()
+	# ADR 0041: render-side batching for static decoration. Runs AFTER all
+	# entities are loaded + rules registered (the director scans rules to
+	# decide which entities are static). No-op when no mesh def has
+	# multimesh_eligible: true (backward-compat for all existing demos).
+	_run_multimesh_director()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
 		print("[World] loaded: %d defs, %d entities, %d relations%s" % [
@@ -771,6 +779,43 @@ func _attach_renderer(ent: Entity) -> void:
 		# (200 pixels → 10 world units).
 		_apply_renderer_overrides(node)
 		ent.add_child(node)
+
+
+# ADR 0041 — bootstrap the multimesh director (lazy-init on first use).
+# Reads renderer.position_scale from scene.json (default 0.05) and
+# passes World as parent so MultiMeshInstance3D nodes sit at world scope.
+func _ensure_multimesh_director() -> MultiMeshDirector:
+	if _multimesh_director != null: return _multimesh_director
+	_multimesh_director = MultiMeshDirector.new()
+	# Mirror renderer's position_scale (default 0.05 unless scene.json
+	# overrides). Force-populate _renderer_cfg by triggering its lazy load.
+	if not _renderer_cfg_loaded:
+		_renderer_cfg_loaded = true
+		var scene_path: String = data_root.rstrip("/") + "/scene.json"
+		if FileAccess.file_exists(scene_path):
+			var f := FileAccess.open(scene_path, FileAccess.READ)
+			var data = JSON.parse_string(f.get_as_text())
+			if data is Dictionary:
+				var cfg = (data as Dictionary).get("renderer", {})
+				if cfg is Dictionary: _renderer_cfg = cfg
+	var ps: float = float(_renderer_cfg.get("position_scale", 0.05))
+	_multimesh_director.configure(self, ps)
+	return _multimesh_director
+
+
+func _run_multimesh_director() -> void:
+	# Static-only optimization — skip when no entities use 3D renderer.
+	# Also skip when renderer_script is empty (headless test mode).
+	if renderer_script == "": return
+	if not renderer_script.contains("entity_mesh_3d"): return
+	var dir := _ensure_multimesh_director()
+	var stats := dir.scan_and_batch(scheduler.env)
+	if verbose and stats.get("groups", 0) > 0:
+		print("[MULTIMESH-BUILD] entities=%d groups=%d instances=%d" % [
+			stats.get("entities", 0),
+			stats.get("groups", 0),
+			stats.get("instances", 0),
+		])
 
 
 # Cached scene_cfg renderer block — read from data_root/scene.json once.
@@ -1525,6 +1570,9 @@ func _load_level(name: String) -> void:
 	# pathfind_to effect reads it from the same key.
 	if scheduler != null:
 		Pathfinding.build_navmesh_for_level(scheduler.env)
+	# Note: ADR 0041 multimesh re-batching is called by load_data() at
+	# end-of-boot AND by _do_level_transition() after the new level loads —
+	# NOT here, to avoid duplicate batching when load_data also calls.
 
 
 ## Process a queued level transition (set by transition_level effect).
@@ -1551,6 +1599,14 @@ func _do_level_transition(target: String) -> void:
 	# entities below, but the region itself must go too.
 	if scheduler != null:
 		Pathfinding.teardown_navmesh(scheduler.env)
+	# ADR 0041: free the old level's MultiMeshInstance3D nodes (per
+	# Invariant #11 — level-discontinuity engine-state cleanup audit).
+	# The corresponding entities are about to be destroyed below; the
+	# multimesh nodes are the only remaining references and would leak.
+	if _multimesh_director != null and scheduler != null:
+		var freed := _multimesh_director.cleanup(scheduler.env)
+		if verbose and freed > 0:
+			print("[MULTIMESH-CLEAR] freed %d nodes from level %s" % [freed, current_level])
 	# Remove non-persistent entities.
 	var to_remove: Array[String] = []
 	for id in entities.keys():
@@ -1582,6 +1638,9 @@ func _do_level_transition(target: String) -> void:
 	world_state["current_level"] = target
 	_load_level(target)
 	scheduler.flush_effects()
+	# ADR 0041: re-batch the new level's static decoration. Mirrors the
+	# load_data() call at boot, but for mid-session level swaps.
+	_run_multimesh_director()
 	# ADR 0010 autosave: on_level_transition. Push a save into the env's
 	# pending slot so the next process_pending_save_load picks it up.
 	# Slot 0 = autosave by convention.

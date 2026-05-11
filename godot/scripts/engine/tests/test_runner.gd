@@ -77,6 +77,7 @@ func _ready() -> void:
 	test_dynasty_primitive()
 	test_step_runner()
 	test_grid_snap()
+	test_multimesh_director()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -6836,3 +6837,124 @@ func test_grid_snap() -> void:
 		expect(abs(apos.z - 5.7) < 1e-4,
 			"exempt actor position.z preserved at 5.7")
 	world.queue_free()
+
+
+# ============================================================
+# MultiMeshDirector tests (ADR 0041)
+# ============================================================
+
+func test_multimesh_director() -> void:
+	_section("multimesh_director (ADR 0041)")
+
+	var dir := MultiMeshDirector.new()
+
+	# ---------- 1. _is_static_candidate gates ----------
+	# Actor / projectile / player tag → never static, even with zero velocity.
+	var e_actor := Entity.new()
+	e_actor.tags = ["villager", "actor"]
+	e_actor.state = {"velocity": Vector2.ZERO}
+	expect(not dir._is_static_candidate(e_actor, {}, {}),
+		"actor tag disqualifies from static batching")
+
+	var e_proj := Entity.new()
+	e_proj.tags = ["projectile"]
+	e_proj.state = {"velocity": Vector2.ZERO}
+	expect(not dir._is_static_candidate(e_proj, {}, {}),
+		"projectile tag disqualifies")
+
+	var e_player := Entity.new()
+	e_player.tags = ["player"]
+	e_player.state = {"velocity": Vector2.ZERO}
+	expect(not dir._is_static_candidate(e_player, {}, {}),
+		"player tag disqualifies")
+
+	# Non-zero velocity → not static.
+	var e_moving := Entity.new()
+	e_moving.tags = ["tree"]
+	e_moving.state = {"velocity": Vector2(1, 0)}
+	expect(not dir._is_static_candidate(e_moving, {}, {}),
+		"non-zero velocity disqualifies")
+
+	# zero_velocity_pretick flag → not static (actor-shape).
+	var e_pretick := Entity.new()
+	e_pretick.tags = ["tree"]
+	e_pretick.state = {"velocity": Vector2.ZERO, "zero_velocity_pretick": true}
+	expect(not dir._is_static_candidate(e_pretick, {}, {}),
+		"zero_velocity_pretick disqualifies")
+
+	# Static-eligible tree (no runtime tags, zero velocity, no pretick).
+	var e_tree := Entity.new()
+	e_tree.tags = ["tree", "decorative"]
+	e_tree.state = {"velocity": Vector2.ZERO}
+	expect(dir._is_static_candidate(e_tree, {}, {}),
+		"plain tree IS static-eligible")
+
+	# Tag-class disqualification: if rule mutates a field on "tree", trees
+	# are out.
+	var disq := {"tree": true}
+	expect(not dir._is_static_candidate(e_tree, {}, disq),
+		"tag in disqualified_tags set blocks static eligibility")
+
+	# ---------- 2. _scan_disqualified_tag_classes — position mutation ----------
+	# Rule that fires state_set position targeting trees → "tree" disqualified.
+	var rule_pos_mut := Rule.from_dict({
+		"id": "tree_grow",
+		"trigger": {"type": "tick", "interval": 1},
+		"query": {"tags_all": ["tree"]},
+		"effect": {"type": "state_set", "target": "self",
+				   "field": "position", "value": [0, 0, 0]},
+	})
+	var disq2 := dir._scan_disqualified_tag_classes([rule_pos_mut])
+	expect(disq2.has("tree"),
+		"rule mutating position on trees → 'tree' disqualified")
+
+	# ---------- 3. _scan_disqualified_tag_classes — non-mutation field ----------
+	# Rule mutating display_name (NOT in MUTATION_FIELDS) → tree stays eligible.
+	var rule_name_mut := Rule.from_dict({
+		"id": "tree_rename",
+		"trigger": {"type": "tick", "interval": 1},
+		"query": {"tags_all": ["tree"]},
+		"effect": {"type": "state_set", "target": "self",
+				   "field": "display_name", "value": "renamed"},
+	})
+	var disq3 := dir._scan_disqualified_tag_classes([rule_name_mut])
+	expect(not disq3.has("tree"),
+		"rule mutating non-tracked field does NOT disqualify")
+
+	# ---------- 4. velocity_set effect disqualifies ----------
+	var rule_vel_mut := Rule.from_dict({
+		"id": "wander",
+		"trigger": {"type": "tick", "interval": 1},
+		"query": {"tags_all": ["rabbit"]},
+		"effect": {"type": "velocity_set", "target": "self", "x": 1, "y": 0},
+	})
+	var disq4 := dir._scan_disqualified_tag_classes([rule_vel_mut])
+	expect(disq4.has("rabbit"),
+		"velocity_set effect on rabbits → 'rabbit' disqualified")
+
+	# ---------- 5. tag_add / tag_remove effects disqualify ----------
+	var rule_tag_mut := Rule.from_dict({
+		"id": "ignite",
+		"trigger": {"type": "tick", "interval": 1},
+		"query": {"tags_all": ["log_pile"]},
+		"effect": {"type": "tag_add", "target": "self", "tags": ["burning"]},
+	})
+	var disq5 := dir._scan_disqualified_tag_classes([rule_tag_mut])
+	expect(disq5.has("log_pile"),
+		"tag_add effect on log_piles → 'log_pile' disqualified")
+
+	# ---------- 6. _hash_params is stable ----------
+	var p1: Dictionary = {"trunk": "#5a3820", "canopy": "#2d5028"}
+	var p2: Dictionary = {"canopy": "#2d5028", "trunk": "#5a3820"}  # different insert order
+	expect_eq(dir._hash_params(p1), dir._hash_params(p2),
+		"hash_params stable across key order")
+
+	# ---------- 7. _hash_params differs for different values ----------
+	var p3: Dictionary = {"trunk": "#000000", "canopy": "#2d5028"}
+	expect(dir._hash_params(p1) != dir._hash_params(p3),
+		"hash_params differs when values differ")
+
+	# ---------- 8. cleanup() returns 0 when nothing was built ----------
+	var freed := dir.cleanup({})
+	expect_eq(freed, 0,
+		"cleanup with no built nodes returns 0")
