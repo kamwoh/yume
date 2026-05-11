@@ -75,6 +75,10 @@ var macro_expander = null
 ## for legacy demos). active_actor_id mirrored into world_state for
 ## binding readers (camera follow, input dispatch).
 var actor_manager = null
+## SpawnManager (extracted from world.gd 2026-05-11). Owns the entity
+## spawn pipeline + renderer-attach + persistent-clobber guard + grid
+## snap + renderer_cfg cache. Single public entry: `spawn(inst)`.
+var _spawn_manager: SpawnManager = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
@@ -113,6 +117,7 @@ func _ready() -> void:
 	# everywhere — backward-compat for demos with no zones file.
 	zone_store = ZoneStore.new()
 	scheduler = PhaseScheduler.new(_build_env())
+	_spawn_manager = SpawnManager.new(self)
 	if auto_start:
 		start()
 
@@ -374,12 +379,12 @@ func _load_entities_path(root: String) -> void:
 		for p in d.get("patterns", []):
 			if p is Dictionary:
 				for inst in InstancePatterns.expand(p):
-					_spawn_initial(inst)
+					_spawn_manager.spawn(inst)
 	# Phase 2: process hand-coded initial instances + relations
 	for d in dicts:
 		for inst in d.get("initial_instances", []):
 			if inst is Dictionary:
-				_spawn_initial(inst)
+				_spawn_manager.spawn(inst)
 		for rel in d.get("initial_relations", []):
 			if rel is Dictionary:
 				relations.relate(
@@ -411,11 +416,11 @@ func load_entities_file(path: String) -> void:
 	for p in d.get("patterns", []):
 		if p is Dictionary:
 			for inst in InstancePatterns.expand(p):
-				_spawn_initial(inst)
+				_spawn_manager.spawn(inst)
 	# Initial instances
 	for inst in d.get("initial_instances", []):
 		if inst is Dictionary:
-			_spawn_initial(inst)
+			_spawn_manager.spawn(inst)
 	# Initial relations
 	for rel in d.get("initial_relations", []):
 		if rel is Dictionary:
@@ -660,145 +665,18 @@ func _load_factions_file(path: String) -> void:
 		])
 
 
-func _spawn_initial(inst: Dictionary) -> void:
-	var def_id := str(inst.get("def", ""))
-	if not defs.has(def_id):
-		EngineError.raise(_build_env(), EngineError.WORLD_DEF_UNKNOWN,
-			"Unknown def: %s" % def_id,
-			{"file": "entities.json", "field": "initial_instances.def", "got": def_id, "known_defs": defs.keys()},
-			"Add a definition with id '%s' under 'definitions', or fix the typo in the instance's 'def' field." % def_id)
-		return
-	var count := int(inst.get("count", 1))
-	for i in range(count):
-		var overrides: Dictionary = (inst.get("overrides", {}) as Dictionary).duplicate(true)
-		# Accept shortcut fields at top level of initial-instance JSON
-		for sc in ["state", "position", "tags", "properties", "visual"]:
-			if inst.has(sc) and not overrides.has(sc):
-				overrides[sc] = inst[sc]
-		var inst_id := ""
-		if inst.has("id") and count == 1:
-			inst_id = str(inst["id"])
-		else:
-			inst_id = "%s_%d" % [def_id, next_id_seq["_"]]
-			next_id_seq["_"] += 1
-		# 2026-05-08: persistent-clobber guard. If an entity with this id
-		# already exists AND is tagged `persistent`, SKIP the new instance
-		# — the persistent's state must survive the level swap untouched.
-		# Without this, level entities.json that re-declare a persistent
-		# (e.g. world_clock) would overwrite carry-over state with their
-		# state_init defaults. Empirical case: merchant funeral_dismissed
-		# signal-rule failed because brookhaven's world_clock instance
-		# overwrote the persistent one, resetting current_level back to
-		# state_init's default ('level_town_pendrel') so the rule's
-		# `current_level_eq=level_brookhaven` query rejected.
-		if entities.has(inst_id):
-			var existing = entities[inst_id]
-			if existing != null and existing.has_method("has_tag") \
-					and existing.has_tag("persistent"):
-				# 2026-05-08 (refinement): the new level instance can still
-				# declare a SPAWN POSITION for the persistent. State (HP,
-				# inventory, etc.) survives the swap untouched, but the
-				# entity teleports to the new level's coords. Without this,
-				# the player stayed at pendrel coords inside the shop level
-				# → user saw pendrel through the shop wall.
-				if inst.has("position"):
-					var new_pos = inst["position"]
-					if new_pos is Array and new_pos.size() >= 2:
-						existing.set_position(new_pos)
-						if spatial_index != null:
-							spatial_index.update_entity(inst_id, existing.get_planar_position())
-						print("[PERSIST-TELEPORT] '", inst_id,
-							"' to ", new_pos, " (new level spawn position)")
-					else:
-						print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
-							"' (no valid position in new instance)")
-				else:
-					print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
-						"' instead of overwriting from level data")
-				continue
-		var ent := Entity.create(defs[def_id], inst_id, overrides)
-		# ADR 0038: snap initial position + yaw to grid IF
-		#   (a) scene.json declares a `grid` block (env.scene_grid non-empty),
-		#   (b) grid.snap_initial != false (default true),
-		#   (c) the def's tags don't intersect grid.exempt_tags.
-		# Drift warning fires when authored position is >0.1 * grid.size from
-		# the nearest cell (Condition C3 Gate B — surfaces source-JSON drift
-		# in QA logs without a separate static validator).
-		_load_grid_cfg()
-		if not _grid_cfg.is_empty() and bool(_grid_cfg.get("snap_initial", true)):
-			var snap_env := {"scene_grid": _grid_cfg}
-			if GridSnap.should_snap(defs[def_id], snap_env):
-				var p = ent.state.get("position", null)
-				# Drift warning is verbose-mode only — fires per-entity in QA
-				# logs (yume-qa-tester runs verbose=true), suppressed during
-				# normal play. Snap result is identical either way.
-				if p is Vector3:
-					if verbose:
-						ent.state["position"] = GridSnap.snap_position_with_drift_check(
-							p, snap_env, inst_id)
-					else:
-						ent.state["position"] = GridSnap.snap_position(p, snap_env)
-				elif p is Vector2:
-					ent.state["position"] = GridSnap.snap_position_2d(p, snap_env)
-				if ent.state.has("yaw"):
-					ent.state["yaw"] = GridSnap.snap_yaw(
-						float(ent.state["yaw"]), snap_env)
-		entities[inst_id] = ent
-		add_child(ent)
-		_attach_renderer(ent)
-		# Register in spatial index at initial position
-		if spatial_index != null:
-			spatial_index.update_entity(inst_id, ent.get_planar_position())
-
-
-## Attach a renderer child to an entity, if `renderer_script` is set.
-## No-op for headless/test runs that set it to "".
-func _attach_renderer(ent: Entity) -> void:
-	if renderer_script == "": return
-	# Honor `visual.hidden=true` — entities with no visual representation
-	# (singletons like clocks, score trackers, world state holders). Without
-	# this, the renderer falls through to the default colored-box and the
-	# entity shows as a pink/grey square at its position. Empirically caught
-	# during towerdef3d capture (2026-05-03).
-	if bool((ent.visual as Dictionary).get("hidden", false)): return
-	# `visual.hide_for_camera_attach=true` is now a SHADOW-ONLY flag, not
-	# a skip. The renderer reads it and applies SHADOW_CASTING_SETTING_
-	# SHADOWS_ONLY to its mesh children — the mesh disappears from the
-	# viewer's camera but still casts a shadow on the ground. Doom/CSGO
-	# pattern: viewer sees only the viewmodel hand/weapon, but their
-	# shadow on the floor reveals their full body. (Empirically caught
-	# during doomarena3d 2026-05-04 playtest: "i see only gun shadow.")
-	var script := load(renderer_script)
-	if script == null: return
-	var node = script.new()
-	if node is Node:
-		# Allow per-game override of renderer's position_scale (and similar
-		# exported props) via scene.json's `renderer` block. Tier 2.6q —
-		# fpsgarden authors in world units (radius 13 = 13 meters) and
-		# needs position_scale=1; existing 2D demos use the default 0.05
-		# (200 pixels → 10 world units).
-		_apply_renderer_overrides(node)
-		ent.add_child(node)
 
 
 # ADR 0041 — bootstrap the multimesh director (lazy-init on first use).
-# Reads renderer.position_scale from scene.json (default 0.05) and
-# passes World as parent so MultiMeshInstance3D nodes sit at world scope.
+# Reads renderer.position_scale from SpawnManager's renderer_cfg cache
+# (default 0.05) and passes World as parent so MultiMeshInstance3D nodes
+# sit at world scope. The cache is owned by SpawnManager (extracted
+# 2026-05-11) — multimesh reads it as a consumer.
 func _ensure_multimesh_director() -> MultiMeshDirector:
 	if _multimesh_director != null: return _multimesh_director
 	_multimesh_director = MultiMeshDirector.new()
-	# Mirror renderer's position_scale (default 0.05 unless scene.json
-	# overrides). Force-populate _renderer_cfg by triggering its lazy load.
-	if not _renderer_cfg_loaded:
-		_renderer_cfg_loaded = true
-		var scene_path: String = data_root.rstrip("/") + "/scene.json"
-		if FileAccess.file_exists(scene_path):
-			var f := FileAccess.open(scene_path, FileAccess.READ)
-			var data = JSON.parse_string(f.get_as_text())
-			if data is Dictionary:
-				var cfg = (data as Dictionary).get("renderer", {})
-				if cfg is Dictionary: _renderer_cfg = cfg
-	var ps: float = float(_renderer_cfg.get("position_scale", 0.05))
+	var cfg: Dictionary = _spawn_manager.renderer_cfg() if _spawn_manager != null else {}
+	var ps: float = float(cfg.get("position_scale", 0.05))
 	_multimesh_director.configure(self, ps)
 	return _multimesh_director
 
@@ -818,23 +696,6 @@ func _run_multimesh_director() -> void:
 		])
 
 
-# Cached scene_cfg renderer block — read from data_root/scene.json once.
-var _renderer_cfg_loaded: bool = false
-var _renderer_cfg: Dictionary = {}
-func _apply_renderer_overrides(node) -> void:
-	if not _renderer_cfg_loaded:
-		_renderer_cfg_loaded = true
-		var scene_path: String = data_root.rstrip("/") + "/scene.json"
-		if FileAccess.file_exists(scene_path):
-			var f := FileAccess.open(scene_path, FileAccess.READ)
-			var data = JSON.parse_string(f.get_as_text())
-			if data is Dictionary:
-				var cfg = (data as Dictionary).get("renderer", {})
-				if cfg is Dictionary: _renderer_cfg = cfg
-	for k in _renderer_cfg.keys():
-		# Only set props the renderer actually exposes
-		if node.get(str(k)) != null or k in node:
-			node.set(str(k), _renderer_cfg[k])
 
 
 # ============================================================
@@ -1081,7 +942,7 @@ func _apply_saved_entities(records: Array) -> void:
 				(ent as Entity).set_state(str(k), state_in[k])
 		else:
 			# Spawn from def
-			_spawn_initial({
+			_spawn_manager.spawn({
 				"def": def_id, "id": inst_id,
 				"position": pos, "state": state_in,
 			})
@@ -1865,6 +1726,6 @@ func _build_env() -> Dictionary:
 		# fine — backward-compat for demos with no world/zones.json).
 		"zone_store": zone_store,
 		# ADR 0038: grid config (empty dict = grid disabled). Step runner +
-		# build_place + _spawn_initial all read this via GridSnap helpers.
+		# build_place + SpawnManager.spawn all read this via GridSnap helpers.
 		"scene_grid": _grid_cfg,
 	}

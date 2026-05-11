@@ -6814,7 +6814,7 @@ func test_grid_snap() -> void:
 	world.relations = RelationStore.new()
 	world.world_state = {}
 	# Spawn via initial-instance dict (mirrors what world.gd does at load).
-	world._spawn_initial({"def": "snap_test_def", "id": "snap_inst_1"})
+	world._spawn_manager.spawn({"def": "snap_test_def", "id": "snap_inst_1"})
 	var spawned: Entity = world.entities.get("snap_inst_1", null)
 	expect(spawned != null, "initial_instances: entity spawned")
 	if spawned != null:
@@ -6827,7 +6827,7 @@ func test_grid_snap() -> void:
 		"tags": ["actor"],          # exempt by default
 		"state_init": {"position": Vector3(5.7, 0, 5.7)},
 	}
-	world._spawn_initial({"def": "snap_test_actor", "id": "snap_actor_1"})
+	world._spawn_manager.spawn({"def": "snap_test_actor", "id": "snap_actor_1"})
 	var actor: Entity = world.entities.get("snap_actor_1", null)
 	expect(actor != null, "exempt actor entity spawned")
 	if actor != null:
