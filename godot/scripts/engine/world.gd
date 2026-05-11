@@ -83,6 +83,10 @@ var _spawn_manager: SpawnManager = null
 ## Owns ADR 0006 multi-level pipeline: process_pending(env),
 ## do_transition(target), load_level(name).
 var _level_transitions: LevelTransitionCoordinator = null
+## SaveLoadCoordinator (extracted from world.gd 2026-05-12). Owns
+## ADR 0010 save/load pipeline: process_pending(env), do_save(slot),
+## do_load(slot).
+var _save_load: SaveLoadCoordinator = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
@@ -123,6 +127,7 @@ func _ready() -> void:
 	scheduler = PhaseScheduler.new(_build_env())
 	_spawn_manager = SpawnManager.new(self)
 	_level_transitions = LevelTransitionCoordinator.new(self)
+	_save_load = SaveLoadCoordinator.new(self)
 	if auto_start:
 		start()
 
@@ -264,7 +269,7 @@ func load_data() -> void:
 	save_policy = SaveState.load_policy(root)
 	if not save_policy.is_empty():
 		var slots := int(save_policy.get("slots", 1))
-		world_state["has_save"] = 1 if SaveState.has_any_save(_game_name(), slots) else 0
+		world_state["has_save"] = 1 if SaveState.has_any_save(SaveLoadCoordinator.game_name_from_root(data_root), slots) else 0
 	else:
 		world_state["has_save"] = 0
 	# ADR 0013: now that scheduler + env are built, run SettingsManager's
@@ -729,7 +734,7 @@ func _on_tick(count: int) -> void:
 		# freeze_world screen can swap the level (ScreenFlow buttons fire
 		# transition_level via shell_event_buffer; GameShell drives the
 		# fade + queues _pending_level_transition; this runs the swap).
-		process_pending_save_load()
+		_save_load.process_pending(scheduler.env)
 		_level_transitions.process_pending(scheduler.env)
 		return
 	advance_one_tick()
@@ -802,7 +807,7 @@ func advance_one_tick() -> void:
 	# the post-stream current_chunk). No-op when chunk_streamer is null
 	# (single-chunk legacy mode).
 	process_chunk_streaming()
-	process_pending_save_load()
+	_save_load.process_pending(scheduler.env)
 	# ADR 0016: switch_actor takes effect at next tick boundary. We process
 	# AFTER scheduler.tick() so the current tick's rules saw the OLD
 	# active_actor; the next tick's input phase will see the NEW one.
@@ -811,155 +816,6 @@ func advance_one_tick() -> void:
 	# without scene reload. Processed after other deferred ops so any
 	# in-flight save/load completes before the reset wipes state.
 	process_pending_world_reset()
-
-
-## ADR 0010: process pending save/load between ticks. Same deferred pattern
-## as level transitions — keeps save atomic relative to the simulation
-## (capture stable post-tick state, never mid-rule).
-##
-## On save: serialize via SaveState.save_to_slot, refresh has_save binding,
-## emit a toast for UI confirmation if a screen is active.
-##
-## On load: read the slot, refuse on version mismatch, then re-init the
-## world (reload data) and overlay saved state. v1 takes the "easy"
-## approach: re-load all entities/rules from disk, then apply the saved
-## world_state + saved persistent_entities (overwriting their reloaded
-## defaults). Persistent entities not in the save are left at default.
-func process_pending_save_load() -> void:
-	var env: Dictionary = scheduler.env
-	# Save first (so a save+load in same frame still saves the pre-load state)
-	var pending_save = env.get("_pending_save", null)
-	if pending_save != null and pending_save is int:
-		env.erase("_pending_save")
-		_do_save(int(pending_save))
-	var pending_load = env.get("_pending_load", null)
-	if pending_load != null and pending_load is int:
-		env.erase("_pending_load")
-		_do_load(int(pending_load))
-
-
-func _do_save(slot: int) -> void:
-	if save_policy.is_empty():
-		EngineError.raise(scheduler.env, EngineError.RULE_FILE_MISSING,
-			"save_state effect fired but no save_policy.json present",
-			{"slot": slot},
-			"Add data/<game>/save_policy.json to opt in to persistence.",
-			"warning")
-		return
-	var tick_n := _clock.tick_count if _clock != null else 0
-	var ok := SaveState.save_to_slot(scheduler.env, save_policy, slot, _game_name(), tick_n)
-	if ok:
-		# Refresh has_save so menus update immediately
-		var slots := int(save_policy.get("slots", 1))
-		world_state["has_save"] = 1 if SaveState.has_any_save(_game_name(), slots) else 0
-		if verbose:
-			print("[World] saved slot %d" % slot)
-	else:
-		push_warning("[World] save to slot %d failed" % slot)
-
-
-func _do_load(slot: int) -> void:
-	if save_policy.is_empty():
-		push_warning("load_state effect fired but no save_policy.json present")
-		return
-	var result: Dictionary = SaveState.read_slot(_game_name(), slot, save_policy)
-	if not bool(result.get("ok", false)):
-		var err := str(result.get("error", "unknown"))
-		push_warning("[World] load slot %d failed: %s" % [slot, err])
-		return
-	var payload: Dictionary = result["payload"]
-	# Apply saved world_state (replaces, doesn't merge — persisted keys are
-	# the source of truth on load)
-	var ws_in: Dictionary = payload.get("world_state", {}) as Dictionary
-	for k in ws_in.keys():
-		world_state[str(k)] = ws_in[k]
-	# Reload current_level if it changed (re-spawns the level's entities)
-	# AFTER state apply so the level loader sees the saved current_level.
-	var saved_level := str(world_state.get("current_level", current_level))
-	if saved_level != "" and saved_level != current_level:
-		_level_transitions.do_transition(saved_level)
-	# ADR 0014: restore current_chunk if the save came from chunked-world
-	# mode. Re-anchor the streamer at the saved chunk; the next tick's
-	# update() will load the right neighbors. We unload everything first
-	# so transient chunks from the starting_chunk boot don't linger.
-	if chunk_streamer != null and payload.has("current_chunk"):
-		var cc = payload["current_chunk"]
-		if cc is Array and (cc as Array).size() >= 2:
-			var saved_chunk := Vector2i(int(cc[0]), int(cc[1]))
-			_apply_saved_chunk(saved_chunk)
-	# ADR 0031: restore zone state. Zones in save but absent from current
-	# zones.json are dropped silently (forgiveness). Zones present in zones.json
-	# but absent from save retain their state_init defaults.
-	SaveState.restore_zone_state(_build_env(), payload)
-	# Apply saved persistent entities (overwrite the level's defaults)
-	_apply_saved_entities(payload.get("persistent_entities", []))
-	# Apply saved relations (additive — relations from level are kept,
-	# saved ones added; redundant relate() calls are no-ops in
-	# RelationStore)
-	var rels = payload.get("relations", [])
-	if rels is Array:
-		for r in rels:
-			if r is Dictionary:
-				relations.relate(
-					str(r.get("type", "")),
-					str(r.get("from", "")),
-					str(r.get("to", "")),
-				)
-	if verbose:
-		print("[World] loaded slot %d (tick was %d)" % [slot, int((payload.get("_meta", {}) as Dictionary).get("tick", -1))])
-
-
-## ADR 0014: re-anchor chunk_streamer at a saved chunk. Despawns all
-## currently-loaded transient chunks (they came from the starting_chunk
-## boot above), reseats current_chunk on the streamer, and triggers a
-## fresh load around the saved coord. Persistent entities are untouched.
-func _apply_saved_chunk(saved_chunk: Vector2i) -> void:
-	if chunk_streamer == null: return
-	var env := _build_env()
-	# Unload every transient chunk loaded by boot()
-	for c in chunk_streamer.loaded_chunks().duplicate():
-		chunk_streamer._unload_chunk(c, env)
-	# Reset internal state to force a reload around the saved chunk
-	chunk_streamer.current_chunk = saved_chunk
-	chunk_streamer.starting_chunk = saved_chunk
-	chunk_streamer.boot(env)
-	world_state["current_chunk"] = [saved_chunk.x, saved_chunk.y]
-
-
-## Apply a saved persistent_entities array. For each record:
-##   - if an entity with that id exists, update its position + state
-##   - if not, spawn from def at saved position with saved state
-## Either way, ensure the entity carries the persistent tag.
-func _apply_saved_entities(records: Array) -> void:
-	for r in records:
-		if not (r is Dictionary): continue
-		var rec: Dictionary = r
-		var inst_id := str(rec.get("id", ""))
-		var def_id := str(rec.get("def", ""))
-		if inst_id == "" or def_id == "": continue
-		var pos = rec.get("position", null)
-		var state_in: Dictionary = rec.get("state", {}) as Dictionary
-		var ent = entities.get(inst_id, null)
-		if ent != null and ent is Entity:
-			# Existing — overwrite position + state
-			(ent as Entity).set_position(pos)
-			for k in state_in.keys():
-				(ent as Entity).set_state(str(k), state_in[k])
-		else:
-			# Spawn from def
-			_spawn_manager.spawn({
-				"def": def_id, "id": inst_id,
-				"position": pos, "state": state_in,
-			})
-
-
-## Resolve the data_root's basename for save namespacing.
-## "res://data/demo_sokoban" → "demo_sokoban".
-func _game_name() -> String:
-	var s := data_root.rstrip("/")
-	var slash := s.rfind("/")
-	if slash < 0: return s
-	return s.substr(slash + 1)
 
 
 ## ADR 0014: per-tick chunk streaming. Resolves the active actor's planar
@@ -1117,7 +973,7 @@ func _do_world_reset() -> void:
 	# clears in-memory state. has_save remains accurate.
 	if not save_policy.is_empty():
 		var slots := int(save_policy.get("slots", 1))
-		world_state["has_save"] = 1 if SaveState.has_any_save(_game_name(), slots) else 0
+		world_state["has_save"] = 1 if SaveState.has_any_save(SaveLoadCoordinator.game_name_from_root(data_root), slots) else 0
 	# 5. Refresh active_actor_id mirror (ActorManager state untouched).
 	if actor_manager != null:
 		world_state["active_actor_id"] = actor_manager.active_actor_id
