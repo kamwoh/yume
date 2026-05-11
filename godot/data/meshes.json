@@ -162,6 +162,77 @@
       }
     },
 
+    "rabbit_3d": {
+      "_comment": "Tiny quadruped — 0.35m tall × 0.4m long. Round white-tail back, small head, two pointy ears. Reads as rabbit at a glance vs other ground props.",
+      "primitives": [
+        {"op": "sphere",   "pos": [-0.1, 0.15, 0.0], "radius": 0.15, "color": "$body"},
+        {"op": "sphere",   "pos": [ 0.15, 0.20, 0.0], "radius": 0.10, "color": "$body"},
+        {"op": "cylinder", "pos": [ 0.16, 0.34, -0.04], "radius": 0.018, "height": 0.12, "color": "$ear"},
+        {"op": "cylinder", "pos": [ 0.16, 0.34,  0.04], "radius": 0.018, "height": 0.12, "color": "$ear"},
+        {"op": "sphere",   "pos": [-0.22, 0.16, 0.0], "radius": 0.06, "color": "$tail"}
+      ],
+      "params": {
+        "body": "#d8c8a0",
+        "ear": "#a8987a",
+        "tail": "#f8f0e0"
+      }
+    },
+
+    "berry_bush_3d": {
+      "_comment": "Dome shrub with red berries. Green canopy + 5 red berry dots. ~0.7m tall × 1m wide. Reads as 'food shrub' from a distance.",
+      "primitives": [
+        {"op": "sphere", "pos": [ 0.0,  0.35, 0.0],  "radius": 0.45, "color": "$leaf"},
+        {"op": "sphere", "pos": [ 0.25, 0.42, 0.1],  "radius": 0.30, "color": "$leaf_dark"},
+        {"op": "sphere", "pos": [-0.25, 0.42, -0.1], "radius": 0.30, "color": "$leaf_dark"},
+        {"op": "sphere", "pos": [ 0.18, 0.60,  0.18],"radius": 0.06, "color": "$berry"},
+        {"op": "sphere", "pos": [-0.20, 0.55, -0.20],"radius": 0.06, "color": "$berry"},
+        {"op": "sphere", "pos": [ 0.05, 0.68,  0.10],"radius": 0.06, "color": "$berry"},
+        {"op": "sphere", "pos": [-0.10, 0.45,  0.25],"radius": 0.05, "color": "$berry"},
+        {"op": "sphere", "pos": [ 0.30, 0.50, -0.15],"radius": 0.05, "color": "$berry"}
+      ],
+      "params": {
+        "leaf": "#487830",
+        "leaf_dark": "#385828",
+        "berry": "#c8283a"
+      }
+    },
+
+    "mushroom_patch_3d": {
+      "_comment": "Cluster of 4 small brown mushrooms — stem cylinders + dome cap spheres. ~0.4m tall × 0.5m spread. Subdued earth-tone so the BRIGHT red_mushroom variant stands out by contrast.",
+      "primitives": [
+        {"op": "cylinder", "pos": [ 0.0,  0.10, 0.0],  "radius": 0.04, "height": 0.20, "color": "$stem"},
+        {"op": "sphere",   "pos": [ 0.0,  0.24, 0.0],  "radius": 0.12, "color": "$cap"},
+        {"op": "cylinder", "pos": [ 0.18, 0.08, 0.10], "radius": 0.03, "height": 0.16, "color": "$stem"},
+        {"op": "sphere",   "pos": [ 0.18, 0.20, 0.10], "radius": 0.09, "color": "$cap"},
+        {"op": "cylinder", "pos": [-0.15, 0.07, 0.12], "radius": 0.03, "height": 0.14, "color": "$stem"},
+        {"op": "sphere",   "pos": [-0.15, 0.18, 0.12], "radius": 0.08, "color": "$cap"},
+        {"op": "cylinder", "pos": [-0.08, 0.06, -0.15],"radius": 0.025, "height": 0.12, "color": "$stem"},
+        {"op": "sphere",   "pos": [-0.08, 0.16, -0.15],"radius": 0.07, "color": "$cap_dark"}
+      ],
+      "params": {
+        "stem": "#d8c8a0",
+        "cap": "#8a6840",
+        "cap_dark": "#6a4828"
+      }
+    },
+
+    "red_mushroom_3d": {
+      "_comment": "SINGLE distinctive red-cap mushroom — bigger than patch siblings so the player notices it. Pale stem + bright red cap with white dots. ~0.5m tall × 0.4m wide. Used by food_red_mushroom (Three Days to Eat hidden rule).",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.15, 0],     "radius": 0.07, "height": 0.30, "color": "$stem"},
+        {"op": "sphere",   "pos": [0, 0.38, 0],     "radius": 0.22, "color": "$cap"},
+        {"op": "sphere",   "pos": [ 0.12, 0.46, 0.08],  "radius": 0.04, "color": "$dot"},
+        {"op": "sphere",   "pos": [-0.10, 0.50, -0.06], "radius": 0.04, "color": "$dot"},
+        {"op": "sphere",   "pos": [ 0.05, 0.55, 0.10],  "radius": 0.035, "color": "$dot"},
+        {"op": "sphere",   "pos": [-0.08, 0.42, 0.15],  "radius": 0.035, "color": "$dot"}
+      ],
+      "params": {
+        "stem": "#f0e8d0",
+        "cap": "#d02828",
+        "dot": "#f8f4e8"
+      }
+    },
+
     "log_pile_3d": {
       "_comment": "Stacked split logs — 3-row pyramid. Bottom row 4 logs, middle row 3, top row 2. ~1.6m wide × 0.9m tall × 0.45m deep. Boxes rather than cylinders because the mesh primitive only does Y-axis cylinders (logs are horizontal). Light/dark wood color alternation gives stack texture.",
       "primitives": [
