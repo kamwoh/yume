@@ -2591,28 +2591,23 @@ When to do: next time a game's decoration density crosses ~200
 static entities. Aldenmere is already past that line, so this is
 worth doing before Phase 2 rolls out.
 
-### Future ADR: procedural-generation primitives (deferred 2026-05-11)
+### Future ADR: procedural-generation primitives (umbrella ADR 0042 drafted 2026-05-11)
 
-Current placement layer (`instance_patterns.gd`) supports scatter /
-cluster / ring / grid / line / mirror with `level_seed` determinism
-— sufficient for "scatter 40 trees" or "ring of 8 cover pillars."
+**Status update 2026-05-11**: umbrella ADR 0042 landed
+(`docs/adr/0042-procedural-generation-primitives.md`),
+tech-director-reviewed, status `proposed (accept-with-conditions)`.
+Engine session deferred until a game pitch explicitly needs it.
 
-Not yet supported (would need new ADR(s)):
+The umbrella declares the three implementable sibling ADRs:
 
-- **Terrain heightmap / noise biomes** — ground is a flat plane;
-  no Perlin/Simplex, no per-tile generation. A `terrain` primitive
-  with `noise: {seed, scale, octaves}` + per-height-range tile
-  defs would let games procedurally generate forest/plains/coast
-  biomes.
-- **Room / dungeon layout generation** — Sokoban + merchant
-  dungeons are hand-authored ASCII diagrams. No BSP / Wave
-  Function Collapse / random-walk room generation. Would unblock
-  proper roguelike floor variation.
-- **Infinite/streaming procedural worlds** — `chunk_streamer.gd`
-  streams PRE-AUTHORED chunks. A "generate chunk on first visit"
-  hook + persistent-seed-per-chunk would let games author a
-  generator function instead of every chunk explicitly.
+- **ADR 0043** — Terrain noise primitive (terrain heightmap +
+  biome zones via zone_store; integrates with scatter
+  `place_on_terrain` for forest slopes)
+- **ADR 0044** — Streaming procgen extension (extends
+  `chunk_streamer.gd` to generate chunks on first visit)
+- **ADR 0045** — Dungeon layout generation (BSP / WFC / random-walk
+  room generation for roguelikes)
 
-Priority: low for current pipeline (no demo needs it). Revisit if a
-game pitch explicitly requires "different map every run" or
-"infinite world." Each is ~1 week of engine work + an ADR.
+Implementation trigger: a game pitch arrives that EXPLICITLY needs
+the primitive, OR the user requests starting a procedural-content
+game. Until then the umbrella serves as a validated waiting spec.
