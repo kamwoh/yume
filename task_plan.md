@@ -2552,6 +2552,45 @@ once the lib catalogs flesh out.
 - Per-named-regular loyalty tracking in sale rule
 - Camera-lerp post-transition rule (juice-designer's transition-feel)
 
+### Future ADR: MultiMeshInstance3D for static decoration (deferred 2026-05-11)
+
+Empirical case: Aldenmere Three Days to Eat with ~480 entities (211
+trees + 250 grass + decoration) created ~3000 MeshInstance3D nodes
+in the scene tree, each costing its own draw call. User-perceived
+slowdown surfaced during demo recording.
+
+Cheap mitigations applied immediately (committed):
+- `cast_shadow: false` on grass / cloud / bird mesh defs (halves draw
+  cost per cull, since shadow pass is skipped). New engine support:
+  mesh-def-level + per-primitive `cast_shadow` flag in
+  `mesh_lib.gd::build_primitives_into`.
+- Scatter counts reduced ~60% (211 trees → 84, 250 grass → 100).
+
+The real optimization (~10× speedup) is **MultiMeshInstance3D**: per
+static mesh-type, one mesh + N transforms in one draw call regardless
+of N. Engine work needed:
+
+1. At world load, group entities by `(mesh_id, static-vs-dynamic)`.
+   "Static" = entity has no rule mutating position/scale/yaw + no
+   `state.velocity`. Trees, grass, rocks, props qualify.
+2. For each static group: build one `MultiMeshInstance3D` with one
+   instance per entity; per-instance transform reads from the entity's
+   position/scale/yaw at spawn time.
+3. Skip per-entity `MeshInstance3D` for static entities (visual lives
+   in the MultiMesh; Entity stays for game logic + collision AABB).
+4. If a "static" entity later becomes dynamic (state.scale changes,
+   tick rule sets velocity, etc.), promote it back to its own
+   MeshInstance3D and remove from the MultiMesh.
+
+Scope: ~2-3 days engine work. Universal benefit — any Yume game with
+dense decoration (forests, crowds, particle-like prop scatter) wins
+in proportion to its density. Frame-time profiler under Godot 4.6's
+Performance Monitor will quantify the gain before/after.
+
+When to do: next time a game's decoration density crosses ~200
+static entities. Aldenmere is already past that line, so this is
+worth doing before Phase 2 rolls out.
+
 ### Future ADR: procedural-generation primitives (deferred 2026-05-11)
 
 Current placement layer (`instance_patterns.gd`) supports scatter /

@@ -216,7 +216,8 @@
     },
 
     "bird_3d": {
-      "_comment": "Small bird — central body + 2 wing boxes that flap. ~0.3m wingspan. Wings rotate around their Z axis to read as flapping. Body alone is a tiny sphere so the wings dominate the silhouette.",
+      "_comment": "Small bird — central body + 2 wing boxes that flap. ~0.3m wingspan. Wings rotate around their Z axis to read as flapping. Body alone is a tiny sphere so the wings dominate the silhouette. cast_shadow:false — tiny entity at high altitude, shadow invisible.",
+      "cast_shadow": false,
       "primitives": [
         {"op": "sphere",   "name": "body",      "pos": [0, 0, 0],       "radius": 0.05, "color": "$body"},
         {"op": "box",      "name": "left_wing", "pos": [-0.12, 0, 0],   "size": [0.18, 0.02, 0.10], "color": "$body"},
@@ -241,7 +242,8 @@
     },
 
     "cloud_3d": {
-      "_comment": "Puffy cloud — 4 overlapping white spheres. ~5m wide, drifts slowly via velocity. Per-instance scale via state.scale lets some clouds be bigger (3x) for variety.",
+      "_comment": "Puffy cloud — 4 overlapping white spheres. ~5m wide, drifts slowly via velocity. Per-instance scale via state.scale lets some clouds be bigger (3x) for variety. cast_shadow:false — clouds at y=30 wouldn't render meaningful ground shadows anyway and the cost is wasted.",
+      "cast_shadow": false,
       "primitives": [
         {"op": "sphere", "pos": [ 0.0, 0.0, 0.0],  "radius": 1.6, "color": "$fluff"},
         {"op": "sphere", "pos": [ 1.4, 0.2, 0.3],  "radius": 1.2, "color": "$fluff"},
@@ -387,7 +389,8 @@
     },
 
     "grass_tuft_3d": {
-      "_comment": "Tiny grass tuft — 3 angled blades on a small base. 0.3m wide × 0.4m tall. Scatter densely across village floor for ground texture; reads as 'this isn't bare earth.'",
+      "_comment": "Tiny grass tuft — 3 angled blades on a small base. 0.3m wide × 0.4m tall. Scatter densely across village floor for ground texture; reads as 'this isn't bare earth.' cast_shadow:false — at this size shadow contribution is invisible, but each tuft shadow costs as much as its color pass.",
+      "cast_shadow": false,
       "primitives": [
         {"op": "box", "pos": [ 0.0, 0.07, 0.0], "size": [0.05, 0.30, 0.04], "color": "$blade"},
         {"op": "box", "pos": [ 0.08, 0.05, 0.0], "size": [0.04, 0.22, 0.04], "color": "$blade"},

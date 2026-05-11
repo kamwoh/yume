@@ -25,6 +25,7 @@ var _mode: String = "bare"
 # Mesh-mode state
 var _mesh_primitives: Array = []
 var _mesh_params: Dictionary = {}
+var _mesh_cast_shadow: bool = true
 
 # Entity reference + position sync
 var _entity_ref: Entity = null
@@ -73,6 +74,7 @@ func _ready() -> void:
 				mesh_def,
 				(visual.get("params", {}) as Dictionary)
 			)
+			_mesh_cast_shadow = bool(mesh_def.get("cast_shadow", true))
 			_build_mesh_children()
 			# ADR 0035 — instantiate animation director if mesh def declares
 			# animations. Returns null for static meshes (backwards-compat).
@@ -184,7 +186,11 @@ func _sync_yaw() -> void:
 
 func _build_mesh_children() -> void:
 	# Shared helper — same primitive vocabulary used by game_shell viewmodels.
-	MeshLib.build_primitives_into(self, _mesh_primitives, _mesh_params)
+	# Mesh-def `cast_shadow: false` (default true) propagates as the default
+	# for every primitive — per-primitive overrides still win. Used to skip
+	# the shadow pass on grass / clouds / distant decoration where the
+	# shadow contribution costs more than it visually adds.
+	MeshLib.build_primitives_into(self, _mesh_primitives, _mesh_params, _mesh_cast_shadow)
 
 
 # ============================================================

@@ -67,7 +67,12 @@ static func merge_params(mesh_def: Dictionary, instance_params: Dictionary) -> D
 ## mesh-primitive vocabulary, different host nodes). Centralizes the
 ## op-dispatch so adding a new primitive (e.g. arrow, ring) only needs
 ## one change here.
-static func build_primitives_into(parent: Node3D, primitives: Array, params: Dictionary) -> void:
+##
+## `cast_shadow_default` applies to every primitive unless the primitive
+## itself has `"cast_shadow": <bool>`. Used to skip shadows on cheap
+## decoration (grass, clouds) — each shadow-caster roughly doubles draw
+## cost (one pass for color, one for the shadow map).
+static func build_primitives_into(parent: Node3D, primitives: Array, params: Dictionary, cast_shadow_default: bool = true) -> void:
 	for p in primitives:
 		if not (p is Dictionary): continue
 		var op := str(p.get("op", ""))
@@ -134,6 +139,12 @@ static func build_primitives_into(parent: Node3D, primitives: Array, params: Dic
 		# AnimationDirector via parent.find_child(piece_name, ...).
 		if p.has("name"):
 			mi.name = str(p["name"])
+		# Perf: per-primitive cast_shadow override; mesh-def default applies
+		# when absent. Off skips this MeshInstance3D in the shadow pass —
+		# roughly halves its draw cost. Use on grass / clouds / distant decoration.
+		var cs: bool = bool(p.get("cast_shadow", cast_shadow_default))
+		if not cs:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		parent.add_child(mi)
 
 
