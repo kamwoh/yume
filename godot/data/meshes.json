@@ -302,7 +302,8 @@
         }
       },
       "animation_state_rules": [
-        {"if_velocity_gt": 0.2, "state": "walk"},
+        {"_comment_threshold": "0.5 chosen 2026-05-11 after observing wander + schedule attractors emit ~0.25 m/s near-target velocities that kept walk firing perpetually. 0.5 = brisk-walk minimum; idle below.",
+         "if_velocity_gt": 0.5, "state": "walk"},
         {"default": "idle"}
       ]
     },
