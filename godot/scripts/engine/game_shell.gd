@@ -139,6 +139,11 @@ func _process(delta: float) -> void:
 		if Input.is_key_label_pressed(KEY_ESCAPE) or Input.is_key_label_pressed(KEY_Q):
 			get_tree().quit()
 		return
+	# Game-level pipelines (owned by GameShell since 2026-05-12 per the
+	# "world = sim, game_shell = game" principle). Drain FIRST each frame —
+	# pending save/load/transition/reset effects queued by rules need to
+	# apply before any UI binding refresh.
+	_drain_game_pipelines()
 	_handle_pause_input()
 	_update_camera_follow()
 	_update_bound_elements()
@@ -147,6 +152,35 @@ func _process(delta: float) -> void:
 	_update_shake_and_flash()
 	_update_fade(delta)
 	_check_win_lose()
+
+
+## Drain game-level pending pipelines (level transition, save/load,
+## world reset). These were previously called from world.gd::_on_tick,
+## moved to GameShell._process on 2026-05-12 per the principle "world
+## handles entities + actions (sim), game_shell handles game stuff."
+##
+## Runs every frame regardless of freeze — this is the intentional
+## behavior so "Save" / "Travel" / "New Game" buttons on freeze-world
+## screens (pause menu, title screen, dialog modals) still work.
+## Per Invariant #10's audit: save/level always drained under freeze;
+## reset now joins them (was previously "unclear — needs audit",
+## resolved by alignment).
+##
+## Ordering matters: level FIRST (most disruptive), save SECOND (may
+## need to capture post-level state), reset LAST (wipes everything).
+func _drain_game_pipelines() -> void:
+	if _world == null:
+		return
+	var sched = _world.get("scheduler")
+	if sched == null or sched.env == null:
+		return
+	var env: Dictionary = sched.env
+	if _world._level_transitions != null:
+		_world._level_transitions.process_pending(env)
+	if _world._save_load != null:
+		_world._save_load.process_pending(env)
+	if _world._world_reset != null:
+		_world._world_reset.process_pending(env)
 
 
 ## ESC handling. First press: release captured mouse (so user can click

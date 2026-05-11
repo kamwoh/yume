@@ -733,13 +733,12 @@ func _on_tick(count: int) -> void:
 	var freeze := int(world_state.get("screen_freeze_world", 0)) != 0
 	freeze = freeze or int(world_state.get("overlay_freeze_world", 0)) != 0
 	if freeze:
-		# Still process pending save/load so a "Save" button in pause works,
-		# AND pending level transitions so a "New Game / Travel" button on a
-		# freeze_world screen can swap the level (ScreenFlow buttons fire
-		# transition_level via shell_event_buffer; GameShell drives the
-		# fade + queues _pending_level_transition; this runs the swap).
-		_save_load.process_pending(scheduler.env)
-		_level_transitions.process_pending(scheduler.env)
+		# Game-level pipelines (save/load, level transitions, world reset)
+		# drain in GameShell._process — runs at frame rate regardless of
+		# freeze, so "Save" / "Travel" / "New Game" buttons on freeze
+		# screens still work. This _on_tick early-return just suppresses
+		# the SIM tick. (Pipeline ownership moved 2026-05-12 per the
+		# "world = sim, game_shell = game" principle.)
 		return
 	advance_one_tick()
 	if verbose and count % 4 == 0:
@@ -805,21 +804,16 @@ func advance_one_tick() -> void:
 	if lc_dir2 != null and lc_dir2.has_method("tick"):
 		lc_dir2.tick(scheduler.env, tick_seconds)
 	_decrement_lifetimes()
-	_level_transitions.process_pending(scheduler.env)
-	# ADR 0014: chunk streaming runs after level transition (level changes
-	# may relocate the actor) and before save/load (save needs to capture
-	# the post-stream current_chunk). No-op when chunk_streamer is null
-	# (single-chunk legacy mode).
+	# ADR 0014: chunk streaming is a SIM concern (about what entities exist).
+	# Stays in world.gd. The game-level pipelines (save/load, level
+	# transitions, world reset) drain in GameShell._process — they don't
+	# belong to the sim tick.
 	process_chunk_streaming()
-	_save_load.process_pending(scheduler.env)
-	# ADR 0016: switch_actor takes effect at next tick boundary. We process
-	# AFTER scheduler.tick() so the current tick's rules saw the OLD
-	# active_actor; the next tick's input phase will see the NEW one.
+	# ADR 0016: switch_actor takes effect at next tick boundary. SIM concern
+	# (input routing). Stays in world.gd, AFTER scheduler.tick so the
+	# current tick's rules saw the OLD active_actor; the next tick's input
+	# phase will see the NEW one.
 	process_pending_actor_switch()
-	# Task #99: reset_world resets world_state + non-persistent entities
-	# without scene reload. Processed after other deferred ops so any
-	# in-flight save/load completes before the reset wipes state.
-	_world_reset.process_pending(scheduler.env)
 
 
 ## ADR 0014: per-tick chunk streaming. Resolves the active actor's planar
