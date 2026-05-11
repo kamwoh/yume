@@ -1,7 +1,7 @@
 # ADR 0044 — Physics via Godot's PhysicsServer3D
 
 _Date: 2026-05-11_
-_Status: **proposed (conditions outstanding)** — tech-director reviewed 2026-05-11; tick-ordering revised to snapshot-sync model per user pushback. Remaining: 9 conditions (perf, tests, 2D coverage, translation layer) must resolve before Session A._
+_Status: **approved — Session A may begin** (2026-05-12). All 11 tech-director conditions resolved in the ADR text. Tick-ordering uses snapshot-sync model (60Hz physics, 10Hz sim snapshot). Freeze policy uses `PhysicsServer3D.set_active(false)`. See "Condition resolutions" section for the 9 detailed clarifications._
 _Type: foundational reversal of ADR 0004; alignment with ADR 0021_
 
 ## Context
@@ -353,6 +353,301 @@ Engine work order (multi-session):
   Yume's SpatialIndex. After migration, it queries
   `PhysicsServer3D.intersect_shape`. Schema unchanged; backend
   swaps.
+
+## Condition resolutions (2026-05-12)
+
+Tech-director review (2026-05-11) raised 11 conditions; 2 (tick
+ordering + freeze policy) were resolved by the snapshot-sync model
+revision earlier. This section addresses the remaining 9.
+
+### Condition 1 — Invariant #5: QueryLib internal flow
+
+After SpatialIndex is replaced, `QueryLib.run(spec)` with radius
+follows this internal flow (preserves the contract from tags_all /
+tags_any / tags_none / properties / state / relations / order_by /
+limit semantics):
+
+```gdscript
+static func run(spec: Dictionary, env: Dictionary, ctx) -> Array:
+    var candidates: Array = []
+    if spec.has("radius"):
+        # 1. Broadphase via Godot physics. Returns Array of body RIDs
+        #    (or entity IDs after our wrapper resolves) within the
+        #    sphere/box around the origin. Filters by collision_mask
+        #    if the spec provides one (defaults to "all").
+        var origin: Vector3 = _resolve_origin(spec, env, ctx)
+        var radius: float = float(spec["radius"])
+        var mask: int = _resolve_layer_mask(spec, env)
+        candidates = _physics_broadphase(env, origin, radius, mask)
+    else:
+        candidates = env.get("entities", {}).values()
+    # 2. QueryLib semantic filter — UNCHANGED. Walks candidates,
+    #    rejects on tags_all/tags_any/tags_none/properties/state/
+    #    relations mismatch.
+    var out: Array = []
+    for ent in candidates:
+        if matches(ent, spec, env, ctx):
+            out.append(ent)
+    # 3. order_by + limit — UNCHANGED.
+    if spec.has("order_by"): ...
+    if spec.has("limit"): ...
+    return out
+```
+
+Key: the **broadphase** is what changes (Yume SpatialIndex →
+PhysicsServer3D). The **semantic filter** (tag/state matching)
+stays identical. Performance argument holds only if layer masks
+are tight — if every entity is on the same collision layer,
+broadphase returns ALL bodies and we're back to O(N) in step 2.
+
+Documentation: layer-mask discipline becomes a content authoring
+concern. The yume-content-designer skill spec gets a new check:
+"every entity def with a `physics` block declares specific
+collision_layer + collision_mask — `all` masks are a smell."
+
+### Condition 4 — Invariant #11: body cleanup on despawn
+
+The entity-removal loop in `LevelTransitionCoordinator.do_transition`
+and `WorldResetCoordinator.do_reset` (plus the `remove` effect path
+in `effect_apply.gd`) must free the physics body when the entity is
+destroyed. Adds to `_despawn_entity`:
+
+```gdscript
+# Inside SpawnManager (the new natural home for body lifecycle).
+func despawn(inst_id: String) -> void:
+    var ent = _world.entities.get(inst_id, null)
+    if ent == null: return
+    # ADR 0044: free the physics body BEFORE the entity Node is freed.
+    var body_rid = ent.get_meta("_physics_body_rid", null)
+    if body_rid != null:
+        PhysicsServer3D.body_free(body_rid)
+        ent.remove_meta("_physics_body_rid")
+    # Existing cleanup
+    if _world.relations: _world.relations.clear_entity(inst_id)
+    if _world.spatial_index: _world.spatial_index.remove_entity(inst_id)
+    _world.entities.erase(inst_id)
+    ent.queue_free()
+```
+
+The three call sites of "remove entity" (LevelTransitionCoordinator,
+WorldResetCoordinator, EffectApply.\_remove) are unified through
+`SpawnManager.despawn(id)` as part of Session A. This makes
+"physics body" item #N on Invariant #11's enumeration.
+
+**Leak test** (Session A's PR): spawn 50 entities with
+`physics: {body_type: "kinematic"}` declared, transition level,
+assert all 50 body RIDs are freed (call `PhysicsServer3D
+.body_get_object_instance_id(rid)` returns null for each).
+
+### Condition 5 — Invariant #12: persistent-guard body sync
+
+When a persistent entity teleports across level transitions
+(`[PERSIST-TELEPORT]` log line in SpawnManager.spawn), the body's
+transform must also update:
+
+```gdscript
+# In SpawnManager.spawn (Invariant #12 carve-out branch):
+if inst.has("position"):
+    existing.set_position(new_pos)
+    if _world.spatial_index != null:
+        _world.spatial_index.update_entity(inst_id, existing.get_planar_position())
+    # ADR 0044: update the body's transform too. State (HP, inventory)
+    # already survives untouched; just the position needs a teleport.
+    var body_rid = existing.get_meta("_physics_body_rid", null)
+    if body_rid != null:
+        var v3 = existing.get_position()
+        if v3 is Vector3:
+            PhysicsServer3D.body_set_state(body_rid,
+                PhysicsServer3D.BODY_STATE_TRANSFORM,
+                Transform3D(Basis(), v3))
+```
+
+**Test** (Session A's PR): persistent entity in level A at (10, 0,
+10) with kinematic body. Transition to level B which declares the
+same id at (50, 0, 50). Assert: entity state intact (HP unchanged),
+position now (50, 0, 50), body transform reflects the new position.
+
+### Condition 6 — Session B atomicity
+
+Session B (velocity + position routing) MUST land in a single
+commit. The forbidden mid-state: some kinematic entities route
+velocity through their body, others still hit `_integrate_motion`.
+
+Acceptance criterion for the Session B PR:
+1. Every entity with `physics.body_type IN [kinematic, rigid]`
+   has its `velocity_set` / `velocity_set_relative` /
+   `velocity_add_relative` routed to `body.set_linear_velocity`.
+2. The legacy `_integrate_motion` runs ONLY for entities WITHOUT
+   a physics block (translation layer ensures most have one).
+3. Position writes via `state_set field=position`:
+   - kinematic: `body.global_position = v3` (warp body to match
+     authored position)
+   - rigid: `push_warning("position writes to rigid body are
+     non-physical; use velocity_set or apply_impulse")` + still
+     apply the position (don't reject — let games experiment)
+4. Diff is reviewable in one sitting: ~150 lines in
+   `effect_apply.gd`, no semantic changes elsewhere.
+
+### Condition 7 — New effects in effect-chain audit
+
+`.claude/rules/engine-scripts.md` § effect-chain validation gate
+gains 3 new entries:
+
+```
+apply_force         — non-destructive. Requires entity to have
+                      rigid body (warn otherwise). Safe in any
+                      chain position.
+apply_impulse       — non-destructive. Same precondition + safety
+                      as apply_force.
+set_collision_enabled — non-destructive. Requires entity to have
+                      any physics body (warn otherwise). Safe in
+                      any chain position. Note: disabling collision
+                      mid-frame lets the entity pass through walls
+                      until re-enabled; use cooldowns explicitly.
+```
+
+None of these are destructive in the transition_screen/reload_scene
+sense. They mutate physics state but don't queue async destruction.
+No ordering constraints apply.
+
+### Condition 8 — Translation-layer test coverage
+
+Session A's PR ships these 4 unit tests:
+
+```gdscript
+test_blocks_motion_translates_to_static_box_3d():
+    var def = {"id": "wall", "tags": ["blocks_motion"],
+               "properties": {"aabb_extents": [2.0, 1.5, 0.5]}}
+    var ent = _spawn_test_entity(def)
+    var body = ent.get_meta("_physics_body_rid")
+    expect_eq(PhysicsServer3D.body_get_mode(body),
+              PhysicsServer3D.BODY_MODE_STATIC)
+    # Shape extents match aabb_extents
+    var shape = _get_body_shape(body)
+    expect_eq(shape.size, Vector3(4.0, 3.0, 1.0))  # full extents
+
+test_blocks_motion_2d_extents_translate_to_static_box_2d():
+    # aabb_extents: [hx, hy] (2-component) → PhysicsServer2D box
+    var def = {"id": "wall2d", "tags": ["blocks_motion"],
+               "properties": {"aabb_extents": [10, 5]}}
+    var ent = _spawn_test_entity_2d(def)
+    expect(_has_2d_body(ent), "2D scene → PhysicsServer2D path")
+
+test_blocks_motion_missing_aabb_extents_warns():
+    var def = {"id": "borked", "tags": ["blocks_motion"]}
+    _spawn_test_entity(def)
+    expect_buffer_contains(env, "blocks_motion requires aabb_extents")
+    expect_no_body(ent)
+
+test_explicit_physics_block_wins_over_blocks_motion_tag():
+    var def = {"id": "hybrid", "tags": ["blocks_motion"],
+               "properties": {"aabb_extents": [1, 1, 1]},
+               "physics": {"body_type": "kinematic",
+                           "collision_shape": {"type": "sphere",
+                                               "radius": 0.5}}}
+    var ent = _spawn_test_entity(def)
+    var body = ent.get_meta("_physics_body_rid")
+    expect_eq(_get_body_shape(body).radius, 0.5)
+    expect_eq(_get_body_mode(body),
+              PhysicsServer3D.BODY_MODE_KINEMATIC)
+    expect_buffer_contains(env,
+        "blocks_motion tag ignored — explicit physics block takes precedence")
+```
+
+### Condition 9 — 2D coverage spec
+
+The migration covers BOTH PhysicsServer3D and PhysicsServer2D.
+The engine selects backend based on `scene.json#camera.mode`:
+
+| Camera mode | Physics backend |
+|---|---|
+| `top_down_2d`, `side_scroll_2d` | PhysicsServer2D |
+| `top_down_3d`, `isometric_3d`, `first_person_3d`, `third_person_3d` | PhysicsServer3D |
+
+2D collision shapes (translates from `collision_shape.type`):
+
+| JSON `type` | 2D shape resource |
+|---|---|
+| `box2d` | RectangleShape2D |
+| `circle2d` | CircleShape2D |
+| `capsule2d` | CapsuleShape2D |
+| `polygon2d` | ConvexPolygonShape2D (future) |
+
+2D body types (translates from `body_type`):
+
+| JSON `body_type` | 2D body |
+|---|---|
+| `static` | StaticBody2D |
+| `kinematic` | CharacterBody2D |
+| `rigid` | RigidBody2D |
+| `area` | Area2D |
+
+The `physics` block schema is otherwise identical across 2D + 3D
+(mass, friction, restitution, damping, collision_layer/mask).
+Authors writing a 2D game just use `box2d` / `circle2d` etc. and
+the engine wires them to PhysicsServer2D automatically.
+
+Engine code branches once at boot: `_physics_is_2d =
+scene_cfg.camera.mode in ["top_down_2d", "side_scroll_2d"]`. All
+downstream physics calls dispatch on that flag.
+
+### Condition 10 — Sokoban blocker-pattern preservation
+
+Sokoban's "push blocked by wall" pattern (the empirical case
+behind Invariant #9's react-flush guarantee) MUST work after each
+session lands. The pattern:
+
+1. Input rule: `push` action sets `box.state.being_pushed = 1`
+2. Signal rule: if box adjacent to wall, set `box.state._blocked = 1`
+   (uses radius query against `blocks_motion` entities)
+3. Contact rule: only fire `commit_push` if `box.state._blocked != 1`
+
+After Session C (collision via PhysicsServer3D), step 2's radius
+query goes through `PhysicsServer3D.intersect_shape` instead of
+`SpatialIndex.query_radius_ids`. Result must be identical. Test:
+
+```
+data/demo_sokoban/tests.json: scenario "box_push_into_wall_blocked"
+  - Setup: box at (1, 0), wall at (2, 0), player at (0, 0)
+  - Step: input push_east
+  - Expect: box.state.position still (1, 0)
+  - Expect: box.state._blocked == 1
+```
+
+This test is green in every session's PR (A through E).
+
+### Condition 11 — Frame-time benchmark gate
+
+Before Session D (the deletion session), measure Aldenmere idle
+frame time:
+
+```
+Capture protocol:
+  godot --rendering-driver opengl3 scenes/aldenmere_3d.tscn -- \
+    --capture-after=10 --frame-time-log=user://aldenmere_frames.csv
+
+Baseline (pre-migration, recorded once at Session A start):
+  avg_frame_time_ms = <baseline value, populated at Session A>
+
+Post-Session-C measurement (taken before Session D begins):
+  avg_frame_time_ms = <new value>
+
+Gate: post_ms <= 1.2 * baseline_ms (allow 20% regression budget)
+
+If exceeded:
+  - DO NOT proceed to Session D
+  - Investigate broadphase layer-mask discipline first
+  - If still failing, adopt Jolt physics
+    (Project Settings → physics/3d/physics_engine = "Jolt") BEFORE
+    Session D commits
+  - Re-measure; gate must pass
+```
+
+Tools added in Session A:
+  - `--frame-time-log=<path>` CLI flag that writes per-frame
+    elapsed time to CSV during capture
+  - `tools/benchmark_aldenmere.py` that reads the CSV and reports
+    avg / p95 / p99 frame times
 
 ## Alternatives considered
 
