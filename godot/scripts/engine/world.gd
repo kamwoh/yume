@@ -87,6 +87,9 @@ var _level_transitions: LevelTransitionCoordinator = null
 ## ADR 0010 save/load pipeline: process_pending(env), do_save(slot),
 ## do_load(slot).
 var _save_load: SaveLoadCoordinator = null
+## WorldResetCoordinator (extracted from world.gd 2026-05-12). Owns
+## Task #99 reset pipeline: process_pending(env), do_reset().
+var _world_reset: WorldResetCoordinator = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
@@ -128,6 +131,7 @@ func _ready() -> void:
 	_spawn_manager = SpawnManager.new(self)
 	_level_transitions = LevelTransitionCoordinator.new(self)
 	_save_load = SaveLoadCoordinator.new(self)
+	_world_reset = WorldResetCoordinator.new(self)
 	if auto_start:
 		start()
 
@@ -815,7 +819,7 @@ func advance_one_tick() -> void:
 	# Task #99: reset_world resets world_state + non-persistent entities
 	# without scene reload. Processed after other deferred ops so any
 	# in-flight save/load completes before the reset wipes state.
-	process_pending_world_reset()
+	_world_reset.process_pending(scheduler.env)
 
 
 ## ADR 0014: per-tick chunk streaming. Resolves the active actor's planar
@@ -921,65 +925,6 @@ func process_pending_actor_switch() -> void:
 		world_state["active_actor_id"] = target
 		if verbose:
 			print("[World] active actor → ", target)
-
-
-## Task #99 — process queued reset_world between ticks. Despawns all
-## non-persistent entities, resets world_state to initial values, and
-## reloads the starting level (or root entities for single-level games).
-## NO scene reload — the World node + scheduler + screen_flow + settings
-## persist. Used by "New Game" buttons to clean up after a Continue.
-func process_pending_world_reset() -> void:
-	var env: Dictionary = scheduler.env
-	if not bool(env.get("_pending_world_reset", false)): return
-	env.erase("_pending_world_reset")
-	_do_world_reset()
-
-
-func _do_world_reset() -> void:
-	var root := data_root.rstrip("/")
-	# 1. Despawn all non-persistent entities (matches transition_level)
-	var to_remove: Array[String] = []
-	for id in entities.keys():
-		var ent = entities[id]
-		if ent is Entity and not (ent as Entity).has_tag("persistent"):
-			to_remove.append(str(id))
-	for rid in to_remove:
-		var rent: Entity = entities.get(rid, null)
-		if rent == null: continue
-		if relations != null:
-			relations.clear_entity(rid)
-		if spatial_index != null and spatial_index.has_method("remove_entity"):
-			spatial_index.remove_entity(rid)
-		entities.erase(rid)
-		rent.queue_free()
-	# 2. Reset world_state to initial values. Clear in-place so any
-	# external references (env.world is a back-ref) stay valid.
-	world_state.clear()
-	world_state["tick"] = 0
-	_load_world_file(root + "/world/state.json")
-	# 3. Reload entities + relations. For multi-level games, reset to
-	# the progression's starting_level. For single-level, just re-load
-	# root entities.
-	var prog_path := root + "/game/flow.json"
-	if FileAccess.file_exists(prog_path):
-		_load_progression(prog_path)         # resets current_level → starting_level
-		world_state["current_level"] = current_level
-		_load_entities_path(root)            # re-load persistent root entities
-		if current_level != "":
-			_level_transitions.load_level(current_level)
-	else:
-		_load_entities_path(root)
-	# 4. Refresh has_save (ADR 0010) — reset doesn't delete saves; it just
-	# clears in-memory state. has_save remains accurate.
-	if not save_policy.is_empty():
-		var slots := int(save_policy.get("slots", 1))
-		world_state["has_save"] = 1 if SaveState.has_any_save(SaveLoadCoordinator.game_name_from_root(data_root), slots) else 0
-	# 5. Refresh active_actor_id mirror (ActorManager state untouched).
-	if actor_manager != null:
-		world_state["active_actor_id"] = actor_manager.active_actor_id
-	scheduler.flush_effects()
-	if verbose:
-		print("[World] reset_world complete (level: %s)" % current_level)
 
 
 ## Integrate velocity → position each frame for smooth motion.
