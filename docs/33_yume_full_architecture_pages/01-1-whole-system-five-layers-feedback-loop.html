@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>33_yume_full_architecture — 1. Whole system — five layers + feedback loop</title>
+<style>
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --accent: #0066cc;
+  --code-bg: #f0f0f0;
+  --border: #ddd;
+  --table-stripe: #f5f5f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e0e0e0;
+    --muted: #999;
+    --accent: #4da3ff;
+    --code-bg: #2a2a2a;
+    --border: #333;
+    --table-stripe: #222;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+nav.topnav {
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+nav.topnav a { color: var(--accent); text-decoration: none; margin: 0 8px; }
+nav.topnav a:hover { text-decoration: underline; }
+nav.topnav .crumb { color: var(--muted); }
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.8em 0 0.6em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+h1 { font-size: 2em; border-bottom: 2px solid var(--border); padding-bottom: 0.3em; margin-top: 0.5em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1.1em; color: var(--muted); }
+p { margin: 0.8em 0; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+em { font-style: italic; }
+code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 1em 0;
+  padding: 0.3em 1em;
+  color: var(--muted);
+  background: var(--code-bg);
+}
+ul, ol { margin: 0.8em 0; padding-left: 1.8em; }
+li { margin: 0.3em 0; }
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+tr:nth-child(even) td { background: var(--table-stripe); }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+.toc {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 24px;
+  margin: 1em 0 2em;
+}
+.toc ul { padding-left: 1.4em; margin: 0.4em 0; }
+.toc > h3 { margin-top: 0.4em; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: dark ? 'dark' : 'default',
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+    sequence: { useMaxWidth: true }
+  });
+});
+</script>
+<style>
+.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
+  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
+  overflow-x: auto; }
+.mermaid svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="02-2-engine-subsystems-directors-stores-validators.html">2. Engine subsystems — directors, stores, validators →</a></div></nav>
+<div class="container">
+<div class="toc"><h3>Contents</h3><ul><li><a href="#1-whole-system-five-layers-feedback-loop">1. Whole system — five layers + feedback loop</a></li></ul></div>
+<h2 id="1-whole-system-five-layers-feedback-loop">1. Whole system — five layers + feedback loop</h2>
+<div class="mermaid">
+flowchart TB
+    %% =======================================================
+    %% LAYER 1 — AUTHORING (text → spec)
+    %% =======================================================
+    Prose["Prose pitch<br/>(user / LLM)"]:::author
+    Orch["/yume-design<br/>orchestrator"]:::author
+    Prose --> Orch
+
+    subgraph L1["Layer 1: Authoring (skills, no code)"]
+        direction TB
+        GD["yume-game-designer<br/>(+ genre: shooter / merchant /<br/>racing)"]:::author
+        REV["yume-game-reviewer<br/>+ genre reviewers"]:::author
+        Plan["yume-game-planner<br/>yume-level-designer<br/>yume-story-planner<br/>yume-economy-designer<br/>yume-combining-logic-designer"]:::author
+        Build["Content designers:<br/>yume-systems-designer<br/>yume-game-rules-designer<br/>yume-content-designer<br/>yume-asset-designer<br/>yume-screen-flow-designer<br/>yume-tutorial-designer<br/>yume-juice-designer<br/>yume-flavor-writer<br/>yume-audio-designer<br/>yume-lighting-designer<br/>yume-save-policy-designer"]:::author
+        Orch --> GD
+        GD --> REV
+        REV -->|accept| Plan
+        Plan --> Build
+    end
+
+    %% =======================================================
+    %% LAYER 2 — CONTENT (JSON, per-game)
+    %% =======================================================
+    subgraph L2["Layer 2: Content (data/demo_X/, JSON)"]
+        direction TB
+        SceneJ["scene.json<br/>camera + lighting + grid"]:::data
+        World["world/physics.json<br/>(sim rules)<br/>world/state.json<br/>world/zones.json"]:::data
+        Game["game/rules.json<br/>(goals, win/lose)<br/>game/flow.json"]:::data
+        Ents["entities/*.json<br/>(defs + instances)<br/>levels/*/"]:::data
+        UI["hud.json · screens.json<br/>ui/strings.json · ui/input.json<br/>audio/cues.json · tutorial.json"]:::data
+        Shared["data/meshes.json<br/>data/sounds.json<br/>data/shapes.json<br/>data/lib/*<br/>(ADR 0027 — cross-game)"]:::shared
+    end
+    Build --> SceneJ
+    Build --> World
+    Build --> Game
+    Build --> Ents
+    Build --> UI
+    Build -.->|registers| Shared
+
+    %% =======================================================
+    %% LAYER 3 — VALIDATORS (sync-time gates)
+    %% =======================================================
+    subgraph L3["Layer 3: Validators (play.sh pre-launch)"]
+        direction LR
+        V1["validate_screens<br/>(dangling transition_screen)"]:::val
+        V2["validate_spawn_templates<br/>(unknown def in spawn)"]:::val
+        V3["validate_scene_directors<br/>(missing director Node)"]:::val
+        V4["validate_duplicate_mutations<br/>(cross-file rule conflict)"]:::val
+        V5["validate_lib_refs<br/>(ADR 0027 @lib.X.Y)"]:::val
+        V6["validate_player_perspective<br/>(undiscoverable keybinds)"]:::val
+    end
+    SceneJ -.->|scan| L3
+    World -.->|scan| L3
+    Game -.->|scan| L3
+    Ents -.->|scan| L3
+    UI -.->|scan| L3
+    L3 -->|pass / warn / fail| Boot
+
+    %% =======================================================
+    %% LAYER 4 — ENGINE (Godot 4.6.1)
+    %% =======================================================
+    subgraph L4["Layer 4: Engine"]
+        direction TB
+        Boot["world.gd::load_data<br/>(boot — parses JSON,<br/>spawns entities, registers rules)"]:::engine
+        Prim["Seven Primitives (ADR 0001):<br/>Entity · Tag · Rule · Trigger<br/>Effect · Query · Relation"]:::engine
+        Boot --> Prim
+
+        subgraph Tick["Per-tick: PhaseScheduler<br/>(Invariant #9 — phase ordering)"]
+            direction LR
+            P1["input"]:::engine -->|flush| D1["drain decide"]:::engine
+            D1 --> P2["decide<br/>(tick rules)"]:::engine
+            P2 -->|flush| D2["drain react"]:::engine
+            D2 -->|flush| P3["react<br/>(contact rules)"]:::engine
+            P3 -->|flush| Next["next tick"]:::engine
+        end
+        Prim --> Tick
+
+        Tick --> Stores
+        Stores["State Stores:<br/>RelationStore · SpatialIndex<br/>ZoneStore (0031)"]:::engine
+
+        Tick --> Directors
+        Directors["Director Nodes:<br/>ScheduleDirector (0029)<br/>LightingDirector (0025)<br/>AnimationDirector (0035)<br/>PartyDirector (0026)<br/>FactionDirector (0032)<br/>DynastyDirector (0034)<br/>MultiMeshDirector (0041)<br/>LifecycleDirector<br/>ChunkStreamer (0014)"]:::engine
+
+        Tick --> Pipelines
+        Pipelines["Pending pipelines<br/>(Invariant #10 freeze-policy):<br/>save / load · level transition<br/>world reset · chunk stream"]:::engine
+    end
+
+    %% =======================================================
+    %% LAYER 5 — RENDER + UI
+    %% =======================================================
+    subgraph L5["Layer 5: Render + UI (Godot Control + 3D)"]
+        direction TB
+        R1["EntityMesh3D / EntitySprite2D<br/>per-entity render"]:::render
+        R2["MultiMeshInstance3D<br/>(ADR 0041 — static batching)"]:::render
+        R3["GameShell<br/>(HUD + camera + viewmodel<br/>+ shake/flash)"]:::render
+        R4["ScreenFlow (0011)<br/>(modal stack, transitions)"]:::render
+        R5["OverlayManager (0012)<br/>(tutorial)"]:::render
+        R6["NameplateRenderer<br/>(NPC name floaters)"]:::render
+        R7["AudioBus<br/>(SFX + cues)"]:::render
+    end
+    Directors --> R1
+    Directors --> R2
+    Stores --> R1
+    Pipelines --> R3
+    Boot --> R4
+    Boot --> R5
+    Boot --> R6
+    Boot --> R7
+
+    %% =======================================================
+    %% PLAYER LOOP (closes the feedback)
+    %% =======================================================
+    Player(("Player")):::player
+    R1 --> Player
+    R3 --> Player
+    R4 --> Player
+    Player -->|WASD / mouse /<br/>verbs / clicks| Boot
+
+    %% =======================================================
+    %% TECH-DIRECTOR (cuts across)
+    %% =======================================================
+    TD["yume-tech-director<br/>+ 12 Invariants<br/>+ ADR registry"]:::gate
+    TD -.->|gates merges| L4
+    TD -.->|reviews| Build
+
+    %% =======================================================
+    %% PATH-SCOPED RULES (cross-cutting)
+    %% =======================================================
+    Rules[".claude/rules/<br/>engine-scripts.md · data-demo.md<br/>visual-qa.md · post-mortem.md<br/>soul.md · tests.md · docs.md"]:::gate
+    Rules -.->|disciplines| Build
+    Rules -.->|disciplines| L4
+
+    %% =======================================================
+    %% STYLES
+    %% =======================================================
+    classDef author fill:#1e3a4a,stroke:#5fb3d9,color:#e8f4f8
+    classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
+    classDef shared fill:#3a3f1e,stroke:#c9b962,color:#f8f4d8
+    classDef val fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
+    classDef engine fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff
+    classDef render fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
+    classDef player fill:#1e1e1e,stroke:#d0d0d0,color:#ffffff,font-weight:bold
+    classDef gate fill:#3f3f1e,stroke:#c9c962,color:#ffffe0
+</div>
+<hr>
+
+</div>
+</body>
+</html>

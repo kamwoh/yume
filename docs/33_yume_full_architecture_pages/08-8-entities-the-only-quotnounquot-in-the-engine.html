@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>33_yume_full_architecture — 8. Entities — the only &amp;quot;noun&amp;quot; in the engine</title>
+<style>
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --accent: #0066cc;
+  --code-bg: #f0f0f0;
+  --border: #ddd;
+  --table-stripe: #f5f5f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e0e0e0;
+    --muted: #999;
+    --accent: #4da3ff;
+    --code-bg: #2a2a2a;
+    --border: #333;
+    --table-stripe: #222;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+nav.topnav {
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+nav.topnav a { color: var(--accent); text-decoration: none; margin: 0 8px; }
+nav.topnav a:hover { text-decoration: underline; }
+nav.topnav .crumb { color: var(--muted); }
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.8em 0 0.6em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+h1 { font-size: 2em; border-bottom: 2px solid var(--border); padding-bottom: 0.3em; margin-top: 0.5em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1.1em; color: var(--muted); }
+p { margin: 0.8em 0; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+em { font-style: italic; }
+code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 1em 0;
+  padding: 0.3em 1em;
+  color: var(--muted);
+  background: var(--code-bg);
+}
+ul, ol { margin: 0.8em 0; padding-left: 1.8em; }
+li { margin: 0.3em 0; }
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+tr:nth-child(even) td { background: var(--table-stripe); }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+.toc {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 24px;
+  margin: 1em 0 2em;
+}
+.toc ul { padding-left: 1.4em; margin: 0.4em 0; }
+.toc > h3 { margin-top: 0.4em; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: dark ? 'dark' : 'default',
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+    sequence: { useMaxWidth: true }
+  });
+});
+</script>
+<style>
+.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
+  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
+  overflow-x: auto; }
+.mermaid svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="07-7-per-module-deep-dive-input-json-action-tick-role.html">← 7. Per-module deep-dive — input JSON → action → tick role</a> <a href="09-9-physicsjson-vs-gamerulesjson-the-conceptual-split-adr-0009.html">9. physics.json vs game/rules.json — the conceptual split (ADR 0009) →</a></div></nav>
+<div class="container">
+<div class="toc"><h3>Contents</h3><ul><li><a href="#8-entities-the-only-noun-in-the-engine">8. Entities — the only &quot;noun&quot; in the engine</a></li>  <li><a href="#81-anatomy-what-an-entity-json-looks-like-vs-what-it-becomes-in-memory">8.1 Anatomy — what an entity JSON looks like vs what it becomes in memory</a></li>  <li><a href="#82-reserved-state-fields-engine-reads-these-content-names-the-rest">8.2 Reserved state fields — engine reads these, content names the rest</a></li>  <li><a href="#83-entity-lifecycle-boot-spawn-persist-despawn">8.3 Entity lifecycle — boot, spawn, persist, despawn</a></li>  <li><a href="#84-how-rules-find-mutate-entities">8.4 How rules find + mutate entities</a></li></ul></div>
+<h2 id="8-entities-the-only-noun-in-the-engine">8. Entities — the only &quot;noun&quot; in the engine</h2>
+<p>Yume has <strong>one</strong> runtime type for everything that exists in the world. A wolf, a tree, a player, a fire pit, a HUD-invisible &quot;world_clock&quot; singleton — they&#x27;re all <code>Entity</code> (extends plain <code>Node</code>, never <code>Node2D</code> or <code>Node3D</code>). Distinctions emerge from <strong>tags + properties + state</strong>, never from class hierarchy (Invariant #3).</p>
+<h3 id="81-anatomy-what-an-entity-json-looks-like-vs-what-it-becomes-in-memory">8.1 Anatomy — what an entity JSON looks like vs what it becomes in memory</h3>
+<div class="mermaid">
+flowchart LR
+    subgraph JSON["entities/wolf.json (def)"]
+        direction TB
+        J1["id: 'wolf_3d'"]:::field
+        J2["tags: (animal, predator,<br/>blocks_motion)"]:::field
+        J3["properties:<br/>(aabb_extents: (0.4, 0.4, 0.6),<br/>display_name: 'Wolf')"]:::field
+        J4["state_init:<br/>(hp: 30, max_speed: 4,<br/>velocity: (0,0), yaw: 0,<br/>position: (0,0,0))"]:::field
+        J5["visual:<br/>(mesh_3d: 'wolf_3d',<br/>tint: '#806040')"]:::field
+    end
+
+    subgraph INST["levels/X/entities.json (instance)"]
+        direction TB
+        I1["def: 'wolf_3d'"]:::inst
+        I2["id: 'wolf_alpha'"]:::inst
+        I3["position: (40, 0, 30)"]:::inst
+        I4["state: (hp: 50)<br/>(override)"]:::inst
+    end
+
+    Create["Entity.create(def, inst_id,<br/>overrides)"]:::action
+
+    JSON --> Create
+    INST --> Create
+
+    subgraph MEM["Entity Node (in-memory)"]
+        direction TB
+        M1["def_id: 'wolf_3d'<br/>instance_id: 'wolf_alpha'"]:::out
+        M2["tags: Array&lt;String&gt;<br/>(animal, predator,<br/>blocks_motion)"]:::out
+        M3["properties: Dict<br/>(aabb_extents, display_name)<br/>(STATIC — rules can't mutate)"]:::out
+        M4["state: Dict<br/>(hp: 50, max_speed: 4,<br/>velocity: Vector3,<br/>yaw: 0,<br/>position: Vector3(40,0,30))<br/>(DYNAMIC — rules mutate)"]:::out
+        M5["visual: Dict<br/>(renderer reads this;<br/>engine ignores)"]:::out
+    end
+
+    Create --> MEM
+
+    classDef field fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
+    classDef inst fill:#3a3f1e,stroke:#c9b962,color:#f8f4d8
+    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
+</div>
+<p>The DEF describes the <em>kind</em> (parsed once into <code>env.defs</code>). The INSTANCE references the def by name + overrides only what differs. <code>Entity.create(def, inst_id, overrides)</code> merges them into a single runtime Node. Both <code>position</code> and <code>velocity</code> get normalized from JSON arrays to <code>Vector2</code> / <code>Vector3</code> so motion math doesn&#x27;t break.</p>
+<h3 id="82-reserved-state-fields-engine-reads-these-content-names-the-rest">8.2 Reserved state fields — engine reads these, content names the rest</h3>
+<div class="mermaid">
+flowchart TB
+    subgraph Reserved["Reserved fields (engine-recognized)"]
+        direction LR
+        R1["position<br/>Vector2/3"]:::res
+        R2["velocity<br/>Vector2/3<br/>(motion integrator<br/>adds to position)"]:::res
+        R3["yaw<br/>float radians<br/>(renderers apply<br/>Y-rotation)"]:::res
+        R4["age<br/>in-game years<br/>(LifecycleDirector)"]:::res
+        R5["life_stage<br/>infant/child/<br/>adult/elder/dead"]:::res
+        R6["class_progress<br/>(ADR 0030)"]:::res
+        R7["known_techs<br/>(ADR 0033)"]:::res
+        R8["dynasty_id<br/>(ADR 0034)"]:::res
+    end
+
+    subgraph Content["Content-named (engine doesn't know these)"]
+        direction LR
+        C1["hp / hunger / mana<br/>thirst / warmth"]:::content
+        C2["gold / score / xp<br/>reputation_tier"]:::content
+        C3["facing / drag<br/>zero_velocity_pretick<br/>max_speed"]:::content
+        C4["held_item / held_cooked<br/>quest_stage"]:::content
+        C5["any other field<br/>your rules need"]:::content
+    end
+
+    Rules["Rules query + mutate<br/>both groups identically<br/>via state_set / state_add /<br/>state_mul / state_clamp"]:::action
+
+    Reserved --> Rules
+    Content --> Rules
+
+    classDef res fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
+    classDef content fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
+    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
+</div>
+<p>The engine cares about position / velocity / yaw / age for physics + director ticks. Everything else (hp, hunger, gold, score) is JUST a named slot in <code>state</code> dict that rules read + mutate. The engine never checks &quot;is this an hp field?&quot; — it just looks up <code>state[field_name]</code>.</p>
+<h3 id="83-entity-lifecycle-boot-spawn-persist-despawn">8.3 Entity lifecycle — boot, spawn, persist, despawn</h3>
+<div class="mermaid">
+flowchart TB
+    Boot["world.gd boot:<br/>load_entities_file()"]:::action
+    DefMap["env.defs(def_id)<br/>= parsed def dict"]:::store
+    Initial["initial_instances<br/>+ patterns"]:::data
+    Spawn1["Entity.create(def, id)<br/>+ instance overrides"]:::action
+    EntMap["env.entities(id)<br/>= Entity Node"]:::store
+    SpatIdx["spatial_index<br/>.insert(id, pos)"]:::store
+
+    Boot --> DefMap
+    Boot --> Initial
+    Initial --> Spawn1
+    DefMap --> Spawn1
+    Spawn1 --> EntMap
+    Spawn1 --> SpatIdx
+
+    %% Runtime spawn
+    SpawnE["spawn effect<br/>fires from rule"]:::action
+    SpawnE -.->|same path| Spawn1
+
+    %% Removal
+    RemE["remove effect<br/>(or transform = remove+spawn)"]:::action
+    RemE --> EntMap
+    RemE --> SpatIdx
+    RemE -.->|despawn trigger fires<br/>BEFORE removal| Rules["rules listening on<br/>type: despawn"]:::data
+
+    %% Persistent guard
+    Transit["transition_level<br/>fires"]:::action
+    Transit --> CheckP{"is entity tagged<br/>'persistent'?"}
+    CheckP -->|yes| Skip["SKIP overwrite<br/>(Invariant #12)<br/>but apply position<br/>teleport if level<br/>declares one"]:::out
+    CheckP -->|no| Remove["destroy + respawn<br/>from new level's<br/>entities.json"]:::out
+
+    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
+    classDef store fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
+    classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
+    classDef out fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
+</div>
+<p>Key points:</p>
+<ul>
+<li><strong>Defs are parsed once</strong> at boot into <code>env.defs</code>. Multiple entities</li>
+</ul>
+<p>reuse the same def — instances only store overrides.</p>
+<ul>
+<li><strong>Patterns</strong> (ring / grid / scatter / cluster / mirror / line) in</li>
+</ul>
+<p><code>entities.json#patterns</code> expand at boot into N instances. See <code>instance_patterns.gd</code>.</p>
+<ul>
+<li><strong>Runtime spawn</strong> (a <code>spawn</code> effect from a rule) uses the SAME</li>
+</ul>
+<p>factory path — there&#x27;s no two-tier code path for &quot;boot entity&quot; vs &quot;runtime entity.&quot;</p>
+<ul>
+<li><strong>Persistent guard</strong> (Invariant #12) — entities tagged <code>persistent</code></li>
+</ul>
+<p>survive <code>transition_level</code>. The NEW level&#x27;s instance with same id is SKIPPED for state but its <code>position</code> is applied as a teleport. This is how <code>world_clock</code> (singleton holding world_state) keeps its progression across levels.</p>
+<h3 id="84-how-rules-find-mutate-entities">8.4 How rules find + mutate entities</h3>
+<div class="mermaid">
+flowchart LR
+    Rule["rule fires<br/>(trigger matched)"]:::action
+    Q["query.gd::run(spec, env)"]:::core
+    Filter["filter by:<br/>tags_all / tags_any / tags_none<br/>properties.X_op<br/>state.X_op<br/>relations<br/>radius (uses SpatialIndex)<br/>order_by / limit"]:::action
+    Matched["matched: Array&lt;Entity&gt;"]:::out
+
+    Rule --> Q --> Filter --> Matched
+
+    Matched -->|"context: {self: ent}<br/>(or {a: x, b: y} for<br/>contact-pair)"| Effects["effect queue<br/>(per matched entity)"]:::out
+
+    Effects -->|"flush at phase boundary"| Apply["effect_apply.gd<br/>resolve target to Entity<br/>mutate state / spawn / remove /<br/>tag_add / relate / etc."]:::core
+
+    Apply -.->|"state_set with formula"| Formula["formula.gd<br/>self.state.X<br/>target.state.Y<br/>b.position(0)<br/>world.gold"]:::core
+
+    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
+    classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
+</div>
+<hr>
+
+</div>
+</body>
+</html>

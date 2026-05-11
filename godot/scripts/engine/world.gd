@@ -1161,7 +1161,14 @@ func _decrement_lifetimes() -> void:
 
 func _process(delta: float) -> void:
 	if scheduler == null: return
-	_poll_input()
+	# Input polling lives in InputRegistrar (extracted 2026-05-11 — kept
+	# the full input lifecycle co-located in one module). _find_actor_id
+	# stays here because actor routing is world.gd's concern.
+	InputRegistrar.poll(
+		scheduler, _find_actor_id(),
+		input_actions_hold, input_actions_press,
+		stop_action_on_idle, entities
+	)
 	_integrate_motion(delta)
 
 
@@ -1177,111 +1184,18 @@ func _input(event: InputEvent) -> void:
 		scheduler.env["mouse_delta"] = (current as Vector2) + motion.relative
 
 
-## Poll input actions and queue them on the scheduler. HOLD actions queue
-## every frame the key is pressed; PRESS actions queue once per keypress
-## (just_pressed edge). Both resolve `actor` to first entity tagged
-## `actor_tag`. `stop_action_on_idle` queues when no movement keys are held.
-func _poll_input() -> void:
-	var actor_id := _find_actor_id()
-	if actor_id == "": return
-	# Per-axis idle detection (added 2026-05-10): track which movement
-	# axes have keys pressed. When ALL keys on an axis are released,
-	# queue a per-axis stop action. This fixes the "release one of two
-	# held movement keys" bug without zeroing velocity per frame
-	# (which was wrong because _poll_input runs at 60Hz but scheduler
-	# ticks at 10Hz — zeroing per frame meant motion integrator saw
-	# zero velocity 5 frames out of 6 → player effectively immobile).
-	#
-	# Axis pairs:
-	#   y axis (renderer-Z = north/south): move_north + move_south
-	#   x axis (east/west):                move_east  + move_west
-	#
-	# When neither N nor S is held, queue stop_y action. The stop_y
-	# rule sets only the y component to 0, preserving x. Same for stop_x.
-	# Result: holding W+A then releasing A correctly leaves velocity
-	# (0, -3) — pure north — because move_west fires no more AND
-	# stop_x zeros the x component while move_north keeps setting y.
-	var ns_held := false
-	var ew_held := false
-	var any_movement_pressed := false
-	# HOLD actions — fire every frame while held. Skip actions not in
-	# InputMap (per-game inputs.json may not register every default —
-	# Tier 2.6t).
-	for action in input_actions_hold:
-		if not InputMap.has_action(action): continue
-		if Input.is_action_pressed(action):
-			scheduler.queue_input(action, {"actor": actor_id})
-			var act_s := str(action)
-			if act_s.begins_with("move_"):
-				any_movement_pressed = true
-				if act_s == "move_north" or act_s == "move_south":
-					ns_held = true
-				elif act_s == "move_east" or act_s == "move_west":
-					ew_held = true
-	# PRESS actions — fire once on press-edge
-	for action in input_actions_press:
-		if not InputMap.has_action(action): continue
-		if Input.is_action_just_pressed(action):
-			scheduler.queue_input(action, {"actor": actor_id})
-	# Per-axis stop: if no key on the axis is held, queue per-axis stop.
-	# Read current velocity once; only queue when there's something to
-	# stop (avoid spamming the input queue with no-op events).
-	#
-	# ADR 0040 Defect #1 fix (2026-05-10): SUPPRESS per-axis stop
-	# injection for actors with `state.zero_velocity_pretick=true`. Those
-	# actors use camera-relative WASD via velocity_add_relative; their
-	# advance_one_tick zeroes velocity each tick BEFORE the input phase,
-	# so the pretick zero already handles the "no input → zero velocity"
-	# semantic. The per-axis stop logic was designed for the world-frame
-	# velocity_set model and would WIPE the camera-relative diagonal
-	# contributions (because _poll_input runs at 60Hz between ticks and
-	# would queue stop_x even while W is held — last-writer-wins in the
-	# input phase erases the x-component of the iso-W diagonal vector).
-	var actor_ent = entities.get(actor_id, null)
-	if actor_ent is Entity:
-		var pretick_zero := bool((actor_ent as Entity).get_state("zero_velocity_pretick", false))
-		if not pretick_zero:
-			var v = (actor_ent as Entity).get_velocity()
-			var vx: float = 0.0
-			var vy: float = 0.0
-			if v is Vector2:
-				vx = (v as Vector2).x; vy = (v as Vector2).y
-			elif v is Vector3:
-				vx = (v as Vector3).x; vy = (v as Vector3).z
-			if not ew_held and absf(vx) > 0.001:
-				scheduler.queue_input("stop_x", {"actor": actor_id})
-			if not ns_held and absf(vy) > 0.001:
-				scheduler.queue_input("stop_y", {"actor": actor_id})
-	# Legacy global stop (fully idle) — kept for backwards-compat with
-	# any existing demo using it. New games should use stop_x / stop_y
-	# (the lib_wasd_stop_x / lib_wasd_stop_y rules). ADR 0040: same
-	# pretick-zero suppression as per-axis stops above.
-	var legacy_stop_pretick_zero := false
-	if actor_ent is Entity:
-		legacy_stop_pretick_zero = bool((actor_ent as Entity).get_state("zero_velocity_pretick", false))
-	if not legacy_stop_pretick_zero and stop_action_on_idle != "" and not any_movement_pressed and stop_action_on_idle != "stop_x" and stop_action_on_idle != "stop_y":
-		var v2 = (actor_ent as Entity).get_velocity() if actor_ent is Entity else null
-		var v_nonzero: bool = false
-		if v2 is Vector2: v_nonzero = (v2 as Vector2) != Vector2.ZERO
-		elif v2 is Vector3: v_nonzero = (v2 as Vector3) != Vector3.ZERO
-		if v_nonzero:
-			scheduler.queue_input(stop_action_on_idle, {"actor": actor_id})
-
 
 ## ADR 0016: resolve which entity should receive input this frame.
-## Routes through actor_manager to find the entity controlled by the
-## current active actor. Falls back to the legacy actor_tag scan if
-## the manager isn't initialized (defensive — shouldn't happen post-load).
+## Routes through actor_manager (single code path per ADR 0016).
+## The legacy `actor_tag` scan fallback was removed 2026-05-11 — it
+## was dead code in production paths AND silently masked authoring
+## bugs in actors.json (a typoed starting_entity_tag would invisibly
+## fall back to "player" tag instead of surfacing as "no actor entity
+## found"). Returns "" if no entity matches; callers handle.
 func _find_actor_id() -> String:
-	if actor_manager != null:
-		var id: String = actor_manager.resolve_active_entity(entities)
-		if id != "": return id
-	# Defensive fallback (matches pre-ADR-0016 behavior)
-	for id in entities.keys():
-		var ent = entities[id]
-		if ent is Entity and (ent as Entity).has_tag(actor_tag):
-			return id
-	return ""
+	if actor_manager == null:
+		return ""  # auto_start=false test mode; no input routing
+	return actor_manager.resolve_active_entity(entities)
 
 
 ## ADR 0016: process queued switch_actor between ticks. Effect handlers

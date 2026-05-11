@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>33_yume_full_architecture — 5. Invariants cheat-sheet</title>
+<style>
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --accent: #0066cc;
+  --code-bg: #f0f0f0;
+  --border: #ddd;
+  --table-stripe: #f5f5f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e0e0e0;
+    --muted: #999;
+    --accent: #4da3ff;
+    --code-bg: #2a2a2a;
+    --border: #333;
+    --table-stripe: #222;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+nav.topnav {
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+nav.topnav a { color: var(--accent); text-decoration: none; margin: 0 8px; }
+nav.topnav a:hover { text-decoration: underline; }
+nav.topnav .crumb { color: var(--muted); }
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.8em 0 0.6em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+h1 { font-size: 2em; border-bottom: 2px solid var(--border); padding-bottom: 0.3em; margin-top: 0.5em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1.1em; color: var(--muted); }
+p { margin: 0.8em 0; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+em { font-style: italic; }
+code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 1em 0;
+  padding: 0.3em 1em;
+  color: var(--muted);
+  background: var(--code-bg);
+}
+ul, ol { margin: 0.8em 0; padding-left: 1.8em; }
+li { margin: 0.3em 0; }
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+tr:nth-child(even) td { background: var(--table-stripe); }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+.toc {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 24px;
+  margin: 1em 0 2em;
+}
+.toc ul { padding-left: 1.4em; margin: 0.4em 0; }
+.toc > h3 { margin-top: 0.4em; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: dark ? 'dark' : 'default',
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+    sequence: { useMaxWidth: true }
+  });
+});
+</script>
+<style>
+.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
+  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
+  overflow-x: auto; }
+.mermaid svg { max-width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="04-4-per-tick-state-flow.html">← 4. Per-tick state flow</a> <a href="06-6-engine-modules-which-gd-reads-which-json.html">6. Engine modules — which .gd reads which .json →</a></div></nav>
+<div class="container">
+<div class="toc"><h3>Contents</h3><ul><li><a href="#5-invariants-cheat-sheet">5. Invariants cheat-sheet</a></li></ul></div>
+<h2 id="5-invariants-cheat-sheet">5. Invariants cheat-sheet</h2>
+<div class="mermaid">
+flowchart LR
+    I1["#1 JSON-only<br/>content channel"]
+    I2["#2 No semantic<br/>effect types"]
+    I3["#3 No entity-class<br/>hierarchy"]
+    I5["#5 Queries<br/>first-class"]
+    I8["#8 Engine =<br/>primitives + interpreter"]
+    I9["#9 Phase boundaries<br/>flush effects"]
+    I10["#10 Freeze-policy<br/>audit"]
+    I11["#11 Level discontinuity<br/>cleanup"]
+    I12["#12 Persistent<br/>instance guard"]
+
+    I1 -.->|gates| Build1["No game logic<br/>in GDScript"]
+    I2 -.->|gates| Build2["No 'damage'<br/>'heal' effect strings"]
+    I3 -.->|gates| Build3["No 'extends Entity'<br/>or genre subclass"]
+    I5 -.->|gates| Build5["No bypass of<br/>QueryLib"]
+    I8 -.->|gates| Build8["No genre-specific<br/>engine code"]
+    I9 -.->|gates| Build9["No phase-ordering<br/>changes without ADR"]
+    I10 -.->|gates| Build10["Every _pending_X<br/>declares freeze policy"]
+    I11 -.->|gates| Build11["Camera / particles /<br/>tweens cleared on swap"]
+    I12 -.->|gates| Build12["world.gd preserves<br/>persistent state on<br/>level entry"]
+</div>
+<hr>
+
+</div>
+</body>
+</html>

@@ -31,6 +31,14 @@ var active_actor_id: String = ""
 ## Loaded once at game start; invoked per tick by tick_policies().
 var _policies: Dictionary = {}
 
+## Cache of resolve_active_entity result. Refreshed lazily — fast path
+## checks the cache is still valid (entity exists + still has the right
+## tag); slow path scans env.entities and updates cache. set_active()
+## invalidates. Avoids O(N) tag scan every frame (Aldenmere with 234
+## entities hits this 60Hz, was ~14000 has_tag calls/sec — now ~60 cache
+## checks/sec under steady state). Added 2026-05-11.
+var _cached_active_entity_id: String = ""
+
 
 # ============================================================
 # LOADING
@@ -88,6 +96,10 @@ func _load_from_file(path: String) -> void:
 ## matching entity exists. Uses the actor's `starting_entity_tag` to
 ## locate via env.entities (first entity matching the tag).
 func resolve_actor_entity(actor_id: String, entities: Dictionary) -> String:
+	# Early-return on empty actor_id (added 2026-05-11) — avoids a silent
+	# O(N) scan for tag "" which has_tag always rejects. Defensive against
+	# `resolve_actor_entity("", entities)` callers that bypass resolve_active_entity.
+	if actor_id == "": return ""
 	var actor: Dictionary = _by_id.get(actor_id, {})
 	if actor.is_empty(): return ""
 	var tag := str(actor.get("starting_entity_tag", ""))
@@ -100,10 +112,24 @@ func resolve_actor_entity(actor_id: String, entities: Dictionary) -> String:
 
 
 ## Resolve the active actor's controlled entity id. Convenience for
-## input dispatch + camera follow.
+## input dispatch + camera follow. Cached: fast path validates the
+## previous resolution; slow path scans + caches.
 func resolve_active_entity(entities: Dictionary) -> String:
 	if active_actor_id == "": return ""
-	return resolve_actor_entity(active_actor_id, entities)
+	# Fast path: cached id still resolves to a valid entity with the
+	# right tag. ~4 O(1) ops, no scan.
+	if _cached_active_entity_id != "" \
+			and entities.has(_cached_active_entity_id):
+		var ent = entities[_cached_active_entity_id]
+		if ent != null and ent.has_method("has_tag"):
+			var actor: Dictionary = _by_id.get(active_actor_id, {})
+			var tag := str(actor.get("starting_entity_tag", ""))
+			if tag != "" and ent.has_tag(tag):
+				return _cached_active_entity_id
+	# Slow path: cache miss / invalid → re-resolve + cache.
+	var resolved := resolve_actor_entity(active_actor_id, entities)
+	_cached_active_entity_id = resolved
+	return resolved
 
 
 ## Set a new active actor. Returns false if actor_id unknown (no change).
@@ -113,6 +139,7 @@ func set_active(actor_id: String) -> bool:
 		push_warning("ActorManager: switch_actor target '%s' not in registry" % actor_id)
 		return false
 	active_actor_id = actor_id
+	_cached_active_entity_id = ""  # invalidate; next resolve re-scans
 	return true
 
 

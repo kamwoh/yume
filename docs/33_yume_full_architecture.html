@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>33_yume_full_architecture</title>
+<style>
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --accent: #0066cc;
+  --code-bg: #f0f0f0;
+  --border: #ddd;
+  --table-stripe: #f5f5f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e0e0e0;
+    --muted: #999;
+    --accent: #4da3ff;
+    --code-bg: #2a2a2a;
+    --border: #333;
+    --table-stripe: #222;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+nav.topnav {
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+nav.topnav a { color: var(--accent); text-decoration: none; margin: 0 8px; }
+nav.topnav a:hover { text-decoration: underline; }
+nav.topnav .crumb { color: var(--muted); }
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.8em 0 0.6em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+h1 { font-size: 2em; border-bottom: 2px solid var(--border); padding-bottom: 0.3em; margin-top: 0.5em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1.1em; color: var(--muted); }
+p { margin: 0.8em 0; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+em { font-style: italic; }
+code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 1em 0;
+  padding: 0.3em 1em;
+  color: var(--muted);
+  background: var(--code-bg);
+}
+ul, ol { margin: 0.8em 0; padding-left: 1.8em; }
+li { margin: 0.3em 0; }
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+tr:nth-child(even) td { background: var(--table-stripe); }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+.toc {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 24px;
+  margin: 1em 0 2em;
+}
+.toc ul { padding-left: 1.4em; margin: 0.4em 0; }
+.toc > h3 { margin-top: 0.4em; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: dark ? 'dark' : 'default',
+    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+    sequence: { useMaxWidth: true }
+  });
+});
+</script>
+<style>
+.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
+  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
+  overflow-x: auto; }
+.mermaid svg { max-width: 100%; height: auto; }
+</style>
+</head><body><div class="container"><h1 id="yume-full-architecture-2026-05-11">Yume — Full Architecture (2026-05-11)</h1>
+<p>_Snapshot diagram of every Yume layer + how content moves through the system. Companion to <code>30_framework_primitives.md</code> (the contract) and <code>32_architecture_diagrams.md</code> (older overviews)._</p>
+<hr><h2>Contents</h2><ul><li><a href="33_yume_full_architecture_pages/01-1-whole-system-five-layers-feedback-loop.html">1. Whole system — five layers + feedback loop</a></li><li><a href="33_yume_full_architecture_pages/02-2-engine-subsystems-directors-stores-validators.html">2. Engine subsystems — directors, stores, validators</a></li><li><a href="33_yume_full_architecture_pages/03-3-skill-pipeline-prose-to-running-game.html">3. Skill pipeline — prose to running game</a></li><li><a href="33_yume_full_architecture_pages/04-4-per-tick-state-flow.html">4. Per-tick state flow</a></li><li><a href="33_yume_full_architecture_pages/05-5-invariants-cheat-sheet.html">5. Invariants cheat-sheet</a></li><li><a href="33_yume_full_architecture_pages/06-6-engine-modules-which-gd-reads-which-json.html">6. Engine modules — which .gd reads which .json</a></li><li><a href="33_yume_full_architecture_pages/07-7-per-module-deep-dive-input-json-action-tick-role.html">7. Per-module deep-dive — input JSON → action → tick role</a></li><li><a href="33_yume_full_architecture_pages/08-8-entities-the-only-quotnounquot-in-the-engine.html">8. Entities — the only &amp;quot;noun&amp;quot; in the engine</a></li><li><a href="33_yume_full_architecture_pages/09-9-physicsjson-vs-gamerulesjson-the-conceptual-split-adr-0009.html">9. physics.json vs game/rules.json — the conceptual split (ADR 0009)</a></li><li><a href="33_yume_full_architecture_pages/10-10-full-game-lifecycle-boot-to-render.html">10. Full game lifecycle — boot to render</a></li><li><a href="33_yume_full_architecture_pages/11-11-godotx27s-reserved-virtuals-how-yume-uses-them.html">11. Godot&amp;#x27;s reserved virtuals + how Yume uses them</a></li><li><a href="33_yume_full_architecture_pages/12-12-why-yume-doesnx27t-use-godot-physics.html">12. Why Yume doesn&amp;#x27;t use Godot physics</a></li><li><a href="33_yume_full_architecture_pages/13-stats-2026-05-11.html">Stats (2026-05-11)</a></li></ul></div></body></html>
