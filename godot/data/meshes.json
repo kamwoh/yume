@@ -277,12 +277,16 @@
         "pants": "#3a2818"
       },
       "animations": {
+        "_comment_idle_silent": "Idle actively HOLDS the rest pose so limbs reset when a walking villager stops. Empty tracks would leave limbs frozen mid-stride (animation_director doesn't auto-reset on state switch). Each track is a 1-keyframe 'hold at 0' that overwrites whatever the walk state left behind. Stationary villagers appear perfectly still.",
         "idle": {
-          "duration": 2.4,
+          "duration": 1.0,
           "loop": true,
           "tracks": [
-            {"piece": "head", "rotation_y": [0.0, 0.08, 0.0, -0.08, 0.0]},
-            {"piece": "torso", "translation_y": [0.0, 0.012, 0.0, -0.012, 0.0]}
+            {"piece": "left_arm",  "rotation_x": [0.0, 0.0]},
+            {"piece": "right_arm", "rotation_x": [0.0, 0.0]},
+            {"piece": "left_leg",  "rotation_x": [0.0, 0.0]},
+            {"piece": "right_leg", "rotation_x": [0.0, 0.0]},
+            {"piece": "torso", "translation_y": [0.0, 0.0]}
           ]
         },
         "walk": {
