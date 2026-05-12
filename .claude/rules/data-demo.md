@@ -407,6 +407,12 @@ animals shipped with Vector3 `[0,0,0]` velocity (11 entities total).
 Pressing W made the player float upward instead of walking north.
 User feedback: "why my 'w' is not on the floor, but is up and down?"
 
+**ADR 0045 follow-up (2026-05-13)**: actors with `physics.body_type:
+"character"` ALSO use Vector2 for floor-walkers — the runner script
+mirrors state.velocity to its `CharacterBody3D.velocity` via
+`sync_body_velocity`, which lifts Vector2(x, y) → Vector3(x, 0, y)
+exactly like the renderer. Same convention; same rule.
+
 **The check**: any entity tagged `actor`, `villager`, `ambient_walker`,
 `prey`, `wolf` (or any other ground-mover) MUST have 2-component
 velocity. Verify with grep before declaring content done:

@@ -824,9 +824,14 @@ This engine does **not** pretend to cover:
   post-W5 addition). Engine design permits, doesn't implement.
 - **Turn-based games** — require `world_clock.paused` + explicit `signal`-driven
   phases. Hooks present; no turn manager yet.
-- **Continuous physics simulation** (car physics, soft-body, fluids as particles)
-  — discrete-tick engine with coarse contact detection. Not a Box2D/Bullet
-  replacement.
+- **Continuous physics simulation** (car physics, soft-body, fluids as
+  particles) — Yume exposes Godot's PhysicsServer3D and CharacterBody3D
+  via JSON (`physics.body_type: "kinematic" | "rigid" | "character" | "static"
+  | "area"`, per ADR 0044/0045), so basic velocity-driven motion + collision
+  slide come free. But complex constraint solvers, soft-body, particle
+  fluids are deliberately out — when a game needs them, declare the body
+  type in JSON and let Godot's optimized C++ implementation drive the
+  behavior; the engine doesn't reimplement physics in GDScript.
 - **Networked multiplayer** — single-instance simulation. Host/client is future
   work layered on top of state serialization.
 

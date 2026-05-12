@@ -1,8 +1,33 @@
 {
   "_origin": "lib/physics/bodies.json",
-  "_comment": "ADR 0044 — common physics body templates. Per-game entity defs can spread these via $extends to get sensible defaults. Override individual fields after the $extends to customize. Bits 1..16 from @lib.physics.layers used here; games with custom layer names can override collision_layer / collision_mask.",
+  "_comment": "ADR 0044/0045 — common physics body templates. Per-game entity defs spread these via $extends to get sensible defaults. Override individual fields after the $extends to customize. Bits 1..16 from @lib.physics.layers used here; games with custom layer names can override collision_layer / collision_mask. ADR 0045: `body_type: \"character\"` creates a CharacterBody3D Node (move_and_slide-driven, the right pick for velocity-controlled actors). Other body_types create raw PhysicsServer3D RIDs.",
+
+  "standard_character_player": {
+    "_comment": "ADR 0045 — player CharacterBody3D. move_and_slide handles drag / collision / slope / floor; speed clamped to state.max_speed at 60Hz via character_body_runner. Use this for human-controlled actors (WASD-driven).",
+    "body_type": "character",
+    "collision_shape": {"type": "capsule", "radius": 0.4, "height": 1.8},
+    "collision_layer": ["player"],
+    "collision_mask": ["wall", "floor", "ceiling", "npc", "enemy", "animal", "pickup", "trigger"]
+  },
+
+  "standard_character_npc": {
+    "_comment": "ADR 0045 — NPC CharacterBody3D. Same body class as player but with NPC-shaped collision layer/mask. AI policies or schedule directors write state.velocity each tick; character_body_runner._physics_process consumes it.",
+    "body_type": "character",
+    "collision_shape": {"type": "capsule", "radius": 0.4, "height": 1.2},
+    "collision_layer": ["npc"],
+    "collision_mask": ["wall", "floor", "player", "npc", "enemy", "animal"]
+  },
+
+  "standard_character_animal": {
+    "_comment": "ADR 0045 — animal CharacterBody3D. Smaller capsule than NPC; mask excludes 'enemy' since most animals aren't hostile by default (override to add).",
+    "body_type": "character",
+    "collision_shape": {"type": "capsule", "radius": 0.35, "height": 0.8},
+    "collision_layer": ["animal"],
+    "collision_mask": ["wall", "floor", "player", "npc", "animal"]
+  },
 
   "standard_kinematic_npc": {
+    "_comment": "Legacy raw-RID kinematic body. Use for non-moving NPCs that only need to BLOCK motion (statues, props). Velocity-driven NPCs should use standard_character_npc instead — character bodies get Godot's move_and_slide for free.",
     "body_type": "kinematic",
     "collision_shape": {"type": "capsule", "radius": 0.4, "height": 1.2},
     "collision_layer": ["npc"],
@@ -10,6 +35,7 @@
   },
 
   "standard_kinematic_animal": {
+    "_comment": "Legacy raw-RID kinematic body. Use standard_character_animal for velocity-driven animals.",
     "body_type": "kinematic",
     "collision_shape": {"type": "capsule", "radius": 0.35, "height": 0.8},
     "collision_layer": ["animal"],
@@ -17,6 +43,7 @@
   },
 
   "standard_kinematic_player": {
+    "_comment": "Legacy raw-RID kinematic body. Use standard_character_player for WASD-controlled players (gives move_and_slide / slope / floor detection for free).",
     "body_type": "kinematic",
     "collision_shape": {"type": "capsule", "radius": 0.4, "height": 1.8},
     "collision_layer": ["player"],

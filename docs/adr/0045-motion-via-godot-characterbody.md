@@ -1,10 +1,12 @@
 # ADR 0045 — Motion integration via Godot's CharacterBody3D
 
 _Date: 2026-05-12_
-_Status: **accepted — Session A may begin** (2026-05-12). Tech-director
-review (below) gated on Conditions 1, 2, 4. All three resolved in this
-revision; Conditions 3, 5, 6 are per-session gates resolved at session
-spec time._
+_Status: **accepted — all sessions landed** (2026-05-13). Sessions A-E
+shipped over five loop iterations. MotionIntegrator deleted; CharacterBody3D
+drives all character-body motion via move_and_slide; standard_character_*
+lib templates added. Tech-director review (below) gated on Conditions
+1, 2, 4 — all resolved during Sessions A-B. Conditions 3, 5, 6 resolved
+during per-session implementation._
 _Type: continuation of ADR 0044 (collision via PhysicsServer3D) and
 ADR 0021 (Yume = JSON layer over Godot; never reimplement what Godot
 already does well)_
