@@ -164,8 +164,8 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 			# Motion integration normally runs in World._process(delta) at
 			# frame rate. Headless scenario testing runs ticks discretely, so
 			# we simulate motion using tick_seconds as the delta.
-			if world.has_method("_integrate_motion"):
-				world._integrate_motion(float(world.tick_seconds))
+			if world._motion_integrator != null:
+				world._motion_integrator.integrate(float(world.tick_seconds))
 
 		# Assertions (legacy schema)
 		var assertions: Array = sc.get("assertions", [])

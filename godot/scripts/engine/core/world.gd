@@ -97,6 +97,10 @@ var _world_reset: WorldResetCoordinator = null
 ## the SETTER; cached field values (ground_y, grid_cfg) live on World
 ## so tick-time code can read them without going through the loader.
 var _loader: WorldLoader = null
+## ADR 0044 Session D — per-frame motion. Owns the integrate(delta) call
+## that applies drag + velocity + physics-driven collision resolution.
+## Holds the cached SphereShape3D for intersect_shape queries.
+var _motion_integrator: MotionIntegrator = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
@@ -124,15 +128,6 @@ func _enter_tree() -> void:
 		_resolve_data_root_from_cmdline()
 
 
-## ADR 0044 Session C — free the cached collision-test sphere at exit.
-## Without this, the SphereShape3D RID leaks (caught 2026-05-12 boot
-## test: "1 RID allocation of type 'P12GodotShape3D' was leaked at exit").
-func _exit_tree() -> void:
-	if _physics_test_shape_3d.is_valid():
-		PhysicsServer3D.free_rid(_physics_test_shape_3d)
-		_physics_test_shape_3d = RID()
-
-
 var _multimesh_director: MultiMeshDirector = null
 
 
@@ -149,6 +144,7 @@ func _ready() -> void:
 	_save_load = SaveLoadCoordinator.new(self)
 	_world_reset = WorldResetCoordinator.new(self)
 	_loader = WorldLoader.new(self)
+	_motion_integrator = MotionIntegrator.new(self)
 	if auto_start:
 		start()
 
@@ -562,7 +558,11 @@ func _process(delta: float) -> void:
 		input_actions_hold, input_actions_press,
 		stop_action_on_idle, entities
 	)
-	_integrate_motion(delta)
+	_motion_integrator.integrate(delta)
+	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
+	# clamp tagged "creature" entities to that Y, and remove tagged
+	# "projectile" entities that drop below it. Applied after motion.
+	_apply_ground()
 
 
 ## Tier 2.6o Phase 3 — accumulate mouse motion across the frame.
@@ -606,89 +606,9 @@ func process_pending_actor_switch() -> void:
 			print("[World] active actor → ", target)
 
 
-## Integrate velocity → position each frame for smooth motion.
-## Velocity is in units-per-second; multiply by delta. Updates spatial index.
-##
-## Tier 2.6i: entities with state.drag > 0 decelerate when no input is
-## actively setting velocity. drag is per-second factor (0.0 = no drag,
-## 1.0 = full stop in 1s). Velocity multiplies by (1 - drag * delta) each
-## frame. Below DRAG_REST_EPSILON it snaps to zero.
-##
-## ADR 0004: entities with the `blocks_motion` tag and `properties.aabb_extents`
-## act as static obstacles. Each moving entity is tested against blockers as
-## a circle (XZ plane) with radius from `properties.body_radius` (default
-## 0.4). On intersection, motion slides along separate axes — try X-only, then
-## Z-only, else stay. Approximation: no swept CCD, so very fast entities at
-## oblique angles can tunnel through thin walls. Acceptable for arcade-feel.
-const DRAG_REST_EPSILON := 0.5
-const DEFAULT_BODY_RADIUS := 0.4
-
-## ADR 0044 Session D — motion integration uses physics for collision.
-## Hand-rolled AABB sweep deleted. Only Vector3 path supported (2D scenes
-## need Vector3 entities with Y=0 OR a future PhysicsServer2D backend).
-##
-## Per-entity flow:
-##   1. Apply drag (state.drag) — decay velocity toward zero
-##   2. Skip if entity has blocks_motion tag (static; doesn't move itself)
-##   3. Compute proposed position = current + velocity * delta
-##   4. _resolve_motion_via_physics_3d slides if collision detected
-##   5. Entity.set_position writes — auto-syncs to body if attached
-##   6. Spatial index updated for radius queries
-func _integrate_motion(delta: float) -> void:
-	for id in entities.keys():
-		var ent = entities[id]
-		if not (ent is Entity): continue
-		var v = (ent as Entity).get_velocity()
-		if v == null: continue
-		# Apply drag if configured. Skipped if drag = 0 (default).
-		var drag_v := float((ent as Entity).get_state("drag", 0.0))
-		if drag_v > 0.0:
-			var factor: float = 1.0 - clamp(drag_v * delta, 0.0, 1.0)
-			if v is Vector2:
-				var v2: Vector2 = v
-				if v2 != Vector2.ZERO:
-					v2 *= factor
-					if v2.length() < DRAG_REST_EPSILON: v2 = Vector2.ZERO
-					(ent as Entity).set_velocity(v2)
-					v = v2
-			elif v is Vector3:
-				var v3: Vector3 = v
-				if v3 != Vector3.ZERO:
-					v3 *= factor
-					if v3.length() < DRAG_REST_EPSILON * 0.01: v3 = Vector3.ZERO
-					(ent as Entity).set_velocity(v3)
-					v = v3
-		# Static obstacles don't move themselves.
-		if (ent as Entity).has_tag("blocks_motion"): continue
-		var body_r: float = float((ent as Entity).get_property("body_radius", DEFAULT_BODY_RADIUS))
-		var p = (ent as Entity).get_position()
-		var moved := false
-		# Vector3 path — all 3D scenes (Aldenmere + future 3D games).
-		# Vector2 velocity translated to Vector3 (x, 0, y) per Yume convention.
-		if p is Vector3:
-			var new_p3: Vector3
-			if v is Vector3 and v != Vector3.ZERO:
-				new_p3 = (p as Vector3) + (v as Vector3) * delta
-			elif v is Vector2 and v != Vector2.ZERO:
-				var v2: Vector2 = v
-				new_p3 = (p as Vector3) + Vector3(v2.x, 0, v2.y) * delta
-			else:
-				continue
-			new_p3 = _resolve_motion_via_physics_3d(p as Vector3, new_p3, body_r)
-			(ent as Entity).set_position(new_p3)
-			moved = true
-		elif p is Vector2 and v is Vector2 and v != Vector2.ZERO:
-			# 2D scene fallback (no physics collision; entity moves freely).
-			# Other demos using Vector2 motion need PhysicsServer2D backend
-			# (future sub-step). Aldenmere doesn't hit this branch.
-			(ent as Entity).set_position((p as Vector2) + (v as Vector2) * delta)
-			moved = true
-		if moved and spatial_index != null:
-			spatial_index.update_entity(id, (ent as Entity).get_planar_position())
-	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
-	# clamp tagged "creature" entities to that Y, and remove tagged
-	# "projectile" entities that drop below it.
-	_apply_ground()
+## Per-frame motion + collision = MotionIntegrator coordinator
+## (see coordinators/motion_integrator.gd). _process delegates to
+## _motion_integrator.integrate(delta) then calls _apply_ground().
 
 
 var _ground_y: float = -INF
@@ -753,66 +673,6 @@ func _apply_ground() -> void:
 			spatial_index.remove_entity(rid)
 		entities.erase(rid)
 		rent.queue_free()
-
-
-
-# ============================================================
-# ADR 0044 Session C — physics-driven collision (PhysicsServer3D)
-# ============================================================
-
-## Cached SphereShape3D for collision queries. Created once per
-## unique body_radius; freed at world exit.
-var _physics_test_shape_3d: RID = RID()
-var _physics_test_shape_radius: float = -1.0
-
-func _ensure_physics_test_shape(radius: float) -> RID:
-	if _physics_test_shape_3d.is_valid() and abs(_physics_test_shape_radius - radius) < 0.001:
-		return _physics_test_shape_3d
-	if _physics_test_shape_3d.is_valid():
-		PhysicsServer3D.free_rid(_physics_test_shape_3d)
-	_physics_test_shape_3d = PhysicsServer3D.sphere_shape_create()
-	PhysicsServer3D.shape_set_data(_physics_test_shape_3d, radius)
-	_physics_test_shape_radius = radius
-	return _physics_test_shape_3d
-
-
-## Returns true if a sphere of `radius` at `pos` overlaps ANY physics
-## body in the 3D space. Used by _integrate_motion to detect collision
-## between a moving (body-less) entity and static walls (which DO have
-## bodies via Session A translation of blocks_motion).
-##
-## Returns false when no 3D space exists (2D scene, headless test
-## without viewport) — caller falls back to legacy AABB code.
-func _physics_collides_3d(pos: Vector3, radius: float) -> bool:
-	var vp := get_viewport()
-	if vp == null: return false
-	var w3d := vp.find_world_3d()
-	if w3d == null: return false
-	var space: RID = w3d.space
-	if not space.is_valid(): return false
-	var ds := PhysicsServer3D.space_get_direct_state(space)
-	if ds == null: return false
-	var query := PhysicsShapeQueryParameters3D.new()
-	query.shape_rid = _ensure_physics_test_shape(radius)
-	query.transform = Transform3D(Basis(), pos)
-	query.collision_mask = 0xFFFFFFFF
-	return not ds.intersect_shape(query, 1).is_empty()
-
-
-## Resolve 3D motion via PhysicsServer3D.intersect_shape — replaces
-## the hand-rolled AABB slide. Same separate-axes slide policy: try
-## X-only, then Z-only, then stay. Y is preserved (Aldenmere's
-## entities stay on ground; ground constraint handled separately).
-func _resolve_motion_via_physics_3d(from_p: Vector3, to_p: Vector3, radius: float) -> Vector3:
-	if not _physics_collides_3d(to_p, radius):
-		return to_p
-	var x_only := Vector3(to_p.x, from_p.y, from_p.z)
-	if not _physics_collides_3d(x_only, radius):
-		return Vector3(to_p.x, to_p.y, from_p.z)
-	var z_only := Vector3(from_p.x, from_p.y, to_p.z)
-	if not _physics_collides_3d(z_only, radius):
-		return Vector3(from_p.x, to_p.y, to_p.z)
-	return from_p
 
 
 

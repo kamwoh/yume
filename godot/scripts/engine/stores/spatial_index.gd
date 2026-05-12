@@ -7,7 +7,7 @@ class_name SpatialIndex
 ## `query_radius(point, r)` visits only the cells overlapping the circle —
 ## avoids O(n²) over all entities when scaling to ~100+ entities.
 ##
-## Update on entity motion: World._integrate_motion calls update_entity()
+## Update on entity motion: MotionIntegrator.integrate calls update_entity()
 ## each frame. Update on spawn/despawn: same path. Stale entries ignored
 ## defensively in queries.
 ##

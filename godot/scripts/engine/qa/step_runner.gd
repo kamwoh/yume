@@ -145,8 +145,8 @@ static func _queue_input(world: World, action: String) -> void:
 # equivalent tick-step's worth of motion for headless tests.
 static func _advance(world: World) -> void:
 	world.advance_one_tick()
-	if world.has_method("_integrate_motion"):
-		world._integrate_motion(float(world.tick_seconds))
+	if world._motion_integrator != null:
+		world._motion_integrator.integrate(float(world.tick_seconds))
 
 
 static func _find_actor_id(world: World) -> String:
