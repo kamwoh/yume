@@ -185,7 +185,7 @@ func set_position(p) -> void:
 	# ADR 0044 Session B: if a physics body is attached, mirror the
 	# position write to body.transform. Keeps body + entity state
 	# synchronized so Session C can swap reads to come from the body.
-	if has_meta("_physics_body_rid"):
+	if has_meta("_physics_body"):
 		PhysicsBodyBuilder.sync_body_transform(self)
 
 
@@ -218,7 +218,7 @@ func set_velocity(v) -> void:
 	# body is attached. Keeps the two in sync; Session C swaps the
 	# read direction (legacy _integrate_motion reads state.velocity;
 	# Session C will read body state directly).
-	if has_meta("_physics_body_rid"):
+	if has_meta("_physics_body"):
 		PhysicsBodyBuilder.sync_body_velocity(self)
 
 
@@ -260,7 +260,7 @@ func snapshot() -> Dictionary:
 ## server's allocation table — empirical case 2026-05-12: Aldenmere boot
 ## reported 102 leaked P11GodotBody3D allocations at exit.
 func _exit_tree() -> void:
-	if has_meta("_physics_body_rid"):
+	if has_meta("_physics_body"):
 		PhysicsBodyBuilder.free_3d(self)
 
 

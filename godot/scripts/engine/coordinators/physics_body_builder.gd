@@ -6,7 +6,7 @@ class_name PhysicsBodyBuilder
 ## Stateless static utilities for creating PhysicsServer3D bodies from
 ## Yume entity `physics` blocks. Called by SpawnManager.spawn AFTER the
 ## Entity is created and added to env.entities; the resulting body_rid
-## is stored as meta on the entity (`_physics_body_rid`).
+## is stored as meta on the entity (`_physics_body`).
 ##
 ## Schema (from ADR 0044 § "JSON schema (per-entity physics declaration)"):
 ##
@@ -125,29 +125,136 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Di
 	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, transform)
 
 	# Stamp the entity with this body's RID so despawn can free it.
-	entity.set_meta("_physics_body_rid", body)
+	entity.set_meta("_physics_body", body)
 
 	return body
 
 
-## Free a body created via build_3d (and its associated shapes).
+## Free a body created via build_3d / build_character_3d.
 ## Called by SpawnManager.despawn before queue_free.
+##
+## ADR 0045 Session A: dispatches on stored Variant type.
+##   - RID (static/kinematic/rigid/area) → free attached shapes +
+##     PhysicsServer3D.free_rid
+##   - Node (character — a CharacterBody3D scene node) →
+##     node.queue_free (Godot frees the body + its shape children)
 static func free_3d(entity) -> void:
-	if not entity.has_meta("_physics_body_rid"):
+	if not entity.has_meta("_physics_body"):
 		return
-	var body: RID = entity.get_meta("_physics_body_rid")
-	if not body.is_valid():
-		entity.remove_meta("_physics_body_rid")
-		return
-	# Free shapes attached to the body
-	var shape_count := PhysicsServer3D.body_get_shape_count(body)
-	for i in range(shape_count):
-		var shape: RID = PhysicsServer3D.body_get_shape(body, i)
-		if shape.is_valid():
-			PhysicsServer3D.free_rid(shape)
-	# Free the body itself
-	PhysicsServer3D.free_rid(body)
-	entity.remove_meta("_physics_body_rid")
+	var body = entity.get_meta("_physics_body")
+	entity.remove_meta("_physics_body")
+	if body is RID:
+		var rid: RID = body
+		if not rid.is_valid():
+			return
+		# Free shapes attached to the body
+		var shape_count := PhysicsServer3D.body_get_shape_count(rid)
+		for i in range(shape_count):
+			var shape: RID = PhysicsServer3D.body_get_shape(rid, i)
+			if shape.is_valid():
+				PhysicsServer3D.free_rid(shape)
+		# Free the body itself
+		PhysicsServer3D.free_rid(rid)
+	elif body is Node:
+		(body as Node).queue_free()
+
+
+# ============================================================
+# ADR 0045 Session A — character body factory (CharacterBody3D Node)
+# ============================================================
+
+
+## Build a CharacterBody3D Node for a body_type:"character" entity.
+## Unlike build_3d (which creates a raw PhysicsServer3D RID), this
+## creates a scene-tree Node with its own _physics_process. The Node
+## is added as a child of the Entity Node so it lives in the same
+## spatial hierarchy as the rest of the scene.
+##
+## Stored in entity meta `_physics_body` (Variant: Node here, RID
+## elsewhere). free_3d + sync_body_transform + sync_body_velocity all
+## dispatch on the meta's type.
+##
+## Behavior wiring (read velocity → move_and_slide → write position)
+## lands in Session B inside character_body_runner.gd::_physics_process.
+## Session A's runner has an empty _physics_process, so this body
+## does nothing yet — it's purely lifecycle plumbing.
+static func build_character_3d(entity: Entity, phys_cfg: Dictionary, layer_map: Dictionary) -> CharacterBody3D:
+	var body := CharacterBodyRunner.new()
+	body.name = "CharacterBody"
+	body.bind(entity)
+
+	# Collision shape — same vocabulary as build_3d (box/sphere/capsule/cylinder).
+	var shape_cfg: Dictionary = phys_cfg.get("collision_shape", {})
+	var shape_node := _build_collision_shape_node(shape_cfg)
+	if shape_node != null:
+		body.add_child(shape_node)
+
+	# Collision layer/mask — translate name arrays via layer_map.
+	body.collision_layer = _layer_mask(phys_cfg.get("collision_layer", []), layer_map)
+	body.collision_mask = _layer_mask(phys_cfg.get("collision_mask", []), layer_map)
+
+	# Initial transform from entity.state.position
+	var pos = entity.get_position() if entity.has_method("get_position") else null
+	if pos is Vector3:
+		body.position = pos
+	elif pos is Vector2:
+		body.position = Vector3(pos.x, 0, pos.y)
+
+	# Attach to the Entity Node so the body lives in the scene tree.
+	entity.add_child(body)
+	entity.set_meta("_physics_body", body)
+	return body
+
+
+## Build a CollisionShape3D node from a shape config dict. Used by
+## build_character_3d (CharacterBody3D needs shapes as scene-tree
+## children, not as raw RIDs attached via PhysicsServer3D.body_add_shape).
+##
+## Returns null if shape_cfg is empty / invalid.
+static func _build_collision_shape_node(shape_cfg: Dictionary) -> CollisionShape3D:
+	if shape_cfg.is_empty():
+		return null
+	var shape_type := str(shape_cfg.get("type", ""))
+	var shape: Shape3D = null
+	match shape_type:
+		"box":
+			var box := BoxShape3D.new()
+			var size = shape_cfg.get("size", [1.0, 1.0, 1.0])
+			box.size = Vec3Util.from_world_pos(size)
+			shape = box
+		"sphere":
+			var sph := SphereShape3D.new()
+			sph.radius = float(shape_cfg.get("radius", 0.5))
+			shape = sph
+		"capsule":
+			var cap := CapsuleShape3D.new()
+			cap.radius = float(shape_cfg.get("radius", 0.4))
+			cap.height = float(shape_cfg.get("height", 1.8))
+			shape = cap
+		"cylinder":
+			var cyl := CylinderShape3D.new()
+			cyl.radius = float(shape_cfg.get("radius", 0.5))
+			cyl.height = float(shape_cfg.get("height", 1.0))
+			shape = cyl
+		_:
+			return null
+	var node := CollisionShape3D.new()
+	node.shape = shape
+	return node
+
+
+## Convert a layer-name array to a Godot collision-mask bitfield.
+## Mirrors the bit-set logic in build_3d's BODY-RID path.
+static func _layer_mask(names, layer_map: Dictionary) -> int:
+	var mask := 0
+	if names is Array:
+		for n in names:
+			var bit_index := int(layer_map.get(str(n), 0))
+			if bit_index >= 1 and bit_index <= 32:
+				mask |= 1 << (bit_index - 1)
+	elif str(names) == "all":
+		mask = 0xFFFFFFFF
+	return mask
 
 
 # ============================================================
@@ -328,18 +435,18 @@ static func _vec3_from(value) -> Vector3:
 # ============================================================
 
 
-## Mirror entity.state.position to body.global_transform. Called by
-## Entity.set_position when a body is attached. Per ADR 0044 Condition
-## 6: kinematic gets a warp (body.transform = pos); rigid gets a
-## warp + warn (direct position writes on rigid bodies are
-## non-physical but we let it through to support hot-swap of state
-## by rules).
+## Mirror entity.state.position to the attached body. Called by
+## Entity.set_position when a body is attached.
+##
+## ADR 0045 Session A: dispatches on stored Variant type.
+##   - RID → PhysicsServer3D.body_set_state (kinematic gets a warp;
+##     rigid same, with the non-physical caveat from ADR 0044
+##     Condition 6).
+##   - Node (CharacterBody3D) → node.global_position = v3.
 static func sync_body_transform(entity) -> void:
-	if not entity.has_meta("_physics_body_rid"):
+	if not entity.has_meta("_physics_body"):
 		return
-	var body: RID = entity.get_meta("_physics_body_rid")
-	if not body.is_valid():
-		return
+	var body = entity.get_meta("_physics_body")
 	var p = entity.get_position()
 	var v3: Vector3
 	if p is Vector3:
@@ -348,25 +455,39 @@ static func sync_body_transform(entity) -> void:
 		v3 = Vector3(p.x, 0, p.y)
 	else:
 		return
-	var xform := Transform3D(Basis(), v3)
-	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+	if body is RID:
+		var rid: RID = body
+		if not rid.is_valid():
+			return
+		var xform := Transform3D(Basis(), v3)
+		PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+	elif body is Node3D:
+		(body as Node3D).global_position = v3
 
 
-## Mirror entity.state.velocity to body.linear_velocity. Called by
+## Mirror entity.state.velocity to the attached body. Called by
 ## Entity.set_velocity when a body is attached.
+##
+## ADR 0045 Session A: dispatches on stored Variant type.
+##   - RID → PhysicsServer3D.body_set_state (linear velocity).
+##   - Node (CharacterBody3D) → node.velocity = v3 (the Godot-owned
+##     velocity field that move_and_slide consumes each tick).
 static func sync_body_velocity(entity) -> void:
-	if not entity.has_meta("_physics_body_rid"):
+	if not entity.has_meta("_physics_body"):
 		return
-	var body: RID = entity.get_meta("_physics_body_rid")
-	if not body.is_valid():
-		return
+	var body = entity.get_meta("_physics_body")
 	var v = entity.get_velocity()
 	var v3: Vector3
 	if v is Vector3:
 		v3 = v
 	elif v is Vector2:
-		# Yume's 2D convention: Vector2(x, y) where y maps to world-Z.
 		v3 = Vector3(v.x, 0, v.y)
 	else:
 		return
-	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, v3)
+	if body is RID:
+		var rid: RID = body
+		if not rid.is_valid():
+			return
+		PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, v3)
+	elif body is CharacterBody3D:
+		(body as CharacterBody3D).velocity = v3

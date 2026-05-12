@@ -271,10 +271,11 @@ func despawn(inst_id: String) -> void:
 
 
 ## If the entity's def declares a `physics` block (or has legacy
-## `blocks_motion` tag + `properties.aabb_extents`), build a
-## PhysicsServer3D body via PhysicsBodyBuilder and stamp the body RID
-## on the entity as meta `_physics_body_rid`. The body is created but
-## INERT in Session A — legacy _integrate_motion still drives motion.
+## `blocks_motion` tag + `properties.aabb_extents`), build a body via
+## PhysicsBodyBuilder and stamp the body on the entity as meta
+## `_physics_body`. Variant value:
+##   - RID for body_type ∈ {static, kinematic, rigid, area}
+##   - CharacterBody3D Node for body_type == "character" (ADR 0045)
 ##
 ## No-op when:
 ##   - Def has no physics block AND no blocks_motion tag
@@ -295,7 +296,13 @@ func _build_physics_body_if_declared(ent: Entity) -> void:
 	if not space.is_valid():
 		return
 	var layer_map := _resolve_layer_map()
-	PhysicsBodyBuilder.build_3d(ent, phys_cfg, space, layer_map)
+	# ADR 0045: character bodies are CharacterBody3D scene Nodes, not
+	# raw PhysicsServer3D RIDs. Dispatch here.
+	var body_type := str(phys_cfg.get("body_type", ""))
+	if body_type == "character":
+		PhysicsBodyBuilder.build_character_3d(ent, phys_cfg, layer_map)
+	else:
+		PhysicsBodyBuilder.build_3d(ent, phys_cfg, space, layer_map)
 
 
 ## Resolve the 3D physics space RID for the current scene. Returns
