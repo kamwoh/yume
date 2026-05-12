@@ -124,6 +124,15 @@ func _enter_tree() -> void:
 		_resolve_data_root_from_cmdline()
 
 
+## ADR 0044 Session C — free the cached collision-test sphere at exit.
+## Without this, the SphereShape3D RID leaks (caught 2026-05-12 boot
+## test: "1 RID allocation of type 'P12GodotShape3D' was leaked at exit").
+func _exit_tree() -> void:
+	if _physics_test_shape_3d.is_valid():
+		PhysicsServer3D.free_rid(_physics_test_shape_3d)
+		_physics_test_shape_3d = RID()
+
+
 var _multimesh_director: MultiMeshDirector = null
 
 
@@ -664,21 +673,25 @@ func _integrate_motion(delta: float) -> void:
 			elif p is Vector3:
 				var v2: Vector2 = v as Vector2
 				var new_p3v: Vector3 = (p as Vector3) + Vector3(v2.x, 0, v2.y) * delta
-				if not is_blocker and not blockers.is_empty():
+				if not is_blocker:
+					# ADR 0044 Session C: prefer physics-driven collision when
+					# a 3D space exists. Falls through to legacy AABB only for
+					# headless tests + 2D scenes.
 					if is_projectile:
 						new_p3v = _resolve_projectile_3d(p as Vector3, new_p3v, body_r, blockers)
 					else:
-						new_p3v = _resolve_motion_3d(p as Vector3, new_p3v, body_r, blockers)
+						new_p3v = _resolve_motion_via_physics_3d(p as Vector3, new_p3v, body_r)
 				(ent as Entity).set_position(new_p3v)
 				moved = true
 		elif v is Vector3 and v != Vector3.ZERO:
 			if p is Vector3:
 				var new_p3: Vector3 = (p as Vector3) + (v as Vector3) * delta
-				if not is_blocker and not blockers.is_empty():
+				if not is_blocker:
+					# ADR 0044 Session C: physics-driven collision (intersect_shape).
 					if is_projectile:
 						new_p3 = _resolve_projectile_3d(p as Vector3, new_p3, body_r, blockers)
 					else:
-						new_p3 = _resolve_motion_3d(p as Vector3, new_p3, body_r, blockers)
+						new_p3 = _resolve_motion_via_physics_3d(p as Vector3, new_p3, body_r)
 				(ent as Entity).set_position(new_p3)
 				moved = true
 			elif p is Vector2:
@@ -819,6 +832,65 @@ func _collect_blockers() -> Array:
 	return out
 
 
+# ============================================================
+# ADR 0044 Session C — physics-driven collision (PhysicsServer3D)
+# ============================================================
+
+## Cached SphereShape3D for collision queries. Created once per
+## unique body_radius; freed at world exit.
+var _physics_test_shape_3d: RID = RID()
+var _physics_test_shape_radius: float = -1.0
+
+func _ensure_physics_test_shape(radius: float) -> RID:
+	if _physics_test_shape_3d.is_valid() and abs(_physics_test_shape_radius - radius) < 0.001:
+		return _physics_test_shape_3d
+	if _physics_test_shape_3d.is_valid():
+		PhysicsServer3D.free_rid(_physics_test_shape_3d)
+	_physics_test_shape_3d = PhysicsServer3D.sphere_shape_create()
+	PhysicsServer3D.shape_set_data(_physics_test_shape_3d, radius)
+	_physics_test_shape_radius = radius
+	return _physics_test_shape_3d
+
+
+## Returns true if a sphere of `radius` at `pos` overlaps ANY physics
+## body in the 3D space. Used by _integrate_motion to detect collision
+## between a moving (body-less) entity and static walls (which DO have
+## bodies via Session A translation of blocks_motion).
+##
+## Returns false when no 3D space exists (2D scene, headless test
+## without viewport) — caller falls back to legacy AABB code.
+func _physics_collides_3d(pos: Vector3, radius: float) -> bool:
+	var vp := get_viewport()
+	if vp == null: return false
+	var w3d := vp.find_world_3d()
+	if w3d == null: return false
+	var space: RID = w3d.space
+	if not space.is_valid(): return false
+	var ds := PhysicsServer3D.space_get_direct_state(space)
+	if ds == null: return false
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape_rid = _ensure_physics_test_shape(radius)
+	query.transform = Transform3D(Basis(), pos)
+	query.collision_mask = 0xFFFFFFFF
+	return not ds.intersect_shape(query, 1).is_empty()
+
+
+## Resolve 3D motion via PhysicsServer3D.intersect_shape — replaces
+## the hand-rolled AABB slide. Same separate-axes slide policy: try
+## X-only, then Z-only, then stay. Y is preserved (Aldenmere's
+## entities stay on ground; ground constraint handled separately).
+func _resolve_motion_via_physics_3d(from_p: Vector3, to_p: Vector3, radius: float) -> Vector3:
+	if not _physics_collides_3d(to_p, radius):
+		return to_p
+	var x_only := Vector3(to_p.x, from_p.y, from_p.z)
+	if not _physics_collides_3d(x_only, radius):
+		return Vector3(to_p.x, to_p.y, from_p.z)
+	var z_only := Vector3(from_p.x, from_p.y, to_p.z)
+	if not _physics_collides_3d(z_only, radius):
+		return Vector3(from_p.x, to_p.y, to_p.z)
+	return from_p
+
+
 ## Resolve 3D motion against AABB blockers via separate-axes slide on XZ.
 ## Uses SWEPT (segment) intersection for correctness when entities move
 ## fast (bullets at 22 m/s × tick 0.05s = 1.1m/tick can teleport past
@@ -827,6 +899,10 @@ func _collect_blockers() -> Array:
 ##
 ## When all 3 axes are blocked, position fully reverts so projectiles
 ## stop dead at the wall instead of sliding along it.
+##
+## 2026-05-12: kept as LEGACY FALLBACK for 2D scenes / headless tests.
+## ADR 0044 Session C swaps the active path to
+## `_resolve_motion_via_physics_3d` when a 3D space is available.
 static func _resolve_motion_3d(old_p: Vector3, new_p: Vector3, body_r: float, blockers: Array) -> Vector3:
 	if not _segment_intersects(old_p, new_p, body_r, blockers):
 		return new_p
