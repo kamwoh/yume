@@ -55,7 +55,6 @@ class_name ClassManager
 ##    the result.
 ## 3. Tests: instantiate directly, call register_class + switch_class.
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
@@ -67,7 +66,6 @@ const STATE_LAST_SWITCH_DAY: String = "last_class_switch_day"
 const FAILURE_REASON_NO_DEF: String = "unknown_class"
 const FAILURE_REASON_COOLDOWN: String = "cooldown"
 
-
 # ============================================================
 # STATE
 # ============================================================
@@ -76,10 +74,10 @@ var _world: Node = null
 # class_id (String) → class def (Dictionary)
 var _class_defs: Dictionary = {}
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -93,6 +91,7 @@ func _ready() -> void:
 # ============================================================
 # REGISTRATION
 # ============================================================
+
 
 ## Register a single class definition. Idempotent: re-registering the same
 ## id replaces the prior def. Used by both the JSON loader and tests.
@@ -151,11 +150,14 @@ func register_classes_from_data_root(root: String, env: Dictionary = {}) -> void
 		if cid == "":
 			push_warning("ClassManager: class def at '%s' missing 'id' — skipping." % path)
 			if env != null and env is Dictionary and env.has("error_buffer"):
-				EngineError.raise(env, EngineError.CLASS_MISSING_ID,
+				EngineError.raise(
+					env,
+					EngineError.CLASS_MISSING_ID,
 					"ClassManager: class def at '%s' has no id" % path,
 					{"file": path},
-					"Add an 'id' field naming this class (e.g. \"id\": \"farmer\").",
-					"warning")
+					'Add an \'id\' field naming this class (e.g. "id": "farmer").',
+					"warning"
+				)
 			continue
 		register_class(cid, parsed)
 
@@ -186,6 +188,7 @@ func known_class_ids() -> Array:
 # SWITCH_CLASS
 # ============================================================
 
+
 ## Atomic switch. Returns a result dict:
 ##   {ok: bool, reason: String, from: String, to: String}
 ## On success:
@@ -206,8 +209,9 @@ func known_class_ids() -> Array:
 ##     as 0 → first switch always succeeds; subsequent switches on the
 ##     same "day 0" with cooldown_days >= 1 will fail. Author guidance:
 ##     set cooldown_days to 0 if no day clock.
-func switch_class(env: Dictionary, target_id: String, to_class: String,
-                  cooldown_days: int = 1) -> Dictionary:
+func switch_class(
+	env: Dictionary, target_id: String, to_class: String, cooldown_days: int = 1
+) -> Dictionary:
 	var entities = env.get("entities", null)
 	if not (entities is Dictionary) or not (entities as Dictionary).has(target_id):
 		return {
@@ -222,12 +226,17 @@ func switch_class(env: Dictionary, target_id: String, to_class: String,
 	var prev_class: String = str((ent as Entity).get_state(STATE_CURRENT_CLASS, ""))
 	# 1. Validate class def exists.
 	if not _class_defs.has(to_class):
-		EngineError.raise(env, EngineError.CLASS_SWITCH_NO_DEF,
+		EngineError.raise(
+			env,
+			EngineError.CLASS_SWITCH_NO_DEF,
 			"switch_class: no class def '%s'" % to_class,
-			{"target": target_id, "to_class": to_class,
-			 "known_classes": _class_defs.keys()},
-			"Register the class def via register_class or add data/<game>/classes/%s.json." % to_class,
-			"warning")
+			{"target": target_id, "to_class": to_class, "known_classes": _class_defs.keys()},
+			(
+				"Register the class def via register_class or add data/<game>/classes/%s.json."
+				% to_class
+			),
+			"warning"
+		)
 		return {
 			"ok": false,
 			"reason": FAILURE_REASON_NO_DEF,
@@ -235,20 +244,34 @@ func switch_class(env: Dictionary, target_id: String, to_class: String,
 			"to": to_class,
 		}
 	# 2. Validate cooldown. Read current_day from world; default 0 if absent.
-	var world_dict: Dictionary = env.get("world", {}) if env.get("world", null) is Dictionary else {}
+	var world_dict: Dictionary = (
+		env.get("world", {}) if env.get("world", null) is Dictionary else {}
+	)
 	var current_day: int = int(world_dict.get("current_day", 0))
 	var cd: int = max(0, cooldown_days)
 	if cd > 0 and (ent as Entity).get_state(STATE_LAST_SWITCH_DAY, null) != null:
 		var last_day: int = int((ent as Entity).get_state(STATE_LAST_SWITCH_DAY, 0))
 		if current_day - last_day < cd:
-			EngineError.raise(env, EngineError.CLASS_SWITCH_COOLDOWN,
-				"switch_class: cooldown active (last_day=%d, current_day=%d, required=%d)" % [
-					last_day, current_day, cd],
-				{"target": target_id, "to_class": to_class,
-				 "last_class_switch_day": last_day, "current_day": current_day,
-				 "cooldown_days": cd},
-				"Wait until current_day - last_class_switch_day >= cooldown_days, or set cooldown_days=0 in the effect.",
-				"warning")
+			(
+				EngineError
+				. raise(
+					env,
+					EngineError.CLASS_SWITCH_COOLDOWN,
+					(
+						"switch_class: cooldown active (last_day=%d, current_day=%d, required=%d)"
+						% [last_day, current_day, cd]
+					),
+					{
+						"target": target_id,
+						"to_class": to_class,
+						"last_class_switch_day": last_day,
+						"current_day": current_day,
+						"cooldown_days": cd
+					},
+					"Wait until current_day - last_class_switch_day >= cooldown_days, or set cooldown_days=0 in the effect.",
+					"warning"
+				)
+			)
 			return {
 				"ok": false,
 				"reason": FAILURE_REASON_COOLDOWN,
@@ -263,15 +286,21 @@ func switch_class(env: Dictionary, target_id: String, to_class: String,
 	#    rule subscribers for tutorial / unlock / barker re-pool).
 	var buf = env.get("signal_buffer", null)
 	if buf is Array:
-		(buf as Array).append({
-			"name": SIGNAL_CLASS_SWITCHED,
-			"payload": {
-				"entity_id": (ent as Entity).instance_id,
-				"from": prev_class,
-				"to": to_class,
-				"day": current_day,
-			}
-		})
+		(
+			(buf as Array)
+			. append(
+				{
+					"name": SIGNAL_CLASS_SWITCHED,
+					"payload":
+					{
+						"entity_id": (ent as Entity).instance_id,
+						"from": prev_class,
+						"to": to_class,
+						"day": current_day,
+					}
+				}
+			)
+		)
 	# else: signal_buffer absent (test harness without scheduler) —
 	# state mutation still applied; signal silently dropped. Tests that
 	# check the signal must provide their own buffer.
@@ -287,6 +316,7 @@ func switch_class(env: Dictionary, target_id: String, to_class: String,
 # INTERNAL
 # ============================================================
 
+
 static func _read_json(path: String, env: Dictionary) -> Dictionary:
 	if not FileAccess.file_exists(path):
 		return {}
@@ -299,10 +329,13 @@ static func _read_json(path: String, env: Dictionary) -> Dictionary:
 	if json.parse(raw) != OK:
 		push_warning("ClassManager: invalid JSON at '%s' (%s)" % [path, json.get_error_message()])
 		if env != null and env is Dictionary and env.has("error_buffer"):
-			EngineError.raise(env, EngineError.CLASS_INVALID_JSON,
+			EngineError.raise(
+				env,
+				EngineError.CLASS_INVALID_JSON,
 				"ClassManager: invalid JSON at '%s'" % path,
 				{"file": path, "parse_error": json.get_error_message()},
 				"Validate the file with `python -m json.tool < %s`." % path,
-				"warning")
+				"warning"
+			)
 		return {}
 	return json.data if json.data is Dictionary else {}

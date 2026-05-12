@@ -51,23 +51,22 @@ class_name FactionDirector
 ##   - JSON loading from data/<game>/factions.json (load_from_data_root)
 ##   - save/load round-trip helper plumbed into save_state.gd
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
 
-const SIGNAL_WAR_DECLARED: String     = "faction_war_declared"
-const SIGNAL_TREATY_SIGNED: String    = "faction_treaty_signed"
-const SIGNAL_ALLIANCE_FORMED: String  = "faction_alliance_formed"
-const SIGNAL_LOYALTY_CHANGED: String  = "faction_loyalty_changed"
+const SIGNAL_WAR_DECLARED: String = "faction_war_declared"
+const SIGNAL_TREATY_SIGNED: String = "faction_treaty_signed"
+const SIGNAL_ALLIANCE_FORMED: String = "faction_alliance_formed"
+const SIGNAL_LOYALTY_CHANGED: String = "faction_loyalty_changed"
 
-const STATE_FACTION_LOYALTY: String   = "faction_loyalty"
+const STATE_FACTION_LOYALTY: String = "faction_loyalty"
 
-const STANCE_ALLIED: String   = "allied"
-const STANCE_NEUTRAL: String  = "neutral"
-const STANCE_RIVALS: String   = "rivals"
-const STANCE_HOSTILE: String  = "hostile"
-const STANCE_AT_WAR: String   = "at_war"
+const STANCE_ALLIED: String = "allied"
+const STANCE_NEUTRAL: String = "neutral"
+const STANCE_RIVALS: String = "rivals"
+const STANCE_HOSTILE: String = "hostile"
+const STANCE_AT_WAR: String = "at_war"
 
 # Membership threshold — loyalty values >= this count toward member_count.
 const MEMBER_THRESHOLD: int = 50
@@ -78,13 +77,12 @@ const DEFAULT_LOYALTY_DELTA: int = 10
 # Stance → tension baseline mapping. sign_treaty without an explicit
 # new_stance falls to neutral; its baseline tension is 10.
 const STANCE_BASELINE: Dictionary = {
-	STANCE_ALLIED:  0,
+	STANCE_ALLIED: 0,
 	STANCE_NEUTRAL: 10,
-	STANCE_RIVALS:  40,
+	STANCE_RIVALS: 40,
 	STANCE_HOSTILE: 70,
-	STANCE_AT_WAR:  100,
+	STANCE_AT_WAR: 100,
 }
-
 
 # ============================================================
 # STATE
@@ -96,10 +94,10 @@ var _factions: Dictionary = {}
 # "<from>:<to>" (String) → {stance: String, tension: int}
 var _relationships: Dictionary = {}
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -113,6 +111,7 @@ func _ready() -> void:
 # ============================================================
 # REGISTRATION
 # ============================================================
+
 
 ## Register factions + initial relationships from a parsed factions.json
 ## dict. Idempotent: re-registering the same id replaces the prior def.
@@ -139,22 +138,32 @@ func register_factions(data: Dictionary, env: Dictionary = {}) -> Array:
 	# Phase 1: register faction defs
 	var faction_list = data.get("factions", [])
 	if faction_list is Array:
-		for raw in (faction_list as Array):
+		for raw in faction_list as Array:
 			if not (raw is Dictionary):
-				errors.append(EngineError.raise(env, "faction.invalid_entry",
-					"faction entry not a dict",
-					{"file": "factions.json", "got": str(raw)},
-					"Each faction must be a dict with at least an 'id' field.",
-					"warning"))
+				errors.append(
+					EngineError.raise(
+						env,
+						"faction.invalid_entry",
+						"faction entry not a dict",
+						{"file": "factions.json", "got": str(raw)},
+						"Each faction must be a dict with at least an 'id' field.",
+						"warning"
+					)
+				)
 				continue
 			var f: Dictionary = raw
 			var fid := str(f.get("id", ""))
 			if fid == "":
-				errors.append(EngineError.raise(env, "faction.missing_id",
-					"faction missing id",
-					{"file": "factions.json", "entry": f},
-					"Every faction needs a unique 'id' string.",
-					"warning"))
+				errors.append(
+					EngineError.raise(
+						env,
+						"faction.missing_id",
+						"faction missing id",
+						{"file": "factions.json", "entry": f},
+						"Every faction needs a unique 'id' string.",
+						"warning"
+					)
+				)
 				continue
 			var stored: Dictionary = f.duplicate(true)
 			stored["id"] = fid
@@ -163,7 +172,7 @@ func register_factions(data: Dictionary, env: Dictionary = {}) -> Array:
 	# Phase 2: register initial relationships (validated against faction set)
 	var rel_list = data.get("relationships", [])
 	if rel_list is Array:
-		for raw_r in (rel_list as Array):
+		for raw_r in rel_list as Array:
 			if not (raw_r is Dictionary):
 				continue
 			var r: Dictionary = raw_r
@@ -172,25 +181,54 @@ func register_factions(data: Dictionary, env: Dictionary = {}) -> Array:
 			var stance := str(r.get("stance", STANCE_NEUTRAL))
 			var tension := int(r.get("tension", STANCE_BASELINE.get(stance, 0)))
 			if not _factions.has(from_id):
-				errors.append(EngineError.raise(env, EngineError.FACTION_NO_DEF,
-					"relationship 'from' references unknown faction '%s'" % from_id,
-					{"file": "factions.json", "from": from_id, "to": to_id},
-					"Add a faction def with id '%s' or fix the relationship." % from_id,
-					"warning"))
+				errors.append(
+					EngineError.raise(
+						env,
+						EngineError.FACTION_NO_DEF,
+						"relationship 'from' references unknown faction '%s'" % from_id,
+						{"file": "factions.json", "from": from_id, "to": to_id},
+						"Add a faction def with id '%s' or fix the relationship." % from_id,
+						"warning"
+					)
+				)
 				continue
 			if not _factions.has(to_id):
-				errors.append(EngineError.raise(env, EngineError.FACTION_NO_DEF,
-					"relationship 'to' references unknown faction '%s'" % to_id,
-					{"file": "factions.json", "from": from_id, "to": to_id},
-					"Add a faction def with id '%s' or fix the relationship." % to_id,
-					"warning"))
+				errors.append(
+					EngineError.raise(
+						env,
+						EngineError.FACTION_NO_DEF,
+						"relationship 'to' references unknown faction '%s'" % to_id,
+						{"file": "factions.json", "from": from_id, "to": to_id},
+						"Add a faction def with id '%s' or fix the relationship." % to_id,
+						"warning"
+					)
+				)
 				continue
 			if not STANCE_BASELINE.has(stance):
-				errors.append(EngineError.raise(env, EngineError.FACTION_INVALID_STANCE,
-					"relationship stance '%s' not one of allied|neutral|rivals|hostile|at_war" % stance,
-					{"file": "factions.json", "from": from_id, "to": to_id, "stance": stance},
-					"Use one of: allied, neutral, rivals, hostile, at_war.",
-					"warning"))
+				(
+					errors
+					. append(
+						(
+							EngineError
+							. raise(
+								env,
+								EngineError.FACTION_INVALID_STANCE,
+								(
+									"relationship stance '%s' not one of allied|neutral|rivals|hostile|at_war"
+									% stance
+								),
+								{
+									"file": "factions.json",
+									"from": from_id,
+									"to": to_id,
+									"stance": stance
+								},
+								"Use one of: allied, neutral, rivals, hostile, at_war.",
+								"warning"
+							)
+						)
+					)
+				)
 				continue
 			_set_rel(from_id, to_id, stance, tension)
 	return errors
@@ -216,6 +254,7 @@ func get_faction_def(faction_id: String) -> Dictionary:
 # ============================================================
 # RELATIONSHIP ACCESS
 # ============================================================
+
 
 static func _rel_key(from_id: String, to_id: String) -> String:
 	return "%s:%s" % [from_id, to_id]
@@ -265,16 +304,20 @@ func find_factions_with_stance(stance: String) -> Array:
 # EFFECT — DECLARE_WAR
 # ============================================================
 
+
 ## Set relationship stance to at_war, tension to 100. Atomic on unknown
 ## faction (no mutation, raises FACTION_NO_DEF). Emits faction_war_declared
 ## signal to env.signal_buffer with from/to payload.
 func apply_declare_war(env: Dictionary, from_id: String, to_id: String) -> Dictionary:
 	if not _factions.has(from_id) or not _factions.has(to_id):
-		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+		EngineError.raise(
+			env,
+			EngineError.FACTION_NO_DEF,
 			"declare_war: unknown faction '%s' or '%s'" % [from_id, to_id],
 			{"from": from_id, "to": to_id, "known": _factions.keys()},
 			"Register the faction via register_factions or add it to factions.json.",
-			"warning")
+			"warning"
+		)
 		return {"ok": false, "reason": "no_def", "from": from_id, "to": to_id}
 	_set_rel(from_id, to_id, STANCE_AT_WAR, STANCE_BASELINE[STANCE_AT_WAR])
 	_emit(env, SIGNAL_WAR_DECLARED, {"from": from_id, "to": to_id})
@@ -285,29 +328,40 @@ func apply_declare_war(env: Dictionary, from_id: String, to_id: String) -> Dicti
 # EFFECT — SIGN_TREATY
 # ============================================================
 
+
 ## Reset relationship stance to `new_stance` (default neutral) and tension
 ## to that stance's baseline. Emits faction_treaty_signed signal. Atomic
 ## on unknown faction or invalid stance.
-func apply_sign_treaty(env: Dictionary, from_id: String, to_id: String,
-                        new_stance: String = STANCE_NEUTRAL) -> Dictionary:
+func apply_sign_treaty(
+	env: Dictionary, from_id: String, to_id: String, new_stance: String = STANCE_NEUTRAL
+) -> Dictionary:
 	if not _factions.has(from_id) or not _factions.has(to_id):
-		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+		EngineError.raise(
+			env,
+			EngineError.FACTION_NO_DEF,
 			"sign_treaty: unknown faction '%s' or '%s'" % [from_id, to_id],
 			{"from": from_id, "to": to_id, "known": _factions.keys()},
 			"Register the faction via register_factions or add it to factions.json.",
-			"warning")
+			"warning"
+		)
 		return {"ok": false, "reason": "no_def", "from": from_id, "to": to_id}
 	if not STANCE_BASELINE.has(new_stance):
-		EngineError.raise(env, EngineError.FACTION_INVALID_STANCE,
+		EngineError.raise(
+			env,
+			EngineError.FACTION_INVALID_STANCE,
 			"sign_treaty: stance '%s' not one of allied|neutral|rivals|hostile|at_war" % new_stance,
 			{"from": from_id, "to": to_id, "stance": new_stance},
 			"Use one of: allied, neutral, rivals, hostile, at_war.",
-			"warning")
+			"warning"
+		)
 		return {"ok": false, "reason": "invalid_stance", "from": from_id, "to": to_id}
 	var baseline: int = int(STANCE_BASELINE[new_stance])
 	_set_rel(from_id, to_id, new_stance, baseline)
-	_emit(env, SIGNAL_TREATY_SIGNED,
-		{"from": from_id, "to": to_id, "stance": new_stance, "tension": baseline})
+	_emit(
+		env,
+		SIGNAL_TREATY_SIGNED,
+		{"from": from_id, "to": to_id, "stance": new_stance, "tension": baseline}
+	)
 	return {"ok": true, "reason": "", "from": from_id, "to": to_id, "stance": new_stance}
 
 
@@ -315,15 +369,19 @@ func apply_sign_treaty(env: Dictionary, from_id: String, to_id: String,
 # EFFECT — PROPOSE_ALLIANCE
 # ============================================================
 
+
 ## Set relationship stance to allied, tension to 0. Emits
 ## faction_alliance_formed signal. Atomic on unknown faction.
 func apply_propose_alliance(env: Dictionary, from_id: String, to_id: String) -> Dictionary:
 	if not _factions.has(from_id) or not _factions.has(to_id):
-		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+		EngineError.raise(
+			env,
+			EngineError.FACTION_NO_DEF,
 			"propose_alliance: unknown faction '%s' or '%s'" % [from_id, to_id],
 			{"from": from_id, "to": to_id, "known": _factions.keys()},
 			"Register the faction via register_factions or add it to factions.json.",
-			"warning")
+			"warning"
+		)
 		return {"ok": false, "reason": "no_def", "from": from_id, "to": to_id}
 	_set_rel(from_id, to_id, STANCE_ALLIED, STANCE_BASELINE[STANCE_ALLIED])
 	_emit(env, SIGNAL_ALLIANCE_FORMED, {"from": from_id, "to": to_id})
@@ -334,20 +392,25 @@ func apply_propose_alliance(env: Dictionary, from_id: String, to_id: String) -> 
 # EFFECT — SWEAR_LOYALTY
 # ============================================================
 
+
 ## Mutate target entity's state.faction_loyalty[faction] field. Either
 ## adds `delta` (default +10) or sets `value` directly. Loyalty values are
 ## clamped 0-100. Atomic on unknown faction (no entity mutation, raises
 ## FACTION_NO_DEF).
 ##
 ## opts shape: {delta: int} OR {value: int}. delta wins if both present.
-func apply_swear_loyalty(env: Dictionary, entity_id: String,
-                          faction_id: String, opts: Dictionary = {}) -> Dictionary:
+func apply_swear_loyalty(
+	env: Dictionary, entity_id: String, faction_id: String, opts: Dictionary = {}
+) -> Dictionary:
 	if not _factions.has(faction_id):
-		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+		EngineError.raise(
+			env,
+			EngineError.FACTION_NO_DEF,
 			"swear_loyalty: unknown faction '%s'" % faction_id,
 			{"target": entity_id, "faction": faction_id, "known": _factions.keys()},
 			"Register the faction via register_factions or add it to factions.json.",
-			"warning")
+			"warning"
+		)
 		return {"ok": false, "reason": "no_def", "target": entity_id, "faction": faction_id}
 	var entities = env.get("entities", null)
 	if not (entities is Dictionary) or not (entities as Dictionary).has(entity_id):
@@ -373,19 +436,30 @@ func apply_swear_loyalty(env: Dictionary, entity_id: String,
 	# in place, but explicit set keeps the contract: callers can rely on
 	# state[STATE_FACTION_LOYALTY] always being the canonical reference.)
 	ent_e.set_state(STATE_FACTION_LOYALTY, loyalty)
-	_emit(env, SIGNAL_LOYALTY_CHANGED, {
-		"entity_id": ent_e.instance_id,
+	_emit(
+		env,
+		SIGNAL_LOYALTY_CHANGED,
+		{
+			"entity_id": ent_e.instance_id,
+			"faction": faction_id,
+			"from": prev_value,
+			"to": new_value,
+		}
+	)
+	return {
+		"ok": true,
+		"reason": "",
+		"target": entity_id,
 		"faction": faction_id,
 		"from": prev_value,
-		"to": new_value,
-	})
-	return {"ok": true, "reason": "", "target": entity_id, "faction": faction_id,
-	        "from": prev_value, "to": new_value}
+		"to": new_value
+	}
 
 
 # ============================================================
 # ZONE CONTROL (composition with ADR 0031 zone_store)
 # ============================================================
+
 
 ## Mark a zone as controlled by a faction. Pure composition over zone_store —
 ## writes the conventional `controlling_faction` field; queries on either
@@ -393,19 +467,25 @@ func apply_swear_loyalty(env: Dictionary, entity_id: String,
 ## successful, false if zone or faction unknown (warns via EngineError).
 func set_zone_control(env: Dictionary, faction_id: String, zone_id: String) -> bool:
 	if not _factions.has(faction_id):
-		EngineError.raise(env, EngineError.FACTION_NO_DEF,
+		EngineError.raise(
+			env,
+			EngineError.FACTION_NO_DEF,
 			"set_zone_control: unknown faction '%s'" % faction_id,
 			{"faction": faction_id, "zone": zone_id, "known": _factions.keys()},
 			"Register the faction via register_factions or add it to factions.json.",
-			"warning")
+			"warning"
+		)
 		return false
 	var zs = env.get("zone_store", null)
 	if zs == null or not zs.has_method("set_field") or not zs.has(zone_id):
-		EngineError.raise(env, "faction.unknown_zone",
+		EngineError.raise(
+			env,
+			"faction.unknown_zone",
 			"set_zone_control: unknown zone '%s'" % zone_id,
 			{"faction": faction_id, "zone": zone_id},
 			"Verify the zone exists in world/zones.json or that zone_store is wired.",
-			"warning")
+			"warning"
+		)
 		return false
 	zs.set_field(zone_id, "controlling_faction", faction_id)
 	return true
@@ -414,6 +494,7 @@ func set_zone_control(env: Dictionary, faction_id: String, zone_id: String) -> b
 # ============================================================
 # BINDING SNAPSHOT (faction.<id>.<field>)
 # ============================================================
+
 
 ## Build a flat snapshot suitable for use as the `faction` root in a
 ## Formula context. Each faction id maps to a dict containing:
@@ -447,7 +528,8 @@ func binding_snapshot(env: Dictionary = {}) -> Dictionary:
 		# Build per-other faction tension + stance maps from _relationships.
 		# Default 0 / "neutral" for absent edges (matches get_relationship).
 		for other_id in _factions.keys():
-			if other_id == fid: continue
+			if other_id == fid:
+				continue
 			var rel: Dictionary = get_relationship(fid, other_id)
 			(entry["tension_with"] as Dictionary)[other_id] = int(rel.get("tension", 0))
 			(entry["stance_with"] as Dictionary)[other_id] = str(rel.get("stance", STANCE_NEUTRAL))
@@ -464,12 +546,15 @@ func _compute_member_counts(env: Dictionary) -> Dictionary:
 		return counts
 	for id in (entities as Dictionary).keys():
 		var ent = (entities as Dictionary)[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var loyalty_v = (ent as Entity).get_state(STATE_FACTION_LOYALTY, null)
-		if not (loyalty_v is Dictionary): continue
+		if not (loyalty_v is Dictionary):
+			continue
 		for fid in (loyalty_v as Dictionary).keys():
 			var fid_s := str(fid)
-			if not counts.has(fid_s): continue
+			if not counts.has(fid_s):
+				continue
 			if int((loyalty_v as Dictionary)[fid]) >= MEMBER_THRESHOLD:
 				counts[fid_s] = int(counts[fid_s]) + 1
 	return counts
@@ -483,9 +568,11 @@ func _compute_zone_control_flags(env: Dictionary) -> Dictionary:
 	var snap: Dictionary = zs.binding_snapshot()
 	for zid in snap.keys():
 		var st = snap[zid]
-		if not (st is Dictionary): continue
+		if not (st is Dictionary):
+			continue
 		var cf := str((st as Dictionary).get("controlling_faction", ""))
-		if cf == "": continue
+		if cf == "":
+			continue
 		out[cf] = true
 	return out
 
@@ -493,6 +580,7 @@ func _compute_zone_control_flags(env: Dictionary) -> Dictionary:
 # ============================================================
 # SAVE / LOAD
 # ============================================================
+
 
 ## Serialize relationship state for save_state.gd. Returns flat
 ## {<from>:<to>: {stance, tension}}. Faction defs themselves are NOT saved
@@ -508,19 +596,23 @@ func to_save() -> Dictionary:
 ## from current factions.json are silently dropped (forgiveness). Pairs
 ## in current factions.json absent from save retain their initial state.
 func from_save(d: Dictionary) -> void:
-	if d == null or not (d is Dictionary): return
+	if d == null or not (d is Dictionary):
+		return
 	for key in d.keys():
 		var key_s := str(key)
 		var parts := key_s.split(":", false, 1)
-		if parts.size() != 2: continue
+		if parts.size() != 2:
+			continue
 		var from_id := str(parts[0])
 		var to_id := str(parts[1])
 		if not _factions.has(from_id) or not _factions.has(to_id):
 			continue
 		var rec = d[key]
-		if not (rec is Dictionary): continue
+		if not (rec is Dictionary):
+			continue
 		var stance := str((rec as Dictionary).get("stance", STANCE_NEUTRAL))
-		if not STANCE_BASELINE.has(stance): continue
+		if not STANCE_BASELINE.has(stance):
+			continue
 		var tension := int((rec as Dictionary).get("tension", STANCE_BASELINE[stance]))
 		_set_rel(from_id, to_id, stance, tension)
 
@@ -529,13 +621,20 @@ func from_save(d: Dictionary) -> void:
 # INTERNAL — signal emission
 # ============================================================
 
+
 func _emit(env: Dictionary, signal_name: String, payload: Dictionary) -> void:
 	# signal_buffer absent (test harness without scheduler) → state still
 	# applied; signal silently dropped. Tests that check the signal must
 	# provide their own buffer (mirrors ClassManager's convention).
 	var buf = env.get("signal_buffer", null)
-	if not (buf is Array): return
-	(buf as Array).append({
-		"name": signal_name,
-		"payload": payload,
-	})
+	if not (buf is Array):
+		return
+	(
+		(buf as Array)
+		. append(
+			{
+				"name": signal_name,
+				"payload": payload,
+			}
+		)
+	)

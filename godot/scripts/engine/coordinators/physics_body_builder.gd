@@ -35,10 +35,10 @@ class_name PhysicsBodyBuilder
 ## Viewport's World3D). 2D backend (PhysicsServer2D) lands in a later
 ## sub-step per ADR Condition 9.
 
-
 # ============================================================
 # PUBLIC API
 # ============================================================
+
 
 ## Build a PhysicsServer3D body from an entity's physics block.
 ## Returns RID.from_int64(0) on failure / no-op.
@@ -48,12 +48,16 @@ class_name PhysicsBodyBuilder
 ##   phys_cfg   — the resolved physics block dict (post-translation)
 ##   space_rid  — the 3D physics space (from world.physics_space_3d)
 ##   layer_map  — name → bit dict (from @lib.physics.layers.layers)
-static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID,
-                     layer_map: Dictionary) -> RID:
+static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Dictionary) -> RID:
 	if phys_cfg.is_empty():
 		return RID()
 	if not space_rid.is_valid():
-		push_warning("[PhysicsBodyBuilder] no valid 3D physics space — skipping body for %s" % entity.instance_id)
+		push_warning(
+			(
+				"[PhysicsBodyBuilder] no valid 3D physics space — skipping body for %s"
+				% entity.instance_id
+			)
+		)
 		return RID()
 
 	var body := PhysicsServer3D.body_create()
@@ -71,34 +75,45 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID,
 		if shape_rid.is_valid():
 			PhysicsServer3D.body_add_shape(body, shape_rid)
 	else:
-		push_warning("[PhysicsBodyBuilder] entity %s has physics block but no collision_shape — body is shapeless" % entity.instance_id)
+		push_warning(
+			(
+				"[PhysicsBodyBuilder] entity %s has physics block but no collision_shape — body is shapeless"
+				% entity.instance_id
+			)
+		)
 
 	# Collision layer + mask
 	var layer_bits := _resolve_layer_mask(phys_cfg.get("collision_layer", "all"), layer_map)
-	var mask_bits  := _resolve_layer_mask(phys_cfg.get("collision_mask",  "all"), layer_map)
+	var mask_bits := _resolve_layer_mask(phys_cfg.get("collision_mask", "all"), layer_map)
 	PhysicsServer3D.body_set_collision_layer(body, layer_bits)
 	PhysicsServer3D.body_set_collision_mask(body, mask_bits)
 
 	# Physics material (mass / friction / restitution / damping / gravity)
 	if mode == PhysicsServer3D.BODY_MODE_RIGID:
 		if phys_cfg.has("mass"):
-			PhysicsServer3D.body_set_param(body, PhysicsServer3D.BODY_PARAM_MASS,
-				float(phys_cfg["mass"]))
+			PhysicsServer3D.body_set_param(
+				body, PhysicsServer3D.BODY_PARAM_MASS, float(phys_cfg["mass"])
+			)
 		if phys_cfg.has("friction"):
-			PhysicsServer3D.body_set_param(body, PhysicsServer3D.BODY_PARAM_FRICTION,
-				float(phys_cfg["friction"]))
+			PhysicsServer3D.body_set_param(
+				body, PhysicsServer3D.BODY_PARAM_FRICTION, float(phys_cfg["friction"])
+			)
 		if phys_cfg.has("restitution"):
-			PhysicsServer3D.body_set_param(body, PhysicsServer3D.BODY_PARAM_BOUNCE,
-				float(phys_cfg["restitution"]))
+			PhysicsServer3D.body_set_param(
+				body, PhysicsServer3D.BODY_PARAM_BOUNCE, float(phys_cfg["restitution"])
+			)
 		if phys_cfg.has("linear_damp"):
-			PhysicsServer3D.body_set_param(body, PhysicsServer3D.BODY_PARAM_LINEAR_DAMP,
-				float(phys_cfg["linear_damp"]))
+			PhysicsServer3D.body_set_param(
+				body, PhysicsServer3D.BODY_PARAM_LINEAR_DAMP, float(phys_cfg["linear_damp"])
+			)
 		if phys_cfg.has("angular_damp"):
-			PhysicsServer3D.body_set_param(body, PhysicsServer3D.BODY_PARAM_ANGULAR_DAMP,
-				float(phys_cfg["angular_damp"]))
+			PhysicsServer3D.body_set_param(
+				body, PhysicsServer3D.BODY_PARAM_ANGULAR_DAMP, float(phys_cfg["angular_damp"])
+			)
 		if phys_cfg.has("gravity_scale"):
-			PhysicsServer3D.body_set_param(body, PhysicsServer3D.BODY_PARAM_GRAVITY_SCALE,
-				float(phys_cfg["gravity_scale"]))
+			PhysicsServer3D.body_set_param(
+				body, PhysicsServer3D.BODY_PARAM_GRAVITY_SCALE, float(phys_cfg["gravity_scale"])
+			)
 
 	# Set initial transform from entity.state.position
 	var pos = entity.get_position() if entity.has_method("get_position") else null
@@ -139,6 +154,7 @@ static func free_3d(entity) -> void:
 # TRANSLATION LAYER
 # ============================================================
 
+
 ## Synthesize a physics block from legacy `blocks_motion` tag +
 ## `properties.aabb_extents`. Returns {} if the def doesn't have the
 ## legacy markers (no translation needed).
@@ -147,10 +163,18 @@ static func free_3d(entity) -> void:
 ## strategy. Old games keep running without per-game JSON edits.
 static func translate_blocks_motion(def: Dictionary) -> Dictionary:
 	# Check for explicit physics block first — wins over translation.
-	if def.has("physics") and def["physics"] is Dictionary and not (def["physics"] as Dictionary).is_empty():
+	if (
+		def.has("physics")
+		and def["physics"] is Dictionary
+		and not (def["physics"] as Dictionary).is_empty()
+	):
 		if "blocks_motion" in (def.get("tags", []) as Array):
-			push_warning("[PhysicsBodyBuilder] entity def '%s' has BOTH `physics` block AND `blocks_motion` tag — `physics` block takes precedence; remove the tag to silence this warning"
-				% str(def.get("id", "?")))
+			push_warning(
+				(
+					"[PhysicsBodyBuilder] entity def '%s' has BOTH `physics` block AND `blocks_motion` tag — `physics` block takes precedence; remove the tag to silence this warning"
+					% str(def.get("id", "?"))
+				)
+			)
 		return def["physics"]
 
 	var has_tag := "blocks_motion" in (def.get("tags", []) as Array)
@@ -160,8 +184,12 @@ static func translate_blocks_motion(def: Dictionary) -> Dictionary:
 	var props: Dictionary = def.get("properties", {})
 	var extents = props.get("aabb_extents", null)
 	if not (extents is Array) or (extents as Array).is_empty():
-		push_warning("[PhysicsBodyBuilder] entity def '%s' has `blocks_motion` tag but no `properties.aabb_extents` — cannot translate; skipping body creation. Add aabb_extents or a `physics` block."
-			% str(def.get("id", "?")))
+		push_warning(
+			(
+				"[PhysicsBodyBuilder] entity def '%s' has `blocks_motion` tag but no `properties.aabb_extents` — cannot translate; skipping body creation. Add aabb_extents or a `physics` block."
+				% str(def.get("id", "?"))
+			)
+		)
 		return {}
 
 	var ext_arr: Array = extents
@@ -188,8 +216,12 @@ static func translate_blocks_motion(def: Dictionary) -> Dictionary:
 			"collision_mask": "all",
 			"_translated_from": "blocks_motion+aabb_extents (2D)"
 		}
-	push_warning("[PhysicsBodyBuilder] entity def '%s' has aabb_extents with unexpected length %d"
-		% [str(def.get("id", "?")), ext_arr.size()])
+	push_warning(
+		(
+			"[PhysicsBodyBuilder] entity def '%s' has aabb_extents with unexpected length %d"
+			% [str(def.get("id", "?")), ext_arr.size()]
+		)
+	)
 	return {}
 
 
@@ -197,16 +229,22 @@ static func translate_blocks_motion(def: Dictionary) -> Dictionary:
 # INTERNAL
 # ============================================================
 
+
 static func _body_mode_3d(body_type: String) -> int:
 	match body_type:
-		"static":    return PhysicsServer3D.BODY_MODE_STATIC
-		"kinematic": return PhysicsServer3D.BODY_MODE_KINEMATIC
-		"rigid":     return PhysicsServer3D.BODY_MODE_RIGID
+		"static":
+			return PhysicsServer3D.BODY_MODE_STATIC
+		"kinematic":
+			return PhysicsServer3D.BODY_MODE_KINEMATIC
+		"rigid":
+			return PhysicsServer3D.BODY_MODE_RIGID
 		"area":
 			push_warning("[PhysicsBodyBuilder] body_type='area' not yet implemented — using static")
 			return PhysicsServer3D.BODY_MODE_STATIC
 		_:
-			push_warning("[PhysicsBodyBuilder] unknown body_type '%s' — defaulting to kinematic" % body_type)
+			push_warning(
+				"[PhysicsBodyBuilder] unknown body_type '%s' — defaulting to kinematic" % body_type
+			)
 			return PhysicsServer3D.BODY_MODE_KINEMATIC
 
 
@@ -224,16 +262,28 @@ static func _create_shape_3d(shape_cfg: Dictionary) -> RID:
 			PhysicsServer3D.shape_set_data(shape, float(shape_cfg.get("radius", 0.5)))
 		"capsule":
 			shape = PhysicsServer3D.capsule_shape_create()
-			PhysicsServer3D.shape_set_data(shape, {
-				"radius": float(shape_cfg.get("radius", 0.4)),
-				"height": float(shape_cfg.get("height", 1.0)),
-			})
+			(
+				PhysicsServer3D
+				. shape_set_data(
+					shape,
+					{
+						"radius": float(shape_cfg.get("radius", 0.4)),
+						"height": float(shape_cfg.get("height", 1.0)),
+					}
+				)
+			)
 		"cylinder":
 			shape = PhysicsServer3D.cylinder_shape_create()
-			PhysicsServer3D.shape_set_data(shape, {
-				"radius": float(shape_cfg.get("radius", 0.4)),
-				"height": float(shape_cfg.get("height", 1.0)),
-			})
+			(
+				PhysicsServer3D
+				. shape_set_data(
+					shape,
+					{
+						"radius": float(shape_cfg.get("radius", 0.4)),
+						"height": float(shape_cfg.get("height", 1.0)),
+					}
+				)
+			)
 		_:
 			push_warning("[PhysicsBodyBuilder] unsupported 3D shape type '%s'" % stype)
 	return shape
@@ -255,7 +305,7 @@ static func _resolve_layer_mask(value, layer_map: Dictionary) -> int:
 		return (1 << (bit - 1)) if bit > 0 else 0
 	if value is Array:
 		var mask: int = 0
-		for name in (value as Array):
+		for name in value as Array:
 			var bit2 := int(layer_map.get(str(name), 0))
 			if bit2 > 0:
 				mask |= (1 << (bit2 - 1))
@@ -266,7 +316,8 @@ static func _resolve_layer_mask(value, layer_map: Dictionary) -> int:
 
 
 static func _vec3_from(value) -> Vector3:
-	if value is Vector3: return value
+	if value is Vector3:
+		return value
 	if value is Array and (value as Array).size() >= 3:
 		return Vector3(float(value[0]), float(value[1]), float(value[2]))
 	return Vector3.ZERO
@@ -276,6 +327,7 @@ static func _vec3_from(value) -> Vector3:
 # ADR 0044 Session B — state ↔ body sync
 # ============================================================
 
+
 ## Mirror entity.state.position to body.global_transform. Called by
 ## Entity.set_position when a body is attached. Per ADR 0044 Condition
 ## 6: kinematic gets a warp (body.transform = pos); rigid gets a
@@ -283,9 +335,11 @@ static func _vec3_from(value) -> Vector3:
 ## non-physical but we let it through to support hot-swap of state
 ## by rules).
 static func sync_body_transform(entity) -> void:
-	if not entity.has_meta("_physics_body_rid"): return
+	if not entity.has_meta("_physics_body_rid"):
+		return
 	var body: RID = entity.get_meta("_physics_body_rid")
-	if not body.is_valid(): return
+	if not body.is_valid():
+		return
 	var p = entity.get_position()
 	var v3: Vector3
 	if p is Vector3:
@@ -295,16 +349,17 @@ static func sync_body_transform(entity) -> void:
 	else:
 		return
 	var xform := Transform3D(Basis(), v3)
-	PhysicsServer3D.body_set_state(body,
-		PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
 
 
 ## Mirror entity.state.velocity to body.linear_velocity. Called by
 ## Entity.set_velocity when a body is attached.
 static func sync_body_velocity(entity) -> void:
-	if not entity.has_meta("_physics_body_rid"): return
+	if not entity.has_meta("_physics_body_rid"):
+		return
 	var body: RID = entity.get_meta("_physics_body_rid")
-	if not body.is_valid(): return
+	if not body.is_valid():
+		return
 	var v = entity.get_velocity()
 	var v3: Vector3
 	if v is Vector3:
@@ -314,5 +369,4 @@ static func sync_body_velocity(entity) -> void:
 		v3 = Vector3(v.x, 0, v.y)
 	else:
 		return
-	PhysicsServer3D.body_set_state(body,
-		PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, v3)
+	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, v3)

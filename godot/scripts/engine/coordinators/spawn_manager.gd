@@ -24,7 +24,6 @@ class_name SpawnManager
 ## scene-tree Node. Spawn isn't a per-frame ticker; it's an on-demand
 ## API.
 
-
 var _world: World
 var _renderer_cfg_loaded: bool = false
 var _renderer_cfg: Dictionary = {}
@@ -38,6 +37,7 @@ func _init(world: World) -> void:
 # PUBLIC
 # ============================================================
 
+
 ## Spawn an entity from a JSON instance dict. The instance specifies a
 ## `def` (definition id) + optional overrides (state, position, tags,
 ## properties, visual). Handles `count` for batch-spawn (uses
@@ -47,10 +47,24 @@ func _init(world: World) -> void:
 func spawn(inst: Dictionary) -> void:
 	var def_id := str(inst.get("def", ""))
 	if not _world.defs.has(def_id):
-		EngineError.raise(_world._build_env(), EngineError.WORLD_DEF_UNKNOWN,
-			"Unknown def: %s" % def_id,
-			{"file": "entities.json", "field": "initial_instances.def", "got": def_id, "known_defs": _world.defs.keys()},
-			"Add a definition with id '%s' under 'definitions', or fix the typo in the instance's 'def' field." % def_id)
+		(
+			EngineError
+			. raise(
+				_world._build_env(),
+				EngineError.WORLD_DEF_UNKNOWN,
+				"Unknown def: %s" % def_id,
+				{
+					"file": "entities.json",
+					"field": "initial_instances.def",
+					"got": def_id,
+					"known_defs": _world.defs.keys()
+				},
+				(
+					"Add a definition with id '%s' under 'definitions', or fix the typo in the instance's 'def' field."
+					% def_id
+				)
+			)
+		)
 		return
 	var count := int(inst.get("count", 1))
 	for i in range(count):
@@ -78,22 +92,38 @@ func spawn(inst: Dictionary) -> void:
 		# level's coords. Logged as [PERSIST-TELEPORT] vs [PERSIST-SKIP].
 		if _world.entities.has(inst_id):
 			var existing = _world.entities[inst_id]
-			if existing != null and existing.has_method("has_tag") \
-					and existing.has_tag("persistent"):
+			if (
+				existing != null
+				and existing.has_method("has_tag")
+				and existing.has_tag("persistent")
+			):
 				if inst.has("position"):
 					var new_pos = inst["position"]
 					if new_pos is Array and new_pos.size() >= 2:
 						existing.set_position(new_pos)
 						if _world.spatial_index != null:
-							_world.spatial_index.update_entity(inst_id, existing.get_planar_position())
-						print("[PERSIST-TELEPORT] '", inst_id,
-							"' to ", new_pos, " (new level spawn position)")
+							_world.spatial_index.update_entity(
+								inst_id, existing.get_planar_position()
+							)
+						print(
+							"[PERSIST-TELEPORT] '",
+							inst_id,
+							"' to ",
+							new_pos,
+							" (new level spawn position)"
+						)
 					else:
-						print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
-							"' (no valid position in new instance)")
+						print(
+							"[PERSIST-SKIP] keeping existing persistent '",
+							inst_id,
+							"' (no valid position in new instance)"
+						)
 				else:
-					print("[PERSIST-SKIP] keeping existing persistent '", inst_id,
-						"' instead of overwriting from level data")
+					print(
+						"[PERSIST-SKIP] keeping existing persistent '",
+						inst_id,
+						"' instead of overwriting from level data"
+					)
 				continue
 		var ent := Entity.create(_world.defs[def_id], inst_id, overrides)
 		# ADR 0038: snap initial position + yaw to grid IF
@@ -117,14 +147,14 @@ func spawn(inst: Dictionary) -> void:
 				if p is Vector3:
 					if _world.verbose:
 						ent.state["position"] = GridSnap.snap_position_with_drift_check(
-							p, snap_env, inst_id)
+							p, snap_env, inst_id
+						)
 					else:
 						ent.state["position"] = GridSnap.snap_position(p, snap_env)
 				elif p is Vector2:
 					ent.state["position"] = GridSnap.snap_position_2d(p, snap_env)
 				if ent.state.has("yaw"):
-					ent.state["yaw"] = GridSnap.snap_yaw(
-						float(ent.state["yaw"]), snap_env)
+					ent.state["yaw"] = GridSnap.snap_yaw(float(ent.state["yaw"]), snap_env)
 		_world.entities[inst_id] = ent
 		_world.add_child(ent)
 		_attach_renderer(ent)
@@ -143,16 +173,19 @@ func spawn(inst: Dictionary) -> void:
 # INTERNAL — renderer attachment
 # ============================================================
 
+
 ## Attach a renderer child to an entity, if `renderer_script` is set.
 ## No-op for headless/test runs that set it to "".
 func _attach_renderer(ent: Entity) -> void:
-	if _world.renderer_script == "": return
+	if _world.renderer_script == "":
+		return
 	# Honor `visual.hidden=true` — entities with no visual representation
 	# (singletons like clocks, score trackers, world state holders). Without
 	# this, the renderer falls through to the default colored-box and the
 	# entity shows as a pink/grey square at its position. Empirically caught
 	# during towerdef3d capture (2026-05-03).
-	if bool((ent.visual as Dictionary).get("hidden", false)): return
+	if bool((ent.visual as Dictionary).get("hidden", false)):
+		return
 	# `visual.hide_for_camera_attach=true` is now a SHADOW-ONLY flag, not
 	# a skip. The renderer reads it and applies SHADOW_CASTING_SETTING_
 	# SHADOWS_ONLY to its mesh children — the mesh disappears from the
@@ -161,7 +194,8 @@ func _attach_renderer(ent: Entity) -> void:
 	# shadow on the floor reveals their full body. (Empirically caught
 	# during doomarena3d 2026-05-04 playtest: "i see only gun shadow.")
 	var script := load(_world.renderer_script)
-	if script == null: return
+	if script == null:
+		return
 	var node = script.new()
 	if node is Node:
 		# Allow per-game override of renderer's position_scale (and similar
@@ -176,7 +210,8 @@ func _attach_renderer(ent: Entity) -> void:
 ## Lazy-load scene.json's renderer block into _renderer_cfg.
 ## Idempotent — first call populates, subsequent calls no-op.
 func _ensure_renderer_cfg() -> void:
-	if _renderer_cfg_loaded: return
+	if _renderer_cfg_loaded:
+		return
 	_renderer_cfg_loaded = true
 	var scene_path: String = _world.data_root.rstrip("/") + "/scene.json"
 	if FileAccess.file_exists(scene_path):
@@ -184,7 +219,8 @@ func _ensure_renderer_cfg() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Dictionary:
 			var cfg = (data as Dictionary).get("renderer", {})
-			if cfg is Dictionary: _renderer_cfg = cfg
+			if cfg is Dictionary:
+				_renderer_cfg = cfg
 
 
 ## Apply scene.json's renderer block (e.g. position_scale) to a renderer
@@ -208,6 +244,7 @@ func renderer_cfg() -> Dictionary:
 # ADR 0044 — PHYSICS BODY LIFECYCLE
 # ============================================================
 
+
 ## Unified despawn path. Called by LevelTransitionCoordinator (level
 ## swap), WorldResetCoordinator (New Game), and EffectApply._remove
 ## (the `remove` effect from a rule). Frees the physics body BEFORE
@@ -215,7 +252,8 @@ func renderer_cfg() -> Dictionary:
 ## prevention).
 func despawn(inst_id: String) -> void:
 	var ent = _world.entities.get(inst_id, null)
-	if ent == null: return
+	if ent == null:
+		return
 	# Free physics body (no-op if entity has none)
 	PhysicsBodyBuilder.free_3d(ent)
 	# Existing cleanup
@@ -231,6 +269,7 @@ func despawn(inst_id: String) -> void:
 # INTERNAL — physics body creation (ADR 0044 Session A)
 # ============================================================
 
+
 ## If the entity's def declares a `physics` block (or has legacy
 ## `blocks_motion` tag + `properties.aabb_extents`), build a
 ## PhysicsServer3D body via PhysicsBodyBuilder and stamp the body RID
@@ -244,14 +283,17 @@ func despawn(inst_id: String) -> void:
 ## 2D handling (PhysicsServer2D) lands in a later sub-step per
 ## ADR 0044 Condition 9.
 func _build_physics_body_if_declared(ent: Entity) -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	# Read def + check if physics applies. Translation handles
 	# the legacy blocks_motion path too.
 	var def: Dictionary = _world.defs.get(ent.def_id, {})
 	var phys_cfg := PhysicsBodyBuilder.translate_blocks_motion(def)
-	if phys_cfg.is_empty(): return
+	if phys_cfg.is_empty():
+		return
 	var space := _resolve_3d_space()
-	if not space.is_valid(): return
+	if not space.is_valid():
+		return
 	var layer_map := _resolve_layer_map()
 	PhysicsBodyBuilder.build_3d(ent, phys_cfg, space, layer_map)
 
@@ -260,9 +302,11 @@ func _build_physics_body_if_declared(ent: Entity) -> void:
 ## RID() if the scene isn't 3D (no World3D).
 func _resolve_3d_space() -> RID:
 	var vp := _world.get_viewport() if _world.has_method("get_viewport") else null
-	if vp == null: return RID()
+	if vp == null:
+		return RID()
 	var w3d := vp.find_world_3d() if vp.has_method("find_world_3d") else null
-	if w3d == null: return RID()
+	if w3d == null:
+		return RID()
 	return w3d.space
 
 

@@ -41,10 +41,10 @@ const MAX_DEPTH := 8
 static var _cache: Dictionary = {}
 static var _cache_loaded: bool = false
 
-
 # ============================================================
 # PUBLIC API
 # ============================================================
+
 
 ## Load all data/lib/**.json files into the cache. Idempotent — first call
 ## populates, subsequent calls no-op. Call at engine boot.
@@ -73,8 +73,12 @@ static func reset_cache_for_test() -> void:
 ## a new value (deep-copied where mutated; pass-through if no refs).
 static func resolve(value, depth: int = 0, visited: Array = []):
 	if depth > MAX_DEPTH:
-		push_error("[lib_resolver] depth limit (%d) exceeded — likely cycle: %s"
-			% [MAX_DEPTH, str(visited)])
+		push_error(
+			(
+				"[lib_resolver] depth limit (%d) exceeded — likely cycle: %s"
+				% [MAX_DEPTH, str(visited)]
+			)
+		)
 		return value
 
 	# String reference
@@ -113,13 +117,13 @@ static func resolve(value, depth: int = 0, visited: Array = []):
 # INTERNAL — REFERENCE RESOLUTION
 # ============================================================
 
+
 ## "@lib.X.Y[.field...]" → look up X.Y in cache, traverse remaining fields.
 ## Returns the resolved value (deep-copied so callers can't mutate cache).
 ## Stamps `_origin` if the resolved value is a Dictionary.
 static func _resolve_string_ref(ref: String, depth: int, visited: Array):
 	if visited.has(ref):
-		push_error("[lib_resolver] cycle detected: %s → %s"
-			% [" → ".join(visited), ref])
+		push_error("[lib_resolver] cycle detected: %s → %s" % [" → ".join(visited), ref])
 		return null
 	var path := ref.substr(5)  # drop "@lib."
 	var parts := path.split(".")
@@ -131,13 +135,18 @@ static func _resolve_string_ref(ref: String, depth: int, visited: Array):
 			# Traverse remaining parts into the cached dict
 			for i in range(cut, parts.size()):
 				if not (val is Dictionary):
-					push_warning("[lib_resolver] @lib ref '%s' traversal hit non-dict at part '%s'"
-						% [ref, parts[i]])
+					push_warning(
+						(
+							"[lib_resolver] @lib ref '%s' traversal hit non-dict at part '%s'"
+							% [ref, parts[i]]
+						)
+					)
 					return value_with_warning(ref)
 				val = (val as Dictionary).get(parts[i])
 				if val == null:
-					push_warning("[lib_resolver] @lib ref '%s' missing field '%s'"
-						% [ref, parts[i]])
+					push_warning(
+						"[lib_resolver] @lib ref '%s' missing field '%s'" % [ref, parts[i]]
+					)
 					return value_with_warning(ref)
 			# Deep-copy + recurse so the lib's own @lib refs expand too
 			var new_visited := visited.duplicate()
@@ -148,8 +157,9 @@ static func _resolve_string_ref(ref: String, depth: int, visited: Array):
 			if resolved is Dictionary:
 				(resolved as Dictionary)["_origin"] = ref
 			return resolved
-	push_warning("[lib_resolver] @lib ref '%s' not found in cache (loaded: %s)"
-		% [ref, str(_cache.keys())])
+	push_warning(
+		"[lib_resolver] @lib ref '%s' not found in cache (loaded: %s)" % [ref, str(_cache.keys())]
+	)
 	return value_with_warning(ref)
 
 
@@ -159,8 +169,9 @@ static func _resolve_extends(d: Dictionary, depth: int, visited: Array) -> Dicti
 	var extends_ref = d["$extends"]
 	var base = resolve(extends_ref, depth + 1, visited)
 	if not (base is Dictionary):
-		push_warning("[lib_resolver] $extends value '%s' did not resolve to a dict"
-			% str(extends_ref))
+		push_warning(
+			"[lib_resolver] $extends value '%s' did not resolve to a dict" % str(extends_ref)
+		)
 		return d
 	var merged := (base as Dictionary).duplicate(true)
 	for k in d.keys():
@@ -174,7 +185,9 @@ static func _resolve_extends(d: Dictionary, depth: int, visited: Array) -> Dicti
 
 ## $include inside an array: splice resolved array's elements into out_arr.
 ## Accepts $include as String or Array of String.
-static func _resolve_include_into(out_arr: Array, item: Dictionary, depth: int, visited: Array) -> void:
+static func _resolve_include_into(
+	out_arr: Array, item: Dictionary, depth: int, visited: Array
+) -> void:
 	var inc = item["$include"]
 	var refs: Array = []
 	if inc is String:
@@ -185,16 +198,16 @@ static func _resolve_include_into(out_arr: Array, item: Dictionary, depth: int, 
 	for r in refs:
 		var resolved = resolve(r, depth + 1, visited)
 		if resolved is Array:
-			for elem in (resolved as Array):
+			for elem in resolved as Array:
 				out_arr.append(resolve(elem, depth + 1, visited))
 		else:
-			push_warning("[lib_resolver] $include ref '%s' did not resolve to an array"
-				% str(r))
+			push_warning("[lib_resolver] $include ref '%s' did not resolve to an array" % str(r))
 
 
 # ============================================================
 # INTERNAL — CACHE WALK + UTIL
 # ============================================================
+
 
 ## Walk a directory tree under `dir_path`, parsing every .json into _cache
 ## keyed by the path (sans extension, slashes → dots) joined with `key_prefix`.
@@ -227,8 +240,7 @@ static func _walk_dir(dir_path: String, key_prefix: String) -> void:
 				if parsed != null:
 					_cache[full_key] = parsed
 				else:
-					push_warning("[lib_resolver] parse error in %s/%s"
-						% [dir_path, entry])
+					push_warning("[lib_resolver] parse error in %s/%s" % [dir_path, entry])
 		entry = dir.get_next()
 
 
@@ -240,7 +252,7 @@ static func _deep_copy(value):
 		return (value as Dictionary).duplicate(true)
 	if value is Array:
 		var out: Array = []
-		for item in (value as Array):
+		for item in value as Array:
 			out.append(_deep_copy(item))
 		return out
 	return value

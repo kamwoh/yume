@@ -22,14 +22,13 @@ class_name ScreenFlow
 ##   env.screen_event_buffer                   → array of pending screen events
 ##                                               (transition, toast, quit, reload)
 
-
 # ============================================================
 # CONFIG
 # ============================================================
 
-var _cfg: Dictionary = {}                # parsed screens.json
-var _screens_by_id: Dictionary = {}      # id → screen-spec dict
-var _world: Node = null                  # parent (World instance)
+var _cfg: Dictionary = {}  # parsed screens.json
+var _screens_by_id: Dictionary = {}  # id → screen-spec dict
+var _world: Node = null  # parent (World instance)
 var _starting_screen: String = ""
 
 # Modal stack — array of {id, layer (CanvasLayer), bound (Array)}.
@@ -45,10 +44,10 @@ var _toast_layer: CanvasLayer = null
 # Tracks edge for global_inputs (so a held key fires once per press)
 var _last_action_state: Dictionary = {}  # action → bool (was pressed last frame)
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -90,7 +89,8 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _cfg.is_empty(): return
+	if _cfg.is_empty():
+		return
 	_drain_screen_events()
 	_update_bound_elements()
 	_handle_global_inputs()
@@ -100,16 +100,21 @@ func _process(_delta: float) -> void:
 # CONFIG LOADING
 # ============================================================
 
+
 func _load_config() -> void:
 	var root := str(_world.get("data_root"))
-	if root == "": return
+	if root == "":
+		return
 	root = root.rstrip("/")
 	var path := root + "/screens.json"
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var data = JSON.parse_string(f.get_as_text())
-	if not (data is Dictionary): return
+	if not (data is Dictionary):
+		return
 	_cfg = data
 	for s in _cfg.get("screens", []):
 		if s is Dictionary and (s as Dictionary).has("id"):
@@ -119,6 +124,7 @@ func _load_config() -> void:
 # ============================================================
 # SCREEN MANAGEMENT
 # ============================================================
+
 
 ## Push a screen onto the stack. If `as_modal`=true, previous screen stays
 ## visible underneath (frozen). Otherwise replace the entire stack.
@@ -161,8 +167,7 @@ func _push_screen(screen_id: String, as_modal: bool) -> void:
 	# UI here, where we have access to the SettingsManager sibling.
 	_populate_settings_renderers(root, dispatcher)
 	# Push entry
-	_stack.append({"id": screen_id, "spec": spec, "layer": layer,
-				   "bound": bound})
+	_stack.append({"id": screen_id, "spec": spec, "layer": layer, "bound": bound})
 	# Update world_state
 	_apply_active_screen()
 
@@ -179,7 +184,8 @@ func _transition_to(screen_id: String) -> void:
 
 ## Pop top of stack. If empty, no-op (caller's responsibility).
 func _pop_screen() -> void:
-	if _stack.is_empty(): return
+	if _stack.is_empty():
+		return
 	var top: Dictionary = _stack[_stack.size() - 1]
 	(top["layer"] as Node).queue_free()
 	_stack.pop_back()
@@ -195,25 +201,29 @@ func _apply_active_screen() -> void:
 	var top: Dictionary = _stack[_stack.size() - 1]
 	var spec: Dictionary = top["spec"]
 	_set_world_state("current_screen", str(top["id"]))
-	_set_world_state("screen_freeze_world",
-		1 if bool(spec.get("freeze_world", false)) else 0)
+	_set_world_state("screen_freeze_world", 1 if bool(spec.get("freeze_world", false)) else 0)
 
 
 # ============================================================
 # EFFECT DISPATCH
 # ============================================================
 
+
 ## Invoked by Button.pressed (and other interaction signals). Iterates
 ## the effect list and applies each via existing effect_apply pipeline.
 ## Effects flush at end of frame like any other effect.
 func _dispatch_effects(effects, _ctx: Dictionary) -> void:
-	if not (effects is Array): return
-	if _world == null: return
+	if not (effects is Array):
+		return
+	if _world == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return
+	if sched == null:
+		return
 	var env: Dictionary = sched.env
 	for eff in effects:
-		if not (eff is Dictionary): continue
+		if not (eff is Dictionary):
+			continue
 		var ctx: Dictionary = {"_rule_id": "screen_flow", "_source": "ui"}
 		EffectApply.apply(eff as Dictionary, env, ctx)
 
@@ -221,6 +231,7 @@ func _dispatch_effects(effects, _ctx: Dictionary) -> void:
 # ============================================================
 # SCREEN EVENT BUFFER (drained from env.screen_event_buffer each frame)
 # ============================================================
+
 
 ## ADR 0039: public alias for _drain_screen_events. Step runner calls
 ## this after a `click` verb fires `Button.pressed.emit()` so any
@@ -236,15 +247,19 @@ func drain() -> void:
 ## show_toast / reload_scene effects. Same pattern as GameShell's
 ## shell_event_buffer.
 func _drain_screen_events() -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return
+	if sched == null:
+		return
 	var env: Dictionary = sched.env
 	var buf = env.get("screen_event_buffer", null)
-	if not (buf is Array) or (buf as Array).is_empty(): return
+	if not (buf is Array) or (buf as Array).is_empty():
+		return
 	env["screen_event_buffer"] = []
 	for ev in buf:
-		if not (ev is Dictionary): continue
+		if not (ev is Dictionary):
+			continue
 		var name := str(ev.get("event", ""))
 		match name:
 			"transition_screen":
@@ -288,22 +303,24 @@ func _drain_screen_events() -> void:
 					continue
 				var err: int = get_tree().change_scene_to_file(path)
 				if err != OK:
-					push_warning("ScreenFlow: scene_change failed (path=%s err=%d)"
-						% [path, err])
+					push_warning("ScreenFlow: scene_change failed (path=%s err=%d)" % [path, err])
 
 
 # ============================================================
 # TOAST
 # ============================================================
 
+
 ## Transient label shown for `duration` seconds, fades out, removes itself.
 ## Anchored to bottom-center.
 func _show_toast(text: String, duration: float) -> void:
-	if _toast_layer == null: return
+	if _toast_layer == null:
+		return
 	var resolved := text
 	if resolved.begins_with("@"):
 		resolved = _resolve_at_ref(resolved)
-		if resolved == "": resolved = text
+		if resolved == "":
+			resolved = text
 	var lbl := Label.new()
 	lbl.text = resolved
 	lbl.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
@@ -326,11 +343,14 @@ func _show_toast(text: String, duration: float) -> void:
 # BOUND ELEMENT UPDATES (visible_if / enabled_if)
 # ============================================================
 
+
 func _update_bound_elements() -> void:
-	if _stack.is_empty(): return
+	if _stack.is_empty():
+		return
 	var top: Dictionary = _stack[_stack.size() - 1]
 	var bound: Array = top.get("bound", [])
-	if bound.is_empty(): return
+	if bound.is_empty():
+		return
 	var ctx: Dictionary = _formula_ctx()
 	for entry in bound:
 		var node: Control = entry["node"]
@@ -353,7 +373,8 @@ func _formula_ctx() -> Dictionary:
 func _eval_formula(expr_str: String, ctx: Dictionary):
 	# Use the engine's Formula module so the same syntax + bindings as rule
 	# formulas work here (clamp, sin/cos, world.* refs, etc.).
-	if expr_str == "": return null
+	if expr_str == "":
+		return null
 	return Formula.evaluate(expr_str, ctx)
 
 
@@ -361,18 +382,22 @@ func _eval_formula(expr_str: String, ctx: Dictionary):
 # GLOBAL INPUTS
 # ============================================================
 
+
 ## Per-frame check of global_inputs. If the action is press-edge AND the
 ## current_screen matches if_screen filter, fire the on_press effect chain.
 func _handle_global_inputs() -> void:
 	var globals = _cfg.get("global_inputs", null)
-	if not (globals is Array): return
+	if not (globals is Array):
+		return
 	var current := ""
 	if not _stack.is_empty():
 		current = str(_stack[_stack.size() - 1]["id"])
 	for g in globals:
-		if not (g is Dictionary): continue
+		if not (g is Dictionary):
+			continue
 		var action := str(g.get("action", ""))
-		if action == "" or not InputMap.has_action(action): continue
+		if action == "" or not InputMap.has_action(action):
+			continue
 		var screen_filter := str(g.get("if_screen", ""))
 		# 2026-05-08: if_screen now matches symmetrically. `if_screen: ""`
 		# fires only when stack empty (current=""); `if_screen: "X"` fires
@@ -380,7 +405,8 @@ func _handle_global_inputs() -> void:
 		# made M re-push world_map while world_map was already up. Lets
 		# data declare a paired close-rule (if_screen: "world_map" →
 		# transition_screen @previous) for toggle behavior.
-		if screen_filter != current: continue
+		if screen_filter != current:
+			continue
 		var pressed := Input.is_action_pressed(action)
 		var was_pressed := bool(_last_action_state.get(action, false))
 		_last_action_state[action] = pressed
@@ -399,15 +425,19 @@ func _handle_global_inputs() -> void:
 var _strings_cache: Dictionary = {}
 var _strings_loaded: bool = false
 
+
 func _resolve_at_ref(ref: String) -> String:
-	if not ref.begins_with("@"): return ref
+	if not ref.begins_with("@"):
+		return ref
 	var rest: String = ref.substr(1)
 	var dot: int = rest.find(".")
-	if dot < 0: return ""
+	if dot < 0:
+		return ""
 	var ns: String = rest.substr(0, dot)
 	var key: String = rest.substr(dot + 1)
 	if ns == "strings":
-		if not _strings_loaded: _load_strings()
+		if not _strings_loaded:
+			_load_strings()
 		return _resolve_dotted(_strings_cache, key)
 	# Other namespaces (cues, assets) — defer to GameShell or asset library
 	return ""
@@ -415,14 +445,18 @@ func _resolve_at_ref(ref: String) -> String:
 
 func _load_strings() -> void:
 	_strings_loaded = true
-	if _world == null: return
+	if _world == null:
+		return
 	var dr = _world.get("data_root")
 	var root := (str(dr) if dr != null else "").rstrip("/")
-	if root == "": return
+	if root == "":
+		return
 	var path := root + "/ui/strings.json"
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var data = JSON.parse_string(f.get_as_text())
 	if data is Dictionary:
 		_strings_cache = data
@@ -432,14 +466,17 @@ static func _resolve_dotted(cache: Dictionary, key: String) -> String:
 	var parts: PackedStringArray = key.split(".")
 	var cur = cache
 	for part in parts:
-		if not (cur is Dictionary): return ""
-		if not (cur as Dictionary).has(part): return ""
+		if not (cur is Dictionary):
+			return ""
+		if not (cur as Dictionary).has(part):
+			return ""
 		cur = (cur as Dictionary)[part]
 	return str(cur) if cur != null else ""
 
 
 func _set_world_state(key: String, value) -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var ws = _world.get("world_state")
 	if ws is Dictionary:
 		(ws as Dictionary)[key] = value
@@ -449,14 +486,17 @@ func _set_world_state(key: String, value) -> void:
 # SETTINGS RENDERER (ADR 0013)
 # ============================================================
 
+
 ## Walk the just-built control tree for any settings_renderer placeholders
 ## and fill them with per-setting UI generated from the schema.
 ## Each generated control's value-changed signal calls SettingsManager.set
 ## (which persists + runs the apply block).
 func _populate_settings_renderers(root: Control, dispatcher: Callable) -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var settings_mgr = _world.get_node_or_null("SettingsManager")
-	if settings_mgr == null: return
+	if settings_mgr == null:
+		return
 	# Find every node with the "settings_spec" meta (set by ControlFactory)
 	var queue: Array = [root]
 	while not queue.is_empty():
@@ -470,11 +510,11 @@ func _populate_settings_renderers(root: Control, dispatcher: Callable) -> void:
 ## For one settings_renderer placeholder (a VBoxContainer): iterate the
 ## schema's categories + settings, generate a Control per setting,
 ## connect its change signal to SettingsManager.set_value.
-func _populate_one_settings_renderer(host: Control, settings_mgr,
-									 dispatcher: Callable) -> void:
+func _populate_one_settings_renderer(host: Control, settings_mgr, dispatcher: Callable) -> void:
 	var categories: Array = settings_mgr.categories()
 	for cat in categories:
-		if not (cat is Dictionary): continue
+		if not (cat is Dictionary):
+			continue
 		var cat_dict: Dictionary = cat
 		# Category header
 		var header := Label.new()
@@ -484,14 +524,16 @@ func _populate_one_settings_renderer(host: Control, settings_mgr,
 		host.add_child(header)
 		# Per-setting row
 		for s in cat_dict.get("settings", []):
-			if not (s is Dictionary): continue
+			if not (s is Dictionary):
+				continue
 			_build_setting_row(host, s as Dictionary, settings_mgr)
 
 
 ## One row = HBox with Label (setting name) + appropriate Control.
 func _build_setting_row(host: Control, s: Dictionary, settings_mgr) -> void:
 	var key := str(s.get("key", ""))
-	if key == "": return
+	if key == "":
+		return
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 16)
 	host.add_child(row)
@@ -526,10 +568,13 @@ func _build_setting_row(host: Control, s: Dictionary, settings_mgr) -> void:
 			for opt in options:
 				ob.add_item(ControlFactory._resolve_text(str(opt)))
 			var idx := options.find(current)
-			if idx >= 0: ob.select(idx)
-			ob.item_selected.connect(func(i):
-				var v = options[i] if i < options.size() else null
-				settings_mgr.set_value(key, v))
+			if idx >= 0:
+				ob.select(idx)
+			ob.item_selected.connect(
+				func(i):
+					var v = options[i] if i < options.size() else null
+					settings_mgr.set_value(key, v)
+			)
 			ctrl = ob
 		"key_binding":
 			# Phase A: read-only label showing current key. Click-to-rebind

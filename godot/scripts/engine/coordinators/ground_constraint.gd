@@ -20,7 +20,6 @@ class_name GroundConstraint
 ## Pattern matches MotionIntegrator / LevelTransitionCoordinator —
 ## RefCounted, per-World instance, constructor takes a world reference.
 
-
 var _world: World
 ## Loaded from scene.json's ground block via WorldLoader. Sentinel value
 ## -INF means no ground constraint (most demos — ground is optional).
@@ -39,27 +38,32 @@ func apply() -> void:
 	# Loader sets ground_y / clamp_tags / despawn_tags on this coordinator.
 	# Lazy: re-checked each frame so a runtime level swap can update config.
 	_world._loader.load_ground_cfg()
-	if ground_y == -INF: return
+	if ground_y == -INF:
+		return
 	var entities: Dictionary = _world.entities
 	var to_remove: Array[String] = []
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var p = (ent as Entity).get_position()
 		var py: float = p.y if p is Vector3 else 0.0
-		if py >= ground_y: continue
+		if py >= ground_y:
+			continue
 		# Below ground. Despawn projectiles, clamp creatures.
 		var despawn := false
 		for t in despawn_tags:
 			if (ent as Entity).has_tag(str(t)):
-				despawn = true; break
+				despawn = true
+				break
 		if despawn:
 			to_remove.append(str(id))
 			continue
 		var clamp_match := false
 		for t in clamp_tags:
 			if (ent as Entity).has_tag(str(t)):
-				clamp_match = true; break
+				clamp_match = true
+				break
 		if clamp_match and p is Vector3:
 			(ent as Entity).set_position(Vector3(p.x, ground_y, p.z))
 	# Route through SpawnManager.despawn for unified cleanup

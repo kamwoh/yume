@@ -42,26 +42,24 @@ class_name DynastyDirector
 ## - ADR 0030 class       — class_progress NOT transferred (heir starts fresh)
 ## - ADR 0010 save/load   — heir state persists via normal entity serialization
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
 
 const SIGNAL_DYNASTY_SUCCEEDED: String = "dynasty_succeeded"
-const SIGNAL_DYNASTY_EXTINCT:   String = "dynasty_extinct"
+const SIGNAL_DYNASTY_EXTINCT: String = "dynasty_extinct"
 
-const STATE_INVENTORY:           String = "inventory"
-const STATE_REPUTATION:          String = "reputation"
-const STATE_KNOWN_TECHS:         String = "known_techs"
-const STATE_HEIRS:               String = "heirs"
-const STATE_LIFE_STAGE:          String = "life_stage"
-const STATE_INHERITANCE_POLICY:  String = "inheritance_policy"
+const STATE_INVENTORY: String = "inventory"
+const STATE_REPUTATION: String = "reputation"
+const STATE_KNOWN_TECHS: String = "known_techs"
+const STATE_HEIRS: String = "heirs"
+const STATE_LIFE_STAGE: String = "life_stage"
+const STATE_INHERITANCE_POLICY: String = "inheritance_policy"
 
-const TERMINAL_LIFE_STAGE:       String = "dead"
+const TERMINAL_LIFE_STAGE: String = "dead"
 
-const FILTER_CORE_ONLY:          String = "core_only"
-const FILTER_ALL:                String = "all"
-
+const FILTER_CORE_ONLY: String = "core_only"
+const FILTER_ALL: String = "all"
 
 # ============================================================
 # STATE
@@ -69,10 +67,10 @@ const FILTER_ALL:                String = "all"
 
 var _world: Node = null
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -86,6 +84,7 @@ func _ready() -> void:
 # ============================================================
 # TRANSFER: INVENTORY
 # ============================================================
+
 
 ## Move source.state.inventory → heir.state.inventory.
 ## Append-then-clear-source semantics: heir's existing inventory is
@@ -107,7 +106,7 @@ func transfer_inventory(env: Dictionary, source_id: String, heir_id: String) -> 
 	if not (heir_inv is Array):
 		heir_inv = []
 	var transferred: int = 0
-	for item in (src_inv as Array):
+	for item in src_inv as Array:
 		(heir_inv as Array).append(item)
 		transferred += 1
 	heir.set_state(STATE_INVENTORY, heir_inv)
@@ -120,6 +119,7 @@ func transfer_inventory(env: Dictionary, source_id: String, heir_id: String) -> 
 # ============================================================
 # TRANSFER: REPUTATION
 # ============================================================
+
 
 ## Move source.state.reputation → heir.state.reputation. Replace-merge
 ## with max() for overlapping faction keys: if both source and heir
@@ -166,6 +166,7 @@ func transfer_reputation(env: Dictionary, source_id: String, heir_id: String) ->
 # TRANSFER: TECHS
 # ============================================================
 
+
 ## Move filtered subset of source.state.known_techs → heir.state.known_techs.
 ##
 ## Two filter modes:
@@ -188,8 +189,9 @@ func transfer_reputation(env: Dictionary, source_id: String, heir_id: String) ->
 ##
 ## Returns the array of node ids actually transferred (heir's pre-
 ## existing techs are skipped).
-func transfer_techs(env: Dictionary, source_id: String, heir_id: String,
-                    filter: String = FILTER_CORE_ONLY) -> Array:
+func transfer_techs(
+	env: Dictionary, source_id: String, heir_id: String, filter: String = FILTER_CORE_ONLY
+) -> Array:
 	var source := _resolve_entity(env, source_id)
 	var heir := _resolve_entity(env, heir_id)
 	if source == null or heir == null:
@@ -213,7 +215,7 @@ func transfer_techs(env: Dictionary, source_id: String, heir_id: String,
 	if not (heir_known is Array):
 		heir_known = []
 	var transferred: Array = []
-	for nid_v in (src_known as Array):
+	for nid_v in src_known as Array:
 		var nid: String = str(nid_v)
 		if (heir_known as Array).has(nid):
 			continue
@@ -226,6 +228,7 @@ func transfer_techs(env: Dictionary, source_id: String, heir_id: String,
 # ============================================================
 # TRANSITION PLAYER
 # ============================================================
+
 
 ## Hand input + camera control to a new actor. Looks up ActorManager
 ## via env.parent ("World"); when present, delegates to set_active
@@ -273,6 +276,7 @@ func transition_player_to(env: Dictionary, new_actor_id: String) -> bool:
 # HEIR RESOLUTION
 # ============================================================
 
+
 ## Walk source.state.heirs in priority order; return the first id
 ## that exists in env.entities AND is not in the terminal life_stage
 ## ("dead"). Returns "" if no eligible heir.
@@ -290,7 +294,7 @@ func resolve_first_eligible_heir(env: Dictionary, source_id: String) -> String:
 	var entities = env.get("entities", null)
 	if not (entities is Dictionary):
 		return ""
-	for heir_id_v in (heirs as Array):
+	for heir_id_v in heirs as Array:
 		var hid: String = str(heir_id_v)
 		if hid == "":
 			continue
@@ -310,6 +314,7 @@ func resolve_first_eligible_heir(env: Dictionary, source_id: String) -> String:
 # ATOMIC SUCCESSION CHAIN
 # ============================================================
 
+
 ## Run a complete succession chain in one atomic block. Picks first
 ## eligible heir from heirs_list (or source.state.heirs if heirs_list
 ## is empty), calls all configured transfers, swaps the active actor,
@@ -328,8 +333,9 @@ func resolve_first_eligible_heir(env: Dictionary, source_id: String) -> String:
 ## Reads heir's state.inheritance_policy to filter transfers. Default
 ## policy when absent: {inventory: "all", reputation: "all",
 ## core_techs: true, class_progress: false, relationships: "family"}.
-func handle_dynasty_succession(env: Dictionary, dying_entity_id: String,
-                               heirs_list: Array = []) -> Dictionary:
+func handle_dynasty_succession(
+	env: Dictionary, dying_entity_id: String, heirs_list: Array = []
+) -> Dictionary:
 	var source := _resolve_entity(env, dying_entity_id)
 	if source == null:
 		return {"ok": false, "reason": "no_source", "heir_id": ""}
@@ -354,9 +360,13 @@ func handle_dynasty_succession(env: Dictionary, dying_entity_id: String,
 		heir_id = resolve_first_eligible_heir(env, dying_entity_id)
 	# No eligible heir — emit extinct and return.
 	if heir_id == "":
-		_emit_signal(env, SIGNAL_DYNASTY_EXTINCT, {
-			"deceased": dying_entity_id,
-		})
+		_emit_signal(
+			env,
+			SIGNAL_DYNASTY_EXTINCT,
+			{
+				"deceased": dying_entity_id,
+			}
+		)
 		return {"ok": false, "reason": "extinct", "heir_id": ""}
 	# Read heir's inheritance policy (default: full inheritance minus
 	# class_progress).
@@ -381,18 +391,23 @@ func handle_dynasty_succession(env: Dictionary, dying_entity_id: String,
 	transition_player_to(env, heir_id)
 	# Emit succeeded signal so downstream content rules (story beats,
 	# audio stings, juice profiles) can react.
-	_emit_signal(env, SIGNAL_DYNASTY_SUCCEEDED, {
-		"deceased": dying_entity_id,
-		"successor": heir_id,
-		"transferred_inventory_count": inv_count,
-		"transferred_reputation_count": rep_count,
-		"transferred_techs": tech_list,
-	})
+	_emit_signal(
+		env,
+		SIGNAL_DYNASTY_SUCCEEDED,
+		{
+			"deceased": dying_entity_id,
+			"successor": heir_id,
+			"transferred_inventory_count": inv_count,
+			"transferred_reputation_count": rep_count,
+			"transferred_techs": tech_list,
+		}
+	)
 	return {
 		"ok": true,
 		"reason": "",
 		"heir_id": heir_id,
-		"transferred": {
+		"transferred":
+		{
 			"inventory": inv_count,
 			"reputation": rep_count,
 			"techs": tech_list,
@@ -403,6 +418,7 @@ func handle_dynasty_succession(env: Dictionary, dying_entity_id: String,
 # ============================================================
 # INTERNAL HELPERS
 # ============================================================
+
 
 static func _resolve_entity(env: Dictionary, entity_id: String) -> Entity:
 	if entity_id == "":

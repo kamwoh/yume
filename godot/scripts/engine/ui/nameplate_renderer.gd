@@ -34,7 +34,6 @@ class_name NameplateRenderer
 ## units). Skip nameplates for entities behind the camera
 ## (is_position_behind() check).
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
@@ -57,7 +56,7 @@ const DEFAULT_Y_OFFSET_2D: float = 32.0
 # Style — off-white parchment text, dark outline for legibility on any
 # background (grass, sky, stone). Matches merchant palette.
 const NAMEPLATE_FONT_SIZE: int = 13
-const NAMEPLATE_COLOR: Color = Color(0.910, 0.847, 0.722, 1.0)   # #e8d8b8
+const NAMEPLATE_COLOR: Color = Color(0.910, 0.847, 0.722, 1.0)  # #e8d8b8
 const NAMEPLATE_OUTLINE_COLOR: Color = Color(0.0, 0.0, 0.0, 0.85)
 const NAMEPLATE_OUTLINE_SIZE: int = 3
 
@@ -66,7 +65,6 @@ const NAMEPLATE_OUTLINE_SIZE: int = 3
 # convention (named_regulars.json tags this; ambient_npc / villagers
 # don't).
 const NAMEPLATE_TAG: String = "named_npc"
-
 
 # ============================================================
 # STATE
@@ -79,12 +77,12 @@ var _camera3d: Camera3D = null
 # Label pool — Labels live here even when unused (visible=false). We
 # grow on demand up to MAX_VISIBLE_NAMEPLATES; never shrink.
 var _layer: CanvasLayer = null
-var _label_pool: Array = []     # Array[Label]
-
+var _label_pool: Array = []  # Array[Label]
 
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -97,9 +95,11 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _world == null or _layer == null: return
+	if _world == null or _layer == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return    # env not built yet
+	if sched == null:
+		return  # env not built yet
 	var env: Dictionary = sched.env
 	# Camera nodes may have been added after _ready (e.g. if a scene-spec
 	# script instantiates them). Re-look-up if missing.
@@ -113,9 +113,10 @@ func _process(_delta: float) -> void:
 # LAYER + POOL
 # ============================================================
 
+
 func _build_layer() -> void:
 	_layer = CanvasLayer.new()
-	_layer.layer = 11    # above HUD (10), below fade overlay (20)
+	_layer.layer = 11  # above HUD (10), below fade overlay (20)
 	_layer.name = "NameplateLayer"
 	add_child(_layer)
 
@@ -148,6 +149,7 @@ func _apply_nameplate_style(lbl: Label) -> void:
 # PER-FRAME RENDER
 # ============================================================
 
+
 func _render_nameplates(env: Dictionary) -> void:
 	var entities = env.get("entities", null)
 	if not (entities is Dictionary):
@@ -164,8 +166,14 @@ func _render_nameplates(env: Dictionary) -> void:
 
 	var cam_pos := _camera_world_position()
 	for c in candidates:
-		c["dist2"] = (c["world_pos"] - cam_pos).length_squared() if c["world_pos"] is Vector3 \
-			else (Vector2(c["world_pos"].x, c["world_pos"].y) - Vector2(cam_pos.x, cam_pos.z)).length_squared()
+		c["dist2"] = (
+			(c["world_pos"] - cam_pos).length_squared()
+			if c["world_pos"] is Vector3
+			else (
+				(Vector2(c["world_pos"].x, c["world_pos"].y) - Vector2(cam_pos.x, cam_pos.z))
+				. length_squared()
+			)
+		)
 
 	# Sort ascending by distance — closest first. Take the closest N.
 	candidates.sort_custom(func(a, b): return a["dist2"] < b["dist2"])
@@ -179,7 +187,7 @@ func _render_nameplates(env: Dictionary) -> void:
 		var c = candidates[i]
 		var screen_pos = _project_to_screen(c["world_pos"])
 		if screen_pos == null:
-			continue   # entity behind camera — skip slot, don't waste a label
+			continue  # entity behind camera — skip slot, don't waste a label
 		var lbl: Label = _label_pool[written]
 		lbl.text = str(c["display_name"])
 		lbl.visible = true
@@ -189,8 +197,7 @@ func _render_nameplates(env: Dictionary) -> void:
 		# the projected point. Pool labels auto-size after text assignment;
 		# we read size() AFTER setting text. Vertical offset moves it up.
 		var half := lbl.get_minimum_size() * 0.5
-		lbl.position = Vector2(screen_pos.x - half.x,
-			screen_pos.y - half.y + SCREEN_Y_PIXEL_OFFSET)
+		lbl.position = Vector2(screen_pos.x - half.x, screen_pos.y - half.y + SCREEN_Y_PIXEL_OFFSET)
 		written += 1
 
 	_hide_pool_from(written)
@@ -207,6 +214,7 @@ func _hide_pool_from(start: int) -> void:
 # CANDIDATE COLLECTION
 # ============================================================
 
+
 ## Walk the entity dict, return Array of {entity, world_pos, display_name}
 ## dicts for every entity carrying NAMEPLATE_TAG. world_pos is shifted
 ## up by Y_OFFSET so the projected point is "above the head."
@@ -216,11 +224,15 @@ func _hide_pool_from(start: int) -> void:
 static func collect_named_npcs(entities: Dictionary) -> Array:
 	var out: Array = []
 	for ent in entities.values():
-		if ent == null: continue
-		if not ent.has_method("has_tag"): continue
-		if not ent.has_tag(NAMEPLATE_TAG): continue
+		if ent == null:
+			continue
+		if not ent.has_method("has_tag"):
+			continue
+		if not ent.has_tag(NAMEPLATE_TAG):
+			continue
 		var world_pos = _entity_anchor_position(ent)
-		if world_pos == null: continue
+		if world_pos == null:
+			continue
 		var name_str := str(ent.get_property("display_name", ""))
 		if name_str == "":
 			# Fallback: instance_id (e.g. "npc_garron") so a misconfigured
@@ -228,11 +240,16 @@ static func collect_named_npcs(entities: Dictionary) -> Array:
 			# content authors who tag named_npc but forget display_name.
 			var iid = ent.get("instance_id")
 			name_str = str(iid) if iid != null and str(iid) != "" else "?"
-		out.append({
-			"entity": ent,
-			"world_pos": world_pos,
-			"display_name": name_str,
-		})
+		(
+			out
+			. append(
+				{
+					"entity": ent,
+					"world_pos": world_pos,
+					"display_name": name_str,
+				}
+			)
+		)
 	return out
 
 
@@ -242,7 +259,8 @@ static func collect_named_npcs(entities: Dictionary) -> Array:
 ## oblique camera angles a constant pixel offset wouldn't track the
 ## perceived head).
 static func _entity_anchor_position(ent) -> Variant:
-	if not ent.has_method("get_position"): return null
+	if not ent.has_method("get_position"):
+		return null
 	var p = ent.get_position()
 	if p is Vector3:
 		return Vector3(p.x, p.y + DEFAULT_Y_OFFSET_3D, p.z)
@@ -256,6 +274,7 @@ static func _entity_anchor_position(ent) -> Variant:
 # ============================================================
 # CAMERA / PROJECTION
 # ============================================================
+
 
 ## Project a world position to screen-space pixels. Returns null when
 ## the point is behind the 3D camera (so caller can skip it). 2D path
@@ -271,7 +290,8 @@ func _project_to_screen(world_pos) -> Variant:
 	if _camera3d != null and world_pos is Vector2:
 		var v := world_pos as Vector2
 		var v3 := Vector3(v.x, 0.0, v.y)
-		if _camera3d.is_position_behind(v3): return null
+		if _camera3d.is_position_behind(v3):
+			return null
 		return _camera3d.unproject_position(v3)
 	return null
 

@@ -28,7 +28,6 @@ class_name PartyDirector
 ## 2. Per-frame: resolve env via parent.scheduler.env, run leash +
 ##    revival update.
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
@@ -43,9 +42,9 @@ class_name PartyDirector
 # closest equivalent for class-level immutable tables. Same pattern
 # used by Pathfinding for non-scalar defaults.
 static var OFFSET_TABLE: Array = [
-	Vector3(-1.0, 0.0, 1.5),    # index 0 — back-left
-	Vector3( 1.0, 0.0, 1.5),    # index 1 — back-right
-	Vector3( 0.0, 0.0, 2.5),    # index 2 — directly behind, deeper
+	Vector3(-1.0, 0.0, 1.5),  # index 0 — back-left
+	Vector3(1.0, 0.0, 1.5),  # index 1 — back-right
+	Vector3(0.0, 0.0, 2.5),  # index 2 — directly behind, deeper
 ]
 
 # Per-frame lerp factor (0 = no movement, 1 = snap). Tuned for a
@@ -60,17 +59,16 @@ const SNAP_DISTANCE: float = 12.0
 const RELATION_TYPE: String = "party_member_of"
 const PARTY_TAG: String = "party_member"
 
-
 # ============================================================
 # STATE
 # ============================================================
 
 var _world: Node = null
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -81,9 +79,11 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return     # env not built yet
+	if sched == null:
+		return  # env not built yet
 	var env: Dictionary = sched.env
 	_drain_revival_signals(env)
 	_apply_leashing(env)
@@ -93,6 +93,7 @@ func _process(_delta: float) -> void:
 # REVIVAL — drain party_revival signals
 # ============================================================
 
+
 ## Scan env.signal_buffer for any signal named "party_revival".
 ## For each one found: revive ALL party_member-tagged entities (clear
 ## ko, restore hp from properties.hp_max or state.hp_max).
@@ -101,13 +102,15 @@ func _process(_delta: float) -> void:
 ## Listening here is read-only; double-revival is safe (idempotent).
 func _drain_revival_signals(env: Dictionary) -> void:
 	var buf = env.get("signal_buffer", null)
-	if not (buf is Array): return
+	if not (buf is Array):
+		return
 	var saw_revival: bool = false
-	for sig in (buf as Array):
+	for sig in buf as Array:
 		if sig is Dictionary and str((sig as Dictionary).get("name", "")) == "party_revival":
 			saw_revival = true
 			break
-	if not saw_revival: return
+	if not saw_revival:
+		return
 	revive_all(env)
 
 
@@ -117,8 +120,10 @@ func revive_all(env: Dictionary) -> void:
 	var entities: Dictionary = env.get("entities", {})
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
-		if not (ent as Entity).has_tag(PARTY_TAG): continue
+		if not (ent is Entity):
+			continue
+		if not (ent as Entity).has_tag(PARTY_TAG):
+			continue
 		_revive_one(ent as Entity)
 
 
@@ -136,17 +141,22 @@ static func _revive_one(ent: Entity) -> void:
 # LEASHING — pull each party member toward their offset slot
 # ============================================================
 
+
 func _apply_leashing(env: Dictionary) -> void:
 	var entities: Dictionary = env.get("entities", {})
 	var relations = env.get("relations", null)
-	if relations == null: return
+	if relations == null:
+		return
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var member: Entity = ent as Entity
-		if not member.has_tag(PARTY_TAG): continue
+		if not member.has_tag(PARTY_TAG):
+			continue
 		var leader: Entity = _resolve_leader(member, entities, relations)
-		if leader == null: continue
+		if leader == null:
+			continue
 		_apply_leash_to_member(member, leader)
 
 
@@ -155,11 +165,14 @@ func _apply_leashing(env: Dictionary) -> void:
 ## from the member to the leader. Multi-leader topologies are out
 ## of scope per ADR 0026.
 static func _resolve_leader(member: Entity, entities: Dictionary, relations) -> Entity:
-	if relations == null: return null
+	if relations == null:
+		return null
 	var leaders: Array = relations.targets(RELATION_TYPE, member.instance_id)
-	if leaders.size() != 1: return null
+	if leaders.size() != 1:
+		return null
 	var leader_id: String = str(leaders[0])
-	if not entities.has(leader_id): return null
+	if not entities.has(leader_id):
+		return null
 	var leader = entities[leader_id]
 	return leader if leader is Entity else null
 
@@ -175,7 +188,8 @@ func _apply_leash_to_member(member: Entity, leader: Entity) -> void:
 		member.set_velocity(Vector3.ZERO)
 		return
 	var idx: int = int(member.get_state("party_index", -1))
-	if idx < 0: return  # member not yet assigned a slot — skip until party_join sets it
+	if idx < 0:
+		return  # member not yet assigned a slot — skip until party_join sets it
 	var offset: Vector3 = offset_for_index(idx)
 	var target: Vector3 = leader_pos + offset
 	var current: Vector3 = Vec3Util.from_world_pos(member.get_position())
@@ -191,11 +205,13 @@ func _apply_leash_to_member(member: Entity, leader: Entity) -> void:
 # STATIC HELPERS (testable without a SceneTree)
 # ============================================================
 
+
 ## Returns the offset vector for the given party-index slot. Indices
 ## beyond the table fall back to the last entry, ensuring large
 ## parties don't crash (they just bunch up at the deepest slot).
 static func offset_for_index(idx: int) -> Vector3:
-	if idx < 0: return Vector3.ZERO
+	if idx < 0:
+		return Vector3.ZERO
 	if idx >= OFFSET_TABLE.size():
 		return OFFSET_TABLE[OFFSET_TABLE.size() - 1]
 	return OFFSET_TABLE[idx]
@@ -205,5 +221,3 @@ static func offset_for_index(idx: int) -> Vector3:
 ## is at `leader_pos`. Pure-function helper used by tests.
 static func target_position_for(leader_pos: Vector3, idx: int) -> Vector3:
 	return leader_pos + offset_for_index(idx)
-
-

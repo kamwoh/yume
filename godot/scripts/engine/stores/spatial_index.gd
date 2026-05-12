@@ -16,13 +16,13 @@ class_name SpatialIndex
 
 @export var cell_size: float = 64.0
 
-var grid: Dictionary = {}            # Vector2i → Array[String] of entity ids
-var entity_cells: Dictionary = {}    # entity_id → Vector2i (cached current cell)
-
+var grid: Dictionary = {}  # Vector2i → Array[String] of entity ids
+var entity_cells: Dictionary = {}  # entity_id → Vector2i (cached current cell)
 
 # ============================================================
 # UPDATE
 # ============================================================
+
 
 func update_entity(id: String, pos: Vector2) -> void:
 	var new_cell := _cell_of(pos)
@@ -41,7 +41,8 @@ func update_entity(id: String, pos: Vector2) -> void:
 
 
 func remove_entity(id: String) -> void:
-	if not entity_cells.has(id): return
+	if not entity_cells.has(id):
+		return
 	var cell: Vector2i = entity_cells[id]
 	if grid.has(cell):
 		(grid[cell] as Array).erase(id)
@@ -59,6 +60,7 @@ func clear() -> void:
 # QUERY
 # ============================================================
 
+
 ## Return entity ids whose position lies within `radius` of `origin`.
 ## Visits only cells overlapping the bounding box of the circle, then filters
 ## by exact distance.
@@ -70,8 +72,9 @@ func query_radius_ids(origin: Vector2, radius: float) -> Array:
 	for cx in range(min_cell.x, max_cell.x + 1):
 		for cy in range(min_cell.y, max_cell.y + 1):
 			var cell := Vector2i(cx, cy)
-			if not grid.has(cell): continue
-			for id in (grid[cell] as Array):
+			if not grid.has(cell):
+				continue
+			for id in grid[cell] as Array:
 				out.append(id)
 	# Note: caller should verify exact distance if needed; cell visit returns
 	# slight overestimation. We return ids; QueryLib filters by .distance() too.
@@ -83,9 +86,11 @@ func query_radius(origin: Vector2, radius: float, entities: Dictionary) -> Array
 	var out: Array = []
 	var r2 := radius * radius
 	for id in query_radius_ids(origin, radius):
-		if not entities.has(id): continue
+		if not entities.has(id):
+			continue
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var p := (ent as Entity).get_planar_position()
 		if p.distance_squared_to(origin) <= r2:
 			out.append(ent)
@@ -96,8 +101,10 @@ func query_radius(origin: Vector2, radius: float, entities: Dictionary) -> Array
 # DIAGNOSTICS
 # ============================================================
 
+
 func cell_count() -> int:
 	return grid.size()
+
 
 func entity_count() -> int:
 	return entity_cells.size()
@@ -106,6 +113,7 @@ func entity_count() -> int:
 # ============================================================
 # INTERNAL
 # ============================================================
+
 
 func _cell_of(p: Vector2) -> Vector2i:
 	return Vector2i(int(floor(p.x / cell_size)), int(floor(p.y / cell_size)))

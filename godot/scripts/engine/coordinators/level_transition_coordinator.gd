@@ -23,7 +23,6 @@ class_name LevelTransitionCoordinator
 ## instance, single constructor takes a world reference. Public methods
 ## are stateless (no internal state besides the world ref).
 
-
 var _world: World
 
 
@@ -34,6 +33,7 @@ func _init(world: World) -> void:
 # ============================================================
 # PUBLIC API
 # ============================================================
+
 
 ## Drain a pending level transition queued via the `transition_level`
 ## effect. Called from world.gd::_process tick branch (every sim-tick) AND from
@@ -93,7 +93,8 @@ func do_transition(target: String) -> void:
 			to_remove.append(str(id))
 	for rid in to_remove:
 		var rent: Entity = _world.entities.get(rid, null)
-		if rent == null: continue
+		if rent == null:
+			continue
 		if _world.relations != null:
 			_world.relations.clear_entity(rid)
 		if _world.spatial_index != null and _world.spatial_index.has_method("remove_entity"):
@@ -140,7 +141,8 @@ func do_transition(target: String) -> void:
 ## caller's responsibility (load_data + do_transition both batch
 ## AFTER load_level returns, to avoid duplicate batching at boot).
 func load_level(name: String) -> void:
-	if _world.levels_root == "" or name == "": return
+	if _world.levels_root == "" or name == "":
+		return
 	var lvl_dir := _world.levels_root + "/" + name
 	_world._loader.load_rules_file(lvl_dir + "/rules.json", true)
 	_world._loader.load_entities_path(lvl_dir)

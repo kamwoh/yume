@@ -38,8 +38,13 @@ class_name MultiMeshDirector
 # Each disqualifies the targeted entity's tag class from multimesh batching.
 # Grep-friendly constant — yume-asset-designer skill references it.
 const MUTATION_FIELDS := [
-	"position", "scale", "yaw", "velocity",
-	"tint", "color", "material_override",
+	"position",
+	"scale",
+	"yaw",
+	"velocity",
+	"tint",
+	"color",
+	"material_override",
 ]
 
 # Tag-mutating effect types also disqualify (tag changes can re-route
@@ -49,12 +54,11 @@ const TAG_MUTATION_EFFECTS := ["tag_add", "tag_remove"]
 # Engine-managed tag — content authors never set this directly.
 const MANAGED_TAG := "_multimesh_managed"
 
-
 # State carried across calls
-var _built_nodes: Array = []                 # MultiMeshInstance3D nodes we created
+var _built_nodes: Array = []  # MultiMeshInstance3D nodes we created
 var _pending_promotions: Array[String] = []  # entity ids waiting for freeze release
-var _world_node: Node = null                 # parent for MultiMeshInstance3D
-var _position_scale: float = 1.0             # renderer's position_scale (read from cfg)
+var _world_node: Node = null  # parent for MultiMeshInstance3D
+var _position_scale: float = 1.0  # renderer's position_scale (read from cfg)
 
 
 func _init() -> void:
@@ -94,20 +98,21 @@ func scan_and_batch(env: Dictionary) -> Dictionary:
 
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var e: Entity = ent
 		if not _is_static_candidate(e, defs, disqualified_tags):
 			continue
 		var mesh_def: Dictionary = _mesh_def_for(e, defs, env)
-		if mesh_def.is_empty(): continue
+		if mesh_def.is_empty():
+			continue
 		var prims: Array = mesh_def.get("primitives", [])
 		var resolved_params := MeshLib.merge_params(
-			mesh_def, (e.visual as Dictionary).get("params", {}))
+			mesh_def, (e.visual as Dictionary).get("params", {})
+		)
 		var params_key := _hash_params(resolved_params)
 		for prim_idx in range(prims.size()):
-			var key := "%s|%d|%s" % [
-				_mesh_id_for(e), prim_idx, params_key
-			]
+			var key := "%s|%d|%s" % [_mesh_id_for(e), prim_idx, params_key]
 			if not groups.has(key):
 				groups[key] = {
 					"mesh_def": mesh_def,
@@ -164,8 +169,10 @@ func cleanup(env: Dictionary) -> int:
 ## drain_pending_promotions() on freeze release.
 func try_promote(env: Dictionary, entity_id: String) -> void:
 	var world_state: Dictionary = env.get("world", {})
-	var frozen := int(world_state.get("screen_freeze_world", 0)) != 0 \
+	var frozen := (
+		int(world_state.get("screen_freeze_world", 0)) != 0
 		or int(world_state.get("overlay_freeze_world", 0)) != 0
+	)
 	if frozen:
 		if not _pending_promotions.has(entity_id):
 			_pending_promotions.append(entity_id)
@@ -177,7 +184,8 @@ func try_promote(env: Dictionary, entity_id: String) -> void:
 ## Called by world.gd::_process tick branch at the start of every non-frozen tick to
 ## drain the deferred promotion queue. Cheap when queue is empty.
 func drain_pending_promotions(env: Dictionary) -> void:
-	if _pending_promotions.is_empty(): return
+	if _pending_promotions.is_empty():
+		return
 	var to_drain := _pending_promotions.duplicate()
 	_pending_promotions.clear()
 	for eid in to_drain:
@@ -188,15 +196,19 @@ func drain_pending_promotions(env: Dictionary) -> void:
 # INTERNAL — static detection
 # ============================================================
 
+
 func _is_static_candidate(e: Entity, _defs: Dictionary, disqualified_tags: Dictionary) -> bool:
 	if e.has_tag("actor") or e.has_tag("projectile") or e.has_tag("player"):
 		return false
 	# Existing velocity disqualifies — entity is already moving.
 	var v = e.get_velocity()
-	if v is Vector2 and v != Vector2.ZERO: return false
-	if v is Vector3 and v != Vector3.ZERO: return false
+	if v is Vector2 and v != Vector2.ZERO:
+		return false
+	if v is Vector3 and v != Vector3.ZERO:
+		return false
 	# zero_velocity_pretick implies a runtime mover (actor convention).
-	if bool(e.get_state("zero_velocity_pretick", false)): return false
+	if bool(e.get_state("zero_velocity_pretick", false)):
+		return false
 	# Tag-class disqualification: if ANY of the entity's tags appears in
 	# disqualified_tags, the entity falls through. Conservative — a rule
 	# that mutates one entity's position disqualifies the whole tag class.
@@ -213,17 +225,21 @@ func _mesh_def_for(e: Entity, _defs: Dictionary, env: Dictionary) -> Dictionary:
 	# Read mesh name from visual.mesh or visual.shape (renderer fallback).
 	var visual: Dictionary = e.visual as Dictionary
 	var mesh_name := str(visual.get("mesh", visual.get("shape", "")))
-	if mesh_name == "": return {}
+	if mesh_name == "":
+		return {}
 	# Need access to the MeshLib for the eligibility check. World.gd
 	# doesn't pass it directly; we look it up via parent (renderer
 	# instance has it cached). Cheap fallback: use the static cache
 	# in EntityMesh3D.
 	var lib = EntityMesh3D._mesh_lib_cache if EntityMesh3D._mesh_lib_cache != null else null
-	if lib == null or not lib.has(mesh_name): return {}
+	if lib == null or not lib.has(mesh_name):
+		return {}
 	var def := lib.get_mesh(mesh_name)
-	if not bool(def.get("multimesh_eligible", false)): return {}
+	if not bool(def.get("multimesh_eligible", false)):
+		return {}
 	# Animated mesh defs are never static.
-	if def.has("animations"): return {}
+	if def.has("animations"):
+		return {}
 	return def
 
 
@@ -250,35 +266,42 @@ func _hash_params(params: Dictionary) -> String:
 func _scan_disqualified_tag_classes(rules: Array) -> Dictionary:
 	var out: Dictionary = {}
 	for r in rules:
-		if not (r is Rule): continue
+		if not (r is Rule):
+			continue
 		var rule: Rule = r
 		# Effects can be a single dict or an array
 		var effs = rule.effects if rule.effects is Array else []
 		# Determine the tags this rule's query matches (the candidate set).
 		var qtags := _tags_from_query(rule.query)
-		if qtags.is_empty(): continue
+		if qtags.is_empty():
+			continue
 		for ef in effs:
-			if not (ef is Dictionary): continue
+			if not (ef is Dictionary):
+				continue
 			var ef_dict: Dictionary = ef
 			var et := str(ef_dict.get("type", ""))
 			# Tag-mutating effects disqualify too.
 			if et in TAG_MUTATION_EFFECTS:
-				for t in qtags: out[t] = true
+				for t in qtags:
+					out[t] = true
 				continue
 			# state_set / state_add / state_mul / state_clamp on a mutation field
 			var field := str(ef_dict.get("field", ""))
 			if field != "" and MUTATION_FIELDS.has(field):
-				for t in qtags: out[t] = true
+				for t in qtags:
+					out[t] = true
 				continue
 			# velocity_set / velocity_lerp / velocity_set_relative / velocity_add_relative
 			if et.begins_with("velocity_"):
-				for t in qtags: out[t] = true
+				for t in qtags:
+					out[t] = true
 				continue
 	return out
 
 
 func _tags_from_query(q) -> Array:
-	if not (q is Dictionary): return []
+	if not (q is Dictionary):
+		return []
 	var spec: Dictionary = q
 	# Flat tags_all
 	if spec.has("tags_all"):
@@ -289,18 +312,22 @@ func _tags_from_query(q) -> Array:
 		var v = spec[k]
 		if v is Dictionary and v.has("tags_all"):
 			for t in v["tags_all"]:
-				if not out.has(t): out.append(t)
+				if not out.has(t):
+					out.append(t)
 	return out
 
 
 func _gather_rules(env: Dictionary) -> Array:
 	# Pull from scheduler if available; the env doesn't carry rules directly.
 	var parent_node = env.get("parent", null)
-	if parent_node == null: return []
+	if parent_node == null:
+		return []
 	var sched = parent_node.get("scheduler")
-	if sched == null: return []
+	if sched == null:
+		return []
 	var by_trigger: Dictionary = sched.get("rules_by_trigger")
-	if by_trigger == null: return []
+	if by_trigger == null:
+		return []
 	var out: Array = []
 	for k in by_trigger.keys():
 		for r in by_trigger[k]:
@@ -312,19 +339,23 @@ func _gather_rules(env: Dictionary) -> Array:
 # INTERNAL — MultiMesh build
 # ============================================================
 
+
 func _build_multimesh_for_group(g: Dictionary) -> MultiMeshInstance3D:
 	var mesh_def: Dictionary = g["mesh_def"]
 	var params: Dictionary = g["params"]
 	var prim_idx: int = g["prim_idx"]
 	var ents: Array = g["entities"]
-	if ents.is_empty(): return null
+	if ents.is_empty():
+		return null
 	var prims: Array = mesh_def.get("primitives", [])
-	if prim_idx >= prims.size(): return null
+	if prim_idx >= prims.size():
+		return null
 	var prim: Dictionary = prims[prim_idx]
 
 	# Build the primitive's Mesh once (shared across all instances).
 	var mesh := _build_mesh_for_primitive(prim, params)
-	if mesh == null: return null
+	if mesh == null:
+		return null
 
 	var mm := MultiMesh.new()
 	mm.transform_format = MultiMesh.TRANSFORM_3D
@@ -360,7 +391,8 @@ func _build_multimesh_for_group(g: Dictionary) -> MultiMeshInstance3D:
 		t.origin = ep + local_offset
 		# Basis: yaw rotation then per-instance scale, plus primitive's own rotation.
 		var b := Basis()
-		if yw != 0.0: b = b.rotated(Vector3.UP, yw)
+		if yw != 0.0:
+			b = b.rotated(Vector3.UP, yw)
 		if prim_rot != Vector3.ZERO:
 			b = b * Basis.from_euler(prim_rot)
 		b = b.scaled(sc)
@@ -439,13 +471,17 @@ func _build_mesh_for_primitive(p: Dictionary, params: Dictionary) -> Mesh:
 # INTERNAL — promotion (managed → per-entity)
 # ============================================================
 
+
 func _apply_promotion(env: Dictionary, entity_id: String) -> void:
 	var entities: Dictionary = env.get("entities", {})
-	if not entities.has(entity_id): return
+	if not entities.has(entity_id):
+		return
 	var ent = entities[entity_id]
-	if not (ent is Entity): return
+	if not (ent is Entity):
+		return
 	var e: Entity = ent
-	if not e.has_tag(MANAGED_TAG): return
+	if not e.has_tag(MANAGED_TAG):
+		return
 	# Find the entity's slot(s) in our built nodes and zero them.
 	# (Compaction is too expensive — zero scale renders nothing.)
 	_zero_multimesh_slots_for(e)
@@ -464,10 +500,12 @@ func _apply_promotion(env: Dictionary, entity_id: String) -> void:
 func _zero_multimesh_slots_for(e: Entity) -> void:
 	var ep := _entity_world_pos(e)
 	for node in _built_nodes:
-		if not (node is MultiMeshInstance3D): continue
+		if not (node is MultiMeshInstance3D):
+			continue
 		var mmi: MultiMeshInstance3D = node
 		var mm := mmi.multimesh
-		if mm == null: continue
+		if mm == null:
+			continue
 		for i in range(mm.instance_count):
 			var t := mm.get_instance_transform(i)
 			if t.origin.distance_to(ep) < 0.5:  # close enough — same entity
@@ -491,20 +529,25 @@ func _remove_entity_renderer(e: Entity) -> void:
 # INTERNAL — math helpers (mirror MeshLib's)
 # ============================================================
 
+
 func _entity_world_pos(e: Entity) -> Vector3:
 	var p = e.get_position()
-	if p is Vector3: return p * _position_scale
-	if p is Vector2: return Vector3(p.x, 0, p.y) * _position_scale
+	if p is Vector3:
+		return p * _position_scale
+	if p is Vector2:
+		return Vector3(p.x, 0, p.y) * _position_scale
 	return Vector3.ZERO
 
 
 func _entity_scale(e: Entity) -> Vector3:
 	var s = e.get_state("scale", null)
-	if s == null: return Vector3.ONE
+	if s == null:
+		return Vector3.ONE
 	if s is float or s is int:
 		var f := float(s)
 		return Vector3(f, f, f)
-	if s is Vector3: return s
+	if s is Vector3:
+		return s
 	if s is Array:
 		var a := s as Array
 		if a.size() == 3:
@@ -522,8 +565,10 @@ func _param_resolve(v, params: Dictionary):
 
 
 func _to_vec3(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, v.y, 0)
+	if v is Vector3:
+		return v
+	if v is Vector2:
+		return Vector3(v.x, v.y, 0)
 	if v is Array:
 		var a := v as Array
 		if a.size() == 3:
@@ -537,7 +582,8 @@ func _to_vec3(v) -> Vector3:
 
 
 func _to_vec2(v) -> Vector2:
-	if v is Vector2: return v
+	if v is Vector2:
+		return v
 	if v is Array:
 		var a := v as Array
 		if a.size() >= 2:
@@ -546,6 +592,8 @@ func _to_vec2(v) -> Vector2:
 
 
 func _parse_color(v) -> Color:
-	if v is Color: return v
-	if v is String: return Color(v)
+	if v is Color:
+		return v
+	if v is String:
+		return Color(v)
 	return Color.WHITE

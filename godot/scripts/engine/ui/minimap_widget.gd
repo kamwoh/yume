@@ -37,11 +37,11 @@ class_name MinimapWidget
 ## portal were relative to their position. Added in HUD top-right.
 
 var _world: Node = null
-var _world_bounds: Array = []          # [x_min, z_min, x_max, z_max], or empty for auto
+var _world_bounds: Array = []  # [x_min, z_min, x_max, z_max], or empty for auto
 var _background: Color = Color("#0c0a08")
 var _border: Color = Color("#807060")
-var _tag_colors: Dictionary = {}        # tag → Color
-var _ordered_tags: Array = []           # iteration order for first-match
+var _tag_colors: Dictionary = {}  # tag → Color
+var _ordered_tags: Array = []  # iteration order for first-match
 var _player_tag: String = "player"
 var _dot_radius: float = 2.0
 var _player_radius: float = 4.0
@@ -61,7 +61,7 @@ func configure(cfg: Dictionary) -> void:
 	var tc = cfg.get("tag_colors", {})
 	if tc is Dictionary:
 		# Preserve insertion order so authors control first-match precedence
-		for k in (tc as Dictionary):
+		for k in tc as Dictionary:
 			var key := str(k)
 			_ordered_tags.append(key)
 			_tag_colors[key] = _color((tc as Dictionary)[k])
@@ -86,12 +86,15 @@ func _draw() -> void:
 	draw_rect(rect, _background, true)
 	# Border
 	draw_rect(rect, _border, false, 1.5)
-	if _world == null: return
+	if _world == null:
+		return
 	var entities = _world.get("entities")
-	if not (entities is Dictionary): return
+	if not (entities is Dictionary):
+		return
 	# Resolve world bounds — auto-fit if not configured
 	var bounds := _resolve_bounds(entities)
-	if bounds.is_empty(): return
+	if bounds.is_empty():
+		return
 	var x_min: float = bounds[0]
 	var z_min: float = bounds[1]
 	var x_max: float = bounds[2]
@@ -100,7 +103,7 @@ func _draw() -> void:
 	var h: float = max(z_max - z_min, 0.001)
 	# Pass 1: non-player entities
 	var player_pos = null
-	for inst_id in (entities as Dictionary):
+	for inst_id in entities as Dictionary:
 		var ent = (entities as Dictionary)[inst_id]
 		if ent == null or not ent.has_method("get_planar_position"):
 			continue
@@ -111,7 +114,8 @@ func _draw() -> void:
 			player_pos = Vector2(px, py)
 			continue
 		var color = _color_for_entity(ent)
-		if color == null: continue
+		if color == null:
+			continue
 		draw_circle(Vector2(px, py), _dot_radius, color)
 	# Pass 2: player on top, brighter + bigger
 	if player_pos != null:
@@ -148,7 +152,8 @@ func _resolve_bounds(entities: Dictionary) -> Array:
 		z_min = min(z_min, pp.y)
 		x_max = max(x_max, pp.x)
 		z_max = max(z_max, pp.y)
-	if x_min == INF: return []
+	if x_min == INF:
+		return []
 	# Pad by 5% on each side
 	var pad_x := (x_max - x_min) * 0.05
 	var pad_z := (z_max - z_min) * 0.05
@@ -156,6 +161,8 @@ func _resolve_bounds(entities: Dictionary) -> Array:
 
 
 static func _color(v) -> Color:
-	if v is Color: return v
-	if v is String: return Color(str(v))
+	if v is Color:
+		return v
+	if v is String:
+		return Color(str(v))
 	return Color.WHITE

@@ -14,7 +14,7 @@ class_name World
 ## that reads state.position. Same script powers world_2d.tscn and
 ## world_3d.tscn.
 
-@export_dir var data_root: String = "" # e.g. "res://data/demo_ecology/"
+@export_dir var data_root: String = ""  # e.g. "res://data/demo_ecology/"
 @export var auto_start: bool = true
 @export var tick_seconds: float = 0.5
 @export var verbose: bool = false
@@ -50,33 +50,33 @@ class_name World
 # STATE — engine-shared services (env-exposed)
 # ============================================================
 
-var entities: Dictionary = { } # instance_id → Entity
-var defs: Dictionary = { } # def_id → entity definition
-var world_state: Dictionary = { } # world.* bindings
-var next_id_seq: Dictionary = { "_": 0 } # shared spawn-id counter
-var error_buffer: Array = [] # Tier 2.6a structured errors
-var save_policy: Dictionary = { } # ADR 0010 — empty = no persistence
+var entities: Dictionary = {}  # instance_id → Entity
+var defs: Dictionary = {}  # def_id → entity definition
+var world_state: Dictionary = {}  # world.* bindings
+var next_id_seq: Dictionary = {"_": 0}  # shared spawn-id counter
+var error_buffer: Array = []  # Tier 2.6a structured errors
+var save_policy: Dictionary = {}  # ADR 0010 — empty = no persistence
 
-var relations: RelationStore = null # primitive #7
-var spatial_index: SpatialIndex = null # radius-query bucket hash
-var scheduler: PhaseScheduler = null # four-phase tick loop
-var zone_store: ZoneStore = null # ADR 0031 (always non-null)
-var chunk_streamer: ChunkStreamer = null # ADR 0014 (nullable)
-var actor_manager = null # ADR 0016 multi-actor
-var macro_expander = null # ADR 0019 macros
+var relations: RelationStore = null  # primitive #7
+var spatial_index: SpatialIndex = null  # radius-query bucket hash
+var scheduler: PhaseScheduler = null  # four-phase tick loop
+var zone_store: ZoneStore = null  # ADR 0031 (always non-null)
+var chunk_streamer: ChunkStreamer = null  # ADR 0014 (nullable)
+var actor_manager = null  # ADR 0016 multi-actor
+var macro_expander = null  # ADR 0019 macros
 
 # ============================================================
 # STATE — coordinators (private; World drives them)
 # ============================================================
 
-var _loader: WorldLoader = null # JSON parsing
-var _spawn_manager: SpawnManager = null # spawn pipeline
-var _motion_integrator: MotionIntegrator = null # per-frame motion + collision
-var _ground_constraint: GroundConstraint = null # per-frame ground clamp + despawn
-var _level_transitions: LevelTransitionCoordinator = null # ADR 0006 multi-level swap
-var _save_load: SaveLoadCoordinator = null # ADR 0010 save/load drain
-var _world_reset: WorldResetCoordinator = null # restart pipeline
-var _multimesh_director: MultiMeshDirector = null # ADR 0041 multimesh batching
+var _loader: WorldLoader = null  # JSON parsing
+var _spawn_manager: SpawnManager = null  # spawn pipeline
+var _motion_integrator: MotionIntegrator = null  # per-frame motion + collision
+var _ground_constraint: GroundConstraint = null  # per-frame ground clamp + despawn
+var _level_transitions: LevelTransitionCoordinator = null  # ADR 0006 multi-level swap
+var _save_load: SaveLoadCoordinator = null  # ADR 0010 save/load drain
+var _world_reset: WorldResetCoordinator = null  # restart pipeline
+var _multimesh_director: MultiMeshDirector = null  # ADR 0041 multimesh batching
 
 # ============================================================
 # STATE — sim-tick accumulator (replaces former WorldClock child Node)
@@ -151,6 +151,7 @@ func _resolve_data_root_from_cmdline() -> void:
 				print("[World] resolved data_root from cmdline: ", data_root)
 			return
 
+
 # ============================================================
 # DATA LOADING
 # ============================================================
@@ -182,10 +183,10 @@ func load_data() -> void:
 	# but never reach the rule scheduler.
 	# ADR 0009: registrar also checks new ui/input.json path.
 	var registered: Dictionary = InputRegistrar.register_from_data_root(root)
-	for n in (registered.get("press", []) as Array):
+	for n in registered.get("press", []) as Array:
 		if not (input_actions_press as Array).has(str(n)):
 			input_actions_press.append(str(n))
-	for n in (registered.get("hold", []) as Array):
+	for n in registered.get("hold", []) as Array:
 		if not (input_actions_hold as Array).has(str(n)):
 			input_actions_hold.append(str(n))
 	# v2.6: scene.json may declare a `level_seed` integer that's applied to
@@ -338,12 +339,15 @@ func load_data() -> void:
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
 		print(
-			"[World] loaded: %d defs, %d entities, %d relations%s" % [
-				defs.size(),
-				entities.size(),
-				relations.count_total(),
-				lvl_str,
-			],
+			(
+				"[World] loaded: %d defs, %d entities, %d relations%s"
+				% [
+					defs.size(),
+					entities.size(),
+					relations.count_total(),
+					lvl_str,
+				]
+			),
 		)
 
 
@@ -356,7 +360,7 @@ func _ensure_multimesh_director() -> MultiMeshDirector:
 	if _multimesh_director != null:
 		return _multimesh_director
 	_multimesh_director = MultiMeshDirector.new()
-	var cfg: Dictionary = _spawn_manager.renderer_cfg() if _spawn_manager != null else { }
+	var cfg: Dictionary = _spawn_manager.renderer_cfg() if _spawn_manager != null else {}
 	var ps: float = float(cfg.get("position_scale", 0.05))
 	_multimesh_director.configure(self, ps)
 	return _multimesh_director
@@ -373,11 +377,14 @@ func _run_multimesh_director() -> void:
 	var stats := dir.scan_and_batch(scheduler.env)
 	if verbose and stats.get("groups", 0) > 0:
 		print(
-			"[MULTIMESH-BUILD] entities=%d groups=%d instances=%d" % [
-				stats.get("entities", 0),
-				stats.get("groups", 0),
-				stats.get("instances", 0),
-			],
+			(
+				"[MULTIMESH-BUILD] entities=%d groups=%d instances=%d"
+				% [
+					stats.get("entities", 0),
+					stats.get("groups", 0),
+					stats.get("instances", 0),
+				]
+			),
 		)
 
 
@@ -394,14 +401,14 @@ func _run_multimesh_director() -> void:
 ## policy. The step runner intentionally bypasses freeze (tests need to
 ## advance state regardless of modal screens).
 func advance_one_tick() -> void:
-	_pretick_velocity_zero()                              # ADR 0040
+	_pretick_velocity_zero()  # ADR 0040
 	if actor_manager != null:
-		actor_manager.tick_policies(scheduler.env)        # ADR 0018 — AI before input
-	scheduler.tick()                                      # canonical phase loop
-	_post_tick_speed_clamp()                              # ADR 0040
-	_tick_lifecycle_director()                            # ADR 0036
-	_decrement_lifetimes()                                # Tier 2.6j
-	_stream_chunks_if_active()                            # ADR 0014
+		actor_manager.tick_policies(scheduler.env)  # ADR 0018 — AI before input
+	scheduler.tick()  # canonical phase loop
+	_post_tick_speed_clamp()  # ADR 0040
+	_tick_lifecycle_director()  # ADR 0036
+	_decrement_lifetimes()  # Tier 2.6j
+	_stream_chunks_if_active()  # ADR 0014
 	if actor_manager != null:
 		actor_manager.process_pending(scheduler.env, world_state, verbose)  # ADR 0016
 
@@ -412,7 +419,8 @@ func advance_one_tick() -> void:
 func _pretick_velocity_zero() -> void:
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		if not bool((ent as Entity).get_state("zero_velocity_pretick", false)):
 			continue
 		var v = (ent as Entity).get_velocity()
@@ -429,9 +437,11 @@ func _pretick_velocity_zero() -> void:
 func _post_tick_speed_clamp() -> void:
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var max_s := float((ent as Entity).get_state("max_speed", INF))
-		if max_s >= INF: continue
+		if max_s >= INF:
+			continue
 		var v = (ent as Entity).get_velocity()
 		if v is Vector2 and (v as Vector2).length() > max_s:
 			(ent as Entity).set_velocity((v as Vector2).normalized() * max_s)
@@ -452,9 +462,11 @@ func _tick_lifecycle_director() -> void:
 ## No-op (returns immediately) on single-chunk legacy games — those
 ## never instantiate a chunk_streamer.
 func _stream_chunks_if_active() -> void:
-	if chunk_streamer == null: return
+	if chunk_streamer == null:
+		return
 	var actor_id := _find_actor_id()
-	if actor_id == "": return
+	if actor_id == "":
+		return
 	chunk_streamer.update(scheduler.env, actor_id)
 
 
@@ -487,6 +499,7 @@ func _decrement_lifetimes() -> void:
 	for id in to_remove:
 		_spawn_manager.despawn(id)
 
+
 # ============================================================
 # PER-FRAME: input polling + motion + sim-tick accumulator
 # ============================================================
@@ -515,13 +528,16 @@ func _process(delta: float) -> void:
 	# Input polling lives in InputRegistrar (extracted 2026-05-11 — kept
 	# the full input lifecycle co-located in one module). _find_actor_id
 	# stays here because actor routing is world.gd's concern.
-	InputRegistrar.poll(
-		scheduler,
-		_find_actor_id(),
-		input_actions_hold,
-		input_actions_press,
-		stop_action_on_idle,
-		entities,
+	(
+		InputRegistrar
+		. poll(
+			scheduler,
+			_find_actor_id(),
+			input_actions_hold,
+			input_actions_press,
+			stop_action_on_idle,
+			entities,
+		)
 	)
 	_motion_integrator.integrate(delta)
 	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
@@ -576,8 +592,9 @@ func _input(event: InputEvent) -> void:
 ## found"). Returns "" if no entity matches; callers handle.
 func _find_actor_id() -> String:
 	if actor_manager == null:
-		return "" # auto_start=false test mode; no input routing
+		return ""  # auto_start=false test mode; no input routing
 	return actor_manager.resolve_active_entity(entities)
+
 
 ## Per-frame motion + collision = MotionIntegrator coordinator
 ## (see coordinators/motion_integrator.gd). Per-frame ground clamp +
@@ -592,7 +609,7 @@ func _find_actor_id() -> String:
 # `grid` block (mirroring _load_ground_cfg), exposed via env["scene_grid"]
 # in _build_env. Empty dict = grid disabled (default for 13 existing demos
 # that don't declare a grid block — backward-compat sentinel).
-var _grid_cfg: Dictionary = { }
+var _grid_cfg: Dictionary = {}
 
 # ============================================================
 # MULTI-LEVEL (ADR 0006)
@@ -644,7 +661,7 @@ func _print_tick_summary(count: int) -> void:
 		"piece",
 	]
 	for t in probe_tags:
-		var n := QueryLib.run({ "tags_all": [t] }, _build_env()).size()
+		var n := QueryLib.run({"tags_all": [t]}, _build_env()).size()
 		if n > 0:
 			bits.append("%s=%d" % [t, n])
 	# If a "ctr_1" counter is present, show its state (demo convenience).
@@ -653,12 +670,13 @@ func _print_tick_summary(count: int) -> void:
 		bits.append("ctr=%s" % (ctr as Entity).state)
 	print("[t%d] %s" % [count, " ".join(bits)])
 
+
 # ============================================================
 # PUBLIC API
 # ============================================================
 
 
-func queue_input(action: String, params: Dictionary = { }) -> void:
+func queue_input(action: String, params: Dictionary = {}) -> void:
 	scheduler.queue_input(action, params)
 
 
@@ -672,6 +690,7 @@ func count_entities_matching(spec: Dictionary) -> int:
 
 func count_relations_of(type: String) -> int:
 	return relations.count(type)
+
 
 # ============================================================
 # INTERNAL

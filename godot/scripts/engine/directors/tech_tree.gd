@@ -40,17 +40,15 @@ class_name TechTreeDirector
 ## Backward-compat: entities WITHOUT state.known_techs auto-init to [] on
 ## first try_discover_tech call. Existing demos see no behavior change.
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
 
 const SIGNAL_TECH_DISCOVERED: String = "tech_discovered"
-const SIGNAL_TECH_LEARNED:    String = "tech_learned"
-const SIGNAL_TECH_INHERITED:  String = "tech_inherited"
-const STATE_KNOWN_TECHS:      String = "known_techs"
+const SIGNAL_TECH_LEARNED: String = "tech_learned"
+const SIGNAL_TECH_INHERITED: String = "tech_inherited"
+const STATE_KNOWN_TECHS: String = "known_techs"
 const DEFAULT_PARTY_RELATION: String = "party_member_of"
-
 
 # ============================================================
 # STATE
@@ -60,10 +58,10 @@ var _world: Node = null
 # tree_id (String) → {nodes: Array[Dictionary], by_id: Dictionary{node_id: node_dict}}
 var _trees: Dictionary = {}
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -77,6 +75,7 @@ func _ready() -> void:
 # ============================================================
 # REGISTRATION
 # ============================================================
+
 
 ## Register a tech-trees blob ({trees: [...]}). Validates DAG structure
 ## (cycle detection), node-id uniqueness PER TREE. Logs errors via
@@ -92,17 +91,20 @@ func register_trees(trees_data: Dictionary, env: Dictionary = {}) -> Array:
 	var trees_arr = trees_data.get("trees", null)
 	if not (trees_arr is Array):
 		return errors
-	for entry in (trees_arr as Array):
+	for entry in trees_arr as Array:
 		if not (entry is Dictionary):
 			continue
 		var tree: Dictionary = entry
 		var tree_id: String = str(tree.get("id", ""))
 		if tree_id == "":
-			var rec := EngineError.raise(env, EngineError.TECH_NO_TREE,
+			var rec := EngineError.raise(
+				env,
+				EngineError.TECH_NO_TREE,
 				"TechTreeDirector: tree definition has no id",
 				{"tree": tree},
-				"Add an 'id' field naming this tree (e.g. \"id\": \"smithing\").",
-				"warning")
+				'Add an \'id\' field naming this tree (e.g. "id": "smithing").',
+				"warning"
+			)
 			errors.append(rec)
 			continue
 		var nodes_arr = tree.get("nodes", null)
@@ -111,7 +113,7 @@ func register_trees(trees_data: Dictionary, env: Dictionary = {}) -> Array:
 		# Build by_id lookup + validate node uniqueness.
 		var by_id: Dictionary = {}
 		var clean_nodes: Array = []
-		for n in (nodes_arr as Array):
+		for n in nodes_arr as Array:
 			if not (n is Dictionary):
 				continue
 			var node: Dictionary = n
@@ -120,7 +122,12 @@ func register_trees(trees_data: Dictionary, env: Dictionary = {}) -> Array:
 				continue
 			if by_id.has(nid):
 				# Duplicate node id within the same tree — last wins, but log.
-				push_warning("TechTreeDirector: duplicate node id '%s' in tree '%s' — last wins." % [nid, tree_id])
+				push_warning(
+					(
+						"TechTreeDirector: duplicate node id '%s' in tree '%s' — last wins."
+						% [nid, tree_id]
+					)
+				)
 			by_id[nid] = node
 			clean_nodes.append(node)
 		# Cycle detection over prereqs (DAG check). Cross-tree prereqs
@@ -128,11 +135,17 @@ func register_trees(trees_data: Dictionary, env: Dictionary = {}) -> Array:
 		# are author intent, not engine-enforced.
 		var cycle_path: Array = _detect_cycle(by_id)
 		if not cycle_path.is_empty():
-			var rec_c := EngineError.raise(env, EngineError.TECH_PREREQ_CYCLE,
-				"TechTreeDirector: prereq cycle in tree '%s' — %s" % [tree_id, " → ".join(cycle_path)],
+			var rec_c := EngineError.raise(
+				env,
+				EngineError.TECH_PREREQ_CYCLE,
+				(
+					"TechTreeDirector: prereq cycle in tree '%s' — %s"
+					% [tree_id, " → ".join(cycle_path)]
+				),
 				{"tree": tree_id, "cycle": cycle_path},
 				"Remove the prereq edge that closes the cycle, or restructure the tree as a DAG.",
-				"error")
+				"error"
+			)
 			errors.append(rec_c)
 			# Skip storing the bad tree.
 			continue
@@ -160,7 +173,9 @@ func register_trees_from_data_root(root: String, env: Dictionary = {}) -> void:
 	f.close()
 	var json := JSON.new()
 	if json.parse(raw) != OK:
-		push_warning("TechTreeDirector: invalid JSON at '%s' (%s)" % [path, json.get_error_message()])
+		push_warning(
+			"TechTreeDirector: invalid JSON at '%s' (%s)" % [path, json.get_error_message()]
+		)
 		return
 	if not (json.data is Dictionary):
 		return
@@ -191,6 +206,7 @@ func known_tree_ids() -> Array:
 # DISCOVERY
 # ============================================================
 
+
 ## Roll discovery_chance for one or more eligible-and-ready nodes on the
 ## target's tree. Returns the awarded node id (String) on success, or ""
 ## on no-op (no eligible nodes / all rolls missed / target absent).
@@ -203,17 +219,21 @@ func known_tree_ids() -> Array:
 ##   3. For up to max_rolls_per_call candidates (declaration order),
 ##      roll randf() < discovery_chance. ON FIRST HIT: append, emit
 ##      tech_discovered, return the node id.
-func try_discover_tech(env: Dictionary, entity_id: String, tree_id: String,
-                       max_rolls_per_call: int = 1) -> String:
+func try_discover_tech(
+	env: Dictionary, entity_id: String, tree_id: String, max_rolls_per_call: int = 1
+) -> String:
 	var ent := _resolve_entity(env, entity_id)
 	if ent == null:
 		return ""
 	if not _trees.has(tree_id):
-		EngineError.raise(env, EngineError.TECH_NO_TREE,
+		EngineError.raise(
+			env,
+			EngineError.TECH_NO_TREE,
 			"try_discover_tech: unknown tree '%s'" % tree_id,
 			{"target": entity_id, "tree": tree_id, "known_trees": _trees.keys()},
 			"Register the tree via register_trees or add data/<game>/tech_trees.json.",
-			"warning")
+			"warning"
+		)
 		return ""
 	var known: Array = _ensure_known_techs(ent)
 	var tree: Dictionary = _trees[tree_id]
@@ -240,12 +260,16 @@ func try_discover_tech(env: Dictionary, entity_id: String, tree_id: String,
 		if randf() < chance:
 			known.append(nid)
 			ent.set_state(STATE_KNOWN_TECHS, known)
-			_emit_signal(env, SIGNAL_TECH_DISCOVERED, {
-				"entity": ent.instance_id,
-				"tree": tree_id,
-				"node": nid,
-				"source": "discovery",
-			})
+			_emit_signal(
+				env,
+				SIGNAL_TECH_DISCOVERED,
+				{
+					"entity": ent.instance_id,
+					"tree": tree_id,
+					"node": nid,
+					"source": "discovery",
+				}
+			)
 			return nid
 	return ""
 
@@ -253,6 +277,7 @@ func try_discover_tech(env: Dictionary, entity_id: String, tree_id: String,
 # ============================================================
 # MASTER → APPRENTICE TRANSFER
 # ============================================================
+
 
 ## Transfer one node from a related master to the target apprentice.
 ## Resolves master via the named relation (ADR 0026 default:
@@ -265,9 +290,14 @@ func try_discover_tech(env: Dictionary, entity_id: String, tree_id: String,
 ##      filtered by tree (if given).
 ##   3. Filter to nodes whose prereqs the apprentice already has.
 ##   4. Award up to max_per_call (lowest-id first for determinism).
-func learn_from_master(env: Dictionary, apprentice_id: String, tree_id: String = "",
-                       master_id: String = "", relation: String = DEFAULT_PARTY_RELATION,
-                       max_per_call: int = 1) -> String:
+func learn_from_master(
+	env: Dictionary,
+	apprentice_id: String,
+	tree_id: String = "",
+	master_id: String = "",
+	relation: String = DEFAULT_PARTY_RELATION,
+	max_per_call: int = 1
+) -> String:
 	var apprentice := _resolve_entity(env, apprentice_id)
 	if apprentice == null:
 		return ""
@@ -333,13 +363,17 @@ func learn_from_master(env: Dictionary, apprentice_id: String, tree_id: String =
 		apprentice_known.append(nid)
 		# Determine tree for the signal payload.
 		var sig_tree: String = tree_id if tree_id != "" else _find_tree_for_node(nid)
-		_emit_signal(env, SIGNAL_TECH_LEARNED, {
-			"entity": apprentice.instance_id,
-			"tree": sig_tree,
-			"node": nid,
-			"source": "master",
-			"master_id": master.instance_id,
-		})
+		_emit_signal(
+			env,
+			SIGNAL_TECH_LEARNED,
+			{
+				"entity": apprentice.instance_id,
+				"tree": sig_tree,
+				"node": nid,
+				"source": "master",
+				"master_id": master.instance_id,
+			}
+		)
 		awards += 1
 		if awarded == "":
 			awarded = nid
@@ -351,10 +385,14 @@ func learn_from_master(env: Dictionary, apprentice_id: String, tree_id: String =
 ## Resolves apprentices via the inverse of relation (sources of the
 ## edge type pointing TO the master), iterates them, calls
 ## learn_from_master per apprentice. Returns total award count.
-func pass_to_apprentice(env: Dictionary, master_id: String, tree_id: String = "",
-                        relation: String = DEFAULT_PARTY_RELATION,
-                        max_apprentices_per_call: int = 4,
-                        max_per_apprentice: int = 1) -> int:
+func pass_to_apprentice(
+	env: Dictionary,
+	master_id: String,
+	tree_id: String = "",
+	relation: String = DEFAULT_PARTY_RELATION,
+	max_apprentices_per_call: int = 4,
+	max_per_apprentice: int = 1
+) -> int:
 	var master := _resolve_entity(env, master_id)
 	if master == null:
 		return 0
@@ -370,8 +408,9 @@ func pass_to_apprentice(env: Dictionary, master_id: String, tree_id: String = ""
 		if processed >= max_apprentices_per_call:
 			break
 		processed += 1
-		var awarded: String = learn_from_master(env, str(ap_id), tree_id, master_id,
-		                                       relation, max_per_apprentice)
+		var awarded: String = learn_from_master(
+			env, str(ap_id), tree_id, master_id, relation, max_per_apprentice
+		)
 		if awarded != "":
 			total += 1
 	return total
@@ -380,6 +419,7 @@ func pass_to_apprentice(env: Dictionary, master_id: String, tree_id: String = ""
 # ============================================================
 # DYNASTY INHERITANCE (ADR 0034 hook)
 # ============================================================
+
 
 ## Inherit techs from source entity to heir, filtered by `core` flag.
 ## Returns the list of node ids actually transferred (skips ones the
@@ -390,8 +430,9 @@ func pass_to_apprentice(env: Dictionary, master_id: String, tree_id: String = ""
 ##   - filter="all": every known node transferred.
 ##   - heir's existing known_techs preserved; duplicates skipped.
 ##   - Emits tech_inherited signal per node transferred.
-func inherit_to(env: Dictionary, source_id: String, heir_id: String,
-                filter: String = "core_only") -> Array:
+func inherit_to(
+	env: Dictionary, source_id: String, heir_id: String, filter: String = "core_only"
+) -> Array:
 	var inherited: Array = []
 	var source := _resolve_entity(env, source_id)
 	var heir := _resolve_entity(env, heir_id)
@@ -420,13 +461,17 @@ func inherit_to(env: Dictionary, source_id: String, heir_id: String,
 			continue
 		heir_known.append(nid)
 		inherited.append(nid)
-		_emit_signal(env, SIGNAL_TECH_INHERITED, {
-			"entity": heir.instance_id,
-			"tree": found_tree,
-			"node": nid,
-			"source": "heir",
-			"parent_id": source.instance_id,
-		})
+		_emit_signal(
+			env,
+			SIGNAL_TECH_INHERITED,
+			{
+				"entity": heir.instance_id,
+				"tree": found_tree,
+				"node": nid,
+				"source": "heir",
+				"parent_id": source.instance_id,
+			}
+		)
 	heir.set_state(STATE_KNOWN_TECHS, heir_known)
 	return inherited
 
@@ -434,6 +479,7 @@ func inherit_to(env: Dictionary, source_id: String, heir_id: String,
 # ============================================================
 # INTERNAL HELPERS
 # ============================================================
+
 
 static func _resolve_entity(env: Dictionary, entity_id: String) -> Entity:
 	if entity_id == "":
@@ -465,7 +511,7 @@ static func _prereqs_satisfied(node: Dictionary, known: Array) -> bool:
 	var prereqs = node.get("prereqs", [])
 	if not (prereqs is Array):
 		return true
-	for p in (prereqs as Array):
+	for p in prereqs as Array:
 		if not known.has(str(p)):
 			return false
 	return true
@@ -475,7 +521,7 @@ static func _eligibility_ok(ent: Entity, node: Dictionary) -> bool:
 	var tags = node.get("eligibility_tags", null)
 	if not (tags is Array) or (tags as Array).is_empty():
 		return true
-	for t in (tags as Array):
+	for t in tags as Array:
 		if not ent.has_tag(str(t)):
 			return false
 	return true
@@ -522,7 +568,7 @@ static func _dfs_cycle(nid: String, by_id: Dictionary, color: Dictionary, stack:
 	var node: Dictionary = by_id.get(nid, {})
 	var prereqs = node.get("prereqs", [])
 	if prereqs is Array:
-		for p_v in (prereqs as Array):
+		for p_v in prereqs as Array:
 			var p: String = str(p_v)
 			if not by_id.has(p):
 				# Cross-tree prereq or phantom — engine doesn't follow

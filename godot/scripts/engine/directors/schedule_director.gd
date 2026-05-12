@@ -27,14 +27,12 @@ class_name ScheduleDirector
 ## 3. Entity register: `register_schedule(entity_id, schedule_dict)` —
 ##    called by World.load_data after entity creation OR by tests.
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
 
 const SIGNAL_NAME: String = "schedule_phase_changed"
 const DEFAULT_WRAPS_AT: float = 24.0
-
 
 # ============================================================
 # STATE
@@ -51,10 +49,10 @@ var _cache: Dictionary = {}
 # _lod_state[entity_id] = {inside: bool, last_fired: int}
 var _lod_state: Dictionary = {}
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -69,6 +67,7 @@ func _ready() -> void:
 # REGISTRATION
 # ============================================================
 
+
 ## Register an entity's schedule. Called by World.load_data after
 ## entity creation walks defs/instances. The schedule_dict comes from
 ## the entity def's `schedule` block (or a $extends-resolved variant).
@@ -77,7 +76,8 @@ func _ready() -> void:
 ## No-op for malformed schedules (logged via EngineError; director
 ## continues operating on other entities — Risk #11 in ADR 0029).
 func register_schedule(entity_id: String, schedule_dict: Dictionary, env: Dictionary = {}) -> void:
-	if entity_id == "": return
+	if entity_id == "":
+		return
 	if not _validate_schedule(entity_id, schedule_dict, env):
 		return
 	# Parse binds_to once (default world_clock.current_hour). Keeps the
@@ -121,14 +121,18 @@ func unregister_schedule(entity_id: String) -> void:
 func register_schedules_from_env(env: Dictionary) -> void:
 	var entities = env.get("entities", null)
 	var defs = env.get("defs", null)
-	if not (entities is Dictionary) or not (defs is Dictionary): return
+	if not (entities is Dictionary) or not (defs is Dictionary):
+		return
 	for entity_id in (entities as Dictionary).keys():
 		var ent = (entities as Dictionary)[entity_id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var def_id := str((ent as Entity).def_id)
-		if def_id == "": continue
+		if def_id == "":
+			continue
 		var def = (defs as Dictionary).get(def_id, null)
-		if not (def is Dictionary): continue
+		if not (def is Dictionary):
+			continue
 		var sched = (def as Dictionary).get("schedule", null)
 		if sched is Dictionary:
 			register_schedule(str(entity_id), sched, env)
@@ -138,6 +142,7 @@ func register_schedules_from_env(env: Dictionary) -> void:
 # TICK — the interpreter loop
 # ============================================================
 
+
 ## Called by PhaseScheduler at start of decide phase (before tick-rules).
 ## env is the engine's standard env dict. We:
 ##   1. Read the bound time value (defaults to world.current_hour)
@@ -146,15 +151,18 @@ func register_schedules_from_env(env: Dictionary) -> void:
 ##   4. Resolve target on slot transition only
 ##   5. Mutate entity.state directly + queue transition signal on change
 func tick(env: Dictionary) -> void:
-	if _cache.is_empty(): return
+	if _cache.is_empty():
+		return
 	var entities = env.get("entities", null)
-	if not (entities is Dictionary): return
+	if not (entities is Dictionary):
+		return
 	var current_tick: int = int(env.get("tick_count", 0))
 	for entity_id in _cache.keys():
 		if not (entities as Dictionary).has(entity_id):
 			continue
 		var ent = (entities as Dictionary)[entity_id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var cache: Dictionary = _cache[entity_id]
 		# LOD gate (ADR 0017 hysteresis pattern). Off-camera entities
 		# resolve at lower cadence; mid-camera entities resolve every tick.
@@ -163,7 +171,7 @@ func tick(env: Dictionary) -> void:
 		# 1. Read time source.
 		var time_value = _resolve_bound_time(cache, env)
 		if time_value == null:
-			continue   # bind broken; reported once at register time
+			continue  # bind broken; reported once at register time
 		# 2. Find active slot (first match wins; wrap-around supported).
 		var slot_index := _pick_active_slot(float(time_value), cache)
 		# 3. Pick verb (tendency-drift fallback when slot has the array).
@@ -179,7 +187,9 @@ func tick(env: Dictionary) -> void:
 			target_id = _resolve_target(ent as Entity, location_tag, env)
 			(cache["last_resolved_target_for_slot"] as Dictionary)[slot_index] = target_id
 		else:
-			target_id = str((cache["last_resolved_target_for_slot"] as Dictionary).get(slot_index, ""))
+			target_id = str(
+				(cache["last_resolved_target_for_slot"] as Dictionary).get(slot_index, "")
+			)
 		# 5. Apply state mutations directly. Same pattern as
 		#    LightingDirector / PartyDirector — direct state writes,
 		#    not via effect_apply. This keeps the "schedule resolves
@@ -200,7 +210,7 @@ func tick(env: Dictionary) -> void:
 			if prev_idx >= 0:
 				prev_verb = _verb_for_slot_at_index(cache, prev_idx, ent as Entity)
 			elif prev_idx == -2:
-				prev_verb = ""    # never resolved before — registration
+				prev_verb = ""  # never resolved before — registration
 			else:
 				prev_verb = str(cache.get("default_verb", "idle"))
 			_emit_transition(env, entity_id, prev_verb, verb, slot_index)
@@ -210,6 +220,7 @@ func tick(env: Dictionary) -> void:
 # ============================================================
 # SLOT RESOLUTION
 # ============================================================
+
 
 ## Find the first slot whose [start, end) interval contains `time`.
 ## Wrap-around slots (start > end, e.g. 21..6) match if time >= start
@@ -221,7 +232,8 @@ static func _pick_active_slot(time: float, cache: Dictionary) -> int:
 	var slots: Array = cache.get("slots", [])
 	for i in range(slots.size()):
 		var s = slots[i]
-		if not (s is Dictionary): continue
+		if not (s is Dictionary):
+			continue
 		var start: float = float((s as Dictionary).get("start", 0.0))
 		var end: float = float((s as Dictionary).get("end", DEFAULT_WRAPS_AT))
 		if start > end:
@@ -248,7 +260,7 @@ static func _pick_verb(slot: Dictionary, cache: Dictionary, ent: Entity) -> Stri
 		if tendency is Dictionary and not (tendency as Dictionary).is_empty():
 			var best_verb: String = ""
 			var best_score: float = -INF
-			for verb_v in (fallback as Array):
+			for verb_v in fallback as Array:
 				var verb_str: String = str(verb_v)
 				var score: float = float((tendency as Dictionary).get(verb_str, 0))
 				if score > best_score:
@@ -273,6 +285,7 @@ static func _verb_for_slot_at_index(cache: Dictionary, idx: int, ent: Entity) ->
 # TIME BINDING
 # ============================================================
 
+
 ## Resolve the bound time value from env. Two modes (mirrors
 ## LightingDirector._resolve_time_of_day):
 ##   1. world dict (env.world) has the field — wins (set via state_set
@@ -294,7 +307,8 @@ func _resolve_bound_time(cache: Dictionary, env: Dictionary):
 	var entities = env.get("entities", null)
 	if entities is Dictionary:
 		for ent in (entities as Dictionary).values():
-			if not (ent is Entity): continue
+			if not (ent is Entity):
+				continue
 			if (ent as Entity).has_tag(bind_tag):
 				var v = (ent as Entity).get_state(bind_field, null)
 				if v != null:
@@ -311,6 +325,7 @@ func _resolve_bound_time(cache: Dictionary, env: Dictionary):
 # TARGET RESOLUTION
 # ============================================================
 
+
 ## Resolve location_tag → entity_id. Two-stage:
 ##   1. Prefer a relation hint (home_at / works_at / tends) when the
 ##      entity has one whose target also carries the location_tag.
@@ -319,9 +334,11 @@ func _resolve_bound_time(cache: Dictionary, env: Dictionary):
 ##
 ## Called only on slot transitions (cached per-slot).
 static func _resolve_target(ent: Entity, location_tag: String, env: Dictionary) -> String:
-	if location_tag == "": return ""
+	if location_tag == "":
+		return ""
 	var entities = env.get("entities", null)
-	if not (entities is Dictionary): return ""
+	if not (entities is Dictionary):
+		return ""
 	# Relation hints: try standard relation types in order.
 	var rels = env.get("relations", null)
 	if rels != null and rels.has_method("targets"):
@@ -330,7 +347,8 @@ static func _resolve_target(ent: Entity, location_tag: String, env: Dictionary) 
 			var targets: Array = rels.targets(str(hint), ent.instance_id)
 			for tid in targets:
 				var tid_str: String = str(tid)
-				if not (entities as Dictionary).has(tid_str): continue
+				if not (entities as Dictionary).has(tid_str):
+					continue
 				var t = (entities as Dictionary)[tid_str]
 				if t is Entity and (t as Entity).has_tag(location_tag):
 					return tid_str
@@ -340,9 +358,12 @@ static func _resolve_target(ent: Entity, location_tag: String, env: Dictionary) 
 	var best_dist: float = INF
 	for cand_id in (entities as Dictionary).keys():
 		var cand = (entities as Dictionary)[cand_id]
-		if not (cand is Entity): continue
-		if cand == ent: continue
-		if not (cand as Entity).has_tag(location_tag): continue
+		if not (cand is Entity):
+			continue
+		if cand == ent:
+			continue
+		if not (cand as Entity).has_tag(location_tag):
+			continue
 		var d: float = (cand as Entity).get_planar_position().distance_to(ent_pos)
 		if d < best_dist:
 			best_dist = d
@@ -354,49 +375,64 @@ static func _resolve_target(ent: Entity, location_tag: String, env: Dictionary) 
 # SIGNAL EMIT
 # ============================================================
 
+
 ## Push schedule_phase_changed onto env.signal_buffer. Uses the same
 ## buffer the `emit` effect writes to; PhaseScheduler drains it into
 ## the react phase. No new signal infrastructure.
-static func _emit_transition(env: Dictionary, entity_id: String, prev_verb: String, new_verb: String, slot_index: int) -> void:
+static func _emit_transition(
+	env: Dictionary, entity_id: String, prev_verb: String, new_verb: String, slot_index: int
+) -> void:
 	var buf = env.get("signal_buffer", null)
 	if not (buf is Array):
 		# No signal buffer → scheduler not initialized. Same warning
 		# path effect_apply._emit uses.
 		return
-	(buf as Array).append({
-		"name": SIGNAL_NAME,
-		"payload": {
-			"entity": entity_id,
-			"prev_verb": prev_verb,
-			"new_verb": new_verb,
-			"slot_id": slot_index,
-		}
-	})
+	(
+		(buf as Array)
+		. append(
+			{
+				"name": SIGNAL_NAME,
+				"payload":
+				{
+					"entity": entity_id,
+					"prev_verb": prev_verb,
+					"new_verb": new_verb,
+					"slot_id": slot_index,
+				}
+			}
+		)
+	)
 
 
 # ============================================================
 # LOD (ADR 0017)
 # ============================================================
 
+
 ## Mirror PhaseScheduler's hysteresis: an entity is "inside" once it
 ## crosses enter_radius and stays inside until past leave_radius. When
 ## outside, throttle to the configured cadence (`tick_slowed:N`) or
 ## skip entirely (`freeze`). No-op when the schedule has no `lod`
 ## block (Phase 1 default — every entity resolves every tick).
-func _lod_should_fire(entity_id: String, ent: Entity, cache: Dictionary, env: Dictionary, current_tick: int) -> bool:
+func _lod_should_fire(
+	entity_id: String, ent: Entity, cache: Dictionary, env: Dictionary, current_tick: int
+) -> bool:
 	var lod = cache.get("lod_cfg", null)
-	if not (lod is Dictionary): return true
+	if not (lod is Dictionary):
+		return true
 	var anchor = env.get("lod_anchor_position", null)
-	if anchor == null: return true   # graceful: over-tick beats freeze
+	if anchor == null:
+		return true  # graceful: over-tick beats freeze
 	var ent_pos = ent.get_planar_position()
-	if ent_pos == null: return true
+	if ent_pos == null:
+		return true
 	var dist: float
 	if ent_pos is Vector2 and anchor is Vector2:
 		dist = (ent_pos as Vector2).distance_to(anchor as Vector2)
 	elif ent_pos is Vector3 and anchor is Vector3:
 		dist = (ent_pos as Vector3).distance_to(anchor as Vector3)
 	else:
-		return true   # mixed-dimension; fail-open
+		return true  # mixed-dimension; fail-open
 	var was_inside: bool = bool((_lod_state.get(entity_id, {}) as Dictionary).get("inside", false))
 	var enter_r: float = float((lod as Dictionary).get("enter_radius", 200.0))
 	var leave_r: float = float((lod as Dictionary).get("leave_radius", enter_r * 1.10))
@@ -408,16 +444,22 @@ func _lod_should_fire(entity_id: String, ent: Entity, cache: Dictionary, env: Di
 	if not _lod_state.has(entity_id):
 		_lod_state[entity_id] = {}
 	(_lod_state[entity_id] as Dictionary)["inside"] = now_inside
-	if now_inside: return true
+	if now_inside:
+		return true
 	# Outside fallback: outside_mode is the ADR 0029 spelling;
 	# also accept ADR 0017's `fallback` for parity.
-	var fb: String = str((lod as Dictionary).get("outside_mode", (lod as Dictionary).get("fallback", "freeze")))
-	if fb == "freeze": return false
+	var fb: String = str(
+		(lod as Dictionary).get("outside_mode", (lod as Dictionary).get("fallback", "freeze"))
+	)
+	if fb == "freeze":
+		return false
 	if fb.begins_with("tick_slowed:"):
 		var rate := float(fb.substr(12))
-		if rate <= 0.0: return false
+		if rate <= 0.0:
+			return false
 		var interval: int = int(round(1.0 / rate))
-		if interval <= 1: return true
+		if interval <= 1:
+			return true
 		var last: int = int((_lod_state[entity_id] as Dictionary).get("last_fired", -100000))
 		if current_tick - last >= interval:
 			(_lod_state[entity_id] as Dictionary)["last_fired"] = current_tick
@@ -430,6 +472,7 @@ func _lod_should_fire(entity_id: String, ent: Entity, cache: Dictionary, env: Di
 # ============================================================
 # VALIDATION
 # ============================================================
+
 
 ## Sanity-check a schedule dict at registration. Logs (push_warning +
 ## EngineError) on malformed input but DOES NOT crash — the director
@@ -444,22 +487,42 @@ static func _validate_schedule(entity_id: String, sched: Dictionary, env: Dictio
 	if not (slots is Array) or (slots as Array).is_empty():
 		push_warning("ScheduleDirector: '%s' schedule has no slots — skipping." % entity_id)
 		if env.has("error_buffer"):
-			EngineError.raise(env, "schedule.no_slots",
+			EngineError.raise(
+				env,
+				"schedule.no_slots",
 				"ScheduleDirector: '%s' has empty slots array" % entity_id,
-				{"entity": entity_id}, "Add at least one slot with start/end/verb.", "warning")
+				{"entity": entity_id},
+				"Add at least one slot with start/end/verb.",
+				"warning"
+			)
 		return false
 	# Spot-check slot shapes. We accept malformed individual slots
 	# (skipped at runtime) but reject the whole schedule if NONE are valid.
 	var any_valid: bool = false
-	for s in (slots as Array):
-		if s is Dictionary and (s as Dictionary).has("start") and (s as Dictionary).has("end") and (s as Dictionary).has("verb"):
+	for s in slots as Array:
+		if (
+			s is Dictionary
+			and (s as Dictionary).has("start")
+			and (s as Dictionary).has("end")
+			and (s as Dictionary).has("verb")
+		):
 			any_valid = true
 			break
 	if not any_valid:
-		push_warning("ScheduleDirector: '%s' has no valid slot (missing start/end/verb keys)" % entity_id)
+		push_warning(
+			"ScheduleDirector: '%s' has no valid slot (missing start/end/verb keys)" % entity_id
+		)
 		if env.has("error_buffer"):
-			EngineError.raise(env, "schedule.malformed",
-				"ScheduleDirector: '%s' has no slot with required keys (start, end, verb)" % entity_id,
-				{"entity": entity_id}, "Each slot needs start, end, verb.", "warning")
+			EngineError.raise(
+				env,
+				"schedule.malformed",
+				(
+					"ScheduleDirector: '%s' has no slot with required keys (start, end, verb)"
+					% entity_id
+				),
+				{"entity": entity_id},
+				"Each slot needs start, end, verb.",
+				"warning"
+			)
 		return false
 	return true

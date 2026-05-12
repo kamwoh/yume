@@ -77,10 +77,7 @@ func _ready() -> void:
 		if lib.has(mesh_name):
 			var mesh_def := lib.get_mesh(mesh_name)
 			_mesh_primitives = mesh_def.get("primitives", [])
-			_mesh_params = MeshLib.merge_params(
-				mesh_def,
-				(visual.get("params", {}) as Dictionary)
-			)
+			_mesh_params = MeshLib.merge_params(mesh_def, visual.get("params", {}) as Dictionary)
 			_mesh_cast_shadow = bool(mesh_def.get("cast_shadow", true))
 			_build_mesh_children()
 			# ADR 0035 — instantiate animation director if mesh def declares
@@ -112,14 +109,17 @@ func _ready() -> void:
 ## view (the viewmodel weapon overlay handles "what the player sees of
 ## themselves") but still has a presence on the ground for atmosphere.
 func _apply_shadow_only_if_set(visual: Dictionary) -> void:
-	if not bool(visual.get("hide_for_camera_attach", false)): return
+	if not bool(visual.get("hide_for_camera_attach", false)):
+		return
 	_set_shadow_only_recursive(self)
 
 
 func _set_shadow_only_recursive(node: Node) -> void:
 	for child in node.get_children():
 		if child is MeshInstance3D:
-			(child as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+			(child as MeshInstance3D).cast_shadow = (
+				GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+			)
 		_set_shadow_only_recursive(child)
 
 
@@ -136,8 +136,10 @@ func _process(_dt: float) -> void:
 # POSITION SYNC — engine state → 3D transform
 # ============================================================
 
+
 func _sync_position() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	var p = _entity_ref.get_position()
 	if p is Vector3:
 		position = p * position_scale
@@ -159,9 +161,11 @@ func _sync_position() -> void:
 ## authoring multiple mesh defs. Empirical case 2026-05-11: Aldenmere
 ## forest needed 2x-3x scale variation on trees for natural look.
 func _sync_scale() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	var s = _entity_ref.get_state("scale", null)
-	if s == null: return
+	if s == null:
+		return
 	if s is float or s is int:
 		var f := float(s)
 		scale = Vector3(f, f, f)
@@ -181,15 +185,18 @@ func _sync_scale() -> void:
 ## overrides set `state: {yaw: 0.26}` (~15°) on cottages / props to break
 ## the strict-grid feel (visual-density axis 6 — diagonal accents).
 func _sync_yaw() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	var yaw = _entity_ref.get_state("yaw", null)
-	if yaw == null: return
+	if yaw == null:
+		return
 	rotation.y = float(yaw)
 
 
 # ============================================================
 # MESH PRIMITIVE INTERPRETER (W5.0a + W5.0b)
 # ============================================================
+
 
 func _build_mesh_children() -> void:
 	# Shared helper — same primitive vocabulary used by game_shell viewmodels.
@@ -204,11 +211,13 @@ func _build_mesh_children() -> void:
 # PARAM RESOLUTION — `$name` references
 # ============================================================
 
+
 func _param_resolve(v):
 	if v is String and (v as String).begins_with("$"):
 		var key := (v as String).substr(1)
 		return _mesh_params.get(key, v)
 	return v
+
 
 func _resolve_color(v) -> Color:
 	var resolved = _param_resolve(v)
@@ -219,31 +228,42 @@ func _resolve_color(v) -> Color:
 # UTIL
 # ============================================================
 
+
 static func _to_vec3(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, v.y, 0)
+	if v is Vector3:
+		return v
+	if v is Vector2:
+		return Vector3(v.x, v.y, 0)
 	if v is Array:
 		var a := v as Array
-		if a.size() >= 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2: return Vector3(float(a[0]), float(a[1]), 0)
+		if a.size() >= 3:
+			return Vector3(float(a[0]), float(a[1]), float(a[2]))
+		if a.size() == 2:
+			return Vector3(float(a[0]), float(a[1]), 0)
 	if v is float or v is int:
 		return Vector3(float(v), float(v), float(v))
 	return Vector3.ZERO
 
+
 static func _to_vec2(v) -> Vector2:
-	if v is Vector2: return v
+	if v is Vector2:
+		return v
 	if v is Array and (v as Array).size() >= 2:
 		return Vector2(float(v[0]), float(v[1]))
 	if v is float or v is int:
 		return Vector2(float(v), float(v))
 	return Vector2.ONE
 
+
 static func _parse_color(v) -> Color:
-	if v is Color: return v
-	if v is String: return Color(str(v))
+	if v is Color:
+		return v
+	if v is String:
+		return Color(str(v))
 	if v is Array and (v as Array).size() >= 3:
-		return Color(float(v[0]), float(v[1]), float(v[2]),
-			1.0 if (v as Array).size() < 4 else float(v[3]))
+		return Color(
+			float(v[0]), float(v[1]), float(v[2]), 1.0 if (v as Array).size() < 4 else float(v[3])
+		)
 	return Color(0.7, 0.7, 0.7)
 
 

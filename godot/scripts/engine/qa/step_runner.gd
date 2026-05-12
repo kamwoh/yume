@@ -22,32 +22,51 @@ class_name StepRunner
 ## Run a step list against a World. Returns metrics dict (always present
 ## fields: passed, failed, failures, screenshots, held).
 static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
-	if not ctx.has("held"):        ctx["held"] = []
-	if not ctx.has("passed"):      ctx["passed"] = 0
-	if not ctx.has("failed"):      ctx["failed"] = 0
-	if not ctx.has("failures"):    ctx["failures"] = []
-	if not ctx.has("screenshots"): ctx["screenshots"] = []
-	if not ctx.has("verbose"):     ctx["verbose"] = true
-	if not ctx.has("scenario"):    ctx["scenario"] = ""
+	if not ctx.has("held"):
+		ctx["held"] = []
+	if not ctx.has("passed"):
+		ctx["passed"] = 0
+	if not ctx.has("failed"):
+		ctx["failed"] = 0
+	if not ctx.has("failures"):
+		ctx["failures"] = []
+	if not ctx.has("screenshots"):
+		ctx["screenshots"] = []
+	if not ctx.has("verbose"):
+		ctx["verbose"] = true
+	if not ctx.has("scenario"):
+		ctx["scenario"] = ""
 
 	for step in steps:
 		if not (step is Dictionary):
 			continue
 		var verb := _detect_verb(step)
 		match verb:
-			"press":      _do_press(step, world, ctx)
-			"hold":       _do_hold(step, world, ctx)
-			"release":    _do_release(step, world, ctx)
-			"click":      _do_click(step, world, ctx)
-			"wait":       _do_wait(step, world, ctx)
-			"tick":       _do_tick(step, world, ctx)
-			"screenshot": await _do_screenshot(step, world, ctx)
-			"expect":     _do_expect(step, world, ctx)
-			"key":        _do_key(step, world, ctx)
+			"press":
+				_do_press(step, world, ctx)
+			"hold":
+				_do_hold(step, world, ctx)
+			"release":
+				_do_release(step, world, ctx)
+			"click":
+				_do_click(step, world, ctx)
+			"wait":
+				_do_wait(step, world, ctx)
+			"tick":
+				_do_tick(step, world, ctx)
+			"screenshot":
+				await _do_screenshot(step, world, ctx)
+			"expect":
+				_do_expect(step, world, ctx)
+			"key":
+				_do_key(step, world, ctx)
 			_:
-				_raise(world, EngineError.STEP_UNKNOWN_VERB,
+				_raise(
+					world,
+					EngineError.STEP_UNKNOWN_VERB,
 					"Unknown step verb in: %s" % str(step.keys()),
-					{"step": step})
+					{"step": step}
+				)
 
 	# Auto-release any still-held actions at end of scenario.
 	for action in ctx["held"]:
@@ -58,8 +77,7 @@ static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
 
 # Detect which verb-key the step dict uses. Returns "" on unknown.
 static func _detect_verb(step: Dictionary) -> String:
-	for v in ["press", "hold", "release", "click", "wait", "tick",
-			  "screenshot", "expect", "key"]:
+	for v in ["press", "hold", "release", "click", "wait", "tick", "screenshot", "expect", "key"]:
 		if step.has(v):
 			return v
 	return ""
@@ -69,11 +87,16 @@ static func _detect_verb(step: Dictionary) -> String:
 # Verbs
 # ============================================================
 
+
 static func _do_press(step: Dictionary, world: World, ctx: Dictionary) -> void:
 	var action := str(step["press"])
 	if not InputMap.has_action(action):
-		_raise(world, EngineError.STEP_UNKNOWN_ACTION,
-			"press: unknown action '%s'" % action, {"step": step})
+		_raise(
+			world,
+			EngineError.STEP_UNKNOWN_ACTION,
+			"press: unknown action '%s'" % action,
+			{"step": step}
+		)
 		return
 	# Single press-edge: queue + advance one tick + (no need to dequeue —
 	# the scheduler consumes per-tick). Input.action_press also fires for
@@ -96,18 +119,30 @@ static func _do_hold(step: Dictionary, world: World, ctx: Dictionary) -> void:
 	# Validate all actions before pressing any.
 	for action in actions:
 		if not InputMap.has_action(action):
-			_raise(world, EngineError.STEP_UNKNOWN_ACTION,
-				"hold: unknown action '%s'" % action, {"step": step})
+			_raise(
+				world,
+				EngineError.STEP_UNKNOWN_ACTION,
+				"hold: unknown action '%s'" % action,
+				{"step": step}
+			)
 			return
 	# Duration check.
 	if not (step.has("for")):
-		_raise(world, EngineError.STEP_INVALID_DURATION,
-			"hold requires 'for' (seconds)", {"step": step})
+		_raise(
+			world,
+			EngineError.STEP_INVALID_DURATION,
+			"hold requires 'for' (seconds)",
+			{"step": step}
+		)
 		return
 	var seconds := float(step["for"])
 	if seconds <= 0.0:
-		_raise(world, EngineError.STEP_INVALID_DURATION,
-			"hold 'for' must be positive (got %s)" % str(seconds), {"step": step})
+		_raise(
+			world,
+			EngineError.STEP_INVALID_DURATION,
+			"hold 'for' must be positive (got %s)" % str(seconds),
+			{"step": step}
+		)
 		return
 	for action in actions:
 		Input.action_press(action)
@@ -171,8 +206,12 @@ static func _do_release(step: Dictionary, world: World, ctx: Dictionary) -> void
 	# Tolerant: release a not-currently-held action is a warning, not error.
 	# Strict mode (future) could elevate to STEP_RELEASE_NOT_HELD.
 	if not InputMap.has_action(action):
-		_raise(world, EngineError.STEP_UNKNOWN_ACTION,
-			"release: unknown action '%s'" % action, {"step": step})
+		_raise(
+			world,
+			EngineError.STEP_UNKNOWN_ACTION,
+			"release: unknown action '%s'" % action,
+			{"step": step}
+		)
 		return
 	Input.action_release(action)
 	if action in ctx["held"]:
@@ -190,15 +229,20 @@ static func _do_click(step: Dictionary, world: World, ctx: Dictionary) -> void:
 	# Walk the screen + overlay stacks for matching Controls.
 	var matches := _find_controls(screen_flow, sel)
 	if matches.is_empty():
-		_raise(world, EngineError.STEP_CLICK_NOT_FOUND,
+		_raise(
+			world,
+			EngineError.STEP_CLICK_NOT_FOUND,
 			"click selector matched nothing: %s" % str(sel),
-			{"step": step})
+			{"step": step}
+		)
 		return
 	if matches.size() > 1 and not sel.has("screen"):
-		_raise(world, EngineError.STEP_CLICK_AMBIGUOUS,
-			"click selector matched %d controls; add 'screen' to disambiguate"
-				% matches.size(),
-			{"step": step, "matches": matches.size()})
+		_raise(
+			world,
+			EngineError.STEP_CLICK_AMBIGUOUS,
+			"click selector matched %d controls; add 'screen' to disambiguate" % matches.size(),
+			{"step": step, "matches": matches.size()}
+		)
 		return
 	var node = matches[0]
 	if node is BaseButton:
@@ -226,8 +270,12 @@ static func _do_wait(step: Dictionary, world: World, ctx: Dictionary) -> void:
 		elif d.has("seconds"):
 			ticks = max(1, int(round(float(d["seconds"]) / world.tick_seconds)))
 	if ticks <= 0:
-		_raise(world, EngineError.STEP_INVALID_DURATION,
-			"wait requires positive seconds or ticks", {"step": step})
+		_raise(
+			world,
+			EngineError.STEP_INVALID_DURATION,
+			"wait requires positive seconds or ticks",
+			{"step": step}
+		)
 		return
 	for i in range(ticks):
 		_advance(world)
@@ -236,8 +284,9 @@ static func _do_wait(step: Dictionary, world: World, ctx: Dictionary) -> void:
 static func _do_tick(step: Dictionary, world: World, ctx: Dictionary) -> void:
 	var n := int(step["tick"])
 	if n <= 0:
-		_raise(world, EngineError.STEP_INVALID_DURATION,
-			"tick requires positive count", {"step": step})
+		_raise(
+			world, EngineError.STEP_INVALID_DURATION, "tick requires positive count", {"step": step}
+		)
 		return
 	for i in range(n):
 		_advance(world)
@@ -273,8 +322,7 @@ static func _do_screenshot(step: Dictionary, world: World, ctx: Dictionary):
 	if err == OK:
 		ctx["screenshots"].append({"path": path, "label": label})
 		if ctx.get("verbose", true):
-			print("  📸 screenshot %s%s" % [path,
-				(" (" + label + ")") if label != "" else ""])
+			print("  📸 screenshot %s%s" % [path, (" (" + label + ")") if label != "" else ""])
 	else:
 		push_warning("[step] screenshot save_png err %d at %s" % [err, path])
 
@@ -302,6 +350,7 @@ static func _do_key(step: Dictionary, world: World, ctx: Dictionary) -> void:
 # Click selector resolution
 # ============================================================
 
+
 # Walks the screen + overlay stacks for Controls matching `sel`.
 # Selector keys: text, id, screen (scope to a screen id).
 static func _find_controls(screen_flow, sel: Dictionary) -> Array:
@@ -325,7 +374,8 @@ static func _find_controls(screen_flow, sel: Dictionary) -> Array:
 
 
 static func _walk_match(node: Node, sel: Dictionary, out: Array) -> void:
-	if node == null: return
+	if node == null:
+		return
 	# Optional screen scope: skip if this branch isn't under the named screen.
 	# (Implemented as a soft filter on root node names.)
 	if sel.has("screen") and "name" in node:
@@ -359,6 +409,7 @@ static func _walk_match(node: Node, sel: Dictionary, out: Array) -> void:
 # Expect assertions (mirror of scenario_runner._check_assertion)
 # ============================================================
 
+
 static func _check_one(a: Dictionary, world: World, ctx: Dictionary) -> void:
 	# Two forms:
 	#   1) Old shape:  {"entity_field": {query, field, op, value}}
@@ -387,7 +438,8 @@ static func _check_one(a: Dictionary, world: World, ctx: Dictionary) -> void:
 		# without breaking detection.
 		var path_keys: Array = []
 		for k in a.keys():
-			if str(k).begins_with("_"): continue
+			if str(k).begins_with("_"):
+				continue
 			path_keys.append(k)
 		if path_keys.size() == 1 and a[path_keys[0]] is Dictionary:
 			_assert_compact(str(path_keys[0]), a[path_keys[0]], world, ctx)
@@ -407,11 +459,21 @@ static func _assert_entity_field(spec: Dictionary, world: World, ctx: Dictionary
 	var op := str(spec.get("op", "=="))
 	var expected = spec.get("value", 0)
 	if _cmp(got, op, expected):
-		_pass(ctx, "entity_field %s.%s %s %s (got %s)" %
-			[_summarize_query(query), field, op, str(expected), str(got)])
+		_pass(
+			ctx,
+			(
+				"entity_field %s.%s %s %s (got %s)"
+				% [_summarize_query(query), field, op, str(expected), str(got)]
+			)
+		)
 	else:
-		_fail(ctx, "entity_field %s.%s: expected %s %s, got %s" %
-			[_summarize_query(query), field, op, str(expected), str(got)])
+		_fail(
+			ctx,
+			(
+				"entity_field %s.%s: expected %s %s, got %s"
+				% [_summarize_query(query), field, op, str(expected), str(got)]
+			)
+		)
 
 
 static func _assert_entity_count(spec: Dictionary, world: World, ctx: Dictionary) -> void:
@@ -421,11 +483,18 @@ static func _assert_entity_count(spec: Dictionary, world: World, ctx: Dictionary
 	var op := str(spec.get("op", "=="))
 	var expected := float(spec.get("value", 0))
 	if _cmp(got, op, expected):
-		_pass(ctx, "entity_count %s %s %s (got %d)" %
-			[_summarize_query(query), op, expected, int(got)])
+		_pass(
+			ctx,
+			"entity_count %s %s %s (got %d)" % [_summarize_query(query), op, expected, int(got)]
+		)
 	else:
-		_fail(ctx, "entity_count %s: expected %s %s, got %d" %
-			[_summarize_query(query), op, expected, int(got)])
+		_fail(
+			ctx,
+			(
+				"entity_count %s: expected %s %s, got %d"
+				% [_summarize_query(query), op, expected, int(got)]
+			)
+		)
 
 
 static func _assert_world_field(spec: Dictionary, world: World, ctx: Dictionary) -> void:
@@ -434,26 +503,30 @@ static func _assert_world_field(spec: Dictionary, world: World, ctx: Dictionary)
 	var op := str(spec.get("op", "=="))
 	var expected = spec.get("value", null)
 	if _cmp(got, op, expected):
-		_pass(ctx, "world_field %s %s %s (got %s)" %
-			[field, op, str(expected), str(got)])
+		_pass(ctx, "world_field %s %s %s (got %s)" % [field, op, str(expected), str(got)])
 	else:
-		_fail(ctx, "world_field %s: expected %s %s, got %s" %
-			[field, op, str(expected), str(got)])
+		_fail(ctx, "world_field %s: expected %s %s, got %s" % [field, op, str(expected), str(got)])
 
 
-static func _assert_ui(selector_v, expect_present: bool,
-					   world: World, ctx: Dictionary) -> void:
+static func _assert_ui(selector_v, expect_present: bool, world: World, ctx: Dictionary) -> void:
 	var screen_flow := world.get_node_or_null("/root/ScreenFlow")
-	var sel: Dictionary = (selector_v if selector_v is Dictionary
-							else {"text": str(selector_v)})
+	var sel: Dictionary = selector_v if selector_v is Dictionary else {"text": str(selector_v)}
 	var matches := _find_controls(screen_flow, sel)
 	var present := not matches.is_empty()
 	if present == expect_present:
 		_pass(ctx, "ui_%s %s" % ["present" if expect_present else "hidden", str(sel)])
 	else:
-		_fail(ctx, "ui_%s %s: was %s" %
-			["present" if expect_present else "hidden", str(sel),
-			 "present" if present else "hidden"])
+		_fail(
+			ctx,
+			(
+				"ui_%s %s: was %s"
+				% [
+					"present" if expect_present else "hidden",
+					str(sel),
+					"present" if present else "hidden"
+				]
+			)
+		)
 
 
 static func _assert_screen_active(want_id: String, world: World, ctx: Dictionary) -> void:
@@ -478,8 +551,9 @@ static func _assert_screen_active(want_id: String, world: World, ctx: Dictionary
 		_fail(ctx, "screen_active: expected %s, got %s" % [want_id, top])
 
 
-static func _assert_compact(path: String, op_dict: Dictionary,
-							world: World, ctx: Dictionary) -> void:
+static func _assert_compact(
+	path: String, op_dict: Dictionary, world: World, ctx: Dictionary
+) -> void:
 	# Resolve "<prefix>.<rest>" — prefix is "world" OR a unique tag.
 	var dot := path.find(".")
 	if dot < 0:
@@ -496,8 +570,7 @@ static func _assert_compact(path: String, op_dict: Dictionary,
 		if _cmp(got, op, expected):
 			_pass(ctx, "world.%s %s %s (got %s)" % [rest, op, str(expected), str(got)])
 		else:
-			_fail(ctx, "world.%s: expected %s %s, got %s" %
-				[rest, op, str(expected), str(got)])
+			_fail(ctx, "world.%s: expected %s %s, got %s" % [rest, op, str(expected), str(got)])
 		return
 	# Otherwise treat prefix as a tag. tags_all=[prefix], select first.
 	var matches := _query_entities(world, {"tags_all": [prefix]})
@@ -509,13 +582,13 @@ static func _assert_compact(path: String, op_dict: Dictionary,
 	if _cmp(got, op, expected):
 		_pass(ctx, "%s.%s %s %s (got %s)" % [prefix, rest, op, str(expected), str(got)])
 	else:
-		_fail(ctx, "%s.%s: expected %s %s, got %s" %
-			[prefix, rest, op, str(expected), str(got)])
+		_fail(ctx, "%s.%s: expected %s %s, got %s" % [prefix, rest, op, str(expected), str(got)])
 
 
 # ============================================================
 # Query / field resolution (mirrors scenario_runner's helpers)
 # ============================================================
+
 
 static func _query_entities(world: World, q: Dictionary) -> Array:
 	var env: Dictionary = world.scheduler.env
@@ -534,24 +607,34 @@ static func _resolve_field(e: Entity, path: String):
 	for p in parts:
 		if cur is Entity:
 			match p:
-				"state":      cur = (cur as Entity).state
-				"properties": cur = (cur as Entity).properties
-				_:            return null
+				"state":
+					cur = (cur as Entity).state
+				"properties":
+					cur = (cur as Entity).properties
+				_:
+					return null
 		elif cur is Dictionary:
 			if not (cur as Dictionary).has(p):
 				return null
 			cur = (cur as Dictionary)[p]
 		elif cur is Vector2:
 			match p:
-				"x": cur = (cur as Vector2).x
-				"y": cur = (cur as Vector2).y
-				_:   return null
+				"x":
+					cur = (cur as Vector2).x
+				"y":
+					cur = (cur as Vector2).y
+				_:
+					return null
 		elif cur is Vector3:
 			match p:
-				"x": cur = (cur as Vector3).x
-				"y": cur = (cur as Vector3).y
-				"z": cur = (cur as Vector3).z
-				_:   return null
+				"x":
+					cur = (cur as Vector3).x
+				"y":
+					cur = (cur as Vector3).y
+				"z":
+					cur = (cur as Vector3).z
+				_:
+					return null
 		else:
 			return null
 	return cur
@@ -575,15 +658,23 @@ static func _cmp(got, op: String, expected) -> bool:
 		var g := float(got)
 		var x := float(expected)
 		match op:
-			"==": return g == x
-			"!=": return g != x
-			"<":  return g < x
-			"<=": return g <= x
-			">":  return g > x
-			">=": return g >= x
+			"==":
+				return g == x
+			"!=":
+				return g != x
+			"<":
+				return g < x
+			"<=":
+				return g <= x
+			">":
+				return g > x
+			">=":
+				return g >= x
 	match op:
-		"==": return str(got) == str(expected)
-		"!=": return str(got) != str(expected)
+		"==":
+			return str(got) == str(expected)
+		"!=":
+			return str(got) != str(expected)
 	return false
 
 
@@ -596,6 +687,7 @@ static func _summarize_query(q: Dictionary) -> String:
 # ============================================================
 # Recording + diagnostics
 # ============================================================
+
 
 static func _pass(ctx: Dictionary, msg: String) -> void:
 	ctx["passed"] = int(ctx["passed"]) + 1
@@ -612,7 +704,7 @@ static func _fail(ctx: Dictionary, msg: String) -> void:
 
 
 static func _raise(world: World, code: String, msg: String, info: Dictionary) -> void:
-	var env = (world.scheduler.env if world.scheduler != null else {})
+	var env = world.scheduler.env if world.scheduler != null else {}
 	if EngineError != null:
 		EngineError.raise(env, code, msg, info, "")
 	else:

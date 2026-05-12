@@ -48,7 +48,8 @@ func _ready() -> void:
 			_enabled = true
 		elif s.begins_with("--smoke-out="):
 			_output_dir = s.substr(12)
-	if not _enabled: return
+	if not _enabled:
+		return
 	# Wait for World + ScreenFlow to settle; their _ready() sets
 	# _screens_by_id. Use call_deferred so post-_ready idle phase runs.
 	call_deferred("_run_smoke")
@@ -116,7 +117,10 @@ func _run_smoke() -> void:
 		if _screen_flow.has_method("_pop_screen"):
 			_screen_flow.call("_pop_screen")
 		await get_tree().process_frame
-	_log_summary(visited, "" if failed.is_empty() else "%d capture failures: %s" % [failed.size(), str(failed)])
+	_log_summary(
+		visited,
+		"" if failed.is_empty() else "%d capture failures: %s" % [failed.size(), str(failed)]
+	)
 	get_tree().quit(0 if failed.is_empty() else 1)
 
 

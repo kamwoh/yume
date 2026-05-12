@@ -35,10 +35,10 @@ class_name ControlFactory
 ##   HSlider.value_changed → on_change  (deferred)
 ##   CheckBox.toggled     → on_toggle   (deferred)
 
-
 # ============================================================
 # PUBLIC ENTRY POINT
 # ============================================================
+
 
 ## Build a Control hierarchy under `parent` from `spec` (element dict).
 ## `dispatcher` is a Callable invoked with (effect_list_array, context_dict)
@@ -47,23 +47,34 @@ class_name ControlFactory
 ## `bound_elements` (output array) collects {node, cfg} pairs for elements
 ## with visible_if / enabled_if formulas, so ScreenFlow can re-evaluate
 ## them per frame.
-static func build(spec: Dictionary, parent: Node, dispatcher: Callable,
-				  bound_elements: Array) -> Control:
+static func build(
+	spec: Dictionary, parent: Node, dispatcher: Callable, bound_elements: Array
+) -> Control:
 	var t := str(spec.get("type", ""))
 	var node: Control = null
 	match t:
-		"label":         node = _build_label(spec)
-		"button":        node = _build_button(spec, dispatcher)
-		"vbox":          node = _build_vbox(spec, dispatcher, bound_elements)
-		"hbox":          node = _build_hbox(spec, dispatcher, bound_elements)
-		"color_rect":    node = _build_color_rect(spec)
-		"spacer":        node = _build_spacer(spec)
-		"image":         node = _build_image(spec)
+		"label":
+			node = _build_label(spec)
+		"button":
+			node = _build_button(spec, dispatcher)
+		"vbox":
+			node = _build_vbox(spec, dispatcher, bound_elements)
+		"hbox":
+			node = _build_hbox(spec, dispatcher, bound_elements)
+		"color_rect":
+			node = _build_color_rect(spec)
+		"spacer":
+			node = _build_spacer(spec)
+		"image":
+			node = _build_image(spec)
 		# ADR 0013 — settings UI primitives. on_change dispatches an effect
 		# chain with the new value bound as ctx.value.
-		"slider":        node = _build_slider(spec, dispatcher)
-		"checkbox":      node = _build_checkbox(spec, dispatcher)
-		"option_button": node = _build_option_button(spec, dispatcher)
+		"slider":
+			node = _build_slider(spec, dispatcher)
+		"checkbox":
+			node = _build_checkbox(spec, dispatcher)
+		"option_button":
+			node = _build_option_button(spec, dispatcher)
 		"settings_renderer":
 			# Special: not a generic primitive. Rendered separately by the
 			# screen/overlay layer that has access to the SettingsManager
@@ -89,6 +100,7 @@ static func build(spec: Dictionary, parent: Node, dispatcher: Callable,
 # ELEMENT BUILDERS
 # ============================================================
 
+
 static func _build_label(spec: Dictionary) -> Label:
 	var lbl := Label.new()
 	lbl.text = _resolve_text(spec.get("text", ""))
@@ -101,9 +113,12 @@ static func _build_label(spec: Dictionary) -> Label:
 	lbl.add_theme_constant_override("outline_size", 4)
 	var halign := str(spec.get("halign", "left"))
 	match halign:
-		"center": lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		"right":  lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		_:        lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		"center":
+			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		"right":
+			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_:
+			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	return lbl
 
 
@@ -121,8 +136,9 @@ static func _build_button(spec: Dictionary, dispatcher: Callable) -> Button:
 	return btn
 
 
-static func _build_vbox(spec: Dictionary, dispatcher: Callable,
-						bound_elements: Array) -> VBoxContainer:
+static func _build_vbox(
+	spec: Dictionary, dispatcher: Callable, bound_elements: Array
+) -> VBoxContainer:
 	var vb := VBoxContainer.new()
 	if spec.has("separation"):
 		vb.add_theme_constant_override("separation", int(spec["separation"]))
@@ -132,8 +148,9 @@ static func _build_vbox(spec: Dictionary, dispatcher: Callable,
 	return vb
 
 
-static func _build_hbox(spec: Dictionary, dispatcher: Callable,
-						bound_elements: Array) -> HBoxContainer:
+static func _build_hbox(
+	spec: Dictionary, dispatcher: Callable, bound_elements: Array
+) -> HBoxContainer:
 	var hb := HBoxContainer.new()
 	if spec.has("separation"):
 		hb.add_theme_constant_override("separation", int(spec["separation"]))
@@ -155,10 +172,7 @@ static func _build_color_rect(spec: Dictionary) -> ColorRect:
 
 static func _build_spacer(spec: Dictionary) -> Control:
 	var sp := Control.new()
-	sp.custom_minimum_size = Vector2(
-		float(spec.get("width", 0)),
-		float(spec.get("height", 8))
-	)
+	sp.custom_minimum_size = Vector2(float(spec.get("width", 0)), float(spec.get("height", 8)))
 	return sp
 
 
@@ -180,20 +194,19 @@ static func _build_image(spec: Dictionary) -> TextureRect:
 # containing {"value": <new>}. SettingsManager-aware screens use
 # settings_renderer (above) instead of these directly.
 
+
 static func _build_slider(spec: Dictionary, dispatcher: Callable) -> HSlider:
 	var sl := HSlider.new()
 	sl.min_value = float(spec.get("min", 0.0))
 	sl.max_value = float(spec.get("max", 1.0))
 	sl.step = float(spec.get("step", 0.05))
 	sl.value = float(spec.get("value", spec.get("default", sl.min_value)))
-	sl.custom_minimum_size = Vector2(
-		float(spec.get("width", 200)),
-		float(spec.get("height", 20))
-	)
+	sl.custom_minimum_size = Vector2(float(spec.get("width", 200)), float(spec.get("height", 20)))
 	var on_change = spec.get("on_change", null)
 	if on_change != null:
-		sl.value_changed.connect(func(new_v):
-			dispatcher.call(on_change, {"_source": "slider", "value": new_v}))
+		sl.value_changed.connect(
+			func(new_v): dispatcher.call(on_change, {"_source": "slider", "value": new_v})
+		)
 	return sl
 
 
@@ -203,8 +216,9 @@ static func _build_checkbox(spec: Dictionary, dispatcher: Callable) -> CheckBox:
 	cb.button_pressed = bool(spec.get("value", spec.get("default", false)))
 	var on_change = spec.get("on_change", null)
 	if on_change != null:
-		cb.toggled.connect(func(new_v):
-			dispatcher.call(on_change, {"_source": "checkbox", "value": new_v}))
+		cb.toggled.connect(
+			func(new_v): dispatcher.call(on_change, {"_source": "checkbox", "value": new_v})
+		)
 	return cb
 
 
@@ -221,15 +235,18 @@ static func _build_option_button(spec: Dictionary, dispatcher: Callable) -> Opti
 			ob.select(idx)
 	var on_change = spec.get("on_change", null)
 	if on_change != null:
-		ob.item_selected.connect(func(idx):
-			var v = options[idx] if idx < options.size() else null
-			dispatcher.call(on_change, {"_source": "option_button", "value": v}))
+		ob.item_selected.connect(
+			func(idx):
+				var v = options[idx] if idx < options.size() else null
+				dispatcher.call(on_change, {"_source": "option_button", "value": v})
+		)
 	return ob
 
 
 # ============================================================
 # COMMON PROPERTIES
 # ============================================================
+
 
 ## Apply anchor / position / size / sizing flags to any Control.
 ## Anchors map to Godot's PRESET_* constants (see Control docs).
@@ -293,23 +310,31 @@ static func _apply_anchor(node: Control, anchor: String) -> void:
 			node.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 		"fill":
 			node.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_: pass  # unknown anchor — leave default
+		_:
+			pass  # unknown anchor — leave default
 
 
 static func _size_flag(s: String) -> int:
 	match s:
-		"shrink_begin":  return Control.SIZE_SHRINK_BEGIN
-		"shrink_center": return Control.SIZE_SHRINK_CENTER
-		"shrink_end":    return Control.SIZE_SHRINK_END
-		"fill":          return Control.SIZE_FILL
-		"expand":        return Control.SIZE_EXPAND
-		"expand_fill":   return Control.SIZE_EXPAND_FILL
+		"shrink_begin":
+			return Control.SIZE_SHRINK_BEGIN
+		"shrink_center":
+			return Control.SIZE_SHRINK_CENTER
+		"shrink_end":
+			return Control.SIZE_SHRINK_END
+		"fill":
+			return Control.SIZE_FILL
+		"expand":
+			return Control.SIZE_EXPAND
+		"expand_fill":
+			return Control.SIZE_EXPAND_FILL
 	return Control.SIZE_FILL
 
 
 # ============================================================
 # UTIL
 # ============================================================
+
 
 ## Resolve @strings.x.y refs same way GameShell does. Falls back to
 ## literal text. Static so we don't need a ScreenFlow instance.
@@ -329,6 +354,8 @@ static func _resolve_text(v) -> String:
 
 
 static func _color(v) -> Color:
-	if v is Color: return v
-	if v is String: return Color(str(v))
+	if v is Color:
+		return v
+	if v is String:
+		return Color(str(v))
 	return Color.WHITE

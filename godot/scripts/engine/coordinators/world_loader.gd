@@ -21,7 +21,6 @@ class_name WorldLoader
 ## load_data orchestration STAYS in world.gd — it's the boot sequence
 ## owner. This module just provides the parsers it calls.
 
-
 var _world: World
 
 # Cache flags — keep us from re-parsing scene.json. Ground values are
@@ -38,6 +37,7 @@ func _init(world: World) -> void:
 # ENTITY LOADERS
 # ============================================================
 
+
 ## Load entity data from `<root>/entities.json` and/or `<root>/entities/`.
 ## Two-phase: collect all dicts first, then process (a) definitions before
 ## (b) initial_instances + initial_relations so spawn-time def lookups work
@@ -49,7 +49,8 @@ func load_entities_path(root: String) -> void:
 	var single := root + "/entities.json"
 	if FileAccess.file_exists(single):
 		var d := _read_entities_json(single, env)
-		if not d.is_empty(): dicts.append(d)
+		if not d.is_empty():
+			dicts.append(d)
 
 	var dir_path := root + "/entities"
 	if DirAccess.dir_exists_absolute(dir_path):
@@ -65,14 +66,18 @@ func load_entities_path(root: String) -> void:
 			files.sort()
 			for f in files:
 				var d2 := _read_entities_json(dir_path + "/" + f, env)
-				if not d2.is_empty(): dicts.append(d2)
+				if not d2.is_empty():
+					dicts.append(d2)
 
 	if dicts.is_empty():
-		EngineError.raise(env, EngineError.WORLD_ENTITIES_MISSING,
+		EngineError.raise(
+			env,
+			EngineError.WORLD_ENTITIES_MISSING,
 			"No entities found at %s (checked entities.json + entities/)" % root,
 			{"file": root},
 			"Create entities.json or an entities/ directory with one JSON file per def.",
-			"warning")
+			"warning"
+		)
 		return
 
 	# Phase 1: register all definitions
@@ -96,10 +101,14 @@ func load_entities_path(root: String) -> void:
 				_world._spawn_manager.spawn(inst)
 		for rel in d.get("initial_relations", []):
 			if rel is Dictionary:
-				_world.relations.relate(
-					str(rel.get("type", "")),
-					str(rel.get("from", "")),
-					str(rel.get("to", "")),
+				(
+					_world
+					. relations
+					. relate(
+						str(rel.get("type", "")),
+						str(rel.get("from", "")),
+						str(rel.get("to", "")),
+					)
 				)
 
 
@@ -112,10 +121,12 @@ func load_entities_path(root: String) -> void:
 ## Called at runtime — definitions appearing in chunk files are added
 ## to defs if new; existing-id collisions are silently overwritten.
 func load_entities_file(path: String) -> void:
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var env := _world._build_env()
 	var d := _read_entities_json(path, env)
-	if d.is_empty(): return
+	if d.is_empty():
+		return
 	# Definitions
 	for def in d.get("definitions", []):
 		if def is Dictionary:
@@ -132,24 +143,35 @@ func load_entities_file(path: String) -> void:
 	# Initial relations
 	for rel in d.get("initial_relations", []):
 		if rel is Dictionary:
-			_world.relations.relate(
-				str(rel.get("type", "")),
-				str(rel.get("from", "")),
-				str(rel.get("to", "")),
+			(
+				_world
+				. relations
+				. relate(
+					str(rel.get("type", "")),
+					str(rel.get("from", "")),
+					str(rel.get("to", "")),
+				)
 			)
 
 
 ## Read one entities JSON file. Returns {} on missing/malformed; reports
 ## structured errors via env.error_buffer.
 func _read_entities_json(path: String, env: Dictionary) -> Dictionary:
-	if not FileAccess.file_exists(path): return {}
+	if not FileAccess.file_exists(path):
+		return {}
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
-		EngineError.raise(env, EngineError.WORLD_ENTITIES_INVALID,
-			"Invalid JSON: %s" % path,
-			{"file": path},
-			"Top-level must be a JSON object with 'definitions' / 'initial_instances' / 'initial_relations'.")
+		(
+			EngineError
+			. raise(
+				env,
+				EngineError.WORLD_ENTITIES_INVALID,
+				"Invalid JSON: %s" % path,
+				{"file": path},
+				"Top-level must be a JSON object with 'definitions' / 'initial_instances' / 'initial_relations'."
+			)
+		)
 		return {}
 	# ADR 0027: expand @lib.X / $extends / $include refs before consumption.
 	# Pass-through if no refs present.
@@ -162,6 +184,7 @@ func _read_entities_json(path: String, env: Dictionary) -> Dictionary:
 # ============================================================
 # RULE LOADER
 # ============================================================
+
 
 func load_rules_file(path: String, append: bool = false) -> void:
 	if not FileAccess.file_exists(path):
@@ -186,8 +209,10 @@ func load_rules_file(path: String, append: bool = false) -> void:
 # WORLD STATE LOADER
 # ============================================================
 
+
 func load_world_file(path: String) -> void:
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if data is Dictionary:
@@ -202,28 +227,37 @@ func load_world_file(path: String) -> void:
 # ZONES + FACTIONS
 # ============================================================
 
+
 ## ADR 0031 — load world/zones.json into ZoneStore.
 ## Optional file; absent = empty store, full backward-compat.
 func load_zones_file(path: String) -> void:
 	if _world.zone_store == null:
 		_world.zone_store = ZoneStore.new()
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var raw := f.get_as_text()
 	f.close()
 	var data = JSON.parse_string(raw)
 	if not (data is Dictionary):
-		EngineError.raise(_world._build_env(), "zone.invalid_json",
+		EngineError.raise(
+			_world._build_env(),
+			"zone.invalid_json",
 			"world/zones.json is not a JSON object",
 			{"file": path},
-			"The top-level value must be a dict like {\"zones\": [...]}.")
+			'The top-level value must be a dict like {"zones": [...]}.'
+		)
 		return
 	var errors := _world.zone_store.load_from_dict(data, _world._build_env())
 	if _world.verbose:
-		print("[World] zone_store loaded: %d zones, %d errors" % [
-			_world.zone_store.count(), errors.size()
-		])
+		print(
+			(
+				"[World] zone_store loaded: %d zones, %d errors"
+				% [_world.zone_store.count(), errors.size()]
+			)
+		)
 
 
 ## ADR 0032 — load factions.json into FactionDirector.
@@ -232,18 +266,23 @@ func load_factions_file(path: String) -> void:
 	var fd := _world.get_node_or_null("FactionDirector")
 	if fd == null or not fd.has_method("register_factions"):
 		return
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var raw := f.get_as_text()
 	f.close()
 	var data = JSON.parse_string(raw)
 	if not (data is Dictionary):
-		EngineError.raise(_world._build_env(), "faction.invalid_json",
+		EngineError.raise(
+			_world._build_env(),
+			"faction.invalid_json",
 			"factions.json is not a JSON object",
 			{"file": path},
-			"The top-level value must be a dict like {\"factions\": [...], \"relationships\": [...]}.",
-			"warning")
+			'The top-level value must be a dict like {"factions": [...], "relationships": [...]}.',
+			"warning"
+		)
 		return
 	var errors = fd.call("register_factions", data, _world._build_env())
 	if _world.verbose:
@@ -251,25 +290,28 @@ func load_factions_file(path: String) -> void:
 		var known_count: int = 0
 		if fd.has_method("known_faction_ids"):
 			known_count = (fd.call("known_faction_ids") as Array).size()
-		print("[World] faction_director loaded: %d factions, %d errors" % [
-			known_count, errs_size
-		])
+		print("[World] faction_director loaded: %d factions, %d errors" % [known_count, errs_size])
 
 
 # ============================================================
 # MULTI-LEVEL PROGRESSION (ADR 0006)
 # ============================================================
 
+
 func load_progression(path: String) -> void:
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
+	if json.parse(f.get_as_text()) != OK:
+		return
+	if not (json.data is Dictionary):
+		return
 	var p: Dictionary = json.data
 	_world.level_order = p.get("levels", [])
-	_world.current_level = str(p.get("starting_level",
-		_world.level_order[0] if _world.level_order.size() > 0 else ""))
+	_world.current_level = str(
+		p.get("starting_level", _world.level_order[0] if _world.level_order.size() > 0 else "")
+	)
 	_world.levels_root = _world.data_root.rstrip("/") + "/levels"
 	var oac = p.get("on_all_complete", null)
 	if oac is Dictionary:
@@ -282,18 +324,24 @@ func load_progression(path: String) -> void:
 # SCENE CONFIG (ground / grid / level_seed)
 # ============================================================
 
+
 ## scene.json's `level_seed` integer applied to Godot's global PRNG
 ## before any pattern/scatter/cluster runs. Makes procedurally-generated
 ## layouts reproducible — same seed = same map.
 func apply_level_seed_if_set(root: String) -> void:
 	var path := root + "/scene.json"
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
-	if not (json.data as Dictionary).has("level_seed"): return
+	if json.parse(f.get_as_text()) != OK:
+		return
+	if not (json.data is Dictionary):
+		return
+	if not (json.data as Dictionary).has("level_seed"):
+		return
 	var s: int = int((json.data as Dictionary).get("level_seed", 0))
 	seed(s)
 	if _world.verbose:
@@ -305,17 +353,23 @@ func apply_level_seed_if_set(root: String) -> void:
 ## coordinator (not World) owns the config + per-frame apply loop;
 ## this is just the setter. Cache flag is internal to avoid double-parse.
 func load_ground_cfg() -> void:
-	if _ground_cfg_loaded: return
+	if _ground_cfg_loaded:
+		return
 	_ground_cfg_loaded = true
 	var path := _world.data_root.rstrip("/") + "/scene.json"
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
+	if json.parse(f.get_as_text()) != OK:
+		return
+	if not (json.data is Dictionary):
+		return
 	var cfg: Dictionary = json.data
-	if not (cfg.get("ground", null) is Dictionary): return
+	if not (cfg.get("ground", null) is Dictionary):
+		return
 	var g: Dictionary = cfg["ground"]
 	var gc: GroundConstraint = _world._ground_constraint
 	if g.has("y"):
@@ -328,15 +382,20 @@ func load_ground_cfg() -> void:
 ## `grid` block, exposed via env["scene_grid"] in _build_env. Field
 ## stays on World; this is the setter.
 func load_grid_cfg() -> void:
-	if _grid_cfg_loaded: return
+	if _grid_cfg_loaded:
+		return
 	_grid_cfg_loaded = true
 	var path := _world.data_root.rstrip("/") + "/scene.json"
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return
-	if not (json.data is Dictionary): return
+	if json.parse(f.get_as_text()) != OK:
+		return
+	if not (json.data is Dictionary):
+		return
 	var cfg: Dictionary = json.data
 	if cfg.get("grid", null) is Dictionary:
 		_world._grid_cfg = cfg["grid"]

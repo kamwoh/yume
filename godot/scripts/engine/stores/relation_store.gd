@@ -18,13 +18,13 @@ class_name RelationStore
 signal relation_added(type: String, from_id: String, to_id: String)
 signal relation_removed(type: String, from_id: String, to_id: String)
 
-var _from_idx: Dictionary = {}   # "type::from_id" → Array[String] of to_ids
-var _to_idx: Dictionary = {}     # "type::to_id"   → Array[String] of from_ids
-
+var _from_idx: Dictionary = {}  # "type::from_id" → Array[String] of to_ids
+var _to_idx: Dictionary = {}  # "type::to_id"   → Array[String] of from_ids
 
 # ============================================================
 # MUTATION
 # ============================================================
+
 
 ## Add an edge. No-op if the exact triple already exists (dedup).
 func relate(type: String, from_id: String, to_id: String) -> void:
@@ -41,6 +41,7 @@ func relate(type: String, from_id: String, to_id: String) -> void:
 	_to_idx[tk].append(from_id)
 	relation_added.emit(type, from_id, to_id)
 
+
 ## Remove an edge. No-op if not present.
 func unrelate(type: String, from_id: String, to_id: String) -> void:
 	var fk := _key(type, from_id)
@@ -55,16 +56,19 @@ func unrelate(type: String, from_id: String, to_id: String) -> void:
 		(_to_idx[tk] as Array).erase(from_id)
 	relation_removed.emit(type, from_id, to_id)
 
+
 ## Atomically swap the `to` endpoint. Useful for "move item between holders"
 ## (contract §7 calls this `transfer_relation`).
 func transfer_to(type: String, from_id: String, old_to_id: String, new_to_id: String) -> void:
 	unrelate(type, from_id, old_to_id)
 	relate(type, from_id, new_to_id)
 
+
 ## Swap the `from` endpoint.
 func transfer_from(type: String, old_from_id: String, new_from_id: String, to_id: String) -> void:
 	unrelate(type, old_from_id, to_id)
 	relate(type, new_from_id, to_id)
+
 
 ## Drop every edge that touches `entity_id` as either endpoint.
 ## Called by entity despawn path to keep the store consistent.
@@ -85,18 +89,22 @@ func clear_entity(entity_id: String) -> void:
 # QUERY
 # ============================================================
 
+
 ## Ids that `from_id` relates to via `type`.
 func targets(type: String, from_id: String) -> Array:
 	return (_from_idx.get(_key(type, from_id), []) as Array).duplicate()
+
 
 ## Ids that relate to `to_id` via `type`.
 func sources(type: String, to_id: String) -> Array:
 	return (_to_idx.get(_key(type, to_id), []) as Array).duplicate()
 
+
 ## Does the exact triple exist?
 func has_edge(type: String, from_id: String, to_id: String) -> bool:
 	var tos: Array = _from_idx.get(_key(type, from_id), [])
 	return to_id in tos
+
 
 ## Total edges of a given type. O(n) over the from-index buckets for this type.
 func count(type: String) -> int:
@@ -114,6 +122,7 @@ func count_total() -> int:
 	for key in _from_idx.keys():
 		n += (_from_idx[key] as Array).size()
 	return n
+
 
 ## All edges of `type` as [{from, to}, ...]. For iteration/snapshot.
 func all_of_type(type: String) -> Array:
@@ -133,6 +142,7 @@ func all_of_type(type: String) -> Array:
 # SERIALIZATION (for save/load, replay, tests)
 # ============================================================
 
+
 func snapshot() -> Array:
 	var out: Array = []
 	for key in _from_idx.keys():
@@ -142,6 +152,7 @@ func snapshot() -> Array:
 		for to_id in _from_idx[key]:
 			out.append({"type": type, "from": from_id, "to": str(to_id)})
 	return out
+
 
 ## Replace entire store with the snapshot contents. Emits `relation_added`
 ## for each restored edge.
@@ -156,6 +167,7 @@ func restore(snap: Array) -> void:
 # ============================================================
 # INTERNAL
 # ============================================================
+
 
 func _key(type: String, id: String) -> String:
 	return type + "::" + id

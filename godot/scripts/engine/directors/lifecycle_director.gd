@@ -65,16 +65,14 @@ class_name LifecycleDirector
 ##       "year_seconds": 900
 ##     }
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
 
 const SIGNAL_STAGE_CHANGED: String = "life_stage_changed"
-const SIGNAL_ENTITY_DIED:   String = "entity_died"
-const ABILITY_ALL:          String = "all"
+const SIGNAL_ENTITY_DIED: String = "entity_died"
+const ABILITY_ALL: String = "all"
 const DEFAULT_YEAR_SECONDS: float = 900.0
-
 
 # ============================================================
 # STATE
@@ -89,10 +87,10 @@ var _world: Node = null
 # }
 var _cache: Dictionary = {}
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -107,6 +105,7 @@ func _ready() -> void:
 # REGISTRATION
 # ============================================================
 
+
 ## Register an entity's lifecycle. Called by World.load_data after
 ## entity creation walks defs/instances. The template_dict comes from
 ## the entity def's `lifecycle` block (or a $extends-resolved variant).
@@ -114,7 +113,9 @@ func _ready() -> void:
 ## Idempotent: re-registering an entity_id replaces its cache entry.
 ## No-op for malformed templates (logged via EngineError; director
 ## continues operating on other entities).
-func register_lifecycle(entity_id: String, template: Dictionary, env: Dictionary = {}, template_id: String = "") -> void:
+func register_lifecycle(
+	entity_id: String, template: Dictionary, env: Dictionary = {}, template_id: String = ""
+) -> void:
 	if entity_id == "":
 		return
 	if not _validate_template(entity_id, template, env):
@@ -163,7 +164,12 @@ func register_lifecycles_from_env(env: Dictionary) -> void:
 		# be resolved by lib_resolver upstream. Skip strings here so we
 		# don't silently treat them as malformed templates.
 		if not (lc is Dictionary):
-			push_warning("LifecycleDirector: '%s' lifecycle field is not a Dictionary — was lib resolution skipped?" % entity_id)
+			push_warning(
+				(
+					"LifecycleDirector: '%s' lifecycle field is not a Dictionary — was lib resolution skipped?"
+					% entity_id
+				)
+			)
 			continue
 		register_lifecycle(str(entity_id), lc as Dictionary, env, def_id)
 
@@ -171,6 +177,7 @@ func register_lifecycles_from_env(env: Dictionary) -> void:
 # ============================================================
 # TICK — the interpreter loop
 # ============================================================
+
 
 ## Called by World per-frame OR by tests. dt is seconds since last tick.
 ## env is the engine's standard env dict.
@@ -180,7 +187,9 @@ func tick(env: Dictionary, dt: float = 1.0) -> void:
 	var entities = env.get("entities", null)
 	if not (entities is Dictionary):
 		return
-	var settings_dict: Dictionary = env.get("settings", {}) if env.get("settings", null) is Dictionary else {}
+	var settings_dict: Dictionary = (
+		env.get("settings", {}) if env.get("settings", null) is Dictionary else {}
+	)
 	var infinite_life: bool = bool(settings_dict.get("infinite_life", false))
 
 	for entity_id in _cache.keys():
@@ -223,7 +232,9 @@ func tick(env: Dictionary, dt: float = 1.0) -> void:
 		# 2. Threshold check. Final stage has no max_age — the search in
 		#    _find_stage_for_age handles that by returning the final stage
 		#    when age >= its min_age.
-		var has_max: bool = current_stage.has("max_age") and current_stage.get("max_age", null) != null
+		var has_max: bool = (
+			current_stage.has("max_age") and current_stage.get("max_age", null) != null
+		)
 		if not has_max:
 			continue
 		var current_max: float = float(current_stage.get("max_age", 0.0))
@@ -243,7 +254,11 @@ func tick(env: Dictionary, dt: float = 1.0) -> void:
 		# 3a. Infinite-life mode for player-tagged entities: cap at the
 		#     stage BEFORE terminal. The director just refuses to advance
 		#     into a terminal stage when the player carries this flag.
-		if infinite_life and (ent as Entity).has_tag("player") and bool(new_stage.get("terminal", false)):
+		if (
+			infinite_life
+			and (ent as Entity).has_tag("player")
+			and bool(new_stage.get("terminal", false))
+		):
 			# Pin age to (current_max - epsilon) so we don't keep
 			# re-triggering the threshold every tick.
 			(ent as Entity).set_state("age", current_max - 0.001)
@@ -256,7 +271,10 @@ func tick(env: Dictionary, dt: float = 1.0) -> void:
 # TRANSITION
 # ============================================================
 
-func _transition(ent: Entity, prev: Dictionary, next: Dictionary, env: Dictionary, template_id: String) -> void:
+
+func _transition(
+	ent: Entity, prev: Dictionary, next: Dictionary, env: Dictionary, template_id: String
+) -> void:
 	var old_id: String = str(prev.get("id", ""))
 	var new_id: String = str(next.get("id", ""))
 
@@ -275,8 +293,12 @@ func _transition(ent: Entity, prev: Dictionary, next: Dictionary, env: Dictionar
 	#    prior tags, just remove the prev stage's abilities (so the
 	#    "child→adult" transition correctly drops "needs_caring" while
 	#    keeping species + faction tags).
-	var prev_abilities: Array = prev.get("abilities", []) if prev.get("abilities", null) is Array else []
-	var new_abilities: Array = next.get("abilities", []) if next.get("abilities", null) is Array else []
+	var prev_abilities: Array = (
+		prev.get("abilities", []) if prev.get("abilities", null) is Array else []
+	)
+	var new_abilities: Array = (
+		next.get("abilities", []) if next.get("abilities", null) is Array else []
+	)
 	var all_passthrough: bool = new_abilities.size() == 1 and str(new_abilities[0]) == ABILITY_ALL
 	# Always remove prev stage's specific ability tags (unless they were
 	# "all" too — nothing to remove). This keeps non-ability tags
@@ -298,29 +320,42 @@ func _transition(ent: Entity, prev: Dictionary, next: Dictionary, env: Dictionar
 		# No signal buffer — scheduler not initialized. Same warning path
 		# effect_apply._emit uses (silent here; tests provide a buffer).
 		return
-	(buf as Array).append({
-		"name": SIGNAL_STAGE_CHANGED,
-		"payload": {
-			"entity_id": ent.instance_id,
-			"old_stage": old_id,
-			"new_stage": new_id,
-		}
-	})
-	if bool(next.get("terminal", false)):
-		(buf as Array).append({
-			"name": SIGNAL_ENTITY_DIED,
-			"payload": {
-				"entity_id": ent.instance_id,
-				"lifecycle_id": template_id,
-				"age": float(ent.get_state("age", 0.0)),
-				"cause": "old_age",
+	(
+		(buf as Array)
+		. append(
+			{
+				"name": SIGNAL_STAGE_CHANGED,
+				"payload":
+				{
+					"entity_id": ent.instance_id,
+					"old_stage": old_id,
+					"new_stage": new_id,
+				}
 			}
-		})
+		)
+	)
+	if bool(next.get("terminal", false)):
+		(
+			(buf as Array)
+			. append(
+				{
+					"name": SIGNAL_ENTITY_DIED,
+					"payload":
+					{
+						"entity_id": ent.instance_id,
+						"lifecycle_id": template_id,
+						"age": float(ent.get_state("age", 0.0)),
+						"cause": "old_age",
+					}
+				}
+			)
+		)
 
 
 # ============================================================
 # STAGE LOOKUP
 # ============================================================
+
 
 ## Find a stage by id. Returns {} when not found.
 static func _find_stage(template: Dictionary, stage_id: String) -> Dictionary:
@@ -366,6 +401,7 @@ static func _find_stage_for_age(template: Dictionary, age: float) -> Dictionary:
 # VALIDATION
 # ============================================================
 
+
 ## Sanity-check a template at registration. Logs (push_warning +
 ## EngineError) on malformed input but DOES NOT crash — the director
 ## skips this entity and continues with others.
@@ -379,22 +415,34 @@ static func _validate_template(entity_id: String, template: Dictionary, env: Dic
 	if not (stages is Array) or (stages as Array).is_empty():
 		push_warning("LifecycleDirector: '%s' lifecycle has no stages — skipping." % entity_id)
 		if env.has("error_buffer"):
-			EngineError.raise(env, "lifecycle.no_stages",
+			EngineError.raise(
+				env,
+				"lifecycle.no_stages",
 				"LifecycleDirector: '%s' has empty stages array" % entity_id,
-				{"entity": entity_id}, "Add at least one stage with id + min_age.", "warning")
+				{"entity": entity_id},
+				"Add at least one stage with id + min_age.",
+				"warning"
+			)
 		return false
 	# Every stage must have an id. min_age is required for all but the
 	# very first stage (which conventionally has min_age=0 anyway).
 	var any_valid: bool = false
-	for s in (stages as Array):
+	for s in stages as Array:
 		if s is Dictionary and (s as Dictionary).has("id"):
 			any_valid = true
 			break
 	if not any_valid:
-		push_warning("LifecycleDirector: '%s' lifecycle has no stage with required keys (id)" % entity_id)
+		push_warning(
+			"LifecycleDirector: '%s' lifecycle has no stage with required keys (id)" % entity_id
+		)
 		if env.has("error_buffer"):
-			EngineError.raise(env, "lifecycle.malformed",
+			EngineError.raise(
+				env,
+				"lifecycle.malformed",
 				"LifecycleDirector: '%s' has no stage with required key 'id'" % entity_id,
-				{"entity": entity_id}, "Each stage needs id; non-terminal stages need min_age + max_age.", "warning")
+				{"entity": entity_id},
+				"Each stage needs id; non-terminal stages need min_age + max_age.",
+				"warning"
+			)
 		return false
 	return true

@@ -19,7 +19,6 @@ class_name SaveLoadCoordinator
 ## reference. Ownership transfers to GameShell as part of the
 ## "world = sim, game_shell = game" principle realization (2026-05-12).
 
-
 var _world: World
 
 
@@ -30,6 +29,7 @@ func _init(world: World) -> void:
 # ============================================================
 # PUBLIC API
 # ============================================================
+
 
 ## Drain pending save + load requests from env. Save fires FIRST (so a
 ## save+load in the same frame still saves pre-load state). Each
@@ -50,14 +50,19 @@ func process_pending(env: Dictionary) -> void:
 ## the game has no save_policy.json declared.
 func do_save(slot: int) -> void:
 	if _world.save_policy.is_empty():
-		EngineError.raise(_world.scheduler.env, EngineError.RULE_FILE_MISSING,
+		EngineError.raise(
+			_world.scheduler.env,
+			EngineError.RULE_FILE_MISSING,
 			"save_state effect fired but no save_policy.json present",
 			{"slot": slot},
 			"Add data/<game>/save_policy.json to opt in to persistence.",
-			"warning")
+			"warning"
+		)
 		return
 	var tick_n: int = _world._tick_count
-	var ok := SaveState.save_to_slot(_world.scheduler.env, _world.save_policy, slot, _game_name(), tick_n)
+	var ok := SaveState.save_to_slot(
+		_world.scheduler.env, _world.save_policy, slot, _game_name(), tick_n
+	)
 	if ok:
 		# Refresh has_save so menus update immediately
 		var slots := int(_world.save_policy.get("slots", 1))
@@ -113,25 +118,36 @@ func do_load(slot: int) -> void:
 	if rels is Array:
 		for r in rels:
 			if r is Dictionary:
-				_world.relations.relate(
-					str(r.get("type", "")),
-					str(r.get("from", "")),
-					str(r.get("to", "")),
+				(
+					_world
+					. relations
+					. relate(
+						str(r.get("type", "")),
+						str(r.get("from", "")),
+						str(r.get("to", "")),
+					)
 				)
 	if _world.verbose:
-		print("[World] loaded slot %d (tick was %d)" % [slot, int((payload.get("_meta", {}) as Dictionary).get("tick", -1))])
+		print(
+			(
+				"[World] loaded slot %d (tick was %d)"
+				% [slot, int((payload.get("_meta", {}) as Dictionary).get("tick", -1))]
+			)
+		)
 
 
 # ============================================================
 # INTERNAL
 # ============================================================
 
+
 ## ADR 0014: re-anchor chunk_streamer at a saved chunk. Despawns all
 ## currently-loaded transient chunks (they came from the starting_chunk
 ## boot above), reseats current_chunk on the streamer, and triggers a
 ## fresh load around the saved coord. Persistent entities are untouched.
 func _apply_saved_chunk(saved_chunk: Vector2i) -> void:
-	if _world.chunk_streamer == null: return
+	if _world.chunk_streamer == null:
+		return
 	var env := _world._build_env()
 	# Unload every transient chunk loaded by boot()
 	for c in _world.chunk_streamer.loaded_chunks().duplicate():
@@ -148,11 +164,13 @@ func _apply_saved_chunk(saved_chunk: Vector2i) -> void:
 ##   - if not, spawn from def at saved position with saved state
 func _apply_saved_entities(records: Array) -> void:
 	for r in records:
-		if not (r is Dictionary): continue
+		if not (r is Dictionary):
+			continue
 		var rec: Dictionary = r
 		var inst_id := str(rec.get("id", ""))
 		var def_id := str(rec.get("def", ""))
-		if inst_id == "" or def_id == "": continue
+		if inst_id == "" or def_id == "":
+			continue
 		var pos = rec.get("position", null)
 		var state_in: Dictionary = rec.get("state", {}) as Dictionary
 		var ent = _world.entities.get(inst_id, null)
@@ -163,10 +181,18 @@ func _apply_saved_entities(records: Array) -> void:
 				(ent as Entity).set_state(str(k), state_in[k])
 		else:
 			# Spawn from def
-			_world._spawn_manager.spawn({
-				"def": def_id, "id": inst_id,
-				"position": pos, "state": state_in,
-			})
+			(
+				_world
+				. _spawn_manager
+				. spawn(
+					{
+						"def": def_id,
+						"id": inst_id,
+						"position": pos,
+						"state": state_in,
+					}
+				)
+			)
 
 
 ## Resolve the data_root's basename for save namespacing.
@@ -181,5 +207,6 @@ func _game_name() -> String:
 static func game_name_from_root(data_root: String) -> String:
 	var s := data_root.rstrip("/")
 	var slash := s.rfind("/")
-	if slash < 0: return s
+	if slash < 0:
+		return s
 	return s.substr(slash + 1)

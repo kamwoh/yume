@@ -35,24 +35,35 @@ class_name QueryLib
 ## the entity fails to match. No permissive fallback.
 
 const OPERATOR_SUFFIXES: Array = [
-	"_eq", "_ne", "_gt", "_lt", "_gte", "_lte", "_atleast", "_atmost",
+	"_eq",
+	"_ne",
+	"_gt",
+	"_lt",
+	"_gte",
+	"_lte",
+	"_atleast",
+	"_atmost",
 ]
 # Note: `_has` (ADR 0033, set membership where field is array) and `_in`
 # (ADR 0040, where target is array) are handled as separate suffix branches
 # in _match_fields rather than via the scalar-comparison loop above.
 
-
 # ============================================================
 # PUBLIC
 # ============================================================
 
+
 ## Does `entity` match the query spec?
-static func matches(entity: Entity, spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> bool:
-	if spec.is_empty(): return true
+static func matches(
+	entity: Entity, spec: Dictionary, env: Dictionary, context: Dictionary = {}
+) -> bool:
+	if spec.is_empty():
+		return true
 
 	if spec.has("tags_all"):
 		for t in spec["tags_all"]:
-			if not entity.has_tag(str(t)): return false
+			if not entity.has_tag(str(t)):
+				return false
 
 	if spec.has("tags_any"):
 		var any_ok := false
@@ -60,20 +71,25 @@ static func matches(entity: Entity, spec: Dictionary, env: Dictionary, context: 
 			if entity.has_tag(str(t)):
 				any_ok = true
 				break
-		if not any_ok: return false
+		if not any_ok:
+			return false
 
 	if spec.has("tags_none"):
 		for t in spec["tags_none"]:
-			if entity.has_tag(str(t)): return false
+			if entity.has_tag(str(t)):
+				return false
 
 	if spec.has("properties"):
-		if not _match_fields(entity.properties, spec["properties"]): return false
+		if not _match_fields(entity.properties, spec["properties"]):
+			return false
 
 	if spec.has("state"):
-		if not _match_fields(entity.state, spec["state"]): return false
+		if not _match_fields(entity.state, spec["state"]):
+			return false
 
 	if spec.has("relations"):
-		if not _match_relations(entity, spec["relations"], env, context): return false
+		if not _match_relations(entity, spec["relations"], env, context):
+			return false
 
 	return true
 
@@ -98,7 +114,8 @@ static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> 
 		if sx != null and sx.has_method("query_radius_ids"):
 			var ids: Array = sx.query_radius_ids(origin, radius)
 			for id in ids:
-				if all.has(id): candidates.append(all[id])
+				if all.has(id):
+					candidates.append(all[id])
 		else:
 			# fallback: scan all
 			candidates = all.values()
@@ -106,17 +123,32 @@ static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> 
 		candidates = all.values()
 
 	for ent in candidates:
-		if not (ent is Entity): continue
-		if not matches(ent, spec, env, context): continue
-		if has_radius and (ent as Entity).get_planar_position().distance_to(origin) > radius: continue
+		if not (ent is Entity):
+			continue
+		if not matches(ent, spec, env, context):
+			continue
+		if has_radius and (ent as Entity).get_planar_position().distance_to(origin) > radius:
+			continue
 		out.append(ent)
 
 	if spec.has("order_by"):
 		var ob: String = str(spec["order_by"])
 		if ob == "distance_asc":
-			out.sort_custom(func(a, b): return (a as Entity).get_planar_position().distance_to(origin) < (b as Entity).get_planar_position().distance_to(origin))
+			out.sort_custom(
+				func(a, b):
+					return (
+						(a as Entity).get_planar_position().distance_to(origin)
+						< (b as Entity).get_planar_position().distance_to(origin)
+					)
+			)
 		elif ob == "distance_desc":
-			out.sort_custom(func(a, b): return (a as Entity).get_planar_position().distance_to(origin) > (b as Entity).get_planar_position().distance_to(origin))
+			out.sort_custom(
+				func(a, b):
+					return (
+						(a as Entity).get_planar_position().distance_to(origin)
+						> (b as Entity).get_planar_position().distance_to(origin)
+					)
+			)
 
 	if spec.has("limit"):
 		var n: int = int(spec["limit"])
@@ -129,6 +161,7 @@ static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> 
 # ============================================================
 # INTERNAL
 # ============================================================
+
 
 ## Match a flat field map against a spec dict of {field_with_op: value, ...}.
 ## Used for both `properties` and `state` clauses.
@@ -180,12 +213,18 @@ static func _match_fields(fields: Dictionary, spec: Dictionary) -> bool:
 
 static func _compare(actual, target, op: String) -> bool:
 	match op:
-		"eq": return actual == target
-		"ne": return actual != target
-		"gt": return actual > target
-		"lt": return actual < target
-		"gte", "atleast": return actual >= target
-		"lte", "atmost": return actual <= target
+		"eq":
+			return actual == target
+		"ne":
+			return actual != target
+		"gt":
+			return actual > target
+		"lt":
+			return actual < target
+		"gte", "atleast":
+			return actual >= target
+		"lte", "atmost":
+			return actual <= target
 	return false
 
 
@@ -193,7 +232,9 @@ static func _compare(actual, target, op: String) -> bool:
 ##   {held_by: "self"}              → entity `held_by` the context.self id
 ##   {part_of: {"tags_any": ["house"]}} → entity `part_of` any house-tagged entity
 ##   {owned_by: "player_1"}         → literal id reference
-static func _match_relations(entity: Entity, rel_spec: Dictionary, env: Dictionary, context: Dictionary) -> bool:
+static func _match_relations(
+	entity: Entity, rel_spec: Dictionary, env: Dictionary, context: Dictionary
+) -> bool:
 	var store: RelationStore = env.get("relations", null)
 	if store == null:
 		return false
@@ -204,7 +245,14 @@ static func _match_relations(entity: Entity, rel_spec: Dictionary, env: Dictiona
 	return true
 
 
-static func _check_single_relation(entity: Entity, rel_type: String, target, store: RelationStore, env: Dictionary, context: Dictionary) -> bool:
+static func _check_single_relation(
+	entity: Entity,
+	rel_type: String,
+	target,
+	store: RelationStore,
+	env: Dictionary,
+	context: Dictionary
+) -> bool:
 	# String target: look up target id via context binding, else treat as literal id.
 	if target is String:
 		var key := str(target)
@@ -222,7 +270,8 @@ static func _check_single_relation(entity: Entity, rel_type: String, target, sto
 	if target is Dictionary:
 		var entities: Dictionary = env.get("entities", {})
 		for cid in store.targets(rel_type, entity.instance_id):
-			if not entities.has(cid): continue
+			if not entities.has(cid):
+				continue
 			var candidate = entities[cid]
 			if candidate is Entity and matches(candidate, target, env, context):
 				return true
@@ -233,6 +282,7 @@ static func _check_single_relation(entity: Entity, rel_type: String, target, sto
 # ============================================================
 # ZONE QUERY (ADR 0031 — query_zone operator)
 # ============================================================
+
 
 ## Run a zone query against env.zone_store. Returns Array of zone_ids.
 ## Mirror of run() but over zones, not entities. See ZoneStore.find for
@@ -245,8 +295,10 @@ static func _check_single_relation(entity: Entity, rel_type: String, target, sto
 ## stable entry point a future scheduler change can call).
 static func run_zones(spec: Dictionary, env: Dictionary) -> Array:
 	var zs = env.get("zone_store", null)
-	if zs == null or not zs.has_method("find"): return []
-	if spec == null or not (spec is Dictionary): return []
+	if zs == null or not zs.has_method("find"):
+		return []
+	if spec == null or not (spec is Dictionary):
+		return []
 	return zs.find(spec)
 
 
@@ -258,9 +310,12 @@ static func run_zones(spec: Dictionary, env: Dictionary) -> Array:
 static func _resolve_origin(spec: Dictionary, env: Dictionary, context: Dictionary) -> Vector2:
 	if context.has("_origin_position"):
 		var p = context["_origin_position"]
-		if p is Vector2: return p
-		if p is Vector3: return Vector2(p.x, p.z)
-		if p is Array and (p as Array).size() >= 2: return Vector2(float(p[0]), float(p[1]))
+		if p is Vector2:
+			return p
+		if p is Vector3:
+			return Vector2(p.x, p.z)
+		if p is Array and (p as Array).size() >= 2:
+			return Vector2(float(p[0]), float(p[1]))
 	if context.has("self"):
 		var sid := str(context["self"])
 		var all: Dictionary = env.get("entities", {})

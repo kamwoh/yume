@@ -19,6 +19,7 @@ extends Node
 ## Single timer + signal handler. Quits engine on save (matches existing
 ## headless smoke patterns).
 
+
 func _ready() -> void:
 	var delay := -1.0
 	var output_path := "user://_capture.png"
@@ -58,8 +59,9 @@ func _ready() -> void:
 		steps = _compile_cmdline_to_steps(input_script)
 
 	if not steps.is_empty() and world != null:
-		var ctx: Dictionary = {"verbose": false, "passed": 0, "failed": 0,
-								"failures": [], "screenshots": []}
+		var ctx: Dictionary = {
+			"verbose": false, "passed": 0, "failed": 0, "failures": [], "screenshots": []
+		}
 		await StepRunner.run(steps, world, ctx)
 		for f in ctx.get("failures", []):
 			push_warning("[CaptureRunner] step failed: %s" % str(f))
@@ -87,7 +89,8 @@ func _compile_cmdline_to_steps(input_script: String) -> Array:
 	var steps: Array = []
 	for step_str in input_script.split(";"):
 		var parts := step_str.split(",")
-		if parts.size() != 2: continue
+		if parts.size() != 2:
+			continue
 		var action_spec := parts[0].strip_edges()
 		var dur := float(parts[1])
 		# `+` joins simultaneous actions into a hold array.
@@ -113,13 +116,13 @@ func _load_script(path: String) -> Array:
 		push_warning("[CaptureRunner] capture script not found: %s" % path)
 		return []
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return []
+	if f == null:
+		return []
 	var raw := f.get_as_text()
 	f.close()
 	var json := JSON.new()
 	if json.parse(raw) != OK:
-		push_warning("[CaptureRunner] script JSON parse error: %s" %
-			json.get_error_message())
+		push_warning("[CaptureRunner] script JSON parse error: %s" % json.get_error_message())
 		return []
 	if json.data is Array:
 		return json.data

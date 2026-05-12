@@ -53,8 +53,7 @@ static func register_from_data_root(data_root: String) -> Dictionary:
 	f.close()
 	var json := JSON.new()
 	if json.parse(raw) != OK:
-		push_warning("[InputRegistrar] parse error in %s: %s"
-			% [path, json.get_error_message()])
+		push_warning("[InputRegistrar] parse error in %s: %s" % [path, json.get_error_message()])
 		return out
 	if not (json.data is Dictionary):
 		return out
@@ -70,7 +69,8 @@ static func register_from_data_root(data_root: String) -> Dictionary:
 		if not (action_def is Dictionary):
 			continue
 		var name := _register_one(action_def)
-		if name == "": continue
+		if name == "":
+			continue
 		var edge := str((action_def as Dictionary).get("edge", "press"))
 		if edge == "hold":
 			(out["hold"] as Array).append(name)
@@ -109,7 +109,12 @@ static func _register_one(action_def: Dictionary) -> String:
 		if bool(action_def.get("engine_injected", false)):
 			InputMap.add_action(name)
 			return name
-		push_warning("[InputRegistrar] action '%s' has no key bindings AND is not already in InputMap — skipping (add `engine_injected: true` if intentional)" % name)
+		push_warning(
+			(
+				"[InputRegistrar] action '%s' has no key bindings AND is not already in InputMap — skipping (add `engine_injected: true` if intentional)"
+				% name
+			)
+		)
 		return ""
 
 	# Idempotent: clear pre-existing events for this action so re-loading
@@ -122,8 +127,7 @@ static func _register_one(action_def: Dictionary) -> String:
 	for key_str in keys:
 		var keycode: int = OS.find_keycode_from_string(key_str)
 		if keycode == 0:
-			push_warning("[InputRegistrar] unknown key '%s' for action '%s'"
-				% [key_str, name])
+			push_warning("[InputRegistrar] unknown key '%s' for action '%s'" % [key_str, name])
 			continue
 		var event := InputEventKey.new()
 		event.physical_keycode = keycode
@@ -134,6 +138,7 @@ static func _register_one(action_def: Dictionary) -> String:
 # ============================================================
 # PER-FRAME POLLING
 # ============================================================
+
 
 ## Per-frame input polling. Called from `world.gd::_process(delta)` to
 ## read Godot's InputMap state and queue actions onto the scheduler
@@ -161,9 +166,14 @@ static func _register_one(action_def: Dictionary) -> String:
 ## (registration + polling). Keeps the per-axis stop logic + ADR 0040
 ## pretick-zero carve-out co-located with the action lists they
 ## reference.
-static func poll(scheduler, actor_id: String,
-                 input_actions_hold: Array, input_actions_press: Array,
-                 stop_action_on_idle: String, entities: Dictionary) -> void:
+static func poll(
+	scheduler,
+	actor_id: String,
+	input_actions_hold: Array,
+	input_actions_press: Array,
+	stop_action_on_idle: String,
+	entities: Dictionary
+) -> void:
 	if actor_id == "":
 		return
 	# Per-axis idle detection (added 2026-05-10): track which movement
@@ -231,12 +241,16 @@ static func poll(scheduler, actor_id: String,
 	# pretick-zero suppression as per-axis stops above.
 	var legacy_stop_pretick_zero := false
 	if actor_ent is Entity:
-		legacy_stop_pretick_zero = bool((actor_ent as Entity).get_state("zero_velocity_pretick", false))
-	if not legacy_stop_pretick_zero \
-			and stop_action_on_idle != "" \
-			and not any_movement_pressed \
-			and stop_action_on_idle != "stop_x" \
-			and stop_action_on_idle != "stop_y":
+		legacy_stop_pretick_zero = bool(
+			(actor_ent as Entity).get_state("zero_velocity_pretick", false)
+		)
+	if (
+		not legacy_stop_pretick_zero
+		and stop_action_on_idle != ""
+		and not any_movement_pressed
+		and stop_action_on_idle != "stop_x"
+		and stop_action_on_idle != "stop_y"
+	):
 		var v2 = (actor_ent as Entity).get_velocity() if actor_ent is Entity else null
 		var v_nonzero: bool = false
 		if v2 is Vector2:

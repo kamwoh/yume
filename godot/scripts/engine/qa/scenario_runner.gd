@@ -79,6 +79,7 @@ func _ready() -> void:
 # Single scenario
 # ============================================================
 
+
 func _run_one(sc: Dictionary, data_root: String) -> void:
 	var name := str(sc.get("name", "<unnamed>"))
 	if verbose:
@@ -138,7 +139,12 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 		# ADR 0039 Condition C5: deprecate legacy actions[] schema. Removal
 		# at ADR 0050 or last-demo-migration whichever first.
 		if sc.has("actions"):
-			push_warning("[scenario] '%s' uses legacy actions[] schema — migrate to steps[] (deprecated as of ADR 0039, removal at ADR 0050 or last-demo-migration)" % name)
+			push_warning(
+				(
+					"[scenario] '%s' uses legacy actions[] schema — migrate to steps[] (deprecated as of ADR 0039, removal at ADR 0050 or last-demo-migration)"
+					% name
+				)
+			)
 		# Run ticks; inject scripted inputs at scheduled tick numbers.
 		# Resolve actor id each iteration — multi-level playthroughs destroy and
 		# recreate the player entity across transitions, invalidating any cached id.
@@ -182,16 +188,19 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 # Setup
 # ============================================================
 
+
 func _apply_setup(world: World, setup: Dictionary) -> void:
 	# spawn: extra entities to inject at scenario start.
 	# Schema: [{def: "monster_imp", id: "test_imp", position: [x, y, z]}]
 	var spawns: Array = setup.get("spawn", [])
 	for spec in spawns:
-		if not (spec is Dictionary): continue
+		if not (spec is Dictionary):
+			continue
 		var s: Dictionary = spec
 		var template := str(s.get("def", ""))
 		var defs: Dictionary = world.scheduler.env.get("defs", {})
-		if not defs.has(template): continue
+		if not defs.has(template):
+			continue
 		var override: Dictionary = {}
 		if s.has("position"):
 			override["position"] = s["position"]
@@ -243,6 +252,7 @@ func _find_actor_id(world: World) -> String:
 # Assertions
 # ============================================================
 
+
 func _check_assertion(world: World, a, scenario_name: String) -> void:
 	if not (a is Dictionary):
 		return
@@ -269,16 +279,21 @@ func _check_world_field(world: World, a: Dictionary, scenario_name: String) -> v
 	var ok := false
 	if expected is String or got is String:
 		match op:
-			"==": ok = (str(got) == str(expected))
-			"!=": ok = (str(got) != str(expected))
-			_: ok = false
+			"==":
+				ok = (str(got) == str(expected))
+			"!=":
+				ok = (str(got) != str(expected))
+			_:
+				ok = false
 	else:
 		ok = _cmp(float(got if got != null else 0), op, float(expected))
 	if ok:
 		_record_pass("world_field %s %s %s (got %s)" % [field, op, str(expected), str(got)])
 	else:
-		_record_fail(scenario_name,
-			"world_field %s: expected %s %s, got %s" % [field, op, str(expected), str(got)])
+		_record_fail(
+			scenario_name,
+			"world_field %s: expected %s %s, got %s" % [field, op, str(expected), str(got)]
+		)
 
 
 func _check_entity_count(world: World, a: Dictionary, scenario_name: String) -> void:
@@ -290,8 +305,10 @@ func _check_entity_count(world: World, a: Dictionary, scenario_name: String) -> 
 	if _cmp(got, op, expected):
 		_record_pass("entity_count %s %s %s" % [_summarize_query(query), op, expected])
 	else:
-		_record_fail(scenario_name,
-			"entity_count %s: expected %s %s, got %d" % [_summarize_query(query), op, expected, got])
+		_record_fail(
+			scenario_name,
+			"entity_count %s: expected %s %s, got %d" % [_summarize_query(query), op, expected, got]
+		)
 
 
 func _check_entity_field(world: World, a: Dictionary, scenario_name: String) -> void:
@@ -303,34 +320,41 @@ func _check_entity_field(world: World, a: Dictionary, scenario_name: String) -> 
 		if got_ent is Entity:
 			ent = got_ent
 		else:
-			_record_fail(scenario_name,
-				"entity_field by_id '%s': no such entity" % lookup_id)
+			_record_fail(scenario_name, "entity_field by_id '%s': no such entity" % lookup_id)
 			return
 	else:
 		var query: Dictionary = a.get("query", {})
 		var matches := _query_entities(world, query)
 		if matches.is_empty():
-			_record_fail(scenario_name,
-				"entity_field %s: no entities matched (select=%s)" % [_summarize_query(query), select])
+			_record_fail(
+				scenario_name,
+				(
+					"entity_field %s: no entities matched (select=%s)"
+					% [_summarize_query(query), select]
+				)
+			)
 			return
 		ent = matches[0]
 	var field := str(a.get("field", ""))
 	var got = _resolve_field(ent, field)
 	var op := str(a.get("op", "=="))
 	var expected = a.get("value", 0)
-	var label := "id=%s" % a.get("id", "?") if select == "by_id" \
-		else _summarize_query(a.get("query", {}))
+	var label := (
+		"id=%s" % a.get("id", "?") if select == "by_id" else _summarize_query(a.get("query", {}))
+	)
 	if _cmp(got, op, expected):
 		_record_pass("entity_field %s.%s %s %s (got %s)" % [label, field, op, expected, got])
 	else:
-		_record_fail(scenario_name,
-			"entity_field %s.%s: expected %s %s, got %s"
-			% [label, field, op, expected, got])
+		_record_fail(
+			scenario_name,
+			"entity_field %s.%s: expected %s %s, got %s" % [label, field, op, expected, got]
+		)
 
 
 # ============================================================
 # Query / field resolution
 # ============================================================
+
 
 func _query_entities(world: World, q: Dictionary) -> Array:
 	var env: Dictionary = world.scheduler.env
@@ -350,24 +374,34 @@ func _resolve_field(e: Entity, path: String):
 	for p in parts:
 		if cur is Entity:
 			match p:
-				"state":     cur = (cur as Entity).state
-				"properties":cur = (cur as Entity).properties
-				_:           return null
+				"state":
+					cur = (cur as Entity).state
+				"properties":
+					cur = (cur as Entity).properties
+				_:
+					return null
 		elif cur is Dictionary:
 			if not (cur as Dictionary).has(p):
 				return null
 			cur = (cur as Dictionary)[p]
 		elif cur is Vector2:
 			match p:
-				"x": cur = (cur as Vector2).x
-				"y": cur = (cur as Vector2).y
-				_:   return null
+				"x":
+					cur = (cur as Vector2).x
+				"y":
+					cur = (cur as Vector2).y
+				_:
+					return null
 		elif cur is Vector3:
 			match p:
-				"x": cur = (cur as Vector3).x
-				"y": cur = (cur as Vector3).y
-				"z": cur = (cur as Vector3).z
-				_:   return null
+				"x":
+					cur = (cur as Vector3).x
+				"y":
+					cur = (cur as Vector3).y
+				"z":
+					cur = (cur as Vector3).z
+				_:
+					return null
 		else:
 			return null
 	return cur
@@ -377,22 +411,31 @@ func _resolve_field(e: Entity, path: String):
 # Helpers
 # ============================================================
 
+
 func _cmp(got, op: String, expected) -> bool:
 	# Coerce to float when both sides are numeric.
 	if got is int or got is float:
 		var g := float(got)
 		var x := float(expected)
 		match op:
-			"==": return g == x
-			"!=": return g != x
-			"<":  return g < x
-			"<=": return g <= x
-			">":  return g > x
-			">=": return g >= x
+			"==":
+				return g == x
+			"!=":
+				return g != x
+			"<":
+				return g < x
+			"<=":
+				return g <= x
+			">":
+				return g > x
+			">=":
+				return g >= x
 	# Fallback string compare.
 	match op:
-		"==": return str(got) == str(expected)
-		"!=": return str(got) != str(expected)
+		"==":
+			return str(got) == str(expected)
+		"!=":
+			return str(got) != str(expected)
 	return false
 
 

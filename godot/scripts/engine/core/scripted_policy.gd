@@ -23,18 +23,17 @@ class_name ScriptedPolicy
 ## rule's `then` actions are returned. (Behavior-tree-style: select
 ## highest-priority matching branch.) If no rule matches, returns [].
 
-
 # ============================================================
 # STATE
 # ============================================================
 
-var _rules: Array = []   # array of {id, if, then}
-var _id: String = ""     # debug label
-
+var _rules: Array = []  # array of {id, if, then}
+var _id: String = ""  # debug label
 
 # ============================================================
 # LOADING
 # ============================================================
+
 
 ## Load a scripted policy from JSON. Path is relative to data_root
 ## (e.g. "policies/guard_basic.json"). Returns null on parse failure.
@@ -43,7 +42,8 @@ static func load_from_file(path: String) -> ScriptedPolicy:
 		push_warning("ScriptedPolicy: file not found: %s" % path)
 		return null
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return null
+	if f == null:
+		return null
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
 		push_warning("ScriptedPolicy: invalid JSON: %s" % path)
@@ -60,11 +60,13 @@ static func load_from_file(path: String) -> ScriptedPolicy:
 # DECISION
 # ============================================================
 
+
 ## Iterate rules in order; first match's `then` actions are returned.
 ## Each action gets the actor_id stamped in if not present.
 func decide(observation: Dictionary, actor_state: Dictionary) -> Array:
 	for r in _rules:
-		if not (r is Dictionary): continue
+		if not (r is Dictionary):
+			continue
 		var rule: Dictionary = r
 		var if_clause = rule.get("if", null)
 		# No `if` clause = always-true (default action); useful as
@@ -82,6 +84,7 @@ func decide(observation: Dictionary, actor_state: Dictionary) -> Array:
 # CONDITION EVALUATION
 # ============================================================
 
+
 ## Recursive condition evaluator. Supports:
 ##   {world_state: {key: <key>, op: ">=", value: <v>}}
 ##   {actor_state: {field: <field>, op: "==", value: <v>}}
@@ -91,24 +94,25 @@ func decide(observation: Dictionary, actor_state: Dictionary) -> Array:
 ##   {any: [<cond>, <cond>, ...]}    — OR
 ##   {not: <cond>}                    — negation
 func _eval_condition(cond, obs: Dictionary, st: Dictionary) -> bool:
-	if not (cond is Dictionary): return false
+	if not (cond is Dictionary):
+		return false
 	var c: Dictionary = cond
 	if c.has("all"):
 		for sub in c["all"]:
-			if not _eval_condition(sub, obs, st): return false
+			if not _eval_condition(sub, obs, st):
+				return false
 		return true
 	if c.has("any"):
 		for sub in c["any"]:
-			if _eval_condition(sub, obs, st): return true
+			if _eval_condition(sub, obs, st):
+				return true
 		return false
 	if c.has("not"):
 		return not _eval_condition(c["not"], obs, st)
 	if c.has("world_state"):
-		return _eval_kv("world_state", c["world_state"],
-			(obs.get("world_state", {}) as Dictionary))
+		return _eval_kv("world_state", c["world_state"], obs.get("world_state", {}) as Dictionary)
 	if c.has("actor_state"):
-		return _eval_kv("actor_state", c["actor_state"],
-			(st.get("state", {}) as Dictionary), "field")
+		return _eval_kv("actor_state", c["actor_state"], st.get("state", {}) as Dictionary, "field")
 	if c.has("distance_to"):
 		return _eval_distance(c["distance_to"], obs, st)
 	if c.has("nearby_count"):
@@ -119,36 +123,42 @@ func _eval_condition(cond, obs: Dictionary, st: Dictionary) -> bool:
 
 ## Compare a value-from-dict against a literal via op.
 ## key_field: which sub-key holds the dict-key name ("key" or "field").
-static func _eval_kv(label: String, spec, source: Dictionary,
-					  key_field: String = "key") -> bool:
-	if not (spec is Dictionary): return false
+static func _eval_kv(label: String, spec, source: Dictionary, key_field: String = "key") -> bool:
+	if not (spec is Dictionary):
+		return false
 	var s: Dictionary = spec
 	var key := str(s.get(key_field, ""))
-	if key == "" or not source.has(key): return false
+	if key == "" or not source.has(key):
+		return false
 	return _compare(source[key], str(s.get("op", "==")), s.get("value", null))
 
 
 ## distance_to: actor → target tag (first matching nearby entity).
 ## `target: "active_actor"` resolves to obs.active_actor_position.
 func _eval_distance(spec, obs: Dictionary, st: Dictionary) -> bool:
-	if not (spec is Dictionary): return false
+	if not (spec is Dictionary):
+		return false
 	var s: Dictionary = spec
 	var target := str(s.get("target", ""))
-	if target == "": return false
+	if target == "":
+		return false
 	var actor_pos = st.get("position", null)
-	if actor_pos == null: return false
+	if actor_pos == null:
+		return false
 	var target_pos = null
 	if target == "active_actor":
 		target_pos = obs.get("active_actor_position", null)
 	else:
 		# Find first nearby entity with matching tag
 		for e in obs.get("nearby", []):
-			if not (e is Dictionary): continue
+			if not (e is Dictionary):
+				continue
 			var tags = (e as Dictionary).get("tags", [])
 			if tags is Array and target in (tags as Array):
 				target_pos = (e as Dictionary).get("position", null)
 				break
-	if target_pos == null: return false
+	if target_pos == null:
+		return false
 	# Distance (Vector2 or Vector3)
 	var dist := 0.0
 	if actor_pos is Vector2 and target_pos is Vector2:
@@ -162,13 +172,16 @@ func _eval_distance(spec, obs: Dictionary, st: Dictionary) -> bool:
 
 ## nearby_count: how many nearby entities have tag X.
 static func _eval_nearby_count(spec, obs: Dictionary) -> bool:
-	if not (spec is Dictionary): return false
+	if not (spec is Dictionary):
+		return false
 	var s: Dictionary = spec
 	var tag := str(s.get("tag", ""))
-	if tag == "": return false
+	if tag == "":
+		return false
 	var count := 0
 	for e in obs.get("nearby", []):
-		if not (e is Dictionary): continue
+		if not (e is Dictionary):
+			continue
 		var tags = (e as Dictionary).get("tags", [])
 		if tags is Array and tag in (tags as Array):
 			count += 1
@@ -178,12 +191,18 @@ static func _eval_nearby_count(spec, obs: Dictionary) -> bool:
 ## Generic comparison: a OP b. Operators: ==, !=, <, <=, >, >=.
 static func _compare(a, op: String, b) -> bool:
 	match op:
-		"==": return a == b
-		"!=": return a != b
-		"<":  return float(a) < float(b)
-		"<=": return float(a) <= float(b)
-		">":  return float(a) > float(b)
-		">=": return float(a) >= float(b)
+		"==":
+			return a == b
+		"!=":
+			return a != b
+		"<":
+			return float(a) < float(b)
+		"<=":
+			return float(a) <= float(b)
+		">":
+			return float(a) > float(b)
+		">=":
+			return float(a) >= float(b)
 	return false
 
 

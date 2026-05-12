@@ -19,7 +19,6 @@ class_name WorldResetCoordinator
 ##
 ## Pattern: RefCounted, per-World instance, world reference via _world.
 
-
 var _world: World
 
 
@@ -31,9 +30,11 @@ func _init(world: World) -> void:
 # PUBLIC API
 # ============================================================
 
+
 ## Drain a pending world reset (set by the reset_world effect).
 func process_pending(env: Dictionary) -> void:
-	if not bool(env.get("_pending_world_reset", false)): return
+	if not bool(env.get("_pending_world_reset", false)):
+		return
 	env.erase("_pending_world_reset")
 	do_reset()
 
@@ -53,7 +54,8 @@ func do_reset() -> void:
 			to_remove.append(str(id))
 	for rid in to_remove:
 		var rent: Entity = _world.entities.get(rid, null)
-		if rent == null: continue
+		if rent == null:
+			continue
 		if _world.relations != null:
 			_world.relations.clear_entity(rid)
 		if _world.spatial_index != null and _world.spatial_index.has_method("remove_entity"):
@@ -70,9 +72,9 @@ func do_reset() -> void:
 	# root entities.
 	var prog_path := root + "/game/flow.json"
 	if FileAccess.file_exists(prog_path):
-		_world._loader.load_progression(prog_path)         # resets current_level → starting_level
+		_world._loader.load_progression(prog_path)  # resets current_level → starting_level
 		_world.world_state["current_level"] = _world.current_level
-		_world._loader.load_entities_path(root)             # re-load persistent root entities
+		_world._loader.load_entities_path(root)  # re-load persistent root entities
 		if _world.current_level != "":
 			_world._level_transitions.load_level(_world.current_level)
 	else:
@@ -81,8 +83,13 @@ func do_reset() -> void:
 	# clears in-memory state. has_save remains accurate.
 	if not _world.save_policy.is_empty():
 		var slots := int(_world.save_policy.get("slots", 1))
-		_world.world_state["has_save"] = 1 if SaveState.has_any_save(
-			SaveLoadCoordinator.game_name_from_root(_world.data_root), slots) else 0
+		_world.world_state["has_save"] = (
+			1
+			if SaveState.has_any_save(
+				SaveLoadCoordinator.game_name_from_root(_world.data_root), slots
+			)
+			else 0
+		)
 	# 5. Refresh active_actor_id mirror (ActorManager state untouched).
 	if _world.actor_manager != null:
 		_world.world_state["active_actor_id"] = _world.actor_manager.active_actor_id

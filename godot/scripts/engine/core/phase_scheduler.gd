@@ -35,10 +35,10 @@ var rules_by_trigger: Dictionary = {}
 
 ## Per-tick counters and queues.
 var tick_count: int = 0
-var input_queue: Array = []                # queued by caller between ticks
-var effect_buffer: Array = []              # [{effect, context, from_rule}]
-var commit_phase_signals: Array = []       # emit during commit → drained in react
-var react_phase_signals: Array = []        # emit during react → drained next tick
+var input_queue: Array = []  # queued by caller between ticks
+var effect_buffer: Array = []  # [{effect, context, from_rule}]
+var commit_phase_signals: Array = []  # emit during commit → drained in react
+var react_phase_signals: Array = []  # emit during react → drained next tick
 
 # Cycle warning flag (set once per load when topo-sort can't converge)
 var _topo_cycle_warned: bool = false
@@ -52,10 +52,10 @@ var _topo_cycle_warned: bool = false
 ## Cleaned up in _on_entity_despawned to bound memory.
 var _lod_state: Dictionary = {}
 
-
 # ============================================================
 # INIT
 # ============================================================
+
 
 func _init(environment: Dictionary) -> void:
 	env = environment
@@ -85,8 +85,10 @@ func _dispatch_lifecycle_inline(kind: String, entity_id: String) -> void:
 
 var _relation_changes: Array = []  # [{change, type, from, to}, ...]
 
+
 func _on_relation_added(type: String, from_id: String, to_id: String) -> void:
 	_relation_changes.append({"change": "added", "type": type, "from": from_id, "to": to_id})
+
 
 func _on_relation_removed(type: String, from_id: String, to_id: String) -> void:
 	_relation_changes.append({"change": "removed", "type": type, "from": from_id, "to": to_id})
@@ -96,12 +98,14 @@ func _on_relation_removed(type: String, from_id: String, to_id: String) -> void:
 # RULE REGISTRATION
 # ============================================================
 
+
 ## Rebuild the trigger-bucketed rule map. Applies before/after topo-sort
 ## within each bucket.
 func register_rules(rules: Array) -> void:
 	rules_by_trigger.clear()
 	for r in rules:
-		if not (r is Rule): continue
+		if not (r is Rule):
+			continue
 		var tt := (r as Rule).trigger_type()
 		if not rules_by_trigger.has(tt):
 			rules_by_trigger[tt] = []
@@ -113,7 +117,8 @@ func register_rules(rules: Array) -> void:
 ## global rules registered once, level-specific rules added on top).
 func append_rules(rules: Array) -> void:
 	for r in rules:
-		if not (r is Rule): continue
+		if not (r is Rule):
+			continue
 		var tt := (r as Rule).trigger_type()
 		if not rules_by_trigger.has(tt):
 			rules_by_trigger[tt] = []
@@ -160,17 +165,24 @@ func _topo_sort_bucket(bucket: Array) -> void:
 				changed = true
 		pass_count += 1
 	if changed and not _topo_cycle_warned:
-		EngineError.raise(env, EngineError.SCHEDULER_TOPO_CYCLE,
-			"PhaseScheduler: before/after hints may contain a cycle",
-			{"trigger_type": "tick"},
-			"Audit rules' before/after lists for circular references; the engine fell back to JSON definition order.",
-			"warning")
+		(
+			EngineError
+			. raise(
+				env,
+				EngineError.SCHEDULER_TOPO_CYCLE,
+				"PhaseScheduler: before/after hints may contain a cycle",
+				{"trigger_type": "tick"},
+				"Audit rules' before/after lists for circular references; the engine fell back to JSON definition order.",
+				"warning"
+			)
+		)
 		_topo_cycle_warned = true
 
 
 # ============================================================
 # INPUTS
 # ============================================================
+
 
 func queue_input(action: String, params: Dictionary = {}) -> void:
 	input_queue.append({"action": action, "params": params})
@@ -179,6 +191,7 @@ func queue_input(action: String, params: Dictionary = {}) -> void:
 # ============================================================
 # MAIN LOOP
 # ============================================================
+
 
 func tick() -> void:
 	tick_count += 1
@@ -200,12 +213,12 @@ func tick() -> void:
 	flush_effects()
 	_drain_signals_into("react")
 	flush_effects()  # 2026-05-05: signal-rule effects apply BEFORE react
-	                 # queries state. Critical for blocker-pattern rules: a
-	                 # signal rule sets a "blocked" flag that a contact rule
-	                 # in react then reads. Without this flush, contact rules
-	                 # see the pre-flag state. Caught during sokoban L2:
-	                 # wall_blocks_push set push_blocked=1 but commit_push
-	                 # still fired and pushed boxes through perimeter walls.
+	# queries state. Critical for blocker-pattern rules: a
+	# signal rule sets a "blocked" flag that a contact rule
+	# in react then reads. Without this flush, contact rules
+	# see the pre-flag state. Caught during sokoban L2:
+	# wall_blocks_push set push_blocked=1 but commit_push
+	# still fired and pushed boxes through perimeter walls.
 
 	# Motion is now integrated per-frame by World (see world.gd._process),
 	# NOT per-tick. velocity is a state field updated at tick rate; position
@@ -227,10 +240,12 @@ func run_ticks(n: int) -> void:
 # PHASES (W1 stubs for input/react; decide + commit active)
 # ============================================================
 
+
 ## Phase 1 (W2.2): drain input queue, fire matching `input` rules.
 ## Each input event becomes a rule context with flattened payload params.
 func _phase_input() -> void:
-	if input_queue.is_empty(): return
+	if input_queue.is_empty():
+		return
 	var events := input_queue.duplicate()
 	input_queue.clear()
 	var input_rules: Array = rules_by_trigger.get("input", [])
@@ -239,7 +254,8 @@ func _phase_input() -> void:
 		var params: Dictionary = (ev.get("params", {}) as Dictionary).duplicate()
 		for r in input_rules:
 			var rule: Rule = r
-			if str(rule.trigger_param("action", "")) != action: continue
+			if str(rule.trigger_param("action", "")) != action:
+				continue
 			_fire_payload_rule(rule, params, "input")
 
 
@@ -264,8 +280,10 @@ func _phase_decide() -> void:
 	for r in tick_rules:
 		var rule: Rule = r
 		var interval: int = int(rule.trigger_param("interval", 1))
-		if interval <= 0: continue
-		if tick_count % interval != 0: continue
+		if interval <= 0:
+			continue
+		if tick_count % interval != 0:
+			continue
 		_fire_scan_rule(rule)
 
 
@@ -285,8 +303,10 @@ func _phase_react() -> void:
 		for ch in changes:
 			for rr in rules_rc:
 				var rule: Rule = rr
-				if rule.trigger.has("relation") and str(rule.trigger["relation"]) != ch["type"]: continue
-				if rule.trigger.has("change") and str(rule.trigger["change"]) != ch["change"]: continue
+				if rule.trigger.has("relation") and str(rule.trigger["relation"]) != ch["type"]:
+					continue
+				if rule.trigger.has("change") and str(rule.trigger["change"]) != ch["change"]:
+					continue
 				var ctx := {"from": ch["from"], "to": ch["to"], "self": ch["from"]}
 				_fire_payload_rule(rule, ctx, "react")
 
@@ -299,8 +319,10 @@ func _phase_react() -> void:
 ## falls back to O(n²) pair scan.
 func _fire_contact_rule(rule: Rule) -> void:
 	var query = rule.query
-	if not (query is Dictionary): return
-	if not (query.has("a") and query.has("b")): return
+	if not (query is Dictionary):
+		return
+	if not (query.has("a") and query.has("b")):
+		return
 	var a_spec: Dictionary = query["a"]
 	var b_spec: Dictionary = query["b"]
 	var radius: float = float(query.get("radius", 1.0))
@@ -315,7 +337,8 @@ func _fire_contact_rule(rule: Rule) -> void:
 	# Find all 'a' candidates (full scan — entities matching a's filters)
 	var a_candidates: Array = QueryLib.run(a_spec, env, {})
 	for a_ent in a_candidates:
-		if not (a_ent is Entity): continue
+		if not (a_ent is Entity):
+			continue
 		var a_pos: Vector2 = (a_ent as Entity).get_planar_position()
 		# Find b's near a, filtered by b_spec
 		var ctx_for_b := {"_origin_position": a_pos, "self": (a_ent as Entity).instance_id}
@@ -324,9 +347,12 @@ func _fire_contact_rule(rule: Rule) -> void:
 		var b_candidates: Array = QueryLib.run(b_spec_with_radius, env, ctx_for_b)
 		var fired_for_a := false
 		for b_ent in b_candidates:
-			if not (b_ent is Entity): continue
-			if a_ent == b_ent: continue
-			if chance < 1.0 and randf() > chance: continue
+			if not (b_ent is Entity):
+				continue
+			if a_ent == b_ent:
+				continue
+			if chance < 1.0 and randf() > chance:
+				continue
 			var ctx: Dictionary = {
 				"a": (a_ent as Entity).instance_id,
 				"b": (b_ent as Entity).instance_id,
@@ -349,11 +375,13 @@ func _fire_contact_rule(rule: Rule) -> void:
 # SIGNAL & LIFECYCLE DISPATCH (W2.1, W2.3)
 # ============================================================
 
+
 ## Drain env.signal_buffer; fire matching signal-trigger rules. `into_phase`
 ## is the phase tag for the resulting rule contexts ("decide" or "react").
 func _drain_signals_into(into_phase: String) -> void:
 	var buf: Array = env.get("signal_buffer", [])
-	if buf.is_empty(): return
+	if buf.is_empty():
+		return
 	var sigs := buf.duplicate()
 	buf.clear()
 	var signal_rules: Array = rules_by_trigger.get("signal", [])
@@ -362,7 +390,8 @@ func _drain_signals_into(into_phase: String) -> void:
 		var payload: Dictionary = (sig.get("payload", {}) as Dictionary).duplicate()
 		for r in signal_rules:
 			var rule: Rule = r
-			if str(rule.trigger_param("name", "")) != name: continue
+			if str(rule.trigger_param("name", "")) != name:
+				continue
 			_fire_payload_rule(rule, payload, into_phase)
 
 
@@ -370,10 +399,10 @@ func _drain_signals_into(into_phase: String) -> void:
 ## _dispatch_lifecycle_inline above. Buffer-based drain was removed because
 ## despawn events would drain AFTER the entity was already removed.)
 
-
 # ============================================================
 # MOTION INTEGRATOR (W2.5) — engine built-in, not a rule
 # ============================================================
+
 
 ## After commit phase, advance every entity with non-zero velocity.
 ## state.position += state.velocity. Dimension-agnostic — works for Vector2 + Vector3.
@@ -381,12 +410,16 @@ func _apply_motion() -> void:
 	var entities: Dictionary = env.get("entities", {})
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var v = (ent as Entity).get_velocity()
-		if v == null: continue
+		if v == null:
+			continue
 		# Skip if zero (cheap)
-		if v is Vector2 and v == Vector2.ZERO: continue
-		if v is Vector3 and v == Vector3.ZERO: continue
+		if v is Vector2 and v == Vector2.ZERO:
+			continue
+		if v is Vector3 and v == Vector3.ZERO:
+			continue
 		var p = (ent as Entity).get_position()
 		if p is Vector2 and v is Vector2:
 			(ent as Entity).set_position((p as Vector2) + v)
@@ -401,16 +434,19 @@ func _apply_motion() -> void:
 # RULE FIRING
 # ============================================================
 
+
 ## Fire a rule whose query scans all entities (tick rules). For each match,
 ## bind `self` in context, validate require, and enqueue effects.
 func _fire_scan_rule(rule: Rule) -> void:
-	if rule.chance < 1.0 and randf() > rule.chance: return
+	if rule.chance < 1.0 and randf() > rule.chance:
+		return
 	var base_ctx: Dictionary = {"_phase": "decide"}
 
 	if rule.query is Dictionary:
 		var matches: Array = QueryLib.run(rule.query, env, base_ctx)
 		for ent in matches:
-			if not (ent is Entity): continue
+			if not (ent is Entity):
+				continue
 			# ADR 0017: spatial-LOD filter. Skip entities outside the LOD
 			# radius (per the rule's hysteresis state); rate-limit firing
 			# for tick_slowed fallback mode.
@@ -436,7 +472,8 @@ func _fire_scan_rule(rule: Rule) -> void:
 ## `require`. If `query` is present, scan and bind self per match (rare for
 ## payload-driven rules but allowed).
 func _fire_payload_rule(rule: Rule, payload: Dictionary, phase: String) -> void:
-	if rule.chance < 1.0 and randf() > rule.chance: return
+	if rule.chance < 1.0 and randf() > rule.chance:
+		return
 	var base_ctx: Dictionary = payload.duplicate()
 	base_ctx["_phase"] = phase
 
@@ -446,7 +483,8 @@ func _fire_payload_rule(rule: Rule, payload: Dictionary, phase: String) -> void:
 	if rule.query is Dictionary:
 		var matches: Array = QueryLib.run(rule.query, env, base_ctx)
 		for ent in matches:
-			if not (ent is Entity): continue
+			if not (ent is Entity):
+				continue
 			var ctx := base_ctx.duplicate()
 			ctx["self"] = (ent as Entity).instance_id
 			ctx["self_entity"] = ent
@@ -462,17 +500,21 @@ func _fire_payload_rule(rule: Rule, payload: Dictionary, phase: String) -> void:
 ## tags/state.
 func _fire_lifecycle_rule(rule: Rule, entity_id: String, phase: String) -> void:
 	var entities: Dictionary = env.get("entities", {})
-	if not entities.has(entity_id): return
+	if not entities.has(entity_id):
+		return
 	var ent: Entity = entities[entity_id]
 	var ctx: Dictionary = {"self": entity_id, "self_entity": ent, "_phase": phase}
 
 	# Filter mode: query treated as condition on the spawning/despawning entity
 	if rule.query is Dictionary:
-		if not QueryLib.matches(ent, rule.query, env, ctx): return
+		if not QueryLib.matches(ent, rule.query, env, ctx):
+			return
 
-	if rule.require is Dictionary and not _require_ok(rule.require, ctx): return
+	if rule.require is Dictionary and not _require_ok(rule.require, ctx):
+		return
 
-	if rule.chance < 1.0 and randf() > rule.chance: return
+	if rule.chance < 1.0 and randf() > rule.chance:
+		return
 
 	for e in rule.effects:
 		_enqueue(e, ctx, rule.id)
@@ -483,11 +525,14 @@ func _require_ok(req: Dictionary, ctx: Dictionary) -> bool:
 	var all: Dictionary = env.get("entities", {})
 	for name in req:
 		var id = ctx.get(str(name), null)
-		if id == null: return false
+		if id == null:
+			return false
 		var sid := str(id)
-		if not all.has(sid): return false
+		if not all.has(sid):
+			return false
 		var ent = all[sid]
-		if not (ent is Entity): return false
+		if not (ent is Entity):
+			return false
 		if not QueryLib.matches(ent, req[name], env, ctx):
 			return false
 	return true
@@ -497,23 +542,30 @@ func _require_ok(req: Dictionary, ctx: Dictionary) -> bool:
 # EFFECT BUFFER
 # ============================================================
 
+
 func _enqueue(effect: Dictionary, ctx: Dictionary, from_rule: String) -> void:
 	# 2.6a: stamp the rule id into the context so EffectApply can attribute
 	# downstream errors to the rule that queued them.
 	var ctx_copy: Dictionary = ctx.duplicate()
 	ctx_copy["_rule_id"] = from_rule
-	effect_buffer.append({
-		"effect": effect,
-		"context": ctx_copy,
-		"from_rule": from_rule,
-	})
+	(
+		effect_buffer
+		. append(
+			{
+				"effect": effect,
+				"context": ctx_copy,
+				"from_rule": from_rule,
+			}
+		)
+	)
 
 
 ## Drain the buffer, apply each effect via EffectApply. Called multiple times
 ## per tick (after each phase's enqueues) so that spawns/removes within a
 ## phase commit before the next phase reads state.
 func flush_effects() -> void:
-	if effect_buffer.is_empty(): return
+	if effect_buffer.is_empty():
+		return
 	var batch = effect_buffer
 	effect_buffer = []
 	for item in batch:
@@ -523,6 +575,7 @@ func flush_effects() -> void:
 # ============================================================
 # SPATIAL-LOD SCHEDULING (ADR 0017)
 # ============================================================
+
 
 ## Compute the LOD anchor position for this tick. Stored in
 ## env.lod_anchor_position so all LOD-tagged rules in this tick share one
@@ -558,10 +611,14 @@ func _lod_should_fire(rule: Rule, ent: Entity) -> bool:
 		# (graceful fallback; better to over-tick than to silently freeze).
 		return true
 	var entity_pos = ent.get_planar_position()
-	if entity_pos == null: return true
+	if entity_pos == null:
+		return true
 	# Distance check (works for Vector2 OR Vector3 — both have distance_to)
-	var dist: float = (entity_pos as Vector2).distance_to(anchor as Vector2) \
-		if entity_pos is Vector2 else (entity_pos as Vector3).distance_to(anchor as Vector3)
+	var dist: float = (
+		(entity_pos as Vector2).distance_to(anchor as Vector2)
+		if entity_pos is Vector2
+		else (entity_pos as Vector3).distance_to(anchor as Vector3)
+	)
 	# Update hysteresis state
 	var was_inside := _lod_get_inside(rule.id, ent.instance_id)
 	var enter_r := float(lod.get("enter_radius", 200.0))
@@ -576,7 +633,8 @@ func _lod_should_fire(rule: Rule, ent: Entity) -> bool:
 	if now_inside != was_inside:
 		_lod_set_inside(rule.id, ent.instance_id, now_inside)
 	# Inside → fire normally
-	if now_inside: return true
+	if now_inside:
+		return true
 	# Outside → apply fallback mode
 	var fallback := str(lod.get("fallback", "freeze"))
 	if fallback == "freeze":
@@ -585,9 +643,11 @@ func _lod_should_fire(rule: Rule, ent: Entity) -> bool:
 		var slow_factor := float(fallback.substr(12))
 		# tick_slowed:0.5 = fire at half rate (every 2 ticks instead of every tick)
 		# tick_slowed:0.1 = fire at 1/10 rate
-		if slow_factor <= 0.0: return false
+		if slow_factor <= 0.0:
+			return false
 		var interval := int(round(1.0 / slow_factor))
-		if interval <= 1: return true  # 1.0 or higher = full rate
+		if interval <= 1:
+			return true  # 1.0 or higher = full rate
 		var last := _lod_get_last_fired(rule.id, ent.instance_id)
 		if tick_count - last >= interval:
 			_lod_set_last_fired(rule.id, ent.instance_id, tick_count)
@@ -600,9 +660,11 @@ func _lod_should_fire(rule: Rule, ent: Entity) -> bool:
 # State accessors
 func _lod_get_inside(rule_id: String, entity_id: String) -> bool:
 	var by_entity = _lod_state.get(rule_id, null)
-	if not (by_entity is Dictionary): return false
+	if not (by_entity is Dictionary):
+		return false
 	var rec = (by_entity as Dictionary).get(entity_id, null)
-	if not (rec is Dictionary): return false
+	if not (rec is Dictionary):
+		return false
 	return bool((rec as Dictionary).get("inside", false))
 
 
@@ -617,9 +679,11 @@ func _lod_set_inside(rule_id: String, entity_id: String, value: bool) -> void:
 
 func _lod_get_last_fired(rule_id: String, entity_id: String) -> int:
 	var by_entity = _lod_state.get(rule_id, null)
-	if not (by_entity is Dictionary): return -100000
+	if not (by_entity is Dictionary):
+		return -100000
 	var rec = (by_entity as Dictionary).get(entity_id, null)
-	if not (rec is Dictionary): return -100000
+	if not (rec is Dictionary):
+		return -100000
 	return int((rec as Dictionary).get("last_fired", -100000))
 
 

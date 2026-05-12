@@ -28,7 +28,6 @@ class_name LightingDirector
 ## 2D scenes simply leave the lighting block out of scene.json — the
 ## director sees no config and does nothing.
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
@@ -38,30 +37,29 @@ class_name LightingDirector
 # horizon. We rotate around X axis so the sun arcs across the sky.
 const HOURS_PER_DAY: float = 24.0
 
-
 # ============================================================
 # STATE
 # ============================================================
 
 var _world: Node = null
 var _config_loaded: bool = false
-var _config: Dictionary = {}                  # parsed lighting block
+var _config: Dictionary = {}  # parsed lighting block
 
 # Cached Godot nodes we drive. Either adopted from the scene tree (if a
 # .tscn pre-declares them) or created on first config-load.
 var _sun: DirectionalLight3D = null
 var _world_env: WorldEnvironment = null
-var _owns_sun: bool = false                   # true if we created _sun
-var _owns_env: bool = false                   # true if we created _world_env
+var _owns_sun: bool = false  # true if we created _sun
+var _owns_env: bool = false  # true if we created _world_env
 
 # Bind path (e.g. "world_clock.time_of_day"). Parsed once on load.
 var _bind_tag: String = ""
 var _bind_field: String = ""
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -72,11 +70,15 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _config_loaded: return
-	if _config.is_empty(): return
-	if _world == null: return
+	if not _config_loaded:
+		return
+	if _config.is_empty():
+		return
+	if _world == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return     # env not built yet
+	if sched == null:
+		return  # env not built yet
 	# Adopt or create lighting nodes lazily — _world's own _ready() may not
 	# have built the scene tree's lighting children yet on our first tick.
 	if _sun == null and _world_env == null:
@@ -88,19 +90,26 @@ func _process(_delta: float) -> void:
 # CONFIG LOAD
 # ============================================================
 
+
 func _load_config() -> void:
-	if _config_loaded: return
+	if _config_loaded:
+		return
 	_config_loaded = true
 	var root := str(_world.get("data_root")).rstrip("/")
-	if root == "": return
+	if root == "":
+		return
 	var path := root + "/scene.json"
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var data = JSON.parse_string(f.get_as_text())
-	if not (data is Dictionary): return
+	if not (data is Dictionary):
+		return
 	var lighting = (data as Dictionary).get("lighting", null)
-	if not (lighting is Dictionary): return
+	if not (lighting is Dictionary):
+		return
 	_config = lighting
 	# Parse binding "tag.field" once. Default: world_clock.time_of_day.
 	var dl: Dictionary = _config.get("directional_light", {})
@@ -117,6 +126,7 @@ func _load_config() -> void:
 # ============================================================
 # NODE ATTACH (adopt-or-create)
 # ============================================================
+
 
 func _attach_lighting_nodes() -> void:
 	# Search scene tree (siblings of self under _world) for existing nodes.
@@ -163,6 +173,7 @@ func _attach_lighting_nodes() -> void:
 # PER-FRAME UPDATE
 # ============================================================
 
+
 func _update_lighting(env: Dictionary) -> void:
 	var t := _resolve_time_of_day(env)
 	# Normalize to 0..24
@@ -200,6 +211,7 @@ func _resolve_time_of_day(env: Dictionary) -> float:
 # SUN POSITIONING + COLOR
 # ============================================================
 
+
 ## At t=0 (midnight): sun below the horizon, light direction points UP (night).
 ## At t=6 (dawn): sun at east horizon, light points horizontally (+X).
 ## At t=12 (noon): sun overhead, light points DOWN (-Y).
@@ -221,19 +233,23 @@ func _apply_sun(t: float) -> void:
 	var c_horizon := Color(dl_cfg.get("color_at_dawn_dusk", "#ff9060"))
 	var c_night := Color(dl_cfg.get("color_at_night", "#3050a0"))
 	_sun.light_color = sun_color_at(t, c_noon, c_horizon, c_night)
-	_sun.light_energy = sun_energy_at(t,
+	_sun.light_energy = sun_energy_at(
+		t,
 		float(dl_cfg.get("energy_noon", 1.0)),
 		float(dl_cfg.get("energy_horizon", 0.7)),
-		float(dl_cfg.get("energy_night", 0.05)))
+		float(dl_cfg.get("energy_night", 0.05))
+	)
 
 
 # ============================================================
 # AMBIENT + SKY
 # ============================================================
 
+
 func _apply_environment(t: float) -> void:
 	var env_obj: Environment = _world_env.environment
-	if env_obj == null: return
+	if env_obj == null:
+		return
 
 	var amb: Dictionary = _config.get("ambient", {})
 	if not amb.is_empty():
@@ -263,6 +279,7 @@ func _apply_environment(t: float) -> void:
 # ============================================================
 # STATIC HELPERS (testable without a SceneTree)
 # ============================================================
+
 
 ## day_factor: 0 = full night (midnight), 1 = full day (noon).
 ## Sinusoidal so dawn/dusk feel smooth, not a sharp cutoff.

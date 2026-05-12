@@ -21,10 +21,8 @@ class_name MotionIntegrator
 ## Pattern matches LevelTransitionCoordinator / SpawnManager — RefCounted,
 ## per-World instance, constructor takes a world reference.
 
-
 const DRAG_REST_EPSILON := 0.5
 const DEFAULT_BODY_RADIUS := 0.4
-
 
 var _world: World
 var _physics_test_shape_3d: RID = RID()
@@ -53,9 +51,11 @@ func integrate(delta: float) -> void:
 	var spatial_index = _world.spatial_index
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var v = (ent as Entity).get_velocity()
-		if v == null: continue
+		if v == null:
+			continue
 		# Apply drag if configured. Skipped if drag = 0 (default).
 		var drag_v := float((ent as Entity).get_state("drag", 0.0))
 		if drag_v > 0.0:
@@ -64,18 +64,21 @@ func integrate(delta: float) -> void:
 				var v2: Vector2 = v
 				if v2 != Vector2.ZERO:
 					v2 *= factor
-					if v2.length() < DRAG_REST_EPSILON: v2 = Vector2.ZERO
+					if v2.length() < DRAG_REST_EPSILON:
+						v2 = Vector2.ZERO
 					(ent as Entity).set_velocity(v2)
 					v = v2
 			elif v is Vector3:
 				var v3: Vector3 = v
 				if v3 != Vector3.ZERO:
 					v3 *= factor
-					if v3.length() < DRAG_REST_EPSILON * 0.01: v3 = Vector3.ZERO
+					if v3.length() < DRAG_REST_EPSILON * 0.01:
+						v3 = Vector3.ZERO
 					(ent as Entity).set_velocity(v3)
 					v = v3
 		# Static obstacles don't move themselves.
-		if (ent as Entity).has_tag("blocks_motion"): continue
+		if (ent as Entity).has_tag("blocks_motion"):
+			continue
 		var body_r: float = float((ent as Entity).get_property("body_radius", DEFAULT_BODY_RADIUS))
 		var p = (ent as Entity).get_position()
 		var moved := false
@@ -125,13 +128,17 @@ func _ensure_physics_test_shape(radius: float) -> RID:
 ## without viewport) — caller treats as no collision.
 func _physics_collides_3d(pos: Vector3, radius: float) -> bool:
 	var vp := _world.get_viewport()
-	if vp == null: return false
+	if vp == null:
+		return false
 	var w3d := vp.find_world_3d()
-	if w3d == null: return false
+	if w3d == null:
+		return false
 	var space: RID = w3d.space
-	if not space.is_valid(): return false
+	if not space.is_valid():
+		return false
 	var ds := PhysicsServer3D.space_get_direct_state(space)
-	if ds == null: return false
+	if ds == null:
+		return false
 	var query := PhysicsShapeQueryParameters3D.new()
 	query.shape_rid = _ensure_physics_test_shape(radius)
 	query.transform = Transform3D(Basis(), pos)

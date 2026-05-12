@@ -28,10 +28,10 @@ class_name SaveState
 ## Atomic write: writes to slot_N.json.tmp, then renames over slot_N.json.
 ## Crash mid-write leaves the prior slot intact.
 
-
 # ============================================================
 # PATHS
 # ============================================================
+
 
 ## Resolve user://saves/<game>/slot_N.json. game_name is the data_root
 ## folder name (e.g. "demo_sokoban"). Engine uses this to namespace per-game.
@@ -51,6 +51,7 @@ static func _ensure_save_dir(game_name: String) -> bool:
 # ============================================================
 # POLICY
 # ============================================================
+
 
 ## Load `<data_root>/save_policy.json`. Returns {} if absent, which
 ## means the game hasn't opted in to save/load. Caller-side: if empty,
@@ -73,6 +74,7 @@ static func load_policy(data_root: String) -> Dictionary:
 # SAVE
 # ============================================================
 
+
 ## Serialize per policy into slot_N.json (atomic). Returns true on
 ## success. Logs structured error on failure.
 ##
@@ -80,8 +82,9 @@ static func load_policy(data_root: String) -> Dictionary:
 ## policy: parsed save_policy.json
 ## slot: integer 0..N-1
 ## game_name: data_root basename (e.g. "demo_sokoban")
-static func save_to_slot(env: Dictionary, policy: Dictionary, slot: int,
-						 game_name: String, current_tick: int) -> bool:
+static func save_to_slot(
+	env: Dictionary, policy: Dictionary, slot: int, game_name: String, current_tick: int
+) -> bool:
 	if policy.is_empty():
 		push_warning("save_to_slot: policy is empty (no save_policy.json?); refusing to save")
 		return false
@@ -92,7 +95,8 @@ static func save_to_slot(env: Dictionary, policy: Dictionary, slot: int,
 
 	var payload: Dictionary = {
 		"version": int(policy.get("version", 1)),
-		"_meta": {
+		"_meta":
+		{
 			"game": game_name,
 			"saved_at_unix": int(Time.get_unix_time_from_system()),
 			"tick": current_tick,
@@ -145,7 +149,7 @@ static func save_to_slot(env: Dictionary, policy: Dictionary, slot: int,
 
 # Apply entity_state_blacklist globs. Returns the filtered world_state.
 static func _filter_world_state(env: Dictionary, policy: Dictionary) -> Dictionary:
-	var ws_in: Dictionary = (env.get("world", {}) as Dictionary)
+	var ws_in: Dictionary = env.get("world", {}) as Dictionary
 	var keys: Array = policy.get("world_state_keys", [])
 	var out: Dictionary = {}
 	for k in keys:
@@ -156,14 +160,16 @@ static func _filter_world_state(env: Dictionary, policy: Dictionary) -> Dictiona
 
 
 static func _serialize_persistent_entities(env: Dictionary, policy: Dictionary) -> Array:
-	var entities_in: Dictionary = (env.get("entities", {}) as Dictionary)
+	var entities_in: Dictionary = env.get("entities", {}) as Dictionary
 	var tags: Array = policy.get("entity_tags_persistent", [])
 	var blacklist: Array = policy.get("entity_state_blacklist", [])
 	var out: Array = []
-	if tags.is_empty(): return out
+	if tags.is_empty():
+		return out
 	for inst_id in entities_in.keys():
 		var ent = entities_in[inst_id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var e := ent as Entity
 		# Match if entity has ANY of the persistent tags
 		var matches := false
@@ -171,7 +177,8 @@ static func _serialize_persistent_entities(env: Dictionary, policy: Dictionary) 
 			if e.has_tag(str(t)):
 				matches = true
 				break
-		if not matches: continue
+		if not matches:
+			continue
 		var rec: Dictionary = {
 			"id": str(inst_id),
 			"def": str(e.def_id),
@@ -189,7 +196,8 @@ static func _filter_state(e: Entity, blacklist: Array) -> Dictionary:
 	var st: Dictionary = e.state
 	for field in st.keys():
 		var key := str(field)
-		if _matches_any_glob(key, blacklist): continue
+		if _matches_any_glob(key, blacklist):
+			continue
 		out[key] = st[field]
 	return out
 
@@ -199,10 +207,12 @@ static func _matches_any_glob(s: String, patterns: Array) -> bool:
 		var pat := str(p)
 		if pat.ends_with("*"):
 			var prefix := pat.substr(0, pat.length() - 1)
-			if s.begins_with(prefix): return true
+			if s.begins_with(prefix):
+				return true
 		elif pat.begins_with("*"):
 			var suffix := pat.substr(1)
-			if s.ends_with(suffix): return true
+			if s.ends_with(suffix):
+				return true
 		elif s == pat:
 			return true
 	return false
@@ -210,20 +220,28 @@ static func _matches_any_glob(s: String, patterns: Array) -> bool:
 
 static func _filter_relations(env: Dictionary, policy: Dictionary) -> Array:
 	var rs = env.get("relations", null)
-	if rs == null or not rs.has_method("all_of_type"): return []
+	if rs == null or not rs.has_method("all_of_type"):
+		return []
 	var allowed: Array = policy.get("relations_persistent", [])
-	if allowed.is_empty(): return []
+	if allowed.is_empty():
+		return []
 	var out: Array = []
 	for rel_type in allowed:
 		var pairs = rs.all_of_type(str(rel_type))
-		if not (pairs is Array): continue
+		if not (pairs is Array):
+			continue
 		for p in pairs:
 			if p is Dictionary:
-				out.append({
-					"type": str(rel_type),
-					"from": str((p as Dictionary).get("from", "")),
-					"to":   str((p as Dictionary).get("to", "")),
-				})
+				(
+					out
+					. append(
+						{
+							"type": str(rel_type),
+							"from": str((p as Dictionary).get("from", "")),
+							"to": str((p as Dictionary).get("to", "")),
+						}
+					)
+				)
 	return out
 
 
@@ -238,9 +256,11 @@ static func _filter_relations(env: Dictionary, policy: Dictionary) -> Array:
 ## we filter that by the policy.
 static func _serialize_zone_state(env: Dictionary, policy: Dictionary) -> Dictionary:
 	var zs = env.get("zone_store", null)
-	if zs == null or not zs.has_method("to_save"): return {}
+	if zs == null or not zs.has_method("to_save"):
+		return {}
 	var policy_val = policy.get("persist_zones", true)
-	if policy_val is bool and not policy_val: return {}
+	if policy_val is bool and not policy_val:
+		return {}
 	var full: Dictionary = zs.to_save()
 	if policy_val is Array:
 		var allowed: Array = policy_val
@@ -261,22 +281,27 @@ static func _serialize_zone_state(env: Dictionary, policy: Dictionary) -> Dictio
 ## but absent from save retain their state_init values.
 static func restore_zone_state(env: Dictionary, payload: Dictionary) -> void:
 	var zs = env.get("zone_store", null)
-	if zs == null or not zs.has_method("from_save"): return
+	if zs == null or not zs.has_method("from_save"):
+		return
 	var d = payload.get("zone_state", {})
 	if d is Dictionary:
 		zs.from_save(d)
 
 
 static func _position_to_array(p) -> Array:
-	if p is Vector2: return [p.x, p.y]
-	if p is Vector3: return [p.x, p.y, p.z]
-	if p is Array: return p as Array
+	if p is Vector2:
+		return [p.x, p.y]
+	if p is Vector3:
+		return [p.x, p.y, p.z]
+	if p is Array:
+		return p as Array
 	return [0, 0]
 
 
 # ============================================================
 # LOAD
 # ============================================================
+
 
 ## Read slot_N.json, validate version, mutate env in place.
 ## Returns: {ok: bool, error: String, payload: Dictionary}.
@@ -289,8 +314,7 @@ static func _position_to_array(p) -> Array:
 ##
 ## This module just reads + validates; mutation is world.gd's job
 ## because it has the spawn / despawn / level-transition machinery.
-static func read_slot(game_name: String, slot: int,
-					  policy: Dictionary) -> Dictionary:
+static func read_slot(game_name: String, slot: int, policy: Dictionary) -> Dictionary:
 	var path := slot_path(game_name, slot)
 	if not FileAccess.file_exists(path):
 		return {"ok": false, "error": "no_such_save", "payload": {}}
@@ -305,8 +329,13 @@ static func read_slot(game_name: String, slot: int,
 	var save_ver := int(payload.get("version", -1))
 	var policy_ver := int(policy.get("version", 1))
 	if save_ver != policy_ver:
-		return {"ok": false, "error": "version_mismatch", "payload": payload,
-				"save_version": save_ver, "policy_version": policy_ver}
+		return {
+			"ok": false,
+			"error": "version_mismatch",
+			"payload": payload,
+			"save_version": save_ver,
+			"policy_version": policy_ver
+		}
 	# Schema sanity check — warn on unknown world_state keys (TD condition)
 	_warn_unknown_keys(payload, policy)
 	return {"ok": true, "error": "", "payload": payload}
@@ -317,7 +346,9 @@ static func _warn_unknown_keys(payload: Dictionary, policy: Dictionary) -> void:
 	var allowed: Array = policy.get("world_state_keys", [])
 	for k in ws_in.keys():
 		if not (str(k) in allowed):
-			push_warning("save load: unknown world_state key '%s' in save (not in policy); keeping" % str(k))
+			push_warning(
+				"save load: unknown world_state key '%s' in save (not in policy); keeping" % str(k)
+			)
 
 
 ## Has any save slot been written? Used for the "Continue" button

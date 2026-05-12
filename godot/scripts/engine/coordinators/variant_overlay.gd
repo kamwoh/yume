@@ -22,7 +22,6 @@ class_name VariantOverlay
 ##
 ## Stateless beyond the world ref. Single public entry: `apply(root)`.
 
-
 var _world: World
 
 
@@ -33,6 +32,7 @@ func _init(world: World) -> void:
 # ============================================================
 # PUBLIC API
 # ============================================================
+
 
 ## Apply the active variant (if any) to the loaded rules / world_state /
 ## entities. Called from world.gd::load_data AFTER rules + world_state +
@@ -86,14 +86,18 @@ func apply(root: String) -> void:
 			(ent as Entity).set_state(str(sk), state_overrides[sk])
 
 	if _world.verbose:
-		print("[variant] applied: %s (%d rules, %d world_state, %d entities)" % [
-			variant_name, rule_overrides.size(), ws_overrides.size(), ent_overrides.size()
-		])
+		print(
+			(
+				"[variant] applied: %s (%d rules, %d world_state, %d entities)"
+				% [variant_name, rule_overrides.size(), ws_overrides.size(), ent_overrides.size()]
+			)
+		)
 
 
 # ============================================================
 # INTERNAL
 # ============================================================
+
 
 ## Determine the active variant. Precedence:
 ##   1. world.variant_override property (scenario_runner / tests)
@@ -135,7 +139,9 @@ func _apply_rule_override(rule: Rule, path: String, value) -> void:
 		var rest := path.substr("effects.".length())
 		var dot := rest.find(".")
 		if dot < 0:
-			push_warning("[variant] malformed effects path '%s' — expected effects.<idx>.<field>" % path)
+			push_warning(
+				"[variant] malformed effects path '%s' — expected effects.<idx>.<field>" % path
+			)
 			return
 		var idx := int(rest.substr(0, dot))
 		var key2 := rest.substr(dot + 1)

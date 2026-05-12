@@ -51,9 +51,7 @@ static func snap_position(pos: Vector3, env: Dictionary) -> Vector3:
 	else:
 		snapped_y = pos.y
 	return Vector3(
-		ox + round((pos.x - ox) / size) * size,
-		snapped_y,
-		oz + round((pos.z - oz) / size) * size
+		ox + round((pos.x - ox) / size) * size, snapped_y, oz + round((pos.z - oz) / size) * size
 	)
 
 
@@ -67,10 +65,7 @@ static func snap_position_2d(pos: Vector2, env: Dictionary) -> Vector2:
 	var origin: Array = c.get("origin", [0, 0, 0])
 	var ox := float(origin[0]) if origin.size() > 0 else 0.0
 	var oz := float(origin[2]) if origin.size() > 2 else 0.0
-	return Vector2(
-		ox + round((pos.x - ox) / size) * size,
-		oz + round((pos.y - oz) / size) * size
-	)
+	return Vector2(ox + round((pos.x - ox) / size) * size, oz + round((pos.y - oz) / size) * size)
 
 
 ## Snap a yaw (radians) to the configured increment (default π/2 = 90°).
@@ -95,8 +90,7 @@ static func should_snap(def: Dictionary, env: Dictionary) -> bool:
 	if not is_enabled(env):
 		return false
 	var c := config(env)
-	var exempt: Array = c.get("exempt_tags",
-		["actor", "projectile", "particle", "animal"])
+	var exempt: Array = c.get("exempt_tags", ["actor", "projectile", "particle", "animal"])
 	var tags: Array = def.get("tags", [])
 	for t in exempt:
 		if t in tags:
@@ -109,8 +103,9 @@ static func should_snap(def: Dictionary, env: Dictionary) -> bool:
 ## than 0.1 * size on any axis, emit a push_warning. Surfaces source-JSON
 ## drift in QA logs without requiring a separate static validator. Gate A
 ## (tools/validate_grid_alignment.py) is the preferred follow-up.
-static func snap_position_with_drift_check(pos: Vector3, env: Dictionary,
-										   ent_id: String) -> Vector3:
+static func snap_position_with_drift_check(
+	pos: Vector3, env: Dictionary, ent_id: String
+) -> Vector3:
 	var snapped := snap_position(pos, env)
 	if not is_enabled(env):
 		return snapped
@@ -119,6 +114,10 @@ static func snap_position_with_drift_check(pos: Vector3, env: Dictionary,
 	var dx: float = abs(snapped.x - pos.x)
 	var dz: float = abs(snapped.z - pos.z)
 	if dx > threshold or dz > threshold:
-		push_warning("[grid] entity '%s' position drift dx=%.3f dz=%.3f from nearest cell at size=%.1f — consider authoring at grid coordinates"
-			% [ent_id, dx, dz, size])
+		push_warning(
+			(
+				"[grid] entity '%s' position drift dx=%.3f dz=%.3f from nearest cell at size=%.1f — consider authoring at grid coordinates"
+				% [ent_id, dx, dz, size]
+			)
+		)
 	return snapped

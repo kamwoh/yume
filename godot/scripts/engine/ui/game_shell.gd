@@ -36,9 +36,9 @@ var _scene_cfg: Dictionary = {}
 var _hud_cfg: Dictionary = {}
 
 # Runtime references built in _ready
-var _world: Node = null            # parent (World instance)
-var _camera: Camera2D = null       # 2D mode camera (if scene has Camera2D)
-var _camera3d: Camera3D = null     # 3D mode camera (if scene has Camera3D)
+var _world: Node = null  # parent (World instance)
+var _camera: Camera2D = null  # 2D mode camera (if scene has Camera2D)
+var _camera3d: Camera3D = null  # 3D mode camera (if scene has Camera3D)
 var _hud_layer: CanvasLayer = null
 var _win_panel: Panel = null
 var _win_label: Label = null
@@ -51,8 +51,8 @@ var _floor_color_high: Color = Color.WHITE
 
 # Tier 2.6l — camera shake + screen flash. Rules emit_shell_event into
 # env.shell_event_buffer; we drain each frame and apply to camera/overlay.
-var _shake_remaining: int = 0       # frames left of shake
-var _shake_intensity: float = 0.0   # px offset magnitude
+var _shake_remaining: int = 0  # frames left of shake
+var _shake_intensity: float = 0.0  # px offset magnitude
 var _camera_base_pos: Vector2 = Vector2.ZERO
 var _flash_overlay: ColorRect = null
 var _flash_remaining: int = 0
@@ -103,10 +103,10 @@ var _won: bool = false
 var _lost: bool = false
 var _sustain_counter: int = 0
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -194,6 +194,8 @@ func _drain_game_pipelines() -> void:
 ## Tracked via _esc_was_pressed so we only fire once per keypress, not
 ## every frame the key is held.
 var _esc_was_pressed: bool = false
+
+
 func _handle_pause_input() -> void:
 	# Defer to ScreenFlow when a screen is active (other than the gameplay one)
 	var ws: Dictionary = (_world.get("world_state") as Dictionary) if _world != null else {}
@@ -218,9 +220,11 @@ func _handle_pause_input() -> void:
 # CONFIG LOADING
 # ============================================================
 
+
 func _load_configs() -> void:
 	var root := str(_world.get("data_root"))
-	if root == "": return
+	if root == "":
+		return
 	root = root.rstrip("/")
 	# ADR 0027: ensure lib cache is populated BEFORE scene.json/hud.json
 	# parsing — Godot _ready order fires this child's lifecycle before
@@ -232,10 +236,12 @@ func _load_configs() -> void:
 
 
 func _read_json(path: String) -> Dictionary:
-	if not FileAccess.file_exists(path): return {}
+	if not FileAccess.file_exists(path):
+		return {}
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
-	if not (data is Dictionary): return {}
+	if not (data is Dictionary):
+		return {}
 	# ADR 0027: route scene.json / hud.json / etc. through lib resolver
 	# so `$extends: @lib.cameras.X` and `@lib.X.Y` refs expand to the
 	# preset values before consumption.
@@ -249,9 +255,11 @@ func _read_json(path: String) -> Dictionary:
 # BOUNDS VISUAL (Polygon2D floor + Line2D border)
 # ============================================================
 
+
 func _build_bounds() -> void:
 	var b: Dictionary = _scene_cfg.get("bounds", {}) as Dictionary
-	if b.is_empty(): return
+	if b.is_empty():
+		return
 	var lo: Vector2 = _to_vec2(b.get("min", [-300, -200]))
 	var hi: Vector2 = _to_vec2(b.get("max", [300, 200]))
 
@@ -260,10 +268,14 @@ func _build_bounds() -> void:
 	# World during its _ready (which Godot rejects with "parent busy").
 	if b.has("floor_color") or b.has("floor_color_day"):
 		var floor := Polygon2D.new()
-		floor.polygon = PackedVector2Array([
-			Vector2(lo.x, lo.y), Vector2(hi.x, lo.y),
-			Vector2(hi.x, hi.y), Vector2(lo.x, hi.y),
-		])
+		floor.polygon = PackedVector2Array(
+			[
+				Vector2(lo.x, lo.y),
+				Vector2(hi.x, lo.y),
+				Vector2(hi.x, hi.y),
+				Vector2(lo.x, hi.y),
+			]
+		)
 		floor.color = _color(b.get("floor_color_day", b.get("floor_color", "#222")))
 		floor.z_index = -50
 		add_child(floor)
@@ -277,10 +289,15 @@ func _build_bounds() -> void:
 
 	if b.has("border_color"):
 		var border := Line2D.new()
-		border.points = PackedVector2Array([
-			Vector2(lo.x, lo.y), Vector2(hi.x, lo.y),
-			Vector2(hi.x, hi.y), Vector2(lo.x, hi.y), Vector2(lo.x, lo.y),
-		])
+		border.points = PackedVector2Array(
+			[
+				Vector2(lo.x, lo.y),
+				Vector2(hi.x, lo.y),
+				Vector2(hi.x, hi.y),
+				Vector2(lo.x, hi.y),
+				Vector2(lo.x, lo.y),
+			]
+		)
 		border.width = float(b.get("border_width", 4))
 		border.default_color = _color(b["border_color"])
 		border.joint_mode = Line2D.LINE_JOINT_BEVEL
@@ -292,16 +309,20 @@ func _build_bounds() -> void:
 # CAMERA FOLLOW
 # ============================================================
 
+
 ## Tier 2.6l — drain shell events that rules emitted via emit_shell_event.
 ## Each event is a Dictionary with at least {"event": "shake"|"flash"|...}.
 ## Unknown events are silently ignored (forward-compatible).
 func _drain_shell_events() -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return
+	if sched == null:
+		return
 	var env: Dictionary = sched.env
 	var buf: Array = env.get("shell_event_buffer", [])
-	if buf.is_empty(): return
+	if buf.is_empty():
+		return
 	env["shell_event_buffer"] = []
 	for ev in buf:
 		var name := str(ev.get("event", ""))
@@ -327,10 +348,12 @@ func _drain_shell_events() -> void:
 				# concrete sounds. Swap audio palette without changing
 				# rules.
 				var sound_name := str(ev.get("name", ""))
-				if sound_name == "": continue
+				if sound_name == "":
+					continue
 				if sound_name.begins_with("@"):
 					sound_name = _resolve_at_ref(sound_name)
-					if sound_name == "": continue
+					if sound_name == "":
+						continue
 				var bus = get_node_or_null("/root/AudioBus")
 				if bus != null and bus.has_method("play"):
 					bus.play(sound_name)
@@ -338,10 +361,12 @@ func _drain_shell_events() -> void:
 				# 2026-05-08 — looped BGM via AudioBus._music_player.
 				# Idempotent: same name re-play is a no-op (already playing).
 				var music_name := str(ev.get("name", ""))
-				if music_name == "": continue
+				if music_name == "":
+					continue
 				if music_name.begins_with("@"):
 					music_name = _resolve_at_ref(music_name)
-					if music_name == "": continue
+					if music_name == "":
+						continue
 				var bus_m = get_node_or_null("/root/AudioBus")
 				if bus_m != null and bus_m.has_method("play_music"):
 					bus_m.play_music(music_name)
@@ -400,8 +425,7 @@ func _update_shake_and_flash() -> void:
 			# Snapshot the camera's "base" position only when starting fresh
 			# so we don't accumulate drift.
 			var offset := Vector2(
-				(randf() - 0.5) * 2.0 * _shake_intensity,
-				(randf() - 0.5) * 2.0 * _shake_intensity
+				(randf() - 0.5) * 2.0 * _shake_intensity, (randf() - 0.5) * 2.0 * _shake_intensity
 			)
 			_camera.offset = offset
 			_shake_remaining -= 1
@@ -413,8 +437,7 @@ func _update_shake_and_flash() -> void:
 		if _flash_remaining > 0:
 			var t: float = float(_flash_remaining) / 12.0
 			_flash_overlay.color = Color(
-				_flash_color.r, _flash_color.g, _flash_color.b,
-				_flash_color.a * clamp(t, 0.0, 1.0)
+				_flash_color.r, _flash_color.g, _flash_color.b, _flash_color.a * clamp(t, 0.0, 1.0)
 			)
 			_flash_remaining -= 1
 		elif _flash_overlay.color.a > 0.0:
@@ -448,7 +471,8 @@ func _build_fade_overlay() -> void:
 ##   FADING_OUT done → fully black: queue level transition, flip to FADING_IN
 ##   FADING_IN done  → fully clear: return to IDLE
 func _update_fade(delta: float) -> void:
-	if _fade_overlay == null: return
+	if _fade_overlay == null:
+		return
 	if _fade_duration_remaining > 0.0:
 		var step: float = min(delta, _fade_duration_remaining)
 		var t: float = step / _fade_duration_remaining
@@ -460,8 +484,9 @@ func _update_fade(delta: float) -> void:
 			_advance_fade_phase()
 	# Apply current alpha + color to overlay every frame (cheap; lets
 	# external state edits like color swaps land immediately).
-	_fade_overlay.color = Color(_fade_color.r, _fade_color.g, _fade_color.b,
-		clamp(_fade_alpha, 0.0, 1.0))
+	_fade_overlay.color = Color(
+		_fade_color.r, _fade_color.g, _fade_color.b, clamp(_fade_alpha, 0.0, 1.0)
+	)
 
 
 ## Called when _fade_duration_remaining hits zero. Drives the
@@ -495,9 +520,11 @@ func _advance_fade_phase() -> void:
 ## binding value (expected 0..1, e.g. clock.sunlight). No-op if no binding
 ## was configured in scene.json.
 func _update_floor_tint() -> void:
-	if _floor == null or _floor_tint_bind == "": return
+	if _floor == null or _floor_tint_bind == "":
+		return
 	var v = _resolve_binding(_floor_tint_bind)
-	if v == null: return
+	if v == null:
+		return
 	var t: float = clamp(float(v), 0.0, 1.0)
 	_floor.color = _floor_color_low.lerp(_floor_color_high, t)
 
@@ -516,7 +543,8 @@ func _update_floor_tint() -> void:
 ## Phase 3 adds mouse-look for first_person_3d and orbit for third_person_3d.
 func _update_camera_follow() -> void:
 	var cam_cfg: Dictionary = _scene_cfg.get("camera", {}) as Dictionary
-	if cam_cfg.is_empty(): return
+	if cam_cfg.is_empty():
+		return
 	# Tier 2.6 (2026-05-08): per-frame override from world_state. Lets a
 	# rule fire `state_set target=world field=camera_mode value="third_person_3d"`
 	# to swap the live camera mode without engine code changes. No-op when
@@ -535,7 +563,8 @@ func _update_camera_follow() -> void:
 			var ents: Dictionary = sched.env.get("entities", {}) as Dictionary
 			for eid in ents:
 				var e = ents[eid]
-				if e == null: continue
+				if e == null:
+					continue
 				if e.has_method("has_tag") and e.has_tag("world_clock"):
 					var st: Dictionary = e.state as Dictionary
 					override_mode = str(st.get("camera_mode", ""))
@@ -584,13 +613,17 @@ func _update_camera_follow() -> void:
 				_apply_2d_zoom(cam_cfg)
 				_camera_fixed(cam_cfg)
 		"top_down_3d":
-			if _camera3d != null: _camera_top_down_3d(cam_cfg)
+			if _camera3d != null:
+				_camera_top_down_3d(cam_cfg)
 		"isometric_3d":
-			if _camera3d != null: _camera_isometric_3d(cam_cfg)
+			if _camera3d != null:
+				_camera_isometric_3d(cam_cfg)
 		"third_person_3d":
-			if _camera3d != null: _camera_third_person_3d(cam_cfg)
+			if _camera3d != null:
+				_camera_third_person_3d(cam_cfg)
 		"first_person_3d":
-			if _camera3d != null: _camera_first_person_3d(cam_cfg)
+			if _camera3d != null:
+				_camera_first_person_3d(cam_cfg)
 		_:
 			# Unknown mode — fall back to top_down_2d
 			if _camera != null:
@@ -601,7 +634,8 @@ func _update_camera_follow() -> void:
 func _apply_2d_zoom(cam_cfg: Dictionary) -> void:
 	if cam_cfg.has("zoom") and _camera != null:
 		var z = _to_vec2(cam_cfg["zoom"])
-		if _camera.zoom != z: _camera.zoom = z
+		if _camera.zoom != z:
+			_camera.zoom = z
 
 
 func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
@@ -646,10 +680,13 @@ func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
 	# Mode B: follow_tag — camera tracks one entity (e.g. player in a
 	# scrolling world).
 	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "": return
+	if tag == "":
+		return
 	var ent := _find_entity_by_tag(tag)
-	if ent == null: return
-	if not ent.has_method("get_position"): return
+	if ent == null:
+		return
+	if not ent.has_method("get_position"):
+		return
 	var p = ent.get_position()
 	if p is Vector2:
 		var lerp_t := float(cam_cfg.get("lerp", 0.08))
@@ -669,19 +706,24 @@ func _bbox_of_entities_with_tag(tag: String) -> Dictionary:
 	var found := false
 	for id in entities:
 		var ent = entities[id]
-		if not (ent is Entity): continue
-		if not (ent as Entity).has_tag(tag): continue
+		if not (ent is Entity):
+			continue
+		if not (ent as Entity).has_tag(tag):
+			continue
 		var p = (ent as Entity).get_position()
-		if not (p is Vector2): continue
+		if not (p is Vector2):
+			continue
 		var v := p as Vector2
-		min_x = min(min_x, v.x); max_x = max(max_x, v.x)
-		min_y = min(min_y, v.y); max_y = max(max_y, v.y)
+		min_x = min(min_x, v.x)
+		max_x = max(max_x, v.x)
+		min_y = min(min_y, v.y)
+		max_y = max(max_y, v.y)
 		found = true
 	if not found:
 		return {}
 	return {
 		"center": Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5),
-		"size":   Vector2(max_x - min_x, max_y - min_y),
+		"size": Vector2(max_x - min_x, max_y - min_y),
 	}
 
 
@@ -689,12 +731,16 @@ func _bbox_of_entities_with_tag(tag: String) -> Dictionary:
 ## (or initial position if no fixed_y given). Common for platformers.
 func _camera_side_scroll_2d(cam_cfg: Dictionary) -> void:
 	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "": return
+	if tag == "":
+		return
 	var ent := _find_entity_by_tag(tag)
-	if ent == null: return
-	if not ent.has_method("get_position"): return
+	if ent == null:
+		return
+	if not ent.has_method("get_position"):
+		return
 	var p = ent.get_position()
-	if not (p is Vector2): return
+	if not (p is Vector2):
+		return
 	var lerp_t := float(cam_cfg.get("lerp", 0.08))
 	var fixed_y := float(cam_cfg.get("fixed_y", _camera.position.y))
 	var target := Vector2((p as Vector2).x, fixed_y)
@@ -710,7 +756,8 @@ func _camera_side_scroll_2d(cam_cfg: Dictionary) -> void:
 func _camera_fixed(cam_cfg: Dictionary) -> void:
 	if cam_cfg.has("position"):
 		var pos := _to_vec2(cam_cfg["position"])
-		if _camera.position != pos: _camera.position = pos
+		if _camera.position != pos:
+			_camera.position = pos
 
 
 # ============================================================
@@ -732,7 +779,8 @@ func _camera_fixed(cam_cfg: Dictionary) -> void:
 ## an isometric farming sim look. World up is +Y; camera at (target.x, +height, target.z).
 func _camera_top_down_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null: return
+	if target_v == null:
+		return
 	var target: Vector3 = target_v
 	var height := float(cam_cfg.get("height", 20.0))
 	var lerp_t := float(cam_cfg.get("lerp", 0.1))
@@ -750,7 +798,8 @@ func _camera_top_down_3d(cam_cfg: Dictionary) -> void:
 ## Tactics-RPG / city-builder look. Convention: 45° rotation around Y, 30° tilt.
 func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null: return
+	if target_v == null:
+		return
 	var target: Vector3 = target_v
 	var distance := float(cam_cfg.get("distance", 16.0))
 	var lerp_t := float(cam_cfg.get("lerp", 0.1))
@@ -774,9 +823,7 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 	# fix took a previous attempt that used use_model_front=true,
 	# which flipped Camera3D forward to +Z and made the camera look
 	# AWAY from target — empty world. Reverted to default convention.
-	_camera3d.global_transform.basis = Basis.looking_at(
-		target - desired, Vector3.UP, false
-	)
+	_camera3d.global_transform.basis = Basis.looking_at(target - desired, Vector3.UP, false)
 	_apply_ortho(cam_cfg, true)
 
 
@@ -785,7 +832,8 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 ## (target - forward * distance + up * height). Action-adventure / MMO feel.
 func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null: return
+	if target_v == null:
+		return
 	var target: Vector3 = target_v
 	var actor = _drain_mouse_facing(cam_cfg)
 	var facing := 0.0
@@ -813,7 +861,8 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 ## (Look loop self-disables when cursor is visible — user is paused.)
 func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null: return
+	if target_v == null:
+		return
 	var target: Vector3 = target_v
 	# Modal / overlay open? Release the mouse so the player can click
 	# screen buttons (Continue, etc.). Skip mouse-look. When the modal
@@ -826,8 +875,10 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	if _world != null:
 		var ws: Dictionary = _world.get("world_state") as Dictionary
 		if ws != null:
-			freeze_world = int(ws.get("screen_freeze_world", 0)) != 0 \
+			freeze_world = (
+				int(ws.get("screen_freeze_world", 0)) != 0
 				or int(ws.get("overlay_freeze_world", 0)) != 0
+			)
 	if freeze_world:
 		if Input.get_mouse_mode() != Input.MOUSE_MODE_VISIBLE:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
@@ -839,11 +890,14 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 		_fp_initial_capture_done = true
 	# Recapture if user clicks back into game while cursor is visible
-	if Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE \
-			and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+	if (
+		Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE
+		and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	):
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	var actor = _drain_mouse_facing(cam_cfg)
-	if actor == null: return
+	if actor == null:
+		return
 	var facing := float(actor.get_state("facing", 0.0))
 	var pitch := float(actor.get_state("pitch", 0.0))
 	var eye_height := float(cam_cfg.get("eye_height", 1.7))
@@ -882,27 +936,36 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 # just toggles visibility based on actor's `follow_state` field value.
 
 var _viewmodel_root: Node3D = null
-var _viewmodel_meshes: Dictionary = {}    # str(state value) → Node3D
+var _viewmodel_meshes: Dictionary = {}  # str(state value) → Node3D
+
 
 func _setup_viewmodel(cam_cfg: Dictionary) -> void:
-	if _viewmodel_root != null: return
-	if _camera3d == null: return
+	if _viewmodel_root != null:
+		return
+	if _camera3d == null:
+		return
 	var vm_cfg = cam_cfg.get("viewmodel", null)
-	if not (vm_cfg is Dictionary): return
+	if not (vm_cfg is Dictionary):
+		return
 	var weapons = vm_cfg.get("weapons", null)
-	if not (weapons is Dictionary) or weapons.is_empty(): return
+	if not (weapons is Dictionary) or weapons.is_empty():
+		return
 	_viewmodel_root = Node3D.new()
 	_viewmodel_root.name = "Viewmodel"
 	_camera3d.add_child(_viewmodel_root)
 	var offset_arr: Array = vm_cfg.get("offset", [0.3, -0.25, -0.5])
 	if offset_arr.size() >= 3:
-		_viewmodel_root.position = Vector3(float(offset_arr[0]), float(offset_arr[1]), float(offset_arr[2]))
+		_viewmodel_root.position = Vector3(
+			float(offset_arr[0]), float(offset_arr[1]), float(offset_arr[2])
+		)
 	var lib := MeshLib.load_from_file("res://data/meshes.json")
 	for key in weapons.keys():
 		var w = weapons[key]
-		if not (w is Dictionary): continue
+		if not (w is Dictionary):
+			continue
 		var mesh_name := str(w.get("mesh", ""))
-		if mesh_name == "" or not lib.has(mesh_name): continue
+		if mesh_name == "" or not lib.has(mesh_name):
+			continue
 		var mesh_def := lib.get_mesh(mesh_name)
 		var mesh_node := Node3D.new()
 		mesh_node.name = "vm_%s" % str(key)
@@ -914,11 +977,14 @@ func _setup_viewmodel(cam_cfg: Dictionary) -> void:
 
 
 func _update_viewmodel(actor, cam_cfg: Dictionary) -> void:
-	if _viewmodel_root == null: return
+	if _viewmodel_root == null:
+		return
 	var vm_cfg = cam_cfg.get("viewmodel", null)
-	if not (vm_cfg is Dictionary): return
+	if not (vm_cfg is Dictionary):
+		return
 	var follow_state := str(vm_cfg.get("follow_state", ""))
-	if follow_state == "" or actor == null: return
+	if follow_state == "" or actor == null:
+		return
 	var current_v = (actor as Entity).get_state(follow_state, "")
 	# Coerce numeric state values to string for dict lookup
 	var current := str(int(current_v)) if current_v is int or current_v is float else str(current_v)
@@ -945,20 +1011,25 @@ var _camera_mode_last: String = ""
 ## delta without applying — prevents camera snapping on resume.
 func _drain_mouse_facing(cam_cfg: Dictionary):
 	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "": return null
+	if tag == "":
+		return null
 	var actor := _find_entity_by_tag(tag)
-	if actor == null: return null
+	if actor == null:
+		return null
 	var sched = _world.get("scheduler")
-	if sched == null: return actor
+	if sched == null:
+		return actor
 	var env: Dictionary = sched.env
 	# Pause look when cursor is free
 	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
 		env["mouse_delta"] = Vector2.ZERO
 		return actor
 	var delta_v = env.get("mouse_delta", Vector2.ZERO)
-	if not (delta_v is Vector2): delta_v = Vector2.ZERO
+	if not (delta_v is Vector2):
+		delta_v = Vector2.ZERO
 	var delta: Vector2 = delta_v
-	if delta.length_squared() == 0.0: return actor
+	if delta.length_squared() == 0.0:
+		return actor
 	# Consume the delta
 	env["mouse_delta"] = Vector2.ZERO
 	var sensitivity := float(cam_cfg.get("mouse_sensitivity", 0.003))
@@ -988,9 +1059,11 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 ##     the per-game scene.json choose: noisy debug labels everywhere
 ##     vs. quiet "interactables-only" signal. Default false → quiet.
 func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
-	if _world == null or _camera3d == null: return
+	if _world == null or _camera3d == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return
+	if sched == null:
+		return
 	var env: Dictionary = sched.env
 	var entities: Dictionary = env.get("entities", {})
 	var max_distance := float(cam_cfg.get("crosshair_max_distance", 10.0))
@@ -1003,16 +1076,23 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	var best_score: float = -INF  # higher dot * distance preference
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
-		if ent == actor: continue
-		if not show_decorative and (ent as Entity).has_tag("decorative"): continue
+		if not (ent is Entity):
+			continue
+		if ent == actor:
+			continue
+		if not show_decorative and (ent as Entity).has_tag("decorative"):
+			continue
 		var name_v = (ent as Entity).get_property("display_name", "")
-		if str(name_v) == "": continue
+		if str(name_v) == "":
+			continue
 		var ep_v = (ent as Entity).get_position()
 		var ep: Vector3
-		if ep_v is Vector3: ep = ep_v
-		elif ep_v is Vector2: ep = Vector3((ep_v as Vector2).x, 0, (ep_v as Vector2).y)
-		else: continue
+		if ep_v is Vector3:
+			ep = ep_v
+		elif ep_v is Vector2:
+			ep = Vector3((ep_v as Vector2).x, 0, (ep_v as Vector2).y)
+		else:
+			continue
 		# Bias target up by ~head height (1.0m). Without this, ground-level
 		# entities at 5m appear ~18° below horizon — a tight cone won't catch
 		# them when player looks horizontal. 1.0m matches the visual
@@ -1022,10 +1102,12 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 		var y_bias: float = float((ent as Entity).get_property("crosshair_y_offset", 1.0))
 		var to_ent: Vector3 = ep + Vector3(0, y_bias, 0) - cam_pos
 		var dist := to_ent.length()
-		if dist > max_distance or dist < 0.01: continue
+		if dist > max_distance or dist < 0.01:
+			continue
 		var to_ent_n: Vector3 = to_ent / dist
 		var dot: float = fwd.dot(to_ent_n)
-		if dot < cone_cos: continue  # outside cone
+		if dot < cone_cos:
+			continue  # outside cone
 		# Score: prefer closer + more centered. Inverse distance × dot.
 		var score: float = dot / max(dist, 0.5)
 		if score > best_score:
@@ -1048,10 +1130,13 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 ## (top-down 2D content) — project onto XZ plane in that case (y=0).
 func _follow_target_3d(cam_cfg: Dictionary):
 	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "": return null
+	if tag == "":
+		return null
 	var ent := _find_entity_by_tag(tag)
-	if ent == null: return null
-	if not ent.has_method("get_position"): return null
+	if ent == null:
+		return null
+	if not ent.has_method("get_position"):
+		return null
 	var p = ent.get_position()
 	if p is Vector3:
 		return p as Vector3
@@ -1064,7 +1149,8 @@ func _follow_target_3d(cam_cfg: Dictionary):
 ## Apply orthographic projection if mode wants it. Sets ortho_size from
 ## config (default 16). Re-set each frame so config edits take effect live.
 func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
-	if _camera3d == null: return
+	if _camera3d == null:
+		return
 	if want_ortho:
 		_camera3d.projection = Camera3D.PROJECTION_ORTHOGONAL
 		_camera3d.size = float(cam_cfg.get("ortho_size", 16.0))
@@ -1077,8 +1163,10 @@ func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
 # HUD CONSTRUCTION
 # ============================================================
 
+
 func _build_hud() -> void:
-	if _hud_cfg.is_empty(): return
+	if _hud_cfg.is_empty():
+		return
 	_hud_layer = CanvasLayer.new()
 	_hud_layer.layer = 10
 	add_child(_hud_layer)
@@ -1257,8 +1345,7 @@ func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) 
 	match t:
 		"label":
 			var lbl := Label.new()
-			_apply_label_style(lbl, int(cfg.get("size", 18)),
-				_color(cfg.get("color", "#ffffff")))
+			_apply_label_style(lbl, int(cfg.get("size", 18)), _color(cfg.get("color", "#ffffff")))
 			# Static text — set immediately (binding-less labels would
 			# otherwise render empty since _apply_binding_to_node only
 			# fires when `binds` is set). Per data-demo.md text discipline:
@@ -1297,9 +1384,7 @@ func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) 
 			# extend later with a Control + custom _draw.
 			var ch := Label.new()
 			ch.text = str(cfg.get("glyph", "+"))
-			_apply_label_style(ch,
-				int(cfg.get("size", 28)),
-				_color(cfg.get("color", "#ffffff")))
+			_apply_label_style(ch, int(cfg.get("size", 28)), _color(cfg.get("color", "#ffffff")))
 			ch.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			ch.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			parent.add_child(ch)
@@ -1325,6 +1410,7 @@ func _apply_label_style(lbl: Label, font_size: int, color: Color) -> void:
 # HUD UPDATES (per-frame, evaluates bindings)
 # ============================================================
 
+
 func _update_bound_elements() -> void:
 	for entry in _bound_elements:
 		var node: Node = entry["node"]
@@ -1335,9 +1421,11 @@ func _update_bound_elements() -> void:
 			(node as MinimapWidget).tick()
 			continue
 		var binding := str(cfg.get("binds", ""))
-		if binding == "": continue
+		if binding == "":
+			continue
 		var value = _resolve_binding(binding)
-		if value == null: continue
+		if value == null:
+			continue
 		_apply_binding_to_node(node, cfg, value)
 
 
@@ -1346,16 +1434,18 @@ func _update_bound_elements() -> void:
 ## Special root "world" → reads env.world dict.
 func _resolve_binding(path: String):
 	var parts := path.split(".")
-	if parts.size() < 2: return null
+	if parts.size() < 2:
+		return null
 	var root := str(parts[0])
 	var field := str(parts[1])
 
 	if root == "world":
-		var w: Dictionary = (_world.get("world_state") as Dictionary)
+		var w: Dictionary = _world.get("world_state") as Dictionary
 		return w.get(field, null) if w != null else null
 
 	var ent := _find_entity_by_tag(root)
-	if ent == null: return null
+	if ent == null:
+		return null
 	if ent.has_method("get_state"):
 		return ent.get_state(field, null)
 	return null
@@ -1394,7 +1484,8 @@ func _apply_binding_to_node(node: Node, cfg: Dictionary, value) -> void:
 
 
 func _format_value(v) -> String:
-	if v is float: return "%d" % int(v)  # round to int by default for HUD
+	if v is float:
+		return "%d" % int(v)  # round to int by default for HUD
 	return str(v)
 
 
@@ -1402,10 +1493,13 @@ func _format_value(v) -> String:
 # WIN / LOSE
 # ============================================================
 
+
 func _check_win_lose() -> void:
 	var win_cfg: Dictionary = _hud_cfg.get("win", {}) as Dictionary
 	if not win_cfg.is_empty() and _matches(win_cfg):
-		_show_outcome(_resolve_message(str(win_cfg.get("message", "🌟 YOU WIN! 🌟\nPress R to restart"))), true)
+		_show_outcome(
+			_resolve_message(str(win_cfg.get("message", "🌟 YOU WIN! 🌟\nPress R to restart"))), true
+		)
 		return
 	var lose_cfg: Dictionary = _hud_cfg.get("lose", {}) as Dictionary
 	if not lose_cfg.is_empty():
@@ -1414,7 +1508,12 @@ func _check_win_lose() -> void:
 		if hit:
 			_sustain_counter += 1
 			if _sustain_counter >= sustained:
-				_show_outcome(_resolve_message(str(lose_cfg.get("message", "💀 GAME OVER\nPress R to restart"))), false)
+				_show_outcome(
+					_resolve_message(
+						str(lose_cfg.get("message", "💀 GAME OVER\nPress R to restart"))
+					),
+					false
+				)
 		else:
 			_sustain_counter = max(0, _sustain_counter - 1)
 
@@ -1422,7 +1521,8 @@ func _check_win_lose() -> void:
 ## ADR 0009 Phase 2c: pass strings through @-prefix resolution. Falls
 ## back to literal text if not @-prefixed or ref unresolved.
 func _resolve_message(s: String) -> String:
-	if not s.begins_with("@"): return s
+	if not s.begins_with("@"):
+		return s
 	var resolved := _resolve_at_ref(s)
 	return resolved if resolved != "" else s
 
@@ -1432,23 +1532,33 @@ func _matches(cond: Dictionary) -> bool:
 	var op := str(cond.get("op", ">="))
 	var threshold = cond.get("value", 0)
 	var v = _resolve_binding(binding)
-	if v == null: return false
+	if v == null:
+		return false
 	var lhs := float(v)
 	var rhs := float(threshold)
 	match op:
-		">=": return lhs >= rhs
-		">":  return lhs > rhs
-		"<=": return lhs <= rhs
-		"<":  return lhs < rhs
-		"==": return lhs == rhs
-		"!=": return lhs != rhs
+		">=":
+			return lhs >= rhs
+		">":
+			return lhs > rhs
+		"<=":
+			return lhs <= rhs
+		"<":
+			return lhs < rhs
+		"==":
+			return lhs == rhs
+		"!=":
+			return lhs != rhs
 	return false
 
 
 func _show_outcome(message: String, won: bool) -> void:
-	if _won or _lost: return
-	if won: _won = true
-	else: _lost = true
+	if _won or _lost:
+		return
+	if won:
+		_won = true
+	else:
+		_lost = true
 	if _win_label != null:
 		_win_label.text = message + "\n\nPress R to restart"
 	if _win_panel != null:
@@ -1478,15 +1588,18 @@ var _strings_cache_loaded: bool = false
 func _resolve_at_ref(ref: String) -> String:
 	var rest: String = ref.substr(1)
 	var dot: int = rest.find(".")
-	if dot < 0: return ""
+	if dot < 0:
+		return ""
 	var ns: String = rest.substr(0, dot)
 	var key: String = rest.substr(dot + 1)
 	match ns:
 		"cues":
-			if not _cue_cache_loaded: _load_cue_cache()
+			if not _cue_cache_loaded:
+				_load_cue_cache()
 			return str(_cue_cache.get(key, ""))
 		"strings":
-			if not _strings_cache_loaded: _load_strings_cache()
+			if not _strings_cache_loaded:
+				_load_strings_cache()
 			return _resolve_dotted_string(_strings_cache, key)
 	return ""
 
@@ -1497,8 +1610,10 @@ static func _resolve_dotted_string(cache: Dictionary, key: String) -> String:
 	var parts: PackedStringArray = key.split(".")
 	var cur = cache
 	for part in parts:
-		if not (cur is Dictionary): return ""
-		if not (cur as Dictionary).has(part): return ""
+		if not (cur is Dictionary):
+			return ""
+		if not (cur as Dictionary).has(part):
+			return ""
 		cur = (cur as Dictionary)[part]
 	return str(cur) if cur != null else ""
 
@@ -1522,24 +1637,32 @@ func _load_strings_cache() -> void:
 ## Read a JSON file under data_root. Returns {} on any failure
 ## (missing file, parse error, non-dict root). Used by lazy-loaders.
 func _read_json_file_in_data(rel_path: String) -> Dictionary:
-	if _world == null: return {}
+	if _world == null:
+		return {}
 	var dr = _world.get("data_root")
 	var root := (str(dr) if dr != null else "").rstrip("/")
-	if root == "": return {}
+	if root == "":
+		return {}
 	var path := root + "/" + rel_path
-	if not FileAccess.file_exists(path): return {}
+	if not FileAccess.file_exists(path):
+		return {}
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return {}
+	if f == null:
+		return {}
 	var json := JSON.new()
-	if json.parse(f.get_as_text()) != OK: return {}
-	if not (json.data is Dictionary): return {}
+	if json.parse(f.get_as_text()) != OK:
+		return {}
+	if not (json.data is Dictionary):
+		return {}
 	return json.data
 
 
 func _find_entity_by_tag(tag: String) -> Object:
-	if _world == null: return null
+	if _world == null:
+		return null
 	var entities: Dictionary = _world.get("entities") as Dictionary
-	if entities == null: return null
+	if entities == null:
+		return null
 	for ent in entities.values():
 		if ent != null and ent.has_method("has_tag") and ent.has_tag(tag):
 			return ent
@@ -1547,13 +1670,16 @@ func _find_entity_by_tag(tag: String) -> Object:
 
 
 static func _to_vec2(v) -> Vector2:
-	if v is Vector2: return v
+	if v is Vector2:
+		return v
 	if v is Array and (v as Array).size() >= 2:
 		return Vector2(float(v[0]), float(v[1]))
 	return Vector2.ZERO
 
 
 static func _color(v) -> Color:
-	if v is Color: return v
-	if v is String: return Color(str(v))
+	if v is Color:
+		return v
+	if v is String:
+		return Color(str(v))
 	return Color.WHITE

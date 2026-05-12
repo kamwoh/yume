@@ -45,18 +45,25 @@ class_name InstancePatterns
 static func expand(pattern: Dictionary) -> Array:
 	var t := str(pattern.get("pattern", ""))
 	match t:
-		"ring":    return _ring(pattern)
-		"grid":    return _grid(pattern)
-		"line":    return _line(pattern)
-		"scatter": return _scatter(pattern)
-		"cluster": return _cluster(pattern)
-		"mirror":  return _mirror(pattern)
+		"ring":
+			return _ring(pattern)
+		"grid":
+			return _grid(pattern)
+		"line":
+			return _line(pattern)
+		"scatter":
+			return _scatter(pattern)
+		"cluster":
+			return _cluster(pattern)
+		"mirror":
+			return _mirror(pattern)
 	return []
 
 
 # ============================================================
 # RING — n entities evenly spaced on a circle
 # ============================================================
+
 
 static func _ring(p: Dictionary) -> Array:
 	var def_id := str(p.get("def", ""))
@@ -67,25 +74,19 @@ static func _ring(p: Dictionary) -> Array:
 	var yaw_offset := float(p.get("yaw_offset", 0.0))
 	var origin := Vec3Util.from_world_pos(p.get("origin", [0, 0, 0]))
 	var out: Array = []
-	if count <= 0 or def_id == "": return out
+	if count <= 0 or def_id == "":
+		return out
 	for i in range(count):
 		var angle: float = yaw_offset + TAU * float(i) / float(count)
-		var pos := [
-			origin.x + cos(angle) * radius,
-			origin.y + y,
-			origin.z + sin(angle) * radius
-		]
-		out.append({
-			"def": def_id,
-			"id": "%s_%d" % [id_prefix, i + 1],
-			"position": pos
-		})
+		var pos := [origin.x + cos(angle) * radius, origin.y + y, origin.z + sin(angle) * radius]
+		out.append({"def": def_id, "id": "%s_%d" % [id_prefix, i + 1], "position": pos})
 	return out
 
 
 # ============================================================
 # GRID — cols × rows
 # ============================================================
+
 
 static func _grid(p: Dictionary) -> Array:
 	var def_id := str(p.get("def", ""))
@@ -97,7 +98,8 @@ static func _grid(p: Dictionary) -> Array:
 	# By default center the grid on origin so it's symmetric.
 	var center: bool = bool(p.get("center", true))
 	var out: Array = []
-	if cols <= 0 or rows <= 0 or def_id == "": return out
+	if cols <= 0 or rows <= 0 or def_id == "":
+		return out
 	var ox := origin.x
 	var oz := origin.z
 	if center:
@@ -106,11 +108,13 @@ static func _grid(p: Dictionary) -> Array:
 	var n: int = 1
 	for r in range(rows):
 		for c in range(cols):
-			out.append({
-				"def": def_id,
-				"id": "%s_%d" % [id_prefix, n],
-				"position": [ox + c * spacing, origin.y, oz + r * spacing]
-			})
+			out.append(
+				{
+					"def": def_id,
+					"id": "%s_%d" % [id_prefix, n],
+					"position": [ox + c * spacing, origin.y, oz + r * spacing]
+				}
+			)
 			n += 1
 	return out
 
@@ -119,6 +123,7 @@ static func _grid(p: Dictionary) -> Array:
 # LINE — n along a segment
 # ============================================================
 
+
 static func _line(p: Dictionary) -> Array:
 	var def_id := str(p.get("def", ""))
 	var id_prefix := str(p.get("id_prefix", def_id))
@@ -126,21 +131,21 @@ static func _line(p: Dictionary) -> Array:
 	var start := Vec3Util.from_world_pos(p.get("start", [0, 0, 0]))
 	var end := Vec3Util.from_world_pos(p.get("end", [1, 0, 0]))
 	var out: Array = []
-	if count <= 0 or def_id == "": return out
+	if count <= 0 or def_id == "":
+		return out
 	for i in range(count):
 		var t: float = 0.0 if count == 1 else float(i) / float(count - 1)
 		var pos := start.lerp(end, t)
-		out.append({
-			"def": def_id,
-			"id": "%s_%d" % [id_prefix, i + 1],
-			"position": [pos.x, pos.y, pos.z]
-		})
+		out.append(
+			{"def": def_id, "id": "%s_%d" % [id_prefix, i + 1], "position": [pos.x, pos.y, pos.z]}
+		)
 	return out
 
 
 # ============================================================
 # SCATTER — random within a ring annulus, optional spacing constraint
 # ============================================================
+
 
 static func _scatter(p: Dictionary) -> Array:
 	# `def` for a single def, OR `def_choices: [a, b, c]` for random mix.
@@ -168,17 +173,14 @@ static func _scatter(p: Dictionary) -> Array:
 	var yaw_jitter := float(p.get("yaw_jitter", 0.0))
 	var out: Array = []
 	var placed: Array = []
-	if count <= 0 or def_choices.is_empty(): return out
+	if count <= 0 or def_choices.is_empty():
+		return out
 	var attempts: int = 0
 	while placed.size() < count and attempts < count * max_attempts:
 		var t: float = randf()
 		var r: float = lerp(min_r, max_r, sqrt(t))  # sqrt biases toward edge for uniform area
 		var angle: float = randf() * TAU
-		var pos := Vector3(
-			origin.x + cos(angle) * r,
-			origin.y + y,
-			origin.z + sin(angle) * r
-		)
+		var pos := Vector3(origin.x + cos(angle) * r, origin.y + y, origin.z + sin(angle) * r)
 		var ok: bool = true
 		if min_spacing > 0:
 			for prior in placed:
@@ -212,6 +214,7 @@ static func _scatter(p: Dictionary) -> Array:
 # CLUSTER — n around an origin with spread + spacing
 # ============================================================
 
+
 static func _cluster(p: Dictionary) -> Array:
 	var def_id := str(p.get("def", ""))
 	var id_prefix := str(p.get("id_prefix", def_id))
@@ -223,7 +226,8 @@ static func _cluster(p: Dictionary) -> Array:
 	var exclude_zones: Array = p.get("exclude_zones", [])
 	var out: Array = []
 	var placed: Array = []
-	if count <= 0 or def_id == "": return out
+	if count <= 0 or def_id == "":
+		return out
 	var attempts: int = 0
 	while placed.size() < count and attempts < count * max_attempts:
 		var dx: float = (randf() - 0.5) * 2.0 * spread
@@ -239,11 +243,13 @@ static func _cluster(p: Dictionary) -> Array:
 			ok = not _in_exclude_zone(pos, exclude_zones)
 		if ok:
 			placed.append(pos)
-			out.append({
-				"def": def_id,
-				"id": "%s_%d" % [id_prefix, placed.size()],
-				"position": [pos.x, pos.y, pos.z]
-			})
+			out.append(
+				{
+					"def": def_id,
+					"id": "%s_%d" % [id_prefix, placed.size()],
+					"position": [pos.x, pos.y, pos.z]
+				}
+			)
 		attempts += 1
 	return out
 
@@ -255,14 +261,17 @@ static func _cluster(p: Dictionary) -> Array:
 # side, mirror onto the other. Output count = items.size() × 2 (the
 # original list + the mirrored list). axis: "x" flips x, "z" flips z.
 
+
 static func _mirror(p: Dictionary) -> Array:
 	var items: Array = p.get("items", [])
-	if items.is_empty(): return []
+	if items.is_empty():
+		return []
 	var axis := str(p.get("axis", "x"))
 	var id_suffix := str(p.get("id_suffix", "_mirror"))
 	var out: Array = []
 	for item in items:
-		if not (item is Dictionary): continue
+		if not (item is Dictionary):
+			continue
 		# Original
 		out.append(item.duplicate(true))
 		# Mirrored copy
@@ -270,8 +279,10 @@ static func _mirror(p: Dictionary) -> Array:
 		var pos_v := Vec3Util.from_world_pos(pos)
 		var mirrored: Vector3 = pos_v
 		match axis:
-			"x": mirrored = Vector3(-pos_v.x, pos_v.y, pos_v.z)
-			"z": mirrored = Vector3(pos_v.x, pos_v.y, -pos_v.z)
+			"x":
+				mirrored = Vector3(-pos_v.x, pos_v.y, pos_v.z)
+			"z":
+				mirrored = Vector3(pos_v.x, pos_v.y, -pos_v.z)
 		var copy: Dictionary = (item as Dictionary).duplicate(true)
 		copy["position"] = [mirrored.x, mirrored.y, mirrored.z]
 		var orig_id := str(copy.get("id", ""))
@@ -285,18 +296,19 @@ static func _mirror(p: Dictionary) -> Array:
 # UTIL
 # ============================================================
 
+
 ## Test if pos lies inside any of the exclude_zones (each {center, radius}
 ## in 2D — XZ plane). Y ignored.
 static func _in_exclude_zone(pos: Vector3, zones: Array) -> bool:
 	for z in zones:
-		if not (z is Dictionary): continue
+		if not (z is Dictionary):
+			continue
 		var c := Vec3Util.from_world_pos(z.get("center", [0, 0, 0]))
 		var r: float = float(z.get("radius", 0))
-		if r <= 0.0: continue
+		if r <= 0.0:
+			continue
 		var dx := pos.x - c.x
 		var dz := pos.z - c.z
 		if dx * dx + dz * dz < r * r:
 			return true
 	return false
-
-

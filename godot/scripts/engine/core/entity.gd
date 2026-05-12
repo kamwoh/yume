@@ -45,17 +45,17 @@ class_name Entity
 # DATA
 # ============================================================
 
-var def_id: String = ""             # template definition id from entities.json
-var instance_id: String = ""        # unique per spawn; set by world loader
-var properties: Dictionary = {}     # static
-var state: Dictionary = {}          # dynamic (includes position + velocity)
+var def_id: String = ""  # template definition id from entities.json
+var instance_id: String = ""  # unique per spawn; set by world loader
+var properties: Dictionary = {}  # static
+var state: Dictionary = {}  # dynamic (includes position + velocity)
 var tags: Array[String] = []
 var visual: Dictionary = {}
-
 
 # ============================================================
 # CONSTRUCTION
 # ============================================================
+
 
 ## Factory: build from a loaded definition dict plus optional overrides.
 ## Overrides can set:
@@ -89,7 +89,7 @@ static func create(def: Dictionary, inst_id: String, overrides: Dictionary = {})
 
 func _apply_overrides(overrides: Dictionary) -> void:
 	if overrides.has("state") and overrides["state"] is Dictionary:
-		for k in (overrides["state"] as Dictionary):
+		for k in overrides["state"] as Dictionary:
 			var v = overrides["state"][k]
 			# Normalize spatial fields from JSON arrays to Vector2/Vector3.
 			# Without this, override `state.velocity = [0, -400]` stays an
@@ -98,7 +98,7 @@ func _apply_overrides(overrides: Dictionary) -> void:
 				v = _normalize_position(v)
 			state[k] = v
 	if overrides.has("properties") and overrides["properties"] is Dictionary:
-		for k in (overrides["properties"] as Dictionary):
+		for k in overrides["properties"] as Dictionary:
 			properties[k] = overrides["properties"][k]
 	if overrides.has("tags") and overrides["tags"] is Array:
 		for t in overrides["tags"]:
@@ -106,7 +106,7 @@ func _apply_overrides(overrides: Dictionary) -> void:
 			if not (ts in tags):
 				tags.append(ts)
 	if overrides.has("visual") and overrides["visual"] is Dictionary:
-		for k in (overrides["visual"] as Dictionary):
+		for k in overrides["visual"] as Dictionary:
 			var v = (overrides["visual"] as Dictionary)[k]
 			# Deep-merge `params` so instances can override individual color
 			# slots (e.g. just `wall`) without nuking the def's other params
@@ -117,7 +117,7 @@ func _apply_overrides(overrides: Dictionary) -> void:
 			# in pendrel needed to override 1-2 colors per cottage/forge/
 			# tavern; deep-merge makes that one-line per instance.
 			if k == "params" and v is Dictionary and visual.get("params", null) is Dictionary:
-				for pk in (v as Dictionary):
+				for pk in v as Dictionary:
 					(visual["params"] as Dictionary)[pk] = (v as Dictionary)[pk]
 			else:
 				visual[k] = v
@@ -129,12 +129,15 @@ func _apply_overrides(overrides: Dictionary) -> void:
 # TAGS
 # ============================================================
 
+
 func has_tag(tag: String) -> bool:
 	return tag in tags
+
 
 func add_tag(tag: String) -> void:
 	if not has_tag(tag):
 		tags.append(tag)
+
 
 func remove_tag(tag: String) -> void:
 	tags.erase(tag)
@@ -144,11 +147,14 @@ func remove_tag(tag: String) -> void:
 # STATE
 # ============================================================
 
+
 func get_state(field: String, default = null):
 	return state.get(field, default)
 
+
 func set_state(field: String, value) -> void:
 	state[field] = value
+
 
 func add_state(field: String, delta: float) -> void:
 	state[field] = float(state.get(field, 0)) + delta
@@ -158,6 +164,7 @@ func add_state(field: String, delta: float) -> void:
 # PROPERTIES (read-only by convention)
 # ============================================================
 
+
 func get_property(field: String, default = null):
 	return properties.get(field, default)
 
@@ -166,10 +173,12 @@ func get_property(field: String, default = null):
 # POSITION (in state, dimension-agnostic — Vector2 or Vector3)
 # ============================================================
 
+
 ## Returns whatever's in state.position. Vector2 by default; can be Vector3 in
 ## 3D scenes. Renderer reads this each frame to update its visual child node.
 func get_position() -> Variant:
 	return state.get("position", Vector2.ZERO)
+
 
 func set_position(p) -> void:
 	state["position"] = _normalize_position(p)
@@ -179,13 +188,16 @@ func set_position(p) -> void:
 	if has_meta("_physics_body_rid"):
 		PhysicsBodyBuilder.sync_body_transform(self)
 
+
 ## Convenience for spatial queries that must reduce to a 2D plane regardless
 ## of source dimensionality. Convention (W5.0): Vector3(x, y, z) → Vector2(x, z).
 ## XY in 3D = (x, z); Y is height/decorative.
 func get_planar_position() -> Vector2:
 	var p = state.get("position", Vector2.ZERO)
-	if p is Vector2: return p
-	if p is Vector3: return Vector2(p.x, p.z)
+	if p is Vector2:
+		return p
+	if p is Vector3:
+		return Vector2(p.x, p.z)
 	if p is Array and (p as Array).size() >= 2:
 		return Vector2(float(p[0]), float(p[1]))
 	return Vector2.ZERO
@@ -195,8 +207,10 @@ func get_planar_position() -> Vector2:
 # VELOCITY (reserved state field, dimension-agnostic)
 # ============================================================
 
+
 func get_velocity() -> Variant:
 	return state.get("velocity", Vector2.ZERO)
+
 
 func set_velocity(v) -> void:
 	state["velocity"] = _normalize_position(v)
@@ -212,13 +226,17 @@ func set_velocity(v) -> void:
 # SERIALIZATION (for save/load, replay, tests)
 # ============================================================
 
+
 ## Produces a plain-data snapshot. Round-trips through JSON.
 func snapshot() -> Dictionary:
 	var pos = state.get("position", Vector2.ZERO)
 	var pos_serialized: Array
-	if pos is Vector2: pos_serialized = [pos.x, pos.y]
-	elif pos is Vector3: pos_serialized = [pos.x, pos.y, pos.z]
-	else: pos_serialized = [0.0, 0.0]
+	if pos is Vector2:
+		pos_serialized = [pos.x, pos.y]
+	elif pos is Vector3:
+		pos_serialized = [pos.x, pos.y, pos.z]
+	else:
+		pos_serialized = [0.0, 0.0]
 	return {
 		"def": def_id,
 		"id": instance_id,
@@ -233,6 +251,7 @@ func snapshot() -> Dictionary:
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 ## ADR 0044 Session A — free any attached PhysicsServer3D body when this
 ## Entity leaves the scene tree. Covers normal despawn (via
@@ -249,12 +268,16 @@ func _exit_tree() -> void:
 # UTIL
 # ============================================================
 
+
 ## Normalize a position-shaped value to a Vector2 or Vector3.
 ## Accepts Vector2/Vector3/Array. Array length 2 → Vector2; length 3 → Vector3.
 static func _normalize_position(v) -> Variant:
-	if v is Vector2 or v is Vector3: return v
+	if v is Vector2 or v is Vector3:
+		return v
 	if v is Array:
 		var a := v as Array
-		if a.size() == 2: return Vector2(float(a[0]), float(a[1]))
-		if a.size() == 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
+		if a.size() == 2:
+			return Vector2(float(a[0]), float(a[1]))
+		if a.size() == 3:
+			return Vector3(float(a[0]), float(a[1]), float(a[2]))
 	return Vector2.ZERO

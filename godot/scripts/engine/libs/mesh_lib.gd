@@ -23,24 +23,31 @@ class_name MeshLib
 ## Per-entity override:
 ##   entity.visual = {"mesh": "tree", "params": {"foliage": "#5fa53d"}}
 
-var meshes: Dictionary = {}            # name → {primitives: Array, params: Dictionary}
+var meshes: Dictionary = {}  # name → {primitives: Array, params: Dictionary}
+
 
 static func load_from_file(path: String, env: Dictionary = {}) -> MeshLib:
 	var lib := MeshLib.new()
 	if not FileAccess.file_exists(path):
-		EngineError.raise(env, EngineError.MESH_FILE_MISSING,
+		EngineError.raise(
+			env,
+			EngineError.MESH_FILE_MISSING,
 			"MeshLib: no file at %s" % path,
 			{"file": path},
 			"Drop a meshes.json file at this path, or omit the mesh lib if you want bare cubes.",
-			"warning")
+			"warning"
+		)
 		return lib
 	var f := FileAccess.open(path, FileAccess.READ)
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
-		EngineError.raise(env, EngineError.MESH_INVALID_JSON,
+		EngineError.raise(
+			env,
+			EngineError.MESH_INVALID_JSON,
 			"MeshLib: invalid JSON in %s" % path,
 			{"file": path},
-			"Top-level must be a JSON object: {\"meshes\": {\"name\": {\"primitives\": [...]}}}.")
+			'Top-level must be a JSON object: {"meshes": {"name": {"primitives": [...]}}}.'
+		)
 		return lib
 	var raw: Dictionary = data.get("meshes", {})
 	for k in raw.keys():
@@ -49,11 +56,14 @@ static func load_from_file(path: String, env: Dictionary = {}) -> MeshLib:
 			lib.meshes[str(k)] = def
 	return lib
 
+
 func has(name: String) -> bool:
 	return meshes.has(name)
 
+
 func get_mesh(name: String) -> Dictionary:
 	return meshes.get(name, {})
+
 
 static func merge_params(mesh_def: Dictionary, instance_params: Dictionary) -> Dictionary:
 	var out: Dictionary = (mesh_def.get("params", {}) as Dictionary).duplicate()
@@ -72,9 +82,12 @@ static func merge_params(mesh_def: Dictionary, instance_params: Dictionary) -> D
 ## itself has `"cast_shadow": <bool>`. Used to skip shadows on cheap
 ## decoration (grass, clouds) — each shadow-caster roughly doubles draw
 ## cost (one pass for color, one for the shadow map).
-static func build_primitives_into(parent: Node3D, primitives: Array, params: Dictionary, cast_shadow_default: bool = true) -> void:
+static func build_primitives_into(
+	parent: Node3D, primitives: Array, params: Dictionary, cast_shadow_default: bool = true
+) -> void:
 	for p in primitives:
-		if not (p is Dictionary): continue
+		if not (p is Dictionary):
+			continue
 		var op := str(p.get("op", ""))
 		var mesh: Mesh = null
 		match op:
@@ -126,10 +139,13 @@ static func build_primitives_into(parent: Node3D, primitives: Array, params: Dic
 				var m := QuadMesh.new()
 				m.size = sz
 				mesh = m
-		if mesh == null: continue
+		if mesh == null:
+			continue
 		var mi := MeshInstance3D.new()
 		mi.mesh = mesh
-		mi.material_override = _make_material(_parse_color(_param_resolve(p.get("color", "#fff"), params)))
+		mi.material_override = _make_material(
+			_parse_color(_param_resolve(p.get("color", "#fff"), params))
+		)
 		var pos := _to_vec3(_param_resolve(p.get("pos", [0, 0, 0]), params))
 		mi.position = pos
 		if p.has("rotation_deg"):
@@ -156,19 +172,24 @@ static func _param_resolve(v, params: Dictionary):
 
 
 static func _to_vec3(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, v.y, 0)
+	if v is Vector3:
+		return v
+	if v is Vector2:
+		return Vector3(v.x, v.y, 0)
 	if v is Array:
 		var a := v as Array
-		if a.size() >= 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2: return Vector3(float(a[0]), float(a[1]), 0)
+		if a.size() >= 3:
+			return Vector3(float(a[0]), float(a[1]), float(a[2]))
+		if a.size() == 2:
+			return Vector3(float(a[0]), float(a[1]), 0)
 	if v is float or v is int:
 		return Vector3(float(v), float(v), float(v))
 	return Vector3.ZERO
 
 
 static func _to_vec2(v) -> Vector2:
-	if v is Vector2: return v
+	if v is Vector2:
+		return v
 	if v is Array and (v as Array).size() >= 2:
 		return Vector2(float(v[0]), float(v[1]))
 	if v is float or v is int:
@@ -177,11 +198,14 @@ static func _to_vec2(v) -> Vector2:
 
 
 static func _parse_color(v) -> Color:
-	if v is Color: return v
-	if v is String: return Color(str(v))
+	if v is Color:
+		return v
+	if v is String:
+		return Color(str(v))
 	if v is Array and (v as Array).size() >= 3:
-		return Color(float(v[0]), float(v[1]), float(v[2]),
-			1.0 if (v as Array).size() < 4 else float(v[3]))
+		return Color(
+			float(v[0]), float(v[1]), float(v[2]), 1.0 if (v as Array).size() < 4 else float(v[3])
+		)
 	return Color(0.7, 0.7, 0.7)
 
 

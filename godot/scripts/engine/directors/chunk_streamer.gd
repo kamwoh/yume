@@ -36,7 +36,6 @@ class_name ChunkStreamer
 ##     - 3D world renderer: world units / meters (e.g. [50, 50] = 50m × 50m)
 ##   No unit declaration in world.json — inherits from the renderer.
 
-
 # ============================================================
 # CONFIG (from world.json)
 # ============================================================
@@ -57,10 +56,10 @@ var _loaded_chunks: Dictionary = {}
 var current_chunk: Vector2i = Vector2i(0, 0)
 var verbose: bool = false
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 ## Read world.json from data_root; returns null if no world.json present
 ## (single-chunk legacy mode). Caller (World.load_data) checks this and
@@ -71,9 +70,11 @@ static func try_load(data_root: String, verbose: bool = false) -> ChunkStreamer:
 	if not FileAccess.file_exists(path):
 		return null
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return null
+	if f == null:
+		return null
 	var data = JSON.parse_string(f.get_as_text())
-	if not (data is Dictionary): return null
+	if not (data is Dictionary):
+		return null
 	var d := data as Dictionary
 
 	var cs := ChunkStreamer.new()
@@ -123,6 +124,7 @@ func chunk_of(planar_pos: Vector2) -> Vector2i:
 # UPDATE — called per tick from World._process tick branch
 # ============================================================
 
+
 ## Compute desired chunk set from active-actor position; load missing
 ## chunks; despawn entities in chunks beyond unload_radius. Persistent
 ## entities (loaded once at boot from chunks/_persistent/) are never
@@ -134,11 +136,14 @@ func chunk_of(planar_pos: Vector2) -> Vector2i:
 ## actor_id: the entity id the streamer should anchor to (resolved by
 ##           caller via ActorManager.resolve_active_entity()).
 func update(env: Dictionary, actor_id: String) -> void:
-	if actor_id == "": return
+	if actor_id == "":
+		return
 	var entities: Dictionary = env.get("entities", {})
 	var actor_ent = entities.get(actor_id, null)
-	if actor_ent == null: return
-	if not actor_ent.has_method("get_planar_position"): return
+	if actor_ent == null:
+		return
+	if not actor_ent.has_method("get_planar_position"):
+		return
 	var actor_pos: Vector2 = actor_ent.get_planar_position()
 	var anchor: Vector2i = chunk_of(actor_pos)
 	if anchor == current_chunk and not _loaded_chunks.is_empty():
@@ -152,7 +157,8 @@ func update(env: Dictionary, actor_id: String) -> void:
 	for dx in range(-stream_radius, stream_radius + 1):
 		for dy in range(-stream_radius, stream_radius + 1):
 			var c := Vector2i(anchor.x + dx, anchor.y + dy)
-			if _loaded_chunks.has(c): continue
+			if _loaded_chunks.has(c):
+				continue
 			_load_chunk(c, env)
 
 	# 2. UNLOAD: chunks beyond unload_radius
@@ -177,7 +183,8 @@ func boot(env: Dictionary) -> void:
 	for dx in range(-stream_radius, stream_radius + 1):
 		for dy in range(-stream_radius, stream_radius + 1):
 			var c := Vector2i(starting_chunk.x + dx, starting_chunk.y + dy)
-			if _loaded_chunks.has(c): continue
+			if _loaded_chunks.has(c):
+				continue
 			_load_chunk(c, env)
 	var world_state: Dictionary = env.get("world", {})
 	world_state["current_chunk"] = [starting_chunk.x, starting_chunk.y]
@@ -186,6 +193,7 @@ func boot(env: Dictionary) -> void:
 # ============================================================
 # CHUNK LOAD / UNLOAD
 # ============================================================
+
 
 ## Load chunks/<x>_<y>/entities.json. Records spawned entity ids so
 ## _unload_chunk knows what to despawn later. Persistent-tagged entities
@@ -203,7 +211,8 @@ func _load_chunk(c: Vector2i, env: Dictionary) -> void:
 	var spawned: Array = []
 	var entities_after: Dictionary = env.get("entities", {})
 	for id in entities_after.keys():
-		if entities_before.has(id): continue
+		if entities_before.has(id):
+			continue
 		# Skip persistent-tagged spawns from the unload tracking — they
 		# live forever (treated like _persistent chunk content).
 		var ent = entities_after[id]
@@ -213,7 +222,8 @@ func _load_chunk(c: Vector2i, env: Dictionary) -> void:
 				if ent.has_tag(str(t)):
 					is_persistent = true
 					break
-			if is_persistent: continue
+			if is_persistent:
+				continue
 		spawned.append(str(id))
 	_loaded_chunks[c] = spawned
 	if verbose:
@@ -234,7 +244,8 @@ func _unload_chunk(c: Vector2i, env: Dictionary) -> void:
 	for id_v in ids:
 		var id := str(id_v)
 		var ent = entities.get(id, null)
-		if ent == null: continue
+		if ent == null:
+			continue
 		if relations != null and relations.has_method("clear_entity"):
 			relations.clear_entity(id)
 		if spatial_index != null and spatial_index.has_method("remove_entity"):
@@ -254,11 +265,14 @@ func _unload_chunk(c: Vector2i, env: Dictionary) -> void:
 ## the loader logic stays in world.gd — this just delegates.
 func _load_entities_json_via_world(path: String, env: Dictionary) -> void:
 	var parent_node = env.get("parent", null)
-	if parent_node == null: return
+	if parent_node == null:
+		return
 	if not parent_node.has_method("load_entities_file"):
 		# World.gd doesn't expose this yet — fail loudly so the wiring
 		# can be added.
-		push_warning("[ChunkStreamer] World node missing load_entities_file(); chunk %s ignored" % path)
+		push_warning(
+			"[ChunkStreamer] World node missing load_entities_file(); chunk %s ignored" % path
+		)
 		return
 	parent_node.load_entities_file(path)
 
@@ -266,6 +280,7 @@ func _load_entities_json_via_world(path: String, env: Dictionary) -> void:
 # ============================================================
 # DIAGNOSTICS
 # ============================================================
+
 
 func loaded_chunk_count() -> int:
 	return _loaded_chunks.size()

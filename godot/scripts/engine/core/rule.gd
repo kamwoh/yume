@@ -18,8 +18,14 @@ class_name Rule
 ## + hints cover every real case without becoming a maintenance ratchet.
 
 const VALID_TRIGGERS: Array = [
-	"tick", "contact", "signal", "input",
-	"spawn", "despawn", "relation_changed", "scheduled",
+	"tick",
+	"contact",
+	"signal",
+	"input",
+	"spawn",
+	"despawn",
+	"relation_changed",
+	"scheduled",
 ]
 
 # ============================================================
@@ -28,10 +34,10 @@ const VALID_TRIGGERS: Array = [
 
 var id: String = ""
 var trigger: Dictionary = {}
-var query: Variant = null          # null or Dictionary
-var require: Variant = null        # null or Dictionary
+var query: Variant = null  # null or Dictionary
+var require: Variant = null  # null or Dictionary
 var chance: float = 1.0
-var effects: Array = []            # always an Array of effect dicts (singleton normalized)
+var effects: Array = []  # always an Array of effect dicts (singleton normalized)
 var before_hints: Array[String] = []
 var after_hints: Array[String] = []
 var scope: String = ""
@@ -46,10 +52,10 @@ var lod: Variant = null
 ## rule so that the formula's lifetime matches the rule's, not global.
 var _expression_cache: Dictionary = {}
 
-
 # ============================================================
 # LOADING
 # ============================================================
+
 
 static func from_dict(d: Dictionary) -> Rule:
 	var r := Rule.new()
@@ -91,7 +97,12 @@ static func _normalize_lod(raw: Dictionary) -> Dictionary:
 		out["leave_radius"] = float(out["enter_radius"]) * 1.10
 	# Hysteresis check
 	if float(out["leave_radius"]) <= float(out["enter_radius"]):
-		push_warning("Rule lod: leave_radius (%.1f) <= enter_radius (%.1f) — entities will flip-flop on the boundary" % [out["leave_radius"], out["enter_radius"]])
+		push_warning(
+			(
+				"Rule lod: leave_radius (%.1f) <= enter_radius (%.1f) — entities will flip-flop on the boundary"
+				% [out["leave_radius"], out["enter_radius"]]
+			)
+		)
 	return out
 
 
@@ -104,23 +115,30 @@ static func _normalize_lod(raw: Dictionary) -> Dictionary:
 ## ADR 0019: optional `macro_expander` substitutes macro effect references
 ## with primitive sequences before Rule.from_dict parses them. When null
 ## (no macros.json for this game), rules pass through unchanged.
-static func load_from_file(path: String, env: Dictionary = {},
-						   macro_expander = null) -> Array[Rule]:
+static func load_from_file(
+	path: String, env: Dictionary = {}, macro_expander = null
+) -> Array[Rule]:
 	var out: Array[Rule] = []
 	if not FileAccess.file_exists(path):
-		EngineError.raise(env, EngineError.RULE_FILE_MISSING,
+		EngineError.raise(
+			env,
+			EngineError.RULE_FILE_MISSING,
 			"Rules file not found: %s" % path,
 			{"file": path},
-			"Check that the path exists relative to res:// and is spelled correctly.")
+			"Check that the path exists relative to res:// and is spelled correctly."
+		)
 		return out
 	var f := FileAccess.open(path, FileAccess.READ)
 	var raw_text := f.get_as_text()
 	var data = JSON.parse_string(raw_text)
 	if not (data is Dictionary):
-		EngineError.raise(env, EngineError.RULE_INVALID_JSON,
+		EngineError.raise(
+			env,
+			EngineError.RULE_INVALID_JSON,
 			"Rules file is not valid JSON: %s" % path,
 			{"file": path},
-			"Run the file through a JSON linter — top-level must be an object with a 'rules' array.")
+			"Run the file through a JSON linter — top-level must be an object with a 'rules' array."
+		)
 		return out
 	# ADR 0027: expand @lib.X / $extends / $include refs before macros.
 	# $include splices lib rule arrays into the parent rules array.
@@ -129,10 +147,13 @@ static func load_from_file(path: String, env: Dictionary = {},
 		data = resolved
 	var list = data.get("rules", [])
 	if not (list is Array):
-		EngineError.raise(env, EngineError.RULE_LIST_NOT_ARRAY,
+		EngineError.raise(
+			env,
+			EngineError.RULE_LIST_NOT_ARRAY,
 			"%s: 'rules' must be an array" % path,
 			{"file": path, "field": "rules", "got_type": _type_name(list)},
-			"Wrap your rule entries in an array: { \"rules\": [ {...}, {...} ] }.")
+			'Wrap your rule entries in an array: { "rules": [ {...}, {...} ] }.'
+		)
 		return out
 	# ADR 0027 condition 3: id-collision detection on $include splice.
 	# A rule whose `id` already appeared in this load's rules array (from
@@ -141,19 +162,32 @@ static func load_from_file(path: String, env: Dictionary = {},
 	# is the scheduler's job (rules_by_trigger handles it).
 	var seen_ids: Dictionary = {}
 	for entry in list:
-		if not (entry is Dictionary): continue
+		if not (entry is Dictionary):
+			continue
 		var rid := str((entry as Dictionary).get("id", ""))
-		if rid == "": continue
+		if rid == "":
+			continue
 		if seen_ids.has(rid):
 			var prev_origin: String = str(seen_ids[rid])
 			var cur_origin: String = str((entry as Dictionary).get("_origin", "(local)"))
-			EngineError.raise(env, EngineError.RULE_DUPLICATE_ID,
-				"%s: duplicate rule id '%s' (sources: %s vs %s)"
-					% [path, rid, prev_origin, cur_origin],
-				{"file": path, "rule_id": rid,
-				 "first_origin": prev_origin, "second_origin": cur_origin},
-				"Rename one of the colliding rules. If a $include'd lib bundle "
-				+ "has the conflicting id, fork the bundle or rename the local rule.")
+			EngineError.raise(
+				env,
+				EngineError.RULE_DUPLICATE_ID,
+				(
+					"%s: duplicate rule id '%s' (sources: %s vs %s)"
+					% [path, rid, prev_origin, cur_origin]
+				),
+				{
+					"file": path,
+					"rule_id": rid,
+					"first_origin": prev_origin,
+					"second_origin": cur_origin
+				},
+				(
+					"Rename one of the colliding rules. If a $include'd lib bundle "
+					+ "has the conflicting id, fork the bundle or rename the local rule."
+				)
+			)
 		seen_ids[rid] = (entry as Dictionary).get("_origin", "(local)")
 	# ADR 0019: expand macros before parsing into Rule instances. After
 	# expansion, every effect's `type` is a primitive (state_set, spawn, ...).
@@ -169,6 +203,7 @@ static func load_from_file(path: String, env: Dictionary = {},
 # ============================================================
 # VALIDATION
 # ============================================================
+
 
 ## Validate a list of loaded rules. Returns [] if valid, otherwise an array
 ## of structured error records (`EngineError.make`-shaped dicts).
@@ -189,60 +224,112 @@ static func validate_all(rules: Array) -> Array[Dictionary]:
 	for i in range(rules.size()):
 		var r = rules[i]
 		if not (r is Rule):
-			errors.append(EngineError.make(EngineError.RULE_NOT_INSTANCE,
-				"Entry %d is not a Rule instance" % i,
-				{"index": i, "got_type": _type_name(r)},
-				"Use Rule.from_dict() before passing to validate_all."))
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_NOT_INSTANCE,
+					"Entry %d is not a Rule instance" % i,
+					{"index": i, "got_type": _type_name(r)},
+					"Use Rule.from_dict() before passing to validate_all."
+				)
+			)
 			continue
 		var rule: Rule = r
 		if rule.id == "":
-			errors.append(EngineError.make(EngineError.RULE_MISSING_ID,
-				"Rule at index %d has no id" % i,
-				{"index": i, "field": "id"},
-				"Add a unique 'id' string to this rule."))
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_MISSING_ID,
+					"Rule at index %d has no id" % i,
+					{"index": i, "field": "id"},
+					"Add a unique 'id' string to this rule."
+				)
+			)
 			continue
 		if seen.has(rule.id):
-			errors.append(EngineError.make(EngineError.RULE_DUPLICATE_ID,
-				"Duplicate rule id: %s" % rule.id,
-				{"rule_id": rule.id, "index": i, "field": "id"},
-				"Rename one of the duplicates so every rule has a unique id."))
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_DUPLICATE_ID,
+					"Duplicate rule id: %s" % rule.id,
+					{"rule_id": rule.id, "index": i, "field": "id"},
+					"Rename one of the duplicates so every rule has a unique id."
+				)
+			)
 		seen[rule.id] = true
 
 		var tt := rule.trigger_type()
 		if tt == "":
-			errors.append(EngineError.make(EngineError.RULE_TRIGGER_MISSING,
-				"Rule '%s': trigger.type missing" % rule.id,
-				{"rule_id": rule.id, "field": "trigger.type"},
-				"Add a trigger object: e.g. {\"type\": \"tick\", \"interval\": 1}."))
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_TRIGGER_MISSING,
+					"Rule '%s': trigger.type missing" % rule.id,
+					{"rule_id": rule.id, "field": "trigger.type"},
+					'Add a trigger object: e.g. {"type": "tick", "interval": 1}.'
+				)
+			)
 		elif not (tt in VALID_TRIGGERS):
-			errors.append(EngineError.make(EngineError.RULE_TRIGGER_INVALID,
-				"Rule '%s': invalid trigger type '%s'" % [rule.id, tt],
-				{"rule_id": rule.id, "field": "trigger.type", "got": tt, "valid": VALID_TRIGGERS},
-				"Use one of: %s." % ", ".join(VALID_TRIGGERS)))
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_TRIGGER_INVALID,
+					"Rule '%s': invalid trigger type '%s'" % [rule.id, tt],
+					{
+						"rule_id": rule.id,
+						"field": "trigger.type",
+						"got": tt,
+						"valid": VALID_TRIGGERS
+					},
+					"Use one of: %s." % ", ".join(VALID_TRIGGERS)
+				)
+			)
 
 		if rule.effects.is_empty():
-			errors.append(EngineError.make(EngineError.RULE_EFFECT_EMPTY,
-				"Rule '%s': effect list is empty" % rule.id,
-				{"rule_id": rule.id, "field": "effect"},
-				"Add at least one effect dict, e.g. {\"type\": \"state_set\", ...}."))
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_EFFECT_EMPTY,
+					"Rule '%s': effect list is empty" % rule.id,
+					{"rule_id": rule.id, "field": "effect"},
+					'Add at least one effect dict, e.g. {"type": "state_set", ...}.'
+				)
+			)
 		for j in range(rule.effects.size()):
 			var eff = rule.effects[j]
 			if not (eff is Dictionary):
-				errors.append(EngineError.make(EngineError.RULE_EFFECT_NOT_DICT,
-					"Rule '%s' effect[%d] is not a dictionary" % [rule.id, j],
-					{"rule_id": rule.id, "field": "effect", "index": j, "got_type": _type_name(eff)},
-					"Each effect entry must be a JSON object with a 'type' field."))
+				errors.append(
+					EngineError.make(
+						EngineError.RULE_EFFECT_NOT_DICT,
+						"Rule '%s' effect[%d] is not a dictionary" % [rule.id, j],
+						{
+							"rule_id": rule.id,
+							"field": "effect",
+							"index": j,
+							"got_type": _type_name(eff)
+						},
+						"Each effect entry must be a JSON object with a 'type' field."
+					)
+				)
 			elif not eff.has("type") or str(eff["type"]) == "":
-				errors.append(EngineError.make(EngineError.RULE_EFFECT_MISSING_TYPE,
-					"Rule '%s' effect[%d] missing 'type'" % [rule.id, j],
-					{"rule_id": rule.id, "field": "effect.type", "index": j},
-					"Add a 'type' field naming one of the supported effects (state_set, spawn, ...)."))
+				(
+					errors
+					. append(
+						(
+							EngineError
+							. make(
+								EngineError.RULE_EFFECT_MISSING_TYPE,
+								"Rule '%s' effect[%d] missing 'type'" % [rule.id, j],
+								{"rule_id": rule.id, "field": "effect.type", "index": j},
+								"Add a 'type' field naming one of the supported effects (state_set, spawn, ...)."
+							)
+						)
+					)
+				)
 
 		if rule.chance < 0.0 or rule.chance > 1.0:
-			errors.append(EngineError.make(EngineError.RULE_CHANCE_OUT_OF_RANGE,
-				"Rule '%s': chance %.2f out of [0.0, 1.0]" % [rule.id, rule.chance],
-				{"rule_id": rule.id, "field": "chance", "got": rule.chance},
-				"Set 'chance' to a value between 0.0 and 1.0 (default 1.0)."))
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_CHANCE_OUT_OF_RANGE,
+					"Rule '%s': chance %.2f out of [0.0, 1.0]" % [rule.id, rule.chance],
+					{"rule_id": rule.id, "field": "chance", "got": rule.chance},
+					"Set 'chance' to a value between 0.0 and 1.0 (default 1.0)."
+				)
+			)
 	return errors
 
 
@@ -250,16 +337,20 @@ static func validate_all(rules: Array) -> Array[Dictionary]:
 # INSTANCE ACCESSORS
 # ============================================================
 
+
 func trigger_type() -> String:
 	return str(trigger.get("type", ""))
 
+
 func trigger_param(key: String, default = null):
 	return (trigger as Dictionary).get(key, default)
+
 
 ## Does self declare a dependency on `other`?
 ## True if self.before lists other.id OR other.after lists self.id.
 func runs_before(other: Rule) -> bool:
 	return other.id in before_hints or id in other.after_hints
+
 
 func runs_after(other: Rule) -> bool:
 	return other.id in after_hints or id in other.before_hints
@@ -269,10 +360,12 @@ func runs_after(other: Rule) -> bool:
 # EXPRESSION CACHE (filled lazily in W4 when formulas are wired up)
 # ============================================================
 
+
 ## Stored by source string. W4's formula.gd layer owns parse + whitelist;
 ## Rule merely holds the cache so parsed expressions live as long as the rule.
 func cache_expression(source: String, expr: Expression) -> void:
 	_expression_cache[source] = expr
+
 
 func cached_expression(source: String) -> Expression:
 	return _expression_cache.get(source, null)
@@ -282,12 +375,14 @@ func cached_expression(source: String) -> Expression:
 # UTIL
 # ============================================================
 
+
 static func _normalize_effects(e) -> Array:
 	if e is Dictionary:
 		return [(e as Dictionary).duplicate(true)]
 	if e is Array:
 		return (e as Array).duplicate(true)
 	return []
+
 
 static func _as_string_array(v) -> Array[String]:
 	var out: Array[String] = []
@@ -298,15 +393,24 @@ static func _as_string_array(v) -> Array[String]:
 			out.append(str(s))
 	return out
 
+
 ## Human-readable type label for error reports. Used in 2.6a structured
 ## errors so an LLM reader sees "Array" instead of "5" (TYPE_ARRAY).
 static func _type_name(v) -> String:
-	if v == null: return "null"
-	if v is String: return "String"
-	if v is int: return "int"
-	if v is float: return "float"
-	if v is bool: return "bool"
-	if v is Array: return "Array"
-	if v is Dictionary: return "Dictionary"
-	if v is Rule: return "Rule"
+	if v == null:
+		return "null"
+	if v is String:
+		return "String"
+	if v is int:
+		return "int"
+	if v is float:
+		return "float"
+	if v is bool:
+		return "bool"
+	if v is Array:
+		return "Array"
+	if v is Dictionary:
+		return "Dictionary"
+	if v is Rule:
+		return "Rule"
 	return type_string(typeof(v))

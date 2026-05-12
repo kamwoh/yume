@@ -31,12 +31,11 @@ extends Node
 ##     }
 ##   }
 
-
 const SR := 22050  # sample rate — adequate for arcade SFX, tiny memory
 const POOL_SIZE := 8
 
-var _cache: Dictionary = {}            # name → AudioStreamWAV
-var _player_pool: Array = []           # AudioStreamPlayer pool
+var _cache: Dictionary = {}  # name → AudioStreamWAV
+var _player_pool: Array = []  # AudioStreamPlayer pool
 
 # Music slot — separate looping player so SFX one-shots don't preempt BGM.
 # Added 2026-05-08 (user: "where is the background music?"). Procedural-
@@ -63,14 +62,16 @@ func _load_sounds_library() -> void:
 	if not FileAccess.file_exists(path):
 		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var raw := f.get_as_text()
 	f.close()
 	var json := JSON.new()
 	if json.parse(raw) != OK:
 		push_warning("[AudioBus] sounds.json parse error: " + json.get_error_message())
 		return
-	if not (json.data is Dictionary): return
+	if not (json.data is Dictionary):
+		return
 	var spec: Dictionary = json.data
 	var sounds: Dictionary = spec.get("sounds", {})
 	for sound_name in sounds.keys():
@@ -96,7 +97,8 @@ func _synthesize(p: Dictionary) -> AudioStreamWAV:
 	var volume := float(p.get("volume", 0.5))
 
 	var n_samples := int(SR * duration)
-	if n_samples <= 0: n_samples = 1
+	if n_samples <= 0:
+		n_samples = 1
 	var pcm := PackedByteArray()
 	pcm.resize(n_samples * 2)
 
@@ -151,7 +153,8 @@ func _synthesize(p: Dictionary) -> AudioStreamWAV:
 ## Play a cached sound by name. Silent if name missing — never errors.
 func play(sound_name: String) -> void:
 	var stream = _cache.get(sound_name, null)
-	if stream == null: return
+	if stream == null:
+		return
 	# Find a free player; preempt the oldest if all busy.
 	for p in _player_pool:
 		if not (p as AudioStreamPlayer).playing:
@@ -185,7 +188,8 @@ func play_music(sound_name: String) -> void:
 
 
 func stop_music() -> void:
-	if _music_player == null: return
+	if _music_player == null:
+		return
 	_music_player.stop()
 	_music_current = ""
 
@@ -199,7 +203,8 @@ func _synthesize_melody(p: Dictionary) -> AudioStreamWAV:
 	var default_volume := float(p.get("volume", 0.4))
 	var pcm := PackedByteArray()
 	for note in notes:
-		if not (note is Dictionary): continue
+		if not (note is Dictionary):
+			continue
 		var nd: Dictionary = note
 		var freq := float(nd.get("freq", 440.0))
 		var dur := float(nd.get("dur", 0.4))
@@ -208,7 +213,8 @@ func _synthesize_melody(p: Dictionary) -> AudioStreamWAV:
 		# Note-internal envelope: short attack + slow decay so consecutive
 		# notes have a piano-pluck feel rather than glitchy clicks.
 		var n_samples := int(SR * dur)
-		if n_samples <= 0: continue
+		if n_samples <= 0:
+			continue
 		var phase := 0.0
 		for i in range(n_samples):
 			var t: float = float(i) / float(SR)
@@ -223,11 +229,16 @@ func _synthesize_melody(p: Dictionary) -> AudioStreamWAV:
 			var s: float = 0.0
 			match wave_type:
 				"square":
-					if sin(phase) >= 0.0: s = 1.0
-					else: s = -1.0
-				"sawtooth": s = fposmod(phase / TAU, 1.0) * 2.0 - 1.0
-				"noise": s = randf_range(-1.0, 1.0)
-				_: s = sin(phase)
+					if sin(phase) >= 0.0:
+						s = 1.0
+					else:
+						s = -1.0
+				"sawtooth":
+					s = fposmod(phase / TAU, 1.0) * 2.0 - 1.0
+				"noise":
+					s = randf_range(-1.0, 1.0)
+				_:
+					s = sin(phase)
 			s *= env * vol
 			var s16: int = int(clamp(s * 32767.0, -32767.0, 32767.0))
 			var u16: int = 0

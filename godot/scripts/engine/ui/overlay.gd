@@ -26,7 +26,6 @@ class_name OverlayManager
 ## coordination. NOT in Phase A: highlight rendering (shader + tween),
 ## scheduled for Phase B.
 
-
 # ============================================================
 # STATE
 # ============================================================
@@ -38,10 +37,10 @@ var _world: Node = null
 #    "elapsed": float, "advance_action_pressed_was": bool}
 var _stack: Array = []
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -57,7 +56,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	_drain_overlay_events()
 	_advance_active_overlay(delta)
 	_apply_freeze_state()
@@ -67,15 +67,19 @@ func _process(delta: float) -> void:
 # EVENT DRAIN (show / dismiss)
 # ============================================================
 
+
 func _drain_overlay_events() -> void:
 	var sched = _world.get("scheduler")
-	if sched == null: return
+	if sched == null:
+		return
 	var env: Dictionary = sched.env
 	var buf = env.get("overlay_event_buffer", null)
-	if not (buf is Array) or (buf as Array).is_empty(): return
+	if not (buf is Array) or (buf as Array).is_empty():
+		return
 	env["overlay_event_buffer"] = []
 	for ev in buf:
-		if not (ev is Dictionary): continue
+		if not (ev is Dictionary):
+			continue
 		var name := str(ev.get("event", ""))
 		match name:
 			"show_overlay":
@@ -87,6 +91,7 @@ func _drain_overlay_events() -> void:
 # ============================================================
 # SHOW / DISMISS
 # ============================================================
+
 
 func _show_overlay(spec: Dictionary) -> void:
 	var id := str(spec.get("id", ""))
@@ -107,8 +112,7 @@ func _show_overlay(spec: Dictionary) -> void:
 
 	# Optional dim backdrop (only if freeze_world OR explicit backdrop_alpha)
 	var freeze_world := bool(spec.get("freeze_world", true))
-	var backdrop_alpha := float(spec.get("backdrop_alpha",
-		0.5 if freeze_world else 0.0))
+	var backdrop_alpha := float(spec.get("backdrop_alpha", 0.5 if freeze_world else 0.0))
 	if backdrop_alpha > 0.0:
 		var bg := ColorRect.new()
 		bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -136,10 +140,8 @@ func _show_overlay(spec: Dictionary) -> void:
 		var lbl_t := Label.new()
 		lbl_t.text = ControlFactory._resolve_text(title)
 		lbl_t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		lbl_t.add_theme_font_size_override("font_size",
-			int(spec.get("title_font_size", 32)))
-		lbl_t.add_theme_color_override("font_color",
-			Color(spec.get("title_color", "#fdd068")))
+		lbl_t.add_theme_font_size_override("font_size", int(spec.get("title_font_size", 32)))
+		lbl_t.add_theme_color_override("font_color", Color(spec.get("title_color", "#fdd068")))
 		lbl_t.add_theme_color_override("font_outline_color", Color.BLACK)
 		lbl_t.add_theme_constant_override("outline_size", 4)
 		vb.add_child(lbl_t)
@@ -151,24 +153,27 @@ func _show_overlay(spec: Dictionary) -> void:
 		lbl_b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		lbl_b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		lbl_b.custom_minimum_size = Vector2(540, 0)
-		lbl_b.add_theme_font_size_override("font_size",
-			int(spec.get("body_font_size", 20)))
-		lbl_b.add_theme_color_override("font_color",
-			Color(spec.get("body_color", "#f0e0c0")))
+		lbl_b.add_theme_font_size_override("font_size", int(spec.get("body_font_size", 20)))
+		lbl_b.add_theme_color_override("font_color", Color(spec.get("body_color", "#f0e0c0")))
 		lbl_b.add_theme_color_override("font_outline_color", Color.BLACK)
 		lbl_b.add_theme_constant_override("outline_size", 3)
 		vb.add_child(lbl_b)
 
 	# Push to stack
-	_stack.append({
-		"id": id,
-		"layer": layer,
-		"spec": spec,
-		"elapsed": 0.0,
-		# Track edge for advance_action so a held key fires once
-		"advance_action_pressed_was": false,
-		"skip_pressed_was": false,
-	})
+	(
+		_stack
+		. append(
+			{
+				"id": id,
+				"layer": layer,
+				"spec": spec,
+				"elapsed": 0.0,
+				# Track edge for advance_action so a held key fires once
+				"advance_action_pressed_was": false,
+				"skip_pressed_was": false,
+			}
+		)
+	)
 
 
 ## Pop matching overlay id and emit overlay_advanced.
@@ -188,28 +193,37 @@ func _dismiss_overlay(id: String, reason: String) -> void:
 
 
 func _emit_overlay_advanced(id: String, reason: String) -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return
+	if sched == null:
+		return
 	var env: Dictionary = sched.env
 	var buf = env.get("signal_buffer", null)
 	if not (buf is Array):
 		buf = []
 		env["signal_buffer"] = buf
-	(buf as Array).append({
-		"name": "overlay_advanced",
-		"payload": {"id": id, "reason": reason},
-	})
+	(
+		(buf as Array)
+		. append(
+			{
+				"name": "overlay_advanced",
+				"payload": {"id": id, "reason": reason},
+			}
+		)
+	)
 
 
 # ============================================================
 # ADVANCE CONDITIONS
 # ============================================================
 
+
 ## Per-frame: only the TOP overlay of the stack is interactive.
 ## Check its advance conditions and dismiss if any fires.
 func _advance_active_overlay(delta: float) -> void:
-	if _stack.is_empty(): return
+	if _stack.is_empty():
+		return
 	var top: Dictionary = _stack[_stack.size() - 1]
 	var spec: Dictionary = top["spec"]
 	top["elapsed"] = float(top.get("elapsed", 0.0)) + delta
@@ -251,13 +265,16 @@ func _advance_active_overlay(delta: float) -> void:
 ## Check if `signal_buffer` contains a signal with the given name.
 ## Observe-only (don't clear) — phase_scheduler clears it during tick.
 func _signal_in_buffer(name: String) -> bool:
-	if _world == null: return false
+	if _world == null:
+		return false
 	var sched = _world.get("scheduler")
-	if sched == null: return false
+	if sched == null:
+		return false
 	var env: Dictionary = sched.env
 	var buf = env.get("signal_buffer", null)
-	if not (buf is Array): return false
-	for sig in (buf as Array):
+	if not (buf is Array):
+		return false
+	for sig in buf as Array:
 		if sig is Dictionary and str((sig as Dictionary).get("name", "")) == name:
 			return true
 	return false
@@ -267,13 +284,16 @@ func _signal_in_buffer(name: String) -> bool:
 # FREEZE COORDINATION
 # ============================================================
 
+
 ## Set world_state["overlay_freeze_world"] = 1 if any active overlay
 ## requests freeze. World.gd checks both screen_freeze_world AND
 ## overlay_freeze_world before ticking.
 func _apply_freeze_state() -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var ws = _world.get("world_state")
-	if not (ws is Dictionary): return
+	if not (ws is Dictionary):
+		return
 	var freeze := false
 	for entry in _stack:
 		var spec: Dictionary = (entry as Dictionary)["spec"]

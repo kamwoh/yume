@@ -32,13 +32,13 @@ class_name Formula
 ## Deferred to W6:
 ##   AST whitelist (W4.5) — security, documented as known gap
 
-static var _cache: Dictionary = {}     # cache key → Expression
-static var _last_error: String = ""    # for diagnostics
-
+static var _cache: Dictionary = {}  # cache key → Expression
+static var _last_error: String = ""  # for diagnostics
 
 # ============================================================
 # PUBLIC
 # ============================================================
+
 
 ## Evaluate `formula` against `context`. Returns the result value, or 0.0
 ## on parse / exec failure. `context` is a flat dict of root names → roots
@@ -93,20 +93,42 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 		var err := expr.parse(rewritten, input_names)
 		if err != OK:
 			_last_error = "parse error in '%s' → '%s': %s" % [s, rewritten, expr.get_error_text()]
-			EngineError.raise(env, EngineError.FORMULA_PARSE_FAILED,
-				"Formula parse error: '%s' → '%s' — %s" % [s, rewritten, expr.get_error_text()],
-				{"rule_id": context.get("_rule_id", ""), "formula": s, "rewritten": rewritten, "godot_error": expr.get_error_text()},
-				"Check formula syntax. Allowed: bindings (self.state.X, target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow/floor/ceil/lerp/randf), arithmetic, comparison, bitwise, Vector2/Array subscript, Python-style ternary 'a if cond else b' (NOT C-style 'cond ? a : b' — Godot 4.6.1 Expression doesn't parse it).")
+			(
+				EngineError
+				. raise(
+					env,
+					EngineError.FORMULA_PARSE_FAILED,
+					"Formula parse error: '%s' → '%s' — %s" % [s, rewritten, expr.get_error_text()],
+					{
+						"rule_id": context.get("_rule_id", ""),
+						"formula": s,
+						"rewritten": rewritten,
+						"godot_error": expr.get_error_text()
+					},
+					"Check formula syntax. Allowed: bindings (self.state.X, target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow/floor/ceil/lerp/randf), arithmetic, comparison, bitwise, Vector2/Array subscript, Python-style ternary 'a if cond else b' (NOT C-style 'cond ? a : b' — Godot 4.6.1 Expression doesn't parse it)."
+				)
+			)
 			return 0.0
 		_cache[key] = expr
 
 	var result = expr.execute(input_values)
 	if expr.has_execute_failed():
 		_last_error = "exec failed for '%s'" % s
-		EngineError.raise(env, EngineError.FORMULA_EXEC_FAILED,
-			"Formula exec failed: '%s' (rule=%s)" % [s, context.get("_rule_id", "?")],
-			{"rule_id": context.get("_rule_id", ""), "formula": s, "rewritten": rewritten, "input_values": input_values},
-			"A binding may have resolved to an unexpected type — check that all referenced fields exist on the bound entities.")
+		(
+			EngineError
+			. raise(
+				env,
+				EngineError.FORMULA_EXEC_FAILED,
+				"Formula exec failed: '%s' (rule=%s)" % [s, context.get("_rule_id", "?")],
+				{
+					"rule_id": context.get("_rule_id", ""),
+					"formula": s,
+					"rewritten": rewritten,
+					"input_values": input_values
+				},
+				"A binding may have resolved to an unexpected type — check that all referenced fields exist on the bound entities."
+			)
+		)
 		return 0.0
 	return result
 
@@ -125,7 +147,8 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 ## because it has all of those — got passed to Expression.parse which
 ## crashed. Fix: require a formula-START char too.
 static func looks_like_formula(s: String) -> bool:
-	if s == "": return false
+	if s == "":
+		return false
 	var first := s.unicode_at(0)
 	# Formulas start with: lowercase a-z (binding), digit (literal),
 	# `(` (grouped expr), `-`/`+` (signed), `_` (private binding), `@`
@@ -135,14 +158,15 @@ static func looks_like_formula(s: String) -> bool:
 	var lower_z := "z".unicode_at(0)
 	var digit_0 := "0".unicode_at(0)
 	var digit_9 := "9".unicode_at(0)
-	var first_is_formula_start := \
-		(first >= lower_a and first <= lower_z) \
-		or (first >= digit_0 and first <= digit_9) \
-		or first == "(".unicode_at(0) \
-		or first == "-".unicode_at(0) \
-		or first == "+".unicode_at(0) \
-		or first == "_".unicode_at(0) \
+	var first_is_formula_start := (
+		(first >= lower_a and first <= lower_z)
+		or (first >= digit_0 and first <= digit_9)
+		or first == "(".unicode_at(0)
+		or first == "-".unicode_at(0)
+		or first == "+".unicode_at(0)
+		or first == "_".unicode_at(0)
 		or first == "@".unicode_at(0)
+	)
 	if not first_is_formula_start:
 		return false
 	# Then must have at least one operator/access char (else it's a
@@ -157,8 +181,11 @@ static func looks_like_formula(s: String) -> bool:
 ## Compile-only; for load-time validation (W4.6). Returns "" on success or
 ## an error string. Doesn't substitute paths since we don't have values yet —
 ## just checks GDScript expression syntax.
-static func validate_syntax(formula: String, expected_roots: PackedStringArray = PackedStringArray()) -> String:
-	if formula == "": return "empty formula"
+static func validate_syntax(
+	formula: String, expected_roots: PackedStringArray = PackedStringArray()
+) -> String:
+	if formula == "":
+		return "empty formula"
 	# We can't actually validate without knowing roots; just try parsing as-is.
 	# Real validation happens at first evaluation; this is a smoke check.
 	var probe: String = formula
@@ -170,7 +197,8 @@ static func validate_syntax(formula: String, expected_roots: PackedStringArray =
 		var m := regex.search(probe)
 		probe = probe.substr(0, m.get_start()) + ("__p%d" % i) + probe.substr(m.get_end())
 		i += 1
-		if i > 100: break  # safety
+		if i > 100:
+			break  # safety
 	var expr := Expression.new()
 	var err := expr.parse(probe)
 	if err != OK:
@@ -182,22 +210,30 @@ static func validate_syntax(formula: String, expected_roots: PackedStringArray =
 # INTERNAL — path resolution
 # ============================================================
 
+
 ## Walk a dotted path against a root value. Returns 0 on missing field
 ## (matches QueryLib's strict-missing semantic).
 static func _resolve_path(root, path: String):
 	var parts := path.split(".")
 	var cur = root
 	for p in parts:
-		if p == "": continue
+		if p == "":
+			continue
 		if cur is Entity:
 			var ent: Entity = cur
 			match p:
-				"state":      cur = ent.state
-				"tags":       cur = ent.tags
-				"properties": cur = ent.properties
-				"id":         cur = ent.instance_id
-				"def_id":     cur = ent.def_id
-				_:            return 0  # unknown Entity member
+				"state":
+					cur = ent.state
+				"tags":
+					cur = ent.tags
+				"properties":
+					cur = ent.properties
+				"id":
+					cur = ent.instance_id
+				"def_id":
+					cur = ent.def_id
+				_:
+					return 0  # unknown Entity member
 			continue
 		if cur is Dictionary:
 			if cur.has(p):
@@ -209,16 +245,23 @@ static func _resolve_path(root, path: String):
 		# `a.state.position.x` in contact-pair AI rules.
 		if cur is Vector2:
 			match p:
-				"x": cur = (cur as Vector2).x
-				"y": cur = (cur as Vector2).y
-				_: return 0
+				"x":
+					cur = (cur as Vector2).x
+				"y":
+					cur = (cur as Vector2).y
+				_:
+					return 0
 			continue
 		if cur is Vector3:
 			match p:
-				"x": cur = (cur as Vector3).x
-				"y": cur = (cur as Vector3).y
-				"z": cur = (cur as Vector3).z
-				_: return 0
+				"x":
+					cur = (cur as Vector3).x
+				"y":
+					cur = (cur as Vector3).y
+				"z":
+					cur = (cur as Vector3).z
+				_:
+					return 0
 			continue
 		# Cannot drill further into a scalar
 		return 0
@@ -229,11 +272,14 @@ static func _resolve_path(root, path: String):
 # CACHE STATS (diagnostics — W4.8 perf pass uses this)
 # ============================================================
 
+
 static func cache_size() -> int:
 	return _cache.size()
 
+
 static func clear_cache() -> void:
 	_cache.clear()
+
 
 static func get_last_error() -> String:
 	return _last_error

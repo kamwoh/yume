@@ -21,28 +21,26 @@ class_name SettingsManager
 ##    → write ConfigFile, mirror into world_state, run apply block.
 ## 3. Reset to defaults: iterate schema, set each to its default.
 
-
 # ============================================================
 # CONSTANTS
 # ============================================================
 
 const CONFIG_PATH := "user://settings.cfg"
 
-
 # ============================================================
 # STATE
 # ============================================================
 
 var _world: Node = null
-var _schema: Dictionary = {}              # parsed settings_schema.json
-var _settings_by_key: Dictionary = {}     # key → setting-spec dict
-var _values: Dictionary = {}              # key → current value (in-memory mirror)
+var _schema: Dictionary = {}  # parsed settings_schema.json
+var _settings_by_key: Dictionary = {}  # key → setting-spec dict
+var _values: Dictionary = {}  # key → current value (in-memory mirror)
 var _cfg: ConfigFile = null
-
 
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 func _ready() -> void:
 	_world = get_parent()
@@ -63,25 +61,32 @@ func _ready() -> void:
 # SCHEMA LOAD + VALIDATION
 # ============================================================
 
+
 func _load_schema() -> void:
 	var root := str(_world.get("data_root")).rstrip("/")
-	if root == "": return
+	if root == "":
+		return
 	var path := root + "/settings_schema.json"
-	if not FileAccess.file_exists(path): return
+	if not FileAccess.file_exists(path):
+		return
 	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null: return
+	if f == null:
+		return
 	var data = JSON.parse_string(f.get_as_text())
-	if not (data is Dictionary): return
+	if not (data is Dictionary):
+		return
 	_schema = data
 	# Index settings by key. Validate as we go (schema validation per TD
 	# condition #5).
 	for cat in _schema.get("categories", []):
-		if not (cat is Dictionary): continue
+		if not (cat is Dictionary):
+			continue
 		var cat_id := str((cat as Dictionary).get("id", ""))
 		for s in (cat as Dictionary).get("settings", []):
-			if not (s is Dictionary): continue
+			if not (s is Dictionary):
+				continue
 			var sd: Dictionary = s
-			sd["_category"] = cat_id   # back-ref for ConfigFile section
+			sd["_category"] = cat_id  # back-ref for ConfigFile section
 			var key := str(sd.get("key", ""))
 			if key == "":
 				push_warning("SettingsManager: setting in category '%s' missing 'key'" % cat_id)
@@ -134,6 +139,7 @@ static func _validate_setting(s: Dictionary) -> bool:
 # CONFIG FILE (ConfigFile per ADR 0021)
 # ============================================================
 
+
 func _load_config() -> void:
 	_cfg = ConfigFile.new()
 	# load() returns OK even if file doesn't exist (returns ERR_FILE_NOT_FOUND
@@ -154,6 +160,7 @@ func _fill_defaults() -> void:
 # ============================================================
 # PUBLIC API
 # ============================================================
+
 
 ## Get the current value of a setting. Returns null if key unknown.
 func get_value(key: String):
@@ -210,6 +217,7 @@ func setting_spec(key: String) -> Dictionary:
 # APPLY BLOCK EXECUTION
 # ============================================================
 
+
 ## Run the apply effect chain for a setting with a specific value.
 ## "value" tokens in the effect dict resolve to the current value.
 ##
@@ -218,15 +226,19 @@ func setting_spec(key: String) -> Dictionary:
 ## Becomes:
 ##   {"type": "set_audio_bus_volume", "bus": "Master", "linear": 0.7}
 func _run_apply_block(s: Dictionary, value) -> void:
-	if _world == null: return
+	if _world == null:
+		return
 	var sched = _world.get("scheduler")
-	if sched == null: return
+	if sched == null:
+		return
 	var env: Dictionary = sched.env
 	var apply_list = s.get("apply", null)
-	if not (apply_list is Array): return
+	if not (apply_list is Array):
+		return
 	var ctx: Dictionary = {"_rule_id": "settings:" + str(s.get("key", ""))}
-	for eff in (apply_list as Array):
-		if not (eff is Dictionary): continue
+	for eff in apply_list as Array:
+		if not (eff is Dictionary):
+			continue
 		var resolved: Dictionary = _resolve_value_tokens(eff as Dictionary, value)
 		EffectApply.apply(resolved, env, ctx)
 

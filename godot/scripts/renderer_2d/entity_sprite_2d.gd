@@ -90,10 +90,7 @@ func _ready() -> void:
 		if lib.has(shape_name):
 			var shape_def := lib.get_shape(shape_name)
 			_shape_primitives = shape_def.get("primitives", [])
-			_shape_params = ShapeLib.merge_params(
-				shape_def,
-				(visual.get("params", {}) as Dictionary)
-			)
+			_shape_params = ShapeLib.merge_params(shape_def, visual.get("params", {}) as Dictionary)
 			_mode = "shape"
 			_sync_position()
 			queue_redraw()
@@ -124,14 +121,17 @@ func _process(_dt: float) -> void:
 ## handler already drives rotation per-frame from velocity). Idempotent —
 ## writes nothing when state.yaw is unset.
 func _sync_static_yaw() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	var yaw = _entity_ref.get_state("yaw", null)
-	if yaw == null: return
+	if yaw == null:
+		return
 	rotation = float(yaw)
 
 
 func _sync_position() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	position = _entity_ref.get_planar_position()
 
 
@@ -139,11 +139,14 @@ func _sync_position() -> void:
 ## non-zero direction so the sprite doesn't snap back to default when
 ## the entity stops.
 func _sync_facing() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	var v = _entity_ref.get_velocity()
 	var vx: float = 0.0
-	if v is Vector2: vx = (v as Vector2).x
-	elif v is Vector3: vx = (v as Vector3).x
+	if v is Vector2:
+		vx = (v as Vector2).x
+	elif v is Vector3:
+		vx = (v as Vector3).x
 	if absf(vx) > 0.01:
 		_last_facing = 1 if vx >= 0 else -1
 	# scale.x = +1 → default art (assumed facing right); -1 → mirrored.
@@ -155,7 +158,8 @@ func _sync_facing() -> void:
 ## gives the angle. Hold last rotation so the sprite doesn't snap back
 ## when the entity stops moving. Convention: art faces +x by default.
 func _sync_rotation() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	var v = _entity_ref.get_velocity()
 	var vx: float = 0.0
 	var vy: float = 0.0
@@ -174,10 +178,12 @@ func _sync_rotation() -> void:
 ## entities use this so they smoothly fade out instead of snap-disappear.
 ## Falls back to no-fade if either field is missing/zero.
 func _sync_alpha() -> void:
-	if _entity_ref == null: return
+	if _entity_ref == null:
+		return
 	var lf = _entity_ref.get_state("lifetime", null)
 	var max_lf = _entity_ref.get_state("max_lifetime", null)
-	if lf == null or max_lf == null: return
+	if lf == null or max_lf == null:
+		return
 	var ratio: float = float(lf) / max(float(max_lf), 1.0)
 	modulate.a = clamp(ratio, 0.0, 1.0)
 
@@ -198,9 +204,11 @@ func _draw() -> void:
 # SHAPE INTERPRETER — engine's draw primitive vocabulary
 # ============================================================
 
+
 func _draw_shape_primitives() -> void:
 	for p in _shape_primitives:
-		if not (p is Dictionary): continue
+		if not (p is Dictionary):
+			continue
 		var op := str(p.get("op", ""))
 		match op:
 			"circle":
@@ -243,11 +251,13 @@ func _draw_shape_primitives() -> void:
 # PARAM RESOLUTION — `$name` references look up in merged params
 # ============================================================
 
+
 func _param_resolve(v):
 	if v is String and (v as String).begins_with("$"):
 		var key := (v as String).substr(1)
 		return _shape_params.get(key, v)
 	return v
+
 
 func _resolve_color(v) -> Color:
 	var resolved = _param_resolve(v)
@@ -258,18 +268,24 @@ func _resolve_color(v) -> Color:
 # UTIL
 # ============================================================
 
+
 static func _to_vec2(v) -> Vector2:
-	if v is Vector2: return v
+	if v is Vector2:
+		return v
 	if v is Array and (v as Array).size() >= 2:
 		return Vector2(float(v[0]), float(v[1]))
 	return Vector2.ZERO
 
+
 static func _parse_color(v) -> Color:
-	if v is Color: return v
-	if v is String: return Color(str(v))
+	if v is Color:
+		return v
+	if v is String:
+		return Color(str(v))
 	if v is Array and (v as Array).size() >= 3:
-		return Color(float(v[0]), float(v[1]), float(v[2]),
-			1.0 if (v as Array).size() < 4 else float(v[3]))
+		return Color(
+			float(v[0]), float(v[1]), float(v[2]), 1.0 if (v as Array).size() < 4 else float(v[3])
+		)
 	return Color(0.7, 0.7, 0.7)
 
 
