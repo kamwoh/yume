@@ -172,6 +172,10 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 			# we simulate motion using tick_seconds as the delta.
 			if world._motion_integrator != null:
 				world._motion_integrator.integrate(float(world.tick_seconds))
+			# ADR 0045: character bodies — their _physics_process needs
+			# a live physics server (absent in headless tests). Walk
+			# them manually so position assertions still work.
+			_tick_character_bodies_headless(world)
 
 		# Assertions (legacy schema)
 		var assertions: Array = sc.get("assertions", [])
@@ -182,6 +186,23 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	world.queue_free()
 	# Yield one frame so freeing cleans up before next scenario.
 	await get_tree().process_frame
+
+
+## ADR 0045: walk character bodies and call tick_headless. Headless
+## tests have no live physics server, so CharacterBody3D._physics_process
+## doesn't fire — tick_headless gives them an Euler-integration path so
+## position-delta assertions still work in scenarios.
+func _tick_character_bodies_headless(world: World) -> void:
+	var dt: float = float(world.tick_seconds)
+	for id in world.entities:
+		var ent = world.entities[id]
+		if not (ent is Entity):
+			continue
+		if not (ent as Entity).has_meta("_physics_body"):
+			continue
+		var body = (ent as Entity).get_meta("_physics_body")
+		if body is CharacterBodyRunner:
+			(body as CharacterBodyRunner).tick_headless(dt)
 
 
 # ============================================================

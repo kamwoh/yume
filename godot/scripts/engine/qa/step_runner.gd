@@ -182,6 +182,23 @@ static func _advance(world: World) -> void:
 	world.advance_one_tick()
 	if world._motion_integrator != null:
 		world._motion_integrator.integrate(float(world.tick_seconds))
+	# ADR 0045 Session B: character bodies have their own _physics_process
+	# (live path), but headless tests have no physics server. Walk them
+	# manually so scenario assertions over position deltas still work.
+	_tick_character_bodies(world)
+
+
+static func _tick_character_bodies(world: World) -> void:
+	var dt: float = float(world.tick_seconds)
+	for id in world.entities:
+		var ent = world.entities[id]
+		if not (ent is Entity):
+			continue
+		if not (ent as Entity).has_meta("_physics_body"):
+			continue
+		var body = (ent as Entity).get_meta("_physics_body")
+		if body is CharacterBodyRunner:
+			(body as CharacterBodyRunner).tick_headless(dt)
 
 
 static func _find_actor_id(world: World) -> String:

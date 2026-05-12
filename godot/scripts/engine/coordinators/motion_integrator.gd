@@ -79,6 +79,13 @@ func integrate(delta: float) -> void:
 		# Static obstacles don't move themselves.
 		if (ent as Entity).has_tag("blocks_motion"):
 			continue
+		# ADR 0045: character bodies are driven by their own
+		# _physics_process (live) or tick_headless (tests). Skip them
+		# here to avoid double-stepping.
+		if (ent as Entity).has_meta("_physics_body"):
+			var body = (ent as Entity).get_meta("_physics_body")
+			if body is CharacterBody3D:
+				continue
 		var body_r: float = float((ent as Entity).get_property("body_radius", DEFAULT_BODY_RADIUS))
 		var p = (ent as Entity).get_position()
 		var moved := false
