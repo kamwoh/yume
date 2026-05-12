@@ -622,19 +622,25 @@ func process_pending_actor_switch() -> void:
 ## oblique angles can tunnel through thin walls. Acceptable for arcade-feel.
 const DRAG_REST_EPSILON := 0.5
 const DEFAULT_BODY_RADIUS := 0.4
-var _pending_remove_ids: Array[String] = []
 
+## ADR 0044 Session D — motion integration uses physics for collision.
+## Hand-rolled AABB sweep deleted. Only Vector3 path supported (2D scenes
+## need Vector3 entities with Y=0 OR a future PhysicsServer2D backend).
+##
+## Per-entity flow:
+##   1. Apply drag (state.drag) — decay velocity toward zero
+##   2. Skip if entity has blocks_motion tag (static; doesn't move itself)
+##   3. Compute proposed position = current + velocity * delta
+##   4. _resolve_motion_via_physics_3d slides if collision detected
+##   5. Entity.set_position writes — auto-syncs to body if attached
+##   6. Spatial index updated for radius queries
 func _integrate_motion(delta: float) -> void:
-	# ADR 0004: collect blockers once per frame (immovable static obstacles).
-	var blockers: Array = _collect_blockers()
-	_pending_remove_ids = []
 	for id in entities.keys():
 		var ent = entities[id]
 		if not (ent is Entity): continue
 		var v = (ent as Entity).get_velocity()
 		if v == null: continue
-		# Apply drag if configured. Skipped if drag = 0 (default). Works for
-		# both Vector2 (2D entities) and Vector3 (3D / FPS entities).
+		# Apply drag if configured. Skipped if drag = 0 (default).
 		var drag_v := float((ent as Entity).get_state("drag", 0.0))
 		if drag_v > 0.0:
 			var factor: float = 1.0 - clamp(drag_v * delta, 0.0, 1.0)
@@ -652,86 +658,36 @@ func _integrate_motion(delta: float) -> void:
 					if v3.length() < DRAG_REST_EPSILON * 0.01: v3 = Vector3.ZERO
 					(ent as Entity).set_velocity(v3)
 					v = v3
-		var moved := false
-		# Skip blocker-vs-blocker self-block (an obstacle isn't moving).
-		var is_blocker: bool = (ent as Entity).has_tag("blocks_motion")
-		# Projectiles stop dead at walls (no slide) — bullets shouldn't
-		# crawl AROUND a wall. Walking creatures slide normally.
-		var is_projectile: bool = (ent as Entity).has_tag("projectile")
+		# Static obstacles don't move themselves.
+		if (ent as Entity).has_tag("blocks_motion"): continue
 		var body_r: float = float((ent as Entity).get_property("body_radius", DEFAULT_BODY_RADIUS))
 		var p = (ent as Entity).get_position()
-		if v is Vector2 and v != Vector2.ZERO:
-			if p is Vector2:
-				var new_p2: Vector2 = (p as Vector2) + (v as Vector2) * delta
-				if not is_blocker and not blockers.is_empty():
-					if is_projectile:
-						new_p2 = _resolve_projectile_2d(p as Vector2, new_p2, body_r, blockers)
-					else:
-						new_p2 = _resolve_motion_2d(p as Vector2, new_p2, body_r, blockers)
-				(ent as Entity).set_position(new_p2)
-				moved = true
-			elif p is Vector3:
-				var v2: Vector2 = v as Vector2
-				var new_p3v: Vector3 = (p as Vector3) + Vector3(v2.x, 0, v2.y) * delta
-				if not is_blocker:
-					# ADR 0044 Session C: prefer physics-driven collision when
-					# a 3D space exists. Falls through to legacy AABB only for
-					# headless tests + 2D scenes.
-					if is_projectile:
-						new_p3v = _resolve_projectile_3d(p as Vector3, new_p3v, body_r, blockers)
-					else:
-						new_p3v = _resolve_motion_via_physics_3d(p as Vector3, new_p3v, body_r)
-				(ent as Entity).set_position(new_p3v)
-				moved = true
-		elif v is Vector3 and v != Vector3.ZERO:
-			if p is Vector3:
-				var new_p3: Vector3 = (p as Vector3) + (v as Vector3) * delta
-				if not is_blocker:
-					# ADR 0044 Session C: physics-driven collision (intersect_shape).
-					if is_projectile:
-						new_p3 = _resolve_projectile_3d(p as Vector3, new_p3, body_r, blockers)
-					else:
-						new_p3 = _resolve_motion_via_physics_3d(p as Vector3, new_p3, body_r)
-				(ent as Entity).set_position(new_p3)
-				moved = true
-			elif p is Vector2:
-				var v3: Vector3 = v as Vector3
-				var new_p2v: Vector2 = (p as Vector2) + Vector2(v3.x, v3.z) * delta
-				if not is_blocker and not blockers.is_empty():
-					if is_projectile:
-						new_p2v = _resolve_projectile_2d(p as Vector2, new_p2v, body_r, blockers)
-					else:
-						new_p2v = _resolve_motion_2d(p as Vector2, new_p2v, body_r, blockers)
-				(ent as Entity).set_position(new_p2v)
-				moved = true
-		# Projectile that hit a blocker: queue for immediate removal so it
-		# doesn't hang at the wall. Collected post-loop to avoid mutating
-		# entities mid-iteration. (Set velocity=0 first as a defensive
-		# guard against late-frame motion before the deferred removal.)
-		if is_projectile and moved:
-			var p_after = (ent as Entity).get_position()
-			if p_after == p:
-				(ent as Entity).set_velocity(Vector3.ZERO if p is Vector3 else Vector2.ZERO)
-				_pending_remove_ids.append(str(id))
+		var moved := false
+		# Vector3 path — all 3D scenes (Aldenmere + future 3D games).
+		# Vector2 velocity translated to Vector3 (x, 0, y) per Yume convention.
+		if p is Vector3:
+			var new_p3: Vector3
+			if v is Vector3 and v != Vector3.ZERO:
+				new_p3 = (p as Vector3) + (v as Vector3) * delta
+			elif v is Vector2 and v != Vector2.ZERO:
+				var v2: Vector2 = v
+				new_p3 = (p as Vector3) + Vector3(v2.x, 0, v2.y) * delta
+			else:
+				continue
+			new_p3 = _resolve_motion_via_physics_3d(p as Vector3, new_p3, body_r)
+			(ent as Entity).set_position(new_p3)
+			moved = true
+		elif p is Vector2 and v is Vector2 and v != Vector2.ZERO:
+			# 2D scene fallback (no physics collision; entity moves freely).
+			# Other demos using Vector2 motion need PhysicsServer2D backend
+			# (future sub-step). Aldenmere doesn't hit this branch.
+			(ent as Entity).set_position((p as Vector2) + (v as Vector2) * delta)
+			moved = true
 		if moved and spatial_index != null:
 			spatial_index.update_entity(id, (ent as Entity).get_planar_position())
-	# Drain queued projectile removals (bullets that hit walls). Runs OUTSIDE
-	# the entities.keys() loop so we don't mutate during iter.
-	for rid in _pending_remove_ids:
-		var rent: Entity = entities.get(rid, null)
-		if rent == null: continue
-		if relations != null:
-			relations.clear_entity(rid)
-		if spatial_index != null and spatial_index.has_method("remove_entity"):
-			spatial_index.remove_entity(rid)
-		entities.erase(rid)
-		rent.queue_free()
-	_pending_remove_ids = []
 	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
 	# clamp tagged "creature" entities to that Y, and remove tagged
-	# "projectile" entities that drop below it. Replaces game-level
-	# creature_bounds + projectile_floor_despawn rules with a single
-	# engine behavior. Empty / missing ground config = no-op.
+	# "projectile" entities that drop below it.
 	_apply_ground()
 
 
@@ -799,38 +755,6 @@ func _apply_ground() -> void:
 		rent.queue_free()
 
 
-## ADR 0004: build a snapshot of all `blocks_motion` AABBs for this frame.
-## Each entry: full 3D AABB {minx, maxx, miny, maxy, minz, maxz}. The AABB
-## is centered at `entity.position + properties.aabb_offset` (default zero
-## offset), with half-extents from `properties.aabb_extents`. Y handling
-## matters for projectiles fired upward — without it, bullets at high
-## altitude get stuck against tall walls visually beneath them.
-func _collect_blockers() -> Array:
-	var out: Array = []
-	for id in entities.keys():
-		var ent = entities[id]
-		if not (ent is Entity): continue
-		if not (ent as Entity).has_tag("blocks_motion"): continue
-		var ext = (ent as Entity).get_property("aabb_extents", null)
-		if ext == null: continue
-		var ext_v: Vector3 = _to_vec3(ext)
-		var off_v: Vector3 = _to_vec3((ent as Entity).get_property("aabb_offset", [0, 0, 0]))
-		var pos = (ent as Entity).get_position()
-		var pos_v: Vector3 = Vector3.ZERO
-		if pos is Vector3: pos_v = pos
-		elif pos is Vector2: pos_v = Vector3(pos.x, 0, pos.y)
-		else: continue
-		var center: Vector3 = pos_v + off_v
-		out.append({
-			"minx": center.x - ext_v.x,
-			"maxx": center.x + ext_v.x,
-			"miny": center.y - ext_v.y,
-			"maxy": center.y + ext_v.y,
-			"minz": center.z - ext_v.z,
-			"maxz": center.z + ext_v.z,
-		})
-	return out
-
 
 # ============================================================
 # ADR 0044 Session C — physics-driven collision (PhysicsServer3D)
@@ -890,142 +814,6 @@ func _resolve_motion_via_physics_3d(from_p: Vector3, to_p: Vector3, radius: floa
 		return Vector3(from_p.x, to_p.y, to_p.z)
 	return from_p
 
-
-## Resolve 3D motion against AABB blockers via separate-axes slide on XZ.
-## Uses SWEPT (segment) intersection for correctness when entities move
-## fast (bullets at 22 m/s × tick 0.05s = 1.1m/tick can teleport past
-## 0.5m-thick walls if only endpoints are tested — empirically caught
-## in doomarena3d "bullet bypass wall" bug 2026-05-04).
-##
-## When all 3 axes are blocked, position fully reverts so projectiles
-## stop dead at the wall instead of sliding along it.
-##
-## 2026-05-12: kept as LEGACY FALLBACK for 2D scenes / headless tests.
-## ADR 0044 Session C swaps the active path to
-## `_resolve_motion_via_physics_3d` when a 3D space is available.
-static func _resolve_motion_3d(old_p: Vector3, new_p: Vector3, body_r: float, blockers: Array) -> Vector3:
-	if not _segment_intersects(old_p, new_p, body_r, blockers):
-		return new_p
-	# Try X-only: keep new x, old y/z. Segment from old → (new.x, old.y, old.z).
-	var x_target := Vector3(new_p.x, old_p.y, old_p.z)
-	if not _segment_intersects(old_p, x_target, body_r, blockers):
-		return Vector3(new_p.x, new_p.y, old_p.z)
-	# Try Z-only.
-	var z_target := Vector3(old_p.x, old_p.y, new_p.z)
-	if not _segment_intersects(old_p, z_target, body_r, blockers):
-		return Vector3(old_p.x, new_p.y, new_p.z)
-	# Try Y-only: bullets fired upward can clear a wall by altitude alone.
-	var y_target := Vector3(old_p.x, new_p.y, old_p.z)
-	if not _segment_intersects(old_p, y_target, body_r, blockers):
-		return Vector3(old_p.x, new_p.y, old_p.z)
-	# All blocked: stay (no axis can advance without crossing a blocker).
-	return old_p
-
-
-## Projectile variant — no slide. If the segment from old_p to new_p
-## crosses any blocker, return old_p (caller is responsible for setting
-## lifetime=0 so the bullet despawns at the wall instead of hanging).
-## Without this, the slide-axis logic makes bullets crawl AROUND walls
-## (empirically caught in doomarena3d 2026-05-04 playtest).
-static func _resolve_projectile_3d(old_p: Vector3, new_p: Vector3, body_r: float, blockers: Array) -> Vector3:
-	if _segment_intersects(old_p, new_p, body_r, blockers):
-		return old_p
-	return new_p
-
-
-static func _resolve_projectile_2d(old_p: Vector2, new_p: Vector2, body_r: float, blockers: Array) -> Vector2:
-	var o3 := Vector3(old_p.x, 0.0, old_p.y)
-	var n3 := Vector3(new_p.x, 0.0, new_p.y)
-	if _segment_intersects(o3, n3, body_r, blockers):
-		return old_p
-	return new_p
-
-
-## 2D variant. Y=0 in the underlying 3D check.
-static func _resolve_motion_2d(old_p: Vector2, new_p: Vector2, body_r: float, blockers: Array) -> Vector2:
-	var o3 := Vector3(old_p.x, 0.0, old_p.y)
-	var n3 := Vector3(new_p.x, 0.0, new_p.y)
-	if not _segment_intersects(o3, n3, body_r, blockers):
-		return new_p
-	if not _segment_intersects(o3, Vector3(new_p.x, 0.0, old_p.y), body_r, blockers):
-		return Vector2(new_p.x, old_p.y)
-	if not _segment_intersects(o3, Vector3(old_p.x, 0.0, new_p.y), body_r, blockers):
-		return Vector2(old_p.x, new_p.y)
-	return old_p
-
-
-## Test if a sphere at (px, py, pz) with radius r overlaps any blocker AABB.
-## 3D static-position check — used by tests + as a building block.
-static func _aabb_intersects(px: float, py: float, pz: float, r: float, blockers: Array) -> bool:
-	var r2 := r * r
-	for b in blockers:
-		var cx: float = clamp(px, b["minx"], b["maxx"])
-		var cy: float = clamp(py, b["miny"], b["maxy"])
-		var cz: float = clamp(pz, b["minz"], b["maxz"])
-		var dx := px - cx
-		var dy := py - cy
-		var dz := pz - cz
-		if dx * dx + dy * dy + dz * dz < r2:
-			return true
-	return false
-
-
-## Swept (segment) test for fast-moving entities. Slab method against
-## AABB expanded by body_r in each axis (Minkowski sum approximated as
-## an inflated box — correct enough for arcade-feel collision; not a true
-## sphere-vs-AABB swept test). Returns true if the segment from p0 to p1
-## crosses any blocker. Catches tunneling — entities moving > AABB
-## thickness per tick can't slip through anymore.
-static func _segment_intersects(p0: Vector3, p1: Vector3, body_r: float, blockers: Array) -> bool:
-	if p0 == p1:
-		return _aabb_intersects(p1.x, p1.y, p1.z, body_r, blockers)
-	var dir := p1 - p0
-	for b in blockers:
-		var minx: float = b["minx"] - body_r
-		var maxx: float = b["maxx"] + body_r
-		var miny: float = b["miny"] - body_r
-		var maxy: float = b["maxy"] + body_r
-		var minz: float = b["minz"] - body_r
-		var maxz: float = b["maxz"] + body_r
-		var t_near := -INF
-		var t_far := INF
-		var hit := true
-		# X slab
-		if abs(dir.x) < 1e-6:
-			if p0.x < minx or p0.x > maxx: hit = false
-		else:
-			var t1: float = (minx - p0.x) / dir.x
-			var t2: float = (maxx - p0.x) / dir.x
-			if t1 > t2:
-				var tmp := t1; t1 = t2; t2 = tmp
-			t_near = max(t_near, t1)
-			t_far = min(t_far, t2)
-		# Y slab
-		if hit:
-			if abs(dir.y) < 1e-6:
-				if p0.y < miny or p0.y > maxy: hit = false
-			else:
-				var t1: float = (miny - p0.y) / dir.y
-				var t2: float = (maxy - p0.y) / dir.y
-				if t1 > t2:
-					var tmp := t1; t1 = t2; t2 = tmp
-				t_near = max(t_near, t1)
-				t_far = min(t_far, t2)
-		# Z slab
-		if hit:
-			if abs(dir.z) < 1e-6:
-				if p0.z < minz or p0.z > maxz: hit = false
-			else:
-				var t1: float = (minz - p0.z) / dir.z
-				var t2: float = (maxz - p0.z) / dir.z
-				if t1 > t2:
-					var tmp := t1; t1 = t2; t2 = tmp
-				t_near = max(t_near, t1)
-				t_far = min(t_far, t2)
-		# Segment crosses if there's a valid interval and it overlaps [0,1].
-		if hit and t_near <= t_far and t_far >= 0.0 and t_near <= 1.0:
-			return true
-	return false
 
 
 ## Coerce Array / Vector2 / Vector3 to Vector3.

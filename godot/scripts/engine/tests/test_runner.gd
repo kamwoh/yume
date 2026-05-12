@@ -38,7 +38,6 @@ func _ready() -> void:
 	test_rpg_cascade()
 	test_chess_cascade()
 	test_engine_error()
-	test_blocks_motion()
 	test_pathfind_builds_navmesh()
 	test_pathfind_to_routes_around_obstacle()
 	test_pathfind_no_op_on_2d()
@@ -1314,106 +1313,6 @@ func test_engine_error() -> void:
 	if fbuf.size() >= 1:
 		expect_eq(str(fbuf[0].code), EngineError.FORMULA_PARSE_FAILED, "formula.parse_failed code")
 		expect_eq(str((fbuf[0].where as Dictionary).get("rule_id")), "r_formula", "formula rule_id attribution")
-
-
-# ============================================================
-# BLOCKS_MOTION (ADR 0004)
-# ============================================================
-
-func test_blocks_motion() -> void:
-	_section("blocks_motion (ADR 0004)")
-
-	# Single 3D AABB blocker: a wall-like slab from (−1,0,−1) to (1,3,1).
-	var blockers: Array = [{
-		"minx": -1.0, "maxx": 1.0,
-		"miny":  0.0, "maxy": 3.0,
-		"minz": -1.0, "maxz": 1.0
-	}]
-
-	# A sphere whose center is inside the AABB intersects.
-	expect(World._aabb_intersects(0.0, 1.0, 0.0, 0.4, blockers), "center inside aabb intersects")
-
-	# A sphere far from the AABB does not.
-	expect(not World._aabb_intersects(5.0, 1.0, 5.0, 0.4, blockers), "center far away doesn't intersect")
-
-	# Edge-of-aabb approach: at x=1.3, edge of aabb is at x=1; distance=0.3
-	# < radius 0.4 → intersects.
-	expect(World._aabb_intersects(1.3, 1.0, 0.0, 0.4, blockers), "approach within body radius intersects")
-
-	# Just outside body radius: x=1.5, distance=0.5 > radius 0.4 → no.
-	expect(not World._aabb_intersects(1.5, 1.0, 0.0, 0.4, blockers), "approach outside body radius does not intersect")
-
-	# Y too high (above wall top y=3): bullet at altitude 5 should clear.
-	expect(not World._aabb_intersects(0.0, 5.0, 0.0, 0.4, blockers), "high altitude clears the wall (3D AABB)")
-
-	# Y just at wall top + body_radius: at y=3.5, distance from y=3 is 0.5 > r=0.4 → no.
-	expect(not World._aabb_intersects(0.0, 3.5, 0.0, 0.4, blockers), "just-above wall clears (3.5 > 3 + 0.4)")
-
-	# Y just below wall top: at y=3.2, distance 0.2 < r=0.4 → intersects.
-	expect(World._aabb_intersects(0.0, 3.2, 0.0, 0.4, blockers), "near wall top still intersects")
-
-	# Resolve: walking south at ground level into the blocker face.
-	# Old (0.5, 0, 2): z=2 outside aabb. New (0.5, 0, 0.5): inside → intersects.
-	# Slide: X-only (0.5, 0, 2): old z, no intersect → take.
-	var resolved3 := World._resolve_motion_3d(
-		Vector3(0.5, 0.5, 2.0), Vector3(0.5, 0.5, 0.5), 0.4, blockers)
-	expect_eq(resolved3.x, 0.5, "slide preserves new x")
-	expect_eq(resolved3.z, 2.0, "slide reverts z to old (X-only path taken)")
-
-	# Bullet entirely above wall top (Y=3 + body_r): old (0.5, 5, 2),
-	# new (0.5, 5, 0.5). Segment stays above the wall — should pass.
-	var resolved_up := World._resolve_motion_3d(
-		Vector3(0.5, 5.0, 2.0), Vector3(0.5, 5.0, 0.5), 0.4, blockers)
-	expect_eq(resolved_up, Vector3(0.5, 5.0, 0.5), "high-altitude bullet (entirely above wall) clears full move")
-
-	# Bullet ascending FROM inside wall altitude TO above: old (0.5, 1, 2),
-	# new (0.5, 5, 0.5). Segment crosses the wall vertically. Swept check
-	# blocks it (correct — bullet would graze the wall on its way up).
-	var resolved_grazing := World._resolve_motion_3d(
-		Vector3(0.5, 1.0, 2.0), Vector3(0.5, 5.0, 0.5), 0.4, blockers)
-	expect(resolved_grazing.z >= 1.5, "ascending bullet grazes wall — Z reverted (not full passthrough)")
-
-	# 2D variant uses the same logic (Vector2 maps to XZ at Y=0).
-	var resolved2 := World._resolve_motion_2d(
-		Vector2(0.5, 2.0), Vector2(0.5, 0.5), 0.4, blockers)
-	expect_eq(resolved2.x, 0.5, "2D slide preserves new x")
-	expect_eq(resolved2.y, 2.0, "2D slide reverts y to old")
-
-	# _to_vec3 coercion variants.
-	expect_eq(World._to_vec3([1, 2, 3]), Vector3(1, 2, 3), "_to_vec3 array len 3")
-	expect_eq(World._to_vec3([1, 2]), Vector3(1, 0, 2), "_to_vec3 array len 2 → XZ")
-	expect_eq(World._to_vec3(Vector2(1, 2)), Vector3(1, 0, 2), "_to_vec3 Vector2 → XZ")
-	expect_eq(World._to_vec3(Vector3(1, 2, 3)), Vector3(1, 2, 3), "_to_vec3 Vector3 passthrough")
-
-	# Swept (segment) check — catches tunneling that point-tests miss.
-	# Wall slab from x ∈ [-0.25, 0.25], spans y/z fully for the test.
-	var wall: Array = [{
-		"minx": -0.25, "maxx": 0.25,
-		"miny":  0.0,  "maxy": 3.0,
-		"minz": -22.0, "maxz": 22.0
-	}]
-	# A bullet at p0=(1, 1.5, 0) flies fast to p1=(-1, 1.5, 0): point-tests
-	# at the endpoints would miss (both outside the 0.5m wall in X), but
-	# the segment crosses the wall. Swept check must return true.
-	expect(World._segment_intersects(Vector3(1, 1.5, 0), Vector3(-1, 1.5, 0), 0.18, wall),
-		"swept: bullet tunneling x=1 → x=-1 across thin wall is caught")
-	# Confirm endpoint-only test would have missed it (regression check).
-	expect(not World._aabb_intersects(1.0, 1.5, 0.0, 0.18, wall),
-		"sanity: point at x=1 outside wall")
-	expect(not World._aabb_intersects(-1.0, 1.5, 0.0, 0.18, wall),
-		"sanity: point at x=-1 outside wall (so endpoint-only would miss)")
-	# Slow movement parallel to wall: no cross.
-	expect(not World._segment_intersects(Vector3(2, 1.5, 0), Vector3(2, 1.5, 5), 0.18, wall),
-		"swept: motion parallel to wall doesn't intersect")
-	# Bullet at altitude > wall top: clears the wall.
-	expect(not World._segment_intersects(Vector3(1, 5, 0), Vector3(-1, 5, 0), 0.18, wall),
-		"swept: high-altitude bullet clears wall (Y > 3.18)")
-	# Resolve3D test — bullet would tunnel; resolved should stay at old.
-	var resolved_bullet := World._resolve_motion_3d(
-		Vector3(1, 1.5, 0), Vector3(-1, 1.5, 0), 0.18, wall)
-	expect_eq(resolved_bullet, Vector3(1, 1.5, 0),
-		"resolve3d: tunneling bullet stays at old position (all axes blocked)")
-
 
 # ============================================================
 # RAYCAST_HIT (ADR 0005)
