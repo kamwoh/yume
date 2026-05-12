@@ -1,0 +1,58 @@
+{
+  "_origin": "lib/physics/bodies.json",
+  "_comment": "ADR 0044 — common physics body templates. Per-game entity defs can spread these via $extends to get sensible defaults. Override individual fields after the $extends to customize. Bits 1..16 from @lib.physics.layers used here; games with custom layer names can override collision_layer / collision_mask.",
+
+  "standard_kinematic_npc": {
+    "body_type": "kinematic",
+    "collision_shape": {"type": "capsule", "radius": 0.4, "height": 1.2},
+    "collision_layer": ["npc"],
+    "collision_mask": ["wall", "floor", "player", "npc", "enemy", "animal"]
+  },
+
+  "standard_kinematic_animal": {
+    "body_type": "kinematic",
+    "collision_shape": {"type": "capsule", "radius": 0.35, "height": 0.8},
+    "collision_layer": ["animal"],
+    "collision_mask": ["wall", "floor", "player", "npc", "animal"]
+  },
+
+  "standard_kinematic_player": {
+    "body_type": "kinematic",
+    "collision_shape": {"type": "capsule", "radius": 0.4, "height": 1.8},
+    "collision_layer": ["player"],
+    "collision_mask": ["wall", "floor", "ceiling", "npc", "enemy", "animal", "pickup", "trigger"]
+  },
+
+  "static_wall": {
+    "body_type": "static",
+    "collision_shape": {"type": "box", "size": [1.0, 3.0, 1.0]},
+    "collision_layer": ["wall"],
+    "collision_mask": "all"
+  },
+
+  "static_decoration_no_collision": {
+    "_comment": "For visible-but-non-blocking decoration. No body = no physics overhead. Use this template by NOT declaring a physics block on the entity.",
+    "body_type": null
+  },
+
+  "rigid_projectile": {
+    "body_type": "rigid",
+    "collision_shape": {"type": "sphere", "radius": 0.1},
+    "collision_layer": ["projectile"],
+    "collision_mask": ["wall", "enemy", "npc", "animal"],
+    "mass": 0.1,
+    "friction": 0.0,
+    "restitution": 0.0,
+    "linear_damp": 0.0,
+    "gravity_scale": 0.0
+  },
+
+  "area_trigger_zone": {
+    "body_type": "area",
+    "collision_shape": {"type": "sphere", "radius": 2.0},
+    "collision_layer": ["trigger"],
+    "collision_mask": ["player", "npc", "animal"]
+  },
+
+  "_authoring_note": "Templates use $extends syntax: \"physics\": {\"$extends\": \"@lib.physics.bodies.standard_kinematic_npc\"}. Override individual fields by listing them after the $extends key — last-writer-wins per ADR 0027. Example: bigger wolf needs height: 1.0 → {\"$extends\": \"@lib.physics.bodies.standard_kinematic_animal\", \"collision_shape\": {\"type\": \"capsule\", \"radius\": 0.5, \"height\": 1.0}}."
+}

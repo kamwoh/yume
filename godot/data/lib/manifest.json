@@ -28,10 +28,11 @@
       }
     },
     "physics": {
-      "_shape": "physics_layers",
+      "_shape": "physics_layers | physics_bodies",
       "_path": "data/lib/physics/<name>.json",
       "entries": {
-        "layers": "ADR 0044 — default collision layer name → bit mapping (world, wall, floor, ceiling, player, npc, enemy, animal, ally, projectile, pickup, trigger, decoration, vehicle, fluid, sensor). Engine reads entity.physics.collision_layer/mask and translates layer names to bit masks at body creation. Bits 17..32 reserved for per-game extensions."
+        "layers": "ADR 0044 — default collision layer name → bit mapping (world, wall, floor, ceiling, player, npc, enemy, animal, ally, projectile, pickup, trigger, decoration, vehicle, fluid, sensor). Engine reads entity.physics.collision_layer/mask and translates layer names to bit masks at body creation. Bits 17..32 reserved for per-game extensions.",
+        "bodies": "ADR 0044 Session E — common physics body templates (standard_kinematic_npc / animal / player, static_wall, rigid_projectile, area_trigger_zone). Use via {\"$extends\": \"@lib.physics.bodies.NAME\"} on the entity's physics block. Override fields after $extends for customization (last-writer-wins per ADR 0027)."
       }
     }
   },
