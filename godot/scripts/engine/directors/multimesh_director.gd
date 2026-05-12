@@ -174,7 +174,7 @@ func try_promote(env: Dictionary, entity_id: String) -> void:
 	_apply_promotion(env, entity_id)
 
 
-## Called by world.gd::_on_tick at the start of every non-frozen tick to
+## Called by world.gd::_process tick branch at the start of every non-frozen tick to
 ## drain the deferred promotion queue. Cheap when queue is empty.
 func drain_pending_promotions(env: Dictionary) -> void:
 	if _pending_promotions.is_empty(): return

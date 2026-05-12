@@ -36,8 +36,8 @@ func _init(world: World) -> void:
 # ============================================================
 
 ## Drain a pending level transition queued via the `transition_level`
-## effect. Called from world.gd::_on_tick (every sim-tick) AND from
-## scenario_runner (which bypasses _on_tick). No-op when no pending
+## effect. Called from world.gd::_process tick branch (every sim-tick) AND from
+## scenario_runner (which bypasses _process). No-op when no pending
 ## transition.
 func process_pending(env: Dictionary) -> void:
 	var pending = env.get("_pending_level_transition", "")

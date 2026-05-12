@@ -56,7 +56,7 @@ func do_save(slot: int) -> void:
 			"Add data/<game>/save_policy.json to opt in to persistence.",
 			"warning")
 		return
-	var tick_n := _world._clock.tick_count if _world._clock != null else 0
+	var tick_n: int = _world._tick_count
 	var ok := SaveState.save_to_slot(_world.scheduler.env, _world.save_policy, slot, _game_name(), tick_n)
 	if ok:
 		# Refresh has_save so menus update immediately

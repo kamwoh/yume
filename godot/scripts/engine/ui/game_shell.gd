@@ -155,7 +155,7 @@ func _process(delta: float) -> void:
 
 
 ## Drain game-level pending pipelines (level transition, save/load,
-## world reset). These were previously called from world.gd::_on_tick,
+## world reset). These were previously called from world.gd::_process tick branch,
 ## moved to GameShell._process on 2026-05-12 per the principle "world
 ## handles entities + actions (sim), game_shell handles game stuff."
 ##

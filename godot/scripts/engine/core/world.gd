@@ -56,7 +56,14 @@ var spatial_index: SpatialIndex = null        # W3 — bucket hash for radius qu
 var scheduler: PhaseScheduler = null
 var world_state: Dictionary = {}              # global "world.*" bindings
 var next_id_seq: Dictionary = {"_": 0}        # shared counter for spawns
-var _clock: WorldClock = null
+# Sim-tick accumulator (inlined from former WorldClock child Node on
+# 2026-05-12). _process(delta) accumulates real-time delta; when it
+# crosses tick_seconds we drain one accumulator-unit and run a sim tick.
+# Same delta-counting pattern WorldClock used — just no child Node or
+# signal hop. tick_count is the canonical sim clock (used by save/load,
+# scenario tests, replays — see "determinism" rationale 2026-05-12).
+var _tick_elapsed: float = 0.0
+var _tick_count: int = 0
 ## Tier 2.6a — accumulating buffer of structured engine errors. Shared
 ## by reference into `env.error_buffer`; readable by qa-tester / VQA /
 ## LLM agents. Drain with `EngineError.drain(env)` between scenarios.
@@ -109,7 +116,7 @@ var _ground_constraint: GroundConstraint = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
-## When non-null, _on_tick calls update() each tick.
+## When non-null, the tick branch calls update() each tick.
 var chunk_streamer: ChunkStreamer = null
 ## ADR 0031 — zone-state primitive. Hierarchical aggregate scope alongside
 ## entities + world_state. Always non-null (an empty store is fine);
@@ -158,7 +165,10 @@ func _ready() -> void:
 func start() -> void:
 	if data_root != "":
 		load_data()
-	_start_clock()
+	# Reset sim-tick accumulator. _process(delta) drives ticks now —
+	# no child Node needed.
+	_tick_elapsed = 0.0
+	_tick_count = 0
 
 
 ## Look for `--game=<name>` in user args. The user-args separator `--`
@@ -273,7 +283,7 @@ func load_data() -> void:
 	#   - chunks/_persistent/entities.json is loaded ONCE (entities live for
 	#     the whole session, regardless of chunk eviction)
 	#   - the starting chunk + stream_radius neighbors are loaded
-	#   - per-tick update() in _on_tick handles drift loads/unloads
+	#   - per-tick update() in _process tick branch handles drift loads/unloads
 	chunk_streamer = ChunkStreamer.try_load(root, verbose)
 	if chunk_streamer != null:
 		# Persistent chunk first — its entities never leave env.entities.
@@ -393,47 +403,8 @@ func _run_multimesh_director() -> void:
 
 
 
-# ============================================================
-# CLOCK
-# ============================================================
-
-func _start_clock() -> void:
-	_clock = WorldClock.new()
-	_clock.name = "WorldClock"
-	_clock.tick_seconds = tick_seconds
-	add_child(_clock)
-	_clock.tick.connect(_on_tick)
-
-
-func _on_tick(count: int) -> void:
-	# ADR 0011 + 0012: when a screen OR overlay with freeze_world=true is
-	# active, suppress simulation. Renderer keeps drawing the frozen scene
-	# behind the modal/overlay. Input still routes to the active screen
-	# (ScreenFlow's _process) or overlay (OverlayManager's _process); we
-	# just skip scheduler.tick().
-	var freeze := int(world_state.get("screen_freeze_world", 0)) != 0
-	freeze = freeze or int(world_state.get("overlay_freeze_world", 0)) != 0
-	# ADR 0044 Invariant #10: PhysicsServer3D.set_active(false) under
-	# freeze. Pauses ALL physics processing (rigid integration, kinematic
-	# movement, query results) without affecting Godot animation / tween
-	# / audio systems. Required so wolves / rigid bodies don't drift
-	# during pause-menu modals.
-	PhysicsServer3D.set_active(not freeze)
-	if freeze:
-		# Game-level pipelines (save/load, level transitions, world reset)
-		# drain in GameShell._process — runs at frame rate regardless of
-		# freeze, so "Save" / "Travel" / "New Game" buttons on freeze
-		# screens still work. This _on_tick early-return just suppresses
-		# the SIM tick. (Pipeline ownership moved 2026-05-12 per the
-		# "world = sim, game_shell = game" principle.)
-		return
-	advance_one_tick()
-	if verbose and count % 4 == 0:
-		_print_tick_summary(count)
-
-
 ## ADR 0039: canonical tick body. Used by:
-##   1. The live clock callback `_on_tick` (above) after the freeze check.
+##   1. The live `_process(delta)` accumulator (below) after the freeze check.
 ##   2. The step runner (`step_runner.gd`) for headless tests + capture VQA.
 ##
 ## Single source of truth — both paths exercise identical engine state
@@ -548,11 +519,28 @@ func _decrement_lifetimes() -> void:
 
 
 # ============================================================
-# PER-FRAME: input polling + motion integration (W2.2 + W2.5)
+# PER-FRAME: input polling + motion + sim-tick accumulator
 # ============================================================
+#
+# Yume's frame-rate vs sim-rate split:
+#   - FRAME-rate work runs every call to _process: input sampling
+#     (~16ms latency target), smooth motion integration with continuous
+#     delta, ground-clamp after motion.
+#   - SIM-rate work runs only when the accumulator crosses tick_seconds:
+#     scheduler.tick + AI policies + lifetime decay + pending drains.
+#     Rule `interval: N` means "fire every N sim-ticks" — discrete
+#     count, hardware-independent.
+#
+# Determinism (2026-05-12 design decision): the rate split is
+# load-bearing. Coupling sim-ticks to frame rate would make rule
+# cascades, lifetime decay, and AI cadence hardware-dependent and
+# break scenario tests + save-state reproducibility. See ADR 0001
+# (seven primitives — Trigger.tick is discrete) and the post-mortem
+# entry that catalogs the failure modes.
 
 func _process(delta: float) -> void:
 	if scheduler == null: return
+	# --- FRAME-rate work (every call) -----------------------------------
 	# Input polling lives in InputRegistrar (extracted 2026-05-11 — kept
 	# the full input lifecycle co-located in one module). _find_actor_id
 	# stays here because actor routing is world.gd's concern.
@@ -566,6 +554,27 @@ func _process(delta: float) -> void:
 	# clamp tagged "creature" entities to that Y, and remove tagged
 	# "projectile" entities that drop below it. Applied after motion.
 	_ground_constraint.apply()
+	# --- SIM-rate work (only when accumulator crosses tick_seconds) -----
+	# Inlined from former WorldClock child Node on 2026-05-12 — no signal
+	# hop, same delta-accumulator pattern.
+	_tick_elapsed += delta
+	if _tick_elapsed < tick_seconds: return
+	_tick_elapsed -= tick_seconds
+	_tick_count += 1
+	# ADR 0011 + 0012: under modal/overlay freeze, suppress the sim tick.
+	# Renderer keeps drawing the frozen scene; game-level pipelines (save
+	# / level transition / reset) drain in GameShell._process at frame
+	# rate so "Save" / "Travel" / "New Game" buttons still work.
+	var freeze := int(world_state.get("screen_freeze_world", 0)) != 0
+	freeze = freeze or int(world_state.get("overlay_freeze_world", 0)) != 0
+	# ADR 0044 Invariant #10: PhysicsServer3D pauses with the sim. Rigid
+	# integration / kinematic movement / queries all halt; Godot animation
+	# / tween / audio continue.
+	PhysicsServer3D.set_active(not freeze)
+	if freeze: return
+	advance_one_tick()
+	if verbose and _tick_count % 4 == 0:
+		_print_tick_summary(_tick_count)
 
 
 ## Tier 2.6o Phase 3 — accumulate mouse motion across the frame.

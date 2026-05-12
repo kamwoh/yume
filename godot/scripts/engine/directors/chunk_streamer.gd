@@ -8,7 +8,7 @@ class_name ChunkStreamer
 ## shape as the legacy single-file `entities.json` (definitions +
 ## initial_instances + initial_relations + patterns).
 ##
-## Active code path: `update(env)` is called once per tick from World._on_tick
+## Active code path: `update(env)` is called once per tick from World._process tick branch
 ## (after process_pending_level_transition, before pending_save_load). We
 ## resolve the active actor via ActorManager, compute its current chunk,
 ## load any chunks within `stream_radius` that aren't already loaded, and
@@ -120,7 +120,7 @@ func chunk_of(planar_pos: Vector2) -> Vector2i:
 
 
 # ============================================================
-# UPDATE — called per tick from World._on_tick
+# UPDATE — called per tick from World._process tick branch
 # ============================================================
 
 ## Compute desired chunk set from active-actor position; load missing

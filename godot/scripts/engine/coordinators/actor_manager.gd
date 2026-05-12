@@ -148,7 +148,7 @@ func set_active(actor_id: String) -> bool:
 ## routing changes happen at tick boundaries, not mid-rule. Mirrors the
 ## new active actor into world_state so bindings + HUD can read it.
 ##
-## No-op when nothing is pending. Called from world.gd::_on_tick after
+## No-op when nothing is pending. Called from world.gd::_process tick branch after
 ## scheduler.tick — under freeze (modal up) the entire tick is skipped,
 ## so the pending value sits in env until the next live tick (intentional
 ## per Invariant #10: actor swap is sim-state, can wait).
@@ -199,7 +199,7 @@ func load_policies(data_root: String) -> void:
 
 ## Per-tick: for each AI actor, build observation, call policy.decide(),
 ## queue resulting actions onto the scheduler. Called by World between
-## the input and decide phases (see world.gd _on_tick).
+## the input and decide phases (see world.gd _process tick branch).
 func tick_policies(env: Dictionary) -> void:
 	if _policies.is_empty(): return
 	var entities: Dictionary = env.get("entities", {})

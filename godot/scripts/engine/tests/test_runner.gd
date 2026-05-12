@@ -6599,7 +6599,7 @@ func test_step_runner() -> void:
 		"invalid duration: STEP_INVALID_DURATION raised when for=0")
 
 	# ---------- 12. test_advance_one_tick_parity ----------
-	# advance_one_tick must drive the same env transitions _on_tick does.
+	# advance_one_tick must drive the same env transitions the live tick branch does.
 	# Empirical check: a tick rule fires under advance_one_tick same as
 	# under scheduler.tick(). (Sanity test that the C4 refactor preserved
 	# behavior — full coverage lives in unit tests for each verb above.)
