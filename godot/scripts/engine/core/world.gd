@@ -101,6 +101,11 @@ var _loader: WorldLoader = null
 ## that applies drag + velocity + physics-driven collision resolution.
 ## Holds the cached SphereShape3D for intersect_shape queries.
 var _motion_integrator: MotionIntegrator = null
+## Scene ground constraint (extracted 2026-05-12). Owns ground_y +
+## clamp/despawn tags loaded from scene.json's ground block, and the
+## per-frame apply() that runs after motion. Despawn routes through
+## SpawnManager.despawn (ADR 0044 body cleanup).
+var _ground_constraint: GroundConstraint = null
 ## ADR 0014 — chunk streamer. Non-null only when the game opted into
 ## open-world mode by shipping a `world.json`. When null, single-chunk
 ## legacy behavior; all entities live in env.entities for the whole run.
@@ -145,6 +150,7 @@ func _ready() -> void:
 	_world_reset = WorldResetCoordinator.new(self)
 	_loader = WorldLoader.new(self)
 	_motion_integrator = MotionIntegrator.new(self)
+	_ground_constraint = GroundConstraint.new(self)
 	if auto_start:
 		start()
 
@@ -533,15 +539,11 @@ func _decrement_lifetimes() -> void:
 		if lifetime <= 0.0:
 			to_remove.append(str(id))
 	# Remove after iteration so we don't mutate the dict mid-loop.
+	# Route through SpawnManager.despawn for unified cleanup
+	# (relations + spatial_index + physics body + queue_free) — per
+	# ADR 0044 Condition 4 body-leak prevention.
 	for id in to_remove:
-		var ent: Entity = entities.get(id, null)
-		if ent == null: continue
-		if relations != null:
-			relations.clear_entity(id)
-		if spatial_index != null and spatial_index.has_method("remove_entity"):
-			spatial_index.remove_entity(id)
-		entities.erase(id)
-		ent.queue_free()
+		_spawn_manager.despawn(id)
 
 
 # ============================================================
@@ -562,7 +564,7 @@ func _process(delta: float) -> void:
 	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
 	# clamp tagged "creature" entities to that Y, and remove tagged
 	# "projectile" entities that drop below it. Applied after motion.
-	_apply_ground()
+	_ground_constraint.apply()
 
 
 ## Tier 2.6o Phase 3 — accumulate mouse motion across the frame.
@@ -607,13 +609,14 @@ func process_pending_actor_switch() -> void:
 
 
 ## Per-frame motion + collision = MotionIntegrator coordinator
-## (see coordinators/motion_integrator.gd). _process delegates to
-## _motion_integrator.integrate(delta) then calls _apply_ground().
+## (see coordinators/motion_integrator.gd). Per-frame ground clamp +
+## projectile-despawn = GroundConstraint coordinator (see
+## coordinators/ground_constraint.gd). _process delegates to both.
 
 
-var _ground_y: float = -INF
-var _ground_clamp_tags: Array = []
-var _ground_despawn_tags: Array = []
+# Ground constraint config lives on _ground_constraint (above).
+# WorldLoader.load_ground_cfg populates ground_y / clamp_tags / despawn_tags
+# on that coordinator.
 
 
 # ADR 0038: grid-based placement config. Loaded once from scene.json's
@@ -637,42 +640,6 @@ var on_all_complete_msg: String = ""
 
 
 
-
-
-
-func _apply_ground() -> void:
-	_loader.load_ground_cfg()
-	if _ground_y == -INF: return
-	var to_remove: Array[String] = []
-	for id in entities.keys():
-		var ent = entities[id]
-		if not (ent is Entity): continue
-		var p = (ent as Entity).get_position()
-		var py: float = p.y if p is Vector3 else 0.0
-		if py >= _ground_y: continue
-		# Below ground. Despawn projectiles, clamp creatures.
-		var despawn := false
-		for t in _ground_despawn_tags:
-			if (ent as Entity).has_tag(str(t)):
-				despawn = true; break
-		if despawn:
-			to_remove.append(str(id))
-			continue
-		var clamp_match := false
-		for t in _ground_clamp_tags:
-			if (ent as Entity).has_tag(str(t)):
-				clamp_match = true; break
-		if clamp_match and p is Vector3:
-			(ent as Entity).set_position(Vector3(p.x, _ground_y, p.z))
-	for rid in to_remove:
-		var rent: Entity = entities.get(rid, null)
-		if rent == null: continue
-		if relations != null:
-			relations.clear_entity(rid)
-		if spatial_index != null and spatial_index.has_method("remove_entity"):
-			spatial_index.remove_entity(rid)
-		entities.erase(rid)
-		rent.queue_free()
 
 
 

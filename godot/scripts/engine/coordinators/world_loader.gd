@@ -14,9 +14,9 @@ class_name WorldLoader
 ##
 ## Pattern: RefCounted, per-World instance, world reference for state
 ## access. The CACHE flags for ground/grid scene.json reads live HERE
-## (avoids double-parsing); the parsed VALUES are written back to
-## world.gd's fields (read by _apply_ground + _build_env which stay
-## in world.gd for tick-time access).
+## (avoids double-parsing); the parsed VALUES are written to the
+## GroundConstraint coordinator (ground.y/clamp/despawn tags) and to
+## world.gd's _grid_cfg field (read by _build_env).
 ##
 ## load_data orchestration STAYS in world.gd — it's the boot sequence
 ## owner. This module just provides the parsers it calls.
@@ -24,9 +24,8 @@ class_name WorldLoader
 
 var _world: World
 
-# Cache flags — keep us from re-parsing scene.json. The parsed values
-# are written to _world._ground_y / _world._grid_cfg etc. (read by
-# tick-time code in world.gd).
+# Cache flags — keep us from re-parsing scene.json. Ground values are
+# written to _world._ground_constraint; grid values to _world._grid_cfg.
 var _ground_cfg_loaded: bool = false
 var _grid_cfg_loaded: bool = false
 
@@ -301,10 +300,10 @@ func apply_level_seed_if_set(root: String) -> void:
 		print("[World] level_seed=%d applied — patterns are deterministic" % s)
 
 
-## Lazy-load scene.json's `ground` block into world.gd's
-## _ground_y / _ground_clamp_tags / _ground_despawn_tags fields. The
-## fields stay on World (read by _apply_ground in motion path); this
-## is just the setter. Cache flag is internal to avoid double-parse.
+## Lazy-load scene.json's `ground` block into the GroundConstraint
+## coordinator's ground_y / clamp_tags / despawn_tags fields. The
+## coordinator (not World) owns the config + per-frame apply loop;
+## this is just the setter. Cache flag is internal to avoid double-parse.
 func load_ground_cfg() -> void:
 	if _ground_cfg_loaded: return
 	_ground_cfg_loaded = true
@@ -318,10 +317,11 @@ func load_ground_cfg() -> void:
 	var cfg: Dictionary = json.data
 	if not (cfg.get("ground", null) is Dictionary): return
 	var g: Dictionary = cfg["ground"]
+	var gc: GroundConstraint = _world._ground_constraint
 	if g.has("y"):
-		_world._ground_y = float(g["y"])
-	_world._ground_clamp_tags = g.get("clamp_tags", ["creature"])
-	_world._ground_despawn_tags = g.get("despawn_tags", ["projectile"])
+		gc.ground_y = float(g["y"])
+	gc.clamp_tags = g.get("clamp_tags", ["creature"])
+	gc.despawn_tags = g.get("despawn_tags", ["projectile"])
 
 
 ## ADR 0038: grid-based placement config. Loaded once from scene.json's
