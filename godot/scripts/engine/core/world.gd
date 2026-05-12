@@ -271,7 +271,8 @@ func load_data() -> void:
 	save_policy = SaveState.load_policy(root)
 	if not save_policy.is_empty():
 		var slots := int(save_policy.get("slots", 1))
-		world_state["has_save"] = 1 if SaveState.has_any_save(SaveLoadCoordinator.game_name_from_root(data_root), slots) else 0
+		var game := SaveLoadCoordinator.game_name_from_root(data_root)
+		world_state["has_save"] = 1 if SaveState.has_any_save(game, slots) else 0
 	else:
 		world_state["has_save"] = 0
 	# ADR 0013: now that scheduler + env are built, run SettingsManager's

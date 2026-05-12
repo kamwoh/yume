@@ -1,0 +1,22 @@
+# Yume gdlint configuration.
+#
+# Tweaks the gdtoolkit defaults to match Yume's actual style:
+#   - allow underscored function-local vars (Yume convention for
+#     private state captured in a function — _dynasty_dir, _ent, etc.)
+#   - relax class-definitions-order (Yume groups static helpers at
+#     file bottom, not after exports — a deliberate readability choice)
+#   - bump max-file-lines for effect_apply.gd (the single dispatch
+#     table for all effects; splitting it would obscure the verb set)
+#   - bump max-public-methods for World (orchestrator surface area)
+#
+# Run via: tools/check_gdscript.sh
+# Or directly: venv/bin/gdlint godot/scripts/
+
+disable:
+  - class-definitions-order
+
+function-variable-name: '_?[a-z][a-z0-9]*(_[a-z0-9]+)*'
+
+max-file-lines: 2500
+max-public-methods: 30
+max-line-length: 120
