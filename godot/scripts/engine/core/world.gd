@@ -496,11 +496,12 @@ func advance_one_tick() -> void:
 	# transitions, world reset) drain in GameShell._process — they don't
 	# belong to the sim tick.
 	process_chunk_streaming()
-	# ADR 0016: switch_actor takes effect at next tick boundary. SIM concern
-	# (input routing). Stays in world.gd, AFTER scheduler.tick so the
-	# current tick's rules saw the OLD active_actor; the next tick's input
-	# phase will see the NEW one.
-	process_pending_actor_switch()
+	# ADR 0016: switch_actor takes effect at next tick boundary. AFTER
+	# scheduler.tick so the current tick's rules saw the OLD active_actor;
+	# the next tick's input phase will see the NEW one. ActorManager owns
+	# the drain logic + world_state mirror.
+	if actor_manager != null:
+		actor_manager.process_pending(scheduler.env, world_state, verbose)
 
 
 ## ADR 0014: per-tick chunk streaming. Resolves the active actor's planar
@@ -591,21 +592,6 @@ func _find_actor_id() -> String:
 	if actor_manager == null:
 		return ""  # auto_start=false test mode; no input routing
 	return actor_manager.resolve_active_entity(entities)
-
-
-## ADR 0016: process queued switch_actor between ticks. Effect handlers
-## set env._pending_active_actor; we read + clear it here so input
-## routing changes happen at tick boundaries, not mid-rule.
-func process_pending_actor_switch() -> void:
-	var env: Dictionary = scheduler.env
-	var pending = env.get("_pending_active_actor", null)
-	if pending == null or actor_manager == null: return
-	env.erase("_pending_active_actor")
-	var target := str(pending)
-	if actor_manager.set_active(target):
-		world_state["active_actor_id"] = target
-		if verbose:
-			print("[World] active actor → ", target)
 
 
 ## Per-frame motion + collision = MotionIntegrator coordinator

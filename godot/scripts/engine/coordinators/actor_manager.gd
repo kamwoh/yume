@@ -143,6 +143,26 @@ func set_active(actor_id: String) -> bool:
 	return true
 
 
+## ADR 0016: drain a queued switch_actor between ticks. Effect handlers
+## set env._pending_active_actor; we read + clear it here so input
+## routing changes happen at tick boundaries, not mid-rule. Mirrors the
+## new active actor into world_state so bindings + HUD can read it.
+##
+## No-op when nothing is pending. Called from world.gd::_on_tick after
+## scheduler.tick — under freeze (modal up) the entire tick is skipped,
+## so the pending value sits in env until the next live tick (intentional
+## per Invariant #10: actor swap is sim-state, can wait).
+func process_pending(env: Dictionary, world_state: Dictionary, verbose: bool) -> void:
+	var pending = env.get("_pending_active_actor", null)
+	if pending == null: return
+	env.erase("_pending_active_actor")
+	var target := str(pending)
+	if set_active(target):
+		world_state["active_actor_id"] = target
+		if verbose:
+			print("[ActorManager] active actor → ", target)
+
+
 # ============================================================
 # DIAGNOSTICS
 # ============================================================

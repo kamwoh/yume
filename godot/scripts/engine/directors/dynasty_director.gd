@@ -246,7 +246,7 @@ func transition_player_to(env: Dictionary, new_actor_id: String) -> bool:
 	# Path 1: ActorManager-aware swap. World holds the manager; a
 	# successful set_active updates active_actor_id and sets the
 	# binding world_state.active_actor_id (caller usually mirrors
-	# this via process_pending_actor_switch).
+	# this via ActorManager.process_pending).
 	var am = null
 	if _world != null and "actor_manager" in _world:
 		am = _world.actor_manager
@@ -254,7 +254,7 @@ func transition_player_to(env: Dictionary, new_actor_id: String) -> bool:
 		if am.call("set_active", new_actor_id):
 			# Mirror into world_state so binding readers (camera follow,
 			# HUD) see the new actor immediately. Matches the post-swap
-			# bookkeeping in world.gd::process_pending_actor_switch.
+			# bookkeeping in ActorManager.process_pending.
 			var world_dict = env.get("world", null)
 			if world_dict is Dictionary:
 				(world_dict as Dictionary)["active_actor_id"] = new_actor_id
