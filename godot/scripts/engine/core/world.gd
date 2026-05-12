@@ -1,17 +1,17 @@
 extends Node
 class_name World
 
-## Top-level orchestrator. Owns the entity map, definitions, relation store,
-## phase scheduler, world clock, and global world-state dictionary.
+## Top-level orchestrator. Owns canonical engine state (entities, scheduler,
+## relations, spatial index, world_state) and the coordinators that drive
+## each subsystem. Almost all behavior lives in the coordinators; World's
+## job is to construct them and sequence the per-frame + per-tick calls.
 ##
 ## Contract: docs/30_framework_primitives.md § "File layout after redesign"
 ##
-## **Renderer-agnostic.** World extends plain Node — no transform of its own.
-## Entities (also plain Node) are children. Each entity gets a positioned
-## RENDERER child attached (Sprite2D for 2D scenes, MeshInstance3D for 3D),
-## which reads `entity.state.position` and updates its own transform per
-## frame. Camera2D / Camera3D live as siblings of entities in the scene
-## tree. Same World script powers both world_2d.tscn and world_3d.tscn.
+## Renderer-agnostic. Extends plain Node — no transform. Entities are
+## children; each gets a positioned renderer node (Sprite2D / MeshInstance3D)
+## that reads state.position. Same script powers world_2d.tscn and
+## world_3d.tscn.
 
 @export_dir var data_root: String = ""       # e.g. "res://data/demo_ecology/"
 @export var auto_start: bool = true
@@ -46,83 +46,48 @@ class_name World
 @export var variant_override: String = ""
 
 # ============================================================
-# STATE
+# STATE — engine-shared services (env-exposed)
 # ============================================================
 
-var entities: Dictionary = {}                 # instance_id → Entity
-var defs: Dictionary = {}                     # def_id → entity definition dict
-var relations: RelationStore = null
-var spatial_index: SpatialIndex = null        # W3 — bucket hash for radius queries
-var scheduler: PhaseScheduler = null
-var world_state: Dictionary = {}              # global "world.*" bindings
-var next_id_seq: Dictionary = {"_": 0}        # shared counter for spawns
-# Sim-tick accumulator (inlined from former WorldClock child Node on
-# 2026-05-12). _process(delta) accumulates real-time delta; when it
-# crosses tick_seconds we drain one accumulator-unit and run a sim tick.
-# Same delta-counting pattern WorldClock used — just no child Node or
-# signal hop. tick_count is the canonical sim clock (used by save/load,
-# scenario tests, replays — see "determinism" rationale 2026-05-12).
+var entities: Dictionary = {}                # instance_id → Entity
+var defs: Dictionary = {}                    # def_id → entity definition
+var world_state: Dictionary = {}             # world.* bindings
+var next_id_seq: Dictionary = {"_": 0}       # shared spawn-id counter
+var error_buffer: Array = []                 # Tier 2.6a structured errors
+var save_policy: Dictionary = {}             # ADR 0010 — empty = no persistence
+
+var relations: RelationStore = null          # primitive #7
+var spatial_index: SpatialIndex = null       # radius-query bucket hash
+var scheduler: PhaseScheduler = null         # four-phase tick loop
+var zone_store: ZoneStore = null             # ADR 0031 (always non-null)
+var chunk_streamer: ChunkStreamer = null     # ADR 0014 (nullable)
+var actor_manager = null                     # ADR 0016 multi-actor
+var macro_expander = null                    # ADR 0019 macros
+
+# ============================================================
+# STATE — coordinators (private; World drives them)
+# ============================================================
+
+var _loader: WorldLoader = null                              # JSON parsing
+var _spawn_manager: SpawnManager = null                      # spawn pipeline
+var _motion_integrator: MotionIntegrator = null              # per-frame motion + collision
+var _ground_constraint: GroundConstraint = null              # per-frame ground clamp + despawn
+var _level_transitions: LevelTransitionCoordinator = null    # ADR 0006 multi-level swap
+var _save_load: SaveLoadCoordinator = null                   # ADR 0010 save/load drain
+var _world_reset: WorldResetCoordinator = null               # restart pipeline
+var _multimesh_director: MultiMeshDirector = null            # ADR 0041 multimesh batching
+
+# ============================================================
+# STATE — sim-tick accumulator (replaces former WorldClock child Node)
+# ============================================================
+#
+# _process(delta) accumulates real-time delta; each crossing of
+# tick_seconds drains one tick. _tick_count is the canonical sim clock
+# (used by save/load + scenario tests); rate-coupled to wall-time only
+# at the accumulator, so rule cascades + AI cadence stay deterministic.
+
 var _tick_elapsed: float = 0.0
 var _tick_count: int = 0
-## Tier 2.6a — accumulating buffer of structured engine errors. Shared
-## by reference into `env.error_buffer`; readable by qa-tester / VQA /
-## LLM agents. Drain with `EngineError.drain(env)` between scenarios.
-var error_buffer: Array = []
-## ADR 0010 — save/load policy loaded from <data_root>/save_policy.json.
-## Empty if the game hasn't opted in to persistence; save_state /
-## load_state effects are no-ops when empty.
-var save_policy: Dictionary = {}
-## ADR 0019 — per-game macro expander. Loaded once at game start;
-## passed into every Rule.load_from_file call so macro references in
-## any rules file (world/physics.json, game/rules.json, levels/<n>/rules.json,
-## tutorial.json) are expanded uniformly.
-var macro_expander = null
-## ADR 0016 — multi-actor manager. Loaded at game start; synthesizes a
-## default single-actor config if no actors.json present (zero-migration
-## for legacy demos). active_actor_id mirrored into world_state for
-## binding readers (camera follow, input dispatch).
-var actor_manager = null
-## SpawnManager (extracted from world.gd 2026-05-11). Owns the entity
-## spawn pipeline + renderer-attach + persistent-clobber guard + grid
-## snap + renderer_cfg cache. Single public entry: `spawn(inst)`.
-var _spawn_manager: SpawnManager = null
-## LevelTransitionCoordinator (extracted from world.gd 2026-05-12).
-## Owns ADR 0006 multi-level pipeline: process_pending(env),
-## do_transition(target), load_level(name).
-var _level_transitions: LevelTransitionCoordinator = null
-## SaveLoadCoordinator (extracted from world.gd 2026-05-12). Owns
-## ADR 0010 save/load pipeline: process_pending(env), do_save(slot),
-## do_load(slot).
-var _save_load: SaveLoadCoordinator = null
-## WorldResetCoordinator (extracted from world.gd 2026-05-12). Owns
-## Task #99 reset pipeline: process_pending(env), do_reset().
-var _world_reset: WorldResetCoordinator = null
-## WorldLoader (extracted from world.gd 2026-05-12). Owns boot-time
-## JSON parsers: load_entities_path, load_entities_file, load_rules_file,
-## load_world_file, load_zones_file, load_factions_file, load_progression,
-## apply_level_seed_if_set, load_ground_cfg, load_grid_cfg. Loader is
-## the SETTER; cached field values (ground_y, grid_cfg) live on World
-## so tick-time code can read them without going through the loader.
-var _loader: WorldLoader = null
-## ADR 0044 Session D — per-frame motion. Owns the integrate(delta) call
-## that applies drag + velocity + physics-driven collision resolution.
-## Holds the cached SphereShape3D for intersect_shape queries.
-var _motion_integrator: MotionIntegrator = null
-## Scene ground constraint (extracted 2026-05-12). Owns ground_y +
-## clamp/despawn tags loaded from scene.json's ground block, and the
-## per-frame apply() that runs after motion. Despawn routes through
-## SpawnManager.despawn (ADR 0044 body cleanup).
-var _ground_constraint: GroundConstraint = null
-## ADR 0014 — chunk streamer. Non-null only when the game opted into
-## open-world mode by shipping a `world.json`. When null, single-chunk
-## legacy behavior; all entities live in env.entities for the whole run.
-## When non-null, the tick branch calls update() each tick.
-var chunk_streamer: ChunkStreamer = null
-## ADR 0031 — zone-state primitive. Hierarchical aggregate scope alongside
-## entities + world_state. Always non-null (an empty store is fine);
-## populated from world/zones.json if that file exists. Passed through env
-## so effects (zone_state_*) and Formula (zone.X.Y bindings) can access it.
-var zone_store: ZoneStore = null
 
 
 # ============================================================
@@ -140,24 +105,9 @@ func _enter_tree() -> void:
 		_resolve_data_root_from_cmdline()
 
 
-var _multimesh_director: MultiMeshDirector = null
-
-
 func _ready() -> void:
-	relations = RelationStore.new()
-	spatial_index = SpatialIndex.new()
-	# ADR 0031: zone_store always exists (empty until zones.json loads).
-	# Empty store has no overhead and lets env.zone_store be non-null
-	# everywhere — backward-compat for demos with no zones file.
-	zone_store = ZoneStore.new()
-	scheduler = PhaseScheduler.new(_build_env())
-	_spawn_manager = SpawnManager.new(self)
-	_level_transitions = LevelTransitionCoordinator.new(self)
-	_save_load = SaveLoadCoordinator.new(self)
-	_world_reset = WorldResetCoordinator.new(self)
-	_loader = WorldLoader.new(self)
-	_motion_integrator = MotionIntegrator.new(self)
-	_ground_constraint = GroundConstraint.new(self)
+	_init_stores()
+	_init_coordinators()
 	if auto_start:
 		start()
 
@@ -165,10 +115,27 @@ func _ready() -> void:
 func start() -> void:
 	if data_root != "":
 		load_data()
-	# Reset sim-tick accumulator. _process(delta) drives ticks now —
-	# no child Node needed.
-	_tick_elapsed = 0.0
-	_tick_count = 0
+
+
+## Engine-shared services. All non-null after this returns; downstream
+## code reads them through env without null checks.
+func _init_stores() -> void:
+	relations = RelationStore.new()
+	spatial_index = SpatialIndex.new()
+	zone_store = ZoneStore.new()
+	scheduler = PhaseScheduler.new(_build_env())
+
+
+## Coordinator instances. Constructed once with a back-reference to
+## World; per-frame and per-tick calls flow through these.
+func _init_coordinators() -> void:
+	_loader = WorldLoader.new(self)
+	_spawn_manager = SpawnManager.new(self)
+	_motion_integrator = MotionIntegrator.new(self)
+	_ground_constraint = GroundConstraint.new(self)
+	_level_transitions = LevelTransitionCoordinator.new(self)
+	_save_load = SaveLoadCoordinator.new(self)
+	_world_reset = WorldResetCoordinator.new(self)
 
 
 ## Look for `--game=<name>` in user args. The user-args separator `--`
