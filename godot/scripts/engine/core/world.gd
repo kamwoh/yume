@@ -1,4 +1,5 @@
 extends Node
+
 class_name World
 
 ## Top-level orchestrator. Owns canonical engine state (entities, scheduler,
@@ -13,7 +14,7 @@ class_name World
 ## that reads state.position. Same script powers world_2d.tscn and
 ## world_3d.tscn.
 
-@export_dir var data_root: String = ""       # e.g. "res://data/demo_ecology/"
+@export_dir var data_root: String = "" # e.g. "res://data/demo_ecology/"
 @export var auto_start: bool = true
 @export var tick_seconds: float = 0.5
 @export var verbose: bool = false
@@ -49,33 +50,33 @@ class_name World
 # STATE — engine-shared services (env-exposed)
 # ============================================================
 
-var entities: Dictionary = {}                # instance_id → Entity
-var defs: Dictionary = {}                    # def_id → entity definition
-var world_state: Dictionary = {}             # world.* bindings
-var next_id_seq: Dictionary = {"_": 0}       # shared spawn-id counter
-var error_buffer: Array = []                 # Tier 2.6a structured errors
-var save_policy: Dictionary = {}             # ADR 0010 — empty = no persistence
+var entities: Dictionary = { } # instance_id → Entity
+var defs: Dictionary = { } # def_id → entity definition
+var world_state: Dictionary = { } # world.* bindings
+var next_id_seq: Dictionary = { "_": 0 } # shared spawn-id counter
+var error_buffer: Array = [] # Tier 2.6a structured errors
+var save_policy: Dictionary = { } # ADR 0010 — empty = no persistence
 
-var relations: RelationStore = null          # primitive #7
-var spatial_index: SpatialIndex = null       # radius-query bucket hash
-var scheduler: PhaseScheduler = null         # four-phase tick loop
-var zone_store: ZoneStore = null             # ADR 0031 (always non-null)
-var chunk_streamer: ChunkStreamer = null     # ADR 0014 (nullable)
-var actor_manager = null                     # ADR 0016 multi-actor
-var macro_expander = null                    # ADR 0019 macros
+var relations: RelationStore = null # primitive #7
+var spatial_index: SpatialIndex = null # radius-query bucket hash
+var scheduler: PhaseScheduler = null # four-phase tick loop
+var zone_store: ZoneStore = null # ADR 0031 (always non-null)
+var chunk_streamer: ChunkStreamer = null # ADR 0014 (nullable)
+var actor_manager = null # ADR 0016 multi-actor
+var macro_expander = null # ADR 0019 macros
 
 # ============================================================
 # STATE — coordinators (private; World drives them)
 # ============================================================
 
-var _loader: WorldLoader = null                              # JSON parsing
-var _spawn_manager: SpawnManager = null                      # spawn pipeline
-var _motion_integrator: MotionIntegrator = null              # per-frame motion + collision
-var _ground_constraint: GroundConstraint = null              # per-frame ground clamp + despawn
-var _level_transitions: LevelTransitionCoordinator = null    # ADR 0006 multi-level swap
-var _save_load: SaveLoadCoordinator = null                   # ADR 0010 save/load drain
-var _world_reset: WorldResetCoordinator = null               # restart pipeline
-var _multimesh_director: MultiMeshDirector = null            # ADR 0041 multimesh batching
+var _loader: WorldLoader = null # JSON parsing
+var _spawn_manager: SpawnManager = null # spawn pipeline
+var _motion_integrator: MotionIntegrator = null # per-frame motion + collision
+var _ground_constraint: GroundConstraint = null # per-frame ground clamp + despawn
+var _level_transitions: LevelTransitionCoordinator = null # ADR 0006 multi-level swap
+var _save_load: SaveLoadCoordinator = null # ADR 0010 save/load drain
+var _world_reset: WorldResetCoordinator = null # restart pipeline
+var _multimesh_director: MultiMeshDirector = null # ADR 0041 multimesh batching
 
 # ============================================================
 # STATE — sim-tick accumulator (replaces former WorldClock child Node)
@@ -89,10 +90,10 @@ var _multimesh_director: MultiMeshDirector = null            # ADR 0041 multimes
 var _tick_elapsed: float = 0.0
 var _tick_count: int = 0
 
-
 # ============================================================
 # LIFECYCLE
 # ============================================================
+
 
 ## Resolve --game= cmdline arg in _enter_tree, which fires top-down before
 ## any _ready (children's _ready otherwise runs before parent's _ready and
@@ -150,10 +151,10 @@ func _resolve_data_root_from_cmdline() -> void:
 				print("[World] resolved data_root from cmdline: ", data_root)
 			return
 
-
 # ============================================================
 # DATA LOADING
 # ============================================================
+
 
 ## Load entity defs, initial instances, initial relations, rules, and world
 ## state from `data_root/`. Order: rules → entities → world → initial flush.
@@ -170,7 +171,7 @@ func _resolve_data_root_from_cmdline() -> void:
 func load_data() -> void:
 	var root := data_root.rstrip("/")
 	# ADR 0027 — load shared `data/lib/**.json` into LibResolver cache
-	# BEFORE any per-game JSON loader runs. Resolver runs cache-once;
+	# BEFORE any per-game JSON loader runs. Resolver runs cache-once
 	# subsequent calls are no-op. Lets later loaders (entities, rules,
 	# screens, scene, hud) call LibResolver.resolve transparently.
 	LibResolver.init_cache(root)
@@ -335,9 +336,15 @@ func load_data() -> void:
 	_run_multimesh_director()
 	if verbose:
 		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
-		print("[World] loaded: %d defs, %d entities, %d relations%s" % [
-			defs.size(), entities.size(), relations.count_total(), lvl_str
-		])
+		print(
+			"[World] loaded: %d defs, %d entities, %d relations%s" % [
+				defs.size(),
+				entities.size(),
+				relations.count_total(),
+				lvl_str,
+			],
+		)
+
 
 # ADR 0041 — bootstrap the multimesh director (lazy-init on first use).
 # Reads renderer.position_scale from SpawnManager's renderer_cfg cache
@@ -345,9 +352,10 @@ func load_data() -> void:
 # sit at world scope. The cache is owned by SpawnManager (extracted
 # 2026-05-11) — multimesh reads it as a consumer.
 func _ensure_multimesh_director() -> MultiMeshDirector:
-	if _multimesh_director != null: return _multimesh_director
+	if _multimesh_director != null:
+		return _multimesh_director
 	_multimesh_director = MultiMeshDirector.new()
-	var cfg: Dictionary = _spawn_manager.renderer_cfg() if _spawn_manager != null else {}
+	var cfg: Dictionary = _spawn_manager.renderer_cfg() if _spawn_manager != null else { }
 	var ps: float = float(cfg.get("position_scale", 0.05))
 	_multimesh_director.configure(self, ps)
 	return _multimesh_director
@@ -356,109 +364,100 @@ func _ensure_multimesh_director() -> MultiMeshDirector:
 func _run_multimesh_director() -> void:
 	# Static-only optimization — skip when no entities use 3D renderer.
 	# Also skip when renderer_script is empty (headless test mode).
-	if renderer_script == "": return
-	if not renderer_script.contains("entity_mesh_3d"): return
+	if renderer_script == "":
+		return
+	if not renderer_script.contains("entity_mesh_3d"):
+		return
 	var dir := _ensure_multimesh_director()
 	var stats := dir.scan_and_batch(scheduler.env)
 	if verbose and stats.get("groups", 0) > 0:
-		print("[MULTIMESH-BUILD] entities=%d groups=%d instances=%d" % [
-			stats.get("entities", 0),
-			stats.get("groups", 0),
-			stats.get("instances", 0),
-		])
+		print(
+			"[MULTIMESH-BUILD] entities=%d groups=%d instances=%d" % [
+				stats.get("entities", 0),
+				stats.get("groups", 0),
+				stats.get("instances", 0),
+			],
+		)
 
 
-
-
-## ADR 0039: canonical tick body. Used by:
-##   1. The live `_process(delta)` accumulator (below) after the freeze check.
+## ADR 0039: canonical sim-tick body. Reads as a schedule — each line
+## is one step; implementation lives in private helpers below. Used by:
+##   1. The live `_process(delta)` accumulator (above) after the freeze check.
 ##   2. The step runner (`step_runner.gd`) for headless tests + capture VQA.
 ##
 ## Single source of truth — both paths exercise identical engine state
 ## transitions, so scenario tests cannot pass while live play silently
-## diverges. Includes scheduler.tick(), LifecycleDirector.tick,
-## actor_manager.tick_policies, lifetime decrement, and all `process_pending_*`
-## drains in the original phase order.
+## diverges.
 ##
-## Does NOT include the freeze guard — callers are expected to gate the
-## call on their own freeze policy. The step runner intentionally bypasses
-## freeze (tests need to advance state regardless of modal screens).
+## Does NOT include the freeze guard — callers gate on their own freeze
+## policy. The step runner intentionally bypasses freeze (tests need to
+## advance state regardless of modal screens).
 func advance_one_tick() -> void:
-	# ADR 0040: pretick velocity zero for actors with the opt-in flag.
-	# Camera-relative WASD uses velocity_add_relative each tick; without
-	# this reset, contributions accumulate unbounded. Runs BEFORE
-	# scheduler.tick so the input phase's add contributions sum to a
-	# fresh value each tick.
-	for id in entities.keys():
-		var pre_ent = entities[id]
-		if pre_ent is Entity and bool((pre_ent as Entity).get_state("zero_velocity_pretick", false)):
-			var pre_vel = (pre_ent as Entity).get_velocity()
-			if pre_vel is Vector2:
-				(pre_ent as Entity).set_velocity(Vector2.ZERO)
-			elif pre_vel is Vector3:
-				(pre_ent as Entity).set_velocity(Vector3.ZERO)
-	# ADR 0018 Phase A: tick AI policies BEFORE scheduler.tick so their
-	# synthesized actions land in the input queue and are processed in
-	# the same tick as human input. AI actors decide simultaneously
-	# with human-controlled ones.
+	_pretick_velocity_zero()                              # ADR 0040
 	if actor_manager != null:
-		actor_manager.tick_policies(scheduler.env)
-	scheduler.tick()
-	# ADR 0040: post-input speed clamp. Per Condition C4 tightening
-	# (2026-05-10), default max_speed=INF means clamp DISABLED unless
-	# explicitly declared. Originally gated on zero_velocity_pretick (iso
-	# mode), but FP mode also wants this — without it, W+D in FP gives
-	# √2 × walking speed (classic Quake diagonal-fastrun bug). Refined
-	# 2026-05-10 (FP rollout): any actor with max_speed < INF gets clamped.
-	for id in entities.keys():
-		var clamp_ent = entities[id]
-		if not (clamp_ent is Entity): continue
-		var max_s := float((clamp_ent as Entity).get_state("max_speed", INF))
-		if max_s < INF:
-			var v = (clamp_ent as Entity).get_velocity()
-			if v is Vector2 and (v as Vector2).length() > max_s:
-				(clamp_ent as Entity).set_velocity((v as Vector2).normalized() * max_s)
-			elif v is Vector3 and (v as Vector3).length() > max_s:
-				(clamp_ent as Entity).set_velocity((v as Vector3).normalized() * max_s)
-	# ADR 0036: LifecycleDirector advances entity ages + checks stage
-	# thresholds on the same per-tick cadence. dt = tick_seconds so a
-	# year_seconds=900 template ages an entity by tick_seconds/900 years
-	# per tick (Phase 1 default → schema-only when age_per_in_game_year=0).
-	# No-op when no entity has a lifecycle template registered.
-	var lc_dir2 := get_node_or_null("LifecycleDirector")
-	if lc_dir2 != null and lc_dir2.has_method("tick"):
-		lc_dir2.tick(scheduler.env, tick_seconds)
-	_decrement_lifetimes()
-	# ADR 0014: chunk streaming is a SIM concern (about what entities exist).
-	# Stays in world.gd. The game-level pipelines (save/load, level
-	# transitions, world reset) drain in GameShell._process — they don't
-	# belong to the sim tick.
-	process_chunk_streaming()
-	# ADR 0016: switch_actor takes effect at next tick boundary. AFTER
-	# scheduler.tick so the current tick's rules saw the OLD active_actor;
-	# the next tick's input phase will see the NEW one. ActorManager owns
-	# the drain logic + world_state mirror.
+		actor_manager.tick_policies(scheduler.env)        # ADR 0018 — AI before input
+	scheduler.tick()                                      # canonical phase loop
+	_post_tick_speed_clamp()                              # ADR 0040
+	_tick_lifecycle_director()                            # ADR 0036
+	_decrement_lifetimes()                                # Tier 2.6j
+	_stream_chunks_if_active()                            # ADR 0014
 	if actor_manager != null:
-		actor_manager.process_pending(scheduler.env, world_state, verbose)
+		actor_manager.process_pending(scheduler.env, world_state, verbose)  # ADR 0016
 
 
-## ADR 0014: per-tick chunk streaming. Resolves the active actor's planar
-## position via ActorManager, then asks chunk_streamer to load any
-## chunks within stream_radius and despawn entities in chunks beyond
-## unload_radius. Persistent entities (from chunks/_persistent/ or
-## tagged via persistent_tags) are never affected — they live in env
-## for the whole session.
-##
-## No-op when chunk_streamer is null (legacy single-chunk demos).
-func process_chunk_streaming() -> void:
+## ADR 0040: zero velocity for opt-in actors before the input phase.
+## Camera-relative WASD adds velocity each tick (velocity_add_relative);
+## without a pretick reset, contributions accumulate unbounded.
+func _pretick_velocity_zero() -> void:
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		if not bool((ent as Entity).get_state("zero_velocity_pretick", false)):
+			continue
+		var v = (ent as Entity).get_velocity()
+		if v is Vector2:
+			(ent as Entity).set_velocity(Vector2.ZERO)
+		elif v is Vector3:
+			(ent as Entity).set_velocity(Vector3.ZERO)
+
+
+## ADR 0040: clamp velocity magnitude to state.max_speed after the input
+## phase. Default max_speed=INF disables the clamp; declaring a finite
+## value opts in. Required for FP mode — without it W+D yields √2 × walk
+## speed (classic Quake diagonal-fastrun bug, 2026-05-10 FP rollout).
+func _post_tick_speed_clamp() -> void:
+	for id in entities.keys():
+		var ent = entities[id]
+		if not (ent is Entity): continue
+		var max_s := float((ent as Entity).get_state("max_speed", INF))
+		if max_s >= INF: continue
+		var v = (ent as Entity).get_velocity()
+		if v is Vector2 and (v as Vector2).length() > max_s:
+			(ent as Entity).set_velocity((v as Vector2).normalized() * max_s)
+		elif v is Vector3 and (v as Vector3).length() > max_s:
+			(ent as Entity).set_velocity((v as Vector3).normalized() * max_s)
+
+
+## ADR 0036: advance entity ages + stage thresholds. dt=tick_seconds so
+## a year_seconds=900 template ages tick_seconds/900 years per tick.
+## No-op when no entity has a lifecycle template registered.
+func _tick_lifecycle_director() -> void:
+	var lc := get_node_or_null("LifecycleDirector")
+	if lc != null and lc.has_method("tick"):
+		lc.tick(scheduler.env, tick_seconds)
+
+
+## ADR 0014: chunk streamer loads/unloads around the active actor.
+## No-op (returns immediately) on single-chunk legacy games — those
+## never instantiate a chunk_streamer.
+func _stream_chunks_if_active() -> void:
 	if chunk_streamer == null: return
 	var actor_id := _find_actor_id()
 	if actor_id == "": return
 	chunk_streamer.update(scheduler.env, actor_id)
 
 
-
-## Tier 2.6j: entities with state.lifetime > 0 auto-decrement each tick;
+## Tier 2.6j: entities with state.lifetime > 0 auto-decrement each tick
 ## removed when lifetime reaches 0. Standard pattern for transient entities
 ## (bullets, particles, sparkles, "+10" damage numbers).
 ##
@@ -468,11 +467,14 @@ func _decrement_lifetimes() -> void:
 	var to_remove: Array[String] = []
 	for id in entities.keys():
 		var ent = entities[id]
-		if not (ent is Entity): continue
+		if not (ent is Entity):
+			continue
 		var lf = (ent as Entity).get_state("lifetime", null)
-		if lf == null: continue
+		if lf == null:
+			continue
 		var lifetime := float(lf)
-		if lifetime <= 0.0: continue
+		if lifetime <= 0.0:
+			continue
 		lifetime -= 1.0
 		(ent as Entity).set_state("lifetime", lifetime)
 		if lifetime <= 0.0:
@@ -483,7 +485,6 @@ func _decrement_lifetimes() -> void:
 	# ADR 0044 Condition 4 body-leak prevention.
 	for id in to_remove:
 		_spawn_manager.despawn(id)
-
 
 # ============================================================
 # PER-FRAME: input polling + motion + sim-tick accumulator
@@ -505,16 +506,21 @@ func _decrement_lifetimes() -> void:
 # (seven primitives — Trigger.tick is discrete) and the post-mortem
 # entry that catalogs the failure modes.
 
+
 func _process(delta: float) -> void:
-	if scheduler == null: return
+	if scheduler == null:
+		return
 	# --- FRAME-rate work (every call) -----------------------------------
 	# Input polling lives in InputRegistrar (extracted 2026-05-11 — kept
 	# the full input lifecycle co-located in one module). _find_actor_id
 	# stays here because actor routing is world.gd's concern.
 	InputRegistrar.poll(
-		scheduler, _find_actor_id(),
-		input_actions_hold, input_actions_press,
-		stop_action_on_idle, entities
+		scheduler,
+		_find_actor_id(),
+		input_actions_hold,
+		input_actions_press,
+		stop_action_on_idle,
+		entities,
 	)
 	_motion_integrator.integrate(delta)
 	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
@@ -525,7 +531,8 @@ func _process(delta: float) -> void:
 	# Inlined from former WorldClock child Node on 2026-05-12 — no signal
 	# hop, same delta-accumulator pattern.
 	_tick_elapsed += delta
-	if _tick_elapsed < tick_seconds: return
+	if _tick_elapsed < tick_seconds:
+		return
 	_tick_elapsed -= tick_seconds
 	_tick_count += 1
 	# ADR 0011 + 0012: under modal/overlay freeze, suppress the sim tick.
@@ -538,7 +545,8 @@ func _process(delta: float) -> void:
 	# integration / kinematic movement / queries all halt; Godot animation
 	# / tween / audio continue.
 	PhysicsServer3D.set_active(not freeze)
-	if freeze: return
+	if freeze:
+		return
 	advance_one_tick()
 	if verbose and _tick_count % 4 == 0:
 		_print_tick_summary(_tick_count)
@@ -548,13 +556,14 @@ func _process(delta: float) -> void:
 ## GameShell drains env.mouse_delta in first/third-person camera modes
 ## to update the actor's state.facing (yaw). Set + reset per frame.
 func _input(event: InputEvent) -> void:
-	if scheduler == null: return
+	if scheduler == null:
+		return
 	if event is InputEventMouseMotion:
 		var motion := event as InputEventMouseMotion
 		var current = scheduler.env.get("mouse_delta", Vector2.ZERO)
-		if not (current is Vector2): current = Vector2.ZERO
+		if not (current is Vector2):
+			current = Vector2.ZERO
 		scheduler.env["mouse_delta"] = (current as Vector2) + motion.relative
-
 
 
 ## ADR 0016: resolve which entity should receive input this frame.
@@ -566,27 +575,23 @@ func _input(event: InputEvent) -> void:
 ## found"). Returns "" if no entity matches; callers handle.
 func _find_actor_id() -> String:
 	if actor_manager == null:
-		return ""  # auto_start=false test mode; no input routing
+		return "" # auto_start=false test mode; no input routing
 	return actor_manager.resolve_active_entity(entities)
-
 
 ## Per-frame motion + collision = MotionIntegrator coordinator
 ## (see coordinators/motion_integrator.gd). Per-frame ground clamp +
 ## projectile-despawn = GroundConstraint coordinator (see
 ## coordinators/ground_constraint.gd). _process delegates to both.
 
-
 # Ground constraint config lives on _ground_constraint (above).
 # WorldLoader.load_ground_cfg populates ground_y / clamp_tags / despawn_tags
 # on that coordinator.
-
 
 # ADR 0038: grid-based placement config. Loaded once from scene.json's
 # `grid` block (mirroring _load_ground_cfg), exposed via env["scene_grid"]
 # in _build_env. Empty dict = grid disabled (default for 13 existing demos
 # that don't declare a grid block — backward-compat sentinel).
-var _grid_cfg: Dictionary = {}
-
+var _grid_cfg: Dictionary = { }
 
 # ============================================================
 # MULTI-LEVEL (ADR 0006)
@@ -598,29 +603,47 @@ var levels_root: String = ""
 var on_all_complete_msg: String = ""
 
 
-
-
-
-
-
-
-
-
-
 ## Generic tick summary: total entity count + counts per common tag.
 ## Adapts to whatever tags the loaded data uses; silent if no common ones match.
 func _print_tick_summary(count: int) -> void:
 	var bits: Array = ["n=%d" % entities.size()]
 	# Probe a small set of common tags. Add yours here if useful.
-	var probe_tags := ["seed", "young", "mature", "rotten", "water",
-		"player", "sparkle", "enemy", "projectile", "crop",
-		"fire", "tree", "burning_tree", "ash",
-		"grass", "rabbit", "fox", "animal", "predator", "prey",
-		"bird", "iron_ore", "iron", "copper_ore", "copper",
-		"fertilizer", "mushroom", "seedling", "weather", "bush",
-		"square", "piece"]
+	var probe_tags := [
+		"seed",
+		"young",
+		"mature",
+		"rotten",
+		"water",
+		"player",
+		"sparkle",
+		"enemy",
+		"projectile",
+		"crop",
+		"fire",
+		"tree",
+		"burning_tree",
+		"ash",
+		"grass",
+		"rabbit",
+		"fox",
+		"animal",
+		"predator",
+		"prey",
+		"bird",
+		"iron_ore",
+		"iron",
+		"copper_ore",
+		"copper",
+		"fertilizer",
+		"mushroom",
+		"seedling",
+		"weather",
+		"bush",
+		"square",
+		"piece",
+	]
 	for t in probe_tags:
-		var n := QueryLib.run({"tags_all": [t]}, _build_env()).size()
+		var n := QueryLib.run({ "tags_all": [t] }, _build_env()).size()
 		if n > 0:
 			bits.append("%s=%d" % [t, n])
 	# If a "ctr_1" counter is present, show its state (demo convenience).
@@ -629,12 +652,12 @@ func _print_tick_summary(count: int) -> void:
 		bits.append("ctr=%s" % (ctr as Entity).state)
 	print("[t%d] %s" % [count, " ".join(bits)])
 
-
 # ============================================================
 # PUBLIC API
 # ============================================================
 
-func queue_input(action: String, params: Dictionary = {}) -> void:
+
+func queue_input(action: String, params: Dictionary = { }) -> void:
 	scheduler.queue_input(action, params)
 
 
@@ -649,10 +672,10 @@ func count_entities_matching(spec: Dictionary) -> int:
 func count_relations_of(type: String) -> int:
 	return relations.count(type)
 
-
 # ============================================================
 # INTERNAL
 # ============================================================
+
 
 func _build_env() -> Dictionary:
 	# ADR 0038: ensure grid config is loaded before any rule resolves it.
