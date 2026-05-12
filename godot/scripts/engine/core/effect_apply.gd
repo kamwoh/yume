@@ -805,8 +805,8 @@ static func _position(v, env: Dictionary, ctx: Dictionary):
 # miss: binds `hit_point` (ray endpoint or wall hit point) and runs
 # `on_miss`.
 static func _raycast_hit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var origin: Vector3 = _to_vec3_v(_position(e.get("origin", [0, 0, 0]), env, ctx))
-	var direction: Vector3 = _to_vec3_v(_position(e.get("direction", [0, 0, -1]), env, ctx))
+	var origin: Vector3 = Vec3Util.from_world_pos(_position(e.get("origin", [0, 0, 0]), env, ctx))
+	var direction: Vector3 = Vec3Util.from_world_pos(_position(e.get("direction", [0, 0, -1]), env, ctx))
 	if direction.length() < 1e-6: return
 	direction = direction.normalized()
 	var max_d: float = float(_value(e.get("max_distance", 100.0), ctx, env))
@@ -875,8 +875,8 @@ static func _collect_blockers_from_env(env: Dictionary) -> Array:
 		if not (ent as Entity).has_tag("blocks_motion"): continue
 		var ext = (ent as Entity).get_property("aabb_extents", null)
 		if ext == null: continue
-		var ext_v: Vector3 = _to_vec3_v(ext)
-		var off_v: Vector3 = _to_vec3_v((ent as Entity).get_property("aabb_offset", [0, 0, 0]))
+		var ext_v: Vector3 = Vec3Util.from_world_pos(ext)
+		var off_v: Vector3 = Vec3Util.from_world_pos((ent as Entity).get_property("aabb_offset", [0, 0, 0]))
 		var pos = (ent as Entity).get_position()
 		var pos_v: Vector3 = Vector3.ZERO
 		if pos is Vector3: pos_v = pos
@@ -940,16 +940,6 @@ static func _ray_sphere_t(origin: Vector3, dir: Vector3, center: Vector3, r: flo
 	return -1.0
 
 
-static func _to_vec3_v(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, 0, v.y)
-	if v is Array:
-		var a := v as Array
-		if a.size() >= 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2: return Vector3(float(a[0]), 0, float(a[1]))
-	if v is float or v is int:
-		return Vector3(float(v), float(v), float(v))
-	return Vector3.ZERO
 
 
 ## ADR 0006: defer level transition. Sets env._pending_level_transition to
@@ -1490,7 +1480,7 @@ static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 	var def: Dictionary = defs[blueprint]
 	var pos = _position(e.get("position", [0, 0, 0]), env, ctx)
 	# Coerce to Vector3 — predicates assume 3D.
-	var pos3: Vector3 = _to_vec3_v(pos)
+	var pos3: Vector3 = Vec3Util.from_world_pos(pos)
 	var yaw := float(_value(e.get("yaw", 0.0), ctx, env))
 	# ADR 0038: snap position + yaw to grid BEFORE running validation
 	# predicates. Means `no_overlap` checks the snapped cell, so authors

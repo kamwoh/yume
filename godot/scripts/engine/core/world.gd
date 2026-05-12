@@ -638,15 +638,6 @@ var on_all_complete_msg: String = ""
 
 
 
-## Coerce Array / Vector2 / Vector3 to Vector3.
-static func _to_vec3(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, 0, v.y)
-	if v is Array:
-		var a := v as Array
-		if a.size() >= 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2: return Vector3(float(a[0]), 0, float(a[1]))
-	return Vector3.ZERO
 
 
 ## Generic tick summary: total entity count + counts per common tag.

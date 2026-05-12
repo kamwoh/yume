@@ -215,7 +215,7 @@ static func _collect_rects(env: Dictionary) -> Dictionary:
 		if not is_walk and not is_obs: continue
 		var ext = (ent as Entity).get_property("aabb_extents", null)
 		if ext == null: continue
-		var ext_v: Vector3 = _to_vec3(ext)
+		var ext_v: Vector3 = Vec3Util.from_world_pos(ext)
 		var pos = (ent as Entity).get_position()
 		var pos_v: Vector3 = Vector3.ZERO
 		if pos is Vector3: pos_v = pos
@@ -270,17 +270,6 @@ static func _add_vertex(verts: PackedVector3Array, idx_map: Dictionary, v: Vecto
 	verts.append(v)
 	idx_map[key] = i
 	return i
-
-
-static func _to_vec3(v) -> Vector3:
-	# Accept [x, y, z], [x, z], Vector2, Vector3.
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, 0, v.y)
-	if v is Array:
-		var a: Array = v
-		if a.size() == 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2: return Vector3(float(a[0]), 0, float(a[1]))
-	return Vector3.ZERO
 
 
 # ============================================================

@@ -167,7 +167,7 @@ static func _resolve_leader(member: Entity, entities: Dictionary, relations) -> 
 ## Apply per-frame leash motion. KO'd members snap directly onto
 ## the leader; alive members lerp toward their offset slot.
 func _apply_leash_to_member(member: Entity, leader: Entity) -> void:
-	var leader_pos: Vector3 = _to_vec3(leader.get_position())
+	var leader_pos: Vector3 = Vec3Util.from_world_pos(leader.get_position())
 	var ko: int = int(member.get_state("ko", 0))
 	if ko == 1:
 		# KO'd: snap to leader. No offset (companions lie at leader's feet).
@@ -178,7 +178,7 @@ func _apply_leash_to_member(member: Entity, leader: Entity) -> void:
 	if idx < 0: return  # member not yet assigned a slot — skip until party_join sets it
 	var offset: Vector3 = offset_for_index(idx)
 	var target: Vector3 = leader_pos + offset
-	var current: Vector3 = _to_vec3(member.get_position())
+	var current: Vector3 = Vec3Util.from_world_pos(member.get_position())
 	var moved: Vector3
 	if current.distance_to(target) > SNAP_DISTANCE:
 		moved = target  # leader teleported (level transition / load) — snap
@@ -207,13 +207,3 @@ static func target_position_for(leader_pos: Vector3, idx: int) -> Vector3:
 	return leader_pos + offset_for_index(idx)
 
 
-## Coerce a Vector2/Vector3/Array into Vector3. Vector2 is treated as
-## XZ (y=0) — matches Yume's renderer convention from ADR 0004.
-static func _to_vec3(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, 0, v.y)
-	if v is Array:
-		var a: Array = v
-		if a.size() == 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2: return Vector3(float(a[0]), 0, float(a[1]))
-	return Vector3.ZERO

@@ -210,8 +210,8 @@ static func _build_world_aabb(def: Dictionary, pos: Vector3, yaw: float) -> Dict
 	var ext_v = props.get("aabb_extents", null)
 	if ext_v == null:
 		return {}
-	var ext: Vector3 = _to_vec3(ext_v)
-	var offv: Vector3 = _to_vec3(props.get("aabb_offset", [0, 0, 0]))
+	var ext: Vector3 = Vec3Util.from_world_pos(ext_v)
+	var offv: Vector3 = Vec3Util.from_world_pos(props.get("aabb_offset", [0, 0, 0]))
 	# Yaw rotation: rotate the offset around Y, then take the
 	# axis-aligned-enclosing extents of the rotated box (v1 conservative;
 	# SAT is future ADR per ADR 0037 alternative E).
@@ -233,8 +233,8 @@ static func _entity_world_aabb(ent: Entity) -> Dictionary:
 	var ext_v = ent.get_property("aabb_extents", null)
 	if ext_v == null:
 		return {}
-	var ext: Vector3 = _to_vec3(ext_v)
-	var offv: Vector3 = _to_vec3(ent.get_property("aabb_offset", [0, 0, 0]))
+	var ext: Vector3 = Vec3Util.from_world_pos(ext_v)
+	var offv: Vector3 = Vec3Util.from_world_pos(ent.get_property("aabb_offset", [0, 0, 0]))
 	var pos = ent.get_position()
 	var pos_v: Vector3 = Vector3.ZERO
 	if pos is Vector3:
@@ -288,15 +288,3 @@ static func _rotate_y(v: Vector3, yaw: float) -> Vector3:
 	return Vector3(v.x * c + v.z * s, v.y, -v.x * s + v.z * c)
 
 
-## Coerce Array / Vector2 / Vector3 / scalar into Vector3.
-## Mirrors EffectApply._to_vec3_v so AABB resolution is consistent.
-static func _to_vec3(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3(v.x, 0, v.y)
-	if v is Array:
-		var a := v as Array
-		if a.size() >= 3: return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2: return Vector3(float(a[0]), 0, float(a[1]))
-	if v is float or v is int:
-		return Vector3(float(v), float(v), float(v))
-	return Vector3.ZERO

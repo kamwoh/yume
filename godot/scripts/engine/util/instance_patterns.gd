@@ -65,7 +65,7 @@ static func _ring(p: Dictionary) -> Array:
 	var radius := float(p.get("radius", 1.0))
 	var y := float(p.get("y", 0.0))
 	var yaw_offset := float(p.get("yaw_offset", 0.0))
-	var origin := _to_vec3(p.get("origin", [0, 0, 0]))
+	var origin := Vec3Util.from_world_pos(p.get("origin", [0, 0, 0]))
 	var out: Array = []
 	if count <= 0 or def_id == "": return out
 	for i in range(count):
@@ -93,7 +93,7 @@ static func _grid(p: Dictionary) -> Array:
 	var cols := int(p.get("cols", 1))
 	var rows := int(p.get("rows", 1))
 	var spacing := float(p.get("spacing", 1.0))
-	var origin := _to_vec3(p.get("origin", [0, 0, 0]))
+	var origin := Vec3Util.from_world_pos(p.get("origin", [0, 0, 0]))
 	# By default center the grid on origin so it's symmetric.
 	var center: bool = bool(p.get("center", true))
 	var out: Array = []
@@ -123,8 +123,8 @@ static func _line(p: Dictionary) -> Array:
 	var def_id := str(p.get("def", ""))
 	var id_prefix := str(p.get("id_prefix", def_id))
 	var count := int(p.get("count", 1))
-	var start := _to_vec3(p.get("start", [0, 0, 0]))
-	var end := _to_vec3(p.get("end", [1, 0, 0]))
+	var start := Vec3Util.from_world_pos(p.get("start", [0, 0, 0]))
+	var end := Vec3Util.from_world_pos(p.get("end", [1, 0, 0]))
 	var out: Array = []
 	if count <= 0 or def_id == "": return out
 	for i in range(count):
@@ -155,7 +155,7 @@ static func _scatter(p: Dictionary) -> Array:
 	var y := float(p.get("y", 0.0))
 	var min_spacing := float(p.get("min_spacing", 0.0))
 	var max_attempts := int(p.get("max_attempts", 100))
-	var origin := _to_vec3(p.get("origin", [0, 0, 0]))
+	var origin := Vec3Util.from_world_pos(p.get("origin", [0, 0, 0]))
 	var exclude_zones: Array = p.get("exclude_zones", [])
 	# Optional per-instance scale variation. Uniform random in [min, max].
 	# Default 1.0 (no variation). Useful for vegetation: scale_min: 0.7,
@@ -216,7 +216,7 @@ static func _cluster(p: Dictionary) -> Array:
 	var def_id := str(p.get("def", ""))
 	var id_prefix := str(p.get("id_prefix", def_id))
 	var count := int(p.get("count", 1))
-	var origin := _to_vec3(p.get("origin", [0, 0, 0]))
+	var origin := Vec3Util.from_world_pos(p.get("origin", [0, 0, 0]))
 	var spread := float(p.get("spread", 2.0))
 	var min_spacing := float(p.get("min_spacing", 0.0))
 	var max_attempts := int(p.get("max_attempts", 100))
@@ -267,7 +267,7 @@ static func _mirror(p: Dictionary) -> Array:
 		out.append(item.duplicate(true))
 		# Mirrored copy
 		var pos = (item as Dictionary).get("position", [0, 0, 0])
-		var pos_v := _to_vec3(pos)
+		var pos_v := Vec3Util.from_world_pos(pos)
 		var mirrored: Vector3 = pos_v
 		match axis:
 			"x": mirrored = Vector3(-pos_v.x, pos_v.y, pos_v.z)
@@ -290,7 +290,7 @@ static func _mirror(p: Dictionary) -> Array:
 static func _in_exclude_zone(pos: Vector3, zones: Array) -> bool:
 	for z in zones:
 		if not (z is Dictionary): continue
-		var c := _to_vec3(z.get("center", [0, 0, 0]))
+		var c := Vec3Util.from_world_pos(z.get("center", [0, 0, 0]))
 		var r: float = float(z.get("radius", 0))
 		if r <= 0.0: continue
 		var dx := pos.x - c.x
@@ -300,13 +300,3 @@ static func _in_exclude_zone(pos: Vector3, zones: Array) -> bool:
 	return false
 
 
-static func _to_vec3(v) -> Vector3:
-	if v is Vector3: return v
-	if v is Vector2: return Vector3((v as Vector2).x, 0, (v as Vector2).y)
-	if v is Array:
-		var a := v as Array
-		if a.size() == 3:
-			return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2:
-			return Vector3(float(a[0]), 0, float(a[1]))
-	return Vector3.ZERO
