@@ -131,6 +131,12 @@ func spawn(inst: Dictionary) -> void:
 		# Register in spatial index at initial position
 		if _world.spatial_index != null:
 			_world.spatial_index.update_entity(inst_id, ent.get_planar_position())
+		# ADR 0044 Session A: create PhysicsServer3D body if the def
+		# declares a `physics` block (or translates from legacy
+		# blocks_motion+aabb_extents). Body is INERT for Session A —
+		# legacy _integrate_motion still drives motion; Session B routes
+		# velocity to bodies; Session C disables the legacy path.
+		_build_physics_body_if_declared(ent)
 
 
 # ============================================================
@@ -196,3 +202,80 @@ func _apply_renderer_overrides(node) -> void:
 func renderer_cfg() -> Dictionary:
 	_ensure_renderer_cfg()
 	return _renderer_cfg
+
+
+# ============================================================
+# ADR 0044 — PHYSICS BODY LIFECYCLE
+# ============================================================
+
+## Unified despawn path. Called by LevelTransitionCoordinator (level
+## swap), WorldResetCoordinator (New Game), and EffectApply._remove
+## (the `remove` effect from a rule). Frees the physics body BEFORE
+## the Entity Node is freed (per ADR 0044 Condition 4 — body leak
+## prevention).
+func despawn(inst_id: String) -> void:
+	var ent = _world.entities.get(inst_id, null)
+	if ent == null: return
+	# Free physics body (no-op if entity has none)
+	PhysicsBodyBuilder.free_3d(ent)
+	# Existing cleanup
+	if _world.relations != null:
+		_world.relations.clear_entity(inst_id)
+	if _world.spatial_index != null and _world.spatial_index.has_method("remove_entity"):
+		_world.spatial_index.remove_entity(inst_id)
+	_world.entities.erase(inst_id)
+	ent.queue_free()
+
+
+# ============================================================
+# INTERNAL — physics body creation (ADR 0044 Session A)
+# ============================================================
+
+## If the entity's def declares a `physics` block (or has legacy
+## `blocks_motion` tag + `properties.aabb_extents`), build a
+## PhysicsServer3D body via PhysicsBodyBuilder and stamp the body RID
+## on the entity as meta `_physics_body_rid`. The body is created but
+## INERT in Session A — legacy _integrate_motion still drives motion.
+##
+## No-op when:
+##   - Def has no physics block AND no blocks_motion tag
+##   - World has no 3D physics space (scene is 2D-only)
+##
+## 2D handling (PhysicsServer2D) lands in a later sub-step per
+## ADR 0044 Condition 9.
+func _build_physics_body_if_declared(ent: Entity) -> void:
+	if _world == null: return
+	# Read def + check if physics applies. Translation handles
+	# the legacy blocks_motion path too.
+	var def: Dictionary = _world.defs.get(ent.def_id, {})
+	var phys_cfg := PhysicsBodyBuilder.translate_blocks_motion(def)
+	if phys_cfg.is_empty(): return
+	var space := _resolve_3d_space()
+	if not space.is_valid(): return
+	var layer_map := _resolve_layer_map()
+	PhysicsBodyBuilder.build_3d(ent, phys_cfg, space, layer_map)
+
+
+## Resolve the 3D physics space RID for the current scene. Returns
+## RID() if the scene isn't 3D (no World3D).
+func _resolve_3d_space() -> RID:
+	var vp := _world.get_viewport() if _world.has_method("get_viewport") else null
+	if vp == null: return RID()
+	var w3d := vp.find_world_3d() if vp.has_method("find_world_3d") else null
+	if w3d == null: return RID()
+	return w3d.space
+
+
+## Resolve the collision layer name → bit map from
+## @lib.physics.layers.layers. Cached on World after first call.
+func _resolve_layer_map() -> Dictionary:
+	if _world.has_meta("_physics_layer_map"):
+		return _world.get_meta("_physics_layer_map")
+	var layers_doc = LibResolver.resolve("@lib.physics.layers")
+	var layer_map: Dictionary = {}
+	if layers_doc is Dictionary:
+		var layers = (layers_doc as Dictionary).get("layers", {})
+		if layers is Dictionary:
+			layer_map = layers
+	_world.set_meta("_physics_layer_map", layer_map)
+	return layer_map

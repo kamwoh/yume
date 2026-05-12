@@ -402,6 +402,12 @@ func _on_tick(count: int) -> void:
 	# just skip scheduler.tick().
 	var freeze := int(world_state.get("screen_freeze_world", 0)) != 0
 	freeze = freeze or int(world_state.get("overlay_freeze_world", 0)) != 0
+	# ADR 0044 Invariant #10: PhysicsServer3D.set_active(false) under
+	# freeze. Pauses ALL physics processing (rigid integration, kinematic
+	# movement, query results) without affecting Godot animation / tween
+	# / audio systems. Required so wolves / rigid bodies don't drift
+	# during pause-menu modals.
+	PhysicsServer3D.set_active(not freeze)
 	if freeze:
 		# Game-level pipelines (save/load, level transitions, world reset)
 		# drain in GameShell._process — runs at frame rate regardless of

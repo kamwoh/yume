@@ -26,6 +26,13 @@
       "entries": {
         "universal": "ADR 0043 — the 4 universal WASD+Arrow movement actions (move_north/south/east/west, edge=hold) plus 3 engine-injected stop actions (stop_x/stop_y/stop). Every game's ui/input.json should $include @lib.input.universal.actions at the top of its actions array. Override per-game by re-declaring the same action name after the include — last-writer-wins."
       }
+    },
+    "physics": {
+      "_shape": "physics_layers",
+      "_path": "data/lib/physics/<name>.json",
+      "entries": {
+        "layers": "ADR 0044 — default collision layer name → bit mapping (world, wall, floor, ceiling, player, npc, enemy, animal, ally, projectile, pickup, trigger, decoration, vehicle, fluid, sensor). Engine reads entity.physics.collision_layer/mask and translates layer names to bit masks at body creation. Bits 17..32 reserved for per-game extensions."
+      }
     }
   },
 
@@ -33,6 +40,7 @@
     "camera_config":  "Dict — must contain {mode} + mode-specific fields (distance/ortho_size/eye_height/...). Spliced into scene.json::camera.",
     "input_bundle":   "Dict {actions: [<inputs.json action>...], rules: [<rule>...]}. The `rules` array is spliced into a parent rules array via $include @lib.input_bundles.NAME.rules. The `actions` array is for documentation; per-game inputs.json still authors its own action list.",
     "input_actions":  "Dict {actions: [<inputs.json action>...]}. The `actions` array is spliced into a per-game ui/input.json's actions array via $include @lib.input.NAME.actions. Each action is {name, edge, keys?, engine_injected?}.",
+    "physics_layers": "Dict {layers: {name: bit_index}}. Maps human-readable collision layer names to Godot's 1..32 bit indices. Engine reads via @lib.physics.layers.layers at boot, uses to translate entity.physics.collision_layer/mask string arrays to bit masks.",
     "entity_def":     "Dict {id, tags, properties, state_init, visual} matching entities.json def schema. Spliced into a `definitions` array via $include.",
     "screen_spec":    "Dict {id, modal, freeze_world, background_color, elements, ...} matching screens.json schema. Spliced into a `screens` array via $include.",
     "rule_array":     "Array of rule dicts. Spliced via $include into a parent rules array."

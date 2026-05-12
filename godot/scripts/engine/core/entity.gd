@@ -220,6 +220,21 @@ func snapshot() -> Dictionary:
 
 
 # ============================================================
+# LIFECYCLE
+# ============================================================
+
+## ADR 0044 Session A — free any attached PhysicsServer3D body when this
+## Entity leaves the scene tree. Covers normal despawn (via
+## SpawnManager.despawn) AND game-quit (Godot fires _exit_tree on every
+## Node during shutdown). Without this, body RIDs leak in the physics
+## server's allocation table — empirical case 2026-05-12: Aldenmere boot
+## reported 102 leaked P11GodotBody3D allocations at exit.
+func _exit_tree() -> void:
+	if has_meta("_physics_body_rid"):
+		PhysicsBodyBuilder.free_3d(self)
+
+
+# ============================================================
 # UTIL
 # ============================================================
 
