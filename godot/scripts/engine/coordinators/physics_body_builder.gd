@@ -270,3 +270,49 @@ static func _vec3_from(value) -> Vector3:
 	if value is Array and (value as Array).size() >= 3:
 		return Vector3(float(value[0]), float(value[1]), float(value[2]))
 	return Vector3.ZERO
+
+
+# ============================================================
+# ADR 0044 Session B — state ↔ body sync
+# ============================================================
+
+## Mirror entity.state.position to body.global_transform. Called by
+## Entity.set_position when a body is attached. Per ADR 0044 Condition
+## 6: kinematic gets a warp (body.transform = pos); rigid gets a
+## warp + warn (direct position writes on rigid bodies are
+## non-physical but we let it through to support hot-swap of state
+## by rules).
+static func sync_body_transform(entity) -> void:
+	if not entity.has_meta("_physics_body_rid"): return
+	var body: RID = entity.get_meta("_physics_body_rid")
+	if not body.is_valid(): return
+	var p = entity.get_position()
+	var v3: Vector3
+	if p is Vector3:
+		v3 = p
+	elif p is Vector2:
+		v3 = Vector3(p.x, 0, p.y)
+	else:
+		return
+	var xform := Transform3D(Basis(), v3)
+	PhysicsServer3D.body_set_state(body,
+		PhysicsServer3D.BODY_STATE_TRANSFORM, xform)
+
+
+## Mirror entity.state.velocity to body.linear_velocity. Called by
+## Entity.set_velocity when a body is attached.
+static func sync_body_velocity(entity) -> void:
+	if not entity.has_meta("_physics_body_rid"): return
+	var body: RID = entity.get_meta("_physics_body_rid")
+	if not body.is_valid(): return
+	var v = entity.get_velocity()
+	var v3: Vector3
+	if v is Vector3:
+		v3 = v
+	elif v is Vector2:
+		# Yume's 2D convention: Vector2(x, y) where y maps to world-Z.
+		v3 = Vector3(v.x, 0, v.y)
+	else:
+		return
+	PhysicsServer3D.body_set_state(body,
+		PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, v3)

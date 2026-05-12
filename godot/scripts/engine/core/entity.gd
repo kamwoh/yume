@@ -173,6 +173,11 @@ func get_position() -> Variant:
 
 func set_position(p) -> void:
 	state["position"] = _normalize_position(p)
+	# ADR 0044 Session B: if a physics body is attached, mirror the
+	# position write to body.transform. Keeps body + entity state
+	# synchronized so Session C can swap reads to come from the body.
+	if has_meta("_physics_body_rid"):
+		PhysicsBodyBuilder.sync_body_transform(self)
 
 ## Convenience for spatial queries that must reduce to a 2D plane regardless
 ## of source dimensionality. Convention (W5.0): Vector3(x, y, z) → Vector2(x, z).
@@ -195,6 +200,12 @@ func get_velocity() -> Variant:
 
 func set_velocity(v) -> void:
 	state["velocity"] = _normalize_position(v)
+	# ADR 0044 Session B: mirror to body.linear_velocity if a physics
+	# body is attached. Keeps the two in sync; Session C swaps the
+	# read direction (legacy _integrate_motion reads state.velocity;
+	# Session C will read body state directly).
+	if has_meta("_physics_body_rid"):
+		PhysicsBodyBuilder.sync_body_velocity(self)
 
 
 # ============================================================
