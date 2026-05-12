@@ -13,6 +13,13 @@ class_name SpatialIndex
 ##
 ## All operations work on planar XZ positions (Vector2). Vector3 input gets
 ## projected via Entity.get_planar_position() at the call site.
+##
+## ADR 0044/0045 audit (2026-05-13): NOT replaceable by
+## PhysicsServer3D.intersect_shape. PhysicsServer only finds entities
+## with PHYSICS BODIES; most Yume radius queries are over non-physical
+## entities (mushrooms, berries, decoration, world_clock — they have
+## positions but no bodies). Adding bodies to all of them would cost
+## more memory + CPU than this bucket hash. SpatialIndex stays.
 
 @export var cell_size: float = 64.0
 
@@ -68,7 +75,6 @@ func query_radius_ids(origin: Vector2, radius: float) -> Array:
 	var min_cell := _cell_of(origin - Vector2(radius, radius))
 	var max_cell := _cell_of(origin + Vector2(radius, radius))
 	var out: Array = []
-	var r2 := radius * radius
 	for cx in range(min_cell.x, max_cell.x + 1):
 		for cy in range(min_cell.y, max_cell.y + 1):
 			var cell := Vector2i(cx, cy)
