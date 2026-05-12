@@ -180,11 +180,10 @@ static func _queue_input(world: World, action: String) -> void:
 # equivalent tick-step's worth of motion for headless tests.
 static func _advance(world: World) -> void:
 	world.advance_one_tick()
-	if world._motion_integrator != null:
-		world._motion_integrator.integrate(float(world.tick_seconds))
-	# ADR 0045 Session B: character bodies have their own _physics_process
-	# (live path), but headless tests have no physics server. Walk them
-	# manually so scenario assertions over position deltas still work.
+	# ADR 0045: motion runs per-character-body via _physics_process in
+	# live play; headless tests have no physics server, so walk them
+	# manually via tick_headless. Non-character entities don't move
+	# (use body_type:"character" to opt in).
 	_tick_character_bodies(world)
 
 

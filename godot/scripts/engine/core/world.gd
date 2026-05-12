@@ -71,7 +71,6 @@ var macro_expander = null  # ADR 0019 macros
 
 var _loader: WorldLoader = null  # JSON parsing
 var _spawn_manager: SpawnManager = null  # spawn pipeline
-var _motion_integrator: MotionIntegrator = null  # per-frame motion + collision
 var _ground_constraint: GroundConstraint = null  # per-frame ground clamp + despawn
 var _level_transitions: LevelTransitionCoordinator = null  # ADR 0006 multi-level swap
 var _save_load: SaveLoadCoordinator = null  # ADR 0010 save/load drain
@@ -132,7 +131,6 @@ func _init_stores() -> void:
 func _init_coordinators() -> void:
 	_loader = WorldLoader.new(self)
 	_spawn_manager = SpawnManager.new(self)
-	_motion_integrator = MotionIntegrator.new(self)
 	_ground_constraint = GroundConstraint.new(self)
 	_level_transitions = LevelTransitionCoordinator.new(self)
 	_save_load = SaveLoadCoordinator.new(self)
@@ -401,11 +399,10 @@ func _run_multimesh_director() -> void:
 ## policy. The step runner intentionally bypasses freeze (tests need to
 ## advance state regardless of modal screens).
 func advance_one_tick() -> void:
-	_pretick_velocity_zero()  # ADR 0040
+	_pretick_velocity_zero()  # ADR 0040 — reset additive WASD accumulators
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)  # ADR 0018 — AI before input
 	scheduler.tick()  # canonical phase loop
-	_post_tick_speed_clamp()  # ADR 0040
 	_tick_lifecycle_director()  # ADR 0036
 	_decrement_lifetimes()  # Tier 2.6j
 	_stream_chunks_if_active()  # ADR 0014
@@ -415,7 +412,11 @@ func advance_one_tick() -> void:
 
 ## ADR 0040: zero velocity for opt-in actors before the input phase.
 ## Camera-relative WASD adds velocity each tick (velocity_add_relative);
-## without a pretick reset, contributions accumulate unbounded.
+## without a pretick reset, contributions accumulate across sim ticks
+## and the actor glides after key release. This is a sim-tick discipline
+## concern (state hygiene between input phases), not motion integration —
+## kept in world.gd post-ADR-0045 even though motion moved to Godot's
+## CharacterBody3D.
 func _pretick_velocity_zero() -> void:
 	for id in entities.keys():
 		var ent = entities[id]
@@ -428,25 +429,6 @@ func _pretick_velocity_zero() -> void:
 			(ent as Entity).set_velocity(Vector2.ZERO)
 		elif v is Vector3:
 			(ent as Entity).set_velocity(Vector3.ZERO)
-
-
-## ADR 0040: clamp velocity magnitude to state.max_speed after the input
-## phase. Default max_speed=INF disables the clamp; declaring a finite
-## value opts in. Required for FP mode — without it W+D yields √2 × walk
-## speed (classic Quake diagonal-fastrun bug, 2026-05-10 FP rollout).
-func _post_tick_speed_clamp() -> void:
-	for id in entities.keys():
-		var ent = entities[id]
-		if not (ent is Entity):
-			continue
-		var max_s := float((ent as Entity).get_state("max_speed", INF))
-		if max_s >= INF:
-			continue
-		var v = (ent as Entity).get_velocity()
-		if v is Vector2 and (v as Vector2).length() > max_s:
-			(ent as Entity).set_velocity((v as Vector2).normalized() * max_s)
-		elif v is Vector3 and (v as Vector3).length() > max_s:
-			(ent as Entity).set_velocity((v as Vector3).normalized() * max_s)
 
 
 ## ADR 0036: advance entity ages + stage thresholds. dt=tick_seconds so
@@ -539,10 +521,12 @@ func _process(delta: float) -> void:
 			entities,
 		)
 	)
-	_motion_integrator.integrate(delta)
+	# Motion: ADR 0045 — actors with body_type:"character" drive their own
+	# CharacterBody3D._physics_process at 60Hz. Engine no longer iterates
+	# entities for motion; Godot does it per-body in optimized C++.
 	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
 	# clamp tagged "creature" entities to that Y, and remove tagged
-	# "projectile" entities that drop below it. Applied after motion.
+	# "projectile" entities that drop below it.
 	_ground_constraint.apply()
 	# --- SIM-rate work (only when accumulator crosses tick_seconds) -----
 	# Inlined from former WorldClock child Node on 2026-05-12 — no signal
@@ -596,10 +580,11 @@ func _find_actor_id() -> String:
 	return actor_manager.resolve_active_entity(entities)
 
 
-## Per-frame motion + collision = MotionIntegrator coordinator
-## (see coordinators/motion_integrator.gd). Per-frame ground clamp +
-## projectile-despawn = GroundConstraint coordinator (see
-## coordinators/ground_constraint.gd). _process delegates to both.
+## Per-frame motion: ADR 0045 — CharacterBody3D._physics_process per
+## actor body (Godot drives this at 60Hz in C++). Per-frame ground
+## clamp + projectile-despawn = GroundConstraint (see
+## coordinators/ground_constraint.gd). _process drives only the
+## ground clamp + sim-tick accumulator now.
 
 # Ground constraint config lives on _ground_constraint (above).
 # WorldLoader.load_ground_cfg populates ground_y / clamp_tags / despawn_tags

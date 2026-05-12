@@ -1,9 +1,7 @@
 extends CharacterBody3D
 class_name CharacterBodyRunner
 
-## ADR 0045 Session A — skeleton; _physics_process body lands in Session B.
-##
-## Per-actor motion runner. One instance per entity with
+## ADR 0045 — Per-actor motion runner. One instance per entity with
 ## body_type: "character". Owned by the Entity Node (added as a child).
 ## Holds a typed back-reference to the Entity so its _physics_process
 ## can read state.velocity and write state.position.
@@ -21,15 +19,10 @@ class_name CharacterBodyRunner
 ## NEVER _process. PhysicsServer3D.set_active(false) (set by world.gd
 ## under modal freeze) suspends _physics_process automatically.
 ##
-## Session B will fill _physics_process with:
-##   1. Read entity_ref.state.velocity into self.velocity
-##   2. Clamp via velocity.limit_length(entity_ref.state.max_speed)
-##   3. Call move_and_slide()
-##   4. Write self.global_position back into entity_ref.state.position
-##
-## Session B will also add a tick_headless(delta) method for use by
-## step_runner / scenario_runner (which have no live physics server).
-## Per Condition 5 — keeps headless test path coherent.
+## Two motion paths share the same clamp + writeback helpers:
+##   - _physics_process (live, 60Hz) → move_and_slide
+##   - tick_headless (test harness) → Euler integration
+## Both consume entity_ref.state.velocity and write entity_ref.state.position.
 
 var entity_ref: Entity = null
 
@@ -65,7 +58,7 @@ func _physics_process(_delta: float) -> void:
 ## (which needs a live physics server + viewport — neither exists in
 ## the headless test harness).
 ##
-## Used by step_runner + scenario_runner after MotionIntegrator runs;
+## Used by step_runner + scenario_runner after the sim tick;
 ## those harnesses iterate entities with character bodies and call
 ## tick_headless on each one. Tests asserting exact collision-slid
 ## positions must use a windowed test (rare); the headless path is fine
@@ -96,9 +89,9 @@ func _apply_speed_clamp() -> void:
 
 
 ## Write the body's authoritative post-move position back into the
-## entity's state dict. Bypasses Entity.set_position deliberately —
-## set_position calls sync_body_transform which would loop back to
-## this body. The body IS the source of truth between sim ticks; this
-## writeback just exposes it to rule queries.
+## entity's state. Goes through Entity.set_position so the spatial
+## index gets updated (rule radius queries depend on it). The body
+## sync inside set_position is a self-assignment (body.global_position
+## = global_position) — harmless no-op cost.
 func _writeback_position() -> void:
-	entity_ref.state["position"] = global_position
+	entity_ref.set_position(global_position)

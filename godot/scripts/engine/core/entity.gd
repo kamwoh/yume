@@ -183,10 +183,19 @@ func get_position() -> Variant:
 func set_position(p) -> void:
 	state["position"] = _normalize_position(p)
 	# ADR 0044 Session B: if a physics body is attached, mirror the
-	# position write to body.transform. Keeps body + entity state
-	# synchronized so Session C can swap reads to come from the body.
+	# position write to body.transform.
 	if has_meta("_physics_body"):
 		PhysicsBodyBuilder.sync_body_transform(self)
+	# ADR 0045 Session D prep: keep the spatial index (used by radius
+	# queries) in sync with the new position. Used to be the (now-deleted) MotionIntegrator's
+	# job; centralizing here so every write path (rule effects,
+	# character body writeback, future) updates the index uniformly.
+	# parent is World (Entity is added as a child of World by SpawnManager).
+	var parent := get_parent()
+	if parent != null and "spatial_index" in parent:
+		var idx = parent.spatial_index
+		if idx != null and idx.has_method("update_entity"):
+			idx.update_entity(instance_id, get_planar_position())
 
 
 ## Convenience for spatial queries that must reduce to a 2D plane regardless

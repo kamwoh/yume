@@ -167,14 +167,10 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 			# world.gd 2026-05-12).
 			if world._level_transitions != null:
 				world._level_transitions.process_pending(world.scheduler.env)
-			# Motion integration normally runs in World._process(delta) at
-			# frame rate. Headless scenario testing runs ticks discretely, so
-			# we simulate motion using tick_seconds as the delta.
-			if world._motion_integrator != null:
-				world._motion_integrator.integrate(float(world.tick_seconds))
-			# ADR 0045: character bodies — their _physics_process needs
-			# a live physics server (absent in headless tests). Walk
-			# them manually so position assertions still work.
+			# ADR 0045: motion runs per-character-body via _physics_process
+			# in live play; headless tests have no physics server, so walk
+			# them manually via tick_headless. Non-character entities don't
+			# move (use body_type:"character" to opt in).
 			_tick_character_bodies_headless(world)
 
 		# Assertions (legacy schema)

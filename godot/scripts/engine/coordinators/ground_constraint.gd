@@ -17,7 +17,7 @@ class_name GroundConstraint
 ## also frees the physics body (ADR 0044 Condition 4). Direct entities.erase
 ## bypasses that and leaks physics bodies (caught 2026-05-12 audit).
 ##
-## Pattern matches MotionIntegrator / LevelTransitionCoordinator —
+## Pattern matches LevelTransitionCoordinator —
 ## RefCounted, per-World instance, constructor takes a world reference.
 
 var _world: World
@@ -33,7 +33,7 @@ func _init(world: World) -> void:
 
 
 ## Apply ground constraint to all entities. Called from World._process
-## each frame, AFTER MotionIntegrator.integrate.
+## each frame, after motion.
 func apply() -> void:
 	# Loader sets ground_y / clamp_tags / despawn_tags on this coordinator.
 	# Lazy: re-checked each frame so a runtime level swap can update config.
