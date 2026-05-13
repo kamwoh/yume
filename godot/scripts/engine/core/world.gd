@@ -297,54 +297,19 @@ func load_data() -> void:
 		world_state["has_save"] = 1 if SaveState.has_any_save(game, slots) else 0
 	else:
 		world_state["has_save"] = 0
-	# ADR 0013: now that scheduler + env are built, run SettingsManager's
-	# apply_all so each setting's `apply` block fires (set_audio_bus_volume,
-	# set_input_mapping, state_set target=world). SettingsManager is a Node
-	# sibling — it loaded the schema + config in its own _ready, but
-	# deferred apply_all here so EffectApply has a valid env.
-	var settings_mgr := get_node_or_null("SettingsManager")
-	if settings_mgr != null and settings_mgr.has_method("apply_all"):
-		settings_mgr.apply_all()
-	# ADR 0029: ScheduleDirector reads each entity def's `schedule` block
-	# (if present) and starts resolving slots once World ticks. Register
-	# AFTER entities are loaded so register_schedules_from_env can walk
-	# env.entities and find their defs. No-op for games shipping no
-	# schedules (existing demos unaffected).
-	var sched_dir := get_node_or_null("ScheduleDirector")
-	if sched_dir != null and sched_dir.has_method("register_schedules_from_env"):
-		sched_dir.register_schedules_from_env(scheduler.env)
-	# ADR 0036: LifecycleDirector reads each entity def's `lifecycle` block
-	# and registers per-entity stage tables. No-op for games shipping no
-	# lifecycle templates (existing demos unaffected — backward-compat by
-	# absence of the field).
-	var lc_dir := get_node_or_null("LifecycleDirector")
-	if lc_dir != null and lc_dir.has_method("register_lifecycles_from_env"):
-		lc_dir.register_lifecycles_from_env(scheduler.env)
-	# ADR 0030: ClassManager loads class defs from <root>/classes/*.json
-	# if the directory exists. No-op for games without occupations.
-	# Loaded after entities so signal listeners (game-rules) are already
-	# wired by the time the first switch_class effect can fire.
-	var class_mgr := get_node_or_null("ClassManager")
-	if class_mgr != null and class_mgr.has_method("register_classes_from_data_root"):
-		class_mgr.register_classes_from_data_root(root, scheduler.env)
-	# ADR 0033: TechTreeDirector loads tree defs from <root>/tech_trees.json
-	# if present. No-op for games without a tech tree (existing demos
-	# unaffected). Loaded after entities so signal listeners are wired
-	# before the first try_discover_tech / learn_from_master effect can fire.
-	var tech_dir := get_node_or_null("TechTreeDirector")
-	if tech_dir != null and tech_dir.has_method("register_trees_from_data_root"):
-		tech_dir.register_trees_from_data_root(root, scheduler.env)
-	# ADR 0034: DynastyDirector hosts the four succession effects
-	# (transfer_inventory / transfer_reputation / transfer_techs /
-	# transition_player_to) plus the heir-resolver helper used by
-	# per-game succession rules. No boot-time data to load — heir
-	# state lives on each actor entity (state.heirs +
-	# state.inheritance_policy), serialized via the normal entity
-	# snapshot path (ADR 0010). Backward-compat: games without
-	# heirs never trigger the director (Node may be absent from the
-	# scene; the four effects log a no-manager warning and no-op).
-	var _dynasty_dir := get_node_or_null("DynastyDirector")
-	if _dynasty_dir != null and verbose:
+	# Mount + register sibling Director nodes that were placed in the
+	# scene tree by the per-game .tscn. Each is optional — absence is
+	# backward-compat for games that don't need that ADR's capability.
+	# Ordering matters: all run AFTER entities + world_state load so
+	# directors that scan env.entities (schedules, lifecycles, factions)
+	# see the full live set. Table-driven — to add a new ADR director,
+	# add one row to _BOOT_DIRECTORS.
+	_mount_boot_directors(root)
+	if get_node_or_null("DynastyDirector") != null and verbose:
+		# ADR 0034: no boot-time data load — heir state lives on actor
+		# entities and serializes via the normal snapshot path. Just log
+		# presence for visibility; the four succession effects detect
+		# the director at fire-time.
 		print("[World] DynastyDirector mounted (ADR 0034)")
 	# ADR 0032: FactionDirector loads faction defs + initial relationships
 	# from <root>/factions.json if present. No-op for games without
@@ -689,6 +654,47 @@ func count_relations_of(type: String) -> int:
 # ============================================================
 # INTERNAL
 # ============================================================
+
+## Sibling Director nodes (mounted by per-game .tscn) that need a
+## register/apply call once World finishes loading. Columns:
+##   [0] node_name      — name of the sibling Node in the scene tree
+##   [1] method_name    — method to invoke (verified via has_method)
+##   [2] args_pattern   — "none" / "env" / "root_env"
+##
+## Each row is optional at runtime — absence of the Node is
+## backward-compat for games not using that ADR's capability. To add
+## a new ADR director, add one row (no per-director branch needed).
+const _BOOT_DIRECTORS: Array = [
+	# ADR 0013 — settings overrides (audio bus, input mapping, etc.).
+	# Schema + config loaded in SettingsManager._ready; deferred apply
+	# here so EffectApply has a valid env.
+	["SettingsManager", "apply_all", "none"],
+	# ADR 0029 — schedule slot resolution per entity def's `schedule`.
+	["ScheduleDirector", "register_schedules_from_env", "env"],
+	# ADR 0036 — lifecycle stage tables per entity def's `lifecycle`.
+	["LifecycleDirector", "register_lifecycles_from_env", "env"],
+	# ADR 0030 — class defs from <root>/classes/*.json.
+	["ClassManager", "register_classes_from_data_root", "root_env"],
+	# ADR 0033 — tech tree defs from <root>/tech_trees.json.
+	["TechTreeDirector", "register_trees_from_data_root", "root_env"],
+]
+
+
+func _mount_boot_directors(root: String) -> void:
+	for entry in _BOOT_DIRECTORS:
+		var node_name: String = entry[0]
+		var method_name: String = entry[1]
+		var args_pattern: String = entry[2]
+		var dir := get_node_or_null(node_name)
+		if dir == null or not dir.has_method(method_name):
+			continue
+		match args_pattern:
+			"none":
+				dir.call(method_name)
+			"env":
+				dir.call(method_name, scheduler.env)
+			"root_env":
+				dir.call(method_name, root, scheduler.env)
 
 
 func _build_env() -> Dictionary:
