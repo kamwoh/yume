@@ -187,11 +187,11 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 
 
 static func _state_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
 	var field := str(e.get("field", ""))
-	var value = _value(e.get("value"), ctx, env)
+	var value = EffectResolution.value(e.get("value"), ctx, env)
 	# 2026-05-04 consistency fix: position/velocity field-sets route through
 	# Entity's normalizing setters so Array values [x, y] → Vector2 (or
 	# [x, y, z] → Vector3). Without this, state_set field="position" with
@@ -218,23 +218,23 @@ static func _state_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 
 
 static func _state_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
-	ent.add_state(str(e.get("field", "")), float(_value(e.get("amount"), ctx, env)))
+	ent.add_state(str(e.get("field", "")), float(EffectResolution.value(e.get("amount"), ctx, env)))
 
 
 static func _state_mul(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
 	var field := str(e.get("field", ""))
-	var factor := float(_value(e.get("amount"), ctx, env))
+	var factor := float(EffectResolution.value(e.get("amount"), ctx, env))
 	ent.set_state(field, float(ent.get_state(field, 0)) * factor)
 
 
 static func _state_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
 	var field := str(e.get("field", ""))
@@ -268,7 +268,7 @@ static func _resolve_zone_id(v, ctx: Dictionary, env: Dictionary) -> String:
 			return str(ctx[s])
 		# Formula? evaluate it (e.g. "world.active_kingdom", "self.home_zone")
 		if Formula.looks_like_formula(s):
-			var fctx := _formula_context(ctx, env)
+			var fctx := EffectResolution.formula_context(ctx, env)
 			if ctx.has("_rule_id"):
 				fctx["_rule_id"] = ctx["_rule_id"]
 			var resolved = Formula.evaluate(s, fctx, env)
@@ -301,7 +301,7 @@ static func _zone_state_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> 
 		)
 		return
 	var field := str(e.get("field", ""))
-	var value = _value(e.get("value"), ctx, env)
+	var value = EffectResolution.value(e.get("value"), ctx, env)
 	zs.set_field(zid, field, value)
 
 
@@ -328,7 +328,7 @@ static func _zone_state_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> 
 	# Accept `delta` as a back-compat alias since the ADR's example JSON
 	# spelled it `delta`. Authors land on `amount` going forward.
 	var raw = e.get("amount", e.get("delta", 0))
-	var delta := float(_value(raw, ctx, env))
+	var delta := float(EffectResolution.value(raw, ctx, env))
 	zs.add_field(zid, field, delta)
 
 
@@ -351,8 +351,8 @@ static func _zone_state_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 		)
 		return
 	var field := str(e.get("field", ""))
-	var lo := float(_value(e.get("min", -INF), ctx, env))
-	var hi := float(_value(e.get("max", INF), ctx, env))
+	var lo := float(EffectResolution.value(e.get("min", -INF), ctx, env))
+	var hi := float(EffectResolution.value(e.get("max", INF), ctx, env))
 	zs.clamp_field(zid, field, lo, hi)
 
 
@@ -389,7 +389,7 @@ static func _spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionar
 	var def: Dictionary = defs[template]
 	var overrides: Dictionary = (e.get("overrides", {}) as Dictionary).duplicate(true)
 	if e.has("position"):
-		overrides["position"] = _position(e["position"], env, ctx)
+		overrides["position"] = EffectResolution.position(e["position"], env, ctx)
 	# Resolve formula strings in state-override Arrays (position/velocity).
 	# Without this, override `state.velocity = ["cos(facing)*22", 0, ...]`
 	# survives Array→float coercion as Vector3.ZERO and the bullet doesn't
@@ -398,7 +398,7 @@ static func _spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionar
 		var ov_state: Dictionary = overrides["state"]
 		for key in ["position", "velocity"]:
 			if ov_state.has(key) and ov_state[key] is Array:
-				ov_state[key] = _position(ov_state[key], env, ctx)
+				ov_state[key] = EffectResolution.position(ov_state[key], env, ctx)
 	# Determine instance id
 	var inst_id := ""
 	if overrides.has("_forced_id"):
@@ -431,7 +431,7 @@ static func _spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionar
 
 
 static func _remove(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
 	var entities: Dictionary = env.get("entities", {})
@@ -455,7 +455,7 @@ static func _remove(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 ## Replace an entity in place with a new def, preserving position and merging
 ## state (new def's state_init takes precedence for any overlapping fields).
 static func _transform(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return {}
 	var to_def := str(e.get("to", ""))
@@ -500,8 +500,8 @@ static func _relate(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	if store == null:
 		return
 	var type := str(e.get("relation", ""))
-	var from_id := _resolve_id(e.get("from", "self"), ctx)
-	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
 	if type == "" or from_id == "" or to_id == "":
 		return
 	store.relate(type, from_id, to_id)
@@ -512,8 +512,8 @@ static func _unrelate(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	if store == null:
 		return
 	var type := str(e.get("relation", ""))
-	var from_id := _resolve_id(e.get("from", "self"), ctx)
-	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
 	if type == "" or from_id == "" or to_id == "":
 		return
 	store.unrelate(type, from_id, to_id)
@@ -527,12 +527,12 @@ static func _transfer_relation(e: Dictionary, env: Dictionary, ctx: Dictionary) 
 	if store == null:
 		return
 	var type := str(e.get("relation", ""))
-	var from_id := _resolve_id(e.get("from", "self"), ctx)
-	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
 	if e.has("new_to"):
-		store.transfer_to(type, from_id, to_id, _resolve_id(e["new_to"], ctx))
+		store.transfer_to(type, from_id, to_id, EffectResolution.resolve_id(e["new_to"], ctx))
 	elif e.has("new_from"):
-		store.transfer_from(type, from_id, _resolve_id(e["new_from"], ctx), to_id)
+		store.transfer_from(type, from_id, EffectResolution.resolve_id(e["new_from"], ctx), to_id)
 
 
 # ============================================================
@@ -541,14 +541,14 @@ static func _transfer_relation(e: Dictionary, env: Dictionary, ctx: Dictionary) 
 
 
 static func _tag_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
 	ent.add_tag(str(e.get("tag", "")))
 
 
 static func _tag_remove(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
 	ent.remove_tag(str(e.get("tag", "")))
@@ -560,7 +560,7 @@ static func _tag_remove(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 
 
 static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
 	# Per-axis preservation: if a key is OMITTED, the entity's current
@@ -576,7 +576,7 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 	var has_y := e.has("y")
 	var has_z := e.has("z")
 	var vx: float = (
-		float(_value(e.get("x", 0), ctx, env))
+		float(EffectResolution.value(e.get("x", 0), ctx, env))
 		if has_x
 		else (
 			float((v_cur as Vector3).x)
@@ -585,7 +585,7 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 		)
 	)
 	var vy: float = (
-		float(_value(e.get("y", 0), ctx, env))
+		float(EffectResolution.value(e.get("y", 0), ctx, env))
 		if has_y
 		else (
 			float((v_cur as Vector3).y)
@@ -600,7 +600,7 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 	# dropped).
 	if has_z or v_cur is Vector3:
 		var vz: float = (
-			float(_value(e.get("z", 0), ctx, env))
+			float(EffectResolution.value(e.get("z", 0), ctx, env))
 			if has_z
 			else (float((v_cur as Vector3).z) if v_cur is Vector3 else 0.0)
 		)
@@ -617,18 +617,18 @@ static func _velocity_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 ## Convention: facing=0 → forward = (0, 0, -1) (look along -Z).
 ##             facing=π/2 → forward = (-1, 0, 0) (look along -X).
 static func _velocity_set_relative(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
-	var fwd := float(_value(e.get("forward", 0), ctx, env))
-	var strafe := float(_value(e.get("strafe", 0), ctx, env))
+	var fwd := float(EffectResolution.value(e.get("forward", 0), ctx, env))
+	var strafe := float(EffectResolution.value(e.get("strafe", 0), ctx, env))
 	# ADR 0040: optional `facing` override. When present, fixes the rotation
 	# regardless of actor.state.facing — used by iso/top-down WASD variants
 	# where the camera yaw is constant. Default falls back to actor's facing
 	# (set by mouse-look in FP/TP modes).
 	var facing: float
 	if e.has("facing"):
-		facing = float(_value(e["facing"], ctx, env))
+		facing = float(EffectResolution.value(e["facing"], ctx, env))
 	else:
 		facing = float(ent.get_state("facing", 0.0))
 	# Forward in world: rotate (0,0,-1) by yaw around Y → (-sin, 0, -cos)
@@ -661,15 +661,15 @@ static func _velocity_set_relative(e: Dictionary, env: Dictionary, ctx: Dictiona
 ## during doomarena3d v2 playtest: diagonal motion broken because each
 ## velocity_set_relative call wiped the prior input's component (2026-05-03).
 static func _velocity_add_relative(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
-	var fwd := float(_value(e.get("forward", 0), ctx, env))
-	var strafe := float(_value(e.get("strafe", 0), ctx, env))
+	var fwd := float(EffectResolution.value(e.get("forward", 0), ctx, env))
+	var strafe := float(EffectResolution.value(e.get("strafe", 0), ctx, env))
 	# ADR 0040: optional `facing` override (same shape as _velocity_set_relative).
 	var facing: float
 	if e.has("facing"):
-		facing = float(_value(e["facing"], ctx, env))
+		facing = float(EffectResolution.value(e["facing"], ctx, env))
 	else:
 		facing = float(ent.get_state("facing", 0.0))
 	var fx := -sin(facing) * fwd
@@ -707,12 +707,12 @@ static func _velocity_add_relative(e: Dictionary, env: Dictionary, ctx: Dictiona
 ## ramps in/out instead of snapping. `rate` is the per-tick lerp factor
 ## (0.0 = no change, 1.0 = snap to target). Typical: 0.10-0.25.
 static func _velocity_lerp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
-	var tx := float(_value(e.get("x", 0), ctx, env))
-	var ty := float(_value(e.get("y", 0), ctx, env))
-	var rate: float = clamp(float(_value(e.get("rate", 0.15), ctx, env)), 0.0, 1.0)
+	var tx := float(EffectResolution.value(e.get("x", 0), ctx, env))
+	var ty := float(EffectResolution.value(e.get("y", 0), ctx, env))
+	var rate: float = clamp(float(EffectResolution.value(e.get("rate", 0.15), ctx, env)), 0.0, 1.0)
 	var current = ent.get_velocity()
 	var current_v: Vector2 = Vector2.ZERO
 	if current is Vector2:
@@ -734,13 +734,13 @@ static func _velocity_lerp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> v
 ##    "destination_z": <float|formula>,
 ##    "speed": <float|formula>}
 static func _pathfind_to(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var ent: Entity = _target(e, env, ctx)
+	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
 		return
-	var dx := float(_value(e.get("destination_x", 0), ctx, env))
-	var dy := float(_value(e.get("destination_y", 0), ctx, env))
-	var dz := float(_value(e.get("destination_z", 0), ctx, env))
-	var speed := float(_value(e.get("speed", 1.0), ctx, env))
+	var dx := float(EffectResolution.value(e.get("destination_x", 0), ctx, env))
+	var dy := float(EffectResolution.value(e.get("destination_y", 0), ctx, env))
+	var dz := float(EffectResolution.value(e.get("destination_z", 0), ctx, env))
+	var speed := float(EffectResolution.value(e.get("speed", 1.0), ctx, env))
 	Pathfinding.tick_pathfind(env, ent, dx, dy, dz, speed)
 
 
@@ -771,7 +771,7 @@ static func _emit_shell_event(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 	for k in e.keys():
 		if str(k) == "type" or str(k) == "event":
 			continue
-		record[str(k)] = _value(e[k], ctx, env)
+		record[str(k)] = EffectResolution.value(e[k], ctx, env)
 	# Lazy-create the buffer. GameShell may not have wired one yet, OR no
 	# GameShell is attached at all (purely sim-only scenes). Either way,
 	# events accumulate; GameShell drains if it exists, else buffer just
@@ -793,7 +793,7 @@ static func _emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var raw_payload: Dictionary = e.get("payload", {}) as Dictionary
 	var resolved_payload: Dictionary = {}
 	for k in raw_payload.keys():
-		resolved_payload[k] = _value(raw_payload[k], ctx, env)
+		resolved_payload[k] = EffectResolution.value(raw_payload[k], ctx, env)
 	var buf: Array = env.get("signal_buffer", null)
 	if buf == null:
 		(
@@ -811,181 +811,6 @@ static func _emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	buf.append({"name": name, "payload": resolved_payload})
 
 
-# ============================================================
-# RESOLUTION HELPERS
-# ============================================================
-
-
-## Resolve the target entity for an effect.
-## Per contract: context binding first (e.g. "self"), fall back to literal id.
-static func _target(effect: Dictionary, env: Dictionary, ctx: Dictionary) -> Entity:
-	var key := str(effect.get("target", "self"))
-	var id := str(ctx.get(key, key))
-	var all: Dictionary = env.get("entities", {})
-	if not all.has(id):
-		return null
-	var ent = all[id]
-	return ent if ent is Entity else null
-
-
-## Resolve an id reference (for relation from/to fields).
-## Same policy: context binding first, literal fallback.
-static func _resolve_id(v, ctx: Dictionary) -> String:
-	if v is String:
-		var s := str(v)
-		if ctx.has(s):
-			return str(ctx[s])
-		return s
-	return ""
-
-
-## Resolve a value: literal pass-through, context lookup for bare names, or
-## formula evaluation for strings with operators / dotted paths.
-##
-## W4: formulas evaluated via Formula.evaluate. Context for formulas exposes
-## entity refs as objects (so `self.state.hp` works) — built lazily here from
-## the rule's bare-id context.
-##
-## 2026-05-04 consistency fix: Arrays now recurse, evaluating each element.
-## Previously Arrays were returned as-is, meaning formula strings inside
-## Arrays did NOT evaluate (only `spawn`'s `_position` helper handled this).
-## The recursion makes behavior consistent across all effect types: any
-## Array-valued effect param (e.g. state_set's `value`, emit's payload
-## fields, spawn's `position`) evaluates per-element. Vector2/Vector3 still
-## return as-is (they're concrete numeric types, not formula containers).
-##
-## 2026-05-07 dict recursion: added Dictionary recursion symmetric to Array.
-## Empirically caught in merchant Session 2: haggle screen emits a signal with
-## payload {signal: {sale_price: "world.haggle_player_offer"}}; without dict
-## recursion, "world.haggle_player_offer" survived as a literal string
-## through to sale_complete's state_add amount field, which then coerced it
-## to 0.0 → silent gold-add-of-zero bug. With dict recursion the formula
-## resolves at emit time, payload carries the int.
-static func _value(v, ctx: Dictionary, env: Dictionary = {}):
-	if v is float or v is int or v is bool:
-		return v
-	if v is Vector2 or v is Vector3:
-		return v
-	if v is Array:
-		var out: Array = []
-		for item in v as Array:
-			out.append(_value(item, ctx, env))
-		return out
-	if v is Dictionary:
-		var out_d: Dictionary = {}
-		for k in (v as Dictionary).keys():
-			out_d[k] = _value((v as Dictionary)[k], ctx, env)
-		return out_d
-	if v is String:
-		var s := str(v)
-		# Bare context binding (e.g. "actor" → context["actor"])
-		if ctx.has(s):
-			return ctx[s]
-		# ADR 0009 indirection refs (@cues.X, @strings.X) — pass through
-		# unevaluated so GameShell / HUD can resolve at consumption time.
-		# Without this, the dot in @cues.foo makes Formula.looks_like_formula
-		# return true and parse fails on the @ character.
-		if s.begins_with("@"):
-			return s
-		# Formula? Evaluate with entity-object context.
-		if Formula.looks_like_formula(s):
-			var fctx := _formula_context(ctx, env)
-			# Carry rule attribution into formula context for 2.6a error reporting.
-			if ctx.has("_rule_id"):
-				fctx["_rule_id"] = ctx["_rule_id"]
-			return Formula.evaluate(s, fctx, env)
-		# Literal string
-		return s
-	return v
-
-
-## Build a formula-friendly context from the rule's bare-id context.
-##   ctx.self → context["self"] is an entity_id string. Formula context wants
-##   Entity object so `self.state.hp` resolves. Look up entity from env.entities.
-static func _formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
-	var out: Dictionary = {}
-	var entities: Dictionary = env.get("entities", {})
-	# Common entity bindings: id string → Entity object. `from`/`to` are
-	# typically set by relation_changed dispatch (W2.4) and signal payloads
-	# carrying entity refs.
-	var entity_roles: Array[String] = [
-		"self", "target", "a", "b", "source", "from", "to", "piece", "from_sq", "to_sq"
-	]
-	for role in entity_roles:
-		if ctx.has(role):
-			var id: String = str(ctx[role])
-			if entities.has(id):
-				out[role] = entities[id]
-	# World state always available
-	out["world"] = env.get("world", {})
-	# ADR 0031: zone state always available as `zone.<id>.<field>`. The
-	# snapshot is a flat {zone_id: state_dict} — Formula._resolve_path
-	# walks the dotted path: root=zone → state_dict → field value.
-	var zs = env.get("zone_store", null)
-	if zs != null and zs.has_method("binding_snapshot"):
-		out["zone"] = zs.binding_snapshot()
-	else:
-		out["zone"] = {}
-	# ADR 0032: faction state available as `faction.<id>.<field>`. Each
-	# entry contains member_count + leader + tension_with.<other> +
-	# stance_with.<other> + controls_zone (and the def's metadata).
-	# FactionDirector is a Node sibling under World — locate via env.parent.
-	var fd_parent = env.get("parent", null)
-	if fd_parent is Node:
-		var fd_node = (fd_parent as Node).get_node_or_null("FactionDirector")
-		if fd_node != null and fd_node.has_method("binding_snapshot"):
-			out["faction"] = fd_node.call("binding_snapshot", env)
-		else:
-			out["faction"] = {}
-	else:
-		out["faction"] = {}
-	# Pre-resolved entity bindings (e.g. self_entity from scan-rule firing)
-	var prebound: Array[String] = ["self_entity", "a_entity", "b_entity"]
-	for role_ent in prebound:
-		if ctx.has(role_ent):
-			var key: String = role_ent.replace("_entity", "")
-			out[key] = ctx[role_ent]
-	# Pass through any other scalar context bindings (e.g. payload values)
-	for k in ctx.keys():
-		var ks: String = str(k)
-		if out.has(ks):
-			continue
-		if ks.begins_with("_"):
-			continue
-		var v = ctx[k]
-		# Don't shadow object bindings with their id strings
-		if not (v is String) or not entities.has(str(v)):
-			out[ks] = v
-	return out
-
-
-## Position shorthand. Returns Vector2 or Vector3 (preserves dimension).
-##   "self"/"a"/"b" → copy that entity's state.position (whatever dimension)
-##   Vector2/Vector3 literal → pass through
-##   Array length 2 → Vector2; length 3 → Vector3
-##   Each array element runs through _value() so formulas like
-##   "self.state.position.x + (randf()-0.5)*60" resolve. Formula failures
-##   fall back to 0 (per Formula.evaluate convention).
-static func _position(v, env: Dictionary, ctx: Dictionary):
-	if v is Vector2 or v is Vector3:
-		return v
-	if v is Array:
-		var a := v as Array
-		if a.size() == 2:
-			return Vector2(float(_value(a[0], ctx, env)), float(_value(a[1], ctx, env)))
-		if a.size() == 3:
-			return Vector3(
-				float(_value(a[0], ctx, env)),
-				float(_value(a[1], ctx, env)),
-				float(_value(a[2], ctx, env))
-			)
-	if v is String and ctx.has(str(v)):
-		var ref_id := str(ctx[str(v)])
-		var all: Dictionary = env.get("entities", {})
-		if all.has(ref_id) and all[ref_id] is Entity:
-			return (all[ref_id] as Entity).get_position()
-	return Vector2.ZERO
-
 
 # ============================================================
 # RAYCAST_HIT (ADR 0005)
@@ -997,14 +822,14 @@ static func _position(v, env: Dictionary, ctx: Dictionary):
 # miss: binds `hit_point` (ray endpoint or wall hit point) and runs
 # `on_miss`.
 static func _raycast_hit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var origin: Vector3 = Vec3Util.from_world_pos(_position(e.get("origin", [0, 0, 0]), env, ctx))
+	var origin: Vector3 = Vec3Util.from_world_pos(EffectResolution.position(e.get("origin", [0, 0, 0]), env, ctx))
 	var direction: Vector3 = Vec3Util.from_world_pos(
-		_position(e.get("direction", [0, 0, -1]), env, ctx)
+		EffectResolution.position(e.get("direction", [0, 0, -1]), env, ctx)
 	)
 	if direction.length() < 1e-6:
 		return
 	direction = direction.normalized()
-	var max_d: float = float(_value(e.get("max_distance", 100.0), ctx, env))
+	var max_d: float = float(EffectResolution.value(e.get("max_distance", 100.0), ctx, env))
 	var tags_all: Array = e.get("tags_all", [])
 	var tags_none: Array = e.get("tags_none", [])
 	var respect_obstacles: bool = bool(e.get("respect_obstacles", true))
@@ -1193,10 +1018,10 @@ static func _ray_sphere_t(origin: Vector3, dir: Vector3, center: Vector3, r: flo
 ## anything queued AFTER this effect that depends on the OLD level's
 ## entities will be silently dropped on swap.
 static func _transition_level(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var target := str(_value(e.get("target", "next"), ctx, env))
+	var target := str(EffectResolution.value(e.get("target", "next"), ctx, env))
 	if target == "":
 		return
-	var fade_dur := float(_value(e.get("fade_duration", 0.0), ctx, env))
+	var fade_dur := float(EffectResolution.value(e.get("fade_duration", 0.0), ctx, env))
 	if fade_dur > 0.0:
 		# Delegate to GameShell. It will set _pending_level_transition at
 		# fade midpoint, so world.gd's existing process_pending_level_transition
@@ -1231,8 +1056,8 @@ static func _transition_level(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 ##
 ## Additive (non-destructive) — stacks fine with effects after it in a chain.
 static func _screen_fade(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var alpha := float(_value(e.get("alpha", 1.0), ctx, env))
-	var duration := float(_value(e.get("duration", 0.0), ctx, env))
+	var alpha := float(EffectResolution.value(e.get("alpha", 1.0), ctx, env))
+	var duration := float(EffectResolution.value(e.get("duration", 0.0), ctx, env))
 	var color = e.get("color", "#000000")
 	var buf_v = env.get("shell_event_buffer", null)
 	var buf: Array
@@ -1297,7 +1122,7 @@ static func _push_screen_event(env: Dictionary, record: Dictionary) -> void:
 ## on the target screen's spec. Special target "@previous" pops the modal
 ## stack (returns from settings → pause).
 static func _transition_screen(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var target := str(_value(e.get("target", ""), ctx, env))
+	var target := str(EffectResolution.value(e.get("target", ""), ctx, env))
 	if target == "":
 		push_warning(
 			"transition_screen effect missing target (rule=%s)" % str(ctx.get("_rule_id", ""))
@@ -1314,34 +1139,17 @@ static func _quit_app(_e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void
 ## Show a transient toast label (e.g. "Saved!" after save_state).
 ## text resolves @strings.X refs. duration in seconds.
 ##
-## NOTE: text uses _value_text() (literal-or-@-only), NOT _value(). Display
+## NOTE: text uses EffectResolution.value_text() (literal-or-@-only), NOT EffectResolution.value(). Display
 ## prose like "Debt installment paid" contains spaces, which would trip
 ## Formula.looks_like_formula and cause a runtime parse error. show_toast's
 ## text field is meant for human-readable strings, not computation. If you
 ## need a computed message, build it in a state_set rule first then reference
 ## the state via @strings.<key> resolved at HUD time.
 static func _show_toast(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var text := _value_text(e.get("text", ""), ctx)
-	var duration := float(_value(e.get("duration", 2.0), ctx, env))
+	var text := EffectResolution.value_text(e.get("text", ""), ctx)
+	var duration := float(EffectResolution.value(e.get("duration", 2.0), ctx, env))
 	_push_screen_event(env, {"event": "show_toast", "text": text, "duration": duration})
 
-
-## Resolve a value intended for human display (toast text, overlay body,
-## etc.). Unlike _value(), does NOT run Formula.evaluate — display strings
-## like "New day arrives" contain spaces and dots that would cause spurious
-## formula parse failures. Resolves only:
-##   - bare context bindings (e.g. "self" → ctx["self"])
-##   - @-prefixed indirection refs (e.g. "@strings.welcome") — passed through
-##     for HUD/GameShell to resolve at consumption time.
-##   - everything else: literal pass-through
-## Empirically caught in merchant 2026-05-07 — see task #112.
-static func _value_text(v, ctx: Dictionary) -> String:
-	if not (v is String):
-		return str(v)
-	var s := str(v)
-	if ctx.has(s):
-		return str(ctx[s])
-	return s
 
 
 ## Reload the entire current Godot scene. DESTRUCTIVE — anything queued
@@ -1370,12 +1178,12 @@ static func _reload_scene(e: Dictionary, env: Dictionary, _ctx: Dictionary) -> v
 
 
 static func _save_state(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var slot := int(_value(e.get("slot", 0), ctx, env))
+	var slot := int(EffectResolution.value(e.get("slot", 0), ctx, env))
 	env["_pending_save"] = slot
 
 
 static func _load_state(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var slot := int(_value(e.get("slot", 0), ctx, env))
+	var slot := int(EffectResolution.value(e.get("slot", 0), ctx, env))
 	env["_pending_load"] = slot
 
 
@@ -1417,7 +1225,7 @@ static func _show_overlay_effect(e: Dictionary, env: Dictionary, ctx: Dictionary
 		if v is String:
 			record[str(k)] = v
 		else:
-			record[str(k)] = _value(v, ctx, env)
+			record[str(k)] = EffectResolution.value(v, ctx, env)
 	_push_overlay_event(env, record)
 
 
@@ -1425,7 +1233,7 @@ static func _show_overlay_effect(e: Dictionary, env: Dictionary, ctx: Dictionary
 ## overlay_advanced{id, reason: "manual"}. If the id isn't on the
 ## stack, no-op (idempotent).
 static func _dismiss_overlay_effect(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var id := str(_value(e.get("id", ""), ctx, env))
+	var id := str(EffectResolution.value(e.get("id", ""), ctx, env))
 	_push_overlay_event(env, {"event": "dismiss_overlay", "id": id})
 
 
@@ -1443,8 +1251,8 @@ static func _dismiss_overlay_effect(e: Dictionary, env: Dictionary, ctx: Diction
 ## level in [0.0, 1.0]. Linear converts to dB internally
 ## (Godot's AudioServer takes dB, but linear is the player-facing value).
 static func _set_audio_bus_volume(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var bus_name := str(_value(e.get("bus", "Master"), ctx, env))
-	var linear := float(_value(e.get("linear", 1.0), ctx, env))
+	var bus_name := str(EffectResolution.value(e.get("bus", "Master"), ctx, env))
+	var linear := float(EffectResolution.value(e.get("linear", 1.0), ctx, env))
 	linear = clamp(linear, 0.0, 1.0)
 	var bus_idx := AudioServer.get_bus_index(bus_name)
 	if bus_idx < 0:
@@ -1459,8 +1267,8 @@ static func _set_audio_bus_volume(e: Dictionary, env: Dictionary, ctx: Dictionar
 ## Erases existing bindings for the action, then adds the new key.
 ## key string is parsed via OS.find_keycode_from_string.
 static func _set_input_mapping(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var action := str(_value(e.get("action", ""), ctx, env))
-	var key_str := str(_value(e.get("key", ""), ctx, env))
+	var action := str(EffectResolution.value(e.get("action", ""), ctx, env))
+	var key_str := str(EffectResolution.value(e.get("key", ""), ctx, env))
 	if action == "" or key_str == "":
 		return
 	if not InputMap.has_action(action):
@@ -1490,7 +1298,7 @@ static func _set_input_mapping(e: Dictionary, env: Dictionary, ctx: Dictionary) 
 ## old active_actor_id; world.gd processes _pending_active_actor between
 ## ticks (matches transition_level / save_state pattern).
 static func _switch_actor(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var target := str(_value(e.get("target_id", e.get("target", "")), ctx, env))
+	var target := str(EffectResolution.value(e.get("target_id", e.get("target", "")), ctx, env))
 	if target == "":
 		push_warning("switch_actor: missing target_id (rule=%s)" % str(ctx.get("_rule_id", "")))
 		return
@@ -1501,8 +1309,8 @@ static func _switch_actor(e: Dictionary, env: Dictionary, ctx: Dictionary) -> vo
 ## Foundation for AI policies (ADR 0018). Pushes onto the scheduler's
 ## input queue with the actor_id in the params dict.
 static func _queue_input_for_actor(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var actor_id := str(_value(e.get("actor_id", ""), ctx, env))
-	var action := str(_value(e.get("action", ""), ctx, env))
+	var actor_id := str(EffectResolution.value(e.get("actor_id", ""), ctx, env))
+	var action := str(EffectResolution.value(e.get("action", ""), ctx, env))
 	if actor_id == "" or action == "":
 		push_warning(
 			(
@@ -1568,10 +1376,10 @@ static func _reset_world(_e: Dictionary, env: Dictionary, _ctx: Dictionary) -> v
 ## leaving the original index dangling. Authors should gate joins on
 ## `tags_none: ["party_member"]` to avoid double-add.
 static func _party_join(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var member: Entity = _target(e, env, ctx)
+	var member: Entity = EffectResolution.target(e, env, ctx)
 	if member == null:
 		return
-	var leader_id := _resolve_id(e.get("leader", "player"), ctx)
+	var leader_id := EffectResolution.resolve_id(e.get("leader", "player"), ctx)
 	if leader_id == "":
 		return
 	var entities: Dictionary = env.get("entities", {})
@@ -1613,7 +1421,7 @@ static func _party_join(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 ## Authors who want re-shuffling can issue party_leave + party_join
 ## on the remaining members.
 static func _party_leave(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var member: Entity = _target(e, env, ctx)
+	var member: Entity = EffectResolution.target(e, env, ctx)
 	if member == null:
 		return
 	var store: RelationStore = env.get("relations", null)
@@ -1650,7 +1458,7 @@ static func _party_leave(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 ## reaching a town to wake the member back up. The director listens
 ## for that signal and resets ko + hp.
 static func _party_ko(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var member: Entity = _target(e, env, ctx)
+	var member: Entity = EffectResolution.target(e, env, ctx)
 	if member == null:
 		return
 	# 1. + 2. KO + hp pin.
@@ -1732,7 +1540,7 @@ static func _apply_chain(chain, env: Dictionary, ctx: Dictionary) -> void:
 ## the predicate name that failed (mirrors ADR test plan).
 static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
 	var defs: Dictionary = env.get("defs", {})
-	var blueprint := str(_value(e.get("blueprint", ""), ctx, env))
+	var blueprint := str(EffectResolution.value(e.get("blueprint", ""), ctx, env))
 	if not defs.has(blueprint):
 		EngineError.raise(
 			env,
@@ -1754,10 +1562,10 @@ static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 		return {"placed": false, "reason": "no_def", "instance_id": ""}
 
 	var def: Dictionary = defs[blueprint]
-	var pos = _position(e.get("position", [0, 0, 0]), env, ctx)
+	var pos = EffectResolution.position(e.get("position", [0, 0, 0]), env, ctx)
 	# Coerce to Vector3 — predicates assume 3D.
 	var pos3: Vector3 = Vec3Util.from_world_pos(pos)
-	var yaw := float(_value(e.get("yaw", 0.0), ctx, env))
+	var yaw := float(EffectResolution.value(e.get("yaw", 0.0), ctx, env))
 	# ADR 0038: snap position + yaw to grid BEFORE running validation
 	# predicates. Means `no_overlap` checks the snapped cell, so authors
 	# can pass continuous cursor coords and the engine guarantees the
@@ -1766,7 +1574,7 @@ static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 		pos3 = GridSnap.snap_position(pos3, env)
 		yaw = GridSnap.snap_yaw(yaw, env)
 	var owner_binding := str(e.get("owner", "self"))
-	var max_range := float(_value(e.get("max_range", 5.0), ctx, env))
+	var max_range := float(EffectResolution.value(e.get("max_range", 5.0), ctx, env))
 	var validate = e.get("validate", [])
 	if not (validate is Array):
 		validate = []
@@ -1830,7 +1638,7 @@ static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 	# index registration + spawn-trigger dispatch (same lifecycle as any
 	# other spawn).
 	var spawn_overrides: Dictionary = {"state": {"yaw": yaw}}
-	var construction_ticks := int(_value(e.get("construction_ticks", 0), ctx, env))
+	var construction_ticks := int(EffectResolution.value(e.get("construction_ticks", 0), ctx, env))
 	if construction_ticks > 0:
 		(spawn_overrides["state"] as Dictionary)["build_in_progress"] = construction_ticks
 		(spawn_overrides["state"] as Dictionary)["build_progress_target"] = construction_ticks
@@ -1884,12 +1692,12 @@ static func _build_place(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 ## without a SceneTree, OR demos that never registered any classes),
 ## the effect logs a warning and no-ops.
 static func _switch_class(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary:
-	# Resolve target — same convention as _target() but we need the id
+	# Resolve target — same convention as EffectResolution.target() but we need the id
 	# string, not the Entity, so we can pass it to ClassManager.switch_class.
 	var target_key := str(e.get("target", "self"))
 	var target_id := str(ctx.get(target_key, target_key))
-	var to_class := str(_value(e.get("to_class", ""), ctx, env))
-	var cooldown_days: int = int(_value(e.get("cooldown_days", 1), ctx, env))
+	var to_class := str(EffectResolution.value(e.get("to_class", ""), ctx, env))
+	var cooldown_days: int = int(EffectResolution.value(e.get("cooldown_days", 1), ctx, env))
 	# Locate ClassManager. World is env.parent; ClassManager is a
 	# named sibling under it.
 	var cm: Node = null
@@ -1973,7 +1781,7 @@ static func _resolve_faction_id(v, ctx: Dictionary, env: Dictionary) -> String:
 		if ctx.has(s):
 			return str(ctx[s])
 		if Formula.looks_like_formula(s):
-			var fctx := _formula_context(ctx, env)
+			var fctx := EffectResolution.formula_context(ctx, env)
 			if ctx.has("_rule_id"):
 				fctx["_rule_id"] = ctx["_rule_id"]
 			var resolved = Formula.evaluate(s, fctx, env)
@@ -2014,7 +1822,7 @@ static func _sign_treaty(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dic
 	var from_id := _resolve_faction_id(e.get("from", ""), ctx, env)
 	var to_id := _resolve_faction_id(e.get("to", ""), ctx, env)
 	# Default new_stance is "neutral" — matches FactionDirector.apply_sign_treaty.
-	var new_stance := str(_value(e.get("new_stance", "neutral"), ctx, env))
+	var new_stance := str(EffectResolution.value(e.get("new_stance", "neutral"), ctx, env))
 	return fd.call("apply_sign_treaty", env, from_id, to_id, new_stance)
 
 
@@ -2053,7 +1861,7 @@ static func _swear_loyalty(e: Dictionary, env: Dictionary, ctx: Dictionary) -> D
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager"}
-	# Resolve target — same convention as _target() but we need the id
+	# Resolve target — same convention as EffectResolution.target() but we need the id
 	# string to pass to FactionDirector.apply_swear_loyalty.
 	var target_key := str(e.get("target", "self"))
 	var target_id := str(ctx.get(target_key, target_key))
@@ -2063,11 +1871,11 @@ static func _swear_loyalty(e: Dictionary, env: Dictionary, ctx: Dictionary) -> D
 	# FactionDirector internally uses `delta` for symmetry with its other
 	# helpers, so we translate here.
 	if e.has("amount"):
-		opts["delta"] = int(_value(e.get("amount"), ctx, env))
+		opts["delta"] = int(EffectResolution.value(e.get("amount"), ctx, env))
 	elif e.has("delta"):
-		opts["delta"] = int(_value(e.get("delta"), ctx, env))
+		opts["delta"] = int(EffectResolution.value(e.get("delta"), ctx, env))
 	if e.has("value"):
-		opts["value"] = int(_value(e.get("value"), ctx, env))
+		opts["value"] = int(EffectResolution.value(e.get("value"), ctx, env))
 	return fd.call("apply_swear_loyalty", env, target_id, faction_id, opts)
 
 
@@ -2122,8 +1930,8 @@ static func _try_discover_tech(e: Dictionary, env: Dictionary, ctx: Dictionary) 
 		return {"ok": false, "reason": "no_manager"}
 	var target_key := str(e.get("target", "self"))
 	var target_id := str(ctx.get(target_key, target_key))
-	var tree_id := str(_value(e.get("tree", ""), ctx, env))
-	var max_rolls: int = int(_value(e.get("max_rolls_per_call", 1), ctx, env))
+	var tree_id := str(EffectResolution.value(e.get("tree", ""), ctx, env))
+	var max_rolls: int = int(EffectResolution.value(e.get("max_rolls_per_call", 1), ctx, env))
 	var awarded: String = ttd.call("try_discover_tech", env, target_id, tree_id, max_rolls)
 	return {
 		"ok": awarded != "",
@@ -2162,14 +1970,14 @@ static func _learn_from_master(e: Dictionary, env: Dictionary, ctx: Dictionary) 
 		return {"ok": false, "reason": "no_manager"}
 	var target_key := str(e.get("target", "self"))
 	var apprentice_id := str(ctx.get(target_key, target_key))
-	var tree_id := str(_value(e.get("tree", ""), ctx, env))
+	var tree_id := str(EffectResolution.value(e.get("tree", ""), ctx, env))
 	var relation := str(e.get("master_via_relation", "party_member_of"))
 	# Optional explicit master override (rare — for test harnesses or
 	# rules that already have a master id in context).
 	var master_id := ""
 	if e.has("master_id"):
-		master_id = _resolve_id(e.get("master_id"), ctx)
-	var max_per_call: int = int(_value(e.get("max_per_call", 1), ctx, env))
+		master_id = EffectResolution.resolve_id(e.get("master_id"), ctx)
+	var max_per_call: int = int(EffectResolution.value(e.get("max_per_call", 1), ctx, env))
 	var awarded: String = ttd.call(
 		"learn_from_master", env, apprentice_id, tree_id, master_id, relation, max_per_call
 	)
@@ -2211,10 +2019,10 @@ static func _pass_to_apprentice(e: Dictionary, env: Dictionary, ctx: Dictionary)
 		return {"ok": false, "reason": "no_manager"}
 	var target_key := str(e.get("target", "self"))
 	var master_id := str(ctx.get(target_key, target_key))
-	var tree_id := str(_value(e.get("tree", ""), ctx, env))
+	var tree_id := str(EffectResolution.value(e.get("tree", ""), ctx, env))
 	var relation := str(e.get("apprentice_via_relation", "party_member_of"))
-	var max_apprentices: int = int(_value(e.get("max_apprentices_per_call", 4), ctx, env))
-	var max_per: int = int(_value(e.get("max_per_apprentice", 1), ctx, env))
+	var max_apprentices: int = int(EffectResolution.value(e.get("max_apprentices_per_call", 4), ctx, env))
+	var max_per: int = int(EffectResolution.value(e.get("max_per_apprentice", 1), ctx, env))
 	var n: int = int(
 		ttd.call("pass_to_apprentice", env, master_id, tree_id, relation, max_apprentices, max_per)
 	)
@@ -2277,8 +2085,8 @@ static func _transfer_inventory(e: Dictionary, env: Dictionary, ctx: Dictionary)
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "count": 0}
-	var from_id := _resolve_id(e.get("from", ""), ctx)
-	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
 	var n: int = int(dd.call("transfer_inventory", env, from_id, to_id))
 	return {"ok": n > 0, "count": n, "from": from_id, "to": to_id}
 
@@ -2301,8 +2109,8 @@ static func _transfer_reputation(e: Dictionary, env: Dictionary, ctx: Dictionary
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "count": 0}
-	var from_id := _resolve_id(e.get("from", ""), ctx)
-	var to_id := _resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
 	var n: int = int(dd.call("transfer_reputation", env, from_id, to_id))
 	return {"ok": n > 0, "count": n, "from": from_id, "to": to_id}
 
@@ -2327,9 +2135,9 @@ static func _transfer_techs(e: Dictionary, env: Dictionary, ctx: Dictionary) -> 
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "transferred": []}
-	var from_id := _resolve_id(e.get("from", ""), ctx)
-	var to_id := _resolve_id(e.get("to", ""), ctx)
-	var filter := str(_value(e.get("filter", "core_only"), ctx, env))
+	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var filter := str(EffectResolution.value(e.get("filter", "core_only"), ctx, env))
 	var transferred: Array = dd.call("transfer_techs", env, from_id, to_id, filter)
 	return {
 		"ok": not transferred.is_empty(),
@@ -2369,9 +2177,9 @@ static func _transition_player_to(e: Dictionary, env: Dictionary, ctx: Dictionar
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "target": ""}
-	var target_id := _resolve_id(e.get("target", ""), ctx)
+	var target_id := EffectResolution.resolve_id(e.get("target", ""), ctx)
 	if target_id == "":
 		# Some authors put the target in `target_id` (mirroring switch_actor).
-		target_id = str(_value(e.get("target_id", ""), ctx, env))
+		target_id = str(EffectResolution.value(e.get("target_id", ""), ctx, env))
 	var ok: bool = bool(dd.call("transition_player_to", env, target_id))
 	return {"ok": ok, "target": target_id}
