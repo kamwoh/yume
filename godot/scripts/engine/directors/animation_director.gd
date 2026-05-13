@@ -9,6 +9,22 @@ class_name AnimationDirector
 ## per-piece transform deltas each render frame based on a declarative
 ## state machine over entity velocity / state / tags.
 ##
+## ADR 0021/0044/0045 audit (2026-05-13): this module reimplements
+## keyframe interpolation in GDScript (`_interp_keys`, `_apply_track`).
+## Godot ships AnimationPlayer + Animation resources that do exactly
+## that in optimized C++, plus cubic/spline interp and AnimationTree
+## cross-fading. A future ADR (candidate 0046) should:
+##   - keep `_pick_state` + the state rules system (Yume-specific
+##     gameplay-aware bridge — Godot's AnimationTree doesn't know about
+##     entity tags / velocity)
+##   - replace `_interp_keys` + `_apply_track` + `_cache_baselines` with
+##     a translation layer that builds Animation resources at mesh-def
+##     load and plays them via AnimationPlayer
+##
+## Not urgent — current code is correct, focused, and works fine. The
+## architectural smell is real (reimplements what Godot already does);
+## the migration cost is real (multi-session). Queued, not blocking.
+##
 ## Lifecycle:
 ##   - Construct via `AnimationDirector.from_mesh_def(...)`. Returns null
 ##     if the mesh has no `animations` block (backwards-compat) OR if the
