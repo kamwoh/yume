@@ -1,30 +1,17 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=2 format=3]
 
 ; Universal Yume launcher. Pass `--game=<folder>` to select which game
 ; under res://data/ to load. Example:
 ;
-;   godot --path . scenes/play.tscn -- --game=demo_tinypond
-;   godot --path . scenes/play.tscn -- --game=demo_harvestcore
+;   godot --path . scenes/play.tscn -- --game=demo_sokoban
 ;
-; Per-game scene stubs (e.g. scenes/tinypond_2d.tscn) are still
-; supported as a shorthand, but new games can run from this single
-; scene without any per-game .tscn file.
+; All directors (GameShell, ScreenFlow, OverlayManager, SettingsManager,
+; LightingDirector, PartyDirector, ScheduleDirector, LifecycleDirector,
+; ClassManager, FactionDirector, TechTreeDirector, DynastyDirector,
+; NameplateRenderer, ScreenSmokeRunner) auto-mount via WorldBoot.
+; Per-game data lives entirely under res://data/<game>/.
 
 [ext_resource type="Script" path="res://scripts/engine/core/world.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/engine/ui/game_shell.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/engine/ui/screen_flow.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/engine/ui/overlay.gd" id="4"]
-[ext_resource type="Script" path="res://scripts/engine/ui/settings_manager.gd" id="5"]
-[ext_resource type="Script" path="res://scripts/engine/directors/lighting_director.gd" id="6"]
-[ext_resource type="Script" path="res://scripts/engine/directors/party_director.gd" id="7"]
-[ext_resource type="Script" path="res://scripts/engine/qa/screen_smoke_runner.gd" id="8"]
-[ext_resource type="Script" path="res://scripts/engine/ui/nameplate_renderer.gd" id="9"]
-[ext_resource type="Script" path="res://scripts/engine/directors/schedule_director.gd" id="10"]
-[ext_resource type="Script" path="res://scripts/engine/directors/lifecycle_director.gd" id="11"]
-[ext_resource type="Script" path="res://scripts/engine/directors/class_manager.gd" id="12"]
-[ext_resource type="Script" path="res://scripts/engine/directors/faction_director.gd" id="13"]
-[ext_resource type="Script" path="res://scripts/engine/directors/tech_tree.gd" id="14"]
-[ext_resource type="Script" path="res://scripts/engine/directors/dynasty_director.gd" id="15"]
 
 [node name="World" type="Node"]
 script = ExtResource("1")
@@ -32,103 +19,6 @@ data_root = ""
 auto_start = true
 verbose = true
 renderer_script = "res://scripts/renderer_2d/entity_sprite_2d.gd"
-
-[node name="GameShell" type="Node" parent="."]
-script = ExtResource("2")
-
-; ADR 0011: ScreenFlow loads <data_root>/screens.json if it exists.
-; If absent, ScreenFlow is a no-op and the world auto-launches as before.
-[node name="ScreenFlow" type="Node" parent="."]
-script = ExtResource("3")
-
-; ADR 0012: OverlayManager handles tutorial overlays + advance conditions.
-; No-op until a rule fires show_overlay.
-[node name="OverlayManager" type="Node" parent="."]
-script = ExtResource("4")
-
-; ADR 0013: SettingsManager loads settings_schema.json + user://settings.cfg.
-; No-op if no schema. World.start() calls apply_all() once env is built.
-[node name="SettingsManager" type="Node" parent="."]
-script = ExtResource("5")
-
-; ADR 0025: LightingDirector reads scene.json's lighting block and drives
-; a DirectionalLight3D + WorldEnvironment for day/night cycles. No-op if
-; scene.json has no lighting block (2D demos and static-lighting 3D demos).
-[node name="LightingDirector" type="Node" parent="."]
-script = ExtResource("6")
-
-; ADR 0026: PartyDirector reads `party_member`-tagged entities and
-; their `party_member_of` relation to leash them behind the leader
-; (typically the player). No-op when no entities have the tag.
-[node name="PartyDirector" type="Node" parent="."]
-script = ExtResource("7")
-
-; ADR 0029: ScheduleDirector reads entity defs' `schedule` blocks and
-; resolves the active slot each tick from a bound time-of-day source
-; (default world_clock.current_hour). Writes current_verb +
-; current_target onto the entity's state and emits
-; schedule_phase_changed on slot transitions. No-op when no entity
-; def carries a schedule block.
-[node name="ScheduleDirector" type="Node" parent="."]
-script = ExtResource("10")
-
-; ADR 0036: LifecycleDirector reads entity defs' `lifecycle` blocks
-; (resolved from @lib.lifecycles.<species> via $extends). Per-tick
-; it increments state.age, checks life_stage thresholds, swaps
-; visual.mesh + tags + speed_mult on transitions, and emits
-; life_stage_changed / entity_died signals into env.signal_buffer.
-; No-op when no entity def carries a lifecycle block (existing
-; demos unaffected — backward-compat by absence).
-[node name="LifecycleDirector" type="Node" parent="."]
-script = ExtResource("11")
-
-; ADR 0030: ClassManager holds class definitions (data/<game>/classes/*.json
-; if present) and hosts the switch_class effect's atomic swap logic.
-; State.current_class is per-entity; no per-tick work. No-op when no
-; classes directory exists (existing demos unaffected).
-[node name="ClassManager" type="Node" parent="."]
-script = ExtResource("12")
-
-; ADR 0032: FactionDirector holds faction defs + inter-faction relationship
-; state (stance + tension), and hosts the four declarative effects:
-; declare_war / sign_treaty / propose_alliance / swear_loyalty. Loads
-; data/<game>/factions.json if present. No-op when factions.json is
-; absent (existing demos unaffected — backward-compat by absence).
-[node name="FactionDirector" type="Node" parent="."]
-script = ExtResource("13")
-
-; ADR 0033: TechTreeDirector holds tech tree definitions + hosts the
-; three declarative effects: try_discover_tech / learn_from_master /
-; pass_to_apprentice. Per-entity state.known_techs is the membership
-; set; no per-tick director work (discovery cadence is content-driven
-; via tick rules). Loads data/<game>/tech_trees.json if present. No-op
-; when the file is absent (existing demos unaffected — backward-compat
-; by absence).
-[node name="TechTreeDirector" type="Node" parent="."]
-script = ExtResource("14")
-
-; ADR 0034: DynastyDirector hosts the four succession effects
-; (transfer_inventory / transfer_reputation / transfer_techs /
-; transition_player_to) plus the heir-resolver helper used by
-; per-game succession rules. No boot-time data to load — heir state
-; lives on each actor entity (state.heirs + state.inheritance_policy)
-; and serializes via the normal entity snapshot path (ADR 0010). No-op
-; when no game ships heirs (existing demos unaffected — backward-compat
-; by absence of state.heirs on actor entities).
-[node name="DynastyDirector" type="Node" parent="."]
-script = ExtResource("15")
-
-; Per-screen smoke harness — activates only with `--smoke-screens`.
-; Walks every screen in screens.json, captures each, exits.
-; Used by yume-playtest skill Gate 5 + 6.
-[node name="ScreenSmokeRunner" type="Node" parent="."]
-script = ExtResource("8")
-
-; NameplateRenderer (NPC identity layer) — floats `properties.display_name`
-; above each entity tagged `named_npc`. No-op when no entity carries the
-; tag (most demos). Sibling of GameShell so it shares the camera lookup.
-[node name="NameplateRenderer" type="Node" parent="."]
-script = ExtResource("9")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(0, 0)

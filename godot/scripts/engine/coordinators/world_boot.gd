@@ -18,6 +18,34 @@ class_name WorldBoot
 var _world: Node = null  # World back-ref
 var _root: String = ""
 
+## The engine's fixed Director set. Each pair = [Node name, script path].
+## WorldBoot._mount_default_directors auto-creates these as World children
+## at boot UNLESS the per-game .tscn already provides one with that name
+## (adopt-and-skip). Each is internally a no-op when its config / data is
+## absent — backward-compat by absence. Adding a new ADR director = one
+## row here (no per-game .tscn changes needed).
+##
+## Order mirrors play.tscn — GameShell first (drains shell events early),
+## then ScreenFlow / Overlay / Settings (UI scaffolding), then domain
+## directors. ScreenSmokeRunner + NameplateRenderer at the end since
+## they're optional QA / visual layers.
+const _DEFAULT_DIRECTORS: Array = [
+	["GameShell", "res://scripts/engine/ui/game_shell.gd"],
+	["ScreenFlow", "res://scripts/engine/ui/screen_flow.gd"],
+	["OverlayManager", "res://scripts/engine/ui/overlay.gd"],
+	["SettingsManager", "res://scripts/engine/ui/settings_manager.gd"],
+	["LightingDirector", "res://scripts/engine/directors/lighting_director.gd"],
+	["PartyDirector", "res://scripts/engine/directors/party_director.gd"],
+	["ScheduleDirector", "res://scripts/engine/directors/schedule_director.gd"],
+	["LifecycleDirector", "res://scripts/engine/directors/lifecycle_director.gd"],
+	["ClassManager", "res://scripts/engine/directors/class_manager.gd"],
+	["FactionDirector", "res://scripts/engine/directors/faction_director.gd"],
+	["TechTreeDirector", "res://scripts/engine/directors/tech_tree.gd"],
+	["DynastyDirector", "res://scripts/engine/directors/dynasty_director.gd"],
+	["NameplateRenderer", "res://scripts/engine/ui/nameplate_renderer.gd"],
+	["ScreenSmokeRunner", "res://scripts/engine/qa/screen_smoke_runner.gd"],
+]
+
 
 func _init(world: Node) -> void:
 	_world = world
@@ -30,6 +58,7 @@ func _init(world: Node) -> void:
 
 func run() -> void:
 	_root = (_world.data_root as String).rstrip("/")
+	_mount_default_directors()  # ensure UI + ADR director Nodes exist
 	_init_lib_resolver()
 	_register_inputs()
 	_apply_level_seed()
@@ -51,6 +80,32 @@ func run() -> void:
 # ============================================================
 # PHASES
 # ============================================================
+
+
+## Auto-mount the standard Director / UI Node set as World children.
+## Adopt-and-skip when a per-game .tscn already provides one with the
+## same name (legacy compatibility). Each director is internally a
+## no-op when its config / data is absent, so mounting them all is
+## safe — they just sit idle for games that don't use that capability.
+##
+## Replaces the 14-line "every per-game .tscn must mount these"
+## boilerplate. New games can ship a 5-line .tscn (World root + Camera3D
+## + data_root + auto_start) and inherit the full Director suite from
+## the engine.
+func _mount_default_directors() -> void:
+	for entry in _DEFAULT_DIRECTORS:
+		var node_name: String = entry[0]
+		var script_path: String = entry[1]
+		if _world.get_node_or_null(node_name) != null:
+			continue  # adopt-and-skip — per-game .tscn provided one
+		var script = load(script_path)
+		if script == null:
+			push_warning("[WorldBoot] missing director script: " + script_path)
+			continue
+		var node := Node.new()
+		node.name = node_name
+		node.set_script(script)
+		_world.add_child(node)
 
 
 ## ADR 0027 — populate the lib resolver cache from data/lib/**.json
