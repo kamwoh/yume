@@ -42,6 +42,7 @@ func run() -> void:
 	_load_save_policy()
 	_mount_directors()
 	_load_factions()
+	_build_ground_mesh()
 	_world.scheduler.flush_effects()
 	_world._run_multimesh_director()
 	_log_summary()
@@ -193,6 +194,14 @@ func _mount_directors() -> void:
 ## tick. No-op for games without politics.
 func _load_factions() -> void:
 	_world._loader.load_factions_file(_root + "/factions.json")
+
+
+## Build the visual floor plane from scene.json's `ground.mesh` block
+## (size + color + material). Skipped when the per-game .tscn already
+## mounts a Ground MeshInstance3D (adopt-and-skip), or when the block
+## is absent (abstract / overlay-only games).
+func _build_ground_mesh() -> void:
+	GroundRenderer.new(_world).build()
 
 
 func _log_summary() -> void:
