@@ -1164,6 +1164,15 @@ func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
 # ============================================================
 
 
+## ADR 0021/0044/0045 audit (2026-05-13): JSON-driven Control construction
+## is the CORRECT pattern — engine reads hud.json, instantiates Godot
+## Controls (Label / ProgressBar / Panel / VBoxContainer / ColorRect),
+## applies per-element style overrides. NOT replaceable by Theme +
+## PackedScene: that would tie HUD authoring to .tscn files (Godot editor)
+## instead of JSON, breaking the LLM-content-generation pipeline.
+## Per-element `add_theme_*_override` is Yume's use of Godot's Theme system,
+## not a reinvention. The audit is documented here so the next reviewer
+## doesn't ask the same question.
 func _build_hud() -> void:
 	if _hud_cfg.is_empty():
 		return
