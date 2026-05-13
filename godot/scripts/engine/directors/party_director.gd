@@ -41,7 +41,7 @@ class_name PartyDirector
 # constructor calls into `const` expressions — `static var` is the
 # closest equivalent for class-level immutable tables. Same pattern
 # used by Pathfinding for non-scalar defaults.
-static var OFFSET_TABLE: Array = [
+static var offset_table: Array = [
 	Vector3(-1.0, 0.0, 1.5),  # index 0 — back-left
 	Vector3(1.0, 0.0, 1.5),  # index 1 — back-right
 	Vector3(0.0, 0.0, 2.5),  # index 2 — directly behind, deeper
@@ -212,9 +212,9 @@ func _apply_leash_to_member(member: Entity, leader: Entity) -> void:
 static func offset_for_index(idx: int) -> Vector3:
 	if idx < 0:
 		return Vector3.ZERO
-	if idx >= OFFSET_TABLE.size():
-		return OFFSET_TABLE[OFFSET_TABLE.size() - 1]
-	return OFFSET_TABLE[idx]
+	if idx >= offset_table.size():
+		return offset_table[offset_table.size() - 1]
+	return offset_table[idx]
 
 
 ## Compute target position for a member at index `idx` whose leader

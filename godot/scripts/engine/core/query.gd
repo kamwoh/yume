@@ -307,7 +307,7 @@ static func run_zones(spec: Dictionary, env: Dictionary) -> Array:
 ##   1. context._origin_position (explicit Vector2 or Array)
 ##   2. context.self → entity.get_planar_position()
 ##   3. Vector2.ZERO (no origin; radius filter effectively useless)
-static func _resolve_origin(spec: Dictionary, env: Dictionary, context: Dictionary) -> Vector2:
+static func _resolve_origin(_spec: Dictionary, env: Dictionary, context: Dictionary) -> Vector2:
 	if context.has("_origin_position"):
 		var p = context["_origin_position"]
 		if p is Vector2:

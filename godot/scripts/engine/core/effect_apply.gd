@@ -155,16 +155,28 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 		"transition_player_to":
 			return _transition_player_to(effect, env, context)
 		_:
-			(
-				EngineError
-				. raise(
-					env,
-					EngineError.EFFECT_UNKNOWN_TYPE,
-					"Unknown effect type: '%s'" % type,
-					{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-					"Use one of: state_set, state_add, state_mul, state_clamp, zone_state_set, zone_state_add, zone_state_clamp, spawn, remove, transform, relate, unrelate, transfer_relation, tag_add, tag_remove, velocity_set, velocity_lerp, velocity_set_relative, velocity_add_relative, pathfind_to, raycast_hit, transition_level, emit, emit_shell_event, transition_screen, quit_app, show_toast, reload_scene, scene_change, screen_fade, save_state, load_state, show_overlay, dismiss_overlay, set_audio_bus_volume, set_input_mapping, switch_actor, queue_input_for_actor, reset_world, party_join, party_leave, party_ko, build_place, switch_class, declare_war, sign_treaty, propose_alliance, swear_loyalty, try_discover_tech, learn_from_master, pass_to_apprentice, transfer_inventory, transfer_reputation, transfer_techs, transition_player_to.",
-					"warning"
-				)
+			EngineError.raise(
+				env,
+				EngineError.EFFECT_UNKNOWN_TYPE,
+				"Unknown effect type: '%s'" % type,
+				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
+				(
+					"Use one of: state_set, state_add, state_mul, state_clamp,"
+					+ " zone_state_set, zone_state_add, zone_state_clamp, spawn, remove,"
+					+ " transform, relate, unrelate, transfer_relation, tag_add, tag_remove,"
+					+ " velocity_set, velocity_lerp, velocity_set_relative,"
+					+ " velocity_add_relative, pathfind_to, raycast_hit, transition_level,"
+					+ " emit, emit_shell_event, transition_screen, quit_app, show_toast,"
+					+ " reload_scene, scene_change, screen_fade, save_state, load_state,"
+					+ " show_overlay, dismiss_overlay, set_audio_bus_volume,"
+					+ " set_input_mapping, switch_actor, queue_input_for_actor, reset_world,"
+					+ " party_join, party_leave, party_ko, build_place, switch_class,"
+					+ " declare_war, sign_treaty, propose_alliance, swear_loyalty,"
+					+ " try_discover_tech, learn_from_master, pass_to_apprentice,"
+					+ " transfer_inventory, transfer_reputation, transfer_techs,"
+					+ " transition_player_to."
+				),
+				"warning"
 			)
 	return {}
 

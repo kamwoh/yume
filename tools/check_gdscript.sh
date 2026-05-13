@@ -45,20 +45,25 @@ if [[ $FIX -eq 1 ]]; then
 fi
 
 echo "[check_gdscript] format check ($TARGET) ..."
-FORMAT_OUT="$("$GDFORMAT" --check "$TARGET" 2>&1 || true)"
-echo "$FORMAT_OUT" | tail -1
+FORMAT_RC=0
+"$GDFORMAT" --check "$TARGET" || FORMAT_RC=$?
 
 echo
 echo "[check_gdscript] lint ($TARGET, config: gdlintrc) ..."
 LINT_RC=0
 "$GDLINT" "$TARGET" || LINT_RC=$?
 
-if [[ $LINT_RC -ne 0 ]]; then
+if [[ $LINT_RC -ne 0 || $FORMAT_RC -ne 0 ]]; then
     echo
-    echo "[check_gdscript] Violations summary by rule:"
-    "$GDLINT" "$TARGET" 2>&1 \
-        | grep -oE '\([a-z-]+\)$' \
-        | sort | uniq -c | sort -rn || true
+    if [[ $LINT_RC -ne 0 ]]; then
+        echo "[check_gdscript] Lint violations summary by rule:"
+        "$GDLINT" "$TARGET" 2>&1 \
+            | grep -oE '\([a-z-]+\)$' \
+            | sort | uniq -c | sort -rn || true
+    fi
+    if [[ $FORMAT_RC -ne 0 ]]; then
+        echo "[check_gdscript] Format check failed — run --fix to apply."
+    fi
     echo
     echo "[check_gdscript] To auto-fix tab/space + spacing issues:"
     echo "  tools/check_gdscript.sh --fix"

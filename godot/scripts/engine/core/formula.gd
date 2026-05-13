@@ -93,19 +93,23 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 		var err := expr.parse(rewritten, input_names)
 		if err != OK:
 			_last_error = "parse error in '%s' → '%s': %s" % [s, rewritten, expr.get_error_text()]
-			(
-				EngineError
-				. raise(
-					env,
-					EngineError.FORMULA_PARSE_FAILED,
-					"Formula parse error: '%s' → '%s' — %s" % [s, rewritten, expr.get_error_text()],
-					{
-						"rule_id": context.get("_rule_id", ""),
-						"formula": s,
-						"rewritten": rewritten,
-						"godot_error": expr.get_error_text()
-					},
-					"Check formula syntax. Allowed: bindings (self.state.X, target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow/floor/ceil/lerp/randf), arithmetic, comparison, bitwise, Vector2/Array subscript, Python-style ternary 'a if cond else b' (NOT C-style 'cond ? a : b' — Godot 4.6.1 Expression doesn't parse it)."
+			EngineError.raise(
+				env,
+				EngineError.FORMULA_PARSE_FAILED,
+				"Formula parse error: '%s' → '%s' — %s" % [s, rewritten, expr.get_error_text()],
+				{
+					"rule_id": context.get("_rule_id", ""),
+					"formula": s,
+					"rewritten": rewritten,
+					"godot_error": expr.get_error_text()
+				},
+				(
+					"Check formula syntax. Allowed: bindings (self.state.X,"
+					+ " target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow"
+					+ "/floor/ceil/lerp/randf), arithmetic, comparison, bitwise,"
+					+ " Vector2/Array subscript, Python-style ternary 'a if cond else b'"
+					+ " (NOT C-style 'cond ? a : b' — Godot 4.6.1 Expression doesn't"
+					+ " parse it)."
 				)
 			)
 			return 0.0
@@ -182,7 +186,7 @@ static func looks_like_formula(s: String) -> bool:
 ## an error string. Doesn't substitute paths since we don't have values yet —
 ## just checks GDScript expression syntax.
 static func validate_syntax(
-	formula: String, expected_roots: PackedStringArray = PackedStringArray()
+	formula: String, _expected_roots: PackedStringArray = PackedStringArray()
 ) -> String:
 	if formula == "":
 		return "empty formula"

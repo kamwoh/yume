@@ -150,7 +150,7 @@ func scan_and_batch(env: Dictionary) -> Dictionary:
 ## Per Invariant #11 — clean up MultiMeshInstance3D nodes before the new
 ## level spawns. The corresponding entities are being destroyed by the
 ## level swap; the multimesh nodes are the only remaining reference.
-func cleanup(env: Dictionary) -> int:
+func cleanup(_env: Dictionary) -> int:
 	var freed: int = 0
 	for node in _built_nodes:
 		if node != null and is_instance_valid(node):
@@ -221,7 +221,7 @@ func _is_static_candidate(e: Entity, _defs: Dictionary, disqualified_tags: Dicti
 	return true
 
 
-func _mesh_def_for(e: Entity, _defs: Dictionary, env: Dictionary) -> Dictionary:
+func _mesh_def_for(e: Entity, _defs: Dictionary, _env: Dictionary) -> Dictionary:
 	# Read mesh name from visual.mesh or visual.shape (renderer fallback).
 	var visual: Dictionary = e.visual as Dictionary
 	var mesh_name := str(visual.get("mesh", visual.get("shape", "")))

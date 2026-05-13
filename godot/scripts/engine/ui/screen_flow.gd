@@ -510,7 +510,7 @@ func _populate_settings_renderers(root: Control, dispatcher: Callable) -> void:
 ## For one settings_renderer placeholder (a VBoxContainer): iterate the
 ## schema's categories + settings, generate a Control per setting,
 ## connect its change signal to SettingsManager.set_value.
-func _populate_one_settings_renderer(host: Control, settings_mgr, dispatcher: Callable) -> void:
+func _populate_one_settings_renderer(host: Control, settings_mgr, _dispatcher: Callable) -> void:
 	var categories: Array = settings_mgr.categories()
 	for cat in categories:
 		if not (cat is Dictionary):

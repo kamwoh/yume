@@ -178,7 +178,9 @@ static func free_3d(entity) -> void:
 ## lands in Session B inside character_body_runner.gd::_physics_process.
 ## Session A's runner has an empty _physics_process, so this body
 ## does nothing yet — it's purely lifecycle plumbing.
-static func build_character_3d(entity: Entity, phys_cfg: Dictionary, layer_map: Dictionary) -> CharacterBody3D:
+static func build_character_3d(
+	entity: Entity, phys_cfg: Dictionary, layer_map: Dictionary
+) -> CharacterBody3D:
 	var body := CharacterBodyRunner.new()
 	body.name = "CharacterBody"
 	body.bind(entity)
@@ -313,7 +315,7 @@ static func translate_blocks_motion(def: Dictionary) -> Dictionary:
 			"collision_mask": "all",
 			"_translated_from": "blocks_motion+aabb_extents (3D)"
 		}
-	elif ext_arr.size() == 2:
+	if ext_arr.size() == 2:
 		var hx2 := float(ext_arr[0])
 		var hy2 := float(ext_arr[1])
 		return {

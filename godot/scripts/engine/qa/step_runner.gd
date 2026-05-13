@@ -88,7 +88,7 @@ static func _detect_verb(step: Dictionary) -> String:
 # ============================================================
 
 
-static func _do_press(step: Dictionary, world: World, ctx: Dictionary) -> void:
+static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	var action := str(step["press"])
 	if not InputMap.has_action(action):
 		_raise(
@@ -108,7 +108,7 @@ static func _do_press(step: Dictionary, world: World, ctx: Dictionary) -> void:
 	Input.action_release(action)
 
 
-static func _do_hold(step: Dictionary, world: World, ctx: Dictionary) -> void:
+static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	var spec = step["hold"]
 	var actions: Array = []
 	if spec is Array:
@@ -234,7 +234,7 @@ static func _do_release(step: Dictionary, world: World, ctx: Dictionary) -> void
 		(ctx["held"] as Array).erase(action)
 
 
-static func _do_click(step: Dictionary, world: World, ctx: Dictionary) -> void:
+static func _do_click(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	var selector_v = step["click"]
 	var sel: Dictionary
 	if selector_v is Dictionary:
@@ -273,7 +273,7 @@ static func _do_click(step: Dictionary, world: World, ctx: Dictionary) -> void:
 	_advance(world)
 
 
-static func _do_wait(step: Dictionary, world: World, ctx: Dictionary) -> void:
+static func _do_wait(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	var spec = step["wait"]
 	var ticks: int = 0
 	if spec is int or spec is float:
@@ -297,7 +297,7 @@ static func _do_wait(step: Dictionary, world: World, ctx: Dictionary) -> void:
 		_advance(world)
 
 
-static func _do_tick(step: Dictionary, world: World, ctx: Dictionary) -> void:
+static func _do_tick(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	var n := int(step["tick"])
 	if n <= 0:
 		_raise(
@@ -355,7 +355,7 @@ static func _do_expect(step: Dictionary, world: World, ctx: Dictionary) -> void:
 			_check_one(a, world, ctx)
 
 
-static func _do_key(step: Dictionary, world: World, ctx: Dictionary) -> void:
+static func _do_key(_step: Dictionary, _world: World, _ctx: Dictionary) -> void:
 	# Raw keycode escape hatch. Currently a no-op stub — the typical use
 	# (dismissing a hand-wired modal) should go through `click` once
 	# control_factory propagates JSON id (C2 above). Future ADR can extend.
@@ -395,11 +395,10 @@ static func _walk_match(node: Node, sel: Dictionary, out: Array) -> void:
 	# Optional screen scope: skip if this branch isn't under the named screen.
 	# (Implemented as a soft filter on root node names.)
 	if sel.has("screen") and "name" in node:
-		var screen_id := str(sel["screen"])
 		# Only constrain at top-of-walk; once descended, accept all.
 		# (Called recursively; the screen scope check is handled by _find_controls
 		# layer in a future tightening — v1 accepts the looser walk.)
-		pass
+		var _screen_id := str(sel["screen"])  # noqa: read-only for future use
 	if node is Control:
 		var match_text := false
 		var match_id := false

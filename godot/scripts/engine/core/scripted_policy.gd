@@ -75,7 +75,7 @@ func decide(observation: Dictionary, actor_state: Dictionary) -> Array:
 			var then_v = rule.get("then", [])
 			if then_v is Array:
 				return _stamp_actor((then_v as Array).duplicate(true), actor_state)
-			elif then_v is Dictionary:
+			if then_v is Dictionary:
 				return _stamp_actor([(then_v as Dictionary).duplicate(true)], actor_state)
 	return []
 
@@ -123,7 +123,7 @@ func _eval_condition(cond, obs: Dictionary, st: Dictionary) -> bool:
 
 ## Compare a value-from-dict against a literal via op.
 ## key_field: which sub-key holds the dict-key name ("key" or "field").
-static func _eval_kv(label: String, spec, source: Dictionary, key_field: String = "key") -> bool:
+static func _eval_kv(_label: String, spec, source: Dictionary, key_field: String = "key") -> bool:
 	if not (spec is Dictionary):
 		return false
 	var s: Dictionary = spec
