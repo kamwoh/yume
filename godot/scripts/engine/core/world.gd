@@ -14,7 +14,7 @@ class_name World
 ## that reads state.position. Same script powers world_2d.tscn and
 ## world_3d.tscn.
 
-@export_dir var data_root: String = ""  # e.g. "res://data/demo_ecology/"
+@export_dir var data_root: String = ""  # e.g. "res://data/demo_aldenmere/"
 @export var auto_start: bool = true
 @export var tick_seconds: float = 0.5
 @export var verbose: bool = false
@@ -162,7 +162,7 @@ func _init_coordinators() -> void:
 
 ## Look for `--game=<name>` in user args. The user-args separator `--`
 ## is required so Godot doesn't try to interpret these as engine flags.
-## Game names are folder names under `res://data/` (e.g. `demo_tinypond`).
+## Game names are folder names under `res://data/` (e.g. `demo_aldenmere`).
 func _resolve_data_root_from_cmdline() -> void:
 	for arg in OS.get_cmdline_user_args():
 		var s := str(arg)

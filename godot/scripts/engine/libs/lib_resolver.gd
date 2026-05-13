@@ -52,7 +52,7 @@ static func init_cache(data_root: String) -> void:
 	if _cache_loaded:
 		return
 	_cache_loaded = true
-	# data_root is the per-game folder (e.g. data/demo_merchant). Lib lives
+	# data_root is the per-game folder (e.g. data/demo_aldenmere). Lib lives
 	# at the SHARED root, one level up.
 	var shared_root := data_root.rstrip("/").get_base_dir()
 	var lib_root := shared_root + "/lib"
