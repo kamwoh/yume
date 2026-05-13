@@ -17,7 +17,6 @@ class_name EffectMotion
 ##
 ## All static. Resolution helpers in EffectResolution.
 
-
 # ============================================================
 # MOTION (W2 will also add the per-tick motion integrator alongside this)
 # ============================================================
@@ -208,7 +207,6 @@ static func pathfind_to(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 	Pathfinding.tick_pathfind(env, ent, dx, dy, dz, speed)
 
 
-
 # ============================================================
 # RAYCAST_HIT (ADR 0005)
 # ============================================================
@@ -219,7 +217,9 @@ static func pathfind_to(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void
 # miss: binds `hit_point` (ray endpoint or wall hit point) and runs
 # `on_miss`.
 static func raycast_hit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var origin: Vector3 = Vec3Util.from_world_pos(EffectResolution.position(e.get("origin", [0, 0, 0]), env, ctx))
+	var origin: Vector3 = Vec3Util.from_world_pos(
+		EffectResolution.position(e.get("origin", [0, 0, 0]), env, ctx)
+	)
 	var direction: Vector3 = Vec3Util.from_world_pos(
 		EffectResolution.position(e.get("direction", [0, 0, -1]), env, ctx)
 	)
@@ -395,4 +395,3 @@ static func _ray_sphere_t(origin: Vector3, dir: Vector3, center: Vector3, r: flo
 	if t > 0.0:
 		return t
 	return -1.0
-

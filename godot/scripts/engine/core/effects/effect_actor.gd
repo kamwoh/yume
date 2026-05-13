@@ -11,7 +11,6 @@ class_name EffectActor
 ##
 ## All static. Resolution helpers live in EffectResolution.
 
-
 # ============================================================
 # MULTI-ACTOR EFFECTS (ADR 0016)
 # ============================================================
@@ -206,5 +205,3 @@ static func party_ko(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 		member.set_velocity(Vector3.ZERO)
 	else:
 		member.set_velocity(Vector2.ZERO)
-
-

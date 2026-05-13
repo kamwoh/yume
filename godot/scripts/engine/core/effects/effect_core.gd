@@ -21,7 +21,6 @@ class_name EffectCore
 ## All static. Shared resolution lives in EffectResolution (target/value/etc.).
 ## Effect dispatcher (the apply() match) lives in EffectApply.
 
-
 # ============================================================
 # STATE EFFECTS
 # ============================================================
@@ -460,5 +459,3 @@ static func emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 		)
 		return
 	buf.append({"name": name, "payload": resolved_payload})
-
-

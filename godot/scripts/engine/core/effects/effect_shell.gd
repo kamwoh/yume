@@ -17,7 +17,6 @@ class_name EffectShell
 ## _push_overlay_event stay internal — only EffectShell handlers use them.
 
 
-
 ## ADR 0006: defer level transition. Sets env._pending_level_transition to
 ## target name; world.gd processes this between ticks (after the current
 ## rule's effect chain finishes) so we don't mutate entities mid-rule.
@@ -169,7 +168,6 @@ static func show_toast(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	_push_screen_event(env, {"event": "show_toast", "text": text, "duration": duration})
 
 
-
 ## Reload the entire current Godot scene. DESTRUCTIVE — anything queued
 ## after this in the same effect chain is silently dropped when the scene
 ## reload lands at end-of-frame. See `.claude/rules/engine-scripts.md`
@@ -304,5 +302,3 @@ static func set_input_mapping(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 	var new_ev := InputEventKey.new()
 	new_ev.keycode = keycode
 	InputMap.action_add_event(action, new_ev)
-
-
