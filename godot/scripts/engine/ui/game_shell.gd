@@ -43,11 +43,9 @@ var _hud_layer: CanvasLayer = null
 var _win_panel: Panel = null
 var _win_label: Label = null
 
-# Floor tint state — modulates floor color by a binding (e.g. clock.sunlight)
-var _floor: Polygon2D = null
-var _floor_tint_bind: String = ""
-var _floor_color_low: Color = Color.BLACK
-var _floor_color_high: Color = Color.WHITE
+# Bounds visual widget (Polygon2D floor + Line2D border, 2D demos). Holds
+# the day/night floor tint state if scene.json declares a `floor_tint_binding`.
+var _bounds_renderer: BoundsRenderer = null
 
 # Tier 2.6l — camera shake + screen flash. Rules emit_shell_event into
 # env.shell_event_buffer; we drain each frame and apply to camera/overlay.
@@ -119,7 +117,8 @@ func _ready() -> void:
 	# Apply tick_seconds override if specified
 	if _scene_cfg.has("tick_seconds") and _world.get("tick_seconds") != null:
 		_world.set("tick_seconds", float(_scene_cfg["tick_seconds"]))
-	_build_bounds()
+	_bounds_renderer = BoundsRenderer.new(self)
+	_bounds_renderer.build(_scene_cfg)
 	_build_hud()
 	_build_fade_overlay()
 	# Wire shell_event_buffer into the world's env so EffectApply._emit_shell_event
@@ -147,7 +146,7 @@ func _process(delta: float) -> void:
 	_handle_pause_input()
 	_update_camera_follow()
 	_update_bound_elements()
-	_update_floor_tint()
+	_bounds_renderer.update_floor_tint()
 	_drain_shell_events()
 	_update_shake_and_flash()
 	_update_fade(delta)
@@ -249,60 +248,6 @@ func _read_json(path: String) -> Dictionary:
 	if resolved is Dictionary:
 		return resolved as Dictionary
 	return data as Dictionary
-
-
-# ============================================================
-# BOUNDS VISUAL (Polygon2D floor + Line2D border)
-# ============================================================
-
-
-func _build_bounds() -> void:
-	var b: Dictionary = _scene_cfg.get("bounds", {}) as Dictionary
-	if b.is_empty():
-		return
-	var lo: Vector2 = _to_vec2(b.get("min", [-300, -200]))
-	var hi: Vector2 = _to_vec2(b.get("max", [300, 200]))
-
-	# Add bounds as our own children — they render in the default world canvas
-	# regardless of parent (CanvasItem inheritance), and we avoid touching
-	# World during its _ready (which Godot rejects with "parent busy").
-	if b.has("floor_color") or b.has("floor_color_day"):
-		var floor := Polygon2D.new()
-		floor.polygon = PackedVector2Array(
-			[
-				Vector2(lo.x, lo.y),
-				Vector2(hi.x, lo.y),
-				Vector2(hi.x, hi.y),
-				Vector2(lo.x, hi.y),
-			]
-		)
-		floor.color = _color(b.get("floor_color_day", b.get("floor_color", "#222")))
-		floor.z_index = -50
-		add_child(floor)
-		_floor = floor
-		# Optional: tint floor by a state binding (e.g. clock.sunlight) — lerps
-		# between floor_color_night (low) and floor_color_day (high) per frame.
-		if b.has("floor_tint_binding"):
-			_floor_tint_bind = str(b["floor_tint_binding"])
-			_floor_color_high = _color(b.get("floor_color_day", "#3a8090"))
-			_floor_color_low = _color(b.get("floor_color_night", "#0a0820"))
-
-	if b.has("border_color"):
-		var border := Line2D.new()
-		border.points = PackedVector2Array(
-			[
-				Vector2(lo.x, lo.y),
-				Vector2(hi.x, lo.y),
-				Vector2(hi.x, hi.y),
-				Vector2(lo.x, hi.y),
-				Vector2(lo.x, lo.y),
-			]
-		)
-		border.width = float(b.get("border_width", 4))
-		border.default_color = _color(b["border_color"])
-		border.joint_mode = Line2D.LINE_JOINT_BEVEL
-		border.z_index = -49
-		add_child(border)
 
 
 # ============================================================
@@ -515,18 +460,6 @@ func _advance_fade_phase() -> void:
 		FADE_PHASE_IN:
 			_fade_phase = FADE_PHASE_IDLE
 
-
-## Lerp the floor color between night (low) and day (high) based on the
-## binding value (expected 0..1, e.g. clock.sunlight). No-op if no binding
-## was configured in scene.json.
-func _update_floor_tint() -> void:
-	if _floor == null or _floor_tint_bind == "":
-		return
-	var v = _resolve_binding(_floor_tint_bind)
-	if v == null:
-		return
-	var t: float = clamp(float(v), 0.0, 1.0)
-	_floor.color = _floor_color_low.lerp(_floor_color_high, t)
 
 
 ## Tier 2.6o — camera mode dispatch. scene.json's camera.mode picks one of:
