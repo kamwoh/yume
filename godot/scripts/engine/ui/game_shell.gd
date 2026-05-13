@@ -97,9 +97,8 @@ var _camera_snap_pending: bool = false
 # Per-element binding state — { Control_node : binding_spec_dict }
 var _bound_elements: Array = []
 
-var _won: bool = false
-var _lost: bool = false
-var _sustain_counter: int = 0
+# Win/lose widget — owns _won / _lost / sustain counter + condition check.
+var _win_lose: WinLoseWidget = null
 
 # ============================================================
 # LIFECYCLE
@@ -119,6 +118,7 @@ func _ready() -> void:
 		_world.set("tick_seconds", float(_scene_cfg["tick_seconds"]))
 	_bounds_renderer = BoundsRenderer.new(self)
 	_bounds_renderer.build(_scene_cfg)
+	_win_lose = WinLoseWidget.new(self)
 	_build_hud()
 	_build_fade_overlay()
 	# Wire shell_event_buffer into the world's env so EffectApply._emit_shell_event
@@ -131,7 +131,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if _won or _lost:
+	if _win_lose.is_ended():
 		# After freeze, only listen for restart or quit
 		if Input.is_action_just_pressed("ui_accept") or Input.is_key_label_pressed(KEY_R):
 			get_tree().reload_current_scene()
@@ -150,7 +150,7 @@ func _process(delta: float) -> void:
 	_drain_shell_events()
 	_update_shake_and_flash()
 	_update_fade(delta)
-	_check_win_lose()
+	_win_lose.check(_hud_cfg)
 
 
 ## Drain game-level pending pipelines (level transition, save/load,
@@ -1430,84 +1430,6 @@ func _format_value(v) -> String:
 		return "%d" % int(v)  # round to int by default for HUD
 	return str(v)
 
-
-# ============================================================
-# WIN / LOSE
-# ============================================================
-
-
-func _check_win_lose() -> void:
-	var win_cfg: Dictionary = _hud_cfg.get("win", {}) as Dictionary
-	if not win_cfg.is_empty() and _matches(win_cfg):
-		_show_outcome(
-			_resolve_message(str(win_cfg.get("message", "🌟 YOU WIN! 🌟\nPress R to restart"))), true
-		)
-		return
-	var lose_cfg: Dictionary = _hud_cfg.get("lose", {}) as Dictionary
-	if not lose_cfg.is_empty():
-		var hit := _matches(lose_cfg)
-		var sustained := int(lose_cfg.get("sustained", 0))
-		if hit:
-			_sustain_counter += 1
-			if _sustain_counter >= sustained:
-				_show_outcome(
-					_resolve_message(
-						str(lose_cfg.get("message", "💀 GAME OVER\nPress R to restart"))
-					),
-					false
-				)
-		else:
-			_sustain_counter = max(0, _sustain_counter - 1)
-
-
-## ADR 0009 Phase 2c: pass strings through @-prefix resolution. Falls
-## back to literal text if not @-prefixed or ref unresolved.
-func _resolve_message(s: String) -> String:
-	if not s.begins_with("@"):
-		return s
-	var resolved := _resolve_at_ref(s)
-	return resolved if resolved != "" else s
-
-
-func _matches(cond: Dictionary) -> bool:
-	var binding := str(cond.get("binds", ""))
-	var op := str(cond.get("op", ">="))
-	var threshold = cond.get("value", 0)
-	var v = _resolve_binding(binding)
-	if v == null:
-		return false
-	var lhs := float(v)
-	var rhs := float(threshold)
-	match op:
-		">=":
-			return lhs >= rhs
-		">":
-			return lhs > rhs
-		"<=":
-			return lhs <= rhs
-		"<":
-			return lhs < rhs
-		"==":
-			return lhs == rhs
-		"!=":
-			return lhs != rhs
-	return false
-
-
-func _show_outcome(message: String, won: bool) -> void:
-	if _won or _lost:
-		return
-	if won:
-		_won = true
-	else:
-		_lost = true
-	if _win_label != null:
-		_win_label.text = message + "\n\nPress R to restart"
-	if _win_panel != null:
-		_win_panel.visible = true
-	# Freeze World — stops input polling + motion integration. HUD keeps running.
-	if _world != null and _world.has_method("set_process"):
-		_world.set_process(false)
 
 
 # ============================================================
