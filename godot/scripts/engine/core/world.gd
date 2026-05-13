@@ -179,7 +179,9 @@ func _resolve_data_root_from_cmdline() -> void:
 
 
 ## Load entity defs, initial instances, initial relations, rules, and world
-## state from `data_root/`. Order: rules → entities → world → initial flush.
+## state from `data_root/`. Boot sequence is in WorldBoot (see
+## coordinators/world_boot.gd) — its run() reads as a TOC of boot phases.
+##
 ## Rules load first so that spawn-triggered rules can fire during initial
 ## entity load (per W0 finding on lifecycle-flush-at-load).
 ##
@@ -191,150 +193,7 @@ func _resolve_data_root_from_cmdline() -> void:
 ## loaded" warning on an old game, rename world_rules.json →
 ## world/physics.json (or split per Phase 3b classification).
 func load_data() -> void:
-	var root := data_root.rstrip("/")
-	# ADR 0027 — load shared `data/lib/**.json` into LibResolver cache
-	# BEFORE any per-game JSON loader runs. Resolver runs cache-once
-	# subsequent calls are no-op. Lets later loaders (entities, rules,
-	# screens, scene, hud) call LibResolver.resolve transparently.
-	LibResolver.init_cache(root)
-	# Tier 2.6t — register per-game input actions from inputs.json (if any).
-	# Lets games own their input vocabulary; project.godot stays generic.
-	# v2.6r: registrar returns press/hold action names so the engine extends
-	# its poll lists. Without this, per-game actions get InputMap entries
-	# but never reach the rule scheduler.
-	# ADR 0009: registrar also checks new ui/input.json path.
-	var registered: Dictionary = InputRegistrar.register_from_data_root(root)
-	for n in registered.get("press", []) as Array:
-		if not (input_actions_press as Array).has(str(n)):
-			input_actions_press.append(str(n))
-	for n in registered.get("hold", []) as Array:
-		if not (input_actions_hold as Array).has(str(n)):
-			input_actions_hold.append(str(n))
-	# v2.6: scene.json may declare a `level_seed` integer that's applied to
-	# Godot's global PRNG before any pattern/scatter/cluster runs. Makes
-	# procedurally-generated layouts reproducible — same seed = same map.
-	# Omit for stochastic per-session randomization.
-	_loader.apply_level_seed_if_set(root)
-	# ADR 0019: load per-game macros (if any) BEFORE rules, so every
-	# rules file (world/physics.json, game/rules.json, levels/<n>/rules.json,
-	# tutorial.json) can reference the same macro vocabulary. Empty
-	# expander if no macros.json present (no-op pass-through).
-	macro_expander = MacroExpander.load_from_data_root(root, _build_env())
-	# ADR 0016: load (or synthesize) actor config. Single code path —
-	# legacy single-player demos get a synthesized default actor whose
-	# starting_entity_tag = the existing actor_tag export var. Mirror
-	# active_actor_id into world_state so bindings can read it.
-	actor_manager = ActorManager.load_or_synthesize(root, actor_tag)
-	world_state["active_actor_id"] = actor_manager.active_actor_id
-	# ADR 0018 Phase A: load scripted policies for any ai_policy actors.
-	# No-op for legacy demos (no ai_policy actors in synthesized default).
-	actor_manager.load_policies(root)
-	# ADR 0006: multi-level support. If game/flow.json exists, load
-	# progression + the starting level's content. Persistent entities come
-	# from the root's entities.json. Otherwise (single-level games), load
-	# entities + rules from the root directly.
-	var prog_path := root + "/game/flow.json"
-	if FileAccess.file_exists(prog_path):
-		_loader.load_progression(prog_path)
-		# Global rules (cross-level): physics first (register), game-rules
-		# appended. Per-level rules append on top in _load_level.
-		_loader.load_rules_file(root + "/world/physics.json")
-		_loader.load_rules_file(root + "/game/rules.json", true)
-		# ADR 0012: tutorial.json — optional, treated as additional rules
-		# at global scope. Steps are rules whose effects fire show_overlay /
-		# dismiss_overlay; sequencing via overlay_advanced signal + state.
-		_loader.load_rules_file(root + "/tutorial.json", true)
-		_loader.load_world_file(root + "/world/state.json")
-		# Per ADR 0006: tag persistent entities "persistent" to survive
-		# level transitions.
-		_loader.load_entities_path(root)
-		if current_level != "":
-			_level_transitions.load_level(current_level)
-	else:
-		# Single-level layout
-		_loader.load_rules_file(root + "/world/physics.json")
-		_loader.load_rules_file(root + "/game/rules.json", true)
-		_loader.load_rules_file(root + "/tutorial.json", true)
-		_loader.load_world_file(root + "/world/state.json")
-		_loader.load_entities_path(root)
-		# ADR 0024: build navmesh for single-level games (multi-level
-		# games build inside _load_level). No-op when no walkable_floor
-		# entities exist.
-		if scheduler != null:
-			Pathfinding.build_navmesh_for_level(scheduler.env)
-	# ADR 0031: load zones.json (optional). Backward-compat — absent file
-	# means no zones, no overhead. Loads AFTER entities + world_state so
-	# error reports can reach env.error_buffer; loads BEFORE save layer
-	# so saved zone_state restores on top of state_init.
-	_loader.load_zones_file(root + "/world/zones.json")
-	# ADR 0014: open-world chunk streaming. world.json declares chunked-world
-	# mode; absent means single-chunk legacy mode (no streaming, no chunks
-	# directory consulted). When present:
-	#   - chunks/_persistent/entities.json is loaded ONCE (entities live for
-	#     the whole session, regardless of chunk eviction)
-	#   - the starting chunk + stream_radius neighbors are loaded
-	#   - per-tick update() in _process tick branch handles drift loads/unloads
-	chunk_streamer = ChunkStreamer.try_load(root, verbose)
-	if chunk_streamer != null:
-		# Persistent chunk first — its entities never leave env.entities.
-		var persist_dir := root + "/chunks/_persistent"
-		if DirAccess.dir_exists_absolute(persist_dir):
-			_loader.load_entities_file(persist_dir + "/entities.json")
-		# Boot: load starting_chunk + stream_radius neighbors.
-		chunk_streamer.boot(_build_env())
-	# ADR 0009 Phase 2d: variant overlay applies after rules + world_state +
-	# entities are loaded. Read variant name from scene.json's "variant" key
-	# or YUME_VARIANT env var. Variant file at variants/<name>.json applies
-	# rule-id-keyed field overrides + world_state overrides + entity-id state
-	# overrides. Purely additive — cannot change rule structure.
-	# Extracted to VariantOverlay module 2026-05-12.
-	VariantOverlay.new(self).apply(root)
-	# ADR 0010: load save policy + expose has_save binding for menus.
-	save_policy = SaveState.load_policy(root)
-	if not save_policy.is_empty():
-		var slots := int(save_policy.get("slots", 1))
-		var game := SaveLoadCoordinator.game_name_from_root(data_root)
-		world_state["has_save"] = 1 if SaveState.has_any_save(game, slots) else 0
-	else:
-		world_state["has_save"] = 0
-	# Mount + register sibling Director nodes that were placed in the
-	# scene tree by the per-game .tscn. Each is optional — absence is
-	# backward-compat for games that don't need that ADR's capability.
-	# Ordering matters: all run AFTER entities + world_state load so
-	# directors that scan env.entities (schedules, lifecycles, factions)
-	# see the full live set. Table-driven — to add a new ADR director,
-	# add one row to _BOOT_DIRECTORS.
-	_mount_boot_directors(root)
-	if get_node_or_null("DynastyDirector") != null and verbose:
-		# ADR 0034: no boot-time data load — heir state lives on actor
-		# entities and serializes via the normal snapshot path. Just log
-		# presence for visibility; the four succession effects detect
-		# the director at fire-time.
-		print("[World] DynastyDirector mounted (ADR 0034)")
-	# ADR 0032: FactionDirector loads faction defs + initial relationships
-	# from <root>/factions.json if present. No-op for games without
-	# politics. Loaded after entities so member_count bindings can resolve
-	# against the live entity set on first tick.
-	_loader.load_factions_file(root + "/factions.json")
-	scheduler.flush_effects()
-	# ADR 0041: render-side batching for static decoration. Runs AFTER all
-	# entities are loaded + rules registered (the director scans rules to
-	# decide which entities are static). No-op when no mesh def has
-	# multimesh_eligible: true (backward-compat for all existing demos).
-	_run_multimesh_director()
-	if verbose:
-		var lvl_str := (" [level: " + current_level + "]") if current_level != "" else ""
-		print(
-			(
-				"[World] loaded: %d defs, %d entities, %d relations%s"
-				% [
-					defs.size(),
-					entities.size(),
-					relations.count_total(),
-					lvl_str,
-				]
-			),
-		)
+	WorldBoot.new(self).run()
 
 
 # ADR 0041 — bootstrap the multimesh director (lazy-init on first use).
