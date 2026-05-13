@@ -396,10 +396,11 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	_camera3d.global_position = target + Vector3(0, eye_height, 0)
 	_camera3d.rotation = Vector3(pitch, facing, 0)
 	_apply_ortho(cam_cfg, false)
-	# Viewmodel + crosshair target live on GameShell for now (will be their
-	# own widget). Cross-call via shell back-ref.
-	_shell.call("_setup_viewmodel", cam_cfg)
-	_shell.call("_update_viewmodel", actor, cam_cfg)
+	# Viewmodel is its own widget owned by GameShell.
+	var vm = _shell.get("_viewmodel_director")
+	if vm != null:
+		vm.setup(cam_cfg)
+		vm.update(actor, cam_cfg)
 	_update_crosshair_target(actor, cam_cfg)
 
 
