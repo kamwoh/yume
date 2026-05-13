@@ -15,7 +15,6 @@ class_name WinLoseWidget
 ## HudBuilder) and shell._resolve_binding / shell._resolve_at_ref for
 ## per-frame binding evaluation.
 
-
 var _shell: Node = null  # GameShell back-ref
 var _won: bool = false
 var _lost: bool = false
@@ -37,10 +36,7 @@ func check(hud_cfg: Dictionary) -> void:
 	var win_cfg: Dictionary = hud_cfg.get("win", {}) as Dictionary
 	if not win_cfg.is_empty() and _matches(win_cfg):
 		_show_outcome(
-			_resolve_message(
-				str(win_cfg.get("message", "🌟 YOU WIN! 🌟\nPress R to restart"))
-			),
-			true
+			_resolve_message(str(win_cfg.get("message", "🌟 YOU WIN! 🌟\nPress R to restart"))), true
 		)
 		return
 	var lose_cfg: Dictionary = hud_cfg.get("lose", {}) as Dictionary

@@ -15,7 +15,6 @@ class_name BoundsRenderer
 ## No-op when scene.json has no `bounds` block (3D demos, single-room
 ## scenes, etc.).
 
-
 var _shell: Node = null  # GameShell back-ref
 var _floor: Polygon2D = null
 var _floor_tint_bind: String = ""

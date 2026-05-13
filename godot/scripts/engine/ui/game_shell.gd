@@ -37,21 +37,21 @@ var _hud_cfg: Dictionary = {}
 
 # Runtime references built in _ready
 var _world: Node = null  # parent (World instance)
-var _camera: Camera2D = null  # 2D mode camera (if scene has Camera2D)
-var _camera3d: Camera3D = null  # 3D mode camera (if scene has Camera3D)
 var _hud_layer: CanvasLayer = null
 var _win_panel: Panel = null
 var _win_label: Label = null
 
-# Bounds visual widget (Polygon2D floor + Line2D border, 2D demos). Holds
-# the day/night floor tint state if scene.json declares a `floor_tint_binding`.
+# Bounds visual widget (Polygon2D floor + Line2D border, 2D demos).
 var _bounds_renderer: BoundsRenderer = null
 
-# Tier 2.6l — camera shake + screen flash. Rules emit_shell_event into
-# env.shell_event_buffer; we drain each frame and apply to camera/overlay.
-var _shake_remaining: int = 0  # frames left of shake
-var _shake_intensity: float = 0.0  # px offset magnitude
-var _camera_base_pos: Vector2 = Vector2.ZERO
+# Camera widget — owns Camera2D/3D refs, all camera modes, shake state,
+# snap-pending latch, FP mouse capture state. Per-frame: update_follow +
+# apply_shake. Rules emit_shell_event "shake" → set_shake().
+var _camera_director: CameraDirector = null
+
+# Tier 2.6l — screen flash overlay state (HUD-tier; not camera). Rules
+# emit_shell_event "flash" → fills overlay color for `_flash_remaining`
+# frames, then fades.
 var _flash_overlay: ColorRect = null
 var _flash_remaining: int = 0
 var _flash_color: Color = Color(1, 0, 0, 0.5)
@@ -81,19 +81,6 @@ var _fade_phase: int = FADE_PHASE_IDLE
 var _fade_pending_target: String = ""
 var _fade_half_duration: float = 0.0
 
-# Camera-snap latch — set true when the world swaps levels via
-# transition_level. Each camera-follow method consumes the flag,
-# sets position directly (no lerp) for one frame, then clears it.
-# Without this, the smooth-follow lerp_t (~0.18) takes ~0.3-0.5s to
-# cover the per-level coordinate jump (e.g. pendrel-player at
-# ~(46,75) → brookhaven-player at (25,25), ~55m). During the lerp
-# the camera frustum sweeps over empty terrain, the new level's
-# entities sit OUTSIDE frustum, and the player sees only sky+ground
-# until the camera arrives. Empirical 2026-05-08: merchant_bug.mp4.
-# Technical term: "camera-follow lerp lag across a level
-# discontinuity" (informally: "missed cut", "unsnapped camera").
-var _camera_snap_pending: bool = false
-
 # Per-element binding state — { Control_node : binding_spec_dict }
 var _bound_elements: Array = []
 
@@ -110,8 +97,8 @@ func _ready() -> void:
 	if _world == null or not _world.has_method("_build_env"):
 		push_error("GameShell must be a child of a World node")
 		return
-	_camera = _world.get_node_or_null("Camera2D")
-	_camera3d = _world.get_node_or_null("Camera3D")
+	_camera_director = CameraDirector.new(self)
+	_camera_director.bind_cameras(_world)
 	_load_configs()
 	# Apply tick_seconds override if specified
 	if _scene_cfg.has("tick_seconds") and _world.get("tick_seconds") != null:
@@ -144,7 +131,7 @@ func _process(delta: float) -> void:
 	# apply before any UI binding refresh.
 	_drain_game_pipelines()
 	_handle_pause_input()
-	_update_camera_follow()
+	_camera_director.update_follow(_scene_cfg)
 	_update_bound_elements()
 	_bounds_renderer.update_floor_tint()
 	_drain_shell_events()
@@ -275,9 +262,7 @@ func _drain_shell_events() -> void:
 			"shake":
 				var intensity := float(ev.get("intensity", 4.0))
 				var duration := int(ev.get("duration", 8))
-				if intensity * duration > _shake_intensity * _shake_remaining:
-					_shake_intensity = intensity
-					_shake_remaining = duration
+				_camera_director.set_shake(intensity, duration)
 			"flash":
 				var color = ev.get("color", "#ff0000")
 				_flash_color = _color(color)
@@ -351,7 +336,7 @@ func _drain_shell_events() -> void:
 							var sched_inst = _world.get("scheduler")
 							if sched_inst != null and sched_inst.get("env") != null:
 								(sched_inst.env as Dictionary)["_pending_level_transition"] = target
-						_camera_snap_pending = true
+						_camera_director.set_snap_pending()
 						continue
 					var color = ev.get("color", "#000000")
 					_fade_color = _color(color)
@@ -362,22 +347,10 @@ func _drain_shell_events() -> void:
 					_fade_phase = FADE_PHASE_OUT
 
 
-## Apply current shake offset to camera + flash alpha to overlay. Both
-## decay each frame. No-op when neither is active.
+## Apply shake offset + flash alpha. Camera shake lives in CameraDirector;
+## flash overlay is HUD-tier and stays here. Both decay each frame.
 func _update_shake_and_flash() -> void:
-	if _camera != null:
-		if _shake_remaining > 0:
-			# Snapshot the camera's "base" position only when starting fresh
-			# so we don't accumulate drift.
-			var offset := Vector2(
-				(randf() - 0.5) * 2.0 * _shake_intensity, (randf() - 0.5) * 2.0 * _shake_intensity
-			)
-			_camera.offset = offset
-			_shake_remaining -= 1
-			if _shake_remaining <= 0:
-				_camera.offset = Vector2.ZERO
-		elif _camera.offset != Vector2.ZERO:
-			_camera.offset = Vector2.ZERO
+	_camera_director.apply_shake()
 	if _flash_overlay != null:
 		if _flash_remaining > 0:
 			var t: float = float(_flash_remaining) / 12.0
@@ -450,7 +423,7 @@ func _advance_fade_phase() -> void:
 			# Camera must snap to the new player position (next frame); the
 			# old smooth-follow lerp would interpolate from the OLD level's
 			# coords to the new level's coords, exposing empty terrain.
-			_camera_snap_pending = true
+			_camera_director.set_snap_pending()
 			_fade_target_alpha = 0.0
 			_fade_duration_remaining = _fade_half_duration
 			_fade_phase = FADE_PHASE_IN
@@ -459,396 +432,6 @@ func _advance_fade_phase() -> void:
 				_fade_phase = FADE_PHASE_IDLE
 		FADE_PHASE_IN:
 			_fade_phase = FADE_PHASE_IDLE
-
-
-
-## Tier 2.6o — camera mode dispatch. scene.json's camera.mode picks one of:
-##   top_down_2d    : Camera2D, optional follow_tag, optional zoom (default)
-##   side_scroll_2d : Camera2D, follow x-axis only, y clamped to config
-##   fixed          : Camera2D held at camera.position, no follow
-##   top_down_3d    : Camera3D directly above entity, orthographic
-##   isometric_3d   : Camera3D at 45° angle behind/above, orthographic
-##   third_person_3d: Camera3D offset behind entity, perspective (no mouse)
-##   first_person_3d: Camera3D at entity eye height (Phase 3 — needs mouse)
-##
-## Default if unspecified: top_down_2d (preserves prior behavior).
-## 3D modes require Camera3D in scene + 3D mesh visual fields on entities.
-## Phase 3 adds mouse-look for first_person_3d and orbit for third_person_3d.
-func _update_camera_follow() -> void:
-	var cam_cfg: Dictionary = _scene_cfg.get("camera", {}) as Dictionary
-	if cam_cfg.is_empty():
-		return
-	# Tier 2.6 (2026-05-08): per-frame override from world_state. Lets a
-	# rule fire `state_set target=world field=camera_mode value="third_person_3d"`
-	# to swap the live camera mode without engine code changes. No-op when
-	# the override field isn't set. Empirical case: merchant V-key
-	# toggle_camera couldn't actually do anything because there was no
-	# runtime-mutable camera-mode path. Now: declare a simple cycle rule
-	# in game/rules.json that reads world.camera_mode and rotates it.
-	# Override camera mode from world_clock entity's state.camera_mode if set.
-	# Lets a rule fire `state_set target=self field=camera_mode value=...`
-	# (with query.tags_all=["world_clock"]) to swap modes at runtime without
-	# engine code changes. Empirical case: merchant V-key toggle 2026-05-08.
-	var override_mode := ""
-	if _world != null:
-		var sched = _world.get("scheduler")
-		if sched != null and sched.get("env") != null:
-			var ents: Dictionary = sched.env.get("entities", {}) as Dictionary
-			for eid in ents:
-				var e = ents[eid]
-				if e == null:
-					continue
-				if e.has_method("has_tag") and e.has_tag("world_clock"):
-					var st: Dictionary = e.state as Dictionary
-					override_mode = str(st.get("camera_mode", ""))
-					break
-	# NB: avoid Godot 4.6.1 ternary `a if c else b` — broken (always returns
-	# IF branch). Use explicit branch.
-	var mode: String = ""
-	if override_mode != "":
-		mode = override_mode
-	else:
-		mode = str(cam_cfg.get("mode", "top_down_2d"))
-	# 2026-05-08: detect transitions in/out of first_person_3d. Capture
-	# mouse on enter, release on leave. Reset _fp_initial_capture_done
-	# so re-entering FP via V-cycle re-captures cleanly. Also reset
-	# actor.facing on leaving FP so non-FP modes don't carry stale yaw.
-	if mode != _camera_mode_last:
-		var was_fp := _camera_mode_last == "first_person_3d"
-		var is_fp := mode == "first_person_3d"
-		if was_fp and not is_fp:
-			# Leaving FP — release cursor + reset facing/pitch so iso/
-			# top-down modes start fresh.
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-			_fp_initial_capture_done = false
-			var actor := _find_entity_by_tag(str(cam_cfg.get("follow_tag", "player")))
-			if actor != null:
-				actor.set_state("facing", 0.0)
-				actor.set_state("pitch", 0.0)
-		if not was_fp and is_fp:
-			# Entering FP — let _camera_first_person_3d's own capture path
-			# fire on this frame (it checks _fp_initial_capture_done).
-			_fp_initial_capture_done = false
-		_camera_mode_last = mode
-	# 2D modes need Camera2D; 3D modes need Camera3D. If wrong type missing,
-	# silent skip — content responsibility.
-	match mode:
-		"top_down_2d":
-			if _camera != null:
-				_apply_2d_zoom(cam_cfg)
-				_camera_top_down_2d(cam_cfg)
-		"side_scroll_2d":
-			if _camera != null:
-				_apply_2d_zoom(cam_cfg)
-				_camera_side_scroll_2d(cam_cfg)
-		"fixed":
-			if _camera != null:
-				_apply_2d_zoom(cam_cfg)
-				_camera_fixed(cam_cfg)
-		"top_down_3d":
-			if _camera3d != null:
-				_camera_top_down_3d(cam_cfg)
-		"isometric_3d":
-			if _camera3d != null:
-				_camera_isometric_3d(cam_cfg)
-		"third_person_3d":
-			if _camera3d != null:
-				_camera_third_person_3d(cam_cfg)
-		"first_person_3d":
-			if _camera3d != null:
-				_camera_first_person_3d(cam_cfg)
-		_:
-			# Unknown mode — fall back to top_down_2d
-			if _camera != null:
-				_apply_2d_zoom(cam_cfg)
-				_camera_top_down_2d(cam_cfg)
-
-
-func _apply_2d_zoom(cam_cfg: Dictionary) -> void:
-	if cam_cfg.has("zoom") and _camera != null:
-		var z = _to_vec2(cam_cfg["zoom"])
-		if _camera.zoom != z:
-			_camera.zoom = z
-
-
-func _camera_top_down_2d(cam_cfg: Dictionary) -> void:
-	# Mode A: center camera on bounding box of entities matching a tag.
-	# Useful for grid-based games where the WHOLE level should fit the
-	# viewport regardless of where the player is. Sokoban uses this with
-	# tag="floor" so the camera frames the play area.
-	# Also auto-zooms to fit when "fit_padding" is set: scales the camera
-	# zoom so the bbox fits in the viewport with the given pixel padding.
-	if cam_cfg.has("center_on_tag"):
-		var bound_tag := str(cam_cfg["center_on_tag"])
-		var bbox := _bbox_of_entities_with_tag(bound_tag)
-		if bbox.has("center"):
-			var lerp_t := float(cam_cfg.get("lerp", 0.08))
-			var center_v = bbox["center"]
-			if center_v is Vector2:
-				if _camera_snap_pending:
-					_camera.position = center_v as Vector2
-					_camera_snap_pending = false
-				else:
-					_camera.position = _camera.position.lerp(center_v as Vector2, lerp_t)
-		# Auto-zoom-to-fit: optional. Only applies when bbox has size and
-		# fit_padding is set. Computes zoom so bbox + 2*padding fits the
-		# viewport. Values > 1 zoom IN (smaller world view); < 1 zoom OUT.
-		if cam_cfg.has("fit_padding") and bbox.has("size"):
-			var pad := float(cam_cfg["fit_padding"])
-			var bsz_v = bbox["size"]
-			if bsz_v is Vector2:
-				var bsz := bsz_v as Vector2
-				var vp_size := _camera.get_viewport_rect().size
-				var target_w: float = bsz.x + 2.0 * pad
-				var target_h: float = bsz.y + 2.0 * pad
-				var zx: float = vp_size.x / float(max(target_w, 1.0))
-				var zy: float = vp_size.y / float(max(target_h, 1.0))
-				var z: float = float(min(zx, zy))
-				# Clamp to a sensible range (don't zoom in past 4x / out past 0.25x).
-				z = clamp(z, 0.25, 4.0)
-				var target_zoom := Vector2(z, z)
-				var z_lerp := float(cam_cfg.get("zoom_lerp", 0.08))
-				_camera.zoom = _camera.zoom.lerp(target_zoom, z_lerp)
-		return
-	# Mode B: follow_tag — camera tracks one entity (e.g. player in a
-	# scrolling world).
-	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "":
-		return
-	var ent := _find_entity_by_tag(tag)
-	if ent == null:
-		return
-	if not ent.has_method("get_position"):
-		return
-	var p = ent.get_position()
-	if p is Vector2:
-		var lerp_t := float(cam_cfg.get("lerp", 0.08))
-		if _camera_snap_pending:
-			_camera.position = p as Vector2
-			_camera_snap_pending = false
-		else:
-			_camera.position = _camera.position.lerp(p as Vector2, lerp_t)
-
-
-func _bbox_of_entities_with_tag(tag: String) -> Dictionary:
-	var entities: Dictionary = _world.scheduler.env.get("entities", {})
-	var min_x := INF
-	var min_y := INF
-	var max_x := -INF
-	var max_y := -INF
-	var found := false
-	for id in entities:
-		var ent = entities[id]
-		if not (ent is Entity):
-			continue
-		if not (ent as Entity).has_tag(tag):
-			continue
-		var p = (ent as Entity).get_position()
-		if not (p is Vector2):
-			continue
-		var v := p as Vector2
-		min_x = min(min_x, v.x)
-		max_x = max(max_x, v.x)
-		min_y = min(min_y, v.y)
-		max_y = max(max_y, v.y)
-		found = true
-	if not found:
-		return {}
-	return {
-		"center": Vector2((min_x + max_x) * 0.5, (min_y + max_y) * 0.5),
-		"size": Vector2(max_x - min_x, max_y - min_y),
-	}
-
-
-## Side-scroller: camera follows entity's x; y stays at config value
-## (or initial position if no fixed_y given). Common for platformers.
-func _camera_side_scroll_2d(cam_cfg: Dictionary) -> void:
-	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "":
-		return
-	var ent := _find_entity_by_tag(tag)
-	if ent == null:
-		return
-	if not ent.has_method("get_position"):
-		return
-	var p = ent.get_position()
-	if not (p is Vector2):
-		return
-	var lerp_t := float(cam_cfg.get("lerp", 0.08))
-	var fixed_y := float(cam_cfg.get("fixed_y", _camera.position.y))
-	var target := Vector2((p as Vector2).x, fixed_y)
-	if _camera_snap_pending:
-		_camera.position = target
-		_camera_snap_pending = false
-	else:
-		_camera.position = _camera.position.lerp(target, lerp_t)
-
-
-## Fixed camera: holds at camera.position from scene.json. No follow.
-## Common for cinematic / one-room observer games.
-func _camera_fixed(cam_cfg: Dictionary) -> void:
-	if cam_cfg.has("position"):
-		var pos := _to_vec2(cam_cfg["position"])
-		if _camera.position != pos:
-			_camera.position = pos
-
-
-# ============================================================
-# 3D CAMERA MODES (Tier 2.6o Phase 2)
-# ============================================================
-#
-# All three look at the followed entity. Set scene.json:
-#   "camera": {
-#     "mode": "top_down_3d" | "isometric_3d" | "third_person_3d",
-#     "follow_tag": "player",
-#     "lerp": 0.1,
-#     "height": 20,         // distance above target (3D world units)
-#     "distance": 12,       // (third_person_3d) distance behind target
-#     "ortho_size": 16      // (top_down_3d, isometric_3d) ortho viewport size
-#   }
-
-
-## Top-down 3D: Camera3D directly above entity, looking down. Orthographic.
-## an isometric farming sim look. World up is +Y; camera at (target.x, +height, target.z).
-func _camera_top_down_3d(cam_cfg: Dictionary) -> void:
-	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null:
-		return
-	var target: Vector3 = target_v
-	var height := float(cam_cfg.get("height", 20.0))
-	var lerp_t := float(cam_cfg.get("lerp", 0.1))
-	var desired := target + Vector3(0, height, 0)
-	if _camera_snap_pending:
-		_camera3d.global_position = desired
-		_camera_snap_pending = false
-	else:
-		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
-	_camera3d.look_at(target, Vector3(0, 0, -1))
-	_apply_ortho(cam_cfg, true)
-
-
-## Isometric 3D: Camera3D at 45° angle behind+above target. Orthographic.
-## Tactics-RPG / city-builder look. Convention: 45° rotation around Y, 30° tilt.
-func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
-	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null:
-		return
-	var target: Vector3 = target_v
-	var distance := float(cam_cfg.get("distance", 16.0))
-	var lerp_t := float(cam_cfg.get("lerp", 0.1))
-	# Standard isometric offset: 45° yaw + 30° pitch from target
-	var offset := Vector3(distance * 0.6, distance * 0.7, distance * 0.6)
-	var desired := target + offset
-	if _camera_snap_pending:
-		_camera3d.global_position = desired
-		_camera_snap_pending = false
-	else:
-		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
-	# Fixed-orientation iso: orient camera as if AT desired looking at
-	# target. For an orthographic camera, position-only translation with
-	# fixed orientation gives a stable iso view while the position lerps
-	# smoothly. Camera3D forward is -Z, so we use Basis.looking_at with
-	# use_model_front=FALSE (the default — aim -Z toward target). The
-	# direction is from desired (final vantage) → target, NOT from
-	# current_position → target, otherwise the basis re-aims while
-	# position lerps and the view visibly rotates. Empirical bug
-	# 2026-05-08: user reported "camera trying to rotate" while walking;
-	# fix took a previous attempt that used use_model_front=true,
-	# which flipped Camera3D forward to +Z and made the camera look
-	# AWAY from target — empty world. Reverted to default convention.
-	_camera3d.global_transform.basis = Basis.looking_at(target - desired, Vector3.UP, false)
-	_apply_ortho(cam_cfg, true)
-
-
-## Third-person 3D: Camera3D orbits behind entity using state.facing.
-## Mouse-x → facing yaw via _drain_mouse_facing. Camera positioned at
-## (target - forward * distance + up * height). Action-adventure / MMO feel.
-func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
-	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null:
-		return
-	var target: Vector3 = target_v
-	var actor = _drain_mouse_facing(cam_cfg)
-	var facing := 0.0
-	if actor != null:
-		facing = float(actor.get_state("facing", 0.0))
-	var distance := float(cam_cfg.get("distance", 12.0))
-	var height := float(cam_cfg.get("height", 5.0))
-	var lerp_t := float(cam_cfg.get("lerp", 0.1))
-	# Forward = (-sin, 0, -cos); camera sits opposite (behind player)
-	var fx := -sin(facing)
-	var fz := -cos(facing)
-	var desired := target + Vector3(-fx * distance, height, -fz * distance)
-	if _camera_snap_pending:
-		_camera3d.global_position = desired
-		_camera_snap_pending = false
-	else:
-		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
-	_camera3d.look_at(target, Vector3.UP)
-	_apply_ortho(cam_cfg, false)
-
-
-## First-person 3D: Camera3D at entity eye height, rotated by state.facing.
-## Mouse-x → facing yaw, mouse-y → optional pitch (clamped). Doom/FPS feel.
-## Cursor capture: lock at first frame; ESC releases; click recaptures.
-## (Look loop self-disables when cursor is visible — user is paused.)
-func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
-	var target_v = _follow_target_3d(cam_cfg)
-	if target_v == null:
-		return
-	var target: Vector3 = target_v
-	# Modal / overlay open? Release the mouse so the player can click
-	# screen buttons (Continue, etc.). Skip mouse-look. When the modal
-	# closes (freeze flag → 0), _fp_initial_capture_done flip below
-	# re-captures on the next FP frame. Empirical case 2026-05-11:
-	# Aldenmere Morwen dialog opened with mouse still captured by FP
-	# → player couldn't reach the Continue button + ESC quit the game
-	# (game_shell._handle_pause_input second-press path).
-	var freeze_world := false
-	if _world != null:
-		var ws: Dictionary = _world.get("world_state") as Dictionary
-		if ws != null:
-			freeze_world = (
-				int(ws.get("screen_freeze_world", 0)) != 0
-				or int(ws.get("overlay_freeze_world", 0)) != 0
-			)
-	if freeze_world:
-		if Input.get_mouse_mode() != Input.MOUSE_MODE_VISIBLE:
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-		# Reset flag so re-entering gameplay grabs the mouse fresh.
-		_fp_initial_capture_done = false
-		return
-	# Initial capture only — don't fight ESC every frame
-	if not _fp_initial_capture_done:
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-		_fp_initial_capture_done = true
-	# Recapture if user clicks back into game while cursor is visible
-	if (
-		Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE
-		and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
-	):
-		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	var actor = _drain_mouse_facing(cam_cfg)
-	if actor == null:
-		return
-	var facing := float(actor.get_state("facing", 0.0))
-	var pitch := float(actor.get_state("pitch", 0.0))
-	var eye_height := float(cam_cfg.get("eye_height", 1.7))
-	_camera3d.global_position = target + Vector3(0, eye_height, 0)
-	_camera3d.rotation = Vector3(pitch, facing, 0)
-	_apply_ortho(cam_cfg, false)
-	# Tier 2.6r — Doom/CSGO-style first-person viewmodel. Mesh hangs in
-	# camera-local space (so it inherits camera rotation). Active mesh
-	# swaps based on the actor's state field (e.g. current_weapon).
-	_setup_viewmodel(cam_cfg)
-	_update_viewmodel(actor, cam_cfg)
-	# 2026-05-10: crosshair target. Find nearest entity in the camera's
-	# forward cone within max_distance, write its display_name to
-	# world_state.crosshair_target for the HUD label to read. Falls
-	# back to "" when nothing in sight. Cheap O(N actors) per frame —
-	# no spatial index needed for the small entity counts typical
-	# of an FP game.
-	_update_crosshair_target(actor, cam_cfg)
 
 
 # ============================================================
@@ -875,7 +458,7 @@ var _viewmodel_meshes: Dictionary = {}  # str(state value) → Node3D
 func _setup_viewmodel(cam_cfg: Dictionary) -> void:
 	if _viewmodel_root != null:
 		return
-	if _camera3d == null:
+	if _camera_director._camera3d == null:
 		return
 	var vm_cfg = cam_cfg.get("viewmodel", null)
 	if not (vm_cfg is Dictionary):
@@ -885,7 +468,7 @@ func _setup_viewmodel(cam_cfg: Dictionary) -> void:
 		return
 	_viewmodel_root = Node3D.new()
 	_viewmodel_root.name = "Viewmodel"
-	_camera3d.add_child(_viewmodel_root)
+	_camera_director._camera3d.add_child(_viewmodel_root)
 	var offset_arr: Array = vm_cfg.get("offset", [0.3, -0.25, -0.5])
 	if offset_arr.size() >= 3:
 		_viewmodel_root.position = Vector3(
@@ -935,163 +518,12 @@ var _fp_initial_capture_done: bool = false
 # than every frame, which would fight ESC). 2026-05-08.
 var _camera_mode_last: String = ""
 
-
 ## Drain accumulated mouse motion → update actor.state.facing (yaw) and
 ## optionally state.pitch. Returns the actor entity (or null). Mouse-y
 ## controls pitch only if cam_cfg.use_pitch is true (clamped to ±π/2 - 0.1).
 ##
 ## When cursor is VISIBLE (user paused via ESC), discard accumulated
 ## delta without applying — prevents camera snapping on resume.
-func _drain_mouse_facing(cam_cfg: Dictionary):
-	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "":
-		return null
-	var actor := _find_entity_by_tag(tag)
-	if actor == null:
-		return null
-	var sched = _world.get("scheduler")
-	if sched == null:
-		return actor
-	var env: Dictionary = sched.env
-	# Pause look when cursor is free
-	if Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-		env["mouse_delta"] = Vector2.ZERO
-		return actor
-	var delta_v = env.get("mouse_delta", Vector2.ZERO)
-	if not (delta_v is Vector2):
-		delta_v = Vector2.ZERO
-	var delta: Vector2 = delta_v
-	if delta.length_squared() == 0.0:
-		return actor
-	# Consume the delta
-	env["mouse_delta"] = Vector2.ZERO
-	var sensitivity := float(cam_cfg.get("mouse_sensitivity", 0.003))
-	var facing := float(actor.get_state("facing", 0.0))
-	facing -= delta.x * sensitivity
-	actor.set_state("facing", facing)
-	if bool(cam_cfg.get("use_pitch", false)):
-		var pitch := float(actor.get_state("pitch", 0.0))
-		pitch -= delta.y * sensitivity
-		var lim := PI * 0.5 - 0.05
-		pitch = clamp(pitch, -lim, lim)
-		actor.set_state("pitch", pitch)
-	return actor
-
-
-## 2026-05-10: FP crosshair target. Each frame, find the nearest entity
-## within `max_distance` (default 5m) that's in front of the camera
-## (angle from forward < `cone_half_angle_rad`, default 12°). Write its
-## display_name to `world_state.crosshair_target` so a HUD label can
-## bind `world.crosshair_target` and show what the player is looking at.
-##
-## Cheap O(N) per frame — no spatial-index query. Skips:
-##   - the actor itself (you don't look at yourself)
-##   - entities with no `display_name` property
-##   - entities tagged `decorative` (sand, dust, atmospheric clutter)
-##     UNLESS cam_cfg.crosshair_show_decorative=true. The opt-in lets
-##     the per-game scene.json choose: noisy debug labels everywhere
-##     vs. quiet "interactables-only" signal. Default false → quiet.
-func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
-	if _world == null or _camera3d == null:
-		return
-	var sched = _world.get("scheduler")
-	if sched == null:
-		return
-	var env: Dictionary = sched.env
-	var entities: Dictionary = env.get("entities", {})
-	var max_distance := float(cam_cfg.get("crosshair_max_distance", 10.0))
-	var cone_cos := cos(float(cam_cfg.get("crosshair_cone_rad", 0.52)))  # ~30° (wider than tight crosshair; entities at ground are ~18° below horizon at 5m)
-	var show_decorative := bool(cam_cfg.get("crosshair_show_decorative", false))
-	var cam_pos: Vector3 = _camera3d.global_position
-	# Camera3D's forward is -Z in its local basis.
-	var fwd: Vector3 = -_camera3d.global_transform.basis.z
-	var best: Entity = null
-	var best_score: float = -INF  # higher dot * distance preference
-	for id in entities.keys():
-		var ent = entities[id]
-		if not (ent is Entity):
-			continue
-		if ent == actor:
-			continue
-		if not show_decorative and (ent as Entity).has_tag("decorative"):
-			continue
-		var name_v = (ent as Entity).get_property("display_name", "")
-		if str(name_v) == "":
-			continue
-		var ep_v = (ent as Entity).get_position()
-		var ep: Vector3
-		if ep_v is Vector3:
-			ep = ep_v
-		elif ep_v is Vector2:
-			ep = Vector3((ep_v as Vector2).x, 0, (ep_v as Vector2).y)
-		else:
-			continue
-		# Bias target up by ~head height (1.0m). Without this, ground-level
-		# entities at 5m appear ~18° below horizon — a tight cone won't catch
-		# them when player looks horizontal. 1.0m matches the visual
-		# upper-mass of typical entities (humanoids ~1.6m tall, props
-		# ~1-2m, fire pits ~1.4m flame). Per-entity override:
-		# properties.crosshair_y_offset.
-		var y_bias: float = float((ent as Entity).get_property("crosshair_y_offset", 1.0))
-		var to_ent: Vector3 = ep + Vector3(0, y_bias, 0) - cam_pos
-		var dist := to_ent.length()
-		if dist > max_distance or dist < 0.01:
-			continue
-		var to_ent_n: Vector3 = to_ent / dist
-		var dot: float = fwd.dot(to_ent_n)
-		if dot < cone_cos:
-			continue  # outside cone
-		# Score: prefer closer + more centered. Inverse distance × dot.
-		var score: float = dot / max(dist, 0.5)
-		if score > best_score:
-			best_score = score
-			best = ent
-	var world_state: Dictionary = env.get("world", {})
-	var new_target: String = ""
-	var new_target_id: String = ""
-	if best != null:
-		new_target = str(best.get_property("display_name", ""))
-		new_target_id = str(best.instance_id)
-	world_state["crosshair_target"] = new_target
-	# crosshair_target_id is consumed by interaction rules (gather / eat /
-	# examine) to bind the entity the player is pointing at. Empty when no
-	# entity in cone — rules require it non-empty before firing.
-	world_state["crosshair_target_id"] = new_target_id
-
-
-## Resolve follow target's 3D position. Entity might store position as Vector2
-## (top-down 2D content) — project onto XZ plane in that case (y=0).
-func _follow_target_3d(cam_cfg: Dictionary):
-	var tag := str(cam_cfg.get("follow_tag", ""))
-	if tag == "":
-		return null
-	var ent := _find_entity_by_tag(tag)
-	if ent == null:
-		return null
-	if not ent.has_method("get_position"):
-		return null
-	var p = ent.get_position()
-	if p is Vector3:
-		return p as Vector3
-	if p is Vector2:
-		# 2D position → XZ plane in 3D world (y=0)
-		return Vector3((p as Vector2).x, 0.0, (p as Vector2).y)
-	return null
-
-
-## Apply orthographic projection if mode wants it. Sets ortho_size from
-## config (default 16). Re-set each frame so config edits take effect live.
-func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
-	if _camera3d == null:
-		return
-	if want_ortho:
-		_camera3d.projection = Camera3D.PROJECTION_ORTHOGONAL
-		_camera3d.size = float(cam_cfg.get("ortho_size", 16.0))
-	else:
-		_camera3d.projection = Camera3D.PROJECTION_PERSPECTIVE
-		_camera3d.fov = float(cam_cfg.get("fov", 75.0))
-
-
 # ============================================================
 # HUD CONSTRUCTION
 # ============================================================
@@ -1429,7 +861,6 @@ func _format_value(v) -> String:
 	if v is float:
 		return "%d" % int(v)  # round to int by default for HUD
 	return str(v)
-
 
 
 # ============================================================
