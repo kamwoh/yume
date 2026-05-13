@@ -90,6 +90,29 @@ var _tick_elapsed: float = 0.0
 var _tick_count: int = 0
 
 # ============================================================
+# STATE — multi-level progression (ADR 0006)
+# ============================================================
+#
+# current_level == "" for single-level games. level_order +
+# levels_root + on_all_complete_msg are populated by
+# WorldLoader.load_progression when game/flow.json is present.
+
+var current_level: String = ""
+var level_order: Array = []
+var levels_root: String = ""
+var on_all_complete_msg: String = ""
+
+# ============================================================
+# STATE — boot-cached scene config
+# ============================================================
+#
+# Populated by WorldLoader during load_data(). Exposed to rules via
+# _build_env()'s scene_grid entry. Empty dict = grid disabled
+# (backward-compat sentinel for demos without a grid block in scene.json).
+
+var _grid_cfg: Dictionary = {}  # ADR 0038 grid-based placement
+
+# ============================================================
 # LIFECYCLE
 # ============================================================
 
@@ -588,22 +611,8 @@ func _find_actor_id() -> String:
 
 # Ground constraint config lives on _ground_constraint (above).
 # WorldLoader.load_ground_cfg populates ground_y / clamp_tags / despawn_tags
-# on that coordinator.
-
-# ADR 0038: grid-based placement config. Loaded once from scene.json's
-# `grid` block (mirroring _load_ground_cfg), exposed via env["scene_grid"]
-# in _build_env. Empty dict = grid disabled (default for 13 existing demos
-# that don't declare a grid block — backward-compat sentinel).
-var _grid_cfg: Dictionary = {}
-
-# ============================================================
-# MULTI-LEVEL (ADR 0006)
-# ============================================================
-## Active level + progression. current_level == "" for single-level games.
-var current_level: String = ""
-var level_order: Array = []
-var levels_root: String = ""
-var on_all_complete_msg: String = ""
+# on that coordinator. Multi-level + grid_cfg state declared in the top
+# STATE blocks (see top of file).
 
 
 ## Generic tick summary: total entity count + counts per common tag.
