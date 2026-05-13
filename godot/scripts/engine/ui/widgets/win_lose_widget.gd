@@ -97,10 +97,12 @@ func _show_outcome(message: String, won: bool) -> void:
 		_won = true
 	else:
 		_lost = true
-	# HudBuilder owns _win_label / _win_panel; GameShell exposes them as
-	# fields. Read them via the shell back-ref.
-	var lbl = _shell.get("_win_label")
-	var panel = _shell.get("_win_panel")
+	# HudBuilder owns the win panel + label; reach through the shell.
+	var hud = _shell.get("_hud_builder")
+	if hud == null:
+		return
+	var lbl = hud._win_label
+	var panel = hud._win_panel
 	if lbl != null:
 		(lbl as Label).text = message + "\n\nPress R to restart"
 	if panel != null:
