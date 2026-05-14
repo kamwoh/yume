@@ -52,7 +52,14 @@ class_name World
 
 var entities: Dictionary = {}  # instance_id → Entity
 var defs: Dictionary = {}  # def_id → entity definition
-var world_state: Dictionary = {}  # world.* bindings
+## `world.*` binding store. ADR 0047: this dict is shared by reference
+## with the `_engine` singleton entity's state — writes via either path
+## update the same data. Reserved for ENGINE bookkeeping only:
+##   active_actor_id, has_save, current_screen, screen_freeze_world,
+##   overlay_freeze_world, current_level, current_chunk, ...
+## Game state belongs on tagged singleton entities (world_clock, etc.),
+## not here. See `.claude/rules/data-demo.md` § world-state singleton.
+var world_state: Dictionary = {}
 var next_id_seq: Dictionary = {"_": 0}  # shared spawn-id counter
 var error_buffer: Array = []  # Tier 2.6a structured errors
 var save_policy: Dictionary = {}  # ADR 0010 — empty = no persistence

@@ -59,6 +59,7 @@ func _init(world: Node) -> void:
 func run() -> void:
 	_root = (_world.data_root as String).rstrip("/")
 	_mount_default_directors()  # ensure UI + ADR director Nodes exist
+	_spawn_engine_entity()  # ADR 0047: _engine singleton backs world.* state
 	_init_lib_resolver()
 	_register_inputs()
 	_apply_level_seed()
@@ -80,6 +81,35 @@ func run() -> void:
 # ============================================================
 # PHASES
 # ============================================================
+
+
+## ADR 0047 — spawn the `_engine` singleton entity. Its state dict is
+## shared by reference with World.world_state so:
+##   - rules writing `state_set target=world` continue to work
+##   - HUD bindings `world.X` continue to resolve (game_shell._resolve_binding)
+##   - rules can ALSO query the entity via `tags_all: ["_engine"]`
+##   - saves serialize cleanly via the standard entity path
+##
+## One store: every piece of named state lives on an entity. world_state
+## is a backward-compat handle for "_engine.state", not a parallel store.
+##
+## No renderer (no visual block), no spatial-index entry (set_position
+## never called), no scene-tree _process (Entity is a passive data Node).
+## The entity is hidden — it exists for the engine's bookkeeping only.
+func _spawn_engine_entity() -> void:
+	if _world.entities.has("_engine"):
+		return
+	var ent := Entity.new()
+	ent.name = "_engine"
+	ent.def_id = "_engine"
+	ent.instance_id = "_engine"
+	ent.tags = ["_engine"]
+	# Share the dict by REFERENCE — writes via either name update the
+	# same data. PhaseScheduler captured env.world before this point;
+	# we mutate the existing dict in place, not replace it.
+	ent.state = _world.world_state
+	_world.add_child(ent)
+	_world.entities["_engine"] = ent
 
 
 ## Auto-mount the standard Director / UI Node set as World children.
