@@ -368,10 +368,22 @@ func _decrement_lifetimes() -> void:
 func _process(delta: float) -> void:
 	if scheduler == null:
 		return
-	# --- FRAME-rate work (every call) -----------------------------------
-	# Input polling lives in InputRegistrar (extracted 2026-05-11 — kept
-	# the full input lifecycle co-located in one module). _find_actor_id
-	# stays here because actor routing is world.gd's concern.
+	_per_frame_work()
+	_drain_sim_tick(delta)
+
+
+## Frame-rate work — runs every _process call. Latency-sensitive concerns
+## only (input → velocity routing, ground clamp). Motion itself is handled
+## by Godot's CharacterBody3D._physics_process at 60Hz (ADR 0045).
+func _per_frame_work() -> void:
+	_poll_input()
+	_ground_constraint.apply()
+
+
+## InputRegistrar polls Godot's InputMap for press-edge + held actions
+## and queues them onto the active actor via scheduler.queue_input.
+## _find_actor_id resolves "who is the player right now" (ADR 0016).
+func _poll_input() -> void:
 	(
 		InputRegistrar
 		. poll(
@@ -383,36 +395,44 @@ func _process(delta: float) -> void:
 			entities,
 		)
 	)
-	# Motion: ADR 0045 — actors with body_type:"character" drive their own
-	# CharacterBody3D._physics_process at 60Hz. Engine no longer iterates
-	# entities for motion; Godot does it per-body in optimized C++.
-	# Ground primitive (Tier 2.6r): if scene.json declares a ground.y,
-	# clamp tagged "creature" entities to that Y, and remove tagged
-	# "projectile" entities that drop below it.
-	_ground_constraint.apply()
-	# --- SIM-rate work (only when accumulator crosses tick_seconds) -----
-	# Inlined from former WorldClock child Node on 2026-05-12 — no signal
-	# hop, same delta-accumulator pattern.
+
+
+## Sim-tick accumulator. Drains exactly one tick when real-time delta
+## has accumulated past tick_seconds. Inlined from the former WorldClock
+## child Node on 2026-05-12 — no signal hop, same delta pattern.
+##
+## Determinism (2026-05-12 design decision): the rate split is
+## load-bearing. Coupling sim-ticks to frame rate would make rule
+## cascades + AI cadence hardware-dependent and break scenario tests +
+## save reproducibility. See ADR 0001 (Trigger.tick is discrete) and
+## the post-mortem entry cataloging the failure modes.
+func _drain_sim_tick(delta: float) -> void:
 	_tick_elapsed += delta
 	if _tick_elapsed < tick_seconds:
 		return
 	_tick_elapsed -= tick_seconds
 	_tick_count += 1
-	# ADR 0011 + 0012: under modal/overlay freeze, suppress the sim tick.
-	# Renderer keeps drawing the frozen scene; game-level pipelines (save
-	# / level transition / reset) drain in GameShell._process at frame
-	# rate so "Save" / "Travel" / "New Game" buttons still work.
-	var freeze := int(world_state.get("screen_freeze_world", 0)) != 0
-	freeze = freeze or int(world_state.get("overlay_freeze_world", 0)) != 0
-	# ADR 0044 Invariant #10: PhysicsServer3D pauses with the sim. Rigid
-	# integration / kinematic movement / queries all halt; Godot animation
-	# / tween / audio continue.
-	PhysicsServer3D.set_active(not freeze)
-	if freeze:
+	# ADR 0044 Invariant #10: PhysicsServer3D pauses with the sim.
+	# Godot animation / tween / audio continue regardless.
+	var frozen := _is_sim_frozen()
+	PhysicsServer3D.set_active(not frozen)
+	if frozen:
 		return
 	advance_one_tick()
 	if verbose and _tick_count % 4 == 0:
 		_print_tick_summary(_tick_count)
+
+
+## ADR 0011 + 0012: modal screens and tutorial overlays can request the
+## sim to freeze while staying visible. Game-level pipelines (save /
+## level transition / reset) still drain at frame rate in
+## GameShell._process — so "Save" / "Travel" / "New Game" buttons on
+## the freeze screen still work.
+func _is_sim_frozen() -> bool:
+	return (
+		int(world_state.get("screen_freeze_world", 0)) != 0
+		or int(world_state.get("overlay_freeze_world", 0)) != 0
+	)
 
 
 ## Tier 2.6o Phase 3 — accumulate mouse motion across the frame.
