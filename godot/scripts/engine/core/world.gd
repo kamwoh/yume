@@ -365,19 +365,48 @@ func _decrement_lifetimes() -> void:
 # entry that catalogs the failure modes.
 
 
+## Reads top-to-bottom as the per-frame flow:
+##   - frame-rate work (input poll + ground clamp) every call
+##   - sim-tick gate (_tick_due drains the delta accumulator)
+##   - freeze gate (modal/overlay screens pause the sim, ADR 0011/0012)
+##   - advance_one_tick — kept as a public method because step_runner.gd
+##     calls it directly for headless tests + capture VQA (bypasses freeze)
 func _process(delta: float) -> void:
 	if scheduler == null:
 		return
-	_per_frame_work()
-	_drain_sim_tick(delta)
-
-
-## Frame-rate work — runs every _process call. Latency-sensitive concerns
-## only (input → velocity routing, ground clamp). Motion itself is handled
-## by Godot's CharacterBody3D._physics_process at 60Hz (ADR 0045).
-func _per_frame_work() -> void:
 	_poll_input()
 	_ground_constraint.apply()
+	if not _tick_due(delta):
+		return
+	var frozen := (
+		int(world_state.get("screen_freeze_world", 0)) != 0
+		or int(world_state.get("overlay_freeze_world", 0)) != 0
+	)
+	# ADR 0044 Invariant #10: PhysicsServer3D pauses with the sim.
+	# Godot animation / tween / audio continue regardless.
+	PhysicsServer3D.set_active(not frozen)
+	if frozen:
+		return
+	advance_one_tick()
+	if verbose and _tick_count % 4 == 0:
+		_print_tick_summary(_tick_count)
+
+
+## Drain the real-time delta accumulator. Returns true when one sim-tick
+## should fire this frame, false otherwise. Mutates _tick_elapsed and
+## _tick_count as a side effect (the canonical sim clock).
+##
+## Determinism (2026-05-12 design decision): the rate split is
+## load-bearing. Coupling sim-ticks to frame rate would make rule
+## cascades + AI cadence hardware-dependent and break scenario tests
+## + save reproducibility. See ADR 0001 (Trigger.tick is discrete).
+func _tick_due(delta: float) -> bool:
+	_tick_elapsed += delta
+	if _tick_elapsed < tick_seconds:
+		return false
+	_tick_elapsed -= tick_seconds
+	_tick_count += 1
+	return true
 
 
 ## InputRegistrar polls Godot's InputMap for press-edge + held actions
@@ -394,44 +423,6 @@ func _poll_input() -> void:
 			stop_action_on_idle,
 			entities,
 		)
-	)
-
-
-## Sim-tick accumulator. Drains exactly one tick when real-time delta
-## has accumulated past tick_seconds. Inlined from the former WorldClock
-## child Node on 2026-05-12 — no signal hop, same delta pattern.
-##
-## Determinism (2026-05-12 design decision): the rate split is
-## load-bearing. Coupling sim-ticks to frame rate would make rule
-## cascades + AI cadence hardware-dependent and break scenario tests +
-## save reproducibility. See ADR 0001 (Trigger.tick is discrete) and
-## the post-mortem entry cataloging the failure modes.
-func _drain_sim_tick(delta: float) -> void:
-	_tick_elapsed += delta
-	if _tick_elapsed < tick_seconds:
-		return
-	_tick_elapsed -= tick_seconds
-	_tick_count += 1
-	# ADR 0044 Invariant #10: PhysicsServer3D pauses with the sim.
-	# Godot animation / tween / audio continue regardless.
-	var frozen := _is_sim_frozen()
-	PhysicsServer3D.set_active(not frozen)
-	if frozen:
-		return
-	advance_one_tick()
-	if verbose and _tick_count % 4 == 0:
-		_print_tick_summary(_tick_count)
-
-
-## ADR 0011 + 0012: modal screens and tutorial overlays can request the
-## sim to freeze while staying visible. Game-level pipelines (save /
-## level transition / reset) still drain at frame rate in
-## GameShell._process — so "Save" / "Travel" / "New Game" buttons on
-## the freeze screen still work.
-func _is_sim_frozen() -> bool:
-	return (
-		int(world_state.get("screen_freeze_world", 0)) != 0
-		or int(world_state.get("overlay_freeze_world", 0)) != 0
 	)
 
 
