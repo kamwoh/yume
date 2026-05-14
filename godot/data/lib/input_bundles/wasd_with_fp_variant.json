@@ -38,28 +38,28 @@
       "effect": {"type": "velocity_set", "target": "actor", "x": -3.0}
     },
     {
-      "_comment": "STOP_X — engine queues stop_x when neither move_east nor move_west is held (per-axis idle, world.gd::_poll_input). Zeros only the x component — preserves y so a still-held W/S keeps working. Empirical bug 2026-05-10: releasing one of two held movement keys, player kept drifting in the released direction.",
+      "_comment": "STOP_X — engine queues stop_x when neither move_east nor move_west is held (per-axis idle, world.gd::_poll_input). Zeros only the x component — preserves y so a still-held W/S keeps working. Gated to world-frame cameras only: camera-relative WASD (FP/iso) uses velocity_add_relative which auto-resets per tick; running stop_x there would WIPE the camera-relative x component when only one of forward/strafe is held.",
       "id": "lib_wasd_stop_x",
       "trigger": {"type": "input", "action": "stop_x"},
-      "query": {"tags_all": ["world_clock"]},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d", "third_person_3d"]}},
       "effect": {"type": "velocity_set", "target": "actor", "x": 0}
     },
     {
-      "_comment": "STOP_Y — mirror of STOP_X for the y axis (north/south).",
+      "_comment": "STOP_Y — mirror of STOP_X for the y axis (north/south). Same world-frame gate.",
       "id": "lib_wasd_stop_y",
       "trigger": {"type": "input", "action": "stop_y"},
-      "query": {"tags_all": ["world_clock"]},
+      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d", "third_person_3d"]}},
       "effect": {"type": "velocity_set", "target": "actor", "y": 0}
     },
     {
-      "_comment": "LEGACY full-idle STOP — fires when no movement key is held AND stop_action_on_idle='stop'. New games should rely on stop_x + stop_y (per-axis). Kept for backwards-compat with games that haven't migrated.",
+      "_comment": "Full-idle STOP — fires when no movement key is held AND stop_action_on_idle='stop'. Both world-frame AND camera-relative cameras use this for snap-to-stop (no camera filter needed). For camera-relative WASD: when no keys held, velocity_add_relative doesn't fire, so this rule's velocity_set is what zeroes the leftover velocity. For world-frame: redundant with stop_x+stop_y but harmless.",
       "id": "lib_wasd_stop",
       "trigger": {"type": "input", "action": "stop"},
       "query": {"tags_all": ["world_clock"]},
       "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
     },
     {
-      "_comment": "Camera-relative WASD — fires when camera IS first_person_3d. Engine's velocity_add_relative reads actor.state.facing (mouse-driven by _camera_first_person_3d's _drain_mouse_facing) and rotates forward/strafe into world XZ, then ADDS to current velocity. W=mouse-aim-forward, S=back, A=strafe-left, D=strafe-right. velocity_add (not _set) lets W+D combine into a forward-right diagonal in same tick. Drag in motion integrator decelerates when no key held — but stop rule below explicitly zeros to avoid drift.",
+      "_comment": "Camera-relative WASD — fires when camera IS first_person_3d. Engine's velocity_add_relative reads actor.state.facing (mouse-driven by _camera_first_person_3d's _drain_mouse_facing) and rotates forward/strafe into world XZ. The effect AUTO-RESETS velocity on the FIRST add per sim-tick (ADR 0048): old-tick velocity never carries over, so mouse-turn-mid-walk doesn't drift; multiple input rules in the SAME tick accumulate (W+D → forward+strafe diagonal). The full-idle stop rule (lib_wasd_stop) handles snap-to-zero when no key is held.",
       "id": "lib_wasd_move_forward_fp",
       "trigger": {"type": "input", "action": "move_north"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "first_person_3d"}},
@@ -84,7 +84,7 @@
       "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -3.0}
     },
     {
-      "_comment": "ADR 0040 — Camera-relative WASD for isometric_3d. Player presses W → moves where the camera is 'looking forward' (NW in world for SE-camera-looking-NW). facing=π/4 = 45° rotates the (forward, strafe) basis to align with the camera's XZ projection. Uses velocity_add_relative + per-tick zero (state.zero_velocity_pretick=true on the actor) so W+D both held → contributions sum to world-N (pure -Z) → projects to screen-up-right. Speed clamp via state.max_speed normalizes the diagonal sum to walking speed.",
+      "_comment": "ADR 0040 — Camera-relative WASD for isometric_3d. Player presses W → moves where the camera is 'looking forward' (NW in world for SE-camera-looking-NW). facing=π/4 = 45° rotates the (forward, strafe) basis to align with the camera's XZ projection. velocity_add_relative auto-resets per tick (ADR 0048) so W+D both held → contributions sum to world-N (pure -Z) → projects to screen-up-right. Speed clamp via state.max_speed normalizes the diagonal sum to walking speed.",
       "id": "lib_wasd_move_forward_iso",
       "trigger": {"type": "input", "action": "move_north"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},

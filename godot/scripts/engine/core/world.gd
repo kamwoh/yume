@@ -261,7 +261,6 @@ func _run_multimesh_director() -> void:
 ## policy. The step runner intentionally bypasses freeze (tests need to
 ## advance state regardless of modal screens).
 func advance_one_tick() -> void:
-	_pretick_velocity_zero()  # ADR 0040 — reset additive WASD accumulators
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)  # ADR 0018 — AI before input
 	scheduler.tick()  # canonical phase loop
@@ -270,27 +269,6 @@ func advance_one_tick() -> void:
 	_stream_chunks_if_active()  # ADR 0014
 	if actor_manager != null:
 		actor_manager.process_pending(scheduler.env, world_state, verbose)  # ADR 0016
-
-
-## ADR 0040: zero velocity for opt-in actors before the input phase.
-## Camera-relative WASD adds velocity each tick (velocity_add_relative);
-## without a pretick reset, contributions accumulate across sim ticks
-## and the actor glides after key release. This is a sim-tick discipline
-## concern (state hygiene between input phases), not motion integration —
-## kept in world.gd post-ADR-0045 even though motion moved to Godot's
-## CharacterBody3D.
-func _pretick_velocity_zero() -> void:
-	for id in entities.keys():
-		var ent = entities[id]
-		if not (ent is Entity):
-			continue
-		if not bool((ent as Entity).get_state("zero_velocity_pretick", false)):
-			continue
-		var v = (ent as Entity).get_velocity()
-		if v is Vector2:
-			(ent as Entity).set_velocity(Vector2.ZERO)
-		elif v is Vector3:
-			(ent as Entity).set_velocity(Vector3.ZERO)
 
 
 ## ADR 0036: advance entity ages + stage thresholds. dt=tick_seconds so
@@ -406,6 +384,10 @@ func _tick_due(delta: float) -> bool:
 		return false
 	_tick_elapsed -= tick_seconds
 	_tick_count += 1
+	# Expose the monotonic sim-tick counter on the _engine entity (ADR 0047).
+	# velocity_add_relative + other "first-fire-this-tick" effects read it
+	# to decide whether to auto-reset cumulative state.
+	world_state["_tick"] = _tick_count
 	return true
 
 

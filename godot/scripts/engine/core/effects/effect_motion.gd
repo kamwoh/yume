@@ -115,14 +115,27 @@ static func velocity_set_relative(e: Dictionary, env: Dictionary, ctx: Dictionar
 		ent.set_velocity(Vector2(vx, vz))
 
 
-## Like velocity_set_relative but ADDS the contribution to current velocity
-## instead of overwriting. Lets multiple input rules in the same tick combine
-## (W + A both fire → forward + strafe contributions sum into a diagonal
-## velocity). Drag handles deceleration when no input. Tune per-tick
-## magnitude so equilibrium matches desired top speed: with drag d and tick
-## delta dt, equilibrium ≈ add * (1 - d*dt) / (d*dt). Empirically caught
-## during doomarena3d v2 playtest: diagonal motion broken because each
-## velocity_set_relative call wiped the prior input's component (2026-05-03).
+## Camera-relative velocity contribution. Auto-resets velocity on the FIRST
+## fire per sim-tick for a given entity, then accumulates subsequent fires
+## within the same tick. So multiple input rules in one tick combine (W + D
+## → forward + strafe → diagonal), but the previous tick's velocity never
+## carries over — eliminates the facing-lag drift that used to need a
+## separate _pretick_velocity_zero scan in world.gd.
+##
+## "First fire per tick" is detected via `state._vel_add_last_tick` vs
+## `world._tick` (the monotonic sim-tick counter, set by world.gd::_tick_due).
+##
+## Equilibrium: with drag d and tick delta dt, top speed ≈ add * 1/(d*dt)
+## when drag is opt-in. Without drag (e.g. Aldenmere FP), velocity is set
+## fresh each tick — only this tick's keys matter — so top speed = add
+## directly.
+##
+## Empirically motivated:
+##   - 2026-05-03 doomarena3d v2 playtest: diagonal broken with velocity_
+##     set_relative wiping prior input → moved to _add_relative.
+##   - 2026-05-10 Aldenmere FP: facing-lag drift on mouse turn while walking
+##     → patched with state.zero_velocity_pretick + _pretick_velocity_zero.
+##   - 2026-05-15: root-cause fix — auto-reset in the effect itself.
 static func velocity_add_relative(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var ent: Entity = EffectResolution.target(e, env, ctx)
 	if ent == null:
@@ -137,25 +150,28 @@ static func velocity_add_relative(e: Dictionary, env: Dictionary, ctx: Dictionar
 		facing = float(ent.get_state("facing", 0.0))
 	var fx := -sin(facing) * fwd
 	var fz := -cos(facing) * fwd
-	# ADR 0040 Condition 1 (2026-05-10): strafe-sign harmonized with
-	# _velocity_set_relative. Was `sx = -cos(facing) * strafe; sz = sin(facing) * strafe`
-	# — opposite sign produced player's-LEFT instead of player's-RIGHT for
-	# positive strafe. Iso variant rules use strafe=0 so the bug doesn't
-	# manifest there, but third-person strafe was inverted relative to
-	# _set_relative's convention.
+	# ADR 0040 Condition 1: strafe-sign matches _velocity_set_relative.
 	var sx := cos(facing) * strafe
 	var sz := -sin(facing) * strafe
 	var dvx := fx + sx
 	var dvz := fz + sz
-	# Branch on VELOCITY type, not position. Aldenmere-style entities use
-	# Vector2 velocity (per WASD lib convention) with Vector3 position;
-	# casting v_cur (Vector2) to Vector3 crashed previously. ADR 0040 fix
-	# 2026-05-10.
+	# Cross-tick auto-reset: first fire this tick zeros velocity before
+	# adding; subsequent fires (multi-key same tick) accumulate normally.
+	var ws: Dictionary = env.get("world", {}) as Dictionary
+	var current_tick := int(ws.get("_tick", -1))
+	var last_tick := int(ent.get_state("_vel_add_last_tick", -2))
+	var fresh_tick := current_tick != last_tick
+	if fresh_tick:
+		ent.set_state("_vel_add_last_tick", current_tick)
+	# Branch on velocity TYPE, not position (ADR 0040 fix 2026-05-10:
+	# Vector2 velocity + Vector3 position is valid for floor-walkers).
 	var v_cur = ent.get_velocity()
 	if v_cur is Vector2:
-		ent.set_velocity((v_cur as Vector2) + Vector2(dvx, dvz))
+		var base := Vector2.ZERO if fresh_tick else (v_cur as Vector2)
+		ent.set_velocity(base + Vector2(dvx, dvz))
 	elif v_cur is Vector3:
-		ent.set_velocity((v_cur as Vector3) + Vector3(dvx, 0, dvz))
+		var base := Vector3.ZERO if fresh_tick else (v_cur as Vector3)
+		ent.set_velocity(base + Vector3(dvx, 0, dvz))
 	else:
 		# No prior velocity — pick dimensionality from position.
 		var pos = ent.get_position()

@@ -206,9 +206,6 @@ func _is_static_candidate(e: Entity, _defs: Dictionary, disqualified_tags: Dicti
 		return false
 	if v is Vector3 and v != Vector3.ZERO:
 		return false
-	# zero_velocity_pretick implies a runtime mover (actor convention).
-	if bool(e.get_state("zero_velocity_pretick", false)):
-		return false
 	# Tag-class disqualification: if ANY of the entity's tags appears in
 	# disqualified_tags, the entity falls through. Conservative — a rule
 	# that mutates one entity's position disqualifies the whole tag class.

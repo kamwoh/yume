@@ -8746,13 +8746,7 @@ func test_multimesh_director() -> void:
 	e_moving.state = {"velocity": Vector2(1, 0)}
 	expect(not dir._is_static_candidate(e_moving, {}, {}), "non-zero velocity disqualifies")
 
-	# zero_velocity_pretick flag → not static (actor-shape).
-	var e_pretick := Entity.new()
-	e_pretick.tags = ["tree"]
-	e_pretick.state = {"velocity": Vector2.ZERO, "zero_velocity_pretick": true}
-	expect(not dir._is_static_candidate(e_pretick, {}, {}), "zero_velocity_pretick disqualifies")
-
-	# Static-eligible tree (no runtime tags, zero velocity, no pretick).
+	# Static-eligible tree (no runtime tags, zero velocity).
 	var e_tree := Entity.new()
 	e_tree.tags = ["tree", "decorative"]
 	e_tree.state = {"velocity": Vector2.ZERO}

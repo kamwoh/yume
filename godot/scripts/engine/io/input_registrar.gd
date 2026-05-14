@@ -153,10 +153,11 @@ static func _register_one(action_def: Dictionary) -> String:
 ##     (Input.is_action_just_pressed).
 ##  3. Per-axis idle stop injection (ADR 0040): when neither key on an
 ##     axis is held AND the actor has non-zero velocity on that axis,
-##     queue `stop_x` / `stop_y`. SUPPRESSED for actors with
-##     `state.zero_velocity_pretick=true` (camera-relative WASD model
-##     handles this via pretick zero; injecting stop_x/_y would wipe
-##     the diagonal vector's component on the same tick).
+##     queue `stop_x` / `stop_y`. The lib bundle's stop_x/stop_y RULES
+##     gate themselves to world-frame cameras only (camera-relative
+##     WASD handles its own per-tick reset via velocity_add_relative
+##     auto-reset — ADR 0048). Engine still queues the actions; rules
+##     filter who responds.
 ##
 ## Plus legacy global `stop_action_on_idle` for backwards-compat with
 ## older demos using a single `stop` action.
@@ -206,47 +207,34 @@ static func poll(
 		if Input.is_action_just_pressed(action):
 			scheduler.queue_input(action, {"actor": actor_id})
 
-	# Per-axis stop: if no key on the axis is held, queue per-axis stop.
-	# Read current velocity once; only queue when there's something to
-	# stop (avoid spamming the input queue with no-op events).
-	#
-	# ADR 0040 Defect #1 (2026-05-10): SUPPRESS per-axis stop injection
-	# for actors with `state.zero_velocity_pretick=true`. Those actors
-	# use camera-relative WASD via velocity_add_relative; their
-	# advance_one_tick zeroes velocity each tick BEFORE the input phase,
-	# so the pretick zero already handles "no input → zero velocity".
-	# The per-axis stop logic was designed for world-frame velocity_set
-	# and would WIPE the camera-relative diagonal contributions.
+	# Per-axis stop: if no key on the axis is held AND the actor has
+	# non-zero velocity on that axis, queue stop_x / stop_y. The lib
+	# bundle's stop_x/stop_y rules gate themselves to world-frame cameras
+	# only — camera-relative WASD (FP/iso) handles its own per-tick reset
+	# in velocity_add_relative (ADR 0048).
 	var actor_ent = entities.get(actor_id, null)
 	if actor_ent is Entity:
-		var pretick_zero := bool((actor_ent as Entity).get_state("zero_velocity_pretick", false))
-		if not pretick_zero:
-			var v = (actor_ent as Entity).get_velocity()
-			var vx: float = 0.0
-			var vy: float = 0.0
-			if v is Vector2:
-				vx = (v as Vector2).x
-				vy = (v as Vector2).y
-			elif v is Vector3:
-				vx = (v as Vector3).x
-				vy = (v as Vector3).z
-			if not ew_held and absf(vx) > 0.001:
-				scheduler.queue_input("stop_x", {"actor": actor_id})
-			if not ns_held and absf(vy) > 0.001:
-				scheduler.queue_input("stop_y", {"actor": actor_id})
+		var v = (actor_ent as Entity).get_velocity()
+		var vx: float = 0.0
+		var vy: float = 0.0
+		if v is Vector2:
+			vx = (v as Vector2).x
+			vy = (v as Vector2).y
+		elif v is Vector3:
+			vx = (v as Vector3).x
+			vy = (v as Vector3).z
+		if not ew_held and absf(vx) > 0.001:
+			scheduler.queue_input("stop_x", {"actor": actor_id})
+		if not ns_held and absf(vy) > 0.001:
+			scheduler.queue_input("stop_y", {"actor": actor_id})
 
 	# Legacy global stop (fully idle) — kept for backwards-compat with
 	# any existing demo using it. New games should use stop_x / stop_y
-	# (the lib_wasd_stop_x / lib_wasd_stop_y rules). ADR 0040: same
-	# pretick-zero suppression as per-axis stops above.
-	var legacy_stop_pretick_zero := false
-	if actor_ent is Entity:
-		legacy_stop_pretick_zero = bool(
-			(actor_ent as Entity).get_state("zero_velocity_pretick", false)
-		)
+	# (the lib_wasd_stop_x / lib_wasd_stop_y rules) for world-frame
+	# cameras. For camera-relative cameras, this is the snap-to-stop
+	# mechanism (no movement key held → vel = (0, 0)).
 	if (
-		not legacy_stop_pretick_zero
-		and stop_action_on_idle != ""
+		stop_action_on_idle != ""
 		and not any_movement_pressed
 		and stop_action_on_idle != "stop_x"
 		and stop_action_on_idle != "stop_y"
