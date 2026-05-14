@@ -358,30 +358,50 @@ Per ADR 0009 expanded scope: also writes audio/cues.json + ui/strings.json.
 
 ### Phase 5 — qa-tester (verify)
 
-18. Write the scene file `scenes/<name>_2d.tscn` from the standard
-    template — JSON-driven games never hand-edit this. Use this exact
-    body, replacing only `<name>`:
+18. Write the scene file `scenes/<name>_2d.tscn` (or `<name>_3d.tscn`)
+    from the standard 12-line template. WorldBoot auto-mounts every
+    Director Node (GameShell, ScreenFlow, LightingDirector, …) — the
+    .tscn just pins data_root, picks the renderer, and places a Camera.
+
+    **2D template** (replace only `<name>`):
 
     ```
-    [gd_scene load_steps=3 format=3]
-    [ext_resource type="Script" path="res://scripts/engine/world.gd" id="1"]
-    [ext_resource type="Script" path="res://scripts/engine/game_shell.gd" id="2"]
+    [gd_scene load_steps=2 format=3]
+    [ext_resource type="Script" path="res://scripts/engine/core/world.gd" id="1"]
     [node name="World" type="Node"]
     script = ExtResource("1")
     data_root = "res://data/demo_<name>"
     auto_start = true
     verbose = true
     renderer_script = "res://scripts/renderer_2d/entity_sprite_2d.gd"
-    [node name="GameShell" type="Node" parent="."]
-    script = ExtResource("2")
     [node name="Camera2D" type="Camera2D" parent="."]
     position = Vector2(0, 0)
     ```
 
-    No game-specific code; only data_root differs from other games.
-    The universal `scenes/play.tscn` (with `--game=` cmdline arg) also
-    works — but generating a per-game stub gives a cleaner UX:
-    `godot --path . scenes/<name>_2d.tscn`.
+    **3D template** (replace `<name>` + tune Camera3D position/projection):
+
+    ```
+    [gd_scene load_steps=2 format=3]
+    [ext_resource type="Script" path="res://scripts/engine/core/world.gd" id="1"]
+    [node name="World" type="Node"]
+    script = ExtResource("1")
+    data_root = "res://data/demo_<name>"
+    auto_start = true
+    verbose = true
+    renderer_script = "res://scripts/renderer_3d/entity_mesh_3d.gd"
+    [node name="Camera3D" type="Camera3D" parent="."]
+    position = Vector3(0, 12, 0)
+    rotation = Vector3(-1.5708, 0, 0)
+    ```
+
+    No GameShell / ScreenFlow / LightingDirector mounts in the .tscn —
+    WorldBoot creates them at boot. Sky/Sun/WorldEnvironment driven by
+    `scene.json`'s lighting block via LightingDirector. Ground plane
+    driven by `scene.json`'s ground.mesh block via GroundRenderer.
+
+    The universal `scenes/play.tscn --game=<name>` works for any 2D
+    game without writing a per-game .tscn; generating a per-game stub
+    is a UX shortcut (`godot --path . scenes/<name>_2d.tscn` directly).
 19. Invoke `yume-qa-tester` skill. Tool:
     `Skill(skill="yume-qa-tester", args=<data folder + scene path + GDD path>)`.
 20. Skill runs Godot headless, drains `env.error_buffer`, produces

@@ -48,11 +48,11 @@ yume/
 │   │   ├── game/rules.json             (game logic — win/score/transition)
 │   │   ├── game/flow.json              (multi-level progression — ADR 0006)
 │   │   ├── levels/<n>/                 (per-level entities + rules)
-│   │   ├── world/state.json            (initial world_state)
+│   │   ├── world/state.json            (initial _engine entity state — ADR 0047)
+│   │   ├── world/zones.json            (zone-state primitive — ADR 0031, optional)
 │   │   ├── audio/cues.json             (semantic-event → SFX mapping)
 │   │   ├── ui/strings.json             (localizable text)
-│   │   ├── scene.json                  (camera + bounds + tick_seconds)
-│   │   ├── hud.json                    (HUD elements)
+│   │   ├── scene.json                  (camera + lighting + ground + tick_seconds)
 │   │   ├── screens.json                (title/pause/etc. — ADR 0011, optional)
 │   │   ├── save_policy.json            (what persists — ADR 0010, optional)
 │   │   ├── settings_schema.json        (settings — ADR 0013, optional)
@@ -104,9 +104,19 @@ is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
 |---|---|
 | Engine logic | `godot/scripts/engine/*.gd` |
 | Game content | `godot/data/demo_<name>/*.json` |
-| Scene launcher | `godot/scenes/<name>_2d.tscn` |
+| Scene launcher | `godot/scenes/<name>_<dim>.tscn` (thin stub: World + Camera + data_root) |
 | New ADR | `docs/adr/NNNN-<title>.md` |
 | Skill instructions | `.claude/skills/yume-*/SKILL.md` |
+
+Per-game `.tscn` files are intentionally minimal (~12 lines). WorldBoot
+auto-mounts 14 sibling Director Nodes (GameShell, ScreenFlow,
+OverlayManager, SettingsManager, LightingDirector, PartyDirector,
+ScheduleDirector, LifecycleDirector, ClassManager, FactionDirector,
+TechTreeDirector, DynastyDirector, NameplateRenderer, ScreenSmokeRunner).
+Sky/Sun/WorldEnvironment come from `scene.json`'s lighting block via
+LightingDirector; floor plane comes from `scene.json`'s ground.mesh
+block via GroundRenderer. A .tscn just pins `data_root` + picks
+`renderer_script` + places a Camera.
 
 ## Creating a new game
 

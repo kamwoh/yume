@@ -69,8 +69,8 @@ harvests crops when ripe, ties them into a counter"
 - All file paths exist
 - Schema checks pass
 - qa-report shows cascades observed
-- Game runs in `world_2d.tscn` and `world_3d.tscn` (after
-  `data_root` swap)
+- Game runs via `scenes/play.tscn --game=demo_<name>` (universal
+  launcher) or via the generated per-game `<name>_2d.tscn` stub
 
 ---
 

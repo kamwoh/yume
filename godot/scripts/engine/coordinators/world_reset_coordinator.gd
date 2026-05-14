@@ -73,7 +73,7 @@ func do_reset() -> void:
 	var prog_path := root + "/game/flow.json"
 	if FileAccess.file_exists(prog_path):
 		_world._loader.load_progression(prog_path)  # resets current_level → starting_level
-		_world.world_state["current_level"] = _world.current_level
+		# ADR 0047: current_level property already wrote to world_state.
 		_world._loader.load_entities_path(root)  # re-load persistent root entities
 		if _world.current_level != "":
 			_world._level_transitions.load_level(_world.current_level)

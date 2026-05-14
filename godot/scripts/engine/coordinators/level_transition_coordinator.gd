@@ -112,9 +112,9 @@ func do_transition(target: String) -> void:
 	# ADR 0012: tutorial.json is global (not per-level), re-register here
 	# so sequencing rules survive level transitions.
 	_world._loader.load_rules_file(root + "/tutorial.json", true)
-	# Load new level
+	# Load new level. ADR 0047: current_level setter writes through to
+	# world_state["current_level"] — single source of truth.
 	_world.current_level = target
-	_world.world_state["current_level"] = target
 	load_level(target)
 	_world.scheduler.flush_effects()
 	# ADR 0041: re-batch the new level's static decoration. Mirrors the

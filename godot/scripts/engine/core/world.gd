@@ -100,11 +100,19 @@ var _tick_count: int = 0
 # STATE — multi-level progression (ADR 0006)
 # ============================================================
 #
-# current_level == "" for single-level games. level_order +
-# levels_root + on_all_complete_msg are populated by
-# WorldLoader.load_progression when game/flow.json is present.
+# current_level is a property that proxies to world_state["current_level"]
+# — single source of truth per ADR 0047. Engine code reading
+# `_world.current_level` and content formulas reading `world.current_level`
+# both reach the same dict entry. Defaults to "" for single-level games.
+# level_order / levels_root / on_all_complete_msg are engine-only fields
+# (no formula access needed).
 
-var current_level: String = ""
+var current_level: String:
+	get:
+		return str(world_state.get("current_level", ""))
+	set(value):
+		world_state["current_level"] = value
+
 var level_order: Array = []
 var levels_root: String = ""
 var on_all_complete_msg: String = ""

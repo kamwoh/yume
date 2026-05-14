@@ -201,8 +201,10 @@ If a level's scenario fails: enable per-tick debug printing in
 trace player position / box positions / clock state per tick. Do
 NOT commit the debug code; remove after diagnosis.
 
-4. **Build a temp scene** for the new game (or reuse `world_2d.tscn`
-   pointing at the new data_root). For headless testing:
+4. **Build a temp scene** for the new game (or just use the universal
+   `scenes/play.tscn --game=demo_<name>`). WorldBoot auto-mounts every
+   Director Node — no per-game director wiring needed. For headless
+   testing:
 
 ```gdscript
 [node name="World" type="Node"]
@@ -521,9 +523,9 @@ A game passes QA when:
 - `docs/30_framework_primitives.md` § "Tick ordering" — semantic
   identity (helps debug timing-related bugs)
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
-- `godot/scripts/engine/world.gd` —
+- `godot/scripts/engine/core/world.gd` —
   `_print_tick_summary` shape (the verbose output you'll read)
-- `godot/scripts/engine/engine_error.gd` —
+- `godot/scripts/engine/core/engine_error.gd` —
   structured error record shape (Tier 2.6a)
 - `godot/scripts/engine/tests/test_runner.gd` —
   the test suite

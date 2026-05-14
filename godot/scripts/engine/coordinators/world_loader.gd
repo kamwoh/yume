@@ -316,8 +316,8 @@ func load_progression(path: String) -> void:
 	var oac = p.get("on_all_complete", null)
 	if oac is Dictionary:
 		_world.on_all_complete_msg = str((oac as Dictionary).get("win_message", ""))
-	# Mirror current_level into world state for formula access.
-	_world.world_state["current_level"] = _world.current_level
+	# ADR 0047: current_level is a World property that proxies to
+	# world_state["current_level"] — the setter above already wrote it.
 
 
 # ============================================================
