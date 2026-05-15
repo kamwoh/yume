@@ -34,6 +34,13 @@
         "layers": "ADR 0044 — default collision layer name → bit mapping (world, wall, floor, ceiling, player, npc, enemy, animal, ally, projectile, pickup, trigger, decoration, vehicle, fluid, sensor). Engine reads entity.physics.collision_layer/mask and translates layer names to bit masks at body creation. Bits 17..32 reserved for per-game extensions.",
         "bodies": "ADR 0044/0045 — common physics body templates. CHARACTER bodies (CharacterBody3D scene Node, move_and_slide-driven): standard_character_player / standard_character_npc / standard_character_animal — use these for velocity-controlled actors. KINEMATIC bodies (raw PhysicsServer3D RIDs, manual transform): standard_kinematic_player / npc / animal — legacy/static bodies that don't need move_and_slide. STATIC / RIGID / AREA: static_wall, rigid_projectile, area_trigger_zone. Use via {\"$extends\": \"@lib.physics.bodies.NAME\"} on the entity's physics block. Override fields after $extends for customization (last-writer-wins per ADR 0027)."
       }
+    },
+    "motion": {
+      "_shape": "rule_array",
+      "_path": "data/lib/motion/<name>.json",
+      "entries": {
+        "face_motion": "1 rule: auto-rotate yaw to face direction of motion for every entity tagged 'face_motion'. Mesh-forward convention -Z, Vector2 velocity (floor-walkers). Splice via {$include: '@lib.motion.face_motion.rules'} in a game's rules.json. Per-entity opt-in via tag — silent for entities without it."
+      }
     }
   },
 
