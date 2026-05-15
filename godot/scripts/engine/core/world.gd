@@ -379,18 +379,11 @@ func _poll_input() -> void:
 	)
 
 
-## Tier 2.6o Phase 3 — accumulate mouse motion across the frame.
-## GameShell drains env.mouse_delta in first/third-person camera modes
-## to update the actor's state.facing (yaw). Set + reset per frame.
+## Forward Godot's per-event input lifecycle into InputRegistrar.
+## Mouse-motion delta accumulation lives in InputRegistrar.handle_event
+## next to the keyboard polling sibling — both are Godot-API bridges.
 func _input(event: InputEvent) -> void:
-	if scheduler == null:
-		return
-	if event is InputEventMouseMotion:
-		var motion := event as InputEventMouseMotion
-		var current = scheduler.env.get("mouse_delta", Vector2.ZERO)
-		if not (current is Vector2):
-			current = Vector2.ZERO
-		scheduler.env["mouse_delta"] = (current as Vector2) + motion.relative
+	InputRegistrar.handle_event(event, scheduler)
 
 
 ## ADR 0016: resolve which entity should receive input this frame.

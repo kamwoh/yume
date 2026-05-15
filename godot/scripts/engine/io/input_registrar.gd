@@ -136,6 +136,29 @@ static func _register_one(action_def: Dictionary) -> String:
 
 
 # ============================================================
+# EVENT-DRIVEN MOUSE BRIDGE
+# ============================================================
+
+
+## Accumulate mouse motion across the frame so CameraDirector can
+## drain it for yaw/pitch updates. Called from World._input — Godot's
+## per-event lifecycle callback. Multiple events can fire per frame
+## on a fast mouse flick; this sums them.
+##
+## Companion to poll() below — both translate Godot's input APIs into
+## Yume's env shape (per ADR 0021's "expose, don't reimplement").
+static func handle_event(event: InputEvent, scheduler) -> void:
+	if scheduler == null:
+		return
+	if event is InputEventMouseMotion:
+		var motion := event as InputEventMouseMotion
+		var current = scheduler.env.get("mouse_delta", Vector2.ZERO)
+		if not (current is Vector2):
+			current = Vector2.ZERO
+		scheduler.env["mouse_delta"] = (current as Vector2) + motion.relative
+
+
+# ============================================================
 # PER-FRAME POLLING
 # ============================================================
 
