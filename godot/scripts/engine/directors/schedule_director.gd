@@ -197,6 +197,22 @@ func tick(env: Dictionary) -> void:
 		#    crisp (writes are immediately visible to subsequent rules).
 		(ent as Entity).set_state("current_verb", verb)
 		(ent as Entity).set_state("current_target", target_id)
+		# Also write the target's CURRENT position so content rules can
+		# pathfind without doing their own id→entity lookup (the
+		# `self.nearest()` formula is deferred per data-demo.md). Cleared
+		# when target is empty so query gates like `current_target_pos_ne []`
+		# work cleanly.
+		var target_pos: Array = []
+		if target_id != "":
+			var entities_dict = env.get("entities", {})
+			var target_ent = (entities_dict as Dictionary).get(target_id, null)
+			if target_ent is Entity:
+				var p = (target_ent as Entity).get_position()
+				if p is Vector3:
+					target_pos = [(p as Vector3).x, (p as Vector3).y, (p as Vector3).z]
+				elif p is Vector2:
+					target_pos = [(p as Vector2).x, 0.0, (p as Vector2).y]
+		(ent as Entity).set_state("current_target_pos", target_pos)
 		# 6. Emit transition signal via env.signal_buffer (same surface
 		#    `_emit` effect uses). Delivered to react phase by scheduler
 		#    drain.
