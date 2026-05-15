@@ -35,8 +35,8 @@ flowchart TB
     subgraph L2["Layer 2: Content (data/demo_X/, JSON)"]
         direction TB
         SceneJ["scene.json<br/>camera + lighting + grid"]:::data
-        World["world/physics.json<br/>(sim rules)<br/>world/state.json<br/>world/zones.json"]:::data
-        Game["game/rules.json<br/>(goals, win/lose)<br/>game/flow.json"]:::data
+        World["world/rules.json<br/>(sim rules)<br/>world/state.json<br/>world/zones.json"]:::data
+        Game["game/goals.json<br/>(goals, win/lose)<br/>game/flow.json"]:::data
         Ents["entities/*.json<br/>(defs + instances)<br/>levels/*/"]:::data
         UI["hud.json · screens.json<br/>ui/strings.json · ui/input.json<br/>audio/cues.json · tutorial.json"]:::data
         Shared["data/meshes.json<br/>data/sounds.json<br/>data/shapes.json<br/>data/lib/*<br/>(ADR 0027 — cross-game)"]:::shared
@@ -252,9 +252,9 @@ flowchart TB
 
     subgraph Phase2["Phase 2: Content authors"]
         direction TB
-        SYS["yume-systems-designer<br/> to world/physics.json"]
+        SYS["yume-systems-designer<br/> to world/rules.json"]
         CON["yume-content-designer<br/> to entities/* + world/state"]
-        GRD["yume-game-rules-designer<br/> to game/rules.json"]
+        GRD["yume-game-rules-designer<br/> to game/goals.json"]
         AST["yume-asset-designer<br/> to scene.json + meshes"]
         SCR["yume-screen-flow-designer<br/> to screens.json"]
         TUT["yume-tutorial-designer<br/> to tutorial.json"]
@@ -383,8 +383,8 @@ flowchart LR
     subgraph GameData["Per-game JSON (data/demo_X/)"]
         direction TB
         sceneJ["scene.json"]:::json
-        physJ["world/physics.json"]:::json
-        ruleJ["game/rules.json"]:::json
+        physJ["world/rules.json"]:::json
+        ruleJ["game/goals.json"]:::json
         flowJ["game/flow.json"]:::json
         stateJ["world/state.json"]:::json
         zoneJ["world/zones.json"]:::json
@@ -538,8 +538,8 @@ flowchart LR
 3. `macro_expander` loads `macros.json` (if present)
 4. `scene.json` parsed → camera mode, tick_seconds, lighting block, position_scale, level_seed
 5. **If `game/flow.json` exists** (multi-level):
-   - Load `world/physics.json` (sim rules)
-   - Load `game/rules.json` (game rules)
+   - Load `world/rules.json` (sim rules)
+   - Load `game/goals.json` (game rules)
    - Load `tutorial.json` (overlay rules)
    - Load `world/state.json` → `env.world_state`
    - Load `entities/*.json` (persistent defs)
@@ -582,7 +582,7 @@ API it exposes, what it does each tick**.
 ```mermaid
 flowchart TB
     %% INPUT
-    physJ["world/physics.json<br/>game/rules.json<br/>levels/X/rules.json<br/>tutorial.json"]:::json
+    physJ["world/rules.json<br/>game/goals.json<br/>levels/X/rules.json<br/>tutorial.json"]:::json
     stateJ["world/state.json"]:::json
     entsJ["entities .json files"]:::json
     sceneJ["scene.json"]:::json
@@ -1171,7 +1171,7 @@ flowchart LR
 
 ---
 
-## 9. physics.json vs game/rules.json — the conceptual split (ADR 0009)
+## 9. world/rules.json vs game/goals.json — the conceptual split (ADR 0009)
 
 Both files are parsed by `world.gd::_load_rules_file` into the SAME
 typed `Rule` objects, registered with the SAME `PhaseScheduler`. The
@@ -1186,9 +1186,9 @@ flowchart TB
     Q["I want to add a rule.<br/>Which file?"]:::action
 
     Q --> Q1{"Is this a TRUTH<br/>of the world<br/>(would exist even<br/>without a game)?"}
-    Q1 -->|yes| Phys["world/physics.json"]:::phys
+    Q1 -->|yes| Phys["world/rules.json"]:::phys
     Q1 -->|no| Q2{"Is this a GOAL<br/>imposed by the<br/>player's game?<br/>(score, win, lose,<br/>level progression)"}
-    Q2 -->|yes| Game["game/rules.json"]:::game
+    Q2 -->|yes| Game["game/goals.json"]:::game
     Q2 -->|no| Q3{"Is this a tutorial<br/>or overlay-driven hint?"}
     Q3 -->|yes| Tut["tutorial.json"]:::tut
     Q3 -->|no| Lvl["levels/&lt;N&gt;/rules.json<br/>(only fires when<br/>that level is loaded)"]:::lvl
@@ -1204,7 +1204,7 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    subgraph Physics["world/physics.json — SIMULATION"]
+    subgraph Physics["world/rules.json — SIMULATION"]
         direction TB
         P1["hunger_decay<br/>(every tick, hunger -= 0.05)"]:::phys
         P2["wolf_pursue_villager<br/>(contact-pair AI)"]:::phys
@@ -1214,7 +1214,7 @@ flowchart TB
         P6["motion_drag<br/>(velocity *= 0.95)"]:::phys
     end
 
-    subgraph Game["game/rules.json — GOALS"]
+    subgraph Game["game/goals.json — GOALS"]
         direction TB
         G1["score_on_kill<br/>(state_add world.score, 1)"]:::game
         G2["win_at_score_30<br/>(if world.score &gt;= 30,<br/>transition_screen 'win')"]:::game
@@ -1255,8 +1255,8 @@ flowchart TB
 
 ```mermaid
 flowchart LR
-    F1["world/physics.json"]:::phys
-    F2["game/rules.json"]:::game
+    F1["world/rules.json"]:::phys
+    F2["game/goals.json"]:::game
     F3["tutorial.json<br/>(optional)"]:::tut
     F4["levels/L1/rules.json"]:::lvl
 
@@ -1288,15 +1288,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    subgraph Sim["world/physics.json<br/>(the simulation)"]
-        S1["doomarena3d/<br/>physics.json"]:::phys
+    subgraph Sim["world/rules.json<br/>(the simulation)"]
+        S1["doomarena3d/<br/>rules.json"]:::phys
     end
 
-    subgraph Games["game/rules.json variants<br/>(same world, different games)"]
-        G1["deathmatch/<br/>game/rules.json<br/>(win: 25 kills)"]:::game
-        G2["score-attack/<br/>game/rules.json<br/>(win: 60s timer)"]:::game
-        G3["capture-flag/<br/>game/rules.json<br/>(win: hold zone 30s)"]:::game
-        G4["escape-chamber/<br/>game/rules.json<br/>(win: reach exit)"]:::game
+    subgraph Games["game/goals.json variants<br/>(same world, different games)"]
+        G1["deathmatch/<br/>game/goals.json<br/>(win: 25 kills)"]:::game
+        G2["score-attack/<br/>game/goals.json<br/>(win: 60s timer)"]:::game
+        G3["capture-flag/<br/>game/goals.json<br/>(win: hold zone 30s)"]:::game
+        G4["escape-chamber/<br/>game/goals.json<br/>(win: reach exit)"]:::game
     end
 
     Sim --> G1
@@ -1304,7 +1304,7 @@ flowchart LR
     Sim --> G3
     Sim --> G4
 
-    Note["Same physics, 4 games.<br/>Without ADR 0009, each game<br/>would need to FORK the full<br/>physics.json — that's the<br/>violation the split prevents."]:::action
+    Note["Same physics, 4 games.<br/>Without ADR 0009, each game<br/>would need to FORK the full<br/>rules.json — that's the<br/>violation the split prevents."]:::action
 
     classDef phys fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef game fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
@@ -1320,8 +1320,8 @@ collapses them silently.
 
 ```mermaid
 flowchart TB
-    Phys["physics.json::day_rollover<br/>query: world_clock<br/>state.hour ≥ 24<br/>effect: state_set hour=0"]:::phys
-    Game["game/rules.json::day_boundary_advance<br/>query: world_clock<br/>state.hour ≥ 24<br/>effect: state_set hour=6 (story-driven)"]:::game
+    Phys["rules.json::day_rollover<br/>query: world_clock<br/>state.hour ≥ 24<br/>effect: state_set hour=0"]:::phys
+    Game["game/goals.json::day_boundary_advance<br/>query: world_clock<br/>state.hour ≥ 24<br/>effect: state_set hour=6 (story-driven)"]:::game
 
     Conflict["Both fire same tick<br/>both mutate world_clock.hour<br/>WHICH wins?<br/>Last-registered (file load order)"]:::action
 
@@ -1384,7 +1384,7 @@ flowchart TB
         L2["InputRegistrar.register_from_data_root<br/>parses ui/input.json<br/>resolves include @lib.input.universal<br/>registers InputMap actions"]:::core
         L3["parse scene.json<br/>camera mode tick_seconds<br/>lighting position_scale level_seed"]:::core
         L4["parse macros.json<br/>(if present) to MacroExpander"]:::core
-        L5["parse world/physics.json<br/>game/rules.json<br/>levels/L1/rules.json<br/>tutorial.json<br/>each via Rule.from_dict<br/>LibResolver + MacroExpander<br/>pre-process refs"]:::core
+        L5["parse world/rules.json<br/>game/goals.json<br/>levels/L1/rules.json<br/>tutorial.json<br/>each via Rule.from_dict<br/>LibResolver + MacroExpander<br/>pre-process refs"]:::core
         L6["parse world/state.json<br/>into env.world_state"]:::core
         L7["parse entities/all json<br/>build env.defs map<br/>spawn initial_instances<br/>each Entity gets renderer child<br/>expand patterns ring scatter etc."]:::core
         L8["parse world/zones.json<br/>build ZoneStore<br/>if present"]:::core

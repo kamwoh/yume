@@ -630,7 +630,7 @@ The ADR states "13 existing demos" are backward-compatible because
 they don't set `camera_mode=isometric_3d`. This is correct for
 **static** camera modes. However, `demo_merchant` cycles camera modes
 at runtime via V-key rules (confirmed at
-`godot/data/demo_merchant/game/rules.json` lines 42–74): it cycles
+`godot/data/demo_merchant/game/goals.json` lines 42–74): it cycles
 through `top_down_3d → third_person_3d → first_person_3d → (empty)`.
 
 After migration step 2 (world-frame rules narrowed to

@@ -66,8 +66,8 @@ pattern (ADR 0006):
 data/<name>/
 ├── scene.json                              # camera, tick, renderer
 ├── world/state.json                        # initial world_state
-├── world/physics.json                      # how the world works
-├── game/rules.json                         # scoring + win/lose
+├── world/rules.json                      # how the world works
+├── game/goals.json                         # scoring + win/lose
 ├── game/flow.json                          # level order + start
 ├── ui/hud.json + ui/input.json + ui/strings.json
 ├── audio/cues.json                         # @cues.X mappings
@@ -110,12 +110,12 @@ based on prose-estimated scope:
   with one `entities/zz_instances.json` at the root
 
 **Rules layout** (ADR 0009 — always split by axis):
-- `world/physics.json` — motion, AI, contact resolution, decay,
+- `world/rules.json` — motion, AI, contact resolution, decay,
   lifecycle (yume-systems-designer)
-- `game/rules.json` — scoring, win/lose, transitions, level-up
+- `game/goals.json` — scoring, win/lose, transitions, level-up
   (yume-game-rules-designer)
 - For pure simulations with no game layer (chess, ecology), omit
-  `game/rules.json` entirely — physics-only is fine.
+  `game/goals.json` entirely — physics-only is fine.
 - Per-level rules go to `levels/<name>/rules.json`.
 
 **Always**:
@@ -136,7 +136,7 @@ writes files in the right structure:
 ```
 LAYOUT CHOSEN:
 - entity_layout: medium → entities/ directory
-- rules: world/physics.json (systems) + game/rules.json (game)
+- rules: world/rules.json (systems) + game/goals.json (game)
 - assets: code-draw shapes appended to data/shapes.json root
 ```
 
@@ -309,12 +309,12 @@ If trigger absent: skip.
 
 ### Phase 2 — systems-designer (GDD → world physics)
 
-Per ADR 0009, this skill now writes `world/physics.json` directly
+Per ADR 0009, this skill now writes `world/rules.json` directly
 (in addition to the rule-sketch document for review).
 
 8. Invoke `yume-systems-designer` skill. Tool:
    `Skill(skill="yume-systems-designer", args=<GDD path + resolved questions>)`.
-9. Skill produces `docs/games/<name>/rules-sketch.md` + `world/physics.json`
+9. Skill produces `docs/games/<name>/rules-sketch.md` + `world/rules.json`
    under the data folder. May propose ADRs if new primitives needed.
 10. **If ADR proposed → escalate to tech-director:**
     `Skill(skill="yume-tech-director", args=<ADR path + diff>)`.
@@ -337,8 +337,8 @@ placements + world state. Rules are NOT written here.
 ### Phase 3.5 — game-rules-designer (game logic) ★ NEW per ADR 0009
 
 15. Invoke `yume-game-rules-designer` skill. Tool:
-    `Skill(skill="yume-game-rules-designer", args=<GDD + world/physics.json>)`.
-16. Skill writes `game/rules.json` (scoring, win/lose, transitions,
+    `Skill(skill="yume-game-rules-designer", args=<GDD + world/rules.json>)`.
+16. Skill writes `game/goals.json` (scoring, win/lose, transitions,
     restart) and `game/flow.json` (level sequence + on-all-complete).
     For sandbox sims (no goals), this phase is SKIPPED — game/ folder
     stays empty.
@@ -549,7 +549,7 @@ integrated state.**
 
 This is also why parallel agents stage their rules into files like
 `rules_haggle_staged.json` — the orchestrator splices them into
-`game/rules.json` AFTER all agents land, BEFORE the single sync.
+`game/goals.json` AFTER all agents land, BEFORE the single sync.
 
 ### Spawning parallel builder agents
 
@@ -754,9 +754,9 @@ design-quality phases). The 8 specialist skills it invokes are at
 - `yume-combining-logic-designer` — Phase 1e.1 (recipe systems — CONDITIONAL)
 - `yume-economy-designer` — Phase 1e.2 (numeric balance + flows — CONDITIONAL)
 - `yume-story-planner` — Phase 1e.3 (narrative beats + arcs — CONDITIONAL)
-- `yume-systems-designer` — Phase 2 (world physics rules — `world/physics.json`)
+- `yume-systems-designer` — Phase 2 (world physics rules — `world/rules.json`)
 - `yume-content-designer` — Phase 3 (entities + initial state)
-- `yume-game-rules-designer` — Phase 3.5 (game logic — `game/rules.json` + `game/flow.json`) ★ ADR 0009
+- `yume-game-rules-designer` — Phase 3.5 (game logic — `game/goals.json` + `game/flow.json`) ★ ADR 0009
 - `yume-asset-designer` — Phase 4 (visuals + audio cues + UI strings)
 - `yume-qa-tester` — Phase 5 (headless + visual + scenario QA)
 - `yume-tech-director` — invariant guardian, on-demand

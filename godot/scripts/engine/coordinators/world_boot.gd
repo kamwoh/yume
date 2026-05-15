@@ -216,7 +216,7 @@ func _load_actor_config() -> void:
 ## from the root.
 ##
 ## ADR 0009 (Phase 5b sunset, 2026-05-05): single canonical layout —
-## world/physics.json + game/rules.json + game/flow.json +
+## world/rules.json + game/goals.json + game/flow.json +
 ## levels/<name>/rules.json + world/state.json. Legacy single-file
 ## paths (world_rules.json, progression.json, world.json) are no
 ## longer consulted.
@@ -229,16 +229,16 @@ func _load_content() -> void:
 	var prog_path := _root + "/game/flow.json"
 	if FileAccess.file_exists(prog_path):
 		ldr.load_progression(prog_path)
-		ldr.load_rules_file(_root + "/world/physics.json")
-		ldr.load_rules_file(_root + "/game/rules.json", true)
+		ldr.load_rules_file(_root + "/world/rules.json")
+		ldr.load_rules_file(_root + "/game/goals.json", true)
 		ldr.load_rules_file(_root + "/tutorial.json", true)
 		ldr.load_world_file(_root + "/world/state.json")
 		ldr.load_entities_path(_root)
 		if _world.current_level != "":
 			_world._level_transitions.load_level(_world.current_level)
 	else:
-		ldr.load_rules_file(_root + "/world/physics.json")
-		ldr.load_rules_file(_root + "/game/rules.json", true)
+		ldr.load_rules_file(_root + "/world/rules.json")
+		ldr.load_rules_file(_root + "/game/goals.json", true)
 		ldr.load_rules_file(_root + "/tutorial.json", true)
 		ldr.load_world_file(_root + "/world/state.json")
 		ldr.load_entities_path(_root)

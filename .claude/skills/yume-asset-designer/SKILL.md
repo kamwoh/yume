@@ -68,7 +68,7 @@ Before declaring asset-designer pass complete, verify:
       ```bash
       # Every input-action referenced in rules MUST be in input.json:
       jq -r '.rules[]? | select(.trigger.type=="input") | .trigger.action' \
-        world/physics.json game/rules.json | sort -u > /tmp/want.txt
+        world/rules.json game/goals.json | sort -u > /tmp/want.txt
       jq -r '.actions[].name' ui/input.json | sort -u > /tmp/have.txt
       diff /tmp/want.txt /tmp/have.txt
       ```
@@ -87,8 +87,8 @@ Before declaring asset-designer pass complete, verify:
       written by any rule. Use grep:
       ```bash
       jq -r '.. | objects | select(.type=="progress_bar") | .binds' \
-        hud.json | while read b; do grep -l "$b" world/physics.json \
-        game/rules.json entities/*.json || echo "ORPHAN: $b"; done
+        hud.json | while read b; do grep -l "$b" world/rules.json \
+        game/goals.json entities/*.json || echo "ORPHAN: $b"; done
       ```
 
 - [ ] `current_objective` (or equivalent objective field) is written
@@ -429,7 +429,7 @@ Static NPCs read as "lifeless meshes" even with distinct silhouettes.
 Add motion via simple tagged tick rules:
 
 ```jsonc
-// physics.json or via @lib.rules.ambient_wander when shipped
+// rules.json or via @lib.rules.ambient_wander when shipped
 {
   "id": "ambient_npc_wander",
   "trigger": {"type": "tick", "interval": 60},

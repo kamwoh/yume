@@ -54,7 +54,7 @@ deliberately per game.
 
 - A GDD at `docs/games/<game>/GDD.md`
 - A world plan + game-rules sketches (knows the signal vocabulary)
-- Existing rules in physics.json + game/rules.json (where to attach
+- Existing rules in world/rules.json + game/goals.json (where to attach
   juice effects)
 
 ## Outputs
@@ -62,7 +62,7 @@ deliberately per game.
 - `docs/games/<game>/juice-design.md` — design doc with feedback
   table per signal
 - Effect appendages to existing rules (juice rules can be ADDED to
-  game/rules.json or extracted to game/juice.json)
+  game/goals.json or extracted to game/juice.json)
 
 ## Core questions
 

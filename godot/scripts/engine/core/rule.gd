@@ -8,7 +8,7 @@ class_name Rule
 ## Shape (JSON):
 ##   {id, trigger, query?, require?, chance?, effect, before?, after?, scope?}
 ##
-## Rules are loaded from world/physics.json + game/rules.json (ADR 0009)
+## Rules are loaded from world/rules.json + game/goals.json (ADR 0009)
 ## into typed Rule instances. Trigger dispatch, query evaluation, and
 ## effect application are separate modules; Rule itself is just a
 ## structural carrier + validator + (W4) Expression cache.
@@ -108,7 +108,7 @@ static func _normalize_lod(raw: Dictionary) -> Dictionary:
 
 
 ## Load a list of Rule objects from a rules JSON file (any of
-## world/physics.json, game/rules.json, levels/<x>/rules.json).
+## world/rules.json, game/goals.json, levels/<x>/rules.json).
 ##
 ## Pass `env` to capture load-time errors as structured records in
 ## `env.error_buffer`. Without env, errors only hit the dev console.

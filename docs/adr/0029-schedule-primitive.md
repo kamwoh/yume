@@ -243,7 +243,7 @@ schedules. yume-game-rules-designer authors AI rules that consume
 `current_verb` + `current_target`:
 
 ```jsonc
-// Example consumer rule (lives in game/rules.json, not engine):
+// Example consumer rule (lives in game/goals.json, not engine):
 {
   "id": "npc_walks_to_target_during_work",
   "trigger": {"type": "tick", "interval": 1},

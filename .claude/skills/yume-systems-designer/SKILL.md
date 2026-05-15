@@ -1,6 +1,6 @@
 ---
 name: yume-systems-designer
-description: World physics designer for Yume games. Translates the GDD's mechanics sketch + dynamics intent into world/physics.json — the rules that simulate how the world behaves (motion, AI, contact resolution, transforms, decay, lifecycle). Per ADR 0009 — narrowed scope to WORLD physics only; game logic (scoring, win/lose, transitions) goes to yume-game-rules-designer. Also writes rule-sketch document for review before authoring; identifies if a new engine primitive is needed and proposes an ADR.
+description: World physics designer for Yume games. Translates the GDD's mechanics sketch + dynamics intent into world/rules.json — the rules that simulate how the world behaves (motion, AI, contact resolution, transforms, decay, lifecycle). Per ADR 0009 — narrowed scope to WORLD physics only; game logic (scoring, win/lose, transitions) goes to yume-game-rules-designer. Also writes rule-sketch document for review before authoring; identifies if a new engine primitive is needed and proposes an ADR.
 ---
 
 # /yume-systems-designer
@@ -37,7 +37,7 @@ Two outputs (review-doc + actual JSON):
    — early review surface. Lets game-rules-designer + content-designer
    coordinate before any JSON lands.
 
-2. **`data/<game>/world/physics.json`** — the actual physics rules
+2. **`data/<game>/world/rules.json`** — the actual physics rules
    the engine loads. Per-game; required for any non-trivial Yume game.
 
 The sketch document still uses this shape:
@@ -341,7 +341,7 @@ without realizing the engine asymmetry. Caught on user's first
 # Find any 2-binding non-contact rule (manual; future: validator).
 # A rule has a 2-binding query if both `a` and `b` keys exist as
 # sibling sub-dicts under `query`. Cross-check trigger type.
-grep -E '"trigger":\s*\{"type":\s*"(tick|signal|input)"' physics.json
+grep -E '"trigger":\s*\{"type":\s*"(tick|signal|input)"' rules.json
 # For each match, confirm the rule's `query` does NOT contain both
 # "a": and "b": at the same level.
 ```

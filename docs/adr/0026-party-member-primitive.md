@@ -116,7 +116,7 @@ Per-frame tick (`_process`):
      `state.hp = state.hp_max` (or `properties.hp_max`, fallback
      to current hp).
 
-KO interception is content's job — game/rules.json adds a tick rule:
+KO interception is content's job — game/goals.json adds a tick rule:
 
 ```jsonc
 {

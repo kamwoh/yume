@@ -65,7 +65,7 @@ spatial traversal within a level/world.
 data/<game>/
 ├── world.json                  # NEW — open-world meta
 ├── world/state.json            # global state
-├── world/physics.json          # rules
+├── world/rules.json          # rules
 ├── chunks/                     # NEW — per-chunk content
 │   ├── 0_0/entities.json       # chunk at origin
 │   ├── 0_1/entities.json
@@ -141,7 +141,7 @@ opt into chunked-world by adding the file.
   together: a multi-level RPG has levels (overworld, dungeon-A,
   dungeon-B), each level is its own chunked world.
 - **ADR 0009 (world/game/flow split)** — chunks belong to the world;
-  per-chunk rules can land in `world/physics.json` or per-chunk
+  per-chunk rules can land in `world/rules.json` or per-chunk
   `chunks/<x>_<y>/rules.json` (game-specific rule overrides).
 - **ADR 0010 (save/load)** — save_policy can specify per-chunk
   persistence vs world_state vs persistent_tag entities. Saves

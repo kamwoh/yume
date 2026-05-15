@@ -407,7 +407,7 @@ something visible from where the player can natively reach).
 ### Check A — Input action coverage
 
 For each entry in `<root>/ui/input.json` actions array:
-1. Grep `<root>/world/physics.json` + `<root>/game/rules.json` for
+1. Grep `<root>/world/rules.json` + `<root>/game/goals.json` for
    `"action": "<name>"` AND verify enclosing rule is NOT under
    `tags_all: ["__disabled__"]`.
 2. If no enabled rule subscribes: **FAIL** with

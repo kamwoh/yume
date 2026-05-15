@@ -38,12 +38,12 @@ existing signal chaining. No tutorial-specific code in the engine.
 
 ```
 data/<game>/
-├── tutorial.json          # tutorial steps as rules (or rules in game/rules.json)
+├── tutorial.json          # tutorial steps as rules (or rules in game/goals.json)
 └── ... (existing)
 ```
 
 `tutorial.json` is OPTIONAL — its rules append to the scheduler same
-way `world/physics.json` and `game/rules.json` do (per ADR 0009 multi-
+way `world/rules.json` and `game/goals.json` do (per ADR 0009 multi-
 file rule loader). Authoring convention: put tutorial rules in their
 own file for clarity, but they're functionally just regular rules.
 

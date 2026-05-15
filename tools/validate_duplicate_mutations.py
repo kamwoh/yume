@@ -2,20 +2,20 @@
 """
 Static validator for cross-file rule duplicate-mutation detection.
 
-Yume splits rules across world/physics.json (simulation) and
-game/rules.json (goals) per ADR 0009. Tutorial.json adds another
+Yume splits rules across world/rules.json (how the world evolves)
+and game/goals.json (goals) per ADR 0009. Tutorial.json adds another
 overlay. The split is conceptual — engine doesn't enforce which
 rule lives where. Authors from different skill agents
-(yume-systems-designer for physics, yume-game-rules-designer for
+(yume-systems-designer for simulation, yume-game-rules-designer for
 game) work in isolation, so they sometimes write rules with
 overlapping responsibilities.
 
 Empirical case 2026-05-11: Aldenmere had two pairs of duplicates:
-- physics.json:day_rollover + game/rules.json:day_boundary_advance
+- world/rules.json:day_rollover + game/goals.json:day_boundary_advance
   both watched current_hour>=24, both mutated current_day +
   current_hour. Different reset values (0 vs 6); last-writer-wins
   meant inconsistent behavior.
-- physics.json:season_advance_X + game/rules.json:season_to_X
+- world/rules.json:season_advance_X + game/goals.json:season_to_X
   both transitioned season_phase on the same day-count gates.
 
 This validator catches "two rules mutate the same (entity-tag,
@@ -119,11 +119,11 @@ def mutations_for_rule(rule):
 
 
 def collect_rule_files(game_dir):
-    """All rules.json + physics.json + tutorial.json + level rules."""
+    """All world/rules.json + game/goals.json + tutorial.json + level rules."""
     out = []
     candidates = [
-        game_dir / "world" / "physics.json",
-        game_dir / "game" / "rules.json",
+        game_dir / "world" / "rules.json",
+        game_dir / "game" / "goals.json",
         game_dir / "tutorial.json",
     ]
     for c in candidates:
@@ -206,11 +206,11 @@ def main():
 
     if total_issues:
         print(f"\n{total_issues} cross-file rule overlap(s).")
-        print("Per ADR 0009: physics.json owns simulation, game/rules.json")
-        print("owns goals. Pick ONE file per mutation; merge or delete the")
-        print("duplicate. If a rule needs both layers, split into two —")
-        print("game/rules.json owns the state mutation; physics.json owns")
-        print("the feedback (juice / signal handlers).")
+        print("Per ADR 0009: world/rules.json owns how the world evolves,")
+        print("game/goals.json owns goals. Pick ONE file per mutation; merge")
+        print("or delete the duplicate. If a rule needs both layers, split")
+        print("into two — game/goals.json owns the state mutation;")
+        print("world/rules.json owns the feedback (juice / signal handlers).")
         if strict:
             sys.exit(1)
     sys.exit(0)

@@ -95,7 +95,7 @@ python3 tools/validate_screens.py demo_<name> --strict
 ```
 
 It scans every `transition_screen` effect across `screens.json`,
-`game/rules.json`, `levels/*/rules.json`, and any `*_staged.json` siblings.
+`game/goals.json`, `levels/*/rules.json`, and any `*_staged.json` siblings.
 Targets must be either a known screen id OR `@previous`. Anything else
 (empty string, `_close`, `_pop`, `_back`, misspelled IDs) is a broken
 reference.

@@ -98,7 +98,7 @@ reading systematically across these sections:
   have ≥1 enabled rule subscribing
 - **Dynamics → cascades**: every named cascade ("gold spiral",
   "reputation gate", "inventory pressure") → must have rule chain
-  visible in world/physics.json or game/rules.json
+  visible in world/rules.json or game/goals.json
 - **Aesthetic → audio cues**: every cue named in `## Audio cues` →
   must be in audio/cues.json
 - **Aesthetic → signature beats**: every named scripted moment →
@@ -155,7 +155,7 @@ grep -l "\"id\": \"<id>\"" godot/data/demo_<name>/entities/*.json
 
 ### Rule subscription
 ```bash
-grep -B 5 "\"action\": \"<verb>\"" godot/data/demo_<name>/{world/physics.json,game/rules.json}
+grep -B 5 "\"action\": \"<verb>\"" godot/data/demo_<name>/{world/rules.json,game/goals.json}
 # Verify enclosing rule does NOT have:  "tags_all": ["__disabled__"]
 ```
 - ✓ if found AND enclosing rule has no `__disabled__` tag

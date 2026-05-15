@@ -76,12 +76,12 @@ def validate_game(game_dir, strict=False):
 
     # Files that may contain transition_screen effects:
     #   screens.json (button on_click)
-    #   game/rules.json (rule effects)
+    #   game/goals.json (rule effects)
     #   levels/*/rules.json (per-level rules — when ADR 0006 multi-level)
     #   any *_staged.json siblings (catch bugs before they're spliced)
     targets_to_scan = [
         screens_path,
-        game_dir / "game" / "rules.json",
+        game_dir / "game" / "goals.json",
     ]
     levels_dir = game_dir / "levels"
     if levels_dir.exists():

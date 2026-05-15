@@ -42,8 +42,8 @@ Files in `godot/data/<game-name>/`:
 - `levels/<name>/entities.json` (multi-level games) — per-level instances
 
 You do NOT write:
-- `world/physics.json` — yume-systems-designer
-- `game/rules.json` + `game/flow.json` — yume-game-rules-designer
+- `world/rules.json` — yume-systems-designer
+- `game/goals.json` + `game/flow.json` — yume-game-rules-designer
 - `scene.json` (camera/tick/renderer config) — yume-asset-designer
 - `ui/hud.json` + `ui/input.json` + `ui/strings.json` — yume-asset-designer
 - `audio/cues.json` — yume-asset-designer
@@ -149,7 +149,7 @@ GDScript. All playability config lives in scene.json + hud.json.
 ```
 
 You do NOT write rules. systems-designer + game-rules-designer own
-those files (`world/physics.json`, `game/rules.json`, `game/flow.json`).
+those files (`world/rules.json`, `game/goals.json`, `game/flow.json`).
 You DO need to align field names with what those skills expect — the
 rule sketches identify the binding contract.
 
@@ -276,8 +276,8 @@ data/<game>/
 ├── ui/hud.json              # asset-designer
 ├── ui/input.json            # asset-designer
 ├── world/state.json         # initial world state — content-designer (this skill)
-├── world/physics.json       # GLOBAL physics rules — systems-designer
-├── game/rules.json          # GLOBAL game rules (scoring/win) — game-rules-designer
+├── world/rules.json       # GLOBAL physics rules — systems-designer
+├── game/goals.json          # GLOBAL game rules (scoring/win) — game-rules-designer
 ├── game/flow.json           # level order + start — game-rules-designer
 ├── entities/                # PERSISTENT entity defs — content-designer (this skill)
 └── levels/
@@ -489,7 +489,7 @@ for a def, check the active camera mode and reject specks.
 
 ## Camera-relative WASD: player needs deceleration mechanism
 
-When the world/physics.json $includes a WASD lib bundle that uses
+When the world/rules.json $includes a WASD lib bundle that uses
 `velocity_add_relative` (isometric_3d or first_person_3d camera
 modes), the player's `state_init` MUST include either
 `zero_velocity_pretick: true` or `drag > 0`. Without one of these,

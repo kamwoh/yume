@@ -758,7 +758,7 @@ tech-director must verify:
 
 - ADR 0001 — Seven primitives (this ADR adds Collision Shape and Body Type as primitive vocabulary)
 - ADR 0004 — `blocks_motion` tag (SUPERSEDED by this ADR)
-- ADR 0009 — World/game/flow separation (physics belongs in world/physics.json semantics)
+- ADR 0009 — World/game/flow separation (physics belongs in world/rules.json semantics)
 - ADR 0021 — Yume as JSON layer over Godot (foundational; this ADR finally implements its physics direction)
 - ADR 0022 — (was empty placeholder; this ADR is the actual one originally anticipated as 0022 in earlier discussion)
 - ADR 0024 — Pathfinding A* grid (independent; will be addressed in future ADR 0045)

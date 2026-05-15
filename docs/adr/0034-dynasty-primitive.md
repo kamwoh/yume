@@ -150,7 +150,7 @@ The succession itself is a **rule**, not a primitive. Authored in
 per-game JSON, it composes the new effects:
 
 ```jsonc
-// data/<game>/game/rules.json
+// data/<game>/game/goals.json
 {
   "id": "dynasty_succession_on_player_death",
   "trigger": {"type": "signal", "name": "entity_died"},

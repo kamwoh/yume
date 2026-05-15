@@ -41,8 +41,8 @@ harvests crops when ripe, ties them into a counter"
 - `docs/games/farming-sim/GDD.md` (or similar slug)
 - `docs/games/farming-sim/rules-sketch.md`
 - `godot/data/demo_farming-sim/entities/` or `entities.json`
-- `godot/data/demo_farming-sim/world/physics.json`
-- `godot/data/demo_farming-sim/game/rules.json` (if game has scoring/win)
+- `godot/data/demo_farming-sim/world/rules.json`
+- `godot/data/demo_farming-sim/game/goals.json` (if game has scoring/win)
 - `godot/data/demo_farming-sim/scene.json`
 - `godot/scenes/farming-sim_2d.tscn`
 - `docs/games/farming-sim/qa-report.md`
@@ -50,11 +50,11 @@ harvests crops when ripe, ties them into a counter"
 **Schema checks:**
 - entities have `definitions` array with ≥ 5 entries (player +
   seed + young + mature crop + ground or similar)
-- world/physics.json has ≥ 5 rules covering:
+- world/rules.json has ≥ 5 rules covering:
   - movement (input → velocity_set, 4 directions)
   - crop growth (tick → state_add)
   - growth threshold transforms (seed → young → mature)
-- game/rules.json (if present) covers harvest scoring (contact +
+- game/goals.json (if present) covers harvest scoring (contact +
   state_add on a counter)
 - All rules pass `Rule.validate_all` (0 errors)
 
@@ -114,7 +114,7 @@ that periodically strikes random trees"
   burning_tree). Likely needs no new primitive — composition with
   existing seven.
 - Phase 3 (content-designer + systems-designer): MODIFIES
-  `data/demo_ecology/entities.json` + `world/physics.json` rather than
+  `data/demo_ecology/entities.json` + `world/rules.json` rather than
   creating new folder
 - Phase 5 (qa-tester): verifies thunderstorm fires + ignites trees,
   AND that pre-existing cascades (fire spread, predation, etc.) still

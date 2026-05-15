@@ -753,8 +753,8 @@ game-specific GDScript. No entity IDs are hardcoded. The boundary is clean.
 ### Q2 — Invariant #2 (no semantic effect types)
 
 PASS. Steps (`press`, `hold`, `click`, etc.) are test-driver vocabulary, not
-engine effect `type` strings. They never appear in `rules.json` or
-`physics.json`. They do not enter `effect_apply.gd`'s dispatch path. The
+engine effect `type` strings. They never appear in `world/rules.json` or
+`game/goals.json`. They do not enter `effect_apply.gd`'s dispatch path. The
 surface is orthogonal to the effect primitive layer.
 
 ### Q3 — Invariant #8 (engine = primitives + interpreter; ADR gating)

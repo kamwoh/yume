@@ -1,5 +1,5 @@
 {
-  "_comment": "ADR 0027 — input bundle: WASD with first-person variant. 8 rules total: 4 world-frame (active when world_clock.camera_mode != first_person_3d) + 4 camera-relative (active when camera_mode == first_person_3d). Per-game physics.json splices via {$include: '@lib.input_bundles.wasd_with_fp_variant.rules'}. Action declarations under `actions` are FOR DOCUMENTATION; per-game ui/input.json still authors its own action list (the canonical InputMap declarations).",
+  "_comment": "ADR 0027 — input bundle: WASD with first-person variant. 8 rules total: 4 world-frame (active when world_clock.camera_mode != first_person_3d) + 4 camera-relative (active when camera_mode == first_person_3d). Per-game rules.json splices via {$include: '@lib.input_bundles.wasd_with_fp_variant.rules'}. Action declarations under `actions` are FOR DOCUMENTATION; per-game ui/input.json still authors its own action list (the canonical InputMap declarations).",
 
   "actions": [
     {"name": "move_north", "edge": "hold", "_doc": "W key (canonical: ui/input.json)"},
@@ -13,7 +13,7 @@
 
   "rules": [
     {
-      "_comment": "World-frame WASD — fires when camera is NOT first_person_3d. W=north regardless of player facing. Spliced into game's physics.json rules array. Per-axis pattern (added 2026-05-10): each directional rule sets ONLY its own axis. Engine's velocity_set preserves the OTHER axis when the field is omitted, so W+D = north + east diagonal works (each rule contributes one axis; combined velocity is (3, -3) at 45°). With both axes set per rule, last-writer-wins broke diagonals.",
+      "_comment": "World-frame WASD — fires when camera is NOT first_person_3d. W=north regardless of player facing. Spliced into game's rules.json rules array. Per-axis pattern (added 2026-05-10): each directional rule sets ONLY its own axis. Engine's velocity_set preserves the OTHER axis when the field is omitted, so W+D = north + east diagonal works (each rule contributes one axis; combined velocity is (3, -3) at 45°). With both axes set per rule, last-writer-wins broke diagonals.",
       "id": "lib_wasd_move_north_world",
       "trigger": {"type": "input", "action": "move_north"},
       "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d", "third_person_3d"]}},

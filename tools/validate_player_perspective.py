@@ -106,19 +106,18 @@ if inputs and hud:
                 collect_rule_input_actions(x)
 
     for path in [
-        GAME_DIR / "world" / "physics.json",
-        GAME_DIR / "game" / "rules.json",
+        GAME_DIR / "world" / "rules.json",
+        GAME_DIR / "game" / "goals.json",
     ]:
         rj = load_json(path)
         if rj:
             collect_rule_input_actions(rj)
     for lvl_dir in (GAME_DIR / "levels").glob("level_*"):
-        for sub in ("rules.json", "physics.json"):
-            p = lvl_dir / sub
-            if p.exists():
-                rj = load_json(p)
-                if rj:
-                    collect_rule_input_actions(rj)
+        p = lvl_dir / "rules.json"
+        if p.exists():
+            rj = load_json(p)
+            if rj:
+                collect_rule_input_actions(rj)
     # screens.json global_inputs (action-driven on_press chains)
     sj = load_json(GAME_DIR / "screens.json")
     if sj and isinstance(sj.get("global_inputs"), list):
@@ -152,7 +151,7 @@ if inputs and hud:
         if name not in rule_actions and not name.startswith("move_"):
             errors.append(
                 f"action '{name}' declared in ui/input.json with keys="
-                f"{keys} but no rule (game/rules.json or world/physics.json "
+                f"{keys} but no rule (game/goals.json or world/rules.json "
                 f"or screens.json global_inputs) consumes it. Pressing the "
                 f"key fires the input but nothing reacts. Either wire a "
                 f"rule with trigger.input.action='{name}' OR add "
@@ -177,7 +176,7 @@ def collect_objective_texts(d, out):
 
 
 objectives = []
-for rules_path in (GAME_DIR / "game/rules.json",):
+for rules_path in (GAME_DIR / "game/goals.json",):
     rj = load_json(rules_path)
     if rj:
         collect_objective_texts(rj, objectives)

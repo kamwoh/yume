@@ -1534,7 +1534,7 @@ Demonstrated by demo_multilevel + demo_doomarena3d (3-chamber campaign)
 Sub-phases shipped in order:
 
 - **Phase 1** — engine multi-file rule loader + initial sokoban migration
-- **Phase 2a** — `world/physics.json` + `game/rules.json` + `game/flow.json`
+- **Phase 2a** — `world/rules.json` + `game/goals.json` + `game/flow.json`
   layout
 - **Phase 2b** — `audio/cues.json` + `@cues.X` indirection
 - **Phase 2c** — `ui/strings.json` + `@strings.X` indirection
@@ -2461,7 +2461,7 @@ no soul" at GDD-review time, not playtest time.
 - `entities/named_regulars.json` → `voice` + `barker_lines` + `flavor_text`
   on 5 regulars
 - `entities/customer_generics.json` → `barker_lines` on 5 archetypes
-- `game/rules.json` → 5 barker-on-contact rules + 7 contact-radius
+- `game/goals.json` → 5 barker-on-contact rules + 7 contact-radius
   reductions (attack 3.75→1.5; haggle 2.0→1.2; chest/portal 3.12→1.5)
 - Verification: 488/488 unit tests, 12/12 scenarios, 19/19 smoke-screens,
   strict screen-flow validator clean.

@@ -51,10 +51,10 @@ data/<game>/
 ├── entities/                     # Vocabulary (defs unchanged)
 │   └── *.json
 ├── world/                        # The simulated world
-│   ├── physics.json              # World rules — how things behave
+│   ├── rules.json              # World rules — how things behave
 │   └── state.json                # Initial world state (was world.json)
 ├── game/                         # The game played in the world
-│   ├── rules.json                # Game rules — scoring, win/lose, progression triggers
+│   ├── goals.json                # Game goals — scoring, win/lose, progression triggers
 │   └── flow.json                 # Level/scene sequencing (was progression.json)
 ├── ui/                           # Player-facing surface
 │   ├── hud.json                  # Display widgets only
@@ -99,8 +99,8 @@ set in the scheduler. The scheduler doesn't distinguish world-vs-game
 rules at runtime — the split is purely AUTHORING-time. Files load in
 this order:
 
-1. `world/physics.json` — physics rules (e.g. bullet_kills_monster)
-2. `game/rules.json` — game rules (e.g. score_on_kill, win_check)
+1. `world/rules.json` — physics rules (e.g. bullet_kills_monster)
+2. `game/goals.json` — game rules (e.g. score_on_kill, win_check)
 3. `levels/<current>/rules.json` — per-level game rules (e.g. clear at score>=5)
 4. `variants/<active>.json` — overlay (modifies rule values)
 
@@ -171,7 +171,7 @@ loaded rules. Apply world_state overlay on top of `world/state.json`.
 
 Variants are PURELY ADDITIVE — they can override numeric values but
 cannot change rule structure or add new rules. New rules belong in
-`game/rules.json`.
+`game/goals.json`.
 
 ### Localization layer
 
@@ -201,7 +201,7 @@ loads `ui/strings.<lang>.json` based on locale config.
 `levels/<name>/rules.json` carries level-specific game logic
 (typically clear conditions). World physics rules stay global.
 Example for sokoban level 5 (push-order constraints):
-- Global: walks/walls/pushes (world/physics.json)
+- Global: walks/walls/pushes (world/rules.json)
 - Per-level: "level 5 is cleared when ALL three goals covered" (levels/5/rules.json)
 
 Engine appends per-level rules at level-load (already does this for
@@ -212,8 +212,8 @@ the current `levels/<name>/world_rules.json` path; rename to
 
 **Enables:**
 
-- **Reusable worlds**: same `world/physics.json` hosts multiple games
-  via different `game/rules.json`. Yume's "engine claim" becomes
+- **Reusable worlds**: same `world/rules.json` hosts multiple games
+  via different `game/goals.json`. Yume's "engine claim" becomes
   literal — a Yume "engine" is a world; games run on top.
 - **Audio palette swap** without touching rules.
 - **Difficulty modes** with one overlay file.
@@ -245,14 +245,14 @@ the current `levels/<name>/world_rules.json` path; rename to
 
 **Backward compatibility**:
 
-- Engine load path: try new layout (`world/physics.json` etc.); fall
+- Engine load path: try new layout (`world/rules.json` etc.); fall
   back to old (`world_rules.json`) if missing. Per-demo migration is
   opt-in. Old demos keep working until someone migrates them.
 - Old single-file `inputs.json` continues to load. New `ui/input.json`
   is the new path.
 - `scene.json` at root continues to work. `render/scene.json` is the
   new path.
-- Rule loader: if `world/physics.json` exists, use new path; else
+- Rule loader: if `world/rules.json` exists, use new path; else
   fall back to `world_rules.json`. Same for game rules / flow / etc.
 - Audio cue indirection is opt-in (rules can still emit `play_sound`
   with concrete sound names for legacy / non-cue cases).
@@ -351,7 +351,7 @@ harder. Stick with JSON.
    "easy"`) — content-authorable; falls back to no-variant.
 
 4. **Level rules merge semantics**: when `levels/<x>/rules.json`
-   defines a rule with the same id as `game/rules.json`, does
+   defines a rule with the same id as `game/goals.json`, does
    per-level OVERRIDE or APPEND? Lean: override. Simpler mental
    model. If you want both, use distinct ids.
 
@@ -362,10 +362,10 @@ harder. Stick with JSON.
    game-rules-designer + systems-designer split rules.
 
 6. **Empty-layer convention**: a sandbox sim (no game) would have no
-   `game/rules.json`. Engine treats absence as "no game logic" —
+   `game/goals.json`. Engine treats absence as "no game logic" —
    sandbox mode. Same for absent `audio/cues.json` (rules use
    concrete sound names) and `variants/` (no overlay). All optional.
-   Lean: yes — every layer except `world/physics.json` and
+   Lean: yes — every layer except `world/rules.json` and
    `entities/` is optional.
 
 7. **Existing 0006 multi-level pattern**: this ADR's `game/flow.json`
@@ -483,9 +483,9 @@ later debate.
 
 Mixed. Splitting yume-content-designer into:
 - yume-content-designer (entities + placements only)
-- yume-game-rules-designer (game/rules.json)
+- yume-game-rules-designer (game/goals.json)
 - yume-flow-designer (game/flow.json)
-- yume-systems-designer (existing; rescoped to world/physics.json)
+- yume-systems-designer (existing; rescoped to world/rules.json)
 - yume-asset-designer (existing; now also owns audio/cues.json)
 
 The first three (content-designer rescope + game-rules-designer)
@@ -551,7 +551,7 @@ The ADR's core claim — that `world_rules.json` mixes two distinct
 concerns and the seam is real — is correct. The proposed split aligns
 with Yume's stated principle that "engine is generic, content is in
 JSON." The new file layout makes the LLM-authoring path cleaner
-(focused skills per layer) and unlocks reuse (swap `game/rules.json`
+(focused skills per layer) and unlocks reuse (swap `game/goals.json`
 to host different game-modes in the same world).
 
 The audio cue, variants, and localization additions are all small

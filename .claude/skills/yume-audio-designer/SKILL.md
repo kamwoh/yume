@@ -66,7 +66,7 @@ Checklist before complete:
      sounds.json) and document the rule wiring + the limitation.
    - OR propose an ADR for ogg/loop playback. Don't claim BGM is
      authored if the engine can't play it.
-3. Verify each BGM track has a corresponding rule in game/rules.json
+3. Verify each BGM track has a corresponding rule in game/goals.json
    that fires `emit_shell_event {event: "play_music", name: "..."}`
    on level entry. Without the rule, the cue is dead JSON.
 4. Document in audio-design.md exactly which cues are PLAYABLE today
@@ -229,7 +229,7 @@ changes.
 ### Mapping music to game state
 
 Music plays based on signals + screen state. Rules in
-game/rules.json (yume-game-rules-designer's domain) fire effects
+game/goals.json (yume-game-rules-designer's domain) fire effects
 like:
 
 ```jsonc

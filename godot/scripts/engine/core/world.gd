@@ -201,12 +201,12 @@ func _resolve_data_root_from_cmdline() -> void:
 ## entity load (per W0 finding on lifecycle-flush-at-load).
 ##
 ## ADR 0009 (Phase 5b sunset, 2026-05-05): single canonical layout —
-## world/physics.json + game/rules.json + game/flow.json +
+## world/rules.json + game/goals.json + game/flow.json +
 ## levels/<name>/rules.json + world/state.json. Legacy single-file paths
 ## (world_rules.json, progression.json, world.json) are no longer
 ## consulted — all in-tree demos migrated. If you hit a "no rules
 ## loaded" warning on an old game, rename world_rules.json →
-## world/physics.json (or split per Phase 3b classification).
+## world/rules.json (or split per Phase 3b classification).
 func load_data() -> void:
 	WorldBoot.new(self).run()
 

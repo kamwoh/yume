@@ -1,6 +1,6 @@
 ---
 name: yume-game-rules-designer
-description: Game-rules designer for Yume games (ADR 0009). Translates the GDD's win/lose/scoring/progression intent into game/rules.json + game/flow.json. The "what is the goal of being in this world?" layer — distinct from world physics (yume-systems-designer's domain). Subscribes to semantic events the world emits (player_died, monster_killed, goal_reached) and decides what scoring/transitions/win-conditions happen. Without this skill's output, you have a sandbox; with it, you have a game.
+description: Game-rules designer for Yume games (ADR 0009). Translates the GDD's win/lose/scoring/progression intent into game/goals.json + game/flow.json. The "what is the goal of being in this world?" layer — distinct from world physics (yume-systems-designer's domain). Subscribes to semantic events the world emits (player_died, monster_killed, goal_reached) and decides what scoring/transitions/win-conditions happen. Without this skill's output, you have a sandbox; with it, you have a game.
 ---
 
 # /yume-game-rules-designer
@@ -18,7 +18,7 @@ spawn). Created in ADR 0009 (world / game / flow separation, accepted
 
 - The GDD at `docs/games/<name>/GDD.md` — for stated win/lose
   conditions, scoring system, progression intent
-- `world/physics.json` — written by yume-systems-designer; tells you
+- `world/rules.json` — written by yume-systems-designer; tells you
   what events the world emits (e.g., `player_moved`, `monster_died`,
   `goal_touched`) that you can subscribe to
 - `entities/` defs — for state field names you'll mutate (e.g.
@@ -28,7 +28,7 @@ spawn). Created in ADR 0009 (world / game / flow separation, accepted
 
 Two files per game (under `data/<game>/`):
 
-- `game/rules.json` — game-logic rules (scoring, win/lose, transition
+- `game/goals.json` — game-logic rules (scoring, win/lose, transition
   triggers, restart handling)
 - `game/flow.json` — level sequence + on-all-complete behavior
   (renamed from progression.json per ADR 0009)
@@ -40,7 +40,7 @@ Plus optional per-level:
 
 ## Where the line is
 
-| Lives in `world/physics.json` (yume-systems-designer) | Lives in `game/rules.json` (you) |
+| Lives in `world/rules.json` (yume-systems-designer) | Lives in `game/goals.json` (you) |
 |---|---|
 | Bullet damages monster on contact | Score increments on monster death |
 | Monster homes toward player | Boss spawns when score hits threshold |
@@ -72,7 +72,7 @@ condition + scoring axis explicitly. The "Aesthetics target" gives
 hints about pacing (e.g., Submission = no time pressure; Challenge =
 escalating threat).
 
-### Step 2 — Read world/physics.json
+### Step 2 — Read world/rules.json
 
 Look for **emitted signals** — physics rules using `{type: "emit",
 "signal": "X"}`. These are the SUBSCRIBABLE events your game rules
@@ -89,7 +89,7 @@ If physics doesn't emit the event you need, **flag back to systems-
 designer** to add the emit. Don't reach into physics rules and
 modify them — that's not your layer.
 
-### Step 3 — Write game/rules.json
+### Step 3 — Write game/goals.json
 
 For each game-logic concern from the GDD, write a rule:
 
@@ -151,7 +151,7 @@ data/<game>/levels/level_3/rules.json   ← clear at boss kill
 ```
 
 Engine appends per-level rules at level-load. If `levels/<x>/rules.json`
-defines a rule with the same id as `game/rules.json`, the per-level
+defines a rule with the same id as `game/goals.json`, the per-level
 rule overrides (per ADR 0009 tech-director condition #4).
 
 ## Reference patterns
@@ -213,7 +213,7 @@ rule overrides (per ADR 0009 tech-director condition #4).
 
 ## What good looks like
 
-- **Tight scope per file**: game/rules.json contains ONLY game logic.
+- **Tight scope per file**: game/goals.json contains ONLY game logic.
   Physics rules don't leak in. If you find yourself writing motion or
   AI rules, hand back to yume-systems-designer.
 - **Subscribes to physics events**: rules trigger on signals physics
@@ -226,7 +226,7 @@ rule overrides (per ADR 0009 tech-director condition #4).
 
 ## What bad looks like
 
-- Mixing physics into game/rules.json (e.g. `bullet_kills_monster`
+- Mixing physics into game/goals.json (e.g. `bullet_kills_monster`
   rule appearing here — that's physics, belongs in world/)
 - Game rules that READ entity state without subscribing to events
   (works but loses the decoupling — sandbox version can't drop these)
@@ -247,7 +247,7 @@ declared but had no rules subscribing.
    enabled rule subscribing. Grep:
    ```bash
    for action in $(jq -r '.actions[].name' < ui/input.json); do
-     count=$(grep -c "\"action\": \"$action\"" world/physics.json game/rules.json)
+     count=$(grep -c "\"action\": \"$action\"" world/rules.json game/goals.json)
      echo "$action: $count rules"
    done
    ```
@@ -300,9 +300,9 @@ rendered as intended. See visual-qa.md for the full per-skill checklist.
 
 - `docs/adr/0009-world-game-flow-separation.md` — your charter
 - `docs/games/<name>/GDD.md` — design intent
-- `data/demo_sokoban/game/rules.json` — reference implementation
+- `data/demo_sokoban/game/goals.json` — reference implementation
   (track_moves, restart_input, win_box_on_goal)
-- `data/demo_multilevel/game/rules.json` — minimal example
+- `data/demo_multilevel/game/goals.json` — minimal example
   (just goal_reached → transition_level)
 - `data/demo_doomarena3d/levels/<chamber>/rules.json` — per-level
   game rules pattern

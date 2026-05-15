@@ -22,7 +22,7 @@ But many other authoring artifacts are **NOT** reusable:
 | Artifact | Status today | Cost to author per game |
 |---|---|---|
 | Camera presets (iso / FP / top-down) | Hand-author in scene.json | 8-15 lines |
-| Input bundles (WASD + sprint + attack) | Hand-author 8+ rules in physics.json + actions in ui/input.json | ~80 lines |
+| Input bundles (WASD + sprint + attack) | Hand-author 8+ rules in rules.json + actions in ui/input.json | ~80 lines |
 | First-person camera + WASD-relative bundle | Hand-author 8 split rules + camera config + state init | ~120 lines |
 | Title / pause / settings screens | Hand-author per game | ~60-200 lines |
 | Common entity defs (townie, house, prop_lamp) | Redefined per game | ~30-80 lines each |
@@ -93,12 +93,12 @@ overriding value can itself be a `$extends` dict).
 
 ### 3. `{"$include": ["@lib.X.Y", "@lib.X.Z"]}` — array splice
 
-For files where the top-level is an array (e.g. `world/physics.json
+For files where the top-level is an array (e.g. `world/rules.json
 ::rules` is an array), include lib entries to splice multiple
 items in. The engine flattens the include into the parent array.
 
 ```jsonc
-// In demo_merchant/world/physics.json
+// In demo_merchant/world/rules.json
 {
   "rules": [
     {"$include": "@lib.input_bundles.wasd_with_fp_variant.rules"},
@@ -437,7 +437,7 @@ Phase 2 (initial library content):
 Phase 3 (migrate merchant):
 - Convert merchant's scene.json camera → `$extends @lib.cameras.iso
   _top_down`
-- Convert physics.json WASD rules → `$include @lib.input_bundles
+- Convert rules.json WASD rules → `$include @lib.input_bundles
   .wasd_with_fp_variant`
 - Verify 12/12 scenarios still pass
 
@@ -533,7 +533,7 @@ without merging. State this in § "Alternatives considered" so
 future readers don't try to consolidate.
 
 **3. `$include` array splice — id-collision semantics.** Critical
-gap. If a game's `physics.json::rules` has rule id `player_move_north`
+gap. If a game's `rules.json::rules` has rule id `player_move_north`
 AND `$include @lib.input_bundles.wasd_with_fp_variant.rules` brings
 its own `player_move_north`, what happens? The current `world.gd`
 doesn't dedupe rule ids. Need to declare:

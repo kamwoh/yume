@@ -2,7 +2,7 @@
 """
 Static validator for spawn-effect template references.
 
-Walks every world/physics.json + game/rules.json + levels/*/rules.json under
+Walks every world/rules.json + game/goals.json + levels/*/rules.json under
 a game's data directory. For each `spawn` effect found, verifies the
 `template` field names an entity def that actually exists in the game's
 entities/*.json files (or merged `entities.json`).
@@ -90,8 +90,8 @@ def collect_rule_files(game_dir):
     """Files that may contain `spawn` effects."""
     out = []
     candidates = [
-        game_dir / "world" / "physics.json",
-        game_dir / "game" / "rules.json",
+        game_dir / "world" / "rules.json",
+        game_dir / "game" / "goals.json",
     ]
     for c in candidates:
         if c.exists():

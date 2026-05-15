@@ -34,7 +34,7 @@ ad-hoc shape collapses:
   the leader gains reputation with a faction
 
 These are all faction-shaped — repeating "if-then-else" per faction
-pair in `game/rules.json` would be hundreds of bespoke rules and
+pair in `game/goals.json` would be hundreds of bespoke rules and
 won't generalize across kingdoms.
 
 The roadmap (`docs/games/aldenmere/engine_roadmap.md` § ADR 0032)

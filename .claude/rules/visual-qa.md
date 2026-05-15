@@ -24,9 +24,9 @@ Skills that write/modify content or code that affects rendering:
 
 - **yume-content-designer** — entity defs + initial placements
   (entities visible at expected positions, scale, color)
-- **yume-game-rules-designer** — game/rules.json (transitions, screens,
+- **yume-game-rules-designer** — game/goals.json (transitions, screens,
   effects fire visibly)
-- **yume-systems-designer** — world/physics.json (motion, AI homing,
+- **yume-systems-designer** — world/rules.json (motion, AI homing,
   spawn timing — all visible behaviors)
 - **yume-asset-designer** — visual fields per entity, scene/hud config
   (THE visual layer — strongest gate)
@@ -369,7 +369,7 @@ does nothing because target is unrecognized." This gate has two layers:
 ### Layer 1 — static validator (cheap, runs at sync time)
 
 Run `tools/validate_screens.py` against the game's data dir. It scans
-every `transition_screen` effect across screens.json + game/rules.json
+every `transition_screen` effect across screens.json + game/goals.json
 + levels/*/rules.json + game/*_staged.json and verifies the `target` is
 either a known screen id OR the special token `@previous`.
 

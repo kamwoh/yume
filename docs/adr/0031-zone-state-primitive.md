@@ -491,7 +491,7 @@ load-time invariant.
   - `archetypes/core/templates/godot/scripts/engine/tests/test_runner.gd` — 10 new tests
   - `tools/validate_zones.py` (new)
 - Related ADRs:
-  - **ADR 0009** (world/game/flow separation) — zone_state is conceptually a third "world" file (world/zones.json), parallel to world/physics.json + world/state.json.
+  - **ADR 0009** (world/game/flow separation) — zone_state is conceptually a third "world" file (world/zones.json), parallel to world/rules.json + world/state.json.
   - **ADR 0010** (save/load) — zone_state participates via `persist_zones` policy key.
   - **ADR 0014** (open-world substrate) — chunk streaming and zones are orthogonal: chunks stream geometry, zones aggregate state. A zone may span chunks; chunks don't care about zones.
   - **ADR 0017** (spatial-LOD) — zones have no spatial extent in this ADR; LOD is irrelevant.
