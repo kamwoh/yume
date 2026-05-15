@@ -61,6 +61,7 @@ func run() -> void:
 	_mount_default_directors()  # ensure UI + ADR director Nodes exist
 	_spawn_engine_entity()  # ADR 0047: _engine singleton backs world.* state
 	_init_lib_resolver()
+	_load_engine_rules()  # ADR 0049: auto-loaded engine_rules lib bundles
 	_register_inputs()
 	_apply_level_seed()
 	_load_macros()
@@ -143,6 +144,31 @@ func _mount_default_directors() -> void:
 ## screens, scene, hud) call LibResolver.resolve transparently.
 func _init_lib_resolver() -> void:
 	LibResolver.init_cache(_root)
+
+
+## ADR 0049 — auto-load engine_rules lib bundles. Every JSON file under
+## data/lib/engine_rules/ is registered as global rules BEFORE any
+## per-game rules load. Expresses what used to be hardcoded engine
+## scans (lifetime decay, etc.) as primitive rules content authors
+## could write — engine ships only the irreducible mechanism
+## (scheduler, query, effect dispatch), not the behaviors.
+##
+## Auto-included (not opt-in): no per-game `$include` needed, no risk
+## of a game forgetting to wire in the engine's built-in behaviors.
+func _load_engine_rules() -> void:
+	var lib_root := _root.rstrip("/").get_base_dir() + "/lib/engine_rules"
+	if not DirAccess.dir_exists_absolute(lib_root):
+		return
+	var dir := DirAccess.open(lib_root)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".json"):
+			_world._loader.load_rules_file(lib_root + "/" + fname, true)
+		fname = dir.get_next()
+	dir.list_dir_end()
 
 
 ## Tier 2.6t / ADR 0009 — register per-game input actions from

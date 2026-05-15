@@ -1,0 +1,21 @@
+{
+  "_comment": "ADR 0049 — engine_rules lib bundle. Auto-loaded by WorldBoot before any per-game rules. Expresses what used to be hardcoded engine scans as the same primitive rules content authors write. Lifetime primitive: entities with state.lifetime: N (in ticks) decrement by 1 each sim-tick and despawn when they hit zero. Used by transient entities (bullets, particles, damage numbers).",
+
+  "rules": [
+    {
+      "_comment": "Decrement step. Fires only for entities WITH state.lifetime > 0 — entities without the field are unaffected (non-transient). Tick-discrete: integer ticks, not seconds, for save-state reproducibility.",
+      "id": "engine_lifetime_decrement",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"state": {"lifetime_gt": 0}},
+      "effect": {"type": "state_add", "target": "self", "field": "lifetime", "amount": -1}
+    },
+    {
+      "_comment": "Despawn step. Fires when an entity's lifetime hits zero. Ordered AFTER the decrement so same-tick (decrement to 0 → despawn) works in one pass. Despawn routes through the spawn manager's standard cleanup (relations + spatial index + physics body + queue_free).",
+      "id": "engine_lifetime_despawn",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"state": {"lifetime_eq": 0}},
+      "effect": {"type": "remove", "target": "self"},
+      "after": ["engine_lifetime_decrement"]
+    }
+  ]
+}

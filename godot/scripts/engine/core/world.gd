@@ -263,9 +263,8 @@ func _run_multimesh_director() -> void:
 func advance_one_tick() -> void:
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)  # ADR 0018 — AI before input
-	scheduler.tick()  # canonical phase loop
+	scheduler.tick()  # canonical phase loop (lifetime decay via ADR 0049 rules)
 	_tick_lifecycle_director()  # ADR 0036
-	_decrement_lifetimes()  # Tier 2.6j
 	_stream_chunks_if_active()  # ADR 0014
 	if actor_manager != null:
 		actor_manager.process_pending(scheduler.env, world_state, verbose)  # ADR 0016
@@ -290,36 +289,6 @@ func _stream_chunks_if_active() -> void:
 	if actor_id == "":
 		return
 	chunk_streamer.update(scheduler.env, actor_id)
-
-
-## Tier 2.6j: entities with state.lifetime > 0 auto-decrement each tick
-## removed when lifetime reaches 0. Standard pattern for transient entities
-## (bullets, particles, sparkles, "+10" damage numbers).
-##
-## Entities without a lifetime field are unaffected. Lifetime is in TICKS,
-## not seconds — keeps it predictable across tick_seconds settings.
-func _decrement_lifetimes() -> void:
-	var to_remove: Array[String] = []
-	for id in entities.keys():
-		var ent = entities[id]
-		if not (ent is Entity):
-			continue
-		var lf = (ent as Entity).get_state("lifetime", null)
-		if lf == null:
-			continue
-		var lifetime := float(lf)
-		if lifetime <= 0.0:
-			continue
-		lifetime -= 1.0
-		(ent as Entity).set_state("lifetime", lifetime)
-		if lifetime <= 0.0:
-			to_remove.append(str(id))
-	# Remove after iteration so we don't mutate the dict mid-loop.
-	# Route through SpawnManager.despawn for unified cleanup
-	# (relations + spatial_index + physics body + queue_free) — per
-	# ADR 0044 Condition 4 body-leak prevention.
-	for id in to_remove:
-		_spawn_manager.despawn(id)
 
 
 # ============================================================
