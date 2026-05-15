@@ -262,14 +262,14 @@
     },
 
     "villager_3d": {
-      "_comment": "Humanoid with addressable limbs (ADR 0035). torso/head/4 limbs named so animation_director can swing them. Idle = slight head bob. Walk = arm + leg swing in opposing pairs (left arm + right leg forward, then swap). Activates on velocity > 0.1.",
+      "_comment": "Humanoid with addressable limbs (ADR 0035). torso/head/4 limbs named so animation_director can swing them. Arm/leg pieces use `pivot` to put the rotation joint at the SHOULDER/HIP (top of limb) instead of the limb's geometric center — otherwise rotating an arm makes the hand AND the shoulder swing in opposite directions through the body. Walk = arm + leg swing in opposing pairs (left arm + right leg forward, then swap). Activates on velocity > 0.5.",
       "primitives": [
-        {"op": "box",      "name": "torso",     "pos": [0, 1.0, 0],     "size": [0.42, 0.65, 0.26], "color": "$shirt"},
-        {"op": "sphere",   "name": "head",      "pos": [0, 1.55, 0],    "radius": 0.18,             "color": "$skin"},
-        {"op": "cylinder", "name": "left_arm",  "pos": [-0.30, 1.05, 0], "radius": 0.06, "height": 0.55, "color": "$shirt"},
-        {"op": "cylinder", "name": "right_arm", "pos": [ 0.30, 1.05, 0], "radius": 0.06, "height": 0.55, "color": "$shirt"},
-        {"op": "cylinder", "name": "left_leg",  "pos": [-0.11, 0.35, 0], "radius": 0.08, "height": 0.70, "color": "$pants"},
-        {"op": "cylinder", "name": "right_leg", "pos": [ 0.11, 0.35, 0], "radius": 0.08, "height": 0.70, "color": "$pants"}
+        {"op": "box",      "name": "torso",     "pos": [0, 1.0, 0],      "size": [0.42, 0.65, 0.26], "color": "$shirt"},
+        {"op": "sphere",   "name": "head",      "pos": [0, 1.55, 0],     "radius": 0.18,             "color": "$skin"},
+        {"op": "cylinder", "name": "left_arm",  "pos": [-0.30, 1.05, 0], "pivot": [0, 0.275, 0], "radius": 0.06, "height": 0.55, "color": "$shirt"},
+        {"op": "cylinder", "name": "right_arm", "pos": [ 0.30, 1.05, 0], "pivot": [0, 0.275, 0], "radius": 0.06, "height": 0.55, "color": "$shirt"},
+        {"op": "cylinder", "name": "left_leg",  "pos": [-0.11, 0.35, 0], "pivot": [0, 0.35, 0],  "radius": 0.08, "height": 0.70, "color": "$pants"},
+        {"op": "cylinder", "name": "right_leg", "pos": [ 0.11, 0.35, 0], "pivot": [0, 0.35, 0],  "radius": 0.08, "height": 0.70, "color": "$pants"}
       ],
       "params": {
         "shirt": "#6a5440",
@@ -290,14 +290,15 @@
           ]
         },
         "walk": {
-          "duration": 0.55,
+          "_comment_duration": "0.85s/cycle (was 0.55s, felt frantic). 0.85 reads as 'steady walk'; under ~0.7 limbs look hurried; over ~1.1 reads as 'sluggish'.",
+          "_comment_no_torso_bob": "Removed torso translation_y bob (2026-05-15) — user feedback 'body no need shakey when move'. Walk feels grounded without bob; bob reads as 'jittery' rather than 'animated' at low fps.",
+          "duration": 0.85,
           "loop": true,
           "tracks": [
             {"piece": "left_arm",  "rotation_x": [0.0,  0.55, 0.0, -0.55, 0.0]},
             {"piece": "right_arm", "rotation_x": [0.0, -0.55, 0.0,  0.55, 0.0]},
             {"piece": "left_leg",  "rotation_x": [0.0, -0.45, 0.0,  0.45, 0.0]},
-            {"piece": "right_leg", "rotation_x": [0.0,  0.45, 0.0, -0.45, 0.0]},
-            {"piece": "torso", "translation_y": [0.0, 0.04, 0.0, 0.04, 0.0]}
+            {"piece": "right_leg", "rotation_x": [0.0,  0.45, 0.0, -0.45, 0.0]}
           ]
         }
       },

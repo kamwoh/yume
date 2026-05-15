@@ -147,21 +147,38 @@ static func build_primitives_into(
 			_parse_color(_param_resolve(p.get("color", "#fff"), params))
 		)
 		var pos := _to_vec3(_param_resolve(p.get("pos", [0, 0, 0]), params))
-		mi.position = pos
 		if p.has("rotation_deg"):
 			var rd := _to_vec3(p["rotation_deg"])
 			mi.rotation_degrees = rd
-		# ADR 0035 — optional `name` makes the primitive addressable by
-		# AnimationDirector via parent.find_child(piece_name, ...).
-		if p.has("name"):
-			mi.name = str(p["name"])
 		# Perf: per-primitive cast_shadow override; mesh-def default applies
 		# when absent. Off skips this MeshInstance3D in the shadow pass —
 		# roughly halves its draw cost. Use on grass / clouds / distant decoration.
 		var cs: bool = bool(p.get("cast_shadow", cast_shadow_default))
 		if not cs:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		parent.add_child(mi)
+		# Optional `pivot` (Vec3, offset from pos to joint). When present,
+		# the addressable piece becomes a Node3D AT THE JOINT and the mesh
+		# hangs below at -pivot. Animation rotation pivots around the joint
+		# (shoulder/hip) instead of the mesh's geometric center. Without
+		# pivot, the MeshInstance3D itself is the named/positioned piece
+		# (legacy behavior; rotation pivots around mesh center).
+		var pivot_v = p.get("pivot", null)
+		if pivot_v != null:
+			var pivot: Vector3 = _to_vec3(pivot_v)
+			var node := Node3D.new()
+			node.position = pos + pivot
+			if p.has("name"):
+				node.name = str(p["name"])
+			mi.position = -pivot
+			node.add_child(mi)
+			parent.add_child(node)
+		else:
+			mi.position = pos
+			# ADR 0035 — optional `name` makes the primitive addressable by
+			# AnimationDirector via parent.find_child(piece_name, ...).
+			if p.has("name"):
+				mi.name = str(p["name"])
+			parent.add_child(mi)
 
 
 static func _param_resolve(v, params: Dictionary):
