@@ -8,6 +8,32 @@ globs: godot/data/**
 Demos live as JSON folders under `data/`. They are **content**, not code —
 no GDScript files belong here.
 
+## ⚠ CRITICAL: NEVER drop a `.gd` file under `godot/data/`
+
+`data/` is content-only. Engine code lives at `godot/scripts/engine/`.
+A stray .gd under data/ — especially one declaring `class_name X` where
+X collides with an engine class — SHADOWS the engine version via
+Godot's global class registry. The dispatch silently routes to whichever
+copy registered first; the user-visible symptom is "feature stopped
+working" with no error.
+
+**Empirical case 2026-05-15**: a stale `data/demo_aldenmere/effect_apply.gd`
+(May 10 leftover, never deleted because `cp -r src/. dst/` doesn't
+remove orphans) declared `class_name EffectApply` and won the registry
+race over the real engine file. The stale copy's `match type:` predated
+`velocity_add_relative` dispatch. Result: Aldenmere's WASD input fired
+correctly through query + flush, then `EffectApply.apply` hit the
+stale match-arm with no `velocity_add_relative` case → silent no-op.
+Player never moved; NPC `velocity_set` motion kept working (stale copy
+had that arm). User reported it as "drift / pulls sideways."
+
+**Gate**: `tools/validate_no_stray_scripts.py` (wired into `play.sh`)
+scans both `godot/data/` and the sync target's `data/` for any `*.gd`
+file and fails the pre-launch check. After deleting a stray .gd, rebuild
+Godot's class cache: `godot --path <template> --headless --import`
+(otherwise the cache still maps `class_name X` to the deleted path and
+load-time class lookup explodes everywhere).
+
 ## ⚠ CRITICAL: never ship a rule with `effect: []`
 
 The engine's `_load_rules_file` reports `[rule.effect_empty]` as a
@@ -84,7 +110,7 @@ across the data files before being fixed.
 | `spawn` | `template` | ❌ `def` | `effect_apply.gd:148` `e.get("template")` |
 | `state_clamp` | `min` / `max` | (correct) | `effect_apply.gd:133-134` |
 
-**Verify before writing**: `grep -A 4 '"type": "<effect>"' godot/data/demo_doomarena3d/world/physics.json` — if a working demo uses different names, follow the demo, not your intuition.
+**Verify before writing**: `grep -A 4 '"type": "<effect>"' godot/data/demo_doomarena3d/world/rules.json` — if a working demo uses different names, follow the demo, not your intuition.
 
 ## ⚠ CRITICAL: `self.nearest({...})` is NOT IMPLEMENTED — use contact-pair
 
@@ -367,7 +393,7 @@ if something pulling it" on mouse-turn-mid-walk. Fix: re-enabled
 `zero_velocity_pretick: true`.
 
 **Gate**: skills authoring `entities/<actor>.json` (yume-content-designer)
-AND skills writing world/physics.json with WASD lib bundle splice
+AND skills writing world/rules.json with WASD lib bundle splice
 (yume-systems-designer) MUST verify the actor's state_init satisfies
 this rule. The yume-asset-designer skill's camera-mode-pick must
 FLAG the requirement to the content-designer downstream.

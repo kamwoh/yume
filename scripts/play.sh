@@ -130,6 +130,12 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   # @lib.input.universal.actions` line — bug class: WASD doesn't fire,
   # engine code polling move_north no-ops at runtime.
   python3 "${YUME_ROOT}/tools/validate_input_universal.py" "${DATA_FOLDER}" || true
+  # No-stray-scripts check (added 2026-05-15). Catches stale .gd files
+  # under data/ that shadow engine classes via Godot's global class_name
+  # registry. Empirical case: data/demo_aldenmere/effect_apply.gd (May 10
+  # leftover) shadowed the real EffectApply, dispatching velocity_add_relative
+  # to a dead match-arm. WASD player motion silently no-op'd for 5+ days.
+  python3 "${YUME_ROOT}/tools/validate_no_stray_scripts.py" || true
 fi
 
 # Build cmdline args for Godot's user-args section (after `--`)
