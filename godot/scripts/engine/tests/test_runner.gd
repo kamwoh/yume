@@ -22,6 +22,7 @@ func _ready() -> void:
 	print("=== Yume engine unit tests ===\n")
 	test_entity()
 	test_rule()
+	test_frame_tick()
 	test_relation_store()
 	test_query()
 	test_effect_apply()
@@ -280,6 +281,70 @@ func test_rule() -> void:
 	# Valid set
 	var ok := [r, r2, r3, r4]
 	expect_eq(Rule.validate_all(ok).size(), 0, "valid rules produce no errors")
+
+
+# ============================================================
+# FRAME_TICK TRIGGER (ADR 0050)
+# ============================================================
+
+
+func test_frame_tick() -> void:
+	_section("frame_tick (ADR 0050 — per-frame rule cadence)")
+	var entities: Dictionary = {}
+	var defs: Dictionary = {
+		"counter": {"id": "counter", "tags": ["counter"], "state_init": {"frames": 0, "ticks": 0}}
+	}
+	entities["c1"] = Entity.create(defs.counter, "c1")
+	var env: Dictionary = {
+		"entities": entities,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	# Two rules: one frame_tick that increments counter.frames, one tick
+	# that increments counter.ticks. Verify they fire at independent cadences.
+	var rules: Array = [
+		Rule.from_dict(
+			{
+				"id": "frame_counter",
+				"trigger": {"type": "frame_tick"},
+				"query": {"tags_all": ["counter"]},
+				"effect": {"type": "state_add", "target": "self", "field": "frames", "amount": 1}
+			}
+		),
+		Rule.from_dict(
+			{
+				"id": "tick_counter",
+				"trigger": {"type": "tick", "interval": 1},
+				"query": {"tags_all": ["counter"]},
+				"effect": {"type": "state_add", "target": "self", "field": "ticks", "amount": 1}
+			}
+		),
+	]
+	expect_eq(Rule.validate_all(rules).size(), 0, "frame_tick is a valid trigger type")
+
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(rules)
+	# fire_frame_tick does NOT advance the sim tick.
+	sched.fire_frame_tick()
+	expect_eq(int(entities["c1"].get_state("frames")), 1, "frame_tick fired 1x")
+	expect_eq(int(entities["c1"].get_state("ticks")), 0, "tick rule did NOT fire")
+	# Multiple per-frame fires between sim ticks (the typical case at 60Hz / 0.5s tick).
+	sched.fire_frame_tick()
+	sched.fire_frame_tick()
+	sched.fire_frame_tick()
+	expect_eq(int(entities["c1"].get_state("frames")), 4, "frame_tick fired 4x total")
+	expect_eq(int(entities["c1"].get_state("ticks")), 0, "tick rule still hasn't fired")
+	# Now advance the sim tick — tick rule fires, frame_tick rule does NOT also fire from tick().
+	sched.tick()
+	expect_eq(int(entities["c1"].get_state("ticks")), 1, "tick rule fired via tick()")
+	expect_eq(int(entities["c1"].get_state("frames")), 4, "frame_tick rule unaffected by tick()")
+	# Empty frame_tick bucket — no-op should not blow up.
+	var sched2 := PhaseScheduler.new(env)
+	sched2.fire_frame_tick()  # no rules registered, just returns
+	entities["c1"].queue_free()
 
 
 # ============================================================

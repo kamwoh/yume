@@ -236,6 +236,26 @@ func run_ticks(n: int) -> void:
 		tick()
 
 
+## ADR 0050 — fire frame_tick rules. Called from World._process every frame,
+## independent of the sim-tick accumulator. Frame_tick rules express
+## continuous-cadence behaviors as content: mouse-look routing, camera-shake
+## decay, fade-overlay tweens, ground-clamp, per-axis movement stops.
+##
+## Phase ordering: frame_tick fires AFTER frame-rate work (input polling,
+## ground constraint) and BEFORE the sim-tick gate. Effects flush at the
+## end so the sim tick (if it fires this frame) sees post-frame state.
+##
+## Frame_tick rules can use the same query / require / chance / effect
+## machinery as tick rules — only the trigger cadence differs.
+func fire_frame_tick() -> void:
+	var rules: Array = rules_by_trigger.get("frame_tick", [])
+	if rules.is_empty():
+		return
+	for r in rules:
+		_fire_scan_rule(r)
+	flush_effects()
+
+
 # ============================================================
 # PHASES (W1 stubs for input/react; decide + commit active)
 # ============================================================

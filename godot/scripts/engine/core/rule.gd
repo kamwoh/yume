@@ -19,6 +19,7 @@ class_name Rule
 
 const VALID_TRIGGERS: Array = [
 	"tick",
+	"frame_tick",
 	"contact",
 	"signal",
 	"input",

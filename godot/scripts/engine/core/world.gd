@@ -314,6 +314,7 @@ func _stream_chunks_if_active() -> void:
 
 ## Reads top-to-bottom as the per-frame flow:
 ##   - frame-rate work (input poll + ground clamp) every call
+##   - frame_tick rules (ADR 0050 — content-authored per-frame behaviors)
 ##   - sim-tick gate (_tick_due drains the delta accumulator)
 ##   - freeze gate (modal/overlay screens pause the sim, ADR 0011/0012)
 ##   - advance_one_tick — kept as a public method because step_runner.gd
@@ -323,6 +324,7 @@ func _process(delta: float) -> void:
 		return
 	_poll_input()
 	_ground_constraint.apply()
+	scheduler.fire_frame_tick()  # ADR 0050 — per-frame content rules
 	if not _tick_due(delta):
 		return
 	var frozen := (
