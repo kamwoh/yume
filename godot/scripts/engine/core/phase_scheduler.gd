@@ -185,6 +185,21 @@ func _topo_sort_bucket(bucket: Array) -> void:
 
 
 func queue_input(action: String, params: Dictionary = {}) -> void:
+	# Dedup (action, actor) pairs within the same tick. _poll_input runs
+	# every frame; for HOLD actions (W held for 0.5s = 30 frames at 60fps)
+	# this would otherwise queue 30 identical events and scheduler.tick
+	# would fire the input rule 30 times. ADR 0048's velocity_add_relative
+	# auto-reset is "first fire per tick"; subsequent fires accumulate, so
+	# 30 queued W events → vel = 30 × add. With dedup, each (action, actor)
+	# fires exactly once per tick regardless of poll frequency. Empirical
+	# case 2026-05-16 (tick_seconds=0.5 + 60Hz frames).
+	var actor := str(params.get("actor", ""))
+	for ev in input_queue:
+		if str((ev as Dictionary).get("action", "")) != action:
+			continue
+		if str(((ev as Dictionary).get("params", {}) as Dictionary).get("actor", "")) != actor:
+			continue
+		return  # already queued this tick
 	input_queue.append({"action": action, "params": params})
 
 
