@@ -372,6 +372,11 @@ func _update_bound_elements() -> void:
 	if bound.is_empty():
 		return
 	var ctx: Dictionary = _formula_ctx()
+	# Defer to GameShell's resolver for `binds` — same syntax as HUD
+	# (world.X, world_clock.X, player.X). Required for screens like
+	# `inventory` that display live entity state. Empirical case
+	# 2026-05-16: inventory screen labels with `binds:` rendered empty.
+	var shell = _world.get_node_or_null("GameShell") if _world != null else null
 	for entry in bound:
 		var node: Control = entry["node"]
 		var cfg: Dictionary = entry["cfg"]
@@ -381,6 +386,14 @@ func _update_bound_elements() -> void:
 		if cfg.has("enabled_if") and node is Button:
 			var v2 = _eval_formula(str(cfg["enabled_if"]), ctx)
 			(node as Button).disabled = not (bool(v2) if v2 != null else true)
+		# Label binding (mirrors HudBuilder._apply_binding_to_node)
+		if cfg.has("binds") and node is Label and shell != null:
+			var binding := str(cfg["binds"])
+			if binding != "":
+				var value = shell.call("_resolve_binding", binding)
+				if value != null:
+					var fmt := str(cfg.get("format", "{}"))
+					(node as Label).text = fmt.replace("{}", str(value))
 
 
 func _formula_ctx() -> Dictionary:

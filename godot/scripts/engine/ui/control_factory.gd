@@ -90,7 +90,7 @@ static func build(
 	if node == null:
 		return null
 	_apply_common(node, spec)
-	if spec.has("visible_if") or spec.has("enabled_if"):
+	if spec.has("visible_if") or spec.has("enabled_if") or spec.has("binds"):
 		bound_elements.append({"node": node, "cfg": spec})
 	parent.add_child(node)
 	return node
