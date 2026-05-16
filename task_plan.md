@@ -4,6 +4,26 @@ _Last updated: 2026-05-16_
 
 ---
 
+## Tick-rate contract (2026-05-16)
+
+Per CLAUDE.md § "Tick rate is the engine's heartbeat":
+
+- `tick_seconds` defaults to `0.0167` (60Hz) in `world.gd`.
+- Per-game override allowed but should be a deliberate, documented
+  design choice (e.g., sokoban 0.1 / 10Hz because turn-based; doomarena3d
+  0.05 / 20Hz acceptable for shooting). NOT a balance knob.
+- Pacing changes happen through rule `interval` fields, not through
+  warping `tick_seconds`.
+- Input `edge` (`press` / `hold`) is about action INTENT (discrete vs
+  continuous), not genre.
+
+The earlier-this-session mistake (reverting `tick_seconds` 0.0167 → 0.5
+to fix Aldenmere's broken pacing) prompted this codification. Real fix
+was scaling 28 game-time rule intervals by 30× while keeping the tick
+at 60Hz.
+
+---
+
 ## Strategic shift (2026-05-16) — "small games first, then scale"
 
 Per the world-model game-framework design brief (Downloads/world_model_game_framework_design_brief.md): the goal is no longer "ship one big game first" but "ship many small game shards, then assemble them into a larger world." Aldenmere's 30-day winter saga (Phase 1) has been rescoped to a 3-day FP micro-shard — **Three Days to Eat (TDTE)** — that exercises the same primitive set but in a much tighter loop. Phase 2-4 ambitions (occupations, dynasty, civilization) are deferred indefinitely.

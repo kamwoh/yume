@@ -16,7 +16,7 @@ class_name World
 
 @export_dir var data_root: String = ""  # e.g. "res://data/demo_aldenmere/"
 @export var auto_start: bool = true
-@export var tick_seconds: float = 0.5
+@export var tick_seconds: float = 0.0167  # 60Hz — matches Godot's physics_fps default. Override per-game only with a documented reason (see CLAUDE.md § "Tick rate is the engine's heartbeat").
 @export var verbose: bool = false
 ## Optional: path to a Node2D script that renders Entity visuals. Each spawn
 ## attaches one instance as a child of the Entity. Set empty to disable (useful

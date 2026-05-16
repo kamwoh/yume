@@ -98,6 +98,58 @@ capabilities through JSON-declarative primitives. Each new capability
 is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
 0010 for FileAccess+JSON, future ADR 0022 for PhysicsServer3D).
 
+## Tick rate is the engine's heartbeat (2026-05-16)
+
+**The tick is the engine's clock. Don't change it as a balance knob.**
+
+- **Default `tick_seconds = 0.0167` (60Hz).** Matches Godot's
+  `physics_fps`. Pick this unless you have a documented reason to
+  override.
+- A per-game override is legal but should be deliberate — a slow
+  turn-based game (sokoban) might pick 10Hz to save cycles; a
+  competitive shooter might pick 120Hz. The choice is per-genre, not
+  per-bug.
+- **Never reach for `tick_seconds` to "fix" pacing.** If something
+  feels too fast or too slow, the answer is almost always: scale
+  the relevant rule's `interval`, not the tick rate.
+
+### Press vs hold is about purpose, not genre
+
+Every game has both. The distinction is the input's INTENT:
+
+- **`edge: "press"`** — discrete action. Fires once on key-down,
+  ignores held state. Open / close menu, use item, restart, sleep,
+  eat, talk. Holding the key longer doesn't fire again.
+- **`edge: "hold"`** — continuous action. Fires every tick while
+  held. Move forward, sprint, aim, drag, charge.
+
+Sokoban's restart = press. Aldenmere's WASD = hold. Both their
+inventories = press. The genre never enters the decision.
+
+### Game-time rules scale with the tick rate
+
+When a rule means "every N seconds of real-time" or "every in-game
+hour", express that through the `interval` field:
+
+- "Fire every second" at 60Hz = `interval: 60`.
+- "Fire every 4 real-seconds" (ambient wander) at 60Hz = `interval: 240`.
+- "Fire every in-game hour" (when 1 hour = 40 real-seconds) at 60Hz
+  = `interval: 2400`.
+
+If you change `tick_seconds`, you've also changed what every rule's
+`interval` MEANS in real time. Don't do this lightly.
+
+### `_process` vs `_physics_process`
+
+- **`_process(delta)`** — display-rate work: input sampling, camera
+  smoothing, HUD updates, sim-tick accumulator.
+- **`_physics_process(delta)`** — fixed-rate physics: CharacterBody3D
+  move_and_slide, collision queries. Aligns with `tick_seconds` when
+  both are 60Hz.
+
+Don't mix the two purposes. Put visual/UI work in `_process`,
+gameplay-state physics in `_physics_process`.
+
 ## Key files for editing
 
 | Edit | Path |
