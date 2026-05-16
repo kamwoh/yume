@@ -136,6 +136,12 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   # leftover) shadowed the real EffectApply, dispatching velocity_add_relative
   # to a dead match-arm. WASD player motion silently no-op'd for 5+ days.
   python3 "${YUME_ROOT}/tools/validate_no_stray_scripts.py" || true
+  # Tick-rate contract check (added 2026-05-16). Per CLAUDE.md § Tick
+  # rate is the engine's heartbeat: tick_seconds defaults to 60Hz;
+  # per-game overrides must include `_comment_tick` with the reason.
+  # Empirical case: yume-code-reviewer's first session review flagged
+  # sokoban (10Hz) + doomarena3d (20Hz) overriding silently.
+  python3 "${YUME_ROOT}/tools/validate_tick_override.py" || true
 fi
 
 # Build cmdline args for Godot's user-args section (after `--`)
