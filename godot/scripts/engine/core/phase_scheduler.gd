@@ -193,6 +193,18 @@ func queue_input(action: String, params: Dictionary = {}) -> void:
 	# 30 queued W events → vel = 30 × add. With dedup, each (action, actor)
 	# fires exactly once per tick regardless of poll frequency. Empirical
 	# case 2026-05-16 (tick_seconds=0.5 + 60Hz frames).
+	#
+	# Cost: O(queue_size) per insert → O(n²) per tick when ticks rarely
+	# fire. Bounded by: distinct (action, actor) pairs × poll frequency.
+	# For typical play (~10 actions × 1 player × 60Hz = ≤10 entries/tick),
+	# negligible. The tripwire below flags pathological growth so the
+	# scheduler doesn't silently degenerate.
+	if input_queue.size() > 256:
+		push_warning(
+			"[PhaseScheduler] input_queue grew past 256 entries — drain"
+			+ " gate likely broken (freeze_world without flush, or"
+			+ " missing scheduler.tick call). Latest action: " + action
+		)
 	var actor := str(params.get("actor", ""))
 	for ev in input_queue:
 		if str((ev as Dictionary).get("action", "")) != action:

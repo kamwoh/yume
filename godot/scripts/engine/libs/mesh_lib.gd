@@ -156,15 +156,30 @@ static func build_primitives_into(
 		var cs: bool = bool(p.get("cast_shadow", cast_shadow_default))
 		if not cs:
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		# Optional `pivot` (Vec3, offset from pos to joint). When present,
-		# the addressable piece becomes a Node3D AT THE JOINT and the mesh
-		# hangs below at -pivot. Animation rotation pivots around the joint
-		# (shoulder/hip) instead of the mesh's geometric center. Without
-		# pivot, the MeshInstance3D itself is the named/positioned piece
-		# (legacy behavior; rotation pivots around mesh center).
+		# Optional `pivot` — offset from pos to the rotation joint. Accepts:
+		#   - Vec3 / array: explicit offset, e.g. [0, 0.275, 0]
+		#   - "top": auto-derives to [0, height/2, 0] for cylinder/capsule
+		#     primitives. Lets authors say "shoulder/hip joint" without
+		#     spelling out the math.
+		# When present, the addressable piece becomes a Node3D AT THE JOINT
+		# and the mesh hangs below at -pivot. Animation rotation pivots
+		# around the joint (shoulder/hip) instead of the mesh's geometric
+		# center. Without pivot, the MeshInstance3D itself is the named
+		# piece (legacy behavior; rotation pivots around mesh center).
 		var pivot_v = p.get("pivot", null)
 		if pivot_v != null:
-			var pivot: Vector3 = _to_vec3(pivot_v)
+			var pivot: Vector3
+			if pivot_v is String and str(pivot_v) == "top":
+				# Auto-derive from height. Cylinder/capsule have explicit
+				# height; other prims have no canonical "top" — warn + skip.
+				if op == "cylinder" or op == "capsule":
+					var h_resolved := float(_param_resolve(p.get("height", 1.0), params))
+					pivot = Vector3(0, h_resolved * 0.5, 0)
+				else:
+					push_warning("mesh_lib: pivot='top' only supported for cylinder/capsule; got '%s'" % op)
+					pivot = Vector3.ZERO
+			else:
+				pivot = _to_vec3(pivot_v)
 			var node := Node3D.new()
 			node.position = pos + pivot
 			if p.has("name"):
