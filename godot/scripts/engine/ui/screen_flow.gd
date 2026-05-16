@@ -170,6 +170,12 @@ func _push_screen(screen_id: String, as_modal: bool) -> void:
 	_stack.append({"id": screen_id, "spec": spec, "layer": layer, "bound": bound})
 	# Update world_state
 	_apply_active_screen()
+	# Synchronize edge-tracking with current Godot Input state. Without
+	# this, a global_input with `if_screen` matching the just-pushed
+	# screen would see `pressed=true, was_pressed=false (default)` on
+	# the same frame the screen pushed → fire on_press immediately and
+	# pop the screen (1-frame flash). Empirical case 2026-05-16.
+	_sync_global_input_edge_state()
 
 
 ## Replace top of stack, then push (used by transition_screen target=top).
@@ -190,6 +196,20 @@ func _pop_screen() -> void:
 	(top["layer"] as Node).queue_free()
 	_stack.pop_back()
 	_apply_active_screen()
+	_sync_global_input_edge_state()
+
+
+## Capture current Godot Input state into _last_action_state for every
+## global_inputs action. Call after any stack mutation so the on_press
+## edge detector doesn't fire spuriously on the SAME frame the filter
+## starts matching. Symmetric: push (above) inlines the same loop.
+func _sync_global_input_edge_state() -> void:
+	for g in _cfg.get("global_inputs", []):
+		if not (g is Dictionary):
+			continue
+		var act := str((g as Dictionary).get("action", ""))
+		if act != "" and InputMap.has_action(act):
+			_last_action_state[act] = Input.is_action_pressed(act)
 
 
 ## Update world_state["current_screen"] + freeze flag from top of stack.
@@ -398,18 +418,17 @@ func _handle_global_inputs() -> void:
 		var action := str(g.get("action", ""))
 		if action == "" or not InputMap.has_action(action):
 			continue
-		var screen_filter := str(g.get("if_screen", ""))
-		# 2026-05-08: if_screen now matches symmetrically. `if_screen: ""`
-		# fires only when stack empty (current=""); `if_screen: "X"` fires
-		# only when current=X. Old behavior was "empty = always fire" which
-		# made M re-push world_map while world_map was already up. Lets
-		# data declare a paired close-rule (if_screen: "world_map" →
-		# transition_screen @previous) for toggle behavior.
-		if screen_filter != current:
-			continue
+		# Track press-edge state UNCONDITIONALLY (see 2026-05-16 fix).
 		var pressed := Input.is_action_pressed(action)
 		var was_pressed := bool(_last_action_state.get(action, false))
 		_last_action_state[action] = pressed
+		var screen_filter := str(g.get("if_screen", ""))
+		# 2026-05-08: if_screen matches symmetrically. `if_screen: ""` fires
+		# only when stack empty (current=""); `if_screen: "X"` fires only
+		# when current=X. Lets data declare paired close-rules
+		# (if_screen: "X" → transition_screen @previous) for toggle behavior.
+		if screen_filter != current:
+			continue
 		if pressed and not was_pressed:
 			var effects = g.get("on_press", null)
 			if effects is Array:

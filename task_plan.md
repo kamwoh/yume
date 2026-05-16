@@ -1,6 +1,20 @@
 # Yume — Universal Simulation Framework
 
-_Last updated: 2026-04-22_
+_Last updated: 2026-05-16_
+
+---
+
+## Strategic shift (2026-05-16) — "small games first, then scale"
+
+Per the world-model game-framework design brief (Downloads/world_model_game_framework_design_brief.md): the goal is no longer "ship one big game first" but "ship many small game shards, then assemble them into a larger world." Aldenmere's 30-day winter saga (Phase 1) has been rescoped to a 3-day FP micro-shard — **Three Days to Eat (TDTE)** — that exercises the same primitive set but in a much tighter loop. Phase 2-4 ambitions (occupations, dynasty, civilization) are deferred indefinitely.
+
+**Practical implications:**
+- TDTE = current active game scope. Hidden-rule loop (raw mushroom poison, wet wood, market prices), 3-day win, simple end splash.
+- After TDTE ships, pick 2-3 more small shards (per brief §12: Forest That Lied, Tower of Delayed Shadows, Mirror Shrine, etc.) — these test JSON-layer reusability.
+- Big-arc systems (schedule director with 9 NPCs, season transitions, dynasty) stay in the engine + lib bundles but no game depends on them for now.
+- Research-signal export, trajectory logger, hidden-rule tracker (brief §15-17) become the next-tier engine work once 2-3 shards exist.
+
+**What this is NOT:** a retreat from the framework vision. The framework is the same; the FIRST GAME just got smaller. Each small game proves a reusable pattern.
 
 ---
 

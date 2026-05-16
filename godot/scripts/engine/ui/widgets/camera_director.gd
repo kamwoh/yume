@@ -378,6 +378,12 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 		if Input.get_mouse_mode() != Input.MOUSE_MODE_VISIBLE:
 			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 		_fp_initial_capture_done = false
+		# Zero the mouse-delta accumulator so any motion the user makes while
+		# clicking buttons doesn't apply to the camera once the screen closes.
+		# Empirical case 2026-05-16: inventory open → user moves mouse to click
+		# Close → screen pops → drained accumulator snapped the camera.
+		if _world != null and _world.scheduler != null:
+			_world.scheduler.env["mouse_delta"] = Vector2.ZERO
 		return
 	if not _fp_initial_capture_done:
 		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)

@@ -190,7 +190,15 @@ func _sync_yaw() -> void:
 	var yaw = _entity_ref.get_state("yaw", null)
 	if yaw == null:
 		return
-	rotation.y = float(yaw)
+	# Per-entity yaw offset compensates for meshes whose authored "forward"
+	# axis isn't the Yume convention (-Z). Quadrupeds (deer, rabbit, wolf)
+	# often have heads along +X — set property `mesh_yaw_offset: -1.5708`
+	# (= -π/2) so state.yaw=0 still points the head north. Default 0 keeps
+	# humanoids unchanged. Empirical case 2026-05-16: animals walked
+	# perpendicular to their body axis because the mesh-forward mismatch
+	# wasn't compensated.
+	var offset := float(_entity_ref.get_property("mesh_yaw_offset", 0.0))
+	rotation.y = float(yaw) + offset
 
 
 # ============================================================

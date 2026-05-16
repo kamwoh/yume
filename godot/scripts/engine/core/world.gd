@@ -322,15 +322,23 @@ func _stream_chunks_if_active() -> void:
 func _process(delta: float) -> void:
 	if scheduler == null:
 		return
-	_poll_input()
-	_ground_constraint.apply()
-	scheduler.fire_frame_tick()  # ADR 0050 — per-frame content rules
-	if not _tick_due(delta):
-		return
 	var frozen := (
 		int(world_state.get("screen_freeze_world", 0)) != 0
 		or int(world_state.get("overlay_freeze_world", 0)) != 0
 	)
+	# Skip _poll_input while frozen — otherwise actions queue up in
+	# scheduler.input_queue and re-fire when the screen pops. Empirical
+	# case 2026-05-16: pressing I inside the inventory screen queued
+	# open_inventory; clicking Close → screen popped → queued I drained →
+	# `ui_open_inventory` rule re-fired → inventory reopened ("flash" UX).
+	# Screen-level global_inputs poll Godot.Input directly, so they still
+	# work during freeze for screen dismissal.
+	if not frozen:
+		_poll_input()
+	_ground_constraint.apply()
+	scheduler.fire_frame_tick()  # ADR 0050 — per-frame content rules
+	if not _tick_due(delta):
+		return
 	# ADR 0044 Invariant #10: PhysicsServer3D pauses with the sim.
 	# Godot animation / tween / audio continue regardless.
 	PhysicsServer3D.set_active(not frozen)
