@@ -261,6 +261,14 @@ func _run_multimesh_director() -> void:
 ## policy. The step runner intentionally bypasses freeze (tests need to
 ## advance state regardless of modal screens).
 func advance_one_tick() -> void:
+	# Increment the monotonic sim-tick counter HERE (not in _tick_due) so
+	# step_runner-driven advances also bump it. velocity_add_relative
+	# (ADR 0048) reads ws._tick to detect "first fire this tick" for the
+	# auto-reset; without the bump the counter stays stale and velocity
+	# accumulates without reset → scenario tests fail with vel >>1
+	# magnitudes. Empirical case 2026-05-16.
+	_tick_count += 1
+	world_state["_tick"] = _tick_count
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)  # ADR 0018 — AI before input
 	scheduler.tick()  # canonical phase loop (lifetime decay via ADR 0049 rules)
@@ -350,8 +358,10 @@ func _process(delta: float) -> void:
 
 
 ## Drain the real-time delta accumulator. Returns true when one sim-tick
-## should fire this frame, false otherwise. Mutates _tick_elapsed and
-## _tick_count as a side effect (the canonical sim clock).
+## should fire this frame, false otherwise. Mutates _tick_elapsed only —
+## the _tick_count increment + world_state["_tick"] write are in
+## advance_one_tick so both _process and step_runner paths bump the
+## counter equivalently.
 ##
 ## Determinism (2026-05-12 design decision): the rate split is
 ## load-bearing. Coupling sim-ticks to frame rate would make rule
@@ -362,11 +372,8 @@ func _tick_due(delta: float) -> bool:
 	if _tick_elapsed < tick_seconds:
 		return false
 	_tick_elapsed -= tick_seconds
-	_tick_count += 1
-	# Expose the monotonic sim-tick counter on the _engine entity (ADR 0047).
-	# velocity_add_relative + other "first-fire-this-tick" effects read it
-	# to decide whether to auto-reset cumulative state.
-	world_state["_tick"] = _tick_count
+	# Counter bump moved into advance_one_tick (2026-05-16) so step_runner
+	# paths also increment world_state["_tick"].
 	return true
 
 
