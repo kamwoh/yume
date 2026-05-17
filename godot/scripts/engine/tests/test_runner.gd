@@ -78,6 +78,8 @@ func _ready() -> void:
 	test_step_runner()
 	test_grid_snap()
 	test_multimesh_director()
+	test_array_primitives()
+	test_animation_translator()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -2238,6 +2240,52 @@ func test_control_factory() -> void:
 		{"type": "futuristic_widget"}, parent, dispatcher, bound
 	)
 	expect(unknown == null, "unknown element type returns null")
+
+	# slot_grid (Tier A — #99): grid of bordered cells with per-cell active
+	# highlight and per-cell content bound to an array.
+	var sg_spec: Dictionary = {
+		"type": "slot_grid",
+		"cell_count": 4,
+		"columns": 4,
+		"binds": "actor.inventory",
+		"active_binds": "actor.active_slot",
+		"cell_size": [60, 50],
+		"show_index": true,
+		"empty_text": "—"
+	}
+	var sg: Control = ControlFactory.build(sg_spec, parent, dispatcher, bound)
+	expect(sg is GridContainer, "slot_grid → GridContainer root")
+	if sg is GridContainer:
+		expect_eq((sg as GridContainer).columns, 4, "slot_grid honors columns")
+		expect_eq(sg.get_child_count(), 4, "slot_grid built 4 cells")
+		expect(sg.has_meta("slot_grid_cfg"), "slot_grid stamps cfg meta for updater")
+		var first_cell = sg.get_child(0)
+		expect(first_cell is PanelContainer, "cell is PanelContainer")
+		expect_eq(int(first_cell.get_meta("slot_index", -1)), 0, "first cell meta slot_index=0")
+		expect(first_cell.find_child("content", true, false) is Label, "cell has content Label")
+		expect(first_cell.find_child("index", true, false) is Label, "cell has index Label when show_index=true")
+	expect(bound.size() >= 2, "slot_grid registered in bound_elements via `binds`")
+
+	# slot_grid update path: resolver fills cells from arrays + highlights
+	# the active slot.
+	var fake_state := {"inventory": ["food_berry", "log_pile", "", ""], "active_slot": 1}
+	var resolver := func(path: String):
+		if path == "actor.inventory":
+			return fake_state["inventory"]
+		if path == "actor.active_slot":
+			return fake_state["active_slot"]
+		return null
+	ControlFactory.update_slot_grid(sg, resolver)
+	if sg is GridContainer:
+		var c0 = sg.get_child(0)
+		var c1 = sg.get_child(1)
+		var c2 = sg.get_child(2)
+		var l0: Label = c0.find_child("content", true, false)
+		var l1: Label = c1.find_child("content", true, false)
+		var l2: Label = c2.find_child("content", true, false)
+		expect_eq(l0.text, "food_berry", "cell 0 shows inventory[0]")
+		expect_eq(l1.text, "log_pile", "cell 1 shows inventory[1]")
+		expect_eq(l2.text, "—", "empty slot shows empty_text")
 
 	parent.queue_free()
 
@@ -4875,7 +4923,15 @@ func _free_anim_fixture(fix: Dictionary) -> void:
 
 
 func test_animation_primitive() -> void:
-	_section("animation_primitive (ADR 0035)")
+	_section("animation_primitive (ADR 0035 + ADR 0046 Phase A.2)")
+
+	# Phase A.2 cutover (2026-05-17): the GDScript per-frame interpolator
+	# has been replaced by Godot's AnimationPlayer + a translated
+	# AnimationLibrary (see test_animation_translator for translator
+	# coverage). This test now covers ONLY what AnimationDirector still
+	# owns: state-rule selection + backwards-compat sentinels +
+	# load-time validation. Interpolation values + baseline preservation
+	# are translator concerns now — covered separately.
 
 	# ---------- Assertion 1: state pick — verb-based (`if_state_eq`) ----------
 	# current_verb = "chop_wood" → state="chop" (rule order: chop first;
@@ -4887,163 +4943,43 @@ func test_animation_primitive() -> void:
 		_standard_anim_mesh_def(), fix1["root"] as Node3D, fix1["entity"] as Entity, {}
 	)
 	expect(dir1 != null, "director constructs when animations + default rule present")
-	dir1.tick(0.0)
-	expect_eq(dir1._active_state, "chop", "verb=chop_wood picks 'chop' state")
+	expect_eq(dir1._pick_state(), "chop", "verb=chop_wood picks 'chop' state")
 
 	# ---------- Assertion 2: state pick — velocity-based ----------
 	var fix2 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
 	var dir2 := AnimationDirector.from_mesh_def(
 		_standard_anim_mesh_def(), fix2["root"] as Node3D, fix2["entity"] as Entity, {}
 	)
-	dir2.tick(0.0)
-	expect_eq(dir2._active_state, "walk", "|velocity|=0.5 > 0.1 picks 'walk' state")
+	expect_eq(dir2._pick_state(), "walk", "|velocity|=0.5 > 0.1 picks 'walk' state")
 
 	# ---------- Assertion 3: state pick — default fallback ----------
 	var fix3 := _make_animation_fixture({"current_verb": "", "velocity": Vector3.ZERO})
 	var dir3 := AnimationDirector.from_mesh_def(
 		_standard_anim_mesh_def(), fix3["root"] as Node3D, fix3["entity"] as Entity, {}
 	)
-	dir3.tick(0.0)
-	expect_eq(dir3._active_state, "idle", "no condition matches → default 'idle'")
+	expect_eq(dir3._pick_state(), "idle", "no condition matches → default 'idle'")
 
-	# ---------- Assertion 4: interpolation at t=0 (boundary) ----------
-	# Walk's left_arm rotation_z keys = [0, 0.4, 0, -0.4, 0]. At t=0 → 0.0.
-	# First tick activates walk + sets _state_started_at; second tick at
-	# the SAME timestamp re-evaluates with elapsed=0 → t=0 → first key.
-	var fix4 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
+	# ---------- Assertion 4: state transition (idle → walk after vel change) ----
+	var fix4 := _make_animation_fixture({"current_verb": "", "velocity": Vector3.ZERO})
 	var dir4 := AnimationDirector.from_mesh_def(
 		_standard_anim_mesh_def(), fix4["root"] as Node3D, fix4["entity"] as Entity, {}
 	)
-	dir4.tick(10.0)
-	dir4.tick(10.0)
-	var left_arm4: Node3D = (fix4["root"] as Node3D).find_child("left_arm", true, false)
-	expect(
-		abs(left_arm4.rotation.z - 0.0) < 0.001,
-		"at t=0 boundary, left_arm rotation_z = 0.0 (first keyframe)"
-	)
+	expect_eq(dir4._pick_state(), "idle", "starts in idle when velocity=0")
+	(fix4["entity"] as Entity).set_state("velocity", Vector3(0.5, 0, 0))
+	expect_eq(dir4._pick_state(), "walk", "transitions to walk after velocity change")
 
-	# ---------- Assertion 5: linear interpolation midpoint ----------
-	# 2 keys [0.0, 1.0] → at t=0.5 → 0.5.
-	var midpoint_def: Dictionary = {
-		"_origin": "midpoint_test",
-		"animations":
-		{
-			"sweep":
-			{
-				"duration": 1.0,
-				"loop": true,
-				"tracks": [{"piece": "torso", "rotation_x": [0.0, 1.0]}],
-			},
-		},
-		"animation_state_rules": [{"default": "sweep"}],
-	}
-	var fix5 := _make_animation_fixture()
-	var dir5 := AnimationDirector.from_mesh_def(
-		midpoint_def, fix5["root"] as Node3D, fix5["entity"] as Entity, {}
-	)
-	dir5.tick(0.0)
-	dir5.tick(0.5)
-	var torso5: Node3D = (fix5["root"] as Node3D).find_child("torso", true, false)
-	expect(
-		abs(torso5.rotation.x - 0.5) < 0.001,
-		"linear interp midpoint: t=0.5 between [0,1] → 0.5 (got %f)" % torso5.rotation.x
-	)
-
-	# ---------- Assertion 6: loop wrap-around (fposmod) ----------
-	# elapsed > duration must wrap. dur=1.0, elapsed=2.5 → t=0.5 → val=0.5.
-	dir5.tick(2.5)
-	expect(
-		abs(torso5.rotation.x - 0.5) < 0.001,
-		"loop wrap: elapsed=2.5 with dur=1.0 → t=0.5 → 0.5 (got %f)" % torso5.rotation.x
-	)
-
-	# ---------- Assertion 7: multi-piece concurrent tracks ----------
-	# Walk state animates 4 pieces. After elapsed=0.15 (= 0.6/4), we're
-	# exactly on key[1] for each track: 0.4 / -0.4 / 0.3 / -0.3.
-	var fix7 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
-	var dir7 := AnimationDirector.from_mesh_def(
-		_standard_anim_mesh_def(), fix7["root"] as Node3D, fix7["entity"] as Entity, {}
-	)
-	dir7.tick(0.0)
-	dir7.tick(0.15)
-	var la7: Node3D = (fix7["root"] as Node3D).find_child("left_arm", true, false)
-	var ra7: Node3D = (fix7["root"] as Node3D).find_child("right_arm", true, false)
-	var ll7: Node3D = (fix7["root"] as Node3D).find_child("left_leg", true, false)
-	var rl7: Node3D = (fix7["root"] as Node3D).find_child("right_leg", true, false)
-	expect(
-		(
-			abs(la7.rotation.z - 0.4) < 0.001
-			and abs(ra7.rotation.z - (-0.4)) < 0.001
-			and abs(ll7.rotation.x - 0.3) < 0.001
-			and abs(rl7.rotation.x - (-0.3)) < 0.001
-		),
-		"all 4 walk tracks animate concurrently to expected key[1] values"
-	)
-
-	# ---------- Assertion 8: state transition (idle → walk) ----------
-	# Velocity change mid-stream forces a state pick on the next tick.
-	var fix8 := _make_animation_fixture({"current_verb": "", "velocity": Vector3.ZERO})
-	var dir8 := AnimationDirector.from_mesh_def(
-		_standard_anim_mesh_def(), fix8["root"] as Node3D, fix8["entity"] as Entity, {}
-	)
-	dir8.tick(5.0)
-	expect_eq(dir8._active_state, "idle", "starts in idle when velocity=0")
-	(fix8["entity"] as Entity).set_state("velocity", Vector3(0.5, 0, 0))
-	dir8.tick(7.0)
-	expect_eq(dir8._active_state, "walk", "transitions to walk after velocity change")
-
-	# ---------- Assertion 9: missing-piece graceful fallback ----------
-	# Track references "left_hand" (nonexistent) plus "left_arm" (exists).
-	# Director must not crash; left_arm still animates.
-	var fix9 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
-	var partial_def: Dictionary = {
-		"_origin": "missing_piece_test",
-		"animations":
-		{
-			"walk":
-			{
-				"duration": 0.6,
-				"loop": true,
-				"tracks":
-				[
-					{"piece": "left_hand", "rotation_z": [0.0, 0.5, 0.0]},
-					{"piece": "left_arm", "rotation_z": [0.0, 0.4, 0.0]},
-				],
-			},
-		},
-		"animation_state_rules":
-		[
-			{"if_velocity_gt": 0.1, "state": "walk"},
-			{"default": "walk"},
-		],
-	}
-	var dir9 := AnimationDirector.from_mesh_def(
-		partial_def, fix9["root"] as Node3D, fix9["entity"] as Entity, {}
-	)
-	expect(dir9 != null, "director still constructs when a track references a missing piece")
-	dir9.tick(0.0)
-	dir9.tick(0.3)  # midpoint of 0.6s loop, 3 keys → t=0.5 → key[1] = 0.4
-	var la9: Node3D = (fix9["root"] as Node3D).find_child("left_arm", true, false)
-	expect(
-		abs(la9.rotation.z - 0.4) < 0.001,
-		(
-			"missing 'left_hand' track skipped silently; 'left_arm' still animates (got %f)"
-			% la9.rotation.z
-		)
-	)
-
-	# ---------- Assertion 10: backwards-compat — no animations field ----------
+	# ---------- Assertion 5: backwards-compat — no animations field ----------
 	# Mesh def without animations key → from_mesh_def returns null. Existing
-	# 13 demos rely on this.
-	var fix10 := _make_animation_fixture()
+	# demos with static meshes rely on this.
+	var fix5 := _make_animation_fixture()
 	var bare_def: Dictionary = {"primitives": [{"op": "box", "name": "torso"}]}
-	var dir10 := AnimationDirector.from_mesh_def(
-		bare_def, fix10["root"] as Node3D, fix10["entity"] as Entity, {}
+	var dir5 := AnimationDirector.from_mesh_def(
+		bare_def, fix5["root"] as Node3D, fix5["entity"] as Entity, {}
 	)
-	expect(dir10 == null, "mesh def without animations field → director is null (backwards-compat)")
+	expect(dir5 == null, "mesh def without animations field → director is null (backwards-compat)")
 
-	# ---------- Assertion 11: missing default rule → load-time error ----------
-	var fix11 := _make_animation_fixture()
+	# ---------- Assertion 6: missing default rule → load-time error ----------
+	var fix6 := _make_animation_fixture()
 	var no_default_def: Dictionary = {
 		"_origin": "no_default_test",
 		"animations": {"idle": {"duration": 1.0, "tracks": []}},
@@ -5052,12 +4988,12 @@ func test_animation_primitive() -> void:
 			{"if_velocity_gt": 0.1, "state": "walk"},
 		],
 	}
-	var env11: Dictionary = {"error_buffer": []}
-	var dir11 := AnimationDirector.from_mesh_def(
-		no_default_def, fix11["root"] as Node3D, fix11["entity"] as Entity, env11
+	var env6: Dictionary = {"error_buffer": []}
+	var dir6 := AnimationDirector.from_mesh_def(
+		no_default_def, fix6["root"] as Node3D, fix6["entity"] as Entity, env6
 	)
-	expect(dir11 == null, "missing `default` rule → from_mesh_def returns null")
-	var errs: Array = env11.get("error_buffer", [])
+	expect(dir6 == null, "missing `default` rule → from_mesh_def returns null")
+	var errs: Array = env6.get("error_buffer", [])
 	var saw_no_default := false
 	for rec in errs:
 		if (
@@ -5068,39 +5004,16 @@ func test_animation_primitive() -> void:
 			break
 	expect(saw_no_default, "missing default rule emits ANIMATION_NO_DEFAULT to error_buffer")
 
-	# ---------- Assertion 12: baseline cached at construction ----------
-	# Authored rest pose preserved on the baseline. After applying a track
-	# that touches ONLY rotation_x, position stays at authored pos.
-	var fix12 := _make_animation_fixture()
-	var rot_only_def: Dictionary = {
-		"_origin": "baseline_test",
-		"animations":
-		{
-			"twist":
-			{
-				"duration": 1.0,
-				"loop": true,
-				"tracks": [{"piece": "left_arm", "rotation_x": [0.0, 1.0]}],
-			},
-		},
-		"animation_state_rules": [{"default": "twist"}],
-	}
-	var dir12 := AnimationDirector.from_mesh_def(
-		rot_only_def, fix12["root"] as Node3D, fix12["entity"] as Entity, {}
+	# ---------- Assertion 7: tick() no-op when AnimationPlayer not attached ----
+	# Backwards-compat for unit fixtures that don't mount a player: tick()
+	# must early-return cleanly, not crash. (entity_mesh_3d mounts the
+	# player at integration time; bare directors never get one.)
+	var fix7 := _make_animation_fixture({"current_verb": "", "velocity": Vector3(0.5, 0, 0)})
+	var dir7 := AnimationDirector.from_mesh_def(
+		_standard_anim_mesh_def(), fix7["root"] as Node3D, fix7["entity"] as Entity, {}
 	)
-	dir12.tick(0.0)
-	dir12.tick(0.5)
-	var la12: Node3D = (fix12["root"] as Node3D).find_child("left_arm", true, false)
-	# Authored pos was Vector3(-0.32, 1.0, 0); rotation_x track must NOT
-	# disturb it. Baseline preserved.
-	expect(
-		(
-			abs(la12.position.x - (-0.32)) < 0.001
-			and abs(la12.position.y - 1.0) < 0.001
-			and abs(la12.position.z - 0.0) < 0.001
-		),
-		"baseline pos preserved when only rotation_x is animated (got %s)" % la12.position
-	)
+	dir7.tick(0.0)
+	expect(true, "tick() without attached AnimationPlayer is a safe no-op")
 
 	# Cleanup all fixtures
 	_free_anim_fixture(fix1)
@@ -5108,12 +5021,8 @@ func test_animation_primitive() -> void:
 	_free_anim_fixture(fix3)
 	_free_anim_fixture(fix4)
 	_free_anim_fixture(fix5)
+	_free_anim_fixture(fix6)
 	_free_anim_fixture(fix7)
-	_free_anim_fixture(fix8)
-	_free_anim_fixture(fix9)
-	_free_anim_fixture(fix10)
-	_free_anim_fixture(fix11)
-	_free_anim_fixture(fix12)
 
 
 # ============================================================
@@ -8906,3 +8815,377 @@ func test_multimesh_director() -> void:
 	# ---------- 8. cleanup() returns 0 when nothing was built ----------
 	var freed := dir.cleanup({})
 	expect_eq(freed, 0, "cleanup with no built nodes returns 0")
+
+
+# ============================================================
+# Array primitives (multi-slot inventory foundation, #95)
+# ============================================================
+
+
+func test_array_primitives() -> void:
+	_section("array_primitives (multi-slot inventory)")
+
+	# Shared env / actor
+	var actor := Entity.new()
+	actor.instance_id = "actor_1"
+	actor.state = {
+		"inventory": ["", "", "", ""],
+		"inventory_cooked": [0, 0, 0, 0],
+		"inventory_wet": [0, 0, 0, 0],
+		"active_slot": 0
+	}
+	var entities: Dictionary = {"actor_1": actor}
+	var env: Dictionary = {
+		"entities": entities,
+		"world_state": {},
+		"signal_buffer": [],
+		"next_id": {"_": 0}
+	}
+	var ctx: Dictionary = {"self": "actor_1", "self_entity": actor}
+
+	# ---------- array_insert_first_empty: first slot ----------
+	EffectApply.apply(
+		{
+			"type": "array_insert_first_empty",
+			"target": "self",
+			"field": "inventory",
+			"value": "food_berry",
+			"sentinel": ""
+		},
+		env,
+		ctx
+	)
+	expect_eq(actor.get_state("inventory"), ["food_berry", "", "", ""], "insert into first slot")
+	expect_eq(actor.get_state("_last_slot"), 0, "_last_slot records chosen index 0")
+
+	# ---------- array_set_at on parallel array using formula index ----------
+	EffectApply.apply(
+		{
+			"type": "array_set_at",
+			"target": "self",
+			"field": "inventory_cooked",
+			"index": "self.state._last_slot",
+			"value": 1
+		},
+		env,
+		ctx
+	)
+	expect_eq(
+		actor.get_state("inventory_cooked"),
+		[1, 0, 0, 0],
+		"array_set_at via formula index hits same slot insert chose"
+	)
+
+	# ---------- Insert again: should go to slot 1 ----------
+	EffectApply.apply(
+		{
+			"type": "array_insert_first_empty",
+			"target": "self",
+			"field": "inventory",
+			"value": "food_mushroom",
+			"sentinel": ""
+		},
+		env,
+		ctx
+	)
+	expect_eq(
+		actor.get_state("inventory"),
+		["food_berry", "food_mushroom", "", ""],
+		"second insert goes to slot 1"
+	)
+	expect_eq(actor.get_state("_last_slot"), 1, "_last_slot updates to slot 1")
+
+	# ---------- array_sync_to_field: active_slot=0 → held_item='food_berry' ----------
+	EffectApply.apply(
+		{
+			"type": "array_sync_to_field",
+			"target": "self",
+			"array_field": "inventory",
+			"index_field": "active_slot",
+			"dest_field": "held_item",
+			"default": ""
+		},
+		env,
+		ctx
+	)
+	expect_eq(actor.get_state("held_item"), "food_berry", "sync reads inventory[active_slot=0]")
+
+	# Switch active_slot to 1 → sync to held_item='food_mushroom'
+	actor.set_state("active_slot", 1)
+	EffectApply.apply(
+		{
+			"type": "array_sync_to_field",
+			"target": "self",
+			"array_field": "inventory",
+			"index_field": "active_slot",
+			"dest_field": "held_item",
+			"default": ""
+		},
+		env,
+		ctx
+	)
+	expect_eq(actor.get_state("held_item"), "food_mushroom", "sync reads inventory[active_slot=1]")
+
+	# ---------- array_count_matching: 2 free slots ----------
+	EffectApply.apply(
+		{
+			"type": "array_count_matching",
+			"target": "self",
+			"array_field": "inventory",
+			"sentinel": "",
+			"dest_field": "inventory_empty_count"
+		},
+		env,
+		ctx
+	)
+	expect_eq(actor.get_state("inventory_empty_count"), 2, "empty count = 2 free slots")
+
+	# ---------- array_set_at clears active slot ----------
+	EffectApply.apply(
+		{
+			"type": "array_set_at",
+			"target": "self",
+			"field": "inventory",
+			"index": "self.state.active_slot",
+			"value": ""
+		},
+		env,
+		ctx
+	)
+	expect_eq(
+		actor.get_state("inventory"),
+		["food_berry", "", "", ""],
+		"array_set_at clears slot 1 (active_slot)"
+	)
+
+	# ---------- Fill remaining slots; next insert should fire on_full ----------
+	actor.set_state("inventory", ["a", "b", "c", "d"])
+	env["signal_buffer"] = []
+	EffectApply.apply(
+		{
+			"type": "array_insert_first_empty",
+			"target": "self",
+			"field": "inventory",
+			"value": "overflow",
+			"sentinel": "",
+			"on_full": {"signal": "inventory_full", "payload": {"reason": "overflow"}}
+		},
+		env,
+		ctx
+	)
+	expect_eq(actor.get_state("inventory"), ["a", "b", "c", "d"], "insert into full array no-ops")
+	expect_eq(actor.get_state("_last_slot"), -1, "_last_slot=-1 signals failure")
+	var sig_buf: Array = env["signal_buffer"]
+	expect_eq(sig_buf.size(), 1, "on_full signal emitted once")
+	expect_eq(sig_buf[0]["name"], "inventory_full", "signal name matches")
+	expect_eq(sig_buf[0]["payload"]["reason"], "overflow", "signal payload propagates")
+
+	# ---------- Custom payload-binding (non-allowlisted) auto-promotion ----------
+	# Empirical case 2026-05-16: gather_pickup signal rule used `actor` (not
+	# in the entity_roles allowlist) as a require binding, then referenced
+	# `actor.state._last_slot` in a formula. Pre-fix, `actor` resolved to a
+	# string and the formula crashed. Post-fix, formula_context auto-promotes
+	# any ctx string value that names a real entity. Lock the behavior in.
+	actor.set_state("_last_slot", 2)
+	var custom_ctx: Dictionary = {"actor": "actor_1", "_rule_id": "gather_pickup_test"}
+	EffectApply.apply(
+		{
+			"type": "array_set_at",
+			"target": "actor",
+			"field": "inventory_cooked",
+			"index": "actor.state._last_slot",
+			"value": 7
+		},
+		env,
+		custom_ctx
+	)
+	var inv_c: Array = actor.get_state("inventory_cooked")
+	expect_eq(
+		inv_c[2],
+		7,
+		"custom payload binding 'actor' auto-promotes to Entity for formula drill-in"
+	)
+
+	# ---------- array_set_at no-ops on negative index (guard against -1 wrap) ----------
+	actor.set_state("inventory", ["x", "y", "z", "w"])
+	EffectApply.apply(
+		{
+			"type": "array_set_at",
+			"target": "self",
+			"field": "inventory",
+			"index": -1,
+			"value": "should_not_land"
+		},
+		env,
+		ctx
+	)
+	expect_eq(
+		actor.get_state("inventory"),
+		["x", "y", "z", "w"],
+		"array_set_at with index=-1 leaves array untouched (no Python-style tail wrap)"
+	)
+
+
+# ============================================================
+# AnimationTranslator (ADR 0046 Phase A.1, 2026-05-17)
+# ============================================================
+
+
+func test_animation_translator() -> void:
+	_section("animation_translator (ADR 0046 Phase A.1)")
+
+	# ---------- 1. Empty animations → null library ----------
+	var empty_lib := AnimationTranslator.build_library({}, {})
+	expect(empty_lib == null, "empty animations block returns null library")
+
+	# ---------- 2. Single looping rotation-only clip ----------
+	# Bird-flap shape: rotation_z waves across 5 keyframes, loop, dur=0.4s.
+	var bird_anims := {
+		"fly":
+		{
+			"loop": true,
+			"duration": 0.4,
+			"tracks":
+			[{"piece": "left_wing", "rotation_z": [0.0, 0.7, 0.0, -0.4, 0.0]}]
+		}
+	}
+	# No baseline provided — uses defaults (rot=0, pos=0, scale=1).
+	var lib := AnimationTranslator.build_library(bird_anims, {})
+	expect(lib != null, "build_library returns AnimationLibrary on valid input")
+	expect(lib.has_animation("fly"), "library contains 'fly' animation")
+
+	var fly: Animation = lib.get_animation("fly")
+	expect(abs(fly.length - 0.4) < 1e-5, "fly clip length matches duration")
+	expect_eq(int(fly.loop_mode), int(Animation.LOOP_LINEAR), "fly loops")
+	expect_eq(fly.get_track_count(), 1, "fly has 1 track (left_wing rotation)")
+
+	var track_path: NodePath = fly.track_get_path(0)
+	expect_eq(
+		str(track_path), "left_wing:rotation", "track path is '<piece>:rotation'"
+	)
+	expect_eq(
+		int(fly.track_get_type(0)), int(Animation.TYPE_VALUE), "value track"
+	)
+	expect_eq(fly.track_get_key_count(0), 5, "5 keyframes baked")
+
+	# Verify keyframe times are uniformly spaced over [0, duration].
+	var step := 0.4 / 4.0  # 5 keys → 4 segments
+	for i in 5:
+		var key_time := fly.track_get_key_time(0, i)
+		expect(
+			abs(key_time - float(i) * step) < 1e-5,
+			"keyframe %d time = %.3f (expected %.3f)" % [i, key_time, float(i) * step]
+		)
+
+	# Verify keyframe values are baked Vector3s with rotation.z replaced.
+	var k0: Vector3 = fly.track_get_key_value(0, 0)
+	var k1: Vector3 = fly.track_get_key_value(0, 1)
+	expect_eq(k0, Vector3(0, 0, 0.0), "key0 z=0 (baseline x/y stay 0)")
+	expect_eq(k1, Vector3(0, 0, 0.7), "key1 z=0.7 (baseline x/y stay 0)")
+
+	# ---------- 3. One-shot (loop=false) ----------
+	var oneshot := {
+		"land":
+		{
+			"loop": false,
+			"duration": 0.6,
+			"tracks": [{"piece": "body", "translation_y": [0.0, 0.5]}]
+		}
+	}
+	var lib2 := AnimationTranslator.build_library(oneshot, {})
+	var land: Animation = lib2.get_animation("land")
+	expect_eq(int(land.loop_mode), int(Animation.LOOP_NONE), "loop=false → LOOP_NONE")
+	expect_eq(land.get_track_count(), 1, "land has 1 track")
+
+	# ---------- 4. Translation ADDS to baseline (offset semantic) ----------
+	# Baseline pos = (0, 1, 0) for "body". Track translation_y = [0, 0.5].
+	# Expected baked keys: (0, 1, 0) and (0, 1.5, 0).
+	var baselines := {"body": {"pos": Vector3(0, 1, 0), "rot": Vector3.ZERO, "scale": Vector3.ONE}}
+	var lib3 := AnimationTranslator.build_library(oneshot, baselines)
+	var land2: Animation = lib3.get_animation("land")
+	var lp0: Vector3 = land2.track_get_key_value(0, 0)
+	var lp1: Vector3 = land2.track_get_key_value(0, 1)
+	expect_eq(lp0, Vector3(0, 1, 0), "translation_y key0 = baseline pos")
+	expect_eq(lp1, Vector3(0, 1.5, 0), "translation_y key1 = baseline + 0.5 offset")
+
+	# ---------- 5. Rotation REPLACES baseline per-axis ----------
+	# Baseline rot = (0.2, 0.0, 0.0). Track rotation_z = [0, 0.5].
+	# Expected: keys = (0.2, 0, 0) and (0.2, 0, 0.5) — x kept, z replaced.
+	var rot_anim := {
+		"twist":
+		{
+			"loop": true,
+			"duration": 1.0,
+			"tracks": [{"piece": "head", "rotation_z": [0.0, 0.5]}]
+		}
+	}
+	var rot_baselines := {"head": {"pos": Vector3.ZERO, "rot": Vector3(0.2, 0, 0), "scale": Vector3.ONE}}
+	var lib4 := AnimationTranslator.build_library(rot_anim, rot_baselines)
+	var twist: Animation = lib4.get_animation("twist")
+	var rk0: Vector3 = twist.track_get_key_value(0, 0)
+	var rk1: Vector3 = twist.track_get_key_value(0, 1)
+	expect_eq(rk0, Vector3(0.2, 0, 0.0), "rotation_z key0: x stays baseline 0.2, z=0")
+	expect_eq(rk1, Vector3(0.2, 0, 0.5), "rotation_z key1: x stays baseline 0.2, z=0.5")
+
+	# ---------- 6. Multi-axis track produces one Vector3 sequence ----------
+	# Both rotation_x and rotation_z in one track dict → ONE Godot track
+	# emitting per-key Vector3 (x_arr[i], 0, z_arr[i]).
+	var multi := {
+		"shake":
+		{
+			"loop": true,
+			"duration": 0.5,
+			"tracks":
+			[{"piece": "arm", "rotation_x": [0.0, 0.2, 0.0], "rotation_z": [0.0, 0.4, 0.0]}]
+		}
+	}
+	var lib5 := AnimationTranslator.build_library(multi, {})
+	var shake: Animation = lib5.get_animation("shake")
+	expect_eq(shake.get_track_count(), 1, "multi-axis dict → 1 grouped track")
+	expect_eq(
+		shake.track_get_key_value(0, 1),
+		Vector3(0.2, 0, 0.4),
+		"multi-axis key1 = (0.2, 0, 0.4)"
+	)
+
+	# ---------- 7. Two clips in one library ----------
+	var two := {
+		"idle": {"loop": true, "duration": 1.0, "tracks": []},
+		"walk":
+		{
+			"loop": true,
+			"duration": 0.5,
+			"tracks": [{"piece": "leg", "rotation_x": [0.0, 0.3, 0.0]}]
+		}
+	}
+	var lib6 := AnimationTranslator.build_library(two, {})
+	expect(lib6.has_animation("idle"), "two-clip library has 'idle'")
+	expect(lib6.has_animation("walk"), "two-clip library has 'walk'")
+	expect_eq(lib6.get_animation("idle").length, 1.0, "idle length 1.0")
+	expect_eq(lib6.get_animation("walk").length, 0.5, "walk length 0.5")
+
+	# ---------- 8. Different-length axes pad with the last value ----------
+	# rotation_x has 4 keys, rotation_z has 2. N=4. Shorter axis (z) pads
+	# its last value (the second one) for indices 2, 3.
+	var uneven := {
+		"clip":
+		{
+			"loop": true,
+			"duration": 1.0,
+			"tracks":
+			[{"piece": "p", "rotation_x": [0.0, 0.1, 0.2, 0.3], "rotation_z": [0.0, 0.9]}]
+		}
+	}
+	var lib7 := AnimationTranslator.build_library(uneven, {})
+	var c: Animation = lib7.get_animation("clip")
+	expect_eq(c.track_get_key_count(0), 4, "track length = max axis length (4)")
+	expect_eq(
+		c.track_get_key_value(0, 2),
+		Vector3(0.2, 0, 0.9),
+		"key2: x=0.2, z padded to last (0.9)"
+	)
+	expect_eq(
+		c.track_get_key_value(0, 3),
+		Vector3(0.3, 0, 0.9),
+		"key3: x=0.3, z still padded to last"
+	)

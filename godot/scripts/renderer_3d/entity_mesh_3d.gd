@@ -82,7 +82,27 @@ func _ready() -> void:
 			_build_mesh_children()
 			# ADR 0035 — instantiate animation director if mesh def declares
 			# animations. Returns null for static meshes (backwards-compat).
+			# ADR 0046 Phase A.2 (2026-05-17): cutover from GDScript
+			# interpolator → Godot AnimationPlayer. Build a translated
+			# AnimationLibrary and mount an AnimationPlayer as a child of
+			# THIS Node3D. Track paths in the library resolve relative to
+			# the AnimationPlayer's root_node (defaults to "..", i.e. this
+			# parent — exactly where the mesh pieces live).
+			# Invariant #11: the AnimationPlayer is owned by this entity's
+			# visual root; it dies with the entity on transition_level. No
+			# new smoothed-state surface that survives the discontinuity.
 			_animation_director = AnimationDirector.from_mesh_def(mesh_def, self, ent, {})
+			if _animation_director != null:
+				var ap := AnimationPlayer.new()
+				ap.name = "AnimationPlayer"
+				add_child(ap)
+				var anims_block: Dictionary = mesh_def["animations"]
+				var baselines := AnimationTranslator.collect_baselines(self, anims_block)
+				var lib := AnimationTranslator.build_library(anims_block, baselines)
+				if lib != null:
+					# Empty library name = default; clip names look up directly.
+					ap.add_animation_library("", lib)
+				_animation_director.attach_player(ap)
 			_mode = "mesh"
 			_apply_shadow_only_if_set(visual)
 			_sync_position()
