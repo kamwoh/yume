@@ -1,12 +1,39 @@
-"""Simple doc server — serves Yume docs as rendered HTML at http://localhost:8777"""
+"""Simple doc server — serves Yume docs as rendered HTML at http://localhost:8777.
+
+Routing (2026-05-17 update):
+1. GET /                  → index listing (top-level docs + ADRs)
+2. GET /<path>.md         → if a sibling .html exists, redirect to it
+                            (pre-rendered via md-to-html skill, richer
+                            output with split pages + mermaid). Else
+                            render the .md on-the-fly via md_to_html().
+3. GET /<path>.html       → serve as static file
+4. GET /<path>.css|.js|.png|.svg|.ico|.woff* → serve as static file
+                            (lets pre-rendered split pages link to
+                            assets correctly)
+5. GET /<dir>/            → serve <dir>/index.html if present
+6. else                   → 404
+
+This means clicking the index link for an architecture doc gets you
+the polished md-to-html version (with mermaid + ToC + split pages)
+whenever it's been pre-rendered; serve.py's quick converter is the
+fallback for docs that haven't been rendered yet.
+"""
 
 import http.server
+import mimetypes
 import os
 import re
 from pathlib import Path
 
 PORT = 8777
 DOCS_DIR = Path(__file__).parent
+# File extensions served as static content (not re-rendered).
+STATIC_EXTS = {
+    ".html", ".htm", ".css", ".js", ".png", ".svg", ".ico",
+    ".jpg", ".jpeg", ".gif", ".webp",
+    ".woff", ".woff2", ".ttf", ".otf",
+    ".json", ".txt",
+}
 
 
 def md_to_html(md_text: str, title: str) -> str:
@@ -190,9 +217,33 @@ class DocsHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(content.encode())
             return
 
-        # Serve markdown file as HTML
-        file_path = DOCS_DIR / path
-        if file_path.exists() and file_path.suffix == '.md':
+        # Resolve the path. Reject path-traversal (`..`).
+        try:
+            file_path = (DOCS_DIR / path).resolve()
+            file_path.relative_to(DOCS_DIR.resolve())  # raises if outside
+        except (ValueError, RuntimeError):
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b'Forbidden')
+            return
+
+        # If a directory was requested, look for index.html inside.
+        if file_path.is_dir():
+            idx = file_path / "index.html"
+            if idx.exists():
+                file_path = idx
+
+        # 1. Markdown — prefer pre-rendered sibling .html, else render
+        #    via the quick md_to_html() inline converter.
+        if file_path.suffix == '.md' and file_path.exists():
+            pre_rendered = file_path.with_suffix('.html')
+            if pre_rendered.exists():
+                # 302 redirect — the browser URL updates to .html.
+                target = '/' + str(pre_rendered.relative_to(DOCS_DIR)).replace(os.sep, '/')
+                self.send_response(302)
+                self.send_header('Location', target)
+                self.end_headers()
+                return
             md_text = file_path.read_text()
             title = file_path.stem.replace('_', ' ').title()
             html = md_to_html(md_text, title)
@@ -200,10 +251,27 @@ class DocsHandler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.end_headers()
             self.wfile.write(html.encode())
-        else:
-            self.send_response(404)
+            return
+
+        # 2. Static file (HTML / CSS / image / etc.) — serve raw bytes
+        #    so pre-rendered split-page docs can resolve assets, the
+        #    timeline / app.js / style.css works, etc.
+        if file_path.suffix.lower() in STATIC_EXTS and file_path.exists():
+            ctype, _ = mimetypes.guess_type(file_path.name)
+            if ctype is None:
+                ctype = 'application/octet-stream'
+            data = file_path.read_bytes()
+            self.send_response(200)
+            self.send_header('Content-Type', ctype)
+            self.send_header('Content-Length', str(len(data)))
             self.end_headers()
-            self.wfile.write(b'Not found')
+            self.wfile.write(data)
+            return
+
+        # 3. No match.
+        self.send_response(404)
+        self.end_headers()
+        self.wfile.write(b'Not found: ' + path.encode())
 
     def log_message(self, format, *args):
         pass  # Suppress logs
