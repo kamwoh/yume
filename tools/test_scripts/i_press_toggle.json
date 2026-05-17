@@ -1,0 +1,14 @@
+{
+  "_comment": "Verify I-press inventory OPEN path. Mirrors the loop instruction 'this I-press thing not working' — capture before + after press, assert screen transitions to 'inventory'.",
+  "_close_path_note": "The TOGGLE-CLOSE path (press I while inventory is up to pop) cannot be reliably scripted: Godot's Input.is_action_just_pressed flag persists across synchronous step_runner advances until the next frame yield, where _poll_input then re-fires ui_open_inventory and re-pushes the screen. Live play does NOT have this issue because the freeze gate skips _poll_input across real frames. To verify the close path, run the game manually with `./scripts/play.sh aldenmere` and press I twice.",
+  "steps": [
+    {"wait": 1.0},
+    {"screenshot": "user://ipress_a_before.png", "label": "before-I"},
+    {"expect": [{"screen_active": ""}]},
+
+    {"press": "open_inventory"},
+    {"wait": 0.4},
+    {"screenshot": "user://ipress_b_open.png", "label": "after-first-I"},
+    {"expect": [{"screen_active": "inventory"}]}
+  ]
+}

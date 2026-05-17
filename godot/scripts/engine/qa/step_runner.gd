@@ -102,10 +102,35 @@ static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	# the scheduler consumes per-tick). Input.action_press also fires for
 	# live captures so GameShell / renderer-side input handlers see the
 	# press. In headless tests, queue_input is what actually drives rules.
+	#
+	# Mirror live freeze gate: world.gd::_process skips _poll_input when
+	# screen_freeze_world=1 (modal up) or overlay_freeze_world=1, so the
+	# scheduler's input phase sees an empty queue. Without this mirror,
+	# scripted I-press while inventory is open would re-fire the
+	# ui_open_inventory rule and double-push inventory — divergent from
+	# live play where global_inputs handles the close-toggle instead.
+	# Empirical case 2026-05-17: i_press_toggle.json showed the second
+	# press leaving inventory still open because the rule fired again.
 	Input.action_press(action)
-	_queue_input(world, action)
+	if not _is_world_frozen(world):
+		_queue_input(world, action)
 	_advance(world)
+	# Mirror the live-frame screen_flow tick BEFORE releasing so any
+	# frame-driven observer (ScreenFlow._handle_global_inputs, GameShell
+	# HUD bindings) sees the "pressed" state. Required for screen-toggle
+	# tests (I-press inventory, M-press map) where the close-toggle path
+	# lives in screen_flow's _process, not the scheduler input phase.
+	# Empirical case 2026-05-17: i_press_toggle.json capture-script
+	# couldn't observe the close path because Input.action_release ran
+	# in the same synchronous frame as the press, leaving screen_flow's
+	# edge detector with both pressed=false and was_pressed=false. Now
+	# step_runner synchronously fires screen_flow's per-frame handlers
+	# while the action is still pressed, mirroring live play.
+	_tick_screen_flow(world)
 	Input.action_release(action)
+	# Second tick after release to let the edge-down detector update
+	# _last_action_state (so the NEXT press registers as a fresh edge).
+	_tick_screen_flow(world)
 
 
 static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary) -> void:
@@ -152,11 +177,19 @@ static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 		# Per-tick re-queue: hold semantics in scheduler.input_queue is
 		# "each tick the action is held, fire its rule once". The live
 		# poll_input does the same — re-queues every frame for hold-edge.
-		for action in actions:
-			_queue_input(world, action)
+		# Same freeze-mirror as _do_press: when frozen, world.gd skips
+		# _poll_input so the queue stays empty for the held action.
+		if not _is_world_frozen(world):
+			for action in actions:
+				_queue_input(world, action)
 		_advance(world)
+	# Mirror live-frame screen_flow tick BEFORE release for screen-toggle
+	# observability (see _do_press). Live play always has ≥1 frame of
+	# "actually pressed" before release; this re-creates that signal.
+	_tick_screen_flow(world)
 	for action in actions:
 		Input.action_release(action)
+	_tick_screen_flow(world)
 
 
 # Queue an input into the scheduler's per-tick input queue. Mirrors the
@@ -185,6 +218,65 @@ static func _advance(world: World) -> void:
 	# manually via tick_headless. Non-character entities don't move
 	# (use body_type:"character" to opt in).
 	_tick_character_bodies(world)
+
+
+# Mirror what live-play frames do for ScreenFlow:
+#   1. _drain_screen_events  → push/pop screens from transition_screen effects
+#   2. _handle_global_inputs → fire screen-level edge handlers (I-toggle, M-toggle)
+# Synchronous so step_runner can call without breaking _ready's non-async caller.
+# Used by _do_press / _do_hold / _do_wait so scripted input observes the same
+# screen-state behavior as live play.
+static func _tick_screen_flow(world: World) -> void:
+	if world == null:
+		return
+	var sf := _find_screen_flow(world)
+	if sf == null:
+		return
+	if sf.has_method("drain"):
+		sf.drain()
+	# global_inputs handler is private (`_handle_global_inputs`). Call via
+	# `call` so non-existent methods are a no-op rather than a crash.
+	if sf.has_method("_handle_global_inputs"):
+		sf.call("_handle_global_inputs")
+
+
+# Locate the ScreenFlow node. WorldBoot mounts it as a sibling/child of
+# World (path varies by scene). Cheap lookup paths first; never recurse
+# into entity subtrees (live scenes have 200+ entities → recursion is
+# expensive). Returns null if no ScreenFlow node is mounted (legitimate
+# for pure-headless tests without a UI shell).
+static func _find_screen_flow(world: World) -> Node:
+	# Sibling-or-child of World (most common — WorldBoot adds as child).
+	var sf := world.get_node_or_null("ScreenFlow")
+	if sf != null:
+		return sf
+	sf = world.get_node_or_null("../ScreenFlow")
+	if sf != null:
+		return sf
+	# Walk World's parent's children only (siblings of World) — avoids
+	# recursing into the entity tree.
+	var parent: Node = world.get_parent()
+	if parent != null:
+		for sib_v in parent.get_children():
+			var sib: Node = sib_v
+			if sib.name == "ScreenFlow":
+				return sib
+	return null
+
+
+# Mirror world.gd::_process's freeze condition. world.gd skips _poll_input
+# when either flag is non-zero, so input rules don't fire under freeze.
+# Mirrored here so scripted input has the same gating — without this,
+# I-press while inventory is open would re-fire ui_open_inventory and
+# double-push the screen. Empirical case 2026-05-17.
+static func _is_world_frozen(world: World) -> bool:
+	if world == null:
+		return false
+	var ws: Dictionary = world.world_state
+	return (
+		int(ws.get("screen_freeze_world", 0)) != 0
+		or int(ws.get("overlay_freeze_world", 0)) != 0
+	)
 
 
 static func _tick_character_bodies(world: World) -> void:
@@ -295,6 +387,12 @@ static func _do_wait(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 		return
 	for i in range(ticks):
 		_advance(world)
+	# Mirror live-frame screen_flow tick at end of wait so any pending
+	# transition_screen events from upstream rule effects get drained
+	# before the next scripted step reads world.current_screen. Without
+	# this, the rule's transition_screen sits in env.screen_event_buffer
+	# until the next natural frame which may not happen in time.
+	_tick_screen_flow(world)
 
 
 static func _do_tick(step: Dictionary, world: World, _ctx: Dictionary) -> void:
@@ -322,9 +420,16 @@ static func _do_screenshot(step: Dictionary, world: World, ctx: Dictionary):
 		return
 	if not path.contains("://"):
 		path = "user://" + path
-	# Yield one frame so the renderer paints latest state into the viewport
-	# before we read it.
+	# Yield TWO frames so pending queue_free's (e.g. just-popped screen
+	# layers) actually destroy before we capture. ONE frame is enough to
+	# fire the queue_free callbacks but the renderer's next paint comes
+	# AFTER. With a single yield, a screenshot taken right after a
+	# pop_screen would still include the dying layer's pixels.
+	# Empirical case 2026-05-17: i_press_toggle test's third screenshot
+	# (after I-toggle pop) captured the inventory layer because it was
+	# pending queue_free at await-resume time.
 	if world.get_tree() != null:
+		await world.get_tree().process_frame
 		await world.get_tree().process_frame
 	var vp := world.get_viewport()
 	if vp == null:
@@ -545,9 +650,9 @@ static func _assert_ui(selector_v, expect_present: bool, world: World, ctx: Dict
 
 
 static func _assert_screen_active(want_id: String, world: World, ctx: Dictionary) -> void:
-	var screen_flow := world.get_node_or_null("/root/ScreenFlow")
+	var screen_flow := _find_screen_flow(world)
 	if screen_flow == null:
-		_fail(ctx, "screen_active %s: no ScreenFlow autoload" % want_id)
+		_fail(ctx, "screen_active %s: no ScreenFlow node found in tree" % want_id)
 		return
 	# ScreenFlow exposes a `top()` or `current_screen` accessor; fall back to
 	# inspecting `_stack` if needed.
