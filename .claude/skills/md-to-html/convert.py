@@ -429,14 +429,18 @@ def render_page(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{html.escape(title)}</title>
 <style>{CSS}</style>
-<script type="module">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
 // Mermaid client-side renderer (2026-05-17). Picks up every
 // <div class="mermaid">...</div> emitted by parse_code_fence.
-// Loaded from CDN unconditionally — small (~50KB) and harmless
-// when no mermaid blocks exist on the page.
-import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-mermaid.initialize({{ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' }});
+// Uses the UMD build (not ESM) so it works when the HTML is opened
+// directly via file:// — ESM modules require an http(s) origin per
+// browser CORS rules and silently no-op on file:// pages.
+(function() {{
+  if (typeof mermaid === 'undefined') return;
+  var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({{ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' }});
+}})();
 </script>
 </head>
 <body>
@@ -565,10 +569,16 @@ def main() -> int:
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{html.escape(stem)}</title>
 <style>{CSS}</style>
-<script type="module">
-import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-mermaid.initialize({{ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' }});
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+// Mermaid client-side renderer (2026-05-17). Uses the UMD build —
+// works for both file:// and HTTP page opens. ESM modules require
+// http(s) origin per browser CORS rules; the UMD global doesn't.
+(function() {{
+  if (typeof mermaid === 'undefined') return;
+  var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({{ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' }});
+}})();
 </script>
 </head><body>{index_body}</body></html>"""
     (out_dir / f"{stem}.html").write_text(index_html, encoding="utf-8")

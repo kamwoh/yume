@@ -127,10 +127,16 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script type="module">
-import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+// Mermaid client-side renderer (2026-05-17). Uses the UMD build —
+// works for both file:// and HTTP page opens. ESM modules require
+// http(s) origin per browser CORS rules; the UMD global doesn't.
+(function() {
+  if (typeof mermaid === 'undefined') return;
+  var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+})();
 </script>
 </head><body><div class="container"><h1 id="yume-full-architecture-2026-05-11">Yume — Full Architecture (2026-05-11)</h1>
 <p>_Snapshot diagram of every Yume layer + how content moves through the system. Companion to <code>30_framework_primitives.md</code> (the contract) and <code>32_architecture_diagrams.md</code> (older overviews)._</p>
