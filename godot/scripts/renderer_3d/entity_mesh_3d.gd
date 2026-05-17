@@ -68,6 +68,32 @@ func _ready() -> void:
 		_sync_position()
 		return
 
+	# Tier 1.5 — .glb-backed mesh (ADR 0046 Phase B). When `visual.mesh`
+	# points to a .glb / .gltf file (vs a mesh-lib name), load it as a
+	# Godot PackedScene. State-rules from `visual.animation_state_rules`
+	# drive the imported AnimationPlayer (Godot's GLTF importer auto-
+	# creates one with all the .glb's clips). Material overrides from
+	# `visual.material_overrides` patch named surfaces post-load.
+	#
+	# Authoring contract:
+	#   visual: {
+	#     "mesh": "res://path/to/foo.glb",
+	#     "animation_state_rules": [
+	#       {"if_velocity_gt": 0.1, "state": "walk", "clip_alias": "Walking"},
+	#       {"default": "idle", "clip_alias": "Idle"}
+	#     ],
+	#     "animation_blend_seconds": 0.15,
+	#     "material_overrides": {"body": "#a0c0e0"}  // surface_name → color
+	#   }
+	#
+	# clip_alias maps the engine-side `state` name to the .glb's clip
+	# name (which is decided by the modeling tool, e.g. Blender NLA
+	# track names). Falls back to the state name verbatim if no alias.
+	var mesh_field := str(visual.get("mesh", ""))
+	if mesh_field.ends_with(".glb") or mesh_field.ends_with(".gltf"):
+		_load_glb_mesh(mesh_field, visual, ent)
+		return
+
 	# Tier 2 — mesh from library (compose primitives). Falls back to
 	# visual.shape if no explicit visual.mesh — convenient for shared data
 	# files where 2D shape names match 3D mesh names by convention.
@@ -109,6 +135,175 @@ func _ready() -> void:
 			return
 
 	# Tier 3 — bare colored box
+	var color := _parse_color(visual.get("color", fallback_color))
+	var size := float(visual.get("size", fallback_size))
+	var mi_box := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(size, size, size)
+	mi_box.mesh = box
+	mi_box.material_override = _make_material(color)
+	add_child(mi_box)
+	_mode = "bare"
+	_apply_shadow_only_if_set(visual)
+	_sync_position()
+
+
+# ============================================================
+# .glb / .gltf LOADING (ADR 0046 Phase B)
+# ============================================================
+
+
+## Load a .glb / .gltf scene file as the entity's mesh + wire its
+## embedded AnimationPlayer to the state-rule bridge. Mirrors the
+## mesh-lib tier 2 path: register the AnimationDirector, ensure an
+## AnimationPlayer is available, attach. Difference from tier 2:
+##   - No primitive-assembly via mesh_lib.gd
+##   - AnimationPlayer + clips come PRE-BAKED in the .glb (Godot's
+##     GLTF importer auto-creates one). Translator doesn't run.
+##   - state_rules live on `visual` (no separate mesh_def).
+##   - clip_alias resolves engine-side state names → .glb clip names.
+##
+## Falls back to a colored box if the .glb fails to load (instead of
+## leaving the entity invisible). Surfaces a push_warning so authors
+## see the failure in stdout.
+func _load_glb_mesh(path: String, visual: Dictionary, ent: Entity) -> void:
+	if not ResourceLoader.exists(path):
+		push_warning("EntityMesh3D: .glb path not found: %s" % path)
+		_build_bare_box(visual)
+		return
+	var packed = load(path)
+	if not (packed is PackedScene):
+		push_warning("EntityMesh3D: .glb did not load as PackedScene: %s" % path)
+		_build_bare_box(visual)
+		return
+	var imported: Node = (packed as PackedScene).instantiate()
+	add_child(imported)
+	_mode = "glb"
+
+	# Apply material overrides — `visual.material_overrides` is a dict
+	# of {surface_name: color_string} that re-skins named surfaces.
+	var overrides = visual.get("material_overrides", null)
+	if overrides is Dictionary:
+		_apply_material_overrides(imported, overrides as Dictionary)
+
+	# Locate the embedded AnimationPlayer. Godot's GLTF importer puts it
+	# directly under the scene root and names it "AnimationPlayer".
+	var ap: AnimationPlayer = _find_imported_animation_player(imported)
+	var rules = visual.get("animation_state_rules", null)
+	if ap != null and rules is Array:
+		# Build a virtual mesh_def from the visual block so
+		# AnimationDirector.from_mesh_def can construct + register rules.
+		# `animations` is empty on the def (clips live in the imported
+		# library) but the director only needs animation_state_rules to
+		# evaluate; clips are resolved at play-time via clip_alias.
+		var virtual_mesh_def: Dictionary = {
+			"_origin": "glb:" + path,
+			"animations": {},  # presence required; can be empty
+			"animation_state_rules": rules,
+			"animation_blend_seconds": visual.get("animation_blend_seconds", 0.15),
+		}
+		_animation_director = AnimationDirector.from_mesh_def(
+			virtual_mesh_def, self, ent, {}
+		)
+		if _animation_director != null:
+			_animation_director.attach_player(ap)
+			_animation_director.set_clip_aliases(_build_clip_alias_map(rules))
+
+	_apply_shadow_only_if_set(visual)
+	_sync_position()
+
+
+## Walk the imported scene tree top-down for an AnimationPlayer node.
+## Godot's GLTF importer always names it "AnimationPlayer" and parents
+## it directly to the scene root, so the search is shallow. Returns
+## the first one found or null if the .glb has no animations.
+func _find_imported_animation_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node
+	for child in node.get_children():
+		if child is AnimationPlayer:
+			return child
+		var found := _find_imported_animation_player(child)
+		if found != null:
+			return found
+	return null
+
+
+## Walk every MeshInstance3D under the imported scene. For each
+## surface whose material has a `resource_name` matching a key in
+## `overrides`, duplicate the material (so the override is per-entity,
+## not shared with other instances) and set its albedo_color.
+##
+## Surface name resolution order:
+##   1. material.resource_name (set by the GLTF importer to the
+##      material name from Blender/Maya)
+##   2. surface index ("surface_0", "surface_1", ...)
+##
+## Color values follow the same parser as Yume's other JSON colors:
+## "#RRGGBB" hex, "white" Godot named colors, or [r, g, b, a] arrays.
+func _apply_material_overrides(scene_root: Node, overrides: Dictionary) -> void:
+	if overrides.is_empty():
+		return
+	_apply_material_overrides_recursive(scene_root, overrides)
+
+
+func _apply_material_overrides_recursive(node: Node, overrides: Dictionary) -> void:
+	if node is MeshInstance3D:
+		var mi: MeshInstance3D = node
+		var mesh := mi.mesh
+		if mesh != null:
+			for i in mesh.get_surface_count():
+				var mat: Material = mesh.surface_get_material(i)
+				var resolved_key := ""
+				if mat != null and mat.resource_name != "":
+					if overrides.has(mat.resource_name):
+						resolved_key = mat.resource_name
+				if resolved_key == "":
+					var idx_key := "surface_%d" % i
+					if overrides.has(idx_key):
+						resolved_key = idx_key
+				if resolved_key == "":
+					continue
+				var color := _parse_color(overrides[resolved_key])
+				# Duplicate so we don't mutate the shared imported resource.
+				var dup: StandardMaterial3D
+				if mat is StandardMaterial3D:
+					dup = (mat as StandardMaterial3D).duplicate(true)
+				else:
+					dup = StandardMaterial3D.new()
+				dup.albedo_color = color
+				mi.set_surface_override_material(i, dup)
+	for child in node.get_children():
+		_apply_material_overrides_recursive(child, overrides)
+
+
+## Build a {state_name: clip_name} map from animation_state_rules,
+## using `clip_alias` where present and falling back to the state name.
+## AnimationDirector uses this at tick time to translate its resolved
+## state name into the AnimationPlayer's clip name.
+func _build_clip_alias_map(rules: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for rule in rules:
+		if not (rule is Dictionary):
+			continue
+		var rd: Dictionary = rule
+		var state_name := ""
+		if rd.has("default"):
+			var dv = rd["default"]
+			state_name = str(dv) if dv is String else str(rd.get("state", ""))
+		else:
+			state_name = str(rd.get("state", ""))
+		if state_name == "":
+			continue
+		if rd.has("clip_alias"):
+			out[state_name] = str(rd["clip_alias"])
+	return out
+
+
+## Fallback bare-box renderer when .glb load fails. Same shape as the
+## Tier 3 path below but factored out so _load_glb_mesh can call it
+## without duplicating the inline code.
+func _build_bare_box(visual: Dictionary) -> void:
 	var color := _parse_color(visual.get("color", fallback_color))
 	var size := float(visual.get("size", fallback_size))
 	var mi_box := MeshInstance3D.new()

@@ -365,49 +365,59 @@ If any of those three fail, merge is BLOCKED.
   primitives-doc Animation section lands later, it should link to ADR
   0046 § Phase A as the canonical implementation reference.
 
-### Phase B.1 — .glb loader detection (1 session)
+### Phase B.1 — .glb loader detection — **shipped 2026-05-17**
 
-- In the mesh-builder dispatch path, detect
-  `visual.mesh.ends_with(".glb")`.
-- If matched: `load(path).instantiate()` and add to parent. Skip
-  primitive-assembly path.
-- Stash the imported scene's AnimationPlayer reference for the
-  state-rule bridge.
+- ✅ `entity_mesh_3d._load_glb_mesh`: dispatch path detects `.glb` /
+  `.gltf` suffix on `visual.mesh`, loads via `ResourceLoader`, adds
+  the instantiated scene as a child. Falls back to a bare colored
+  box (with push_warning) if the load fails.
+- ✅ `_find_imported_animation_player`: shallow tree-walk locates
+  the embedded AnimationPlayer (Godot's GLTF importer always names
+  it "AnimationPlayer" and parents it to the scene root).
 
-### Phase B.2 — state_rules → imported AnimationPlayer (1 session)
+### Phase B.2 — state_rules → imported AnimationPlayer — **shipped 2026-05-17**
 
-- When a .glb-backed animator is used, `_pick_state` finds the
-  IMPORTED player (cached during Phase B.1) and calls `.play()` on it.
-- Resolve clip name in this order: (1) `clip_alias` field on the
-  state's animations entry if present; (2) state name verbatim
-  otherwise. No leading-underscore field naming (per tech-director
-  review 2026-05-17 — underscore prefix is wrong for authoring
-  fields).
-- yume-visual-designer invocation required per the visual-qa rule.
+- ✅ `AnimationDirector.set_clip_aliases(map)`: registers a
+  `{state_name: clip_name}` mapping. `tick()` resolves the active
+  state name via this map (falls back to state name verbatim if no
+  alias), then calls `_animation_player.play(clip_name, blend)`.
+- ✅ `entity_mesh_3d._build_clip_alias_map(rules)`: walks the
+  `animation_state_rules` array, extracts each rule's
+  `clip_alias` field (if present), and returns the lookup map.
+- ✅ Tech-director note honored: authoring uses plain field name
+  `clip_alias` (no leading underscore).
+- ✅ Unit-tested in `test_animation_primitive` Assertion 8:
+  director with aliases plays `Walking` when state="walk" and
+  `Idle` when state transitions to "idle".
 
-### Phase B.3 — material overrides + inspect-glb tooling (1 session)
+### Phase B.3 — material overrides + inspect-glb tooling — **shipped 2026-05-17**
 
-- Walk imported scene's MeshInstance3D children. For each
-  matching surface name listed in `material_overrides`, duplicate
-  + override the material's albedo color.
-- Falls back to baked materials when no overrides authored.
-- **Author tooling (MERGE GATE per tech-director 2026-05-17)**: ship
-  `tools/inspect_glb.py` that prints the slot names + clip names of
-  a .glb file. Usage: `python3 tools/inspect_glb.py path/to.glb`.
-  Output format: list each MeshInstance3D's name + each surface's
-  material name + each AnimationPlayer's clip names. Without this,
-  authors GUESS slot names and silently get fallback materials.
-  Implementation: use the Python `gltflib` library or parse the
-  .glb's JSON header directly. The tool runs OUTSIDE Godot for
-  CI/scripting use.
-- Alternative path if `inspect_glb.py` is too heavy: a documented
-  Godot Inspector recipe in yume-asset-designer SKILL ("right-click
-  the .glb in FileSystem → Inspect Imported Scene → expand
-  MeshInstance3D children, copy material names"). Either is
-  acceptable; ship at least one.
-- Document the slot-naming convention in yume-asset-designer SKILL.
+- ✅ `entity_mesh_3d._apply_material_overrides`: walks every
+  MeshInstance3D under the imported scene; for each surface whose
+  material's `resource_name` matches a key in `material_overrides`,
+  DUPLICATES the material (so the override is per-entity, not
+  shared) and patches its albedo_color. Falls back to `surface_<i>`
+  numeric keys when `resource_name` is empty. Untouched surfaces
+  keep their baked .glb material.
+- ✅ `tools/inspect_glb.py` (pure stdlib, no `pygltflib` dep —
+  parses GLB JSON chunk directly). Prints nodes, meshes, surface →
+  material mapping, material albedos, and animation clip names +
+  durations. Authors copy names verbatim into `material_overrides`
+  and `animation_state_rules.clip_alias`.
+- ✅ yume-asset-designer SKILL.md gains Strategy A2 documenting
+  the .glb authoring path + inspect-glb workflow + pre-ship gate.
 
-### Phase B.4 — bundle 1 test .glb + asset-designer skill update (1 session)
+### Phase B.4 — bundle 1 test .glb + asset-designer skill update — **shipped 2026-05-17**
+
+- ✅ `tools/synth_test_glb.py` emits `data/test_assets/cube_anim.glb`
+  (a 24-vertex cube with 2 materials and 2 animation clips). Pure
+  stdlib generator — reproducible from source via
+  `python3 tools/synth_test_glb.py`. The .glb is checked in.
+- ✅ `test_animation_primitive` Assertion 9 loads + inspects the
+  generated .glb via Godot (verifies AnimationPlayer exists + Idle/
+  Walking clips present). 907/0 unit tests after Phase B.
+
+### Phase B.4 (historical spec — kept for context) — bundle 1 test .glb
 
 - Author or download a tiny test .glb (a cube with "Idle" + "Walking"
   clips). Bundle in `godot/data/test_assets/` or use a Godot built-in.

@@ -236,6 +236,59 @@ For bespoke style. Add `*_prompt` fields per entity, plus project-wide
 style + backend config in `asset_gen.json`. Then `yume assets generate`
 (offline tool) realizes prompts to files.
 
+### Strategy A2: .glb skinned meshes (ADR 0046 Phase B, 2026-05-17)
+
+Drop a `.glb` (or `.gltf`) export from Blender / Maya / GLB-emitting
+tool into `data/<game>/assets/` (or wherever you prefer) and point
+`visual.mesh` at it directly. The engine loads the scene, hooks the
+embedded `AnimationPlayer`'s clips to the same `animation_state_rules`
+machinery the code-drawn meshes use, and re-skins surfaces via
+`material_overrides`.
+
+```jsonc
+{
+  "id": "villager_glb",
+  "visual": {
+    "mesh": "res://data/test_assets/cube_anim.glb",
+    "animation_state_rules": [
+      {"if_velocity_gt": 0.1, "state": "walk", "clip_alias": "Walking"},
+      {"default": "idle", "clip_alias": "Idle"}
+    ],
+    "animation_blend_seconds": 0.15,
+    "material_overrides": {
+      "body": "#a0c0e0",
+      "trim": "#202060"
+    }
+  }
+}
+```
+
+Pre-shipping a .glb-backed entity:
+
+1. **Inspect the .glb** to discover its slot names + clip names —
+   blind guesses silently fall back to baked materials:
+   ```bash
+   python3 tools/inspect_glb.py path/to/file.glb
+   ```
+   Output enumerates `materials:` (with names), `meshes:` (with
+   surface→material mapping), and `animations:` (clip names +
+   durations). Copy the names verbatim into `material_overrides` and
+   `clip_alias`.
+2. **clip_alias is required** when the .glb's clip names don't match
+   your engine-side state names. Blender exports often use
+   PascalCase (`Walking`, `Idle`) while rules use lowercase (`walk`,
+   `idle`). The alias maps state → clip.
+3. **Skip code-drawn fallback** if a .glb is present — `visual.mesh`
+   ending in `.glb` or `.gltf` short-circuits the mesh-library lookup.
+4. **Material overrides duplicate** the imported material per-entity,
+   so two villagers with different `material_overrides` don't share
+   tinted colors.
+
+A reproducible test asset lives at
+`godot/data/test_assets/cube_anim.glb`. Regenerate with
+`python3 tools/synth_test_glb.py` — it emits a 2-material cube with
+`Idle` + `Walking` clips.
+
 ### Strategy C: Code-draw fallback (default)
 
 Pure JSON. Each entity references a shape from `data/shapes.json`

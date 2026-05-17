@@ -45,6 +45,7 @@ var _state_rules: Array  # animation_state_rules (ordered)
 var _animation_player: AnimationPlayer = null  # set via attach_player()
 var _active_state: String = ""  # currently-playing state name
 var _default_blend: float = 0.15  # cross-fade seconds when state changes
+var _clip_aliases: Dictionary = {}  # state_name → clip_name (Phase B)
 
 
 ## Build a director for a given mesh def + render root + entity.
@@ -86,6 +87,15 @@ func attach_player(player: AnimationPlayer) -> void:
 	_animation_player = player
 
 
+## ADR 0046 Phase B: register a {state_name: clip_name} mapping. Used
+## when the AnimationPlayer's clip names don't match the engine-side
+## state names (e.g. .glb files whose clip names come from Blender NLA
+## tracks like "Walking" / "Idle" while the rules use "walk" / "idle").
+## When no mapping exists for a state, the state name is played verbatim.
+func set_clip_aliases(aliases: Dictionary) -> void:
+	_clip_aliases = aliases.duplicate()
+
+
 ## Per-frame entry point. `now_seconds` is monotonic game time (kept in
 ## the signature for backward compat with existing callers; not used
 ## directly — AnimationPlayer owns its own clock).
@@ -105,7 +115,20 @@ func tick(_now_seconds: float) -> void:
 	var clip = _animations.get(picked, null)
 	if clip is Dictionary and (clip as Dictionary).has("blend_seconds"):
 		blend = float((clip as Dictionary)["blend_seconds"])
-	_animation_player.play(picked, blend)
+	# Phase B: resolve clip_alias mapping if registered (state → .glb
+	# clip name). Falls back to the state name verbatim.
+	var clip_name := str(_clip_aliases.get(picked, picked))
+	if not _animation_player.has_animation(clip_name):
+		# Silent miss: keeps the entity static rather than crashing on
+		# typo'd alias. Author can grep stdout for the warning.
+		push_warning(
+			(
+				"AnimationDirector: clip '%s' not in player (state=%s, " % [clip_name, picked]
+				+ "available: %s)" % str(_animation_player.get_animation_list())
+			)
+		)
+		return
+	_animation_player.play(clip_name, blend)
 
 
 ## Evaluate state rules top-to-bottom. First match wins. `default` is the
