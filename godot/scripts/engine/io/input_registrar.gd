@@ -224,10 +224,30 @@ static func poll(
 					ew_held = true
 
 	# PRESS actions — fire once on press-edge
+	#
+	# Scripted-press carve-out (2026-05-17): when step_runner._do_press
+	# calls Input.action_press / action_release in the same synchronous
+	# frame, Godot's `Input.is_action_just_pressed` returns TRUE on the
+	# subsequent main-loop frame even though the action was already
+	# processed via scheduler.queue_input. Without the consume map this
+	# re-queues the action → user-visible I-toggle bug (second press
+	# closes inventory, then immediately re-opens it).
+	#
+	# step_runner sets `env._scripted_action_consumed[action] = true`
+	# after each press completes. We honor that exactly once, then
+	# clear it so subsequent real presses fire normally.
+	var consumed = null
+	if scheduler != null:
+		var env_v = scheduler.env
+		if env_v is Dictionary:
+			consumed = (env_v as Dictionary).get("_scripted_action_consumed", null)
 	for action in input_actions_press:
 		if not InputMap.has_action(action):
 			continue
 		if Input.is_action_just_pressed(action):
+			if consumed is Dictionary and (consumed as Dictionary).get(action, false):
+				(consumed as Dictionary).erase(action)
+				continue
 			scheduler.queue_input(action, {"actor": actor_id})
 
 	# Per-axis stop: if no key on the axis is held AND the actor has

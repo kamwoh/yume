@@ -8642,6 +8642,44 @@ func test_step_runner() -> void:
 		int(player.get_state("counter", 0)) == 0, "advance_one_tick: no input held, no rule fires"
 	)
 
+	# ---------- 13. test_scripted_action_consumed (post-mortem gate, 2026-05-17) ----------
+	# Empirical case: step_runner._do_press synchronously calls Input.action_press
+	# + action_release within the same Godot frame. `Input.is_action_just_pressed`
+	# stays TRUE on the next main-loop frame even though the action was already
+	# processed via scheduler.queue_input. Without InputRegistrar's consume-map
+	# check, the action re-queues → ui_open_inventory rule re-fires → modal
+	# toggles (I-press, M-press) appear broken (second press closes then
+	# immediately re-opens).
+	#
+	# This test asserts the consume mechanism: after _do_press marks an action
+	# as consumed in env, InputRegistrar.poll skips the just_pressed queue
+	# for that action exactly once. Without the consume map this test fails
+	# (queue_input fires twice for the action — once from step_runner's manual
+	# queue, once from InputRegistrar's just_pressed detection).
+	player.state["counter"] = 0
+	world.scheduler.env["_scripted_action_consumed"] = {test_action: true}
+	# Press the action via Godot Input so is_action_just_pressed returns true.
+	Input.action_press(test_action)
+	# Poll once; consume map should swallow the just_pressed.
+	InputRegistrar.poll(
+		world.scheduler, "p1", [], [test_action], "", entities
+	)
+	Input.action_release(test_action)
+	# The action should NOT have been queued (consume swallowed it).
+	expect_eq(
+		world.scheduler.input_queue.size(),
+		0,
+		"scripted-press consume: just_pressed was swallowed (not re-queued)"
+	)
+	# After the consume, the entry should be erased so subsequent presses fire.
+	var consumed_map: Dictionary = world.scheduler.env.get(
+		"_scripted_action_consumed", {}
+	)
+	expect(
+		not consumed_map.has(test_action),
+		"scripted-press consume: one-shot erase (next real press fires normally)"
+	)
+
 	# Cleanup
 	world.queue_free()
 

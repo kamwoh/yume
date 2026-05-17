@@ -131,6 +131,29 @@ static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	# Second tick after release to let the edge-down detector update
 	# _last_action_state (so the NEXT press registers as a fresh edge).
 	_tick_screen_flow(world)
+	# Empirical case 2026-05-17 (second incident): even after the close-
+	# toggle pops the inventory and freeze flips to 0 in world_state,
+	# Godot's `Input.is_action_just_pressed(action)` still reports TRUE
+	# on the *next* main-loop frame because action_press / action_release
+	# both landed inside the previous frame's processing window without a
+	# yield. When the main loop subsequently runs world._process with
+	# freeze=0, InputRegistrar.poll sees that latched just_pressed and
+	# re-queues the action → ui_open_inventory rule fires → inventory
+	# re-pushes. Visible symptom: I-toggle second-press appears to do
+	# nothing because the second press's close is immediately reverted
+	# by the latched just_pressed.
+	#
+	# Mitigation: tell the scheduler to ignore the next-frame poll of
+	# this same action. We mark it on env so InputRegistrar can skip
+	# one detection per scripted press. Live play is unaffected (real
+	# key events properly span frame boundaries).
+	if world != null and world.scheduler != null:
+		var env: Dictionary = world.scheduler.env
+		var consumed = env.get("_scripted_action_consumed", null)
+		if not (consumed is Dictionary):
+			consumed = {}
+			env["_scripted_action_consumed"] = consumed
+		(consumed as Dictionary)[action] = true
 
 
 static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary) -> void:
