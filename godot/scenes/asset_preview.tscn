@@ -1,0 +1,40 @@
+[gd_scene load_steps=4 format=3 uid="uid://b8j7k3xnpqrst"]
+
+[ext_resource type="Script" path="res://scripts/qa/asset_preview.gd" id="1"]
+
+[sub_resource type="ProceduralSkyMaterial" id="Sky_neutral"]
+sky_top_color = Color(0.32, 0.40, 0.50, 1)
+sky_horizon_color = Color(0.62, 0.58, 0.50, 1)
+ground_bottom_color = Color(0.25, 0.22, 0.20, 1)
+ground_horizon_color = Color(0.45, 0.40, 0.35, 1)
+sun_angle_max = 30.0
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("Sky_neutral")
+
+[sub_resource type="Environment" id="Env_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 3
+ambient_light_color = Color(0.85, 0.85, 0.90, 1)
+ambient_light_sky_contribution = 0.6
+ambient_light_energy = 0.6
+tonemap_mode = 2
+
+[node name="Preview" type="Node3D"]
+script = ExtResource("1")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Env_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.354, 0.354, 0, 0.707, 0.707, -0.5, -0.612, 0.612, 0, 4, 0)
+light_color = Color(1, 0.95, 0.85, 1)
+light_energy = 1.2
+shadow_enabled = true
+
+[node name="AssetHolder" type="Node3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 3, 4)
+fov = 45.0

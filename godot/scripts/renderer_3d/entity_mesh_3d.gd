@@ -503,6 +503,29 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 		var mi: MeshInstance3D = node
 		var mesh := mi.mesh
 		if mesh != null:
+			# MeshLib-built primitives (code-drawn meshes from
+			# meshes.json) attach materials via mi.material_override,
+			# NOT per-surface. Check that first; fall back to
+			# per-surface for .glb-imported meshes (their materials
+			# live on surfaces). Empirical case 2026-05-17: oak A/B/C
+			# Plan C looked identical to baseline because every
+			# primitive's material_override was being read as null +
+			# replaced by a textureless StandardMaterial3D.
+			if mi.material_override != null:
+				var src_override: Material = mi.material_override
+				var dup_override: StandardMaterial3D
+				if src_override is StandardMaterial3D:
+					dup_override = (src_override as StandardMaterial3D).duplicate(true)
+				else:
+					dup_override = StandardMaterial3D.new()
+				dup_override.albedo_texture = tex
+				mi.material_override = dup_override
+				# Continue to children, skip the per-surface path
+				# (would no-op anyway since this MeshInstance3D's
+				# materials are already overridden uniformly).
+				for child in node.get_children():
+					_paint_albedo_texture_recursive(child, tex)
+				return
 			for i in mesh.get_surface_count():
 				var mat: Material = mi.get_surface_override_material(i)
 				if mat == null:
