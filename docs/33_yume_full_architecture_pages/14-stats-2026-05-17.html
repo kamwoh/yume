@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>33_yume_full_architecture — Stats (2026-05-11)</title>
+<title>33_yume_full_architecture — Stats (2026-05-17)</title>
 <style>
 :root {
   --bg: #fafafa;
@@ -128,40 +128,36 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
-<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="12-12-why-yume-doesnx27t-use-godot-physics.html">← 12. Why Yume doesn&amp;#x27;t use Godot physics</a></div></nav>
+<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="13-13-authoring-time-tools-python-emitters-adr-0051.html">← 13. Authoring-time tools (Python emitters, ADR 0051)</a></div></nav>
 <div class="container">
-<div class="toc"><h3>Contents</h3><ul><li><a href="#stats-2026-05-11">Stats (2026-05-11)</a></li></ul></div>
-<h2 id="stats-2026-05-11">Stats (2026-05-11)</h2>
+<div class="toc"><h3>Contents</h3><ul><li><a href="#stats-2026-05-17">Stats (2026-05-17)</a></li></ul></div>
+<h2 id="stats-2026-05-17">Stats (2026-05-17)</h2>
 <ul>
-<li><strong>43 ADRs</strong> authored (0001 — 0043); 30+ implemented, 0041 just landed, 0042 deferred, 0043 just landed</li>
-<li><strong>28 specialist skills</strong> (<code>.claude/skills/yume-*/</code>)</li>
-<li><strong>30+ engine modules</strong> (<code>godot/scripts/engine/</code>)</li>
-<li><strong>6 validators</strong> (sync-time gates in <code>tools/</code>)</li>
-<li><strong>7 path-scoped rules</strong> (<code>.claude/rules/</code>)</li>
-<li><strong>12 invariants</strong> (in <code>30_framework_primitives.md</code>)</li>
-<li><strong>16 demos</strong> (<code>data/demo_*/</code>) — most flat ground; Aldenmere is the densest</li>
-<li><strong>864 unit tests</strong> passing (<code>test_runner.gd</code>)</li>
+<li><strong>51 ADRs</strong> authored (0001 — 0051); 40+ implemented; ADR 0046</li>
 </ul>
+<p>fully shipped (Phase A code-drawn + Phase B <code>.glb</code>), ADR 0051 documents the codegen + assetgen pattern, ADR 0042 deferred until first dependent game.</p>
+<ul>
+<li><strong>28 specialist skills</strong> (<code>.claude/skills/yume-*/</code>)</li>
+<li><strong>40+ engine modules</strong> (<code>godot/scripts/engine/</code>)</li>
+<li><strong>12 validators</strong> (sync-time gates in <code>tools/</code>)</li>
+<li><strong>8 path-scoped rules</strong> (<code>.claude/rules/</code>)</li>
+<li><strong>12 invariants</strong> (in <code>30_framework_primitives.md</code>)</li>
+<li><strong>3 active demos</strong> (<code>data/demo_*/</code>) — aldenmere (TDTE shard),</li>
+</ul>
+<p>doomarena3d, sokoban</p>
+<ul>
+<li><strong>2 authoring-time emitters</strong> — <code>tools/yume_codegen/</code> +</li>
+</ul>
+<p><code>tools/yume_assetgen/</code> (ADR 0051)</p>
+<ul>
+<li><strong>907 unit tests</strong> passing (<code>test_runner.gd</code>)</li>
+<li><strong>19 scenario tests</strong> passing (Aldenmere TDTE)</li>
+<li><strong>30 codegen smoke assertions</strong> passing</li>
+<li><strong>19 asset-gen smoke assertions</strong> passing</li>
+</ul>
+<blockquote><strong>Note (2026-05-17):</strong> Section 12 (&quot;Why Yume doesn&#x27;t use Godot physics&quot;) was correct as of 2026-05-11 but <strong>is now superseded</strong> by ADR 0044 (Physics via Godot PhysicsServer3D, 2026-05-13) and ADR 0045 (Motion via CharacterBody3D, 2026-05-14). Yume DOES now use Godot physics. Treat section 12&#x27;s &quot;limitations&quot; list as historical context; the live story is in ADRs 0044 + 0045.</blockquote>
 </div>
 </body>
 </html>

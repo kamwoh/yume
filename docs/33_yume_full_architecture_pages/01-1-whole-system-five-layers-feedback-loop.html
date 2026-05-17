@@ -128,162 +128,143 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="02-2-engine-subsystems-directors-stores-validators.html">2. Engine subsystems — directors, stores, validators →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#1-whole-system-five-layers-feedback-loop">1. Whole system — five layers + feedback loop</a></li></ul></div>
 <h2 id="1-whole-system-five-layers-feedback-loop">1. Whole system — five layers + feedback loop</h2>
-<div class="mermaid">
-flowchart TB
+<pre><code class="lang-mermaid">flowchart TB
     %% =======================================================
     %% LAYER 1 — AUTHORING (text → spec)
     %% =======================================================
-    Prose["Prose pitch<br/>(user / LLM)"]:::author
-    Orch["/yume-design<br/>orchestrator"]:::author
-    Prose --> Orch
+    Prose[&quot;Prose pitch&lt;br/&gt;(user / LLM)&quot;]:::author
+    Orch[&quot;/yume-design&lt;br/&gt;orchestrator&quot;]:::author
+    Prose --&gt; Orch
 
-    subgraph L1["Layer 1: Authoring (skills, no code)"]
+    subgraph L1[&quot;Layer 1: Authoring (skills, no code)&quot;]
         direction TB
-        GD["yume-game-designer<br/>(+ genre: shooter / merchant /<br/>racing)"]:::author
-        REV["yume-game-reviewer<br/>+ genre reviewers"]:::author
-        Plan["yume-game-planner<br/>yume-level-designer<br/>yume-story-planner<br/>yume-economy-designer<br/>yume-combining-logic-designer"]:::author
-        Build["Content designers:<br/>yume-systems-designer<br/>yume-game-rules-designer<br/>yume-content-designer<br/>yume-asset-designer<br/>yume-screen-flow-designer<br/>yume-tutorial-designer<br/>yume-juice-designer<br/>yume-flavor-writer<br/>yume-audio-designer<br/>yume-lighting-designer<br/>yume-save-policy-designer"]:::author
-        Orch --> GD
-        GD --> REV
-        REV -->|accept| Plan
-        Plan --> Build
+        GD[&quot;yume-game-designer&lt;br/&gt;(+ genre: shooter / merchant /&lt;br/&gt;racing)&quot;]:::author
+        REV[&quot;yume-game-reviewer&lt;br/&gt;+ genre reviewers&quot;]:::author
+        Plan[&quot;yume-game-planner&lt;br/&gt;yume-level-designer&lt;br/&gt;yume-story-planner&lt;br/&gt;yume-economy-designer&lt;br/&gt;yume-combining-logic-designer&quot;]:::author
+        Build[&quot;Content designers:&lt;br/&gt;yume-systems-designer&lt;br/&gt;yume-game-rules-designer&lt;br/&gt;yume-content-designer&lt;br/&gt;yume-asset-designer&lt;br/&gt;yume-screen-flow-designer&lt;br/&gt;yume-tutorial-designer&lt;br/&gt;yume-juice-designer&lt;br/&gt;yume-flavor-writer&lt;br/&gt;yume-audio-designer&lt;br/&gt;yume-lighting-designer&lt;br/&gt;yume-save-policy-designer&quot;]:::author
+        Orch --&gt; GD
+        GD --&gt; REV
+        REV --&gt;|accept| Plan
+        Plan --&gt; Build
     end
 
     %% =======================================================
     %% LAYER 2 — CONTENT (JSON, per-game)
     %% =======================================================
-    subgraph L2["Layer 2: Content (data/demo_X/, JSON)"]
+    subgraph L2[&quot;Layer 2: Content (data/demo_X/, JSON)&quot;]
         direction TB
-        SceneJ["scene.json<br/>camera + lighting + grid"]:::data
-        World["world/physics.json<br/>(sim rules)<br/>world/state.json<br/>world/zones.json"]:::data
-        Game["game/rules.json<br/>(goals, win/lose)<br/>game/flow.json"]:::data
-        Ents["entities/*.json<br/>(defs + instances)<br/>levels/*/"]:::data
-        UI["hud.json · screens.json<br/>ui/strings.json · ui/input.json<br/>audio/cues.json · tutorial.json"]:::data
-        Shared["data/meshes.json<br/>data/sounds.json<br/>data/shapes.json<br/>data/lib/*<br/>(ADR 0027 — cross-game)"]:::shared
+        SceneJ[&quot;scene.json&lt;br/&gt;camera + lighting + grid&quot;]:::data
+        World[&quot;world/rules.json&lt;br/&gt;(sim rules)&lt;br/&gt;world/state.json&lt;br/&gt;world/zones.json&quot;]:::data
+        Game[&quot;game/goals.json&lt;br/&gt;(goals, win/lose)&lt;br/&gt;game/flow.json&quot;]:::data
+        Ents[&quot;entities/*.json&lt;br/&gt;(defs + instances)&lt;br/&gt;levels/*/&quot;]:::data
+        UI[&quot;hud.json · screens.json&lt;br/&gt;ui/strings.json · ui/input.json&lt;br/&gt;audio/cues.json · tutorial.json&quot;]:::data
+        Shared[&quot;data/meshes.json&lt;br/&gt;data/sounds.json&lt;br/&gt;data/shapes.json&lt;br/&gt;data/lib/*&lt;br/&gt;(ADR 0027 — cross-game)&quot;]:::shared
     end
-    Build --> SceneJ
-    Build --> World
-    Build --> Game
-    Build --> Ents
-    Build --> UI
-    Build -.->|registers| Shared
+    Build --&gt; SceneJ
+    Build --&gt; World
+    Build --&gt; Game
+    Build --&gt; Ents
+    Build --&gt; UI
+    Build -.-&gt;|registers| Shared
 
     %% =======================================================
     %% LAYER 3 — VALIDATORS (sync-time gates)
     %% =======================================================
-    subgraph L3["Layer 3: Validators (play.sh pre-launch)"]
+    subgraph L3[&quot;Layer 3: Validators (play.sh pre-launch)&quot;]
         direction LR
-        V1["validate_screens<br/>(dangling transition_screen)"]:::val
-        V2["validate_spawn_templates<br/>(unknown def in spawn)"]:::val
-        V3["validate_scene_directors<br/>(missing director Node)"]:::val
-        V4["validate_duplicate_mutations<br/>(cross-file rule conflict)"]:::val
-        V5["validate_lib_refs<br/>(ADR 0027 @lib.X.Y)"]:::val
-        V6["validate_player_perspective<br/>(undiscoverable keybinds)"]:::val
+        V1[&quot;validate_screens&lt;br/&gt;(dangling transition_screen)&quot;]:::val
+        V2[&quot;validate_spawn_templates&lt;br/&gt;(unknown def in spawn)&quot;]:::val
+        V3[&quot;validate_scene_directors&lt;br/&gt;(missing director Node)&quot;]:::val
+        V4[&quot;validate_duplicate_mutations&lt;br/&gt;(cross-file rule conflict)&quot;]:::val
+        V5[&quot;validate_lib_refs&lt;br/&gt;(ADR 0027 @lib.X.Y)&quot;]:::val
+        V6[&quot;validate_player_perspective&lt;br/&gt;(undiscoverable keybinds)&quot;]:::val
     end
-    SceneJ -.->|scan| L3
-    World -.->|scan| L3
-    Game -.->|scan| L3
-    Ents -.->|scan| L3
-    UI -.->|scan| L3
-    L3 -->|pass / warn / fail| Boot
+    SceneJ -.-&gt;|scan| L3
+    World -.-&gt;|scan| L3
+    Game -.-&gt;|scan| L3
+    Ents -.-&gt;|scan| L3
+    UI -.-&gt;|scan| L3
+    L3 --&gt;|pass / warn / fail| Boot
 
     %% =======================================================
     %% LAYER 4 — ENGINE (Godot 4.6.1)
     %% =======================================================
-    subgraph L4["Layer 4: Engine"]
+    subgraph L4[&quot;Layer 4: Engine&quot;]
         direction TB
-        Boot["world.gd::load_data<br/>(boot — parses JSON,<br/>spawns entities, registers rules)"]:::engine
-        Prim["Seven Primitives (ADR 0001):<br/>Entity · Tag · Rule · Trigger<br/>Effect · Query · Relation"]:::engine
-        Boot --> Prim
+        Boot[&quot;world.gd::load_data&lt;br/&gt;(boot — parses JSON,&lt;br/&gt;spawns entities, registers rules)&quot;]:::engine
+        Prim[&quot;Seven Primitives (ADR 0001):&lt;br/&gt;Entity · Tag · Rule · Trigger&lt;br/&gt;Effect · Query · Relation&quot;]:::engine
+        Boot --&gt; Prim
 
-        subgraph Tick["Per-tick: PhaseScheduler<br/>(Invariant #9 — phase ordering)"]
+        subgraph Tick[&quot;Per-tick: PhaseScheduler&lt;br/&gt;(Invariant #9 — phase ordering)&quot;]
             direction LR
-            P1["input"]:::engine -->|flush| D1["drain decide"]:::engine
-            D1 --> P2["decide<br/>(tick rules)"]:::engine
-            P2 -->|flush| D2["drain react"]:::engine
-            D2 -->|flush| P3["react<br/>(contact rules)"]:::engine
-            P3 -->|flush| Next["next tick"]:::engine
+            P1[&quot;input&quot;]:::engine --&gt;|flush| D1[&quot;drain decide&quot;]:::engine
+            D1 --&gt; P2[&quot;decide&lt;br/&gt;(tick rules)&quot;]:::engine
+            P2 --&gt;|flush| D2[&quot;drain react&quot;]:::engine
+            D2 --&gt;|flush| P3[&quot;react&lt;br/&gt;(contact rules)&quot;]:::engine
+            P3 --&gt;|flush| Next[&quot;next tick&quot;]:::engine
         end
-        Prim --> Tick
+        Prim --&gt; Tick
 
-        Tick --> Stores
-        Stores["State Stores:<br/>RelationStore · SpatialIndex<br/>ZoneStore (0031)"]:::engine
+        Tick --&gt; Stores
+        Stores[&quot;State Stores:&lt;br/&gt;RelationStore · SpatialIndex&lt;br/&gt;ZoneStore (0031)&quot;]:::engine
 
-        Tick --> Directors
-        Directors["Director Nodes:<br/>ScheduleDirector (0029)<br/>LightingDirector (0025)<br/>AnimationDirector (0035)<br/>PartyDirector (0026)<br/>FactionDirector (0032)<br/>DynastyDirector (0034)<br/>MultiMeshDirector (0041)<br/>LifecycleDirector<br/>ChunkStreamer (0014)"]:::engine
+        Tick --&gt; Directors
+        Directors[&quot;Director Nodes:&lt;br/&gt;ScheduleDirector (0029)&lt;br/&gt;LightingDirector (0025)&lt;br/&gt;AnimationDirector (0035)&lt;br/&gt;PartyDirector (0026)&lt;br/&gt;FactionDirector (0032)&lt;br/&gt;DynastyDirector (0034)&lt;br/&gt;MultiMeshDirector (0041)&lt;br/&gt;LifecycleDirector&lt;br/&gt;ChunkStreamer (0014)&quot;]:::engine
 
-        Tick --> Pipelines
-        Pipelines["Pending pipelines<br/>(Invariant #10 freeze-policy):<br/>save / load · level transition<br/>world reset · chunk stream"]:::engine
+        Tick --&gt; Pipelines
+        Pipelines[&quot;Pending pipelines&lt;br/&gt;(Invariant #10 freeze-policy):&lt;br/&gt;save / load · level transition&lt;br/&gt;world reset · chunk stream&quot;]:::engine
     end
 
     %% =======================================================
     %% LAYER 5 — RENDER + UI
     %% =======================================================
-    subgraph L5["Layer 5: Render + UI (Godot Control + 3D)"]
+    subgraph L5[&quot;Layer 5: Render + UI (Godot Control + 3D)&quot;]
         direction TB
-        R1["EntityMesh3D / EntitySprite2D<br/>per-entity render"]:::render
-        R2["MultiMeshInstance3D<br/>(ADR 0041 — static batching)"]:::render
-        R3["GameShell<br/>(HUD + camera + viewmodel<br/>+ shake/flash)"]:::render
-        R4["ScreenFlow (0011)<br/>(modal stack, transitions)"]:::render
-        R5["OverlayManager (0012)<br/>(tutorial)"]:::render
-        R6["NameplateRenderer<br/>(NPC name floaters)"]:::render
-        R7["AudioBus<br/>(SFX + cues)"]:::render
+        R1[&quot;EntityMesh3D / EntitySprite2D&lt;br/&gt;per-entity render&quot;]:::render
+        R2[&quot;MultiMeshInstance3D&lt;br/&gt;(ADR 0041 — static batching)&quot;]:::render
+        R3[&quot;GameShell&lt;br/&gt;(HUD + camera + viewmodel&lt;br/&gt;+ shake/flash)&quot;]:::render
+        R4[&quot;ScreenFlow (0011)&lt;br/&gt;(modal stack, transitions)&quot;]:::render
+        R5[&quot;OverlayManager (0012)&lt;br/&gt;(tutorial)&quot;]:::render
+        R6[&quot;NameplateRenderer&lt;br/&gt;(NPC name floaters)&quot;]:::render
+        R7[&quot;AudioBus&lt;br/&gt;(SFX + cues)&quot;]:::render
     end
-    Directors --> R1
-    Directors --> R2
-    Stores --> R1
-    Pipelines --> R3
-    Boot --> R4
-    Boot --> R5
-    Boot --> R6
-    Boot --> R7
+    Directors --&gt; R1
+    Directors --&gt; R2
+    Stores --&gt; R1
+    Pipelines --&gt; R3
+    Boot --&gt; R4
+    Boot --&gt; R5
+    Boot --&gt; R6
+    Boot --&gt; R7
 
     %% =======================================================
     %% PLAYER LOOP (closes the feedback)
     %% =======================================================
-    Player(("Player")):::player
-    R1 --> Player
-    R3 --> Player
-    R4 --> Player
-    Player -->|WASD / mouse /<br/>verbs / clicks| Boot
+    Player((&quot;Player&quot;)):::player
+    R1 --&gt; Player
+    R3 --&gt; Player
+    R4 --&gt; Player
+    Player --&gt;|WASD / mouse /&lt;br/&gt;verbs / clicks| Boot
 
     %% =======================================================
     %% TECH-DIRECTOR (cuts across)
     %% =======================================================
-    TD["yume-tech-director<br/>+ 12 Invariants<br/>+ ADR registry"]:::gate
-    TD -.->|gates merges| L4
-    TD -.->|reviews| Build
+    TD[&quot;yume-tech-director&lt;br/&gt;+ 12 Invariants&lt;br/&gt;+ ADR registry&quot;]:::gate
+    TD -.-&gt;|gates merges| L4
+    TD -.-&gt;|reviews| Build
 
     %% =======================================================
     %% PATH-SCOPED RULES (cross-cutting)
     %% =======================================================
-    Rules[".claude/rules/<br/>engine-scripts.md · data-demo.md<br/>visual-qa.md · post-mortem.md<br/>soul.md · tests.md · docs.md"]:::gate
-    Rules -.->|disciplines| Build
-    Rules -.->|disciplines| L4
+    Rules[&quot;.claude/rules/&lt;br/&gt;engine-scripts.md · data-demo.md&lt;br/&gt;visual-qa.md · post-mortem.md&lt;br/&gt;soul.md · tests.md · docs.md&quot;]:::gate
+    Rules -.-&gt;|disciplines| Build
+    Rules -.-&gt;|disciplines| L4
 
     %% =======================================================
     %% STYLES
@@ -295,8 +276,7 @@ flowchart TB
     classDef engine fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff
     classDef render fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
     classDef player fill:#1e1e1e,stroke:#d0d0d0,color:#ffffff,font-weight:bold
-    classDef gate fill:#3f3f1e,stroke:#c9c962,color:#ffffe0
-</div>
+    classDef gate fill:#3f3f1e,stroke:#c9c962,color:#ffffe0</code></pre>
 <hr>
 
 </div>

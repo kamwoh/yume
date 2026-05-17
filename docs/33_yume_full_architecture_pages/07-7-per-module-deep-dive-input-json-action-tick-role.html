@@ -128,24 +128,6 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="06-6-engine-modules-which-gd-reads-which-json.html">← 6. Engine modules — which .gd reads which .json</a> <a href="08-8-entities-the-only-quotnounquot-in-the-engine.html">8. Entities — the only &amp;quot;noun&amp;quot; in the engine →</a></div></nav>
@@ -154,351 +136,326 @@ document.addEventListener('DOMContentLoaded', function() {
 <h2 id="7-per-module-deep-dive-input-json-action-tick-role">7. Per-module deep-dive — input JSON → action → tick role</h2>
 <p>Section 6 showed <em>which</em> <code>.gd</code> parses <em>which</em> <code>.json</code>. This section expands each major module: <strong>what it builds in memory, what runtime API it exposes, what it does each tick</strong>.</p>
 <h3 id="71-the-4-simulation-cores-world-rule-phase-scheduler-effect-apply-query-formula">7.1 The 4 simulation cores (<code>world</code> + <code>rule</code> + <code>phase_scheduler</code> + <code>effect_apply</code> + <code>query</code> + <code>formula</code>)</h3>
-<div class="mermaid">
-flowchart TB
+<pre><code class="lang-mermaid">flowchart TB
     %% INPUT
-    physJ["world/physics.json<br/>game/rules.json<br/>levels/X/rules.json<br/>tutorial.json"]:::json
-    stateJ["world/state.json"]:::json
-    entsJ["entities .json files"]:::json
-    sceneJ["scene.json"]:::json
+    physJ[&quot;world/rules.json&lt;br/&gt;game/goals.json&lt;br/&gt;levels/X/rules.json&lt;br/&gt;tutorial.json&quot;]:::json
+    stateJ[&quot;world/state.json&quot;]:::json
+    entsJ[&quot;entities .json files&quot;]:::json
+    sceneJ[&quot;scene.json&quot;]:::json
 
     %% WORLD.GD
-    World["world.gd<br/>extends Node<br/>boot load_data<br/>per-frame _process<br/>per-tick advance_one_tick"]:::core
+    World[&quot;world.gd&lt;br/&gt;extends Node&lt;br/&gt;boot load_data&lt;br/&gt;per-frame _process&lt;br/&gt;per-tick advance_one_tick&quot;]:::core
 
     %% WHAT world.gd BUILDS IN MEMORY
-    EnvDict["env Dictionary<br/>entities defs relations<br/>spatial_index zone_store<br/>world_state parent next_id"]:::mem
-    EntityMap["entities Dict<br/>id to Entity node"]:::mem
-    DefsMap["defs Dict<br/>def_id to parsed dict"]:::mem
-    RuleList["rules Array of Rule<br/>typed via Rule.from_dict"]:::mem
-    WorldStateDict["world_state Dict<br/>global flags counters"]:::mem
+    EnvDict[&quot;env Dictionary&lt;br/&gt;entities defs relations&lt;br/&gt;spatial_index zone_store&lt;br/&gt;world_state parent next_id&quot;]:::mem
+    EntityMap[&quot;entities Dict&lt;br/&gt;id to Entity node&quot;]:::mem
+    DefsMap[&quot;defs Dict&lt;br/&gt;def_id to parsed dict&quot;]:::mem
+    RuleList[&quot;rules Array of Rule&lt;br/&gt;typed via Rule.from_dict&quot;]:::mem
+    WorldStateDict[&quot;world_state Dict&lt;br/&gt;global flags counters&quot;]:::mem
 
-    physJ --> World
-    stateJ --> World
-    entsJ --> World
-    sceneJ --> World
+    physJ --&gt; World
+    stateJ --&gt; World
+    entsJ --&gt; World
+    sceneJ --&gt; World
 
-    World --> EnvDict
-    World --> EntityMap
-    World --> DefsMap
-    World --> RuleList
-    World --> WorldStateDict
+    World --&gt; EnvDict
+    World --&gt; EntityMap
+    World --&gt; DefsMap
+    World --&gt; RuleList
+    World --&gt; WorldStateDict
 
     %% RULE.GD — pure data class
-    RuleGD["rule.gd<br/>class_name Rule<br/>Rule.from_dict<br/>builds typed instance<br/>Rule.validate_all"]:::core
-    World --> RuleGD
-    RuleGD --> RuleList
+    RuleGD[&quot;rule.gd&lt;br/&gt;class_name Rule&lt;br/&gt;Rule.from_dict&lt;br/&gt;builds typed instance&lt;br/&gt;Rule.validate_all&quot;]:::core
+    World --&gt; RuleGD
+    RuleGD --&gt; RuleList
 
     %% PHASE_SCHEDULER.GD — the tick engine
-    Sched["phase_scheduler.gd<br/>PhaseScheduler.new env<br/>register_rules<br/>queue_input<br/>tick<br/>flush_effects"]:::core
-    World --> Sched
-    EnvDict --> Sched
-    RuleList --> Sched
+    Sched[&quot;phase_scheduler.gd&lt;br/&gt;PhaseScheduler.new env&lt;br/&gt;register_rules&lt;br/&gt;queue_input&lt;br/&gt;tick&lt;br/&gt;flush_effects&quot;]:::core
+    World --&gt; Sched
+    EnvDict --&gt; Sched
+    RuleList --&gt; Sched
 
     %% Per-tick fan-out
-    InputRules["phase 1 input<br/>fire input-trigger rules"]
-    TickRules["phase 2 decide<br/>fire tick and signal rules"]
-    ContactRules["phase 3 react<br/>fire contact and lifecycle"]
-    Sched --> InputRules
-    Sched --> TickRules
-    Sched --> ContactRules
+    InputRules[&quot;phase 1 input&lt;br/&gt;fire input-trigger rules&quot;]
+    TickRules[&quot;phase 2 decide&lt;br/&gt;fire tick and signal rules&quot;]
+    ContactRules[&quot;phase 3 react&lt;br/&gt;fire contact and lifecycle&quot;]
+    Sched --&gt; InputRules
+    Sched --&gt; TickRules
+    Sched --&gt; ContactRules
 
-    InputRules --> Query
-    TickRules --> Query
-    ContactRules --> Query
+    InputRules --&gt; Query
+    TickRules --&gt; Query
+    ContactRules --&gt; Query
 
-    Query["query.gd<br/>QueryLib.matches<br/>QueryLib.run<br/>tags_all tags_any tags_none<br/>properties state relations<br/>radius order_by limit"]:::core
-    EnqueueFx["enqueue effects<br/>per matched entity"]
-    Query --> EnqueueFx
+    Query[&quot;query.gd&lt;br/&gt;QueryLib.matches&lt;br/&gt;QueryLib.run&lt;br/&gt;tags_all tags_any tags_none&lt;br/&gt;properties state relations&lt;br/&gt;radius order_by limit&quot;]:::core
+    EnqueueFx[&quot;enqueue effects&lt;br/&gt;per matched entity&quot;]
+    Query --&gt; EnqueueFx
 
-    EnqueueFx --> Sched
-    Sched --> EffApply
+    EnqueueFx --&gt; Sched
+    Sched --&gt; EffApply
 
-    EffApply["effect_apply.gd<br/>EffectApply.apply<br/>57 effect types dispatched<br/>state and zone_state group<br/>spawn remove transform<br/>relate unrelate transfer<br/>tag_add tag_remove<br/>velocity and pathfind<br/>transition and screen<br/>save load_state<br/>show_toast show_overlay<br/>party faction tech dynasty<br/>build_place switch_class<br/>reset_world emit"]:::core
-    EffApply --> EntityMap
-    EffApply --> WorldStateDict
-    EffApply -.-> Formula
+    EffApply[&quot;effect_apply.gd&lt;br/&gt;EffectApply.apply&lt;br/&gt;57 effect types dispatched&lt;br/&gt;state and zone_state group&lt;br/&gt;spawn remove transform&lt;br/&gt;relate unrelate transfer&lt;br/&gt;tag_add tag_remove&lt;br/&gt;velocity and pathfind&lt;br/&gt;transition and screen&lt;br/&gt;save load_state&lt;br/&gt;show_toast show_overlay&lt;br/&gt;party faction tech dynasty&lt;br/&gt;build_place switch_class&lt;br/&gt;reset_world emit&quot;]:::core
+    EffApply --&gt; EntityMap
+    EffApply --&gt; WorldStateDict
+    EffApply -.-&gt; Formula
 
-    Formula["formula.gd<br/>Formula.evaluate<br/>wraps Godot Expression<br/>resolves self target a b world<br/>plus math helpers"]:::core
-    Query -.-> Formula
+    Formula[&quot;formula.gd&lt;br/&gt;Formula.evaluate&lt;br/&gt;wraps Godot Expression&lt;br/&gt;resolves self target a b world&lt;br/&gt;plus math helpers&quot;]:::core
+    Query -.-&gt; Formula
 
     classDef json fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold
-    classDef mem fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef mem fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <h3 id="72-what-each-core-module-actually-does">7.2 What each core module ACTUALLY does</h3>
 <p><strong>world.gd</strong> — the boot orchestrator + tick driver:</p>
-<div class="mermaid">
-flowchart LR
-    A1["sim JSON files<br/>(physics / rules / state /<br/>entities / flow / tutorial)"]:::json
-    A2["FileAccess.open<br/>+ JSON.parse_string"]:::action
-    A3["env dict<br/>(entities, defs, relations,<br/>spatial_index, zone_store,<br/>world_state, parent, next_id)"]:::out
-    A4["per-frame: _process<br/>per-tick: advance_one_tick()<br/>pending: save / load /<br/>level_transition / world_reset"]:::action
+<pre><code class="lang-mermaid">flowchart LR
+    A1[&quot;sim JSON files&lt;br/&gt;(physics / rules / state /&lt;br/&gt;entities / flow / tutorial)&quot;]:::json
+    A2[&quot;FileAccess.open&lt;br/&gt;+ JSON.parse_string&quot;]:::action
+    A3[&quot;env dict&lt;br/&gt;(entities, defs, relations,&lt;br/&gt;spatial_index, zone_store,&lt;br/&gt;world_state, parent, next_id)&quot;]:::out
+    A4[&quot;per-frame: _process&lt;br/&gt;per-tick: advance_one_tick()&lt;br/&gt;pending: save / load /&lt;br/&gt;level_transition / world_reset&quot;]:::action
 
-    A1 --> A2 --> A3 --> A4
+    A1 --&gt; A2 --&gt; A3 --&gt; A4
     classDef json fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p><strong>rule.gd</strong> — pure typed-data class:</p>
-<div class="mermaid">
-flowchart LR
-    B1["raw rule dict<br/>from world.gd"]:::data
-    B2["Rule.from_dict(d)"]:::action
-    B3["typed Rule:<br/>(id, trigger, query,<br/>require, chance, effects,<br/>before/after, _expression_cache)"]:::out
-    B4["Rule.validate_all()<br/>id-uniqueness +<br/>VALID_TRIGGERS check"]:::action
+<pre><code class="lang-mermaid">flowchart LR
+    B1[&quot;raw rule dict&lt;br/&gt;from world.gd&quot;]:::data
+    B2[&quot;Rule.from_dict(d)&quot;]:::action
+    B3[&quot;typed Rule:&lt;br/&gt;(id, trigger, query,&lt;br/&gt;require, chance, effects,&lt;br/&gt;before/after, _expression_cache)&quot;]:::out
+    B4[&quot;Rule.validate_all()&lt;br/&gt;id-uniqueness +&lt;br/&gt;VALID_TRIGGERS check&quot;]:::action
 
-    B1 --> B2 --> B3
-    B3 -.-> B4
+    B1 --&gt; B2 --&gt; B3
+    B3 -.-&gt; B4
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p>Valid triggers: <code>tick · contact · signal · input · spawn · despawn · relation_changed · scheduled</code>.</p>
 <p><strong>phase_scheduler.gd</strong> — the 5-phase tick engine:</p>
-<div class="mermaid">
-flowchart LR
-    C1["env ref +<br/>Array&lt;Rule&gt;"]:::data
-    C2["register_rules()<br/>bucket by trigger type"]:::action
-    C3["buckets:<br/>tick_rules / signal_rules /<br/>input_rules / contact_rules /<br/>lifecycle_rules"]:::out
-    C4["tick()<br/>P1 input to flush<br/>drain(decide)<br/>P2 decide to flush<br/>drain(react) to flush<br/>P3 react to flush"]:::action
-    C5["effect queue to flush_effects()<br/>(Invariant #9)"]:::out
+<pre><code class="lang-mermaid">flowchart LR
+    C1[&quot;env ref +&lt;br/&gt;Array&amp;lt;Rule&amp;gt;&quot;]:::data
+    C2[&quot;register_rules()&lt;br/&gt;bucket by trigger type&quot;]:::action
+    C3[&quot;buckets:&lt;br/&gt;tick_rules / signal_rules /&lt;br/&gt;input_rules / contact_rules /&lt;br/&gt;lifecycle_rules&quot;]:::out
+    C4[&quot;tick()&lt;br/&gt;P1 input to flush&lt;br/&gt;drain(decide)&lt;br/&gt;P2 decide to flush&lt;br/&gt;drain(react) to flush&lt;br/&gt;P3 react to flush&quot;]:::action
+    C5[&quot;effect queue to flush_effects()&lt;br/&gt;(Invariant #9)&quot;]:::out
 
-    C1 --> C2 --> C3 --> C4 --> C5
+    C1 --&gt; C2 --&gt; C3 --&gt; C4 --&gt; C5
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p><strong>query.gd</strong> — declarative entity matcher (stateless):</p>
-<div class="mermaid">
-flowchart LR
-    D1["query spec dict<br/>tags_all / tags_any /<br/>tags_none / properties /<br/>state / relations / radius /<br/>order_by / limit"]:::data
-    D2["matches(ent, spec, env)<br/>per-entity boolean"]:::action
-    D3["run(spec, env)<br/>narrow via<br/>SpatialIndex.query_radius_ids<br/>(if radius set)"]:::action
-    D4["filtered Array&lt;Entity&gt;<br/>(strict — missing field<br/>= no match)"]:::out
+<pre><code class="lang-mermaid">flowchart LR
+    D1[&quot;query spec dict&lt;br/&gt;tags_all / tags_any /&lt;br/&gt;tags_none / properties /&lt;br/&gt;state / relations / radius /&lt;br/&gt;order_by / limit&quot;]:::data
+    D2[&quot;matches(ent, spec, env)&lt;br/&gt;per-entity boolean&quot;]:::action
+    D3[&quot;run(spec, env)&lt;br/&gt;narrow via&lt;br/&gt;SpatialIndex.query_radius_ids&lt;br/&gt;(if radius set)&quot;]:::action
+    D4[&quot;filtered Array&amp;lt;Entity&amp;gt;&lt;br/&gt;(strict — missing field&lt;br/&gt;= no match)&quot;]:::out
 
-    D1 --> D2
-    D1 --> D3
-    D2 --> D4
-    D3 --> D4
+    D1 --&gt; D2
+    D1 --&gt; D3
+    D2 --&gt; D4
+    D3 --&gt; D4
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p><strong>effect_apply.gd</strong> — the 57-effect dispatcher (stateless):</p>
-<div class="mermaid">
-flowchart TB
-    E1["effect dict<br/>(type, target, ...)"]:::data
-    E2["match type:<br/>(57 branches)"]:::action
+<pre><code class="lang-mermaid">flowchart TB
+    E1[&quot;effect dict&lt;br/&gt;(type, target, ...)&quot;]:::data
+    E2[&quot;match type:&lt;br/&gt;(57 branches)&quot;]:::action
 
-    E1 --> E2
+    E1 --&gt; E2
 
-    subgraph G1["state group (10)"]
-        E3a["state_set · state_add<br/>state_mul · state_clamp<br/>zone_state_set / _add / _clamp<br/>tag_add · tag_remove<br/>velocity_set/lerp/<br/>set_relative/add_relative"]:::out
+    subgraph G1[&quot;state group (10)&quot;]
+        E3a[&quot;state_set · state_add&lt;br/&gt;state_mul · state_clamp&lt;br/&gt;zone_state_set / _add / _clamp&lt;br/&gt;tag_add · tag_remove&lt;br/&gt;velocity_set/lerp/&lt;br/&gt;set_relative/add_relative&quot;]:::out
     end
-    subgraph G2["lifecycle (3)"]
-        E3b["spawn · remove<br/>transform"]:::out
+    subgraph G2[&quot;lifecycle (3)&quot;]
+        E3b[&quot;spawn · remove&lt;br/&gt;transform&quot;]:::out
     end
-    subgraph G3["relations (3)"]
-        E3c["relate · unrelate<br/>transfer_relation"]:::out
+    subgraph G3[&quot;relations (3)&quot;]
+        E3c[&quot;relate · unrelate&lt;br/&gt;transfer_relation&quot;]:::out
     end
-    subgraph G4["movement (4)"]
-        E3d["pathfind_to · raycast_hit<br/>switch_actor<br/>queue_input_for_actor"]:::out
+    subgraph G4[&quot;movement (4)&quot;]
+        E3d[&quot;pathfind_to · raycast_hit&lt;br/&gt;switch_actor&lt;br/&gt;queue_input_for_actor&quot;]:::out
     end
-    subgraph G5["screen/scene (8)"]
-        E3e["transition_screen<br/>transition_level<br/>reload_scene · scene_change<br/>screen_fade · show_overlay<br/>dismiss_overlay · show_toast"]:::out
+    subgraph G5[&quot;screen/scene (8)&quot;]
+        E3e[&quot;transition_screen&lt;br/&gt;transition_level&lt;br/&gt;reload_scene · scene_change&lt;br/&gt;screen_fade · show_overlay&lt;br/&gt;dismiss_overlay · show_toast&quot;]:::out
     end
-    subgraph G6["save/setting (4)"]
-        E3f["save_state · load_state<br/>set_audio_bus_volume<br/>set_input_mapping"]:::out
+    subgraph G6[&quot;save/setting (4)&quot;]
+        E3f[&quot;save_state · load_state&lt;br/&gt;set_audio_bus_volume&lt;br/&gt;set_input_mapping&quot;]:::out
     end
-    subgraph G7["ADR primitives (13)"]
-        E3g["build_place (0038)<br/>switch_class (0030)<br/>party_join/leave/ko (0026)<br/>declare_war/sign_treaty/<br/>propose_alliance/<br/>swear_loyalty (0032)<br/>try_discover_tech/<br/>learn_from_master/<br/>pass_to_apprentice (0033)<br/>transfer_inventory/<br/>reputation/techs/<br/>transition_player_to (0034)"]:::out
+    subgraph G7[&quot;ADR primitives (13)&quot;]
+        E3g[&quot;build_place (0038)&lt;br/&gt;switch_class (0030)&lt;br/&gt;party_join/leave/ko (0026)&lt;br/&gt;declare_war/sign_treaty/&lt;br/&gt;propose_alliance/&lt;br/&gt;swear_loyalty (0032)&lt;br/&gt;try_discover_tech/&lt;br/&gt;learn_from_master/&lt;br/&gt;pass_to_apprentice (0033)&lt;br/&gt;transfer_inventory/&lt;br/&gt;reputation/techs/&lt;br/&gt;transition_player_to (0034)&quot;]:::out
     end
-    subgraph G8["misc (4)"]
-        E3h["emit · emit_shell_event<br/>quit_app · reset_world"]:::out
+    subgraph G8[&quot;misc (4)&quot;]
+        E3h[&quot;emit · emit_shell_event&lt;br/&gt;quit_app · reset_world&quot;]:::out
     end
 
-    E2 --> G1
-    E2 --> G2
-    E2 --> G3
-    E2 --> G4
-    E2 --> G5
-    E2 --> G6
-    E2 --> G7
-    E2 --> G8
+    E2 --&gt; G1
+    E2 --&gt; G2
+    E2 --&gt; G3
+    E2 --&gt; G4
+    E2 --&gt; G5
+    E2 --&gt; G6
+    E2 --&gt; G7
+    E2 --&gt; G8
 
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p><strong>formula.gd</strong> — string-to-value expression evaluator (stateless):</p>
-<div class="mermaid">
-flowchart LR
-    F1["string formula<br/>'self.state.hp * 0.5'<br/>'b.state.position(0)'<br/>'clamp(world.gold, 0, 100)'"]:::data
-    F2["evaluate(src, ctx, env)"]:::action
-    F3["1. find dotted paths<br/>2. resolve via ctx bindings<br/>(self/target/a/b/world)<br/>3. wrap Godot Expression"]:::action
-    F4["cached Expression<br/>(per-rule)"]:::out
-    F5["numeric / Variant<br/>result"]:::out
+<pre><code class="lang-mermaid">flowchart LR
+    F1[&quot;string formula&lt;br/&gt;&#x27;self.state.hp * 0.5&#x27;&lt;br/&gt;&#x27;b.state.position(0)&#x27;&lt;br/&gt;&#x27;clamp(world.gold, 0, 100)&#x27;&quot;]:::data
+    F2[&quot;evaluate(src, ctx, env)&quot;]:::action
+    F3[&quot;1. find dotted paths&lt;br/&gt;2. resolve via ctx bindings&lt;br/&gt;(self/target/a/b/world)&lt;br/&gt;3. wrap Godot Expression&quot;]:::action
+    F4[&quot;cached Expression&lt;br/&gt;(per-rule)&quot;]:::out
+    F5[&quot;numeric / Variant&lt;br/&gt;result&quot;]:::out
 
-    F1 --> F2 --> F3 --> F4 --> F5
+    F1 --&gt; F2 --&gt; F3 --&gt; F4 --&gt; F5
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <h3 id="73-director-nodes-what-they-do-with-parsed-data">7.3 Director Nodes — what they do with parsed data</h3>
 <p>Directors are sibling Nodes of <code>World</code> in the per-game <code>.tscn</code>. They don&#x27;t parse their own JSON for sim data — they <strong>read fields off the entity defs that world.gd already parsed</strong>, and tick alongside the scheduler.</p>
-<div class="mermaid">
-flowchart LR
-    EntityDef["entity.def<br/>(parsed dict from<br/>entities/*.json)"]:::data
-    WorldState["env.world_state"]:::data
-    SceneJ["scene.json"]:::data
+<pre><code class="lang-mermaid">flowchart LR
+    EntityDef[&quot;entity.def&lt;br/&gt;(parsed dict from&lt;br/&gt;entities/*.json)&quot;]:::data
+    WorldState[&quot;env.world_state&quot;]:::data
+    SceneJ[&quot;scene.json&quot;]:::data
 
-    SchedD["schedule_director.gd<br/>Reads: entity.def.schedule()<br/>Does: at each hour, find NPCs<br/>with a matching block, set<br/>pathfind_to(target) or activity"]:::dir
-    LightD["lighting_director.gd<br/>Reads: scene.json#lighting +<br/>world_state.current_hour<br/>Does: interpolate sun color/<br/>direction every frame"]:::dir
-    AnimD["animation_director.gd<br/>Reads: meshes.json#X.animations +<br/>mesh-def primitive 'name' fields<br/>Does: per-entity per-tick<br/>keyframe interp on named pieces"]:::dir
-    PartyD["party_director.gd<br/>Reads: entity tags<br/>('party_member', 'party_leader')<br/>Does: leash follower to leader<br/>(set velocity / position)"]:::dir
-    FactD["faction_director.gd<br/>Reads: factions.json (own)<br/>+ entity.def.faction_id<br/>Does: track war/treaty state,<br/>apply faction bonuses"]:::dir
-    DynD["dynasty_director.gd<br/>Reads: entity.def.lineage_id +<br/>entity.state.age<br/>Does: on death, spawn heir,<br/>transfer inventory/rep/techs"]:::dir
-    LifeD["lifecycle_director.gd<br/>Reads: entity.def.age_stages<br/>Does: advance stage on age<br/>threshold (child to adult to elder),<br/>mutate mesh + stats"]:::dir
-    MMD["multimesh_director.gd<br/>Reads: meshes.json#X<br/>.multimesh_eligible flag<br/>Does: on boot + level swap,<br/>batch eligible entities into<br/>one MultiMeshInstance3D"]:::dir
-    Chunk["chunk_streamer.gd<br/>Reads: world.json + chunks/<br/>NN_MM/entities.json<br/>Does: per-frame, load chunks<br/>within view radius, unload<br/>distant; persist edits"]:::dir
+    SchedD[&quot;schedule_director.gd&lt;br/&gt;Reads: entity.def.schedule()&lt;br/&gt;Does: at each hour, find NPCs&lt;br/&gt;with a matching block, set&lt;br/&gt;pathfind_to(target) or activity&quot;]:::dir
+    LightD[&quot;lighting_director.gd&lt;br/&gt;Reads: scene.json#lighting +&lt;br/&gt;world_state.current_hour&lt;br/&gt;Does: interpolate sun color/&lt;br/&gt;direction every frame&quot;]:::dir
+    AnimD[&quot;animation_director.gd&lt;br/&gt;Reads: meshes.json#X.animations +&lt;br/&gt;mesh-def primitive &#x27;name&#x27; fields&lt;br/&gt;Does: per-entity per-tick&lt;br/&gt;keyframe interp on named pieces&quot;]:::dir
+    PartyD[&quot;party_director.gd&lt;br/&gt;Reads: entity tags&lt;br/&gt;(&#x27;party_member&#x27;, &#x27;party_leader&#x27;)&lt;br/&gt;Does: leash follower to leader&lt;br/&gt;(set velocity / position)&quot;]:::dir
+    FactD[&quot;faction_director.gd&lt;br/&gt;Reads: factions.json (own)&lt;br/&gt;+ entity.def.faction_id&lt;br/&gt;Does: track war/treaty state,&lt;br/&gt;apply faction bonuses&quot;]:::dir
+    DynD[&quot;dynasty_director.gd&lt;br/&gt;Reads: entity.def.lineage_id +&lt;br/&gt;entity.state.age&lt;br/&gt;Does: on death, spawn heir,&lt;br/&gt;transfer inventory/rep/techs&quot;]:::dir
+    LifeD[&quot;lifecycle_director.gd&lt;br/&gt;Reads: entity.def.age_stages&lt;br/&gt;Does: advance stage on age&lt;br/&gt;threshold (child to adult to elder),&lt;br/&gt;mutate mesh + stats&quot;]:::dir
+    MMD[&quot;multimesh_director.gd&lt;br/&gt;Reads: meshes.json#X&lt;br/&gt;.multimesh_eligible flag&lt;br/&gt;Does: on boot + level swap,&lt;br/&gt;batch eligible entities into&lt;br/&gt;one MultiMeshInstance3D&quot;]:::dir
+    Chunk[&quot;chunk_streamer.gd&lt;br/&gt;Reads: world.json + chunks/&lt;br/&gt;NN_MM/entities.json&lt;br/&gt;Does: per-frame, load chunks&lt;br/&gt;within view radius, unload&lt;br/&gt;distant; persist edits&quot;]:::dir
 
-    EntityDef --> SchedD
-    EntityDef --> AnimD
-    EntityDef --> PartyD
-    EntityDef --> FactD
-    EntityDef --> DynD
-    EntityDef --> LifeD
-    EntityDef --> MMD
-    WorldState --> LightD
-    WorldState --> SchedD
-    SceneJ --> LightD
+    EntityDef --&gt; SchedD
+    EntityDef --&gt; AnimD
+    EntityDef --&gt; PartyD
+    EntityDef --&gt; FactD
+    EntityDef --&gt; DynD
+    EntityDef --&gt; LifeD
+    EntityDef --&gt; MMD
+    WorldState --&gt; LightD
+    WorldState --&gt; SchedD
+    SceneJ --&gt; LightD
 
-    SchedD -->|"queue_input or<br/>state_set / pathfind_to"| Effect["effect_apply"]
-    AnimD -->|"directly transform<br/>mesh sub-nodes"| Mesh["Godot Node3D"]
-    LightD -->|"set DirectionalLight3D<br/>energy + color"| Light["Godot Light"]
-    PartyD -->|"velocity_set"| Effect
-    FactD -->|"declare_war effects<br/>+ state mutations"| Effect
-    DynD -->|"spawn + transfer_*"| Effect
-    LifeD -->|"tag_add / state_set"| Effect
-    MMD -->|"build MultiMeshInstance3D<br/>(once, not per-tick)"| Render["Renderer"]
-    Chunk -->|"spawn/remove entities"| World["world.gd"]
+    SchedD --&gt;|&quot;queue_input or&lt;br/&gt;state_set / pathfind_to&quot;| Effect[&quot;effect_apply&quot;]
+    AnimD --&gt;|&quot;directly transform&lt;br/&gt;mesh sub-nodes&quot;| Mesh[&quot;Godot Node3D&quot;]
+    LightD --&gt;|&quot;set DirectionalLight3D&lt;br/&gt;energy + color&quot;| Light[&quot;Godot Light&quot;]
+    PartyD --&gt;|&quot;velocity_set&quot;| Effect
+    FactD --&gt;|&quot;declare_war effects&lt;br/&gt;+ state mutations&quot;| Effect
+    DynD --&gt;|&quot;spawn + transfer_*&quot;| Effect
+    LifeD --&gt;|&quot;tag_add / state_set&quot;| Effect
+    MMD --&gt;|&quot;build MultiMeshInstance3D&lt;br/&gt;(once, not per-tick)&quot;| Render[&quot;Renderer&quot;]
+    Chunk --&gt;|&quot;spawn/remove entities&quot;| World[&quot;world.gd&quot;]
 
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
-    classDef dir fill:#3f1e3a,stroke:#c962b3,color:#ffe0f0
-</div>
+    classDef dir fill:#3f1e3a,stroke:#c962b3,color:#ffe0f0</code></pre>
 <h3 id="74-ui-shell-modules-what-they-do-with-parsed-data">7.4 UI / shell modules — what they do with parsed data</h3>
 <p>These modules parse their OWN JSON and never touch the simulation files. They live alongside World (siblings in the scene tree).</p>
 <p><strong>Boot-time pre-pass parsers</strong> (run BEFORE rules get parsed):</p>
-<div class="mermaid">
-flowchart LR
-    M1["macros.json"]:::json
-    M2["macro_expander.gd<br/>load_macros()"]:::action
-    M3["macro table"]:::out
-    M4["substitute macros in<br/>every rule file"]:::action
+<pre><code class="lang-mermaid">flowchart LR
+    M1[&quot;macros.json&quot;]:::json
+    M2[&quot;macro_expander.gd&lt;br/&gt;load_macros()&quot;]:::action
+    M3[&quot;macro table&quot;]:::out
+    M4[&quot;substitute macros in&lt;br/&gt;every rule file&quot;]:::action
 
-    L1["data/lib/manifest.json<br/>+ lib/*.json"]:::json
-    L2["lib_resolver.gd<br/>load_libs()"]:::action
-    L3["Dict(@lib.X.Y to value)"]:::out
-    L4["expand @lib refs in<br/>every rule file"]:::action
+    L1[&quot;data/lib/manifest.json&lt;br/&gt;+ lib/*.json&quot;]:::json
+    L2[&quot;lib_resolver.gd&lt;br/&gt;load_libs()&quot;]:::action
+    L3[&quot;Dict(@lib.X.Y to value)&quot;]:::out
+    L4[&quot;expand @lib refs in&lt;br/&gt;every rule file&quot;]:::action
 
-    M1 --> M2 --> M3 --> M4 --> RuleParse["Rule.from_dict"]:::core
-    L1 --> L2 --> L3 --> L4 --> RuleParse
+    M1 --&gt; M2 --&gt; M3 --&gt; M4 --&gt; RuleParse[&quot;Rule.from_dict&quot;]:::core
+    L1 --&gt; L2 --&gt; L3 --&gt; L4 --&gt; RuleParse
 
     classDef json fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-    classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold
-</div>
+    classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold</code></pre>
 <p><strong>Input + screen / overlay</strong> (driven by player + transition_* effects):</p>
-<div class="mermaid">
-flowchart TB
-    I1["ui/input.json"]:::json
-    I2["input_registrar.gd<br/>register_inputs()"]:::action
-    I3["Godot InputMap<br/>(actions registered)"]:::out
-    I4["player presses key<br/> to queue_input(action)"]:::action
+<pre><code class="lang-mermaid">flowchart TB
+    I1[&quot;ui/input.json&quot;]:::json
+    I2[&quot;input_registrar.gd&lt;br/&gt;register_inputs()&quot;]:::action
+    I3[&quot;Godot InputMap&lt;br/&gt;(actions registered)&quot;]:::out
+    I4[&quot;player presses key&lt;br/&gt; to queue_input(action)&quot;]:::action
 
-    S1["screens.json +<br/>ui/strings.json"]:::json
-    S2["screen_flow.gd<br/>parse on first use"]:::action
-    S3["Dict(screen_id to spec)<br/>+ modal stack"]:::out
-    S4["on transition_screen effect:<br/>push/pop modal<br/>+ env.screen_freeze_world"]:::action
+    S1[&quot;screens.json +&lt;br/&gt;ui/strings.json&quot;]:::json
+    S2[&quot;screen_flow.gd&lt;br/&gt;parse on first use&quot;]:::action
+    S3[&quot;Dict(screen_id to spec)&lt;br/&gt;+ modal stack&quot;]:::out
+    S4[&quot;on transition_screen effect:&lt;br/&gt;push/pop modal&lt;br/&gt;+ env.screen_freeze_world&quot;]:::action
 
-    O1["(no JSON —<br/>driven by show_overlay effect)"]:::data
-    O2["overlay.gd<br/>OverlayManager"]:::action
-    O3["live overlay state<br/>+ env.overlay_freeze_world"]:::out
-    O4["render tutorial cards<br/>on CanvasLayer"]:::action
+    O1[&quot;(no JSON —&lt;br/&gt;driven by show_overlay effect)&quot;]:::data
+    O2[&quot;overlay.gd&lt;br/&gt;OverlayManager&quot;]:::action
+    O3[&quot;live overlay state&lt;br/&gt;+ env.overlay_freeze_world&quot;]:::out
+    O4[&quot;render tutorial cards&lt;br/&gt;on CanvasLayer&quot;]:::action
 
-    I1 --> I2 --> I3 --> I4
-    S1 --> S2 --> S3 --> S4
-    O1 --> O2 --> O3 --> O4
+    I1 --&gt; I2 --&gt; I3 --&gt; I4
+    S1 --&gt; S2 --&gt; S3 --&gt; S4
+    O1 --&gt; O2 --&gt; O3 --&gt; O4
 
     classDef json fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef data fill:#1e1e1e,stroke:#999,color:#ddd
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p><strong>HUD / camera + audio + persistence</strong>:</p>
-<div class="mermaid">
-flowchart TB
-    G1["hud.json +<br/>scene.json#camera"]:::json
-    G2["game_shell.gd<br/>build HUD + camera"]:::action
-    G3["HUD widget tree +<br/>Camera2D/3D config"]:::out
-    G4["per-frame:<br/>update camera<br/>(top_down_2d, isometric_3d,<br/>FP, third_person_3d)<br/>refresh HUD bindings<br/>apply juice (shake/flash)"]:::action
+<pre><code class="lang-mermaid">flowchart TB
+    G1[&quot;hud.json +&lt;br/&gt;scene.json#camera&quot;]:::json
+    G2[&quot;game_shell.gd&lt;br/&gt;build HUD + camera&quot;]:::action
+    G3[&quot;HUD widget tree +&lt;br/&gt;Camera2D/3D config&quot;]:::out
+    G4[&quot;per-frame:&lt;br/&gt;update camera&lt;br/&gt;(top_down_2d, isometric_3d,&lt;br/&gt;FP, third_person_3d)&lt;br/&gt;refresh HUD bindings&lt;br/&gt;apply juice (shake/flash)&quot;]:::action
 
-    A1["audio/cues.json +<br/>data/sounds.json"]:::json
-    A2["audio_bus.gd<br/>load cues + sounds"]:::action
-    A3["Dict(cue to SoundDef)"]:::out
-    A4["on emit effect with<br/>audio cue to play"]:::action
+    A1[&quot;audio/cues.json +&lt;br/&gt;data/sounds.json&quot;]:::json
+    A2[&quot;audio_bus.gd&lt;br/&gt;load cues + sounds&quot;]:::action
+    A3[&quot;Dict(cue to SoundDef)&quot;]:::out
+    A4[&quot;on emit effect with&lt;br/&gt;audio cue to play&quot;]:::action
 
-    SV1["save_policy.json"]:::json
-    SV2["save_state.gd<br/>load_policy()"]:::action
-    SV3["policy dict<br/>(what persists)"]:::out
-    SV4["on save_state /<br/>load_state effect:<br/>read/write user://saves/"]:::action
+    SV1[&quot;save_policy.json&quot;]:::json
+    SV2[&quot;save_state.gd&lt;br/&gt;load_policy()&quot;]:::action
+    SV3[&quot;policy dict&lt;br/&gt;(what persists)&quot;]:::out
+    SV4[&quot;on save_state /&lt;br/&gt;load_state effect:&lt;br/&gt;read/write user://saves/&quot;]:::action
 
-    ST1["settings_schema.json"]:::json
-    ST2["settings_manager.gd<br/>build_screen()"]:::action
-    ST3["settings widget def"]:::out
-    ST4["render settings screen +<br/>persist to user://settings.cfg"]:::action
+    ST1[&quot;settings_schema.json&quot;]:::json
+    ST2[&quot;settings_manager.gd&lt;br/&gt;build_screen()&quot;]:::action
+    ST3[&quot;settings widget def&quot;]:::out
+    ST4[&quot;render settings screen +&lt;br/&gt;persist to user://settings.cfg&quot;]:::action
 
-    G1 --> G2 --> G3 --> G4
-    A1 --> A2 --> A3 --> A4
-    SV1 --> SV2 --> SV3 --> SV4
-    ST1 --> ST2 --> ST3 --> ST4
+    G1 --&gt; G2 --&gt; G3 --&gt; G4
+    A1 --&gt; A2 --&gt; A3 --&gt; A4
+    SV1 --&gt; SV2 --&gt; SV3 --&gt; SV4
+    ST1 --&gt; ST2 --&gt; ST3 --&gt; ST4
 
     classDef json fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p><strong>Asset libraries + per-entity rendering</strong>:</p>
-<div class="mermaid">
-flowchart TB
-    ML1["data/meshes.json"]:::json
-    ML2["mesh_lib.gd<br/>load_meshes()"]:::action
-    ML3["Dict(mesh_id to primitive list)"]:::out
-    ML4["on entity spawn:<br/>build_mesh(def_id) to Node3D<br/>(constructed once + cached)"]:::action
+<pre><code class="lang-mermaid">flowchart TB
+    ML1[&quot;data/meshes.json&quot;]:::json
+    ML2[&quot;mesh_lib.gd&lt;br/&gt;load_meshes()&quot;]:::action
+    ML3[&quot;Dict(mesh_id to primitive list)&quot;]:::out
+    ML4[&quot;on entity spawn:&lt;br/&gt;build_mesh(def_id) to Node3D&lt;br/&gt;(constructed once + cached)&quot;]:::action
 
-    SL1["data/shapes.json"]:::json
-    SL2["shape_lib.gd<br/>load_shapes()"]:::action
-    SL3["Dict(shape_id to draw ops)"]:::out
-    SL4["per-frame _draw for<br/>2D entities + HUD"]:::action
+    SL1[&quot;data/shapes.json&quot;]:::json
+    SL2[&quot;shape_lib.gd&lt;br/&gt;load_shapes()&quot;]:::action
+    SL3[&quot;Dict(shape_id to draw ops)&quot;]:::out
+    SL4[&quot;per-frame _draw for&lt;br/&gt;2D entities + HUD&quot;]:::action
 
-    N1["(reads entity.properties<br/>.display_name)"]:::data
-    N2["nameplate_renderer.gd"]:::action
-    N3["per-NPC label sprite"]:::out
-    N4["per-frame:<br/>draw labels above NPCs"]:::action
+    N1[&quot;(reads entity.properties&lt;br/&gt;.display_name)&quot;]:::data
+    N2[&quot;nameplate_renderer.gd&quot;]:::action
+    N3[&quot;per-NPC label sprite&quot;]:::out
+    N4[&quot;per-frame:&lt;br/&gt;draw labels above NPCs&quot;]:::action
 
-    ML1 --> ML2 --> ML3 --> ML4
-    SL1 --> SL2 --> SL3 --> SL4
-    N1 --> N2 --> N3 --> N4
+    ML1 --&gt; ML2 --&gt; ML3 --&gt; ML4
+    SL1 --&gt; SL2 --&gt; SL3 --&gt; SL4
+    N1 --&gt; N2 --&gt; N3 --&gt; N4
 
     classDef json fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef data fill:#1e1e1e,stroke:#999,color:#ddd
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <h3 id="75-the-full-per-tick-call-chain-concrete-trace">7.5 The full per-tick call chain (concrete trace)</h3>
 <p>For one rule like <code>wolf_pursue_villager</code> (contact-pair, found by Aldenmere QA):</p>
-<div class="mermaid">
-sequenceDiagram
+<pre><code class="lang-mermaid">sequenceDiagram
     participant Tree as Godot scene tree
     participant W as world.gd
     participant Sched as phase_scheduler.gd
@@ -507,33 +464,32 @@ sequenceDiagram
     participant SX as spatial_index.gd
     participant Ent as Entity
 
-    Tree->>W: _process delta
-    W->>W: advance_one_tick
-    W->>Sched: tick
+    Tree-&gt;&gt;W: _process delta
+    W-&gt;&gt;W: advance_one_tick
+    W-&gt;&gt;Sched: tick
 
     Note over Sched: PHASE 3 react (contact rules)
-    Sched->>Q: run wolf spec (tags_all wolf)
-    Q->>SX: query_radius_ids full
-    SX-->>Q: wolf id list
-    Q-->>Sched: matched wolves
+    Sched-&gt;&gt;Q: run wolf spec (tags_all wolf)
+    Q-&gt;&gt;SX: query_radius_ids full
+    SX--&gt;&gt;Q: wolf id list
+    Q--&gt;&gt;Sched: matched wolves
 
     loop per wolf
-        Sched->>Q: run villager spec radius 40
-        Q->>SX: query_radius_ids at wolf pos
-        SX-->>Q: candidate villager ids
-        Q-->>Sched: matched villagers
-        Sched->>Sched: enqueue pathfind_to effect
+        Sched-&gt;&gt;Q: run villager spec radius 40
+        Q-&gt;&gt;SX: query_radius_ids at wolf pos
+        SX--&gt;&gt;Q: candidate villager ids
+        Q--&gt;&gt;Sched: matched villagers
+        Sched-&gt;&gt;Sched: enqueue pathfind_to effect
     end
 
-    Sched->>Sched: flush_effects
+    Sched-&gt;&gt;Sched: flush_effects
     loop per queued effect
-        Sched->>E: apply effect env ctx
-        E->>E: dispatch pathfind_to
-        E->>Ent: set velocity or queue path
+        Sched-&gt;&gt;E: apply effect env ctx
+        E-&gt;&gt;E: dispatch pathfind_to
+        E-&gt;&gt;Ent: set velocity or queue path
     end
 
-    Note over Sched: tick complete; renderer reads state next frame
-</div>
+    Note over Sched: tick complete; renderer reads state next frame</code></pre>
 <hr>
 
 </div>

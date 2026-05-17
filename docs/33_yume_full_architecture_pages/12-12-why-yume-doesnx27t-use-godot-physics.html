@@ -128,53 +128,33 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
-<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="11-11-godotx27s-reserved-virtuals-how-yume-uses-them.html">← 11. Godot&amp;#x27;s reserved virtuals + how Yume uses them</a> <a href="13-stats-2026-05-11.html">Stats (2026-05-11) →</a></div></nav>
+<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="11-11-godotx27s-reserved-virtuals-how-yume-uses-them.html">← 11. Godot&amp;#x27;s reserved virtuals + how Yume uses them</a> <a href="13-13-authoring-time-tools-python-emitters-adr-0051.html">13. Authoring-time tools (Python emitters, ADR 0051) →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#12-why-yume-doesnt-use-godot-physics">12. Why Yume doesn&#x27;t use Godot physics</a></li>  <li><a href="#121-the-decision-tree">12.1 The decision tree</a></li>  <li><a href="#122-the-five-reasons">12.2 The five reasons</a></li>  <li><a href="#123-what-yume-actually-has-instead">12.3 What Yume actually has instead</a></li>  <li><a href="#124-limitations-when-to-revisit">12.4 Limitations + when to revisit</a></li></ul></div>
 <h2 id="12-why-yume-doesnt-use-godot-physics">12. Why Yume doesn&#x27;t use Godot physics</h2>
 <p>Godot has a full physics engine (Bullet-based in 4.x): <code>RigidBody3D</code>, <code>CharacterBody3D</code>, <code>CollisionShape3D</code>, <code>Area3D</code>, joints, raycasts, soft bodies. Yume uses <strong>none</strong> of it. Zero <code>CollisionShape</code> / <code>RigidBody</code> / <code>Area3D</code> nodes in any engine module or scene.</p>
 <h3 id="121-the-decision-tree">12.1 The decision tree</h3>
-<div class="mermaid">
-flowchart TB
-    Q["Do we need physics?"]:::action
+<pre><code class="lang-mermaid">flowchart TB
+    Q[&quot;Do we need physics?&quot;]:::action
 
-    Q --> Q1{"is the game<br/>simulation-shaped?<br/>(tile / iso / arena /<br/>top-down sim)"}
-    Q1 -->|yes| Cheap["needs only:<br/>AABB collision<br/>radius queries<br/>simple velocity<br/>maybe raycast"]:::cheap
-    Q1 -->|no| Q2{"does the game need<br/>continuous physics?<br/>(driving rolling ragdolls<br/>soft body fluid)"}
+    Q --&gt; Q1{&quot;is the game&lt;br/&gt;simulation-shaped?&lt;br/&gt;(tile / iso / arena /&lt;br/&gt;top-down sim)&quot;}
+    Q1 --&gt;|yes| Cheap[&quot;needs only:&lt;br/&gt;AABB collision&lt;br/&gt;radius queries&lt;br/&gt;simple velocity&lt;br/&gt;maybe raycast&quot;]:::cheap
+    Q1 --&gt;|no| Q2{&quot;does the game need&lt;br/&gt;continuous physics?&lt;br/&gt;(driving rolling ragdolls&lt;br/&gt;soft body fluid)&quot;}
 
-    Q2 -->|yes| OutOfScope["OUT OF SCOPE<br/>per Honest Scope<br/>(framework primitives doc)<br/>not a Yume target"]:::reject
-    Q2 -->|no| Cheap
+    Q2 --&gt;|yes| OutOfScope[&quot;OUT OF SCOPE&lt;br/&gt;per Honest Scope&lt;br/&gt;(framework primitives doc)&lt;br/&gt;not a Yume target&quot;]:::reject
+    Q2 --&gt;|no| Cheap
 
-    Cheap --> Build["build minimal<br/>JSON-driven<br/>simulation primitives"]:::build
+    Cheap --&gt; Build[&quot;build minimal&lt;br/&gt;JSON-driven&lt;br/&gt;simulation primitives&quot;]:::build
 
-    Build --> Yume["Yume sim primitives<br/>SpatialIndex (radius)<br/>motion integrator (pos += vel)<br/>AABB collision (blocks_motion +<br/>aabb_extents)<br/>raycast_hit effect<br/>pathfinding (ADR 0024)"]:::out
+    Build --&gt; Yume[&quot;Yume sim primitives&lt;br/&gt;SpatialIndex (radius)&lt;br/&gt;motion integrator (pos += vel)&lt;br/&gt;AABB collision (blocks_motion +&lt;br/&gt;aabb_extents)&lt;br/&gt;raycast_hit effect&lt;br/&gt;pathfinding (ADR 0024)&quot;]:::out
 
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef cheap fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef reject fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
     classDef build fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
-    classDef out fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff
-</div>
+    classDef out fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff</code></pre>
 <h3 id="122-the-five-reasons">12.2 The five reasons</h3>
 <p><strong>Reason 1: Determinism.</strong> Bullet is not bit-deterministic across machines. Yume rules should produce identical state given identical input — for replay, save-load equivalence, scenario tests, and future multiplayer-rollback. Float drift in Bullet ruins that. Yume&#x27;s own motion integrator is deterministic by construction (simple <code>position += velocity * dt</code> in tick order, all int + Vector ops).</p>
 <p><strong>Reason 2: Tick ordering.</strong> Yume&#x27;s tick has phase semantics (Invariant #9: input → flush → decide → flush → react → flush). Where does a Godot physics callback (<code>_physics_process</code>) fit into that ordering? Mixing two clocks (Yume&#x27;s 10Hz sim-tick + Godot&#x27;s 60Hz physics-tick) creates &quot;when does collide A vs collide B fire&quot; complexity that&#x27;s hard to reason about. The simpler answer: Yume owns the tick, Godot just renders.</p>
@@ -190,34 +170,32 @@ flowchart TB
 <p>Yume chose (b). The JSON declares <code>properties.aabb_extents: [1, 1, 1]</code> and <code>tags: [blocks_motion]</code> — a primitive integer pair and a tag, no Godot-resource pointer.</p>
 <p><strong>Reason 5: ADR 0021 exception.</strong> Yume&#x27;s stated principle is &quot;expose Godot capabilities through JSON, don&#x27;t reimplement.&quot; Physics is the ONE major exception — Yume DOES reimplement (a tiny subset). The justification: the requirements (determinism, ticking, JSON authoring) made Godot&#x27;s physics a poor fit. Future ADR 0022 was mooted as &quot;expose PhysicsServer3D&quot; for games that genuinely need continuous physics, but no game has hit that wall yet.</p>
 <h3 id="123-what-yume-actually-has-instead">12.3 What Yume actually has instead</h3>
-<div class="mermaid">
-flowchart LR
-    subgraph Source["Where the physics-like behavior lives"]
-        S1["SpatialIndex<br/>scripts/engine/<br/>stores/spatial_index.gd"]:::store
-        S2["motion_integrator<br/>in world.gd::_apply_motion<br/>position += velocity * dt"]:::core
-        S3["AABB collision<br/>in world.gd<br/>walk all blocks_motion AABBs<br/>resolve overlap by sliding"]:::core
-        S4["raycast_hit effect<br/>in effect_apply.gd<br/>walk entities along ray<br/>return first hit"]:::core
-        S5["pathfinding.gd<br/>A* on a discretized grid<br/>ADR 0024"]:::core
+<pre><code class="lang-mermaid">flowchart LR
+    subgraph Source[&quot;Where the physics-like behavior lives&quot;]
+        S1[&quot;SpatialIndex&lt;br/&gt;scripts/engine/&lt;br/&gt;stores/spatial_index.gd&quot;]:::store
+        S2[&quot;motion_integrator&lt;br/&gt;in world.gd::_apply_motion&lt;br/&gt;position += velocity * dt&quot;]:::core
+        S3[&quot;AABB collision&lt;br/&gt;in world.gd&lt;br/&gt;walk all blocks_motion AABBs&lt;br/&gt;resolve overlap by sliding&quot;]:::core
+        S4[&quot;raycast_hit effect&lt;br/&gt;in effect_apply.gd&lt;br/&gt;walk entities along ray&lt;br/&gt;return first hit&quot;]:::core
+        S5[&quot;pathfinding.gd&lt;br/&gt;A* on a discretized grid&lt;br/&gt;ADR 0024&quot;]:::core
     end
 
-    subgraph Usage["How games invoke it"]
-        U1["JSON rule with<br/>velocity_set effect"]:::data
-        U2["entity def with<br/>blocks_motion tag<br/>+ aabb_extents"]:::data
-        U3["JSON rule with<br/>raycast_hit effect"]:::data
-        U4["JSON rule with<br/>pathfind_to effect"]:::data
-        U5["JSON rule with<br/>tags_all radius query"]:::data
+    subgraph Usage[&quot;How games invoke it&quot;]
+        U1[&quot;JSON rule with&lt;br/&gt;velocity_set effect&quot;]:::data
+        U2[&quot;entity def with&lt;br/&gt;blocks_motion tag&lt;br/&gt;+ aabb_extents&quot;]:::data
+        U3[&quot;JSON rule with&lt;br/&gt;raycast_hit effect&quot;]:::data
+        U4[&quot;JSON rule with&lt;br/&gt;pathfind_to effect&quot;]:::data
+        U5[&quot;JSON rule with&lt;br/&gt;tags_all radius query&quot;]:::data
     end
 
-    U1 --> S2
-    U2 --> S3
-    U3 --> S4
-    U4 --> S5
-    U5 --> S1
+    U1 --&gt; S2
+    U2 --&gt; S3
+    U3 --&gt; S4
+    U4 --&gt; S5
+    U5 --&gt; S1
 
     classDef store fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
     classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff
-    classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
-</div>
+    classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8</code></pre>
 <h3 id="124-limitations-when-to-revisit">12.4 Limitations + when to revisit</h3>
 <p>Yume&#x27;s hand-rolled physics is intentionally minimal:</p>
 <ul>

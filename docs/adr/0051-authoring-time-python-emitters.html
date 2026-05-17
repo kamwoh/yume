@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>0051-authoring-time-python-emitters</title>
+<style>
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --muted: #666;
+  --accent: #0066cc;
+  --code-bg: #f0f0f0;
+  --border: #ddd;
+  --table-stripe: #f5f5f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a1a;
+    --fg: #e0e0e0;
+    --muted: #999;
+    --accent: #4da3ff;
+    --code-bg: #2a2a2a;
+    --border: #333;
+    --table-stripe: #222;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+nav.topnav {
+  background: var(--code-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+nav.topnav a { color: var(--accent); text-decoration: none; margin: 0 8px; }
+nav.topnav a:hover { text-decoration: underline; }
+nav.topnav .crumb { color: var(--muted); }
+h1, h2, h3, h4, h5, h6 {
+  margin: 1.8em 0 0.6em;
+  line-height: 1.25;
+  font-weight: 600;
+}
+h1 { font-size: 2em; border-bottom: 2px solid var(--border); padding-bottom: 0.3em; margin-top: 0.5em; }
+h2 { font-size: 1.5em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+h3 { font-size: 1.25em; }
+h4 { font-size: 1.1em; color: var(--muted); }
+p { margin: 0.8em 0; }
+a { color: var(--accent); }
+strong { font-weight: 600; }
+em { font-style: italic; }
+code {
+  background: var(--code-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.92em;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+blockquote {
+  border-left: 4px solid var(--accent);
+  margin: 1em 0;
+  padding: 0.3em 1em;
+  color: var(--muted);
+  background: var(--code-bg);
+}
+ul, ol { margin: 0.8em 0; padding-left: 1.8em; }
+li { margin: 0.3em 0; }
+table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+  font-size: 0.95em;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+th {
+  background: var(--code-bg);
+  font-weight: 600;
+}
+tr:nth-child(even) td { background: var(--table-stripe); }
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2em 0;
+}
+.toc {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 24px;
+  margin: 1em 0 2em;
+}
+.toc ul { padding-left: 1.4em; margin: 0.4em 0; }
+.toc > h3 { margin-top: 0.4em; }
+</style>
+</head>
+<body>
+
+<div class="container">
+<div class="toc"><h3>Contents</h3><ul><li><a href="#adr-0051-authoring-time-python-emitters-codegen-asset-gen">ADR 0051 — Authoring-time Python emitters (codegen + asset-gen)</a></li><li><a href="#context">Context</a></li><li><a href="#decision">Decision</a></li>  <li><a href="#package-1-toolsyume-codegen">Package 1: `tools/yume_codegen/`</a></li>  <li><a href="#package-2-toolsyume-assetgen">Package 2: `tools/yume_assetgen/`</a></li>  <li><a href="#engine-support-companion-to-asset-gen">Engine support (companion to asset-gen)</a></li><li><a href="#end-to-end-flow-asset-gen">End-to-end flow (asset-gen)</a></li><li><a href="#consequences">Consequences</a></li><li><a href="#alternatives-considered">Alternatives considered</a></li><li><a href="#references">References</a></li></ul></div>
+<h1 id="adr-0051-authoring-time-python-emitters-codegen-asset-gen">ADR 0051 — Authoring-time Python emitters (codegen + asset-gen)</h1>
+<p>_Date: 2026-05-17_ _Status: accepted_</p>
+<h2 id="context">Context</h2>
+<p>Yume&#x27;s authoring surface has two recurring frictions:</p>
+<p><strong>Friction 1 — typo-fragile rule JSON.</strong> Hand-authored rules repeatedly hit the same bug classes: brace-wrapped bindings (<code>&quot;{world.X}&quot;</code> vs <code>world.X</code>), wrong context-binding names (<code>self.foo</code> in a signal rule whose binding is <code>actor.foo</code>), schema landmines (<code>state_add</code> with <code>delta</code> vs <code>amount</code>). Each slipped through unit + scenario tests for weeks before live play surfaced it. Validators (<code>tools/validate_rules.py</code>) catch most at sync time, but the iteration loop (author → run validator → fix) is slow when generating many similar rules.</p>
+<p><strong>Friction 2 — flat-color, code-drawn-only art.</strong> Every entity ships as a code-drawn primitive composition (boxes, cylinders) + flat albedo colors. New games look immediately identifiable as &quot;Yume engineering preview.&quot; The visual-density vocabulary (<code>.claude/rules/data-demo.md</code>) helps via layout discipline but doesn&#x27;t solve the per-entity aesthetic ceiling. AI image/mesh generation could unblock this — but only with a pipeline that ties prompts to entity defs + routes output back to the renderer.</p>
+<p>Both frictions share a shape: **authoring is canonical-JSON, but the author would benefit from a Python helper that emits that JSON</p>
+<ul>
+<li>companion assets.**</li>
+</ul>
+<p>Constraints (from ADR 0021 + Invariant #1):</p>
+<ul>
+<li>JSON remains the authoritative content format. The engine MUST</li>
+</ul>
+<p>read JSON, not Python.</p>
+<ul>
+<li>Validators (<code>tools/validate_*.py</code>) are the contract gate. Any</li>
+</ul>
+<p>emitter MUST produce JSON that passes them.</p>
+<ul>
+<li>Hand-authoring stays fully supported. Python is optional;</li>
+</ul>
+<p>authors can edit JSON directly.</p>
+<h2 id="decision">Decision</h2>
+<p>Ship two Python packages under <code>tools/</code> that are <strong>authoring-time emitters</strong> — they read author intent (Python keyword arguments OR prompt strings in entity defs) and emit canonical JSON / asset files that the engine consumes unchanged.</p>
+<h3 id="package-1-toolsyume-codegen">Package 1: <code>tools/yume_codegen/</code></h3>
+<p>Composable builders for rule / entity / screen / lib_ref JSON dicts. Each builder returns a plain <code>dict</code> so they mix freely with hand-written JSON. The canonical authoring example:</p>
+<pre><code class="lang-python">from tools.yume_codegen import (
+    rule, tick, signal_trigger, query, require,
+    state_add, array_insert_first_empty, save_rules,
+)
+
+rules = [
+    rule(
+        id=&quot;gather_pickup&quot;,
+        trigger=signal_trigger(&quot;gather_request&quot;),
+        require=require(
+            actor={&quot;tags_all&quot;: [&quot;player&quot;], &quot;state&quot;: {&quot;inventory_empty_count_gt&quot;: 0}},
+            target={&quot;tags_all&quot;: [&quot;forageable&quot;]},
+        ),
+        effect=[
+            array_insert_first_empty(
+                target=&quot;actor&quot;, field=&quot;inventory&quot;,
+                value=&quot;target.def_id&quot;, sentinel=&quot;&quot;,
+                result_field=&quot;_last_slot&quot;,
+            ),
+            # ... binding name &#x27;actor&#x27; is visible in code review
+            # alongside &#x27;actor.state._last_slot&#x27; formula below
+        ],
+    ),
+]
+save_rules(&quot;godot/data/demo_X/world/rules/02_inventory.json&quot;, rules)</code></pre>
+<p>The typed keyword arguments catch:</p>
+<ul>
+<li><code>effect=[]</code> → <code>ValueError</code> at build time</li>
+<li><code>state_clamp(min=None, max=None)</code> → <code>ValueError</code> (one bound required)</li>
+<li><code>require(actor=..., target=...)</code> → binding names visible in code</li>
+</ul>
+<p>alongside <code>actor.state.X</code> formulas (the bug-class trigger from 2026-05-16&#x27;s repeated <code>gather_pickup</code> crash)</p>
+<p>Modules: <code>rules.py</code>, <code>effects.py</code>, <code>entities.py</code>, <code>screens.py</code>, <code>lib_refs.py</code>, <code>io.py</code>. ~720 LoC total.</p>
+<h3 id="package-2-toolsyume-assetgen">Package 2: <code>tools/yume_assetgen/</code></h3>
+<p>Reads <code>data/&lt;game&gt;/asset_gen.json</code> (backend + style config), walks entity defs for <code>*_prompt</code> fields under <code>visual:</code>, assembles styled prompts, dispatches each to the configured backend, writes output to <code>assets/textures/&lt;entity_id&gt;.png</code> and <code>assets/meshes/&lt;entity_id&gt;.glb</code>, then patches the entity def in place to reference the resolved file.</p>
+<p>Backend abstraction: <code>tools/yume_assetgen/backends/base.py::Backend</code> exposes <code>generate_texture(prompt, out_path, size)</code> and <code>generate_mesh(prompt, out_path)</code>. Each backend implements one or both. <code>REGISTRY</code> maps backend names (the <code>backend</code> field in asset_gen.json) to classes.</p>
+<p>Backends shipping in v1:</p>
+<ul>
+<li><code>mock</code> — pure-stdlib, no external API calls. Emits prompt-hash-</li>
+</ul>
+<p>deterministic gradient PNGs + 24-vertex cube <code>.glb</code>s with the prompt&#x27;s hue. Useful for end-to-end pipeline testing + visual placeholder until real art is generated.</p>
+<p>Backends slotted-but-not-implemented (future sessions):</p>
+<ul>
+<li><code>openai_images</code> (DALL-E 3 textures)</li>
+<li><code>stable_diffusion_local</code> (Automatic1111 / ComfyUI HTTP)</li>
+<li><code>tripo3d</code> (text + image → <code>.glb</code> skinned meshes)</li>
+</ul>
+<p>The pipeline is the substrate; backend choice is per-project (set in <code>asset_gen.json</code>).</p>
+<h3 id="engine-support-companion-to-asset-gen">Engine support (companion to asset-gen)</h3>
+<p>For the asset-gen output to actually render, <code>entity_mesh_3d.gd</code> gained:</p>
+<ul>
+<li><strong><code>visual.albedo_texture</code></strong> on code-drawn meshes: walks every</li>
+</ul>
+<p>primitive&#x27;s StandardMaterial3D + sets <code>albedo_texture</code> from a <code>res://</code> path. Per-primitive flat colors stay as tint atop.</p>
+<ul>
+<li><strong>Extended <code>material_overrides</code></strong> dict form (vs the legacy</li>
+</ul>
+<p>string-color shorthand) on <code>.glb</code> meshes: each entry can be <code>{albedo_color, albedo_texture, normal_texture, roughness, metallic}</code>. Material_overrides for <code>.glb</code>-backed entities was ADR 0046 Phase B; this ADR adds the texture-bearing patch.</p>
+<h2 id="end-to-end-flow-asset-gen">End-to-end flow (asset-gen)</h2>
+<pre><code>┌──────────────────────────────────────────────────────────────┐
+│ 1. AUTHOR — add *_prompt fields to entity defs                │
+│                                                                │
+│   &quot;visual&quot;: {                                                  │
+│     &quot;color&quot;: &quot;#a0c0e0&quot;,                                        │
+│     &quot;albedo_texture_prompt&quot;: &quot;weathered villager body&quot;,        │
+│     &quot;mesh_prompt&quot;: &quot;low-poly humanoid, T-pose&quot;                 │
+│   }                                                            │
+└──────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────────┐
+│ 2. PIPELINE RUN                                                │
+│   python3 -m tools.yume_assetgen demo_mygame                   │
+│                                                                │
+│   a) Load asset_gen.json (backend, style, output dirs)         │
+│   b) Walk entities/**/*.json — collect *_prompt fields         │
+│   c) Assemble: global_prefix + raw + &lt;kind&gt;_suffix             │
+│   d) Dispatch to backend → PNG / .glb output                   │
+│   e) Patch entity def in place:                                │
+│        visual.albedo_texture = &quot;res://data/mygame/assets/...&quot;  │
+│        visual.mesh           = &quot;res://data/mygame/assets/...&quot;  │
+│      (preserves the *_prompt field so re-runs see it again)    │
+└──────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────────┐
+│ 3. GAME LAUNCH — engine reads patched entity def               │
+│                                                                │
+│   entity_mesh_3d.gd dispatch:                                  │
+│                                                                │
+│   visual.mesh ends with .glb? ──── YES ─┐                      │
+│                                          │ Phase B path        │
+│                                          ▼                      │
+│   _load_glb_mesh:                                              │
+│     • load(path).instantiate(), add as child                   │
+│     • find embedded AnimationPlayer                            │
+│     • apply material_overrides {albedo_texture: res://...}     │
+│     • register state_rules + clip_alias map                    │
+│                                                                │
+│   ────── NO (mesh-lib name) ────►                              │
+│   Tier 2 mesh-lib path:                                        │
+│     • compose primitives from meshes.json                      │
+│     • if visual.albedo_texture present:                        │
+│         walk children → paint every primitive&#x27;s albedo_texture │
+└──────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+                  player sees the textured /
+                  skinned entity rendering</code></pre>
+<h2 id="consequences">Consequences</h2>
+<p><strong>Positive:</strong></p>
+<ul>
+<li>Typed authoring catches binding-name + schema bugs at author</li>
+</ul>
+<p>time instead of live-play crash (the <code>gather_pickup</code> class).</p>
+<ul>
+<li>AI-gen pipeline is plug-in: real backends slot into</li>
+</ul>
+<p><code>tools/yume_assetgen/backends/</code> without changing pipeline code.</p>
+<ul>
+<li>Mock backend lets us smoke-test the full chain (prompt → file</li>
+</ul>
+<p>→ engine load → render) without paying for API calls.</p>
+<ul>
+<li>JSON canonical-ness intact: codegen + assetgen both emit JSON</li>
+<ul>
+<li>asset files that the engine reads exactly as before. Hand-</li>
+</ul>
+</ul>
+<p>authoring keeps working.</p>
+<ul>
+<li>Validators are the contract gate; emitter output passes them</li>
+</ul>
+<p>by construction.</p>
+<p><strong>Negative:</strong></p>
+<ul>
+<li>Two more Python packages to maintain (~2000 LoC total).</li>
+<li>Real backends need API keys + per-backend testing; users without</li>
+</ul>
+<p>cloud access can only run the mock backend.</p>
+<ul>
+<li>Generated assets sit in <code>data/&lt;game&gt;/assets/</code> and are gitignored</li>
+</ul>
+<p>by convention — re-runs regenerate from the same prompts + backend, but reproducibility depends on the backend&#x27;s determinism (mock is deterministic; OpenAI is not).</p>
+<p><strong>Neutral:</strong></p>
+<ul>
+<li>Authoring path is now 3-way (hand JSON, codegen, asset-gen).</li>
+</ul>
+<p>Authors pick the right tool per situation; README documents the choice points.</p>
+<h2 id="alternatives-considered">Alternatives considered</h2>
+<p><strong>A. Skip codegen + assetgen; double down on prose skills + LLM authoring.</strong> Rejected because the bug classes recur regardless of authoring source — the validator-as-gate pattern works but the debugging loop is slow. Typed Python catches the class at author time, not sync time.</p>
+<p><strong>B. Embed Python evaluation in the engine (PyGodot, GDExtension binding).</strong> Rejected outright. Would violate ADR 0021 (Yume = JSON layer; engine reads JSON, period) AND Invariant #1 (no genre-specific runtime in the engine). Python at authoring time is fine; Python at runtime is not.</p>
+<p><strong>C. Use a real schema-validation library (jsonschema, pydantic) instead of validators + typed builders.</strong> Considered. pydantic would give type safety but require authors to learn a new abstraction layer + adds a dep. The typed-keyword approach gives 80% of the type-safety value in stdlib-only Python. Validators continue to play the &quot;contract gate&quot; role unchanged.</p>
+<p><strong>D. Generate <code>.tres</code> resources via Godot&#x27;s editor scripts instead of JSON files.</strong> Rejected because <code>.tres</code> is Godot-specific binary- ish and breaks the &quot;JSON canonical, human-readable, LLM-editable&quot; property. JSON files diff cleanly; <code>.tres</code> doesn&#x27;t.</p>
+<h2 id="references">References</h2>
+<ul>
+<li><code>tools/yume_codegen/README.md</code> — codegen authoring guide</li>
+<li><code>tools/yume_assetgen/README.md</code> — asset-gen authoring guide</li>
+<li><code>tools/yume_codegen/tests/test_smoke.py</code> — 30 builder assertions</li>
+<li><code>tools/yume_assetgen/tests/test_smoke.py</code> — 19 pipeline assertions</li>
+<li><code>godot/scripts/renderer_3d/entity_mesh_3d.gd::_apply_albedo_texture_to_primitives</code></li>
+<li><code>godot/scripts/renderer_3d/entity_mesh_3d.gd::_apply_override_patch</code></li>
+<li>ADR 0021 — Yume = JSON layer over Godot</li>
+<li>ADR 0046 — Animation via AnimationPlayer (Phase B&#x27;s <code>.glb</code></li>
+</ul>
+<p>loader is upstream of this ADR&#x27;s material-override extension)</p>
+<ul>
+<li>task_plan.md § 2026-05-17 — full session log</li>
+<li>task_plan.md § 2026-05-16 — bug-class motivation that drove codegen</li>
+</ul>
+</div>
+</body>
+</html>

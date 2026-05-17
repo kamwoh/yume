@@ -128,95 +128,75 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="02-2-engine-subsystems-directors-stores-validators.html">← 2. Engine subsystems — directors, stores, validators</a> <a href="04-4-per-tick-state-flow.html">4. Per-tick state flow →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#3-skill-pipeline-prose-to-running-game">3. Skill pipeline — prose to running game</a></li></ul></div>
 <h2 id="3-skill-pipeline-prose-to-running-game">3. Skill pipeline — prose to running game</h2>
-<div class="mermaid">
-flowchart TB
-    Prose["Prose pitch"]
-    Orch["/yume-design"]
-    Prose --> Orch
+<pre><code class="lang-mermaid">flowchart TB
+    Prose[&quot;Prose pitch&quot;]
+    Orch[&quot;/yume-design&quot;]
+    Prose --&gt; Orch
 
-    subgraph Phase1["Phase 1: GDD + plan"]
+    subgraph Phase1[&quot;Phase 1: GDD + plan&quot;]
         direction TB
-        GD["yume-game-designer<br/>or genre-specific:<br/>shooter / merchant / racing"]
-        GR["yume-game-reviewer<br/>(15 axes)"]
-        SR["yume-shooter-reviewer<br/>yume-merchant-reviewer<br/>(strict genre layer)"]
-        GP["yume-game-planner"]
-        LD["yume-level-designer"]
-        SP["yume-story-planner"]
-        ED["yume-economy-designer"]
-        CL["yume-combining-logic-designer"]
-        GD --> GR
-        GR -->|accept| SR
-        SR -->|accept| GP
-        GP --> LD
-        GP --> SP
-        GP --> ED
-        GP --> CL
+        GD[&quot;yume-game-designer&lt;br/&gt;or genre-specific:&lt;br/&gt;shooter / merchant / racing&quot;]
+        GR[&quot;yume-game-reviewer&lt;br/&gt;(15 axes)&quot;]
+        SR[&quot;yume-shooter-reviewer&lt;br/&gt;yume-merchant-reviewer&lt;br/&gt;(strict genre layer)&quot;]
+        GP[&quot;yume-game-planner&quot;]
+        LD[&quot;yume-level-designer&quot;]
+        SP[&quot;yume-story-planner&quot;]
+        ED[&quot;yume-economy-designer&quot;]
+        CL[&quot;yume-combining-logic-designer&quot;]
+        GD --&gt; GR
+        GR --&gt;|accept| SR
+        SR --&gt;|accept| GP
+        GP --&gt; LD
+        GP --&gt; SP
+        GP --&gt; ED
+        GP --&gt; CL
     end
 
-    subgraph Phase2["Phase 2: Content authors"]
+    subgraph Phase2[&quot;Phase 2: Content authors&quot;]
         direction TB
-        SYS["yume-systems-designer<br/> to world/physics.json"]
-        CON["yume-content-designer<br/> to entities/* + world/state"]
-        GRD["yume-game-rules-designer<br/> to game/rules.json"]
-        AST["yume-asset-designer<br/> to scene.json + meshes"]
-        SCR["yume-screen-flow-designer<br/> to screens.json"]
-        TUT["yume-tutorial-designer<br/> to tutorial.json"]
-        JUC["yume-juice-designer<br/>(camera shake, flash)"]
-        FLV["yume-flavor-writer<br/>(dialogue, item flavor)"]
-        AUD["yume-audio-designer<br/> to audio/cues.json"]
-        LIT["yume-lighting-designer<br/>(NEW 2026-05-11)<br/> to scene.json lighting block"]
-        SAV["yume-save-policy-designer<br/> to save_policy.json"]
+        SYS[&quot;yume-systems-designer&lt;br/&gt; to world/rules.json&quot;]
+        CON[&quot;yume-content-designer&lt;br/&gt; to entities/* + world/state&quot;]
+        GRD[&quot;yume-game-rules-designer&lt;br/&gt; to game/goals.json&quot;]
+        AST[&quot;yume-asset-designer&lt;br/&gt; to scene.json + meshes&quot;]
+        SCR[&quot;yume-screen-flow-designer&lt;br/&gt; to screens.json&quot;]
+        TUT[&quot;yume-tutorial-designer&lt;br/&gt; to tutorial.json&quot;]
+        JUC[&quot;yume-juice-designer&lt;br/&gt;(camera shake, flash)&quot;]
+        FLV[&quot;yume-flavor-writer&lt;br/&gt;(dialogue, item flavor)&quot;]
+        AUD[&quot;yume-audio-designer&lt;br/&gt; to audio/cues.json&quot;]
+        LIT[&quot;yume-lighting-designer&lt;br/&gt;(NEW 2026-05-11)&lt;br/&gt; to scene.json lighting block&quot;]
+        SAV[&quot;yume-save-policy-designer&lt;br/&gt; to save_policy.json&quot;]
     end
 
-    LD --> SYS
-    LD --> CON
-    SP --> GRD
-    SP --> SCR
-    SP --> FLV
-    CL --> SYS
-    ED --> GRD
+    LD --&gt; SYS
+    LD --&gt; CON
+    SP --&gt; GRD
+    SP --&gt; SCR
+    SP --&gt; FLV
+    CL --&gt; SYS
+    ED --&gt; GRD
 
-    subgraph Phase3["Phase 3: QA + review"]
+    subgraph Phase3[&quot;Phase 3: QA + review&quot;]
         direction TB
-        QA["yume-qa-tester<br/>(headless scenario test)"]
-        VIS["yume-visual-designer<br/>(7-axis aesthetic review)"]
-        PT["yume-playtest<br/>(gameplay assertion)"]
-        GCT["yume-gdd-coverage-tracker"]
+        QA[&quot;yume-qa-tester&lt;br/&gt;(headless scenario test)&quot;]
+        VIS[&quot;yume-visual-designer&lt;br/&gt;(7-axis aesthetic review)&quot;]
+        PT[&quot;yume-playtest&lt;br/&gt;(gameplay assertion)&quot;]
+        GCT[&quot;yume-gdd-coverage-tracker&quot;]
     end
 
-    Phase2 --> QA
-    QA --> VIS
-    VIS --> PT
-    PT --> GCT
+    Phase2 --&gt; QA
+    QA --&gt; VIS
+    VIS --&gt; PT
+    PT --&gt; GCT
 
-    TD["yume-tech-director<br/>(cuts across — gates ALL<br/>engine + ADR changes)"]
-    TD -.->|reviews| Phase2
-    TD -.->|reviews ADRs| Engine["Engine sessions"]
-</div>
+    TD[&quot;yume-tech-director&lt;br/&gt;(cuts across — gates ALL&lt;br/&gt;engine + ADR changes)&quot;]
+    TD -.-&gt;|reviews| Phase2
+    TD -.-&gt;|reviews ADRs| Engine[&quot;Engine sessions&quot;]</code></pre>
 <hr>
 
 </div>

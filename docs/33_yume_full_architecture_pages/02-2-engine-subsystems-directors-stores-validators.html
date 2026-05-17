@@ -128,92 +128,72 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="01-1-whole-system-five-layers-feedback-loop.html">← 1. Whole system — five layers + feedback loop</a> <a href="03-3-skill-pipeline-prose-to-running-game.html">3. Skill pipeline — prose to running game →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#2-engine-subsystems-directors-stores-validators">2. Engine subsystems — directors, stores, validators</a></li></ul></div>
 <h2 id="2-engine-subsystems-directors-stores-validators">2. Engine subsystems — directors, stores, validators</h2>
-<div class="mermaid">
-flowchart LR
-    subgraph EngineCore["Engine Core (scripts/engine/*.gd)"]
-        World["world.gd<br/>(orchestrator)"]
-        PS["phase_scheduler.gd<br/>(5-phase tick)"]
-        QL["query.gd<br/>(QueryLib)"]
-        EA["effect_apply.gd<br/>(70+ effect types)"]
-        Form["formula.gd<br/>(Expression-based<br/>state.X / self.id /<br/>math helpers)"]
-        World --> PS
-        PS --> QL
-        PS --> EA
-        EA --> Form
-        QL --> Form
+<pre><code class="lang-mermaid">flowchart LR
+    subgraph EngineCore[&quot;Engine Core (scripts/engine/*.gd)&quot;]
+        World[&quot;world.gd&lt;br/&gt;(orchestrator)&quot;]
+        PS[&quot;phase_scheduler.gd&lt;br/&gt;(5-phase tick)&quot;]
+        QL[&quot;query.gd&lt;br/&gt;(QueryLib)&quot;]
+        EA[&quot;effect_apply.gd&lt;br/&gt;(70+ effect types)&quot;]
+        Form[&quot;formula.gd&lt;br/&gt;(Expression-based&lt;br/&gt;state.X / self.id /&lt;br/&gt;math helpers)&quot;]
+        World --&gt; PS
+        PS --&gt; QL
+        PS --&gt; EA
+        EA --&gt; Form
+        QL --&gt; Form
     end
 
-    subgraph Stores["Data Stores"]
-        RS["RelationStore<br/>(typed edges)"]
-        SI["SpatialIndex<br/>(radius queries)"]
-        ZS["ZoneStore<br/>(ADR 0031)"]
+    subgraph Stores[&quot;Data Stores&quot;]
+        RS[&quot;RelationStore&lt;br/&gt;(typed edges)&quot;]
+        SI[&quot;SpatialIndex&lt;br/&gt;(radius queries)&quot;]
+        ZS[&quot;ZoneStore&lt;br/&gt;(ADR 0031)&quot;]
     end
-    EngineCore --> Stores
+    EngineCore --&gt; Stores
 
-    subgraph Directors["Director Nodes (sibling of World in .tscn)"]
-        SD["ScheduleDirector (0029)<br/>NPC daily routines"]
-        LD["LightingDirector (0025)<br/>day-night + seasonal"]
-        AD["AnimationDirector (0035)<br/>per-piece limb tracks"]
-        PD["PartyDirector (0026)<br/>leash followers"]
-        FD["FactionDirector (0032)<br/>politics + war"]
-        DD["DynastyDirector (0034)<br/>lineage + heirs"]
-        MMD["MultiMeshDirector (0041)<br/>static-decoration batching"]
-        LCD["LifecycleDirector<br/>aging + stages (0036)"]
-        CS["ChunkStreamer (0014)<br/>infinite worlds"]
+    subgraph Directors[&quot;Director Nodes (sibling of World in .tscn)&quot;]
+        SD[&quot;ScheduleDirector (0029)&lt;br/&gt;NPC daily routines&quot;]
+        LD[&quot;LightingDirector (0025)&lt;br/&gt;day-night + seasonal&quot;]
+        AD[&quot;AnimationDirector (0035)&lt;br/&gt;per-piece limb tracks&quot;]
+        PD[&quot;PartyDirector (0026)&lt;br/&gt;leash followers&quot;]
+        FD[&quot;FactionDirector (0032)&lt;br/&gt;politics + war&quot;]
+        DD[&quot;DynastyDirector (0034)&lt;br/&gt;lineage + heirs&quot;]
+        MMD[&quot;MultiMeshDirector (0041)&lt;br/&gt;static-decoration batching&quot;]
+        LCD[&quot;LifecycleDirector&lt;br/&gt;aging + stages (0036)&quot;]
+        CS[&quot;ChunkStreamer (0014)&lt;br/&gt;infinite worlds&quot;]
     end
-    EngineCore --> Directors
+    EngineCore --&gt; Directors
 
-    subgraph Renderers["Renderers + UI"]
-        EM3["EntityMesh3D / 2D<br/>per-entity"]
-        GS["GameShell<br/>HUD + camera"]
-        SF["ScreenFlow (0011)"]
-        OM["OverlayManager (0012)"]
-        SM["SettingsManager (0013)"]
-        SS["SaveState (0010)"]
-        NR["NameplateRenderer"]
-        AB["AudioBus"]
-        LR["LightingDirector glue"]
+    subgraph Renderers[&quot;Renderers + UI&quot;]
+        EM3[&quot;EntityMesh3D / 2D&lt;br/&gt;per-entity&quot;]
+        GS[&quot;GameShell&lt;br/&gt;HUD + camera&quot;]
+        SF[&quot;ScreenFlow (0011)&quot;]
+        OM[&quot;OverlayManager (0012)&quot;]
+        SM[&quot;SettingsManager (0013)&quot;]
+        SS[&quot;SaveState (0010)&quot;]
+        NR[&quot;NameplateRenderer&quot;]
+        AB[&quot;AudioBus&quot;]
+        LR[&quot;LightingDirector glue&quot;]
     end
-    Directors --> Renderers
-    Stores --> Renderers
+    Directors --&gt; Renderers
+    Stores --&gt; Renderers
 
-    subgraph Validators["Validators (tools/, sync-time)"]
-        V1["validate_screens.py"]
-        V2["validate_spawn_templates.py"]
-        V3["validate_scene_directors.py<br/>(NEW 2026-05-11)"]
-        V4["validate_duplicate_mutations.py<br/>(NEW 2026-05-11)"]
-        V5["validate_lib_refs.py"]
-        V6["validate_player_perspective.py"]
-        V7["validate_schedule.py"]
+    subgraph Validators[&quot;Validators (tools/, sync-time)&quot;]
+        V1[&quot;validate_screens.py&quot;]
+        V2[&quot;validate_spawn_templates.py&quot;]
+        V3[&quot;validate_scene_directors.py&lt;br/&gt;(NEW 2026-05-11)&quot;]
+        V4[&quot;validate_duplicate_mutations.py&lt;br/&gt;(NEW 2026-05-11)&quot;]
+        V5[&quot;validate_lib_refs.py&quot;]
+        V6[&quot;validate_player_perspective.py&quot;]
+        V7[&quot;validate_schedule.py&quot;]
     end
 
-    Tools["scripts/play.sh<br/>pre-launch gate"]
-    Tools --> Validators
-</div>
+    Tools[&quot;scripts/play.sh&lt;br/&gt;pre-launch gate&quot;]
+    Tools --&gt; Validators</code></pre>
 <hr>
 
 </div>

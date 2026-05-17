@@ -128,233 +128,207 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
-<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="09-9-physicsjson-vs-gamerulesjson-the-conceptual-split-adr-0009.html">← 9. physics.json vs game/rules.json — the conceptual split (ADR 0009)</a> <a href="11-11-godotx27s-reserved-virtuals-how-yume-uses-them.html">11. Godot&amp;#x27;s reserved virtuals + how Yume uses them →</a></div></nav>
+<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="09-9-worldrulesjson-vs-gamegoalsjson-the-conceptual-split-adr-0009.html">← 9. world/rules.json vs game/goals.json — the conceptual split (ADR 0009)</a> <a href="11-11-godotx27s-reserved-virtuals-how-yume-uses-them.html">11. Godot&amp;#x27;s reserved virtuals + how Yume uses them →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#10-full-game-lifecycle-boot-to-render">10. Full game lifecycle — boot to render</a></li>  <li><a href="#101-boot-sequence-runs-once-at-game-start">10.1 Boot sequence (runs ONCE at game start)</a></li>  <li><a href="#102-per-frame-loop-60-hz-with-nested-sim-tick-10-hz">10.2 Per-frame loop (60 Hz) with nested sim-tick (10 Hz)</a></li>  <li><a href="#103-render-phase-data-flow-per-frame">10.3 Render phase + data flow per frame</a></li>  <li><a href="#104-audio-capture-autoloads">10.4 Audio + capture autoloads</a></li>  <li><a href="#105-concrete-trace-one-aldenmere-player-action">10.5 Concrete trace — one Aldenmere player action</a></li></ul></div>
 <h2 id="10-full-game-lifecycle-boot-to-render">10. Full game lifecycle — boot to render</h2>
 <p>This section ties everything together. Five diagrams showing what happens <strong>once at boot</strong>, what happens <strong>every frame</strong>, and <strong>how components send data to each other</strong> during normal play. Reference game: Aldenmere (<code>scenes/aldenmere_3d.tscn</code>).</p>
 <h3 id="101-boot-sequence-runs-once-at-game-start">10.1 Boot sequence (runs ONCE at game start)</h3>
-<div class="mermaid">
-flowchart TB
-    Launch["godot scenes/aldenmere_3d.tscn"]:::action
+<pre><code class="lang-mermaid">flowchart TB
+    Launch[&quot;godot scenes/aldenmere_3d.tscn&quot;]:::action
 
-    subgraph Phase1["1. Godot reads project.godot"]
-        P1a["resolve res to godot folder"]:::out
-        P1b["instantiate autoloads<br/>CaptureRunner + AudioBus<br/>at /root/"]:::out
-        P1c["empty InputMap<br/>was input block<br/>now in ui/input.json"]:::out
+    subgraph Phase1[&quot;1. Godot reads project.godot&quot;]
+        P1a[&quot;resolve res to godot folder&quot;]:::out
+        P1b[&quot;instantiate autoloads&lt;br/&gt;CaptureRunner + AudioBus&lt;br/&gt;at /root/&quot;]:::out
+        P1c[&quot;empty InputMap&lt;br/&gt;was input block&lt;br/&gt;now in ui/input.json&quot;]:::out
     end
-    Launch --> Phase1
+    Launch --&gt; Phase1
 
-    subgraph Phase2["2. Godot builds scene tree from tscn"]
-        P2a["instantiate World<br/>WorldEnvironment Sun Ground<br/>GameShell ScreenFlow<br/>OverlayManager SettingsManager<br/>LightingDirector PartyDirector<br/>NameplateRenderer ScheduleDirector<br/>Camera3D"]:::out
+    subgraph Phase2[&quot;2. Godot builds scene tree from tscn&quot;]
+        P2a[&quot;instantiate World&lt;br/&gt;WorldEnvironment Sun Ground&lt;br/&gt;GameShell ScreenFlow&lt;br/&gt;OverlayManager SettingsManager&lt;br/&gt;LightingDirector PartyDirector&lt;br/&gt;NameplateRenderer ScheduleDirector&lt;br/&gt;Camera3D&quot;]:::out
     end
-    Phase1 --> Phase2
+    Phase1 --&gt; Phase2
 
-    subgraph Phase3["3. _ready cascades through tree"]
-        P3a["Godot fires _ready on every Node<br/>depth-first parent before children"]:::out
-        P3b["World._ready calls load_data"]:::out
+    subgraph Phase3[&quot;3. _ready cascades through tree&quot;]
+        P3a[&quot;Godot fires _ready on every Node&lt;br/&gt;depth-first parent before children&quot;]:::out
+        P3b[&quot;World._ready calls load_data&quot;]:::out
     end
-    Phase2 --> Phase3
+    Phase2 --&gt; Phase3
 
-    subgraph Phase4["4. world.gd load_data the big JSON parse"]
+    subgraph Phase4[&quot;4. world.gd load_data the big JSON parse&quot;]
         direction TB
-        L1["LibResolver.init_cache<br/>parses data/lib all json"]:::core
-        L2["InputRegistrar.register_from_data_root<br/>parses ui/input.json<br/>resolves include @lib.input.universal<br/>registers InputMap actions"]:::core
-        L3["parse scene.json<br/>camera mode tick_seconds<br/>lighting position_scale level_seed"]:::core
-        L4["parse macros.json<br/>(if present) to MacroExpander"]:::core
-        L5["parse world/physics.json<br/>game/rules.json<br/>levels/L1/rules.json<br/>tutorial.json<br/>each via Rule.from_dict<br/>LibResolver + MacroExpander<br/>pre-process refs"]:::core
-        L6["parse world/state.json<br/>into env.world_state"]:::core
-        L7["parse entities/all json<br/>build env.defs map<br/>spawn initial_instances<br/>each Entity gets renderer child<br/>expand patterns ring scatter etc."]:::core
-        L8["parse world/zones.json<br/>build ZoneStore<br/>if present"]:::core
-        L9["parse factions.json tech_trees.json<br/>save_policy.json settings_schema.json<br/>each into its director or manager"]:::core
-        L10["init Directors<br/>each receives env ref<br/>via _ready or set_world hook"]:::core
-        L11["MultiMeshDirector.scan_and_batch<br/>if mounted<br/>promotes static decoration<br/>one draw call per mesh"]:::core
-        L12["PhaseScheduler.register_rules<br/>buckets all parsed rules<br/>by trigger type"]:::core
+        L1[&quot;LibResolver.init_cache&lt;br/&gt;parses data/lib all json&quot;]:::core
+        L2[&quot;InputRegistrar.register_from_data_root&lt;br/&gt;parses ui/input.json&lt;br/&gt;resolves include @lib.input.universal&lt;br/&gt;registers InputMap actions&quot;]:::core
+        L3[&quot;parse scene.json&lt;br/&gt;camera mode tick_seconds&lt;br/&gt;lighting position_scale level_seed&quot;]:::core
+        L4[&quot;parse macros.json&lt;br/&gt;(if present) to MacroExpander&quot;]:::core
+        L5[&quot;parse world/rules.json&lt;br/&gt;game/goals.json&lt;br/&gt;levels/L1/rules.json&lt;br/&gt;tutorial.json&lt;br/&gt;each via Rule.from_dict&lt;br/&gt;LibResolver + MacroExpander&lt;br/&gt;pre-process refs&quot;]:::core
+        L6[&quot;parse world/state.json&lt;br/&gt;into env.world_state&quot;]:::core
+        L7[&quot;parse entities/all json&lt;br/&gt;build env.defs map&lt;br/&gt;spawn initial_instances&lt;br/&gt;each Entity gets renderer child&lt;br/&gt;expand patterns ring scatter etc.&quot;]:::core
+        L8[&quot;parse world/zones.json&lt;br/&gt;build ZoneStore&lt;br/&gt;if present&quot;]:::core
+        L9[&quot;parse factions.json tech_trees.json&lt;br/&gt;save_policy.json settings_schema.json&lt;br/&gt;each into its director or manager&quot;]:::core
+        L10[&quot;init Directors&lt;br/&gt;each receives env ref&lt;br/&gt;via _ready or set_world hook&quot;]:::core
+        L11[&quot;MultiMeshDirector.scan_and_batch&lt;br/&gt;if mounted&lt;br/&gt;promotes static decoration&lt;br/&gt;one draw call per mesh&quot;]:::core
+        L12[&quot;PhaseScheduler.register_rules&lt;br/&gt;buckets all parsed rules&lt;br/&gt;by trigger type&quot;]:::core
 
-        L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8 --> L9 --> L10 --> L11 --> L12
+        L1 --&gt; L2 --&gt; L3 --&gt; L4 --&gt; L5 --&gt; L6 --&gt; L7 --&gt; L8 --&gt; L9 --&gt; L10 --&gt; L11 --&gt; L12
     end
-    Phase3 --> Phase4
+    Phase3 --&gt; Phase4
 
-    subgraph Phase5["5. Scene tree is now live"]
-        P5a["screen_flow lazy-loads<br/>screens.json on first<br/>transition_screen<br/>game_shell lazy-loads<br/>hud.json and cues.json<br/>when first frame renders"]:::out
-        P5b["world.gd waiting for tick<br/>or input"]:::out
+    subgraph Phase5[&quot;5. Scene tree is now live&quot;]
+        P5a[&quot;screen_flow lazy-loads&lt;br/&gt;screens.json on first&lt;br/&gt;transition_screen&lt;br/&gt;game_shell lazy-loads&lt;br/&gt;hud.json and cues.json&lt;br/&gt;when first frame renders&quot;]:::out
+        P5b[&quot;world.gd waiting for tick&lt;br/&gt;or input&quot;]:::out
     end
-    Phase4 --> Phase5
+    Phase4 --&gt; Phase5
 
-    Phase5 --> FrameLoop["enter per-frame loop<br/>see 10.2"]:::action
+    Phase5 --&gt; FrameLoop[&quot;enter per-frame loop&lt;br/&gt;see 10.2&quot;]:::action
 
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <h3 id="102-per-frame-loop-60-hz-with-nested-sim-tick-10-hz">10.2 Per-frame loop (60 Hz) with nested sim-tick (10 Hz)</h3>
 <p>Godot fires <code>_process(delta)</code> on every Node in the scene tree every rendered frame (about 60 Hz). Some Nodes additionally run a sim tick at a slower rate (about 10 Hz, controlled by <code>scene.json#tick_seconds</code>).</p>
-<div class="mermaid">
-flowchart TB
-    Frame["Godot rendered frame<br/>60 Hz"]:::action
+<pre><code class="lang-mermaid">flowchart TB
+    Frame[&quot;Godot rendered frame&lt;br/&gt;60 Hz&quot;]:::action
 
-    subgraph PerFrame["A. Per-frame _process callbacks every Node"]
+    subgraph PerFrame[&quot;A. Per-frame _process callbacks every Node&quot;]
         direction TB
-        F1["Godot reads keyboard mouse<br/>into InputMap actions"]:::out
-        F2["world.gd _process<br/>accumulate delta<br/>if accumulated greater than tick_seconds<br/>call advance_one_tick"]:::core
-        F3["game_shell.gd _process<br/>lerp Camera3D position<br/>refresh HUD label bindings<br/>apply juice shake flash"]:::module
-        F4["lighting_director.gd _process<br/>read world_state.current_hour<br/>interpolate Sun color direction"]:::module
-        F5["nameplate_renderer.gd _process<br/>position float labels above<br/>each named_npc entity"]:::module
-        F6["party_director.gd _process<br/>set follower velocity<br/>toward leader"]:::module
-        F7["screen_flow.gd _process<br/>animate modal transitions"]:::module
-        F8["overlay.gd _process<br/>animate tutorial cards"]:::module
-        F9["entity renderer children<br/>read state.position state.yaw<br/>update own transform<br/>EntityMesh3D per entity<br/>AnimationDirector if<br/>mesh has animations"]:::module
+        F1[&quot;Godot reads keyboard mouse&lt;br/&gt;into InputMap actions&quot;]:::out
+        F2[&quot;world.gd _process&lt;br/&gt;accumulate delta&lt;br/&gt;if accumulated greater than tick_seconds&lt;br/&gt;call advance_one_tick&quot;]:::core
+        F3[&quot;game_shell.gd _process&lt;br/&gt;lerp Camera3D position&lt;br/&gt;refresh HUD label bindings&lt;br/&gt;apply juice shake flash&quot;]:::module
+        F4[&quot;lighting_director.gd _process&lt;br/&gt;read world_state.current_hour&lt;br/&gt;interpolate Sun color direction&quot;]:::module
+        F5[&quot;nameplate_renderer.gd _process&lt;br/&gt;position float labels above&lt;br/&gt;each named_npc entity&quot;]:::module
+        F6[&quot;party_director.gd _process&lt;br/&gt;set follower velocity&lt;br/&gt;toward leader&quot;]:::module
+        F7[&quot;screen_flow.gd _process&lt;br/&gt;animate modal transitions&quot;]:::module
+        F8[&quot;overlay.gd _process&lt;br/&gt;animate tutorial cards&quot;]:::module
+        F9[&quot;entity renderer children&lt;br/&gt;read state.position state.yaw&lt;br/&gt;update own transform&lt;br/&gt;EntityMesh3D per entity&lt;br/&gt;AnimationDirector if&lt;br/&gt;mesh has animations&quot;]:::module
     end
-    Frame --> PerFrame
+    Frame --&gt; PerFrame
 
-    subgraph SimTick["B. Sim tick 10 Hz only when advance_one_tick fires"]
+    subgraph SimTick[&quot;B. Sim tick 10 Hz only when advance_one_tick fires&quot;]
         direction TB
-        T1["pretick reset<br/>actors with zero_velocity_pretick<br/>get velocity zeroed"]:::core
-        T2["actor_manager.tick_policies<br/>AI synthesizes input actions"]:::core
+        T1[&quot;pretick reset&lt;br/&gt;actors with zero_velocity_pretick&lt;br/&gt;get velocity zeroed&quot;]:::core
+        T2[&quot;actor_manager.tick_policies&lt;br/&gt;AI synthesizes input actions&quot;]:::core
 
-        subgraph PS["PhaseScheduler.tick"]
+        subgraph PS[&quot;PhaseScheduler.tick&quot;]
             direction TB
-            PS1["PHASE 1 input<br/>fire input-trigger rules<br/>flush effects"]:::tick
-            PS2["drain decide signals"]:::tick
-            PS3["PHASE 2 decide<br/>fire tick and signal rules<br/>flush effects"]:::tick
-            PS4["drain react signals<br/>CRITICAL FLUSH<br/>Invariant 9"]:::tick
-            PS5["PHASE 3 react<br/>fire contact and lifecycle rules<br/>flush effects"]:::tick
-            PS1 --> PS2 --> PS3 --> PS4 --> PS5
+            PS1[&quot;PHASE 1 input&lt;br/&gt;fire input-trigger rules&lt;br/&gt;flush effects&quot;]:::tick
+            PS2[&quot;drain decide signals&quot;]:::tick
+            PS3[&quot;PHASE 2 decide&lt;br/&gt;fire tick and signal rules&lt;br/&gt;flush effects&quot;]:::tick
+            PS4[&quot;drain react signals&lt;br/&gt;CRITICAL FLUSH&lt;br/&gt;Invariant 9&quot;]:::tick
+            PS5[&quot;PHASE 3 react&lt;br/&gt;fire contact and lifecycle rules&lt;br/&gt;flush effects&quot;]:::tick
+            PS1 --&gt; PS2 --&gt; PS3 --&gt; PS4 --&gt; PS5
         end
-        T2 --> PS
+        T2 --&gt; PS
 
-        T3["post-tick speed clamp<br/>actors with max_speed<br/>get velocity normalized"]:::core
-        T4["motion integrator<br/>position increases by velocity"]:::core
-        T5["schedule_director.tick<br/>resolve villager schedule block<br/>queue pathfind_to effect"]:::core
-        T6["lifecycle_director.tick<br/>increment age<br/>cross life_stage thresholds"]:::core
-        T7["pending pipelines<br/>save load level_transition<br/>chunk_stream world_reset"]:::core
+        T3[&quot;post-tick speed clamp&lt;br/&gt;actors with max_speed&lt;br/&gt;get velocity normalized&quot;]:::core
+        T4[&quot;motion integrator&lt;br/&gt;position increases by velocity&quot;]:::core
+        T5[&quot;schedule_director.tick&lt;br/&gt;resolve villager schedule block&lt;br/&gt;queue pathfind_to effect&quot;]:::core
+        T6[&quot;lifecycle_director.tick&lt;br/&gt;increment age&lt;br/&gt;cross life_stage thresholds&quot;]:::core
+        T7[&quot;pending pipelines&lt;br/&gt;save load level_transition&lt;br/&gt;chunk_stream world_reset&quot;]:::core
 
-        T1 --> T2
-        PS --> T3 --> T4 --> T5 --> T6 --> T7
+        T1 --&gt; T2
+        PS --&gt; T3 --&gt; T4 --&gt; T5 --&gt; T6 --&gt; T7
     end
-    F2 --> SimTick
+    F2 --&gt; SimTick
 
-    SimTick --> Render["C. Godot internal renderer<br/>see 10.3"]:::action
-    PerFrame --> Render
+    SimTick --&gt; Render[&quot;C. Godot internal renderer&lt;br/&gt;see 10.3&quot;]:::action
+    PerFrame --&gt; Render
 
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff
     classDef module fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-    classDef tick fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
-</div>
+    classDef tick fill:#3f2e1e,stroke:#c98762,color:#f8e8d8</code></pre>
 <p>Key timing point: <strong>simulation only ticks at 10 Hz</strong>, so on a typical frame nothing inside the SimTick box runs — only the PerFrame callbacks. Every 6 frames or so, one frame ALSO runs the SimTick. Rendering is decoupled from sim — smooth visual motion (camera lerp, nameplate float, light interp) runs every frame; deterministic state mutations only at tick boundaries.</p>
 <h3 id="103-render-phase-data-flow-per-frame">10.3 Render phase + data flow per frame</h3>
 <p>After all <code>_process</code> callbacks finish, Godot&#x27;s internal renderer walks the scene tree and draws everything. Yume doesn&#x27;t override this — it just feeds Godot the right data via Node transforms, materials, and meshes.</p>
-<div class="mermaid">
-flowchart LR
-    subgraph Sources["State mutated by sim-tick"]
+<pre><code class="lang-mermaid">flowchart LR
+    subgraph Sources[&quot;State mutated by sim-tick&quot;]
         direction TB
-        ES["entity.state<br/>position velocity yaw<br/>hp hunger"]:::data
-        WS["env.world_state<br/>day hour score"]:::data
-        ZS["ZoneStore aggregates"]:::data
+        ES[&quot;entity.state&lt;br/&gt;position velocity yaw&lt;br/&gt;hp hunger&quot;]:::data
+        WS[&quot;env.world_state&lt;br/&gt;day hour score&quot;]:::data
+        ZS[&quot;ZoneStore aggregates&quot;]:::data
     end
 
-    subgraph PerEntity["Per-entity renderer children"]
+    subgraph PerEntity[&quot;Per-entity renderer children&quot;]
         direction TB
-        EM3["EntityMesh3D<br/>reads entity.state.position<br/>updates MeshInstance3D<br/>transform"]:::module
-        AD["AnimationDirector<br/>per animated entity<br/>per-piece keyframe interp<br/>walk idle"]:::module
-        NR["NameplateRenderer<br/>float Label3D above<br/>each named_npc"]:::module
+        EM3[&quot;EntityMesh3D&lt;br/&gt;reads entity.state.position&lt;br/&gt;updates MeshInstance3D&lt;br/&gt;transform&quot;]:::module
+        AD[&quot;AnimationDirector&lt;br/&gt;per animated entity&lt;br/&gt;per-piece keyframe interp&lt;br/&gt;walk idle&quot;]:::module
+        NR[&quot;NameplateRenderer&lt;br/&gt;float Label3D above&lt;br/&gt;each named_npc&quot;]:::module
     end
 
-    subgraph Singletons["HUD + camera"]
+    subgraph Singletons[&quot;HUD + camera&quot;]
         direction TB
-        GS["GameShell<br/>updates Camera3D pos<br/>refreshes HUD labels<br/>from world or entity binds"]:::module
-        LD["LightingDirector<br/>updates Sun color rotation<br/>energy from hour"]:::module
+        GS[&quot;GameShell&lt;br/&gt;updates Camera3D pos&lt;br/&gt;refreshes HUD labels&lt;br/&gt;from world or entity binds&quot;]:::module
+        LD[&quot;LightingDirector&lt;br/&gt;updates Sun color rotation&lt;br/&gt;energy from hour&quot;]:::module
     end
 
-    subgraph Overlays["Stacked CanvasLayers"]
+    subgraph Overlays[&quot;Stacked CanvasLayers&quot;]
         direction TB
-        SF["ScreenFlow<br/>modal stack at high z<br/>pause menu dialog win lose"]:::module
-        OM["OverlayManager<br/>tutorial cards"]:::module
+        SF[&quot;ScreenFlow&lt;br/&gt;modal stack at high z&lt;br/&gt;pause menu dialog win lose&quot;]:::module
+        OM[&quot;OverlayManager&lt;br/&gt;tutorial cards&quot;]:::module
     end
 
-    subgraph GodotRender["Godot internal renderer"]
+    subgraph GodotRender[&quot;Godot internal renderer&quot;]
         direction TB
-        R1["Camera3D<br/>defines view frustum"]:::render
-        R2["MeshInstance3D + MultiMesh<br/>static decoration batched"]:::render
-        R3["DirectionalLight3D Sun<br/>casts shadows"]:::render
-        R4["WorldEnvironment<br/>sky shader + ambient"]:::render
-        R5["CanvasLayer 2D<br/>HUD overlays"]:::render
-        R6["compose and present frame"]:::render
-        R1 --> R6
-        R2 --> R6
-        R3 --> R6
-        R4 --> R6
-        R5 --> R6
+        R1[&quot;Camera3D&lt;br/&gt;defines view frustum&quot;]:::render
+        R2[&quot;MeshInstance3D + MultiMesh&lt;br/&gt;static decoration batched&quot;]:::render
+        R3[&quot;DirectionalLight3D Sun&lt;br/&gt;casts shadows&quot;]:::render
+        R4[&quot;WorldEnvironment&lt;br/&gt;sky shader + ambient&quot;]:::render
+        R5[&quot;CanvasLayer 2D&lt;br/&gt;HUD overlays&quot;]:::render
+        R6[&quot;compose and present frame&quot;]:::render
+        R1 --&gt; R6
+        R2 --&gt; R6
+        R3 --&gt; R6
+        R4 --&gt; R6
+        R5 --&gt; R6
     end
 
-    ES --> EM3
-    ES --> AD
-    ES --> NR
-    WS --> GS
-    WS --> LD
-    ZS --> GS
-    ES --> GS
+    ES --&gt; EM3
+    ES --&gt; AD
+    ES --&gt; NR
+    WS --&gt; GS
+    WS --&gt; LD
+    ZS --&gt; GS
+    ES --&gt; GS
 
-    EM3 --> R2
-    AD --> R2
-    NR --> R5
-    GS --> R1
-    GS --> R5
-    LD --> R3
-    SF --> R5
-    OM --> R5
+    EM3 --&gt; R2
+    AD --&gt; R2
+    NR --&gt; R5
+    GS --&gt; R1
+    GS --&gt; R5
+    LD --&gt; R3
+    SF --&gt; R5
+    OM --&gt; R5
 
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef module fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
-    classDef render fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
-</div>
+    classDef render fill:#3f1e2e,stroke:#c96287,color:#ffe0e8</code></pre>
 <h3 id="104-audio-capture-autoloads">10.4 Audio + capture autoloads</h3>
 <p>Two singletons live outside the per-game tscn — they&#x27;re declared in <code>project.godot</code> as autoloads, instantiated at <code>/root/</code> BEFORE the scene loads.</p>
-<div class="mermaid">
-flowchart LR
-    subgraph Boot["At project boot before scene"]
-        AL1["AudioBus autoload<br/>parse data/sounds.json<br/>procedural SFX library"]:::core
-        AL2["CaptureRunner autoload<br/>parse cmdline flags<br/>capture-after N<br/>capture-output path"]:::core
+<pre><code class="lang-mermaid">flowchart LR
+    subgraph Boot[&quot;At project boot before scene&quot;]
+        AL1[&quot;AudioBus autoload&lt;br/&gt;parse data/sounds.json&lt;br/&gt;procedural SFX library&quot;]:::core
+        AL2[&quot;CaptureRunner autoload&lt;br/&gt;parse cmdline flags&lt;br/&gt;capture-after N&lt;br/&gt;capture-output path&quot;]:::core
     end
 
-    subgraph Runtime["During play"]
-        E1["rule fires emit effect<br/>with audio cue id"]:::data
-        E2["effect_apply routes to<br/>AudioBus.play_cue"]:::module
-        E3["AudioBus reads<br/>audio/cues.json mapping<br/>plays sound at entity pos"]:::module
+    subgraph Runtime[&quot;During play&quot;]
+        E1[&quot;rule fires emit effect&lt;br/&gt;with audio cue id&quot;]:::data
+        E2[&quot;effect_apply routes to&lt;br/&gt;AudioBus.play_cue&quot;]:::module
+        E3[&quot;AudioBus reads&lt;br/&gt;audio/cues.json mapping&lt;br/&gt;plays sound at entity pos&quot;]:::module
 
-        C1["CaptureRunner ticks delta<br/>if N seconds elapsed<br/>grab Viewport image<br/>save PNG quit"]:::module
+        C1[&quot;CaptureRunner ticks delta&lt;br/&gt;if N seconds elapsed&lt;br/&gt;grab Viewport image&lt;br/&gt;save PNG quit&quot;]:::module
     end
 
-    Boot --> Runtime
-    E1 --> E2 --> E3
-    AL2 --> C1
+    Boot --&gt; Runtime
+    E1 --&gt; E2 --&gt; E3
+    AL2 --&gt; C1
 
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef module fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
-    classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff
-</div>
+    classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff</code></pre>
 <h3 id="105-concrete-trace-one-aldenmere-player-action">10.5 Concrete trace — one Aldenmere player action</h3>
 <p>To make the cycle concrete, trace what happens when the player presses E to gather:</p>
 <ol>

@@ -128,145 +128,121 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: dark ? 'dark' : 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    sequence: { useMaxWidth: true }
-  });
-});
-</script>
-<style>
-.mermaid { background: var(--bg); padding: 1em; border-radius: 8px;
-  border: 1px solid var(--border); margin: 1.5em 0; text-align: center;
-  overflow-x: auto; }
-.mermaid svg { max-width: 100%; height: auto; }
-</style>
 </head>
 <body>
-<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="07-7-per-module-deep-dive-input-json-action-tick-role.html">← 7. Per-module deep-dive — input JSON → action → tick role</a> <a href="09-9-physicsjson-vs-gamerulesjson-the-conceptual-split-adr-0009.html">9. physics.json vs game/rules.json — the conceptual split (ADR 0009) →</a></div></nav>
+<nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="07-7-per-module-deep-dive-input-json-action-tick-role.html">← 7. Per-module deep-dive — input JSON → action → tick role</a> <a href="09-9-worldrulesjson-vs-gamegoalsjson-the-conceptual-split-adr-0009.html">9. world/rules.json vs game/goals.json — the conceptual split (ADR 0009) →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#8-entities-the-only-noun-in-the-engine">8. Entities — the only &quot;noun&quot; in the engine</a></li>  <li><a href="#81-anatomy-what-an-entity-json-looks-like-vs-what-it-becomes-in-memory">8.1 Anatomy — what an entity JSON looks like vs what it becomes in memory</a></li>  <li><a href="#82-reserved-state-fields-engine-reads-these-content-names-the-rest">8.2 Reserved state fields — engine reads these, content names the rest</a></li>  <li><a href="#83-entity-lifecycle-boot-spawn-persist-despawn">8.3 Entity lifecycle — boot, spawn, persist, despawn</a></li>  <li><a href="#84-how-rules-find-mutate-entities">8.4 How rules find + mutate entities</a></li></ul></div>
 <h2 id="8-entities-the-only-noun-in-the-engine">8. Entities — the only &quot;noun&quot; in the engine</h2>
 <p>Yume has <strong>one</strong> runtime type for everything that exists in the world. A wolf, a tree, a player, a fire pit, a HUD-invisible &quot;world_clock&quot; singleton — they&#x27;re all <code>Entity</code> (extends plain <code>Node</code>, never <code>Node2D</code> or <code>Node3D</code>). Distinctions emerge from <strong>tags + properties + state</strong>, never from class hierarchy (Invariant #3).</p>
 <h3 id="81-anatomy-what-an-entity-json-looks-like-vs-what-it-becomes-in-memory">8.1 Anatomy — what an entity JSON looks like vs what it becomes in memory</h3>
-<div class="mermaid">
-flowchart LR
-    subgraph JSON["entities/wolf.json (def)"]
+<pre><code class="lang-mermaid">flowchart LR
+    subgraph JSON[&quot;entities/wolf.json (def)&quot;]
         direction TB
-        J1["id: 'wolf_3d'"]:::field
-        J2["tags: (animal, predator,<br/>blocks_motion)"]:::field
-        J3["properties:<br/>(aabb_extents: (0.4, 0.4, 0.6),<br/>display_name: 'Wolf')"]:::field
-        J4["state_init:<br/>(hp: 30, max_speed: 4,<br/>velocity: (0,0), yaw: 0,<br/>position: (0,0,0))"]:::field
-        J5["visual:<br/>(mesh_3d: 'wolf_3d',<br/>tint: '#806040')"]:::field
+        J1[&quot;id: &#x27;wolf_3d&#x27;&quot;]:::field
+        J2[&quot;tags: (animal, predator,&lt;br/&gt;blocks_motion)&quot;]:::field
+        J3[&quot;properties:&lt;br/&gt;(aabb_extents: (0.4, 0.4, 0.6),&lt;br/&gt;display_name: &#x27;Wolf&#x27;)&quot;]:::field
+        J4[&quot;state_init:&lt;br/&gt;(hp: 30, max_speed: 4,&lt;br/&gt;velocity: (0,0), yaw: 0,&lt;br/&gt;position: (0,0,0))&quot;]:::field
+        J5[&quot;visual:&lt;br/&gt;(mesh_3d: &#x27;wolf_3d&#x27;,&lt;br/&gt;tint: &#x27;#806040&#x27;)&quot;]:::field
     end
 
-    subgraph INST["levels/X/entities.json (instance)"]
+    subgraph INST[&quot;levels/X/entities.json (instance)&quot;]
         direction TB
-        I1["def: 'wolf_3d'"]:::inst
-        I2["id: 'wolf_alpha'"]:::inst
-        I3["position: (40, 0, 30)"]:::inst
-        I4["state: (hp: 50)<br/>(override)"]:::inst
+        I1[&quot;def: &#x27;wolf_3d&#x27;&quot;]:::inst
+        I2[&quot;id: &#x27;wolf_alpha&#x27;&quot;]:::inst
+        I3[&quot;position: (40, 0, 30)&quot;]:::inst
+        I4[&quot;state: (hp: 50)&lt;br/&gt;(override)&quot;]:::inst
     end
 
-    Create["Entity.create(def, inst_id,<br/>overrides)"]:::action
+    Create[&quot;Entity.create(def, inst_id,&lt;br/&gt;overrides)&quot;]:::action
 
-    JSON --> Create
-    INST --> Create
+    JSON --&gt; Create
+    INST --&gt; Create
 
-    subgraph MEM["Entity Node (in-memory)"]
+    subgraph MEM[&quot;Entity Node (in-memory)&quot;]
         direction TB
-        M1["def_id: 'wolf_3d'<br/>instance_id: 'wolf_alpha'"]:::out
-        M2["tags: Array&lt;String&gt;<br/>(animal, predator,<br/>blocks_motion)"]:::out
-        M3["properties: Dict<br/>(aabb_extents, display_name)<br/>(STATIC — rules can't mutate)"]:::out
-        M4["state: Dict<br/>(hp: 50, max_speed: 4,<br/>velocity: Vector3,<br/>yaw: 0,<br/>position: Vector3(40,0,30))<br/>(DYNAMIC — rules mutate)"]:::out
-        M5["visual: Dict<br/>(renderer reads this;<br/>engine ignores)"]:::out
+        M1[&quot;def_id: &#x27;wolf_3d&#x27;&lt;br/&gt;instance_id: &#x27;wolf_alpha&#x27;&quot;]:::out
+        M2[&quot;tags: Array&amp;lt;String&amp;gt;&lt;br/&gt;(animal, predator,&lt;br/&gt;blocks_motion)&quot;]:::out
+        M3[&quot;properties: Dict&lt;br/&gt;(aabb_extents, display_name)&lt;br/&gt;(STATIC — rules can&#x27;t mutate)&quot;]:::out
+        M4[&quot;state: Dict&lt;br/&gt;(hp: 50, max_speed: 4,&lt;br/&gt;velocity: Vector3,&lt;br/&gt;yaw: 0,&lt;br/&gt;position: Vector3(40,0,30))&lt;br/&gt;(DYNAMIC — rules mutate)&quot;]:::out
+        M5[&quot;visual: Dict&lt;br/&gt;(renderer reads this;&lt;br/&gt;engine ignores)&quot;]:::out
     end
 
-    Create --> MEM
+    Create --&gt; MEM
 
     classDef field fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef inst fill:#3a3f1e,stroke:#c9b962,color:#f8f4d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <p>The DEF describes the <em>kind</em> (parsed once into <code>env.defs</code>). The INSTANCE references the def by name + overrides only what differs. <code>Entity.create(def, inst_id, overrides)</code> merges them into a single runtime Node. Both <code>position</code> and <code>velocity</code> get normalized from JSON arrays to <code>Vector2</code> / <code>Vector3</code> so motion math doesn&#x27;t break.</p>
 <h3 id="82-reserved-state-fields-engine-reads-these-content-names-the-rest">8.2 Reserved state fields — engine reads these, content names the rest</h3>
-<div class="mermaid">
-flowchart TB
-    subgraph Reserved["Reserved fields (engine-recognized)"]
+<pre><code class="lang-mermaid">flowchart TB
+    subgraph Reserved[&quot;Reserved fields (engine-recognized)&quot;]
         direction LR
-        R1["position<br/>Vector2/3"]:::res
-        R2["velocity<br/>Vector2/3<br/>(motion integrator<br/>adds to position)"]:::res
-        R3["yaw<br/>float radians<br/>(renderers apply<br/>Y-rotation)"]:::res
-        R4["age<br/>in-game years<br/>(LifecycleDirector)"]:::res
-        R5["life_stage<br/>infant/child/<br/>adult/elder/dead"]:::res
-        R6["class_progress<br/>(ADR 0030)"]:::res
-        R7["known_techs<br/>(ADR 0033)"]:::res
-        R8["dynasty_id<br/>(ADR 0034)"]:::res
+        R1[&quot;position&lt;br/&gt;Vector2/3&quot;]:::res
+        R2[&quot;velocity&lt;br/&gt;Vector2/3&lt;br/&gt;(motion integrator&lt;br/&gt;adds to position)&quot;]:::res
+        R3[&quot;yaw&lt;br/&gt;float radians&lt;br/&gt;(renderers apply&lt;br/&gt;Y-rotation)&quot;]:::res
+        R4[&quot;age&lt;br/&gt;in-game years&lt;br/&gt;(LifecycleDirector)&quot;]:::res
+        R5[&quot;life_stage&lt;br/&gt;infant/child/&lt;br/&gt;adult/elder/dead&quot;]:::res
+        R6[&quot;class_progress&lt;br/&gt;(ADR 0030)&quot;]:::res
+        R7[&quot;known_techs&lt;br/&gt;(ADR 0033)&quot;]:::res
+        R8[&quot;dynasty_id&lt;br/&gt;(ADR 0034)&quot;]:::res
     end
 
-    subgraph Content["Content-named (engine doesn't know these)"]
+    subgraph Content[&quot;Content-named (engine doesn&#x27;t know these)&quot;]
         direction LR
-        C1["hp / hunger / mana<br/>thirst / warmth"]:::content
-        C2["gold / score / xp<br/>reputation_tier"]:::content
-        C3["facing / drag<br/>zero_velocity_pretick<br/>max_speed"]:::content
-        C4["held_item / held_cooked<br/>quest_stage"]:::content
-        C5["any other field<br/>your rules need"]:::content
+        C1[&quot;hp / hunger / mana&lt;br/&gt;thirst / warmth&quot;]:::content
+        C2[&quot;gold / score / xp&lt;br/&gt;reputation_tier&quot;]:::content
+        C3[&quot;facing / drag&lt;br/&gt;zero_velocity_pretick&lt;br/&gt;max_speed&quot;]:::content
+        C4[&quot;held_item / held_cooked&lt;br/&gt;quest_stage&quot;]:::content
+        C5[&quot;any other field&lt;br/&gt;your rules need&quot;]:::content
     end
 
-    Rules["Rules query + mutate<br/>both groups identically<br/>via state_set / state_add /<br/>state_mul / state_clamp"]:::action
+    Rules[&quot;Rules query + mutate&lt;br/&gt;both groups identically&lt;br/&gt;via state_set / state_add /&lt;br/&gt;state_mul / state_clamp&quot;]:::action
 
-    Reserved --> Rules
-    Content --> Rules
+    Reserved --&gt; Rules
+    Content --&gt; Rules
 
     classDef res fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
     classDef content fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-</div>
+    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff</code></pre>
 <p>The engine cares about position / velocity / yaw / age for physics + director ticks. Everything else (hp, hunger, gold, score) is JUST a named slot in <code>state</code> dict that rules read + mutate. The engine never checks &quot;is this an hp field?&quot; — it just looks up <code>state[field_name]</code>.</p>
 <h3 id="83-entity-lifecycle-boot-spawn-persist-despawn">8.3 Entity lifecycle — boot, spawn, persist, despawn</h3>
-<div class="mermaid">
-flowchart TB
-    Boot["world.gd boot:<br/>load_entities_file()"]:::action
-    DefMap["env.defs(def_id)<br/>= parsed def dict"]:::store
-    Initial["initial_instances<br/>+ patterns"]:::data
-    Spawn1["Entity.create(def, id)<br/>+ instance overrides"]:::action
-    EntMap["env.entities(id)<br/>= Entity Node"]:::store
-    SpatIdx["spatial_index<br/>.insert(id, pos)"]:::store
+<pre><code class="lang-mermaid">flowchart TB
+    Boot[&quot;world.gd boot:&lt;br/&gt;load_entities_file()&quot;]:::action
+    DefMap[&quot;env.defs(def_id)&lt;br/&gt;= parsed def dict&quot;]:::store
+    Initial[&quot;initial_instances&lt;br/&gt;+ patterns&quot;]:::data
+    Spawn1[&quot;Entity.create(def, id)&lt;br/&gt;+ instance overrides&quot;]:::action
+    EntMap[&quot;env.entities(id)&lt;br/&gt;= Entity Node&quot;]:::store
+    SpatIdx[&quot;spatial_index&lt;br/&gt;.insert(id, pos)&quot;]:::store
 
-    Boot --> DefMap
-    Boot --> Initial
-    Initial --> Spawn1
-    DefMap --> Spawn1
-    Spawn1 --> EntMap
-    Spawn1 --> SpatIdx
+    Boot --&gt; DefMap
+    Boot --&gt; Initial
+    Initial --&gt; Spawn1
+    DefMap --&gt; Spawn1
+    Spawn1 --&gt; EntMap
+    Spawn1 --&gt; SpatIdx
 
     %% Runtime spawn
-    SpawnE["spawn effect<br/>fires from rule"]:::action
-    SpawnE -.->|same path| Spawn1
+    SpawnE[&quot;spawn effect&lt;br/&gt;fires from rule&quot;]:::action
+    SpawnE -.-&gt;|same path| Spawn1
 
     %% Removal
-    RemE["remove effect<br/>(or transform = remove+spawn)"]:::action
-    RemE --> EntMap
-    RemE --> SpatIdx
-    RemE -.->|despawn trigger fires<br/>BEFORE removal| Rules["rules listening on<br/>type: despawn"]:::data
+    RemE[&quot;remove effect&lt;br/&gt;(or transform = remove+spawn)&quot;]:::action
+    RemE --&gt; EntMap
+    RemE --&gt; SpatIdx
+    RemE -.-&gt;|despawn trigger fires&lt;br/&gt;BEFORE removal| Rules[&quot;rules listening on&lt;br/&gt;type: despawn&quot;]:::data
 
     %% Persistent guard
-    Transit["transition_level<br/>fires"]:::action
-    Transit --> CheckP{"is entity tagged<br/>'persistent'?"}
-    CheckP -->|yes| Skip["SKIP overwrite<br/>(Invariant #12)<br/>but apply position<br/>teleport if level<br/>declares one"]:::out
-    CheckP -->|no| Remove["destroy + respawn<br/>from new level's<br/>entities.json"]:::out
+    Transit[&quot;transition_level&lt;br/&gt;fires&quot;]:::action
+    Transit --&gt; CheckP{&quot;is entity tagged&lt;br/&gt;&#x27;persistent&#x27;?&quot;}
+    CheckP --&gt;|yes| Skip[&quot;SKIP overwrite&lt;br/&gt;(Invariant #12)&lt;br/&gt;but apply position&lt;br/&gt;teleport if level&lt;br/&gt;declares one&quot;]:::out
+    CheckP --&gt;|no| Remove[&quot;destroy + respawn&lt;br/&gt;from new level&#x27;s&lt;br/&gt;entities.json&quot;]:::out
 
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef store fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
     classDef data fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
-    classDef out fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
-</div>
+    classDef out fill:#3f1e2e,stroke:#c96287,color:#ffe0e8</code></pre>
 <p>Key points:</p>
 <ul>
 <li><strong>Defs are parsed once</strong> at boot into <code>env.defs</code>. Multiple entities</li>
@@ -285,25 +261,23 @@ flowchart TB
 </ul>
 <p>survive <code>transition_level</code>. The NEW level&#x27;s instance with same id is SKIPPED for state but its <code>position</code> is applied as a teleport. This is how <code>world_clock</code> (singleton holding world_state) keeps its progression across levels.</p>
 <h3 id="84-how-rules-find-mutate-entities">8.4 How rules find + mutate entities</h3>
-<div class="mermaid">
-flowchart LR
-    Rule["rule fires<br/>(trigger matched)"]:::action
-    Q["query.gd::run(spec, env)"]:::core
-    Filter["filter by:<br/>tags_all / tags_any / tags_none<br/>properties.X_op<br/>state.X_op<br/>relations<br/>radius (uses SpatialIndex)<br/>order_by / limit"]:::action
-    Matched["matched: Array&lt;Entity&gt;"]:::out
+<pre><code class="lang-mermaid">flowchart LR
+    Rule[&quot;rule fires&lt;br/&gt;(trigger matched)&quot;]:::action
+    Q[&quot;query.gd::run(spec, env)&quot;]:::core
+    Filter[&quot;filter by:&lt;br/&gt;tags_all / tags_any / tags_none&lt;br/&gt;properties.X_op&lt;br/&gt;state.X_op&lt;br/&gt;relations&lt;br/&gt;radius (uses SpatialIndex)&lt;br/&gt;order_by / limit&quot;]:::action
+    Matched[&quot;matched: Array&amp;lt;Entity&amp;gt;&quot;]:::out
 
-    Rule --> Q --> Filter --> Matched
+    Rule --&gt; Q --&gt; Filter --&gt; Matched
 
-    Matched -->|"context: {self: ent}<br/>(or {a: x, b: y} for<br/>contact-pair)"| Effects["effect queue<br/>(per matched entity)"]:::out
+    Matched --&gt;|&quot;context: {self: ent}&lt;br/&gt;(or {a: x, b: y} for&lt;br/&gt;contact-pair)&quot;| Effects[&quot;effect queue&lt;br/&gt;(per matched entity)&quot;]:::out
 
-    Effects -->|"flush at phase boundary"| Apply["effect_apply.gd<br/>resolve target to Entity<br/>mutate state / spawn / remove /<br/>tag_add / relate / etc."]:::core
+    Effects --&gt;|&quot;flush at phase boundary&quot;| Apply[&quot;effect_apply.gd&lt;br/&gt;resolve target to Entity&lt;br/&gt;mutate state / spawn / remove /&lt;br/&gt;tag_add / relate / etc.&quot;]:::core
 
-    Apply -.->|"state_set with formula"| Formula["formula.gd<br/>self.state.X<br/>target.state.Y<br/>b.position(0)<br/>world.gold"]:::core
+    Apply -.-&gt;|&quot;state_set with formula&quot;| Formula[&quot;formula.gd&lt;br/&gt;self.state.X&lt;br/&gt;target.state.Y&lt;br/&gt;b.position(0)&lt;br/&gt;world.gold&quot;]:::core
 
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8
-</div>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
 <hr>
 
 </div>
