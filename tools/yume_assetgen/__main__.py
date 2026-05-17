@@ -76,8 +76,13 @@ def main(argv=None):
     if args.json:
         print(json.dumps(summary, indent=2))
     else:
+        # `backends` is a per-kind dict {texture, mesh, concept}; render
+        # as "texture=nanobanana mesh=tripo3d" — much more useful than
+        # one string when the pipeline routes per-kind.
+        backends_dict = summary.get("backends", {})
+        b_str = " ".join(f"{k}={v}" for k, v in backends_dict.items())
         print(
-            f"\n[{summary['game']}] backend={summary['backend']} "
+            f"\n[{summary['game']}] {b_str} "
             f"scanned={summary['scanned']} "
             f"generated={summary['generated']} "
             f"skipped={summary['skipped_existing']} "
