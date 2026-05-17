@@ -106,8 +106,13 @@ class Tripo3DBackend(Backend):
     def _submit_image_to_model(
         self, file_token: str, prompt: str, api_key: str
     ) -> str:
+        # Confirmed via live test 2026-05-17: Tripo3D OpenAPI v2 expects
+        # file as a dict with both `type` (lowercase, "png"/"jpg") and
+        # `file_token` (returned from /upload's data.image_token or
+        # data.file_token field). The bare-string + "image_token" top-
+        # level shapes are rejected with 400.
         body = self._base_submit_body("image_to_model")
-        body["file"] = {"file_token": file_token}
+        body["file"] = {"type": "png", "file_token": file_token}
         if prompt:
             body["prompt"] = prompt
         return self._submit(body, api_key)
@@ -144,9 +149,16 @@ class Tripo3DBackend(Backend):
     # ------------------------------------------------------------
 
     def _upload_image(self, path: Path, api_key: str) -> str:
-        """Upload `path` to Tripo3D's STS endpoint, return file_token.
-        Uses stdlib multipart encoding — no `requests` dep."""
-        url = f"{self.API_BASE}/upload/sts"
+        """Upload `path` to Tripo3D's upload endpoint, return file_token.
+        Uses stdlib multipart encoding — no `requests` dep.
+
+        Confirmed via live test 2026-05-17: the endpoint is
+        /v2/openapi/upload (NOT /upload/sts as the spec page name
+        suggests — STS is the internal storage backend, but the
+        public endpoint is /upload). Response shape:
+            {"code": 0, "data": {"image_token": "<uuid>"}}
+        Older docs use "file_token"; we accept either."""
+        url = f"{self.API_BASE}/upload"
         ctype, _ = mimetypes.guess_type(path.name)
         ctype = ctype or "application/octet-stream"
         body, content_type = _encode_multipart(
@@ -172,11 +184,17 @@ class Tripo3DBackend(Backend):
             raise RuntimeError(
                 f"tripo3d upload: HTTP {e.code} {e.reason} — {err[:500]}"
             ) from e
+        # Tripo3D returns the upload token as either `image_token`
+        # (v2.5+) or `file_token` (older). Accept both.
+        ddata = data.get("data", {}) or {}
         file_token = (
-            data.get("data", {}).get("file_token") or data.get("file_token")
+            ddata.get("image_token")
+            or ddata.get("file_token")
+            or data.get("image_token")
+            or data.get("file_token")
         )
         if not file_token:
-            raise RuntimeError(f"tripo3d: upload returned no file_token: {data}")
+            raise RuntimeError(f"tripo3d: upload returned no token: {data}")
         return file_token
 
     # ------------------------------------------------------------
