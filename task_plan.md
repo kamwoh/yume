@@ -2863,3 +2863,198 @@ sections as legacy; here's the current shape." Empirically: user
 flagged this on 2026-05-16 with "are the skills also updated?"
 
 Task #111 tracks the sweep.
+
+## 2026-05-17 — ADR 0046 Phase A + B + framework polish
+
+Major framework completion session. Animation primitive (ADR 0046)
+went from "GDScript interpolator + audit flagged" to "Godot
+AnimationPlayer-backed, supports both code-drawn meshes AND .glb
+skinned meshes." Codegen + asset-gen pipelines landed alongside.
+
+### ADR 0046 Phase A — code-drawn meshes via AnimationPlayer
+
+**Phase A.1** — `animation_translator.gd` bakes the JSON
+`animations` block into a Godot AnimationLibrary at mesh-def load.
+Per-piece tracks compile into TYPE_VALUE tracks targeting
+`<piece>:<position|rotation|scale>` paths. 31 unit assertions cover
+empty input, loop modes, baseline preserve/replace semantics,
+multi-axis grouping, two-clip libraries, uneven-axis padding.
+
+**Phase A.2 cutover** — `animation_director.gd` shed ~200 LoC of
+hand-rolled interpolation (`_interp_keys`, `_apply_track`,
+`_cache_baselines`, `_piece_cache`, `_missing_pieces_warned`).
+Director is now ~80 lines: state-rule evaluation + Godot
+AnimationPlayer dispatch. `entity_mesh_3d` mounts an
+AnimationPlayer child per entity at mesh-build time + registers the
+translated library + attaches to the director.
+
+**Phase A.3 polish** — per-clip `interp: "cubic"` / `"linear"` /
+`"nearest"` controls Godot's interpolation type (default linear).
+Per-state `blend_seconds` cross-fade was already wired in A.2.
+ADR 0035 status flipped from `proposed` to `accepted` with a 2026-
+05-17 follow-up pointer to ADR 0046.
+
+### ADR 0046 Phase B — `.glb` skinned mesh support
+
+**Phase B.1+B.2** — `entity_mesh_3d._load_glb_mesh` detects
+`.glb` / `.gltf` suffix in `visual.mesh`, loads via ResourceLoader,
+walks the imported scene for the embedded AnimationPlayer (Godot's
+GLTF importer creates one). State-rules drive playback via a
+`clip_alias` map: `{"state": "walk", "clip_alias": "Walking"}` →
+director plays `Walking` clip when the rule resolves to `walk`.
+Fallback: state name verbatim when no alias.
+
+**Phase B.3** — `material_overrides` walks every MeshInstance3D
+child; for each surface whose material's `resource_name` matches a
+key in overrides, DUPLICATES the material (per-entity, not shared)
+and applies the override patch. Override values may be either a
+bare color string (legacy shorthand) OR a dict with
+`{albedo_color, albedo_texture, normal_texture, roughness,
+metallic}`. Materials with `resource_name` empty fall back to
+`surface_<i>` numeric keys.
+
+`tools/inspect_glb.py` (pure stdlib, no `pygltflib` dep) parses
+GLB JSON chunks directly. Prints nodes, meshes, surface→material
+mapping, material albedos, animation clips. Authors copy names
+verbatim from this output into `material_overrides` and
+`clip_alias`.
+
+**Phase B.4** — `tools/synth_test_glb.py` synthesizes a
+24-vertex cube `.glb` with 2 materials (`body`/`trim`) + 2 clips
+(`Idle`/`Walking`). Pure stdlib GLB generator — reproducible from
+source. Output: `data/test_assets/cube_anim.glb` (2924 bytes,
+checked in). End-to-end unit test loads the .glb via Godot's
+importer + verifies AnimationPlayer + both clip names present.
+
+ADR 0046 fully shipped. Animation reimplementation in Yume is
+now Godot's C++ pipeline + a thin JSON contract.
+
+### Test infrastructure — step_runner live-frame mirror
+
+Scripted capture-tests (capture-script JSON via `--capture-script=`)
+couldn't observe the screen-toggle close path (I-press to close
+inventory) because synchronous step advances never gave
+`screen_flow._process` a chance to fire its global_inputs handler.
+
+`step_runner.gd::_tick_screen_flow` synchronously fires
+`screen_flow.drain()` + `_handle_global_inputs()` between every
+press/hold/wait verb. Plus `_is_world_frozen` check mirrors
+world.gd's freeze gate so scripted `Input.action_press` while
+inventory is open doesn't fake-fire the open rule. Plus
+`_do_screenshot` awaits 2 frames (not 1) so pending queue_free's
+of just-popped layers actually destroy before capture.
+
+Net: `i_press_toggle.json` capture-script verifies the OPEN path
+cleanly. The CLOSE path is now testable in principle but documented
+as requiring real input event lifecycle — Godot's
+`is_action_just_pressed` flag persists across synchronous code
+between press+release, so the engine sees a spurious "just pressed"
+on the next frame yield. Live play unaffected.
+
+### Codegen pipeline (#101 — yume_codegen)
+
+Python composable builders for Yume rule / entity / screen JSON.
+JSON remains canonical; codegen is an optional emitter that catches
+recurring hand-authoring bug classes at author-time via typed
+keyword arguments.
+
+Bugs the typed API prevents:
+- Brace-wrapped bindings (`"{world.X}"` vs `world.X`)
+- Wrong context-binding names (`self.foo` in a signal rule whose
+  binding is `actor.foo`) — `require(actor=..., target=...)` makes
+  the binding names visible to the author
+- Schema landmines (`state_add` with `delta` vs `amount`)
+- Empty effect lists (raises ValueError on emit)
+
+Modules under `tools/yume_codegen/`: rules.py / effects.py /
+entities.py / screens.py / lib_refs.py / io.py. ~720 LoC total.
+Smoke test (30 assertions across all modules) verifies builder
+output round-trips through JSON cleanly.
+
+Co-exists with hand-authored JSON. Both paths emit the same
+validator-passing output.
+
+### Asset-gen pipeline (#116 — yume_assetgen)
+
+AI-assisted texture + mesh generation pipeline. Reads
+`data/<game>/asset_gen.json` (backend + style config), scans entity
+defs for `*_prompt` fields (`albedo_texture_prompt`, `mesh_prompt`),
+assembles styled prompts (`global_prefix + raw + <kind>_suffix`),
+dispatches to the configured backend, writes output to
+`assets/textures/` and `assets/meshes/`, and patches the entity
+def with the resolved `res://` path so the engine can find it.
+
+Architecture:
+- `tools/yume_assetgen/config.py` — schema for asset_gen.json
+- `tools/yume_assetgen/pipeline.py` — orchestration loop
+- `tools/yume_assetgen/backends/base.py` — abstract Backend class
+- `tools/yume_assetgen/backends/mock.py` — pure-stdlib placeholder
+  backend (hash-deterministic gradient PNGs + cube .glbs). No
+  external API calls; useful for smoke-testing + filling defaults.
+- `tools/yume_assetgen/backends/REGISTRY` — name → class map.
+  Real backends (`openai_images`, `stable_diffusion_local`,
+  `tripo3d`) slot in by subclassing + adding a registry entry.
+- CLI: `python3 -m tools.yume_assetgen <game> [--dry-run|--init|...]`
+
+Idempotent under `skip_existing=true` (default). 19-assertion smoke
+test covers scan, prompt assembly, dry-run, generate-with-mock
+(PNG + GLB validity), entity-def patching, re-run idempotence.
+
+### Engine: visual.albedo_texture + extended material_overrides (#117)
+
+Companion to asset-gen — without this, generated PNGs would sit on
+disk unused.
+
+- `material_overrides` dict-form values: `{albedo_color,
+  albedo_texture, normal_texture, roughness, metallic}`. Legacy
+  string-color form (`{"body": "#a0c0e0"}`) still works.
+- `visual.albedo_texture` on code-drawn meshes: walks every
+  primitive's StandardMaterial3D + sets `albedo_texture`. Authored
+  flat colors stay as multiplicative tint atop the texture.
+
+Asset-gen → engine → renderer chain is now end-to-end.
+
+### Validator updates
+
+- `validate_scene_directors.py`: AUTO_MOUNTED_DIRECTORS allowlist
+  mirrors WorldBoot's `_DEFAULT_DIRECTORS` (ScreenFlow,
+  LightingDirector, ScheduleDirector, ...). Validator no longer
+  false-positives on these being absent from per-game .tscn since
+  WorldBoot mounts them automatically. Aldenmere reports [ok]
+  instead of `[WARN] missing LightingDirector`.
+- `validate_rules.py`: `engine_injected` check now skips
+  override-edge pattern (`{name, edge}` only — inherits key from
+  $include'd universal lib). Sokoban's 4 false positives gone.
+
+### Skills update
+
+- `yume-asset-designer` SKILL.md gains Strategy A2 documenting
+  `.glb` authoring + `material_overrides` + inspect-glb workflow +
+  `clip_alias` convention.
+
+### Tasks shipped this session
+
+| # | Title | Status |
+|---|---|---|
+| 97 | ADR 0046 Phase A — translator + cutover + polish | ✅ |
+| 98 | ADR 0046 Phase B — .glb skinned meshes | ✅ |
+| 100 | tools/validate_rules.py — static contract enforcer | ✅ |
+| 101 | yume_codegen — Python composable builders | ✅ |
+| 113 | ADR 0046 Phase A.3 — polish (cubic interp, docs) | ✅ |
+| 114 | I-press toggle end-to-end capture-script test | ✅ |
+| 115 | Validator sweep + fresh-bug scan | ✅ |
+| 116 | yume_assetgen — pipeline + mock backend | ✅ |
+| 117 | Engine: albedo_texture + extended material_overrides | ✅ |
+
+Test bench: 907/0 unit + 19/19 Aldenmere scenarios +
+19/19 yume_codegen smoke + 19/19 yume_assetgen smoke.
+
+### Backlog after this session
+
+**Pending — framework complete; remaining tasks are content / art**
+- #90 — pick next small game after TDTE (deferred — design discussion)
+- Real asset-gen backends (OpenAI Images / Stable Diffusion / Tripo3D)
+  — slot into `tools/yume_assetgen/backends/`. Each needs API keys
+  + per-backend testing. Mock backend covers the pipeline contract.
+- Lighting / mesh / texture aesthetic improvements — separate axis
+  per user roadmap (asset-gen first, then those).

@@ -67,9 +67,23 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0032](./0032-faction-primitive.md) | Faction primitive (politics, alliances, war) | proposed — Aldenmere Phase 3 unlocks | 2026-05-09 |
 | [0033](./0033-tech-tree-primitive.md) | Technology-tree primitive (knowledge accumulation across NPCs + generations) | proposed — Aldenmere Phase 4 unlocks | 2026-05-09 |
 | [0034](./0034-dynasty-primitive.md) | Dynasty / heir succession (player ages, dies, heir takes over) | proposed — Aldenmere Phase 4 unlocks | 2026-05-09 |
-| [0035](./0035-animation-primitive.md) | Animation primitive (declarative skeletal/piece-level mesh animation) | proposed — Aldenmere Phase 1 BLOCKING | 2026-05-09 |
+| [0035](./0035-animation-primitive.md) | Animation primitive (declarative skeletal/piece-level mesh animation) | accepted — implementation realigned by ADR 0046 (2026-05-17) | 2026-05-09 |
 | [0036](./0036-lifecycle-aging.md) | Lifecycle / aging primitive (every entity born → grows → ages → dies) | proposed — Aldenmere schema in Phase 1, mechanics Phase 2 | 2026-05-09 |
 | [0037](./0037-dynamic-structure-placement.md) | Dynamic structure placement (player/NPC builds shelter; collision-validated) | proposed — Aldenmere Phase 1 BLOCKING | 2026-05-09 |
+| [0038](./0038-grid-based-placement.md) | Grid-based structure placement | accepted | 2026-05-09 |
+| [0039](./0039-step-runner-scenario-tests.md) | StepRunner-based scenario tests | accepted | 2026-05-10 |
+| [0040](./0040-camera-relative-wasd.md) | Camera-relative WASD movement | accepted | 2026-05-10 |
+| [0041](./0041-multimesh-static-decoration.md) | MultiMeshInstance3D for static decoration batching | accepted | 2026-05-11 |
+| [0042](./0042-procedural-generation-primitives.md) | Procedural-generation primitives (umbrella ADR) | proposed — deferred until first dependent game | 2026-05-11 |
+| [0043](./0043-universal-input-via-lib.md) | Universal input lib via @lib refs | accepted | 2026-05-13 |
+| [0044](./0044-physics-via-godot-physicsserver.md) | Physics via Godot PhysicsServer3D (deletes legacy AABB) | accepted | 2026-05-13 |
+| [0045](./0045-motion-via-godot-characterbody.md) | Motion via Godot CharacterBody3D | accepted | 2026-05-14 |
+| [0046](./0046-animation-via-godot-animation-player.md) | Animation via Godot AnimationPlayer (Phase A code-drawn + Phase B .glb) | accepted (shipped) | 2026-05-17 |
+| [0047](./0047-world-state-as-engine-entity.md) | world_state as `_engine` singleton entity's state | accepted | 2026-05-15 |
+| [0048](./0048-velocity-add-relative-auto-reset.md) | velocity_add_relative auto-resets per sim-tick | accepted | 2026-05-16 |
+| [0049](./0049-engine-rules-as-content.md) | engine_rules — express always-on engine behaviors as JSON rules | accepted | 2026-05-16 |
+| [0050](./0050-frame-tick-trigger.md) | frame_tick trigger — content-authored per-frame behaviors | accepted | 2026-05-16 |
+| [0051](./0051-authoring-time-python-emitters.md) | Authoring-time Python emitters (yume_codegen + yume_assetgen) | accepted | 2026-05-17 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 

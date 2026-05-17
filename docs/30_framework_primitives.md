@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-05-06_
+_Last updated: 2026-05-17_
 
 ## Purpose
 
@@ -8,6 +8,24 @@ This is the contract the engine is built against. It defines **seven primitives*
 such that any simulation-shaped game (ecology, farming, shooter, RPG, survival,
 tower-defense, roguelike, puzzle-with-state, chess) can be expressed as JSON
 config over a single GDScript engine. No genre-specific engine code.
+
+> **Authoring note (2026-05-17, ADR 0051):** JSON remains canonical
+> — the engine reads it authoritatively. As of 2026-05-17 there are
+> also two **optional** Python-side emitters:
+>
+> - `tools/yume_codegen/` — typed builders that emit the same rule /
+>   entity / screen JSON dicts you'd hand-write. Catches recurring
+>   bug classes (brace-wrapped bindings, wrong context-binding names)
+>   at author time via `TypeError`/`ValueError`.
+> - `tools/yume_assetgen/` — texture + mesh generation pipeline.
+>   Reads `*_prompt` fields from entity defs, dispatches to a
+>   configured backend (mock today; OpenAI Images / Stable Diffusion
+>   / Tripo3D planned), writes output to
+>   `data/<game>/assets/textures/` + `.../meshes/`, then patches the
+>   entity def with the resolved `res://` path.
+>
+> Both are emitters of canonical JSON / asset files; the engine
+> never sees Python. Hand-authoring keeps working unchanged.
 
 ## Architectural framing (2026-05-06, codified in ADR 0021)
 

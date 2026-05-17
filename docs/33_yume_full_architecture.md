@@ -1838,13 +1838,190 @@ primitive — not bolting features onto the hand-rolled system. ADR
 
 ---
 
-## Stats (2026-05-11)
+## 13. Authoring-time tools (Python emitters, ADR 0051)
 
-- **43 ADRs** authored (0001 — 0043); 30+ implemented, 0041 just landed, 0042 deferred, 0043 just landed
+JSON is canonical (per ADR 0021). Two Python packages under
+`tools/` are **optional** emitters that produce that canonical
+JSON + companion asset files. Authors mix them freely with
+hand-authored JSON; the engine never sees Python.
+
+### 13.1 yume_codegen — typed builders for rule/entity/screen JSON
+
+Hand-authored rule JSON repeatedly hits bug classes:
+
+- Brace-wrapped bindings (`"{world.X}"` vs `world.X`)
+- Wrong context-binding names (`self.foo` in a signal rule whose
+  binding is `actor.foo`)
+- Schema landmines (`state_add` with `delta` vs `amount`)
+- Empty effect lists (engine load-time error)
+
+`tools/yume_codegen/` exposes Python builders for each rule shape.
+The typed keyword arguments catch the obvious cases at author time:
+
+```python
+from tools.yume_codegen import (
+    rule, signal_trigger, require, array_insert_first_empty,
+)
+
+rule(
+    id="gather_pickup",
+    trigger=signal_trigger("gather_request"),
+    require=require(
+        actor={"tags_all": ["player"]},
+        target={"tags_all": ["forageable"]},
+    ),
+    effect=[
+        array_insert_first_empty(
+            target="actor", field="inventory",
+            # The binding name 'actor' is right above; the bug
+            # class of writing 'self.X' is harder to commit by accident.
+            value="target.def_id", sentinel="",
+            result_field="_last_slot",
+        ),
+    ],
+)
+# returns a dict; save_rules() emits JSON
+```
+
+Smoke test: `python3 -m tools.yume_codegen` runs 30 assertions
+across all builders. See `tools/yume_codegen/README.md`.
+
+### 13.2 yume_assetgen — texture + mesh generation pipeline
+
+Reads `data/<game>/asset_gen.json` (backend + style config), walks
+entity defs for `*_prompt` fields under `visual:`, dispatches each
+prompt to a configured **Backend**, and writes output to
+`data/<game>/assets/textures/` (PNGs) and `data/<game>/assets/meshes/`
+(`.glb`s). After write, patches the entity def in place with the
+resolved `res://` path so the engine finds it.
+
+End-to-end flow:
+
+```mermaid
+flowchart TD
+    A[Entity def with<br/>albedo_texture_prompt<br/>+ mesh_prompt] --> B[Pipeline scan]
+    B --> C[Assemble prompt:<br/>global_prefix + raw + suffix]
+    C --> D{Backend}
+    D -->|mock| E[Stdlib gradient PNG<br/>+ cube .glb]
+    D -->|openai_images<br/>future| F[DALL-E API call]
+    D -->|stable_diffusion_local<br/>future| G[HTTP POST<br/>to localhost:7860]
+    D -->|tripo3d<br/>future| H[Text+image to glb<br/>API call]
+    E --> I[assets/textures/X.png<br/>assets/meshes/X.glb]
+    F --> I
+    G --> I
+    H --> I
+    I --> J[Patch entity def:<br/>visual.albedo_texture<br/>visual.mesh]
+    J --> K[Engine reads patched def<br/>entity_mesh_3d.gd]
+    K --> L{Mesh path<br/>ends in .glb?}
+    L -->|yes| M[_load_glb_mesh<br/>ADR 0046 Phase B]
+    L -->|no| N[mesh-lib path<br/>+ apply albedo_texture<br/>to every primitive]
+    M --> O[Rendered entity]
+    N --> O
+
+    classDef green fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
+    classDef yellow fill:#3f3a1e,stroke:#c9b562,color:#f8f0d8
+    class A,J,K,M,N,O green
+    class C,I yellow
+```
+
+Backends slotted into `tools/yume_assetgen/backends/REGISTRY`:
+
+| Name | Textures | Meshes | Status |
+|------|---------|---------|--------|
+| `mock` | ✓ | ✓ | shipped — deterministic placeholders, no API |
+| `openai_images` | ✓ | ✗ | planned |
+| `stable_diffusion_local` | ✓ | ✗ | planned |
+| `tripo3d` | ✗ | ✓ | planned |
+
+Each real backend implements `Backend.generate_texture` and/or
+`generate_mesh` from `backends/base.py` and registers in
+`backends/__init__.py::REGISTRY`. No pipeline change needed.
+
+CLI:
+```bash
+python3 -m tools.yume_assetgen <game>             # generate (mock)
+python3 -m tools.yume_assetgen <game> --dry-run   # list, no writes
+python3 -m tools.yume_assetgen <game> --init      # drop starter config
+python3 -m tools.yume_assetgen <game> --only-textures
+```
+
+Smoke test: `python3 -m tools.yume_assetgen.tests.test_smoke` runs
+19 assertions (scan, prompt assembly, generate-with-mock,
+entity-patching, idempotent re-run).
+
+### 13.3 Engine support — material_overrides + visual.albedo_texture
+
+For asset-gen output to render, `entity_mesh_3d.gd` accepts two
+new authoring fields (task #117, 2026-05-17):
+
+**Code-drawn meshes (mesh-lib path):**
+```jsonc
+"visual": {
+  "mesh": "humanoid",
+  "albedo_texture": "res://data/X/assets/textures/Y.png"
+}
+```
+Walks every primitive's StandardMaterial3D; duplicates + sets
+`albedo_texture`. Per-primitive flat colors stay as tint.
+
+**`.glb` meshes (ADR 0046 Phase B path):**
+```jsonc
+"visual": {
+  "mesh": "res://data/X/assets/meshes/Y.glb",
+  "material_overrides": {
+    "body": {
+      "albedo_color": "#a0c0e0",
+      "albedo_texture": "res://data/X/assets/textures/Y_body.png",
+      "roughness": 0.7
+    }
+  }
+}
+```
+`material_overrides` values may be a bare color string (legacy
+shorthand) OR a dict with any of `{albedo_color, albedo_texture,
+normal_texture, roughness, metallic}`. Matching is by
+`material.resource_name` (set by GLTF importer) or `surface_<i>`
+fallback.
+
+### 13.4 Authority hierarchy
+
+1. **JSON is canonical** — engine reads JSON, not Python.
+2. **Validators are the contract gate** — `tools/validate_*.py`
+   reject malformed JSON regardless of source.
+3. **Emitters produce validator-passing output by construction**
+   — if codegen ever emits something that fails a validator,
+   the codegen is wrong.
+4. **Hand-authoring is fully supported** — Python is opt-in.
+
+This preserves Invariant #1 (data drives everything) + ADR 0021
+(JSON layer over Godot). Python at authoring time is fine; Python
+at runtime is forbidden.
+
+---
+
+## Stats (2026-05-17)
+
+- **51 ADRs** authored (0001 — 0051); 40+ implemented; ADR 0046
+  fully shipped (Phase A code-drawn + Phase B `.glb`), ADR 0051
+  documents the codegen + assetgen pattern, ADR 0042 deferred
+  until first dependent game.
 - **28 specialist skills** (`.claude/skills/yume-*/`)
-- **30+ engine modules** (`godot/scripts/engine/`)
-- **6 validators** (sync-time gates in `tools/`)
-- **7 path-scoped rules** (`.claude/rules/`)
+- **40+ engine modules** (`godot/scripts/engine/`)
+- **12 validators** (sync-time gates in `tools/`)
+- **8 path-scoped rules** (`.claude/rules/`)
 - **12 invariants** (in `30_framework_primitives.md`)
-- **16 demos** (`data/demo_*/`) — most flat ground; Aldenmere is the densest
-- **864 unit tests** passing (`test_runner.gd`)
+- **3 active demos** (`data/demo_*/`) — aldenmere (TDTE shard),
+  doomarena3d, sokoban
+- **2 authoring-time emitters** — `tools/yume_codegen/` +
+  `tools/yume_assetgen/` (ADR 0051)
+- **907 unit tests** passing (`test_runner.gd`)
+- **19 scenario tests** passing (Aldenmere TDTE)
+- **30 codegen smoke assertions** passing
+- **19 asset-gen smoke assertions** passing
+
+> **Note (2026-05-17):** Section 12 ("Why Yume doesn't use Godot
+> physics") was correct as of 2026-05-11 but **is now superseded**
+> by ADR 0044 (Physics via Godot PhysicsServer3D, 2026-05-13) and
+> ADR 0045 (Motion via CharacterBody3D, 2026-05-14). Yume DOES now
+> use Godot physics. Treat section 12's "limitations" list as
+> historical context; the live story is in ADRs 0044 + 0045.

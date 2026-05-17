@@ -159,6 +159,8 @@ gameplay-state physics in `_physics_process`.
 | Scene launcher | `godot/scenes/<name>_<dim>.tscn` (thin stub: World + Camera + data_root) |
 | New ADR | `docs/adr/NNNN-<title>.md` |
 | Skill instructions | `.claude/skills/yume-*/SKILL.md` |
+| Python rule emitter | `tools/yume_codegen/` (optional; emits same JSON shape) |
+| Asset-gen pipeline | `tools/yume_assetgen/` (textures + meshes via Backend) |
 
 Per-game `.tscn` files are intentionally minimal (~12 lines). WorldBoot
 auto-mounts 14 sibling Director Nodes (GameShell, ScreenFlow,
@@ -402,10 +404,44 @@ Common LLM-era pitfalls: `Reference` (gone — use `RefCounted`),
 `connect("foo", self, ...)` (gone — use `signal.connect(callable)`),
 `OS.get_ticks_msec()` (use `Time.*`).
 
+## Authoring-time Python emitters (ADR 0051, 2026-05-17)
+
+JSON remains canonical. Two Python packages under `tools/` offer
+**optional** emitters that produce that JSON + companion asset
+files. Authors mix codegen and hand-authoring freely.
+
+- **`tools/yume_codegen/`** — typed builders for rule / entity /
+  screen / lib_ref JSON. Catches recurring bug classes
+  (brace-wrapped bindings, wrong context-binding names, schema
+  landmines) at author-time via `TypeError`/`ValueError` from
+  keyword arguments. `python3 -m tools.yume_codegen` runs the
+  30-assertion smoke test. See `tools/yume_codegen/README.md`.
+
+- **`tools/yume_assetgen/`** — AI-assisted texture + mesh
+  pipeline. Reads `data/<game>/asset_gen.json` for backend +
+  style config, scans entity defs for `*_prompt` fields under
+  `visual:`, dispatches to a configured backend, writes output to
+  `assets/textures/`/`assets/meshes/`, then patches entity defs
+  with the resolved `res://` paths. Mock backend ships; real
+  ones (`openai_images`, `stable_diffusion_local`, `tripo3d`)
+  slot into `tools/yume_assetgen/backends/`. CLI:
+  `python3 -m tools.yume_assetgen <game> [--dry-run|--init|...]`.
+  See `tools/yume_assetgen/README.md`.
+
+Engine support for asset-gen output is in `entity_mesh_3d.gd`:
+`visual.albedo_texture` (code-drawn meshes) + dict-form
+`material_overrides` entries with `{albedo_color,
+albedo_texture, normal_texture, roughness, metallic}` (.glb
+meshes via ADR 0046 Phase B).
+
 ## Read More
 
 - `docs/30_framework_primitives.md` — the engine contract (invariant-bearing)
 - `docs/31_text_to_game_pipeline.md` — strategic plan + CCGS analysis
 - `docs/32_mda_for_yume.md` — design vocabulary
 - `docs/adr/README.md` — index of architectural decisions
+- `docs/adr/0046-animation-via-godot-animation-player.md` — animation primitive
+- `docs/adr/0051-authoring-time-python-emitters.md` — codegen + assetgen rationale
+- `tools/yume_codegen/README.md` — rule/entity/screen JSON builders
+- `tools/yume_assetgen/README.md` — texture + mesh generation flow
 - `task_plan.md` — durable backlog (mirrors session TaskList)

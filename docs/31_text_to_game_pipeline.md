@@ -229,6 +229,49 @@ track.
 
 ---
 
+## Pipeline expansion: authoring-time emitters (2026-05-17, ADR 0051)
+
+The Tier 2.5 pipeline above describes the **prose → GDD → JSON**
+path via /yume-design's specialist skills. As of 2026-05-17 there
+are also two adjacent authoring channels that emit canonical JSON
++ asset files:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Authoring sources                                        │
+├──────────────────────────────────────────────────────────┤
+│  1. /yume-design pipeline   (prose → skills → JSON)       │
+│  2. Hand-authored JSON       (direct editing)             │
+│  3. tools/yume_codegen/      (Python typed builders)      │
+│  4. tools/yume_assetgen/     (prompt → asset files)       │
+└──────────────────────────────────────────────────────────┘
+            │            │            │            │
+            ▼            ▼            ▼            ▼
+       data/<game>/*.json  +  data/<game>/assets/*.png/.glb
+                      │
+                      ▼
+            tools/validate_*.py  ←  contract gate
+                      │
+                      ▼
+                  Godot engine
+```
+
+The four sources are interchangeable — they emit the same canonical
+JSON shape; the validator can't tell them apart. Mix freely per
+authoring situation.
+
+| Source | Best for |
+|--------|----------|
+| /yume-design | new games from a prose pitch |
+| Hand-author | quick edits, one-off rules, short chains |
+| yume_codegen | generating many similar rules, long effect chains, binding-name discipline |
+| yume_assetgen | replacing flat-color primitives with per-entity textures + skinned meshes |
+
+See ADR 0051 for the rationale + tooling docs (`tools/yume_codegen/README.md`,
+`tools/yume_assetgen/README.md`).
+
+---
+
 ## Reference
 
 - CCGS repo: `/mnt/c/Users/kamwoh/Documents/Projects/Personal/Claude-Code-Game-Studios/`
