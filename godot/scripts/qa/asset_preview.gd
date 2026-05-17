@@ -53,6 +53,12 @@ func _ready() -> void:
 		else:
 			push_warning("asset_preview: %s did not load as PackedScene" % asset_path)
 			return
+		# Apply texture to .glb's surfaces too (per-surface, no
+		# material_override path on imported scenes).
+		if texture_path != "" and ResourceLoader.exists(texture_path):
+			var glb_tex = load(texture_path)
+			if glb_tex is Texture2D:
+				_paint_texture_recursive(_holder, glb_tex)
 	else:
 		# Mesh-lib lookup — compose primitives from data/meshes.json.
 		var lib := MeshLib.load_from_file("res://data/meshes.json")
