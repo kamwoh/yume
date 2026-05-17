@@ -316,7 +316,15 @@ def check_schema_field_landmines(rule, errors):
 
 
 def check_input_actions(input_json, errors):
-    """(6) Actions without a `key` MUST set engine_injected: true."""
+    """(6) Actions without a `key` MUST set engine_injected: true.
+
+    Exception: an action that re-declares ONLY name+edge (no key, no
+    other authoring fields) is treated as an edge-override of a
+    $include'd universal action — the key is inherited from the lib.
+    Empirical case 2026-05-17: sokoban's `{name: move_north,
+    edge: press}` rows that override @lib.input.universal's default
+    `edge: hold`. The lib carries the W/Up keys through.
+    """
     actions = input_json.get("actions", [])
     if not isinstance(actions, list):
         return
@@ -327,13 +335,19 @@ def check_input_actions(input_json, errors):
         if "$include" in action:
             continue
         name = action.get("name", f"action[{i}]")
-        if "key" not in action and not action.get("engine_injected"):
-            errors.append((
-                f"input.{name}", "key",
-                "action has no `key` and no `engine_injected: true` marker. "
-                "Keyless actions (engine-queued stop_x / stop_y / etc.) need "
-                "this marker or InputRegistrar warns + skips at load.",
-            ))
+        if "key" in action or action.get("engine_injected"):
+            continue
+        # Override-edge pattern: only name + edge (no other auth fields).
+        # The lib's key inheritance covers this case.
+        keys = set(action.keys()) - {"_comment"}
+        if keys.issubset({"name", "edge"}):
+            continue
+        errors.append((
+            f"input.{name}", "key",
+            "action has no `key` and no `engine_injected: true` marker. "
+            "Keyless actions (engine-queued stop_x / stop_y / etc.) need "
+            "this marker or InputRegistrar warns + skips at load.",
+        ))
 
 
 # ============================================================
