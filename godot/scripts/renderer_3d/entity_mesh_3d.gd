@@ -98,10 +98,10 @@ func _ready() -> void:
 				add_child(ap)
 				var anims_block: Dictionary = mesh_def["animations"]
 				var baselines := AnimationTranslator.collect_baselines(self, anims_block)
-				var lib := AnimationTranslator.build_library(anims_block, baselines)
-				if lib != null:
+				var anim_lib := AnimationTranslator.build_library(anims_block, baselines)
+				if anim_lib != null:
 					# Empty library name = default; clip names look up directly.
-					ap.add_animation_library("", lib)
+					ap.add_animation_library("", anim_lib)
 				_animation_director.attach_player(ap)
 			_mode = "mesh"
 			_apply_shadow_only_if_set(visual)
