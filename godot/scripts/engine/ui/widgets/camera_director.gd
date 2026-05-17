@@ -477,9 +477,24 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 	return actor
 
 
-## 2026-05-10: FP crosshair target. Each frame, find the nearest entity
-## within `max_distance` (default 5m) that's in front of the camera. Write
-## its display_name to `world_state.crosshair_target` for HUD bind.
+## 2026-05-10: FP crosshair target. Each frame, find the entity the
+## player is most pointing at within `max_distance`. Writes its
+## display_name to `world_state.crosshair_target` for HUD bind and its
+## id to `world_state.crosshair_target_id` for gather/hunt/talk rules.
+##
+## Scoring: cylinder-around-ray (#106, 2026-05-16). For each candidate
+## entity, project its position onto the camera-forward axis:
+##   longitudinal = (ent_pos + y_offset - cam_pos) · forward
+##   lateral      = perpendicular distance from the camera-forward ray
+##
+## Reject if longitudinal is behind, too far, or lateral exceeds
+## `tan(cone_rad) * longitudinal` (a proper cone that EXPANDS with
+## distance — far entities have looser tolerance than close ones, which
+## matches "I'm aimed at it" intuition far better than the old
+## dot-product cone). Score is `(1 - lateral_ratio) / longitudinal` so
+## an on-axis entity at 5m beats a slightly-off-axis entity at 2m —
+## previously the closer-but-off-axis entity won, which is the "weird
+## feeling" #106 was filed for.
 func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	if _world == null or _camera3d == null:
 		return
@@ -489,7 +504,8 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	var env: Dictionary = sched.env
 	var entities: Dictionary = env.get("entities", {})
 	var max_distance := float(cam_cfg.get("crosshair_max_distance", 10.0))
-	var cone_cos := cos(float(cam_cfg.get("crosshair_cone_rad", 0.52)))
+	var cone_rad := float(cam_cfg.get("crosshair_cone_rad", 0.26))
+	var tan_cone := tan(cone_rad)
 	var show_decorative := bool(cam_cfg.get("crosshair_show_decorative", false))
 	var cam_pos: Vector3 = _camera3d.global_position
 	var fwd: Vector3 = -_camera3d.global_transform.basis.z
@@ -516,14 +532,21 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 			continue
 		var y_bias: float = float((ent as Entity).get_property("crosshair_y_offset", 1.0))
 		var to_ent: Vector3 = ep + Vector3(0, y_bias, 0) - cam_pos
-		var dist := to_ent.length()
-		if dist > max_distance or dist < 0.01:
+		var longitudinal: float = to_ent.dot(fwd)
+		if longitudinal < 0.01 or longitudinal > max_distance:
 			continue
-		var to_ent_n: Vector3 = to_ent / dist
-		var dot: float = fwd.dot(to_ent_n)
-		if dot < cone_cos:
+		var closest: Vector3 = cam_pos + fwd * longitudinal
+		var lateral: float = (ep + Vector3(0, y_bias, 0) - closest).length()
+		# Allow a minimum lateral tolerance so very-close entities aren't
+		# impossible to target (tan(cone) * 0.5m = 13cm at 15° — tight).
+		var lat_threshold: float = max(0.3, tan_cone * longitudinal)
+		if lateral > lat_threshold:
 			continue
-		var score: float = dot / max(dist, 0.5)
+		# Score: prefer entities CLOSER TO THE RAY (lateral 0 = best)
+		# heavily, with mild distance preference. Squaring the on-axis
+		# bonus makes off-axis entities lose decisively to on-axis ones.
+		var on_axis_bonus: float = 1.0 - lateral / lat_threshold
+		var score: float = (on_axis_bonus * on_axis_bonus) / max(longitudinal, 0.5)
 		if score > best_score:
 			best_score = score
 			best = ent

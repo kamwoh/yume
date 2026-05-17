@@ -436,6 +436,141 @@ static func emit_shell_event(e: Dictionary, env: Dictionary, ctx: Dictionary) ->
 	buf.append(record)
 
 
+# ============================================================
+# ARRAY PRIMITIVES (2026-05-16 — multi-slot inventory foundation)
+# ============================================================
+# Generic effects for Array-valued state fields. Inventory composes
+# these (state.inventory = ["", "", "", ""]; array_insert_first_empty
+# = "pick up into next free slot"; array_set_at = "use / drop / set
+# directly"). Not inventory-specific — usable for any Array-valued
+# field (action history, message buffer, sequenced state, etc.).
+
+
+## Set state[field][index] = value. Bounds-extends the array with
+## `null` if the index is past the end. Returns silently if entity /
+## field missing.
+static func array_set_at(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var ent: Entity = EffectResolution.target(e, env, ctx)
+	if ent == null:
+		return
+	var field := str(e.get("field", ""))
+	if field == "":
+		return
+	var index := int(EffectResolution.value(e.get("index", 0), ctx, env))
+	# Negative index = sentinel for "no slot" (e.g. array_insert_first_empty
+	# failed to find a free slot). Treat as a no-op rather than wrapping
+	# Python-style to the array's tail.
+	if index < 0:
+		return
+	var value = EffectResolution.value(e.get("value", null), ctx, env)
+	var arr_v = ent.get_state(field, [])
+	if not (arr_v is Array):
+		arr_v = []
+	var arr: Array = (arr_v as Array).duplicate()
+	while arr.size() <= index:
+		arr.append(null)
+	arr[index] = value
+	ent.set_state(field, arr)
+
+
+## Insert value at the first slot of state[field] matching `sentinel`
+## (default ""). On success, writes the chosen slot index to
+## state[result_field] (if `result_field` is set, default "_last_slot") so
+## subsequent effects in the chain can reference it (e.g. array_set_at
+## on a parallel array using the same index). On failure (no empty slot),
+## writes -1 to result_field and optionally emits `on_full.signal`.
+## Used for "pick up into first free inventory slot."
+static func array_insert_first_empty(
+	e: Dictionary, env: Dictionary, ctx: Dictionary
+) -> void:
+	var ent: Entity = EffectResolution.target(e, env, ctx)
+	if ent == null:
+		return
+	var field := str(e.get("field", ""))
+	if field == "":
+		return
+	var sentinel = EffectResolution.value(e.get("sentinel", ""), ctx, env)
+	var value = EffectResolution.value(e.get("value", null), ctx, env)
+	if value == null:
+		return
+	var result_field := str(e.get("result_field", "_last_slot"))
+	var arr_v = ent.get_state(field, [])
+	if not (arr_v is Array):
+		arr_v = []
+	var arr: Array = (arr_v as Array).duplicate()
+	for i in arr.size():
+		if arr[i] == sentinel:
+			arr[i] = value
+			ent.set_state(field, arr)
+			ent.set_state(result_field, i)
+			return
+	# All slots full.
+	ent.set_state(result_field, -1)
+	var on_full = e.get("on_full", null)
+	if on_full != null and on_full is Dictionary:
+		var sig_name = str((on_full as Dictionary).get("signal", ""))
+		if sig_name != "":
+			var buf = env.get("signal_buffer", null)
+			if buf != null:
+				var payload: Dictionary = (
+					((on_full as Dictionary).get("payload", {}) as Dictionary).duplicate()
+				)
+				buf.append({"name": sig_name, "payload": payload})
+
+
+## Count elements of state[array_field] equal to sentinel; write count to
+## state[dest_field]. Used to derive "empty-slot count" for inventory gating
+## without needing array-aware query operators.
+static func array_count_matching(
+	e: Dictionary, env: Dictionary, ctx: Dictionary
+) -> void:
+	var ent: Entity = EffectResolution.target(e, env, ctx)
+	if ent == null:
+		return
+	var array_field := str(e.get("array_field", ""))
+	var dest_field := str(e.get("dest_field", ""))
+	if array_field == "" or dest_field == "":
+		return
+	var sentinel = EffectResolution.value(e.get("sentinel", ""), ctx, env)
+	var arr_v = ent.get_state(array_field, [])
+	var count := 0
+	if arr_v is Array:
+		for item in arr_v as Array:
+			if item == sentinel:
+				count += 1
+	ent.set_state(dest_field, count)
+
+
+## Read state[array_field][state[index_field]] and write it to state[dest_field].
+## Used to derive a "view" scalar field from one slot of a parallel-array
+## inventory (e.g. held_item ← inventory[active_slot]). The formula evaluator
+## can't yet do dynamic array subscripts in a path, so this effect exposes
+## the pattern without bloating formula.gd. Returns the `default` value if
+## the index is out of bounds or the array field is missing.
+static func array_sync_to_field(
+	e: Dictionary, env: Dictionary, ctx: Dictionary
+) -> void:
+	var ent: Entity = EffectResolution.target(e, env, ctx)
+	if ent == null:
+		return
+	var array_field := str(e.get("array_field", ""))
+	var index_field := str(e.get("index_field", ""))
+	var dest_field := str(e.get("dest_field", ""))
+	if array_field == "" or index_field == "" or dest_field == "":
+		return
+	var default_val = e.get("default", "")
+	var arr_v = ent.get_state(array_field, [])
+	var idx := int(ent.get_state(index_field, 0))
+	var out_val = default_val
+	if arr_v is Array:
+		var arr: Array = arr_v
+		if idx >= 0 and idx < arr.size():
+			out_val = arr[idx]
+			if out_val == null:
+				out_val = default_val
+	ent.set_state(dest_field, out_val)
+
+
 static func emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var name := str(e.get("signal", ""))
 	if name == "":

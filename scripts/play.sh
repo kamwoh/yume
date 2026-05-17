@@ -142,6 +142,13 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   # Empirical case: yume-code-reviewer's first session review flagged
   # sokoban (10Hz) + doomarena3d (20Hz) overriding silently.
   python3 "${YUME_ROOT}/tools/validate_tick_override.py" || true
+  # Rule-contract enforcer (added 2026-05-16, task #100). Catches the
+  # recurring bug class where a formula references a binding the rule
+  # doesn't bind ("self can't be used because instance is null" at
+  # runtime). Also: empty-effect rules, 2-binding non-contact queries,
+  # state_add/spawn schema field-name landmines, engine_injected marker
+  # for keyless input actions. Non-blocking; --strict for CI/agents.
+  python3 "${YUME_ROOT}/tools/validate_rules.py" "${DATA_FOLDER}" || true
 fi
 
 # Build cmdline args for Godot's user-args section (after `--`)

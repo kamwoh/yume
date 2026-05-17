@@ -421,6 +421,7 @@ func _advance_fade_phase() -> void:
 
 
 ## Resolve a binding path like "player.score" → numeric value.
+## Also supports array indexing: "player.inventory[0]" → first slot.
 ## Lookup: first entity tagged with the root segment, get_state(field).
 ## Special root "world" → reads env.world dict.
 func _resolve_binding(path: String):
@@ -428,18 +429,61 @@ func _resolve_binding(path: String):
 	if parts.size() < 2:
 		return null
 	var root := str(parts[0])
-	var field := str(parts[1])
+	var field_raw := str(parts[1])
 
+	# Parse optional [N] suffix on the field name.
+	var field := field_raw
+	var array_index: int = -1
+	var lb: int = field_raw.find("[")
+	if lb >= 0 and field_raw.ends_with("]"):
+		field = field_raw.substr(0, lb)
+		var idx_str := field_raw.substr(lb + 1, field_raw.length() - lb - 2)
+		if idx_str.is_valid_int():
+			array_index = int(idx_str)
+
+	var value
 	if root == "world":
 		var w: Dictionary = _world.get("world_state") as Dictionary
-		return w.get(field, null) if w != null else null
+		value = w.get(field, null) if w != null else null
+	elif root == "def":
+		# "def.<def_id>.<sub>.<...>" — look up entity def by id and walk the
+		# remaining path. Used by UI Tier B (#103, 2026-05-16) so item_icon
+		# slot cells can resolve a held def_id to its inventory_icon_color
+		# (or any other def-side property) without per-game wiring. Path
+		# example: "def.food_berry_bush.properties.inventory_icon_color".
+		var defs: Dictionary = _world.get("defs") if _world != null else {}
+		if defs == null or not (defs is Dictionary):
+			return null
+		var def_id := field
+		var def_v = defs.get(def_id, null)
+		if not (def_v is Dictionary):
+			return null
+		var cur = def_v
+		for i in range(2, parts.size()):
+			var seg := str(parts[i])
+			if cur is Dictionary and (cur as Dictionary).has(seg):
+				cur = (cur as Dictionary)[seg]
+			else:
+				return null
+		return cur
+	else:
+		var ent := _find_entity_by_tag(root)
+		if ent == null:
+			return null
+		if ent.has_method("get_state"):
+			value = ent.get_state(field, null)
+		else:
+			return null
 
-	var ent := _find_entity_by_tag(root)
-	if ent == null:
-		return null
-	if ent.has_method("get_state"):
-		return ent.get_state(field, null)
-	return null
+	# If indexing requested + value is array, return element (or "" if OOB).
+	if array_index >= 0:
+		if value is Array:
+			var arr: Array = value
+			if array_index < arr.size():
+				return arr[array_index]
+			return ""
+		return ""
+	return value
 
 
 # ============================================================

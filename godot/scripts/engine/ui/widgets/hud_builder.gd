@@ -103,84 +103,33 @@ func build(hud_cfg: Dictionary) -> void:
 func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 	var vbox := VBoxContainer.new()
 	var anchor := str(panel_cfg.get("anchor", "top-left"))
-	match anchor:
-		"top-left":
-			# y=50 (was 20) to leave room for top-center objective banner
-			# above it. Banner occupies y=[12,44]; this starts at y=50.
-			vbox.position = Vector2(20, 50)
-			vbox.size = Vector2(360, 240)
-		"top-right":
-			# Author-overridable width: default 200 px (just enough for a
-			# 180-px minimap with 10px padding). Vbox is right-aligned so
-			# children sit flush against the screen's right edge.
-			var w_tr: float = float(panel_cfg.get("width", 200))
-			vbox.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-			vbox.offset_left = -(w_tr + 10)
-			vbox.offset_top = 12
-			vbox.offset_right = -10
-			vbox.offset_bottom = 12 + float(panel_cfg.get("height", 320))
-			vbox.alignment = BoxContainer.ALIGNMENT_END
-		"bottom-left":
-			vbox.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-			vbox.offset_left = 20
-			vbox.offset_top = -240
-			vbox.offset_right = 380
-			vbox.offset_bottom = -20
+	# Unified anchor + size positioning via ControlFactory (#104 v3,
+	# 2026-05-16). HUD panels now use the SAME pattern as modal screens:
+	# author specifies `anchor` + `width` + `height` + `x_offset` +
+	# `y_offset`, the helper computes the four Control offsets so the
+	# vbox spans the right rect for that anchor. No more hardcoded per-
+	# anchor pixel math here. Defaults preserve the prior layout for
+	# back-compat.
+	var defaults := _panel_defaults(anchor)
+	# Author may specify pixels (number) OR percent-of-viewport ("25%").
+	# ControlFactory.resolve_pct converts; viewport queried lazily via
+	# _viewport_size (falls back to project's design 960×540 if none yet).
+	var vp := ControlFactory._viewport_size(root)
+	var w: float = ControlFactory.resolve_pct(panel_cfg.get("width", defaults.get("width", 200)), vp.x)
+	var h: float = ControlFactory.resolve_pct(panel_cfg.get("height", defaults.get("height", 240)), vp.y)
+	var ox: float = ControlFactory.resolve_pct(panel_cfg.get("x_offset", defaults.get("x_offset", 0)), vp.x)
+	var oy: float = ControlFactory.resolve_pct(panel_cfg.get("y_offset", defaults.get("y_offset", 12)), vp.y)
+	ControlFactory.apply_anchor_sized_rect(vbox, anchor, w, h, ox, oy)
+	# Per-anchor inner alignment default; author override via "align".
+	var default_align: String = defaults.get("align", "begin")
+	var align := str(panel_cfg.get("align", default_align))
+	match align:
+		"begin":
+			vbox.alignment = BoxContainer.ALIGNMENT_BEGIN
 		"center":
-			# Centered overlay — crosshairs, reticles, etc.
-			var w: float = float(panel_cfg.get("width", 64))
-			var h: float = float(panel_cfg.get("height", 64))
-			vbox.set_anchors_preset(Control.PRESET_CENTER)
-			vbox.offset_left = -w * 0.5
-			vbox.offset_top = -h * 0.5
-			vbox.offset_right = w * 0.5
-			vbox.offset_bottom = h * 0.5
 			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		"top-center":
-			# PRESET_CENTER_TOP anchors the vbox to the top-middle of the
-			# viewport (anchor x=0.5, y=0). Empirical case 2026-05-10:
-			# using PRESET_TOP_WIDE stretched the vbox full-viewport-width
-			# regardless of offsets, leaving Labels default-left-aligned
-			# at x=-w*0.5 (off-screen left). Use PRESET_CENTER_TOP instead.
-			var w_tc: float = float(panel_cfg.get("width", 760))
-			var y_top: float = float(panel_cfg.get("y_offset", 12))
-			var h_tc: float = float(panel_cfg.get("height", 32))
-			vbox.set_anchors_preset(Control.PRESET_CENTER_TOP)
-			vbox.offset_left = -w_tc * 0.5
-			vbox.offset_top = y_top
-			vbox.offset_right = w_tc * 0.5
-			vbox.offset_bottom = y_top + h_tc
-			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		"bottom-center":
-			# Centered along bottom edge. Used for controls hint strip.
-			var w_bc: float = float(panel_cfg.get("width", 920))
-			vbox.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-			vbox.offset_left = -w_bc * 0.5
-			vbox.offset_top = -40
-			vbox.offset_right = w_bc * 0.5
-			vbox.offset_bottom = -10
-			vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-		"bottom-right":
-			# Mirror of bottom-left.
-			vbox.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-			vbox.offset_left = -380
-			vbox.offset_top = -240
-			vbox.offset_right = -20
-			vbox.offset_bottom = -20
-		"center-left":
-			# Vertically centered, anchored to left edge. Used for vitals
-			# stacks that should track the screen's vertical middle.
-			vbox.set_anchors_preset(Control.PRESET_LEFT_WIDE)
-			vbox.offset_left = 20
-			vbox.offset_top = -120
-			vbox.offset_right = 220
-			vbox.offset_bottom = 120
-		"center-right":
-			vbox.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
-			vbox.offset_left = -220
-			vbox.offset_top = -120
-			vbox.offset_right = -20
-			vbox.offset_bottom = 120
+		"end":
+			vbox.alignment = BoxContainer.ALIGNMENT_END
 	root.add_child(vbox)
 
 	# Centered anchors expect their child labels to render horizontally
@@ -189,6 +138,54 @@ func _build_panel(root: Control, panel_cfg: Dictionary) -> void:
 	var center_children := anchor in ["center", "top-center", "bottom-center"]
 	for elem_cfg in panel_cfg.get("elements", []):
 		_build_element(vbox, elem_cfg as Dictionary, center_children)
+
+
+## Resolve size_flags_horizontal for a progress_bar element. Default
+## SHRINK_BEGIN keeps the bar at its authored width inside a vbox; author
+## can set `size_flags_h: "expand_fill"` if they want a full-width bar.
+func _size_flag_for_progress_bar(cfg: Dictionary) -> int:
+	var s := str(cfg.get("size_flags_h", "shrink_begin"))
+	match s:
+		"shrink_begin":
+			return Control.SIZE_SHRINK_BEGIN
+		"shrink_center":
+			return Control.SIZE_SHRINK_CENTER
+		"shrink_end":
+			return Control.SIZE_SHRINK_END
+		"expand":
+			return Control.SIZE_EXPAND
+		"expand_fill":
+			return Control.SIZE_EXPAND_FILL
+		"fill":
+			return Control.SIZE_FILL
+	return Control.SIZE_SHRINK_BEGIN
+
+
+## Per-anchor default size + offset + inner alignment. Match the
+## historical hud_builder layout for back-compat. Author overrides any
+## via `width`/`height`/`x_offset`/`y_offset`/`align` in panel cfg.
+func _panel_defaults(anchor: String) -> Dictionary:
+	match anchor:
+		"top-left":
+			return {"width": 360, "height": 240, "x_offset": 20, "y_offset": 50, "align": "begin"}
+		"top-right":
+			return {"width": 200, "height": 320, "x_offset": -10, "y_offset": 12, "align": "end"}
+		"top-center":
+			return {"width": 760, "height": 32, "x_offset": 0, "y_offset": 12, "align": "center"}
+		"center":
+			return {"width": 64, "height": 64, "x_offset": 0, "y_offset": 0, "align": "center"}
+		"center-left":
+			return {"width": 200, "height": 240, "x_offset": 20, "y_offset": 0, "align": "begin"}
+		"center-right":
+			return {"width": 200, "height": 240, "x_offset": -20, "y_offset": 0, "align": "begin"}
+		"bottom-left":
+			return {"width": 360, "height": 220, "x_offset": 20, "y_offset": -20, "align": "begin"}
+		"bottom-center":
+			return {"width": 920, "height": 30, "x_offset": 0, "y_offset": -10, "align": "center"}
+		"bottom-right":
+			return {"width": 360, "height": 220, "x_offset": -20, "y_offset": -20, "align": "begin"}
+		_:
+			return {"width": 200, "height": 240, "x_offset": 0, "y_offset": 0, "align": "begin"}
 
 
 func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) -> void:
@@ -222,6 +219,13 @@ func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) 
 			pb.custom_minimum_size = Vector2(pb_w, pb_h)
 			pb.max_value = float(cfg.get("max", 100))
 			pb.show_percentage = false
+			# Default to SHRINK_BEGIN so the bar respects its authored width
+			# instead of expanding to fill the parent vbox (#104 v4 fix,
+			# 2026-05-16). Without this, vital bars in a 360-wide bottom-left
+			# panel stretched to 360 px wide each, overlapping visually with
+			# the inventory cells on the right side of the screen. Author can
+			# override via `size_flags_h`.
+			pb.size_flags_horizontal = _size_flag_for_progress_bar(cfg)
 			parent.add_child(pb)
 			_bound_elements.append({"node": pb, "cfg": cfg})
 		"spacer":
@@ -243,6 +247,12 @@ func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) 
 			mm.bind_world(_shell.get("_world"))
 			parent.add_child(mm)
 			_bound_elements.append({"node": mm, "cfg": cfg})
+		"slot_grid":
+			# Tier-A inventory primitive (#99). Same builder + updater as
+			# ControlFactory uses for modal screens — one source of truth.
+			var sg := ControlFactory._build_slot_grid(cfg)
+			parent.add_child(sg)
+			_bound_elements.append({"node": sg, "cfg": cfg})
 
 
 func _apply_label_style(lbl: Label, font_size: int, color: Color) -> void:
@@ -267,6 +277,13 @@ func update_bound_elements() -> void:
 		# no string binding needed.
 		if node is MinimapWidget:
 			(node as MinimapWidget).tick()
+			continue
+		# slot_grid: dispatch shared updater that resolves binds (array)
+		# + active_binds (int) and rewrites per-cell content + active style.
+		if node.has_meta("slot_grid_cfg"):
+			ControlFactory.update_slot_grid(
+				node, Callable(_shell, "_resolve_binding")
+			)
 			continue
 		var binding := str(cfg.get("binds", ""))
 		if binding == "":

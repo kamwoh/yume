@@ -107,8 +107,8 @@ func do_transition(target: String) -> void:
 	if _world.scheduler != null and _world.scheduler.has_method("clear_rules"):
 		_world.scheduler.clear_rules()
 	var root := _world.data_root.rstrip("/")
-	_world._loader.load_rules_file(root + "/world/rules.json")
-	_world._loader.load_rules_file(root + "/game/goals.json", true)
+	_world._loader.load_rules_files_for(root + "/world/rules.json")
+	_world._loader.load_rules_files_for(root + "/game/goals.json", true)
 	# ADR 0012: tutorial.json is global (not per-level), re-register here
 	# so sequencing rules survive level transitions.
 	_world._loader.load_rules_file(root + "/tutorial.json", true)
@@ -144,7 +144,7 @@ func load_level(name: String) -> void:
 	if _world.levels_root == "" or name == "":
 		return
 	var lvl_dir := _world.levels_root + "/" + name
-	_world._loader.load_rules_file(lvl_dir + "/rules.json", true)
+	_world._loader.load_rules_files_for(lvl_dir + "/rules.json", true)
 	_world._loader.load_entities_path(lvl_dir)
 	# ADR 0024: build the navigation mesh from walkable_floor +
 	# pathfinding_obstacle entities. No-op when the level doesn't tag

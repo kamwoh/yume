@@ -205,6 +205,39 @@ func load_rules_file(path: String, append: bool = false) -> void:
 		print("[World] %d rules %s" % [rules.size(), "appended" if append else "registered"])
 
 
+## Load rules from EITHER `<path>` (single file, legacy) OR `<path_no_ext>/`
+## directory of feature modules (each `<dir>/*.json` is a separate rules
+## file, concatenated in alphabetical order for determinism). Directory
+## form wins if present. Used at every existing load_rules_file call site
+## so a game can opt-in to chain-per-file authoring (#109, 2026-05-16)
+## without breaking single-file games.
+##
+## Example: `load_rules_files_for("world/rules.json", false)` tries
+## `world/rules/` first (globs *.json), falls back to `world/rules.json`.
+func load_rules_files_for(path: String, append: bool = false) -> void:
+	var dir_path := path.trim_suffix(".json")
+	if DirAccess.dir_exists_absolute(dir_path):
+		var d := DirAccess.open(dir_path)
+		if d == null:
+			return
+		var files: Array[String] = []
+		d.list_dir_begin()
+		var name := d.get_next()
+		while name != "":
+			if not d.current_is_dir() and name.ends_with(".json"):
+				files.append(name)
+			name = d.get_next()
+		d.list_dir_end()
+		files.sort()  # determinism — load order is filename alpha
+		var first := true
+		for fname in files:
+			load_rules_file(dir_path + "/" + fname, append if first else true)
+			first = false
+		return
+	# Fall back to single-file form (legacy + small games).
+	load_rules_file(path, append)
+
+
 # ============================================================
 # WORLD STATE LOADER
 # ============================================================

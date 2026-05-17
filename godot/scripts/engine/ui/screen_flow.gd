@@ -67,6 +67,11 @@ func _ready() -> void:
 	# Engine.has_meta("yume_at_resolver"). Safe across multiple World
 	# instances because the resolver closes over _world via this method.
 	Engine.set_meta("yume_at_resolver", Callable(self, "_resolve_at_ref"))
+	# Stash the World ref for any modal element that needs to bind to live
+	# world state (e.g. minimap inside the map screen — #104, 2026-05-16).
+	# ControlFactory looks this up to wire MinimapWidget.bind_world; per-
+	# frame tick happens via _update_bound_elements.
+	Engine.set_meta("yume_world", _world)
 	# Ensure env has screen_event_buffer
 	var sched = _world.get("scheduler")
 	if sched != null and sched.get("env") != null:
@@ -386,6 +391,18 @@ func _update_bound_elements() -> void:
 		if cfg.has("enabled_if") and node is Button:
 			var v2 = _eval_formula(str(cfg["enabled_if"]), ctx)
 			(node as Button).disabled = not (bool(v2) if v2 != null else true)
+		# slot_grid: dispatch its per-cell update + active highlight via the
+		# shared static helper. Detect by meta set in _build_slot_grid.
+		if node.has_meta("slot_grid_cfg") and shell != null:
+			ControlFactory.update_slot_grid(
+				node, Callable(shell, "_resolve_binding")
+			)
+			continue
+		# Minimap inside a modal (#104, 2026-05-16). Mirror HudBuilder's
+		# tick — the widget self-redraws each frame from live world state.
+		if node is MinimapWidget:
+			(node as MinimapWidget).tick()
+			continue
 		# Label binding (mirrors HudBuilder._apply_binding_to_node)
 		if cfg.has("binds") and node is Label and shell != null:
 			var binding := str(cfg["binds"])

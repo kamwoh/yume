@@ -153,7 +153,17 @@ static func formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 		if ctx.has(role_ent):
 			var key: String = role_ent.replace("_entity", "")
 			out[key] = ctx[role_ent]
-	# Pass through any other scalar context bindings (e.g. payload values)
+	# Pass through any other context bindings. For signal-payload entity
+	# refs like `actor` (not in the entity_roles allowlist), look up the
+	# entity from its id string so formulas can drill into `.state.X`. For
+	# everything else, pass the scalar through verbatim.
+	#
+	# Empirical case 2026-05-16: gather_pickup signal rule with require:
+	# {actor, target} crashed on formula `actor.state._last_slot` because
+	# `actor` wasn't in entity_roles → string `"player_marken"` reached the
+	# formula evaluator, which couldn't drill into state on a String. The
+	# fix removes the allowlist as a correctness gate: any string ctx
+	# value that names a real entity is auto-promoted to its Entity.
 	for k in ctx.keys():
 		var ks: String = str(k)
 		if out.has(ks):
@@ -161,8 +171,9 @@ static func formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 		if ks.begins_with("_"):
 			continue
 		var v = ctx[k]
-		# Don't shadow object bindings with their id strings
-		if not (v is String) or not entities.has(str(v)):
+		if v is String and entities.has(str(v)):
+			out[ks] = entities[str(v)]
+		else:
 			out[ks] = v
 	return out
 

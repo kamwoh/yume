@@ -229,16 +229,19 @@ func _load_content() -> void:
 	var prog_path := _root + "/game/flow.json"
 	if FileAccess.file_exists(prog_path):
 		ldr.load_progression(prog_path)
-		ldr.load_rules_file(_root + "/world/rules.json")
-		ldr.load_rules_file(_root + "/game/goals.json", true)
+		# load_rules_files_for: directory form wins over single-file form
+		# (#109). Games can split world/rules.json into world/rules/*.json
+		# feature modules; engine concatenates them deterministically.
+		ldr.load_rules_files_for(_root + "/world/rules.json")
+		ldr.load_rules_files_for(_root + "/game/goals.json", true)
 		ldr.load_rules_file(_root + "/tutorial.json", true)
 		ldr.load_world_file(_root + "/world/state.json")
 		ldr.load_entities_path(_root)
 		if _world.current_level != "":
 			_world._level_transitions.load_level(_world.current_level)
 	else:
-		ldr.load_rules_file(_root + "/world/rules.json")
-		ldr.load_rules_file(_root + "/game/goals.json", true)
+		ldr.load_rules_files_for(_root + "/world/rules.json")
+		ldr.load_rules_files_for(_root + "/game/goals.json", true)
 		ldr.load_rules_file(_root + "/tutorial.json", true)
 		ldr.load_world_file(_root + "/world/state.json")
 		ldr.load_entities_path(_root)

@@ -45,6 +45,13 @@ var _ordered_tags: Array = []  # iteration order for first-match
 var _player_tag: String = "player"
 var _dot_radius: float = 2.0
 var _player_radius: float = 4.0
+# View-cone overlay (#105, 2026-05-16). Draws a translucent wedge from
+# the player dot indicating camera facing — shows the player WHERE they
+# are looking on the minimap. Author-configurable per minimap instance.
+var _view_cone_enabled: bool = false
+var _view_cone_radius: float = 30.0  # pixels in minimap space
+var _view_cone_half_angle: float = 0.524  # radians; ~30° → 60° total cone
+var _view_cone_color: Color = Color(1.0, 0.82, 0.25, 0.25)
 
 
 ## Configure from a JSON spec dict.
@@ -68,6 +75,15 @@ func configure(cfg: Dictionary) -> void:
 	_player_tag = str(cfg.get("player_tag", "player"))
 	_dot_radius = float(cfg.get("dot_radius", 2.0))
 	_player_radius = float(cfg.get("player_radius", 4.0))
+	# View-cone overlay config (#105). Defaults off. Set show_view_cone=true
+	# to enable. half_angle in radians; color/alpha control the wedge fill.
+	_view_cone_enabled = bool(cfg.get("show_view_cone", false))
+	_view_cone_radius = float(cfg.get("view_cone_radius", 30.0))
+	_view_cone_half_angle = float(cfg.get("view_cone_half_angle", 0.524))
+	if cfg.has("view_cone_color") or cfg.has("view_cone_alpha"):
+		var base := _color(cfg.get("view_cone_color", "#ffd040"))
+		var alpha := float(cfg.get("view_cone_alpha", 0.25))
+		_view_cone_color = Color(base.r, base.g, base.b, alpha)
 
 
 ## Pass the live World reference. Called once by HUD wiring.
@@ -103,6 +119,7 @@ func _draw() -> void:
 	var h: float = max(z_max - z_min, 0.001)
 	# Pass 1: non-player entities
 	var player_pos = null
+	var player_facing: float = 0.0
 	for inst_id in entities as Dictionary:
 		var ent = (entities as Dictionary)[inst_id]
 		if ent == null or not ent.has_method("get_planar_position"):
@@ -112,15 +129,37 @@ func _draw() -> void:
 		var py := (pp.y - z_min) / h * custom_minimum_size.y
 		if ent.has_tag(_player_tag):
 			player_pos = Vector2(px, py)
+			if ent.has_method("get_state"):
+				player_facing = float(ent.get_state("facing", 0.0))
 			continue
 		var color = _color_for_entity(ent)
 		if color == null:
 			continue
 		draw_circle(Vector2(px, py), _dot_radius, color)
-	# Pass 2: player on top, brighter + bigger
+	# Pass 2: view-cone overlay UNDER the player dot, then player dot on top
 	if player_pos != null:
+		if _view_cone_enabled:
+			_draw_view_cone(player_pos, player_facing)
 		var pc: Color = _tag_colors.get(_player_tag, Color("#ffd040"))
 		draw_circle(player_pos, _player_radius, pc)
+
+
+## View-cone wedge (#105, 2026-05-16). Triangle apex at the player dot,
+## opening in the player's facing direction. facing is in radians, where
+## facing=0 means "looking world-north" (-Z); increasing rotates CW
+## (matches face_motion's atan2(vx, -vz) convention). The minimap is
+## top-down (world X → widget X, world Z → widget Y, Y increases down),
+## so screen-space forward angle = facing - π/2 (facing=0 → -π/2 = "up"
+## in screen).
+func _draw_view_cone(apex: Vector2, facing: float) -> void:
+	var fwd_angle: float = facing - PI * 0.5
+	var a_left: float = fwd_angle - _view_cone_half_angle
+	var a_right: float = fwd_angle + _view_cone_half_angle
+	var p_left: Vector2 = apex + Vector2(cos(a_left), sin(a_left)) * _view_cone_radius
+	var p_right: Vector2 = apex + Vector2(cos(a_right), sin(a_right)) * _view_cone_radius
+	var pts := PackedVector2Array([apex, p_left, p_right])
+	var cols := PackedColorArray([_view_cone_color, _view_cone_color, _view_cone_color])
+	draw_polygon(pts, cols)
 
 
 ## First-matching tag from _ordered_tags wins. Author controls precedence

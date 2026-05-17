@@ -87,6 +87,14 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 			EffectShell.transition_level(effect, env, context)
 		"emit":
 			EffectCore.emit(effect, env, context)
+		"array_set_at":
+			EffectCore.array_set_at(effect, env, context)
+		"array_insert_first_empty":
+			EffectCore.array_insert_first_empty(effect, env, context)
+		"array_sync_to_field":
+			EffectCore.array_sync_to_field(effect, env, context)
+		"array_count_matching":
+			EffectCore.array_count_matching(effect, env, context)
 		"emit_shell_event":
 			EffectCore.emit_shell_event(effect, env, context)
 		"transition_screen":
@@ -166,7 +174,9 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 					+ " transform, relate, unrelate, transfer_relation, tag_add, tag_remove,"
 					+ " velocity_set, velocity_lerp, velocity_set_relative,"
 					+ " velocity_add_relative, pathfind_to, raycast_hit, transition_level,"
-					+ " emit, emit_shell_event, transition_screen, quit_app, show_toast,"
+					+ " emit, array_set_at, array_insert_first_empty,"
+					+ " array_sync_to_field, array_count_matching,"
+					+ " emit_shell_event, transition_screen, quit_app, show_toast,"
 					+ " reload_scene, scene_change, screen_fade, save_state, load_state,"
 					+ " show_overlay, dismiss_overlay, set_audio_bus_volume,"
 					+ " set_input_mapping, switch_actor, queue_input_for_actor, reset_world,"
