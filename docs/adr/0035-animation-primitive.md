@@ -1,7 +1,20 @@
 # ADR 0035 — Animation primitive
 
 _Date: 2026-05-09_
-_Status: proposed_
+_Status: accepted — implementation realigned by [ADR 0046](0046-animation-via-godot-animation-player.md) (2026-05-17)_
+
+> **2026-05-17 follow-up**: Phase A of ADR 0046 replaced the GDScript
+> per-frame interpolator (`_interp_keys`, `_apply_track`,
+> `_cache_baselines`) with a translation layer that bakes the JSON
+> `animations` block into Godot `AnimationLibrary` / `AnimationPlayer`
+> at mesh-def load. The **authoring contract documented here is
+> unchanged** — same `animations` + `animation_state_rules` schema,
+> same per-piece tracks, same state-rule evaluator. Under the hood,
+> Godot's C++ interpolator drives playback (cubic interp via
+> `interp: "cubic"` on a clip + per-state cross-fade via
+> `blend_seconds` are first-class options now). ADR 0046 also adds
+> Phase B which extends the primitive to accept `.glb` skinned meshes
+> alongside code-drawn pieces.
 
 ## Context
 

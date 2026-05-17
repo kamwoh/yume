@@ -109,6 +109,13 @@ static func _collect_piece_names(animations: Dictionary) -> Array:
 
 
 ## Build one Animation resource from a single clip dict.
+##
+## Per-clip `interp: "cubic"` / `"linear"` (default linear) sets the
+## interpolation type for every track in the clip. Godot's
+## INTERPOLATION_CUBIC produces smoother motion at the expense of
+## constant compute; use it for character locomotion where the eye
+## sees mid-stride poses. Linear is fine for blinking, color flashes,
+## or grid-snapped UI animations.
 static func _build_animation(clip: Dictionary, baselines: Dictionary) -> Animation:
 	var duration := float(clip.get("duration", 1.0))
 	if duration <= 0.0:
@@ -119,6 +126,13 @@ static func _build_animation(clip: Dictionary, baselines: Dictionary) -> Animati
 		anim.loop_mode = Animation.LOOP_LINEAR
 	else:
 		anim.loop_mode = Animation.LOOP_NONE
+
+	var interp_kind := str(clip.get("interp", "linear")).to_lower()
+	var interp_type := Animation.INTERPOLATION_LINEAR
+	if interp_kind == "cubic":
+		interp_type = Animation.INTERPOLATION_CUBIC
+	elif interp_kind == "nearest":
+		interp_type = Animation.INTERPOLATION_NEAREST
 
 	var tracks = clip.get("tracks", [])
 	if not (tracks is Array):
@@ -135,7 +149,7 @@ static func _build_animation(clip: Dictionary, baselines: Dictionary) -> Animati
 		var prop_class := parts[1]  # "rotation" | "translation" | "scale"
 		var axis_specs: Dictionary = grouped[key]  # {x: [...], y: [...], z: [...]}
 		var baseline: Dictionary = baselines.get(piece_name, {})
-		_bake_track(anim, piece_name, prop_class, axis_specs, baseline, duration)
+		_bake_track(anim, piece_name, prop_class, axis_specs, baseline, duration, interp_type)
 	return anim
 
 
@@ -191,13 +205,18 @@ static func _group_tracks(tracks: Array) -> Dictionary:
 ##
 ## Translation arrays are OFFSETS from baseline.pos. Rotation/scale
 ## arrays REPLACE baseline per-axis. Axes not present keep baseline.
+##
+## interp_type controls how Godot interpolates between Vector3
+## keyframes — INTERPOLATION_LINEAR (default), INTERPOLATION_CUBIC for
+## smooth motion, or INTERPOLATION_NEAREST for stepped/discrete frames.
 static func _bake_track(
 	anim: Animation,
 	piece_name: String,
 	prop_class: String,
 	axes: Dictionary,
 	baseline: Dictionary,
-	duration: float
+	duration: float,
+	interp_type: int = Animation.INTERPOLATION_LINEAR
 ) -> void:
 	var prop_name := _prop_name_for_class(prop_class)
 	if prop_name == "":
@@ -215,6 +234,7 @@ static func _bake_track(
 	var t_idx := anim.add_track(Animation.TYPE_VALUE)
 	anim.track_set_path(t_idx, NodePath(piece_name + ":" + prop_name))
 	anim.value_track_set_update_mode(t_idx, Animation.UPDATE_CONTINUOUS)
+	anim.track_set_interpolation_type(t_idx, interp_type)
 	# Time of each keyframe: uniformly spaced over [0, duration].
 	# N=1 → single key at t=0. N>=2 → keys at i*dur/(N-1).
 	var step := 0.0

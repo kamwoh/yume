@@ -9189,3 +9189,41 @@ func test_animation_translator() -> void:
 		Vector3(0.3, 0, 0.9),
 		"key3: x=0.3, z still padded to last"
 	)
+
+	# ---------- 9. interp: "cubic" sets track interpolation type ----------
+	# Phase A.3 (2026-05-17): authors can opt into cubic interpolation
+	# per-clip for smoother locomotion. Default is linear. Verify both
+	# explicit cubic AND linear-by-default produce the right interpolation
+	# constant on the baked track.
+	var cubic_clip := {
+		"smooth_walk":
+		{
+			"loop": true,
+			"duration": 0.5,
+			"interp": "cubic",
+			"tracks": [{"piece": "leg", "rotation_x": [0.0, 0.3, 0.0]}]
+		}
+	}
+	var lib8 := AnimationTranslator.build_library(cubic_clip, {})
+	var c_smooth: Animation = lib8.get_animation("smooth_walk")
+	expect_eq(
+		c_smooth.track_get_interpolation_type(0),
+		Animation.INTERPOLATION_CUBIC,
+		"interp: cubic → INTERPOLATION_CUBIC on bake"
+	)
+
+	var linear_clip := {
+		"step":
+		{
+			"loop": true,
+			"duration": 0.5,
+			"tracks": [{"piece": "leg", "rotation_x": [0.0, 0.3, 0.0]}]
+		}
+	}
+	var lib9 := AnimationTranslator.build_library(linear_clip, {})
+	var c_step: Animation = lib9.get_animation("step")
+	expect_eq(
+		c_step.track_get_interpolation_type(0),
+		Animation.INTERPOLATION_LINEAR,
+		"no interp → INTERPOLATION_LINEAR by default"
+	)

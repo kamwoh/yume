@@ -344,14 +344,26 @@ narrow and prevents accidental regression.
 
 If any of those three fail, merge is BLOCKED.
 
-### Phase A.3 — Polish (cross-fade tuning, cubic interp, docs) (1 session)
+### Phase A.3 — Polish (cross-fade tuning, cubic interp, docs) — **shipped 2026-05-17**
 
-- Allow per-state `blend_seconds` in JSON (default 0.15).
-- Allow per-track `interp: "cubic"` for smoother motion.
-- Update `docs/30_framework_primitives.md` Animation section with
-  the new under-the-hood implementation note.
-- Update `engine-reference/api-manifest.json` if signatures change.
-- Cross-reference from ADR 0035 to this ADR.
+- ✅ Per-state `blend_seconds` in JSON (default 0.15). Implemented in
+  `animation_director.gd::tick` — reads `animations.<state>.blend_seconds`
+  before falling back to `mesh_def.animation_blend_seconds` default.
+- ✅ Per-clip `interp: "cubic"` for smoother motion. Implemented in
+  `animation_translator.gd::_build_animation` + `_bake_track`. Authors
+  set `animations.<state>.interp: "cubic"` (or `"nearest"` for stepped
+  frames). Default is `"linear"`. Unit-tested in
+  `test_animation_translator` (2 new assertions, 902 total tests).
+- ✅ Cross-reference from ADR 0035 to ADR 0046 (front-matter follow-up
+  note: status flipped to `accepted` + ADR 0046 link).
+- Deferred: `engine-reference/api-manifest.json` — no engine signatures
+  changed (effect types unchanged; this is a rendering-layer rewrite).
+  Skipping manifest regen.
+- Deferred: `docs/30_framework_primitives.md` Animation section — the
+  primitives doc doesn't currently carry an animation section
+  (animation lives entirely in ADRs 0035/0046). No edit needed; if a
+  primitives-doc Animation section lands later, it should link to ADR
+  0046 § Phase A as the canonical implementation reference.
 
 ### Phase B.1 — .glb loader detection (1 session)
 
