@@ -10,15 +10,32 @@ DOCS_DIR = Path(__file__).parent
 
 
 def md_to_html(md_text: str, title: str) -> str:
-    """Quick markdown → HTML (no dependencies needed)."""
+    """Quick markdown → HTML (no dependencies needed).
+
+    Mermaid carve-out (2026-05-17): ```mermaid blocks emit
+    <div class="mermaid">RAW</div> so the client-side mermaid.js
+    UMD library (script tag in the page head) renders them as SVG.
+    UMD (not ESM) so the page works on file:// AND http://.
+    """
     html = md_text
 
+    def _code_block_replacer(m):
+        lang = m.group(1)
+        body = m.group(2)
+        if lang.lower() == "mermaid":
+            # Raw text — mermaid parses its own DSL. No HTML escaping.
+            return f'<div class="mermaid">{body}</div>'
+        # Regular code block: escape < so e.g. <T> in code text doesn't
+        # confuse the browser HTML parser.
+        return (
+            f'<pre><code class="{lang}">'
+            f'{body.replace("<", "&lt;")}'
+            f'</code></pre>'
+        )
+
     # Code blocks (```...```)
-    html = re.sub(
-        r'```(\w*)\n(.*?)```',
-        lambda m: f'<pre><code class="{m.group(1)}">{m.group(2).replace("<", "&lt;")}</code></pre>',
-        html, flags=re.DOTALL
-    )
+    html = re.sub(r'```(\w*)\n(.*?)```', _code_block_replacer,
+                  html, flags=re.DOTALL)
 
     # Inline code
     html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
@@ -69,6 +86,16 @@ def md_to_html(md_text: str, title: str) -> str:
 <html><head>
 <meta charset="utf-8">
 <title>{title} — Yume Docs</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+// Mermaid client-side renderer (2026-05-17). UMD build, no ESM —
+// works whether the page is opened via file:// or via this server.
+(function() {{
+  if (typeof mermaid === 'undefined') return;
+  // Dark theme — the page palette is GitHub-dark; match.
+  mermaid.initialize({{ startOnLoad: true, theme: 'dark', securityLevel: 'loose' }});
+}})();
+</script>
 <style>
   body {{
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -101,6 +128,12 @@ def md_to_html(md_text: str, title: str) -> str:
   .nav {{ margin-bottom: 20px; padding: 10px; background: #161b22; border-radius: 6px; }}
   .nav a {{ margin-right: 16px; text-decoration: none; }}
   .nav a:hover {{ text-decoration: underline; }}
+  /* Mermaid diagrams: center + bordered card so the SVG breathes. */
+  .mermaid {{
+    background: #161b22; border: 1px solid #30363d; border-radius: 6px;
+    padding: 20px; margin: 20px 0; text-align: center; overflow-x: auto;
+  }}
+  .mermaid svg {{ max-width: 100%; height: auto; }}
 </style>
 </head><body>
 <div class="nav">
@@ -118,23 +151,38 @@ class DocsHandler(http.server.BaseHTTPRequestHandler):
         path = self.path.strip('/')
 
         if path == '' or path == 'index.html':
-            # Index page — list all .md files
-            files = sorted(DOCS_DIR.glob('*.md'))
-            links = '\n'.join(
+            # Index page — list all .md files + ADRs.
+            top_files = sorted(DOCS_DIR.glob('*.md'))
+            top_links = '\n'.join(
                 f'<li><a href="/{f.name}">{f.stem.replace("_", " ").title()}</a> — {f.stat().st_size // 1024}KB</li>'
-                for f in files
+                for f in top_files
             )
+            adr_dir = DOCS_DIR / 'adr'
+            adr_links = ''
+            if adr_dir.exists():
+                adr_files = sorted(adr_dir.glob('*.md'))
+                adr_links = '\n'.join(
+                    f'<li><a href="/adr/{f.name}">{f.stem.replace("-", " ")}</a></li>'
+                    for f in adr_files
+                )
             content = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Yume Docs</title>
 <style>
-  body {{ font-family: sans-serif; max-width: 700px; margin: 60px auto;
-         background: #0d1117; color: #c9d1d9; }}
+  body {{ font-family: sans-serif; max-width: 800px; margin: 60px auto;
+         background: #0d1117; color: #c9d1d9; padding: 0 20px; }}
   h1 {{ color: #e6bf4a; }}
-  a {{ color: #58a6ff; font-size: 1.1em; }}
-  li {{ margin: 12px 0; }}
+  h2 {{ color: #58a6ff; margin-top: 2em; border-bottom: 1px solid #30363d;
+         padding-bottom: 4px; }}
+  a {{ color: #58a6ff; font-size: 1.0em; }}
+  li {{ margin: 6px 0; }}
+  .adr-list {{ columns: 2; -webkit-columns: 2; -moz-columns: 2; }}
+  .adr-list li {{ break-inside: avoid; }}
 </style></head><body>
 <h1>Yume Docs</h1>
-<ul>{links}</ul>
+<h2>Top-level docs</h2>
+<ul>{top_links}</ul>
+<h2>ADRs (architecture decisions)</h2>
+<ul class="adr-list">{adr_links}</ul>
 </body></html>"""
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
