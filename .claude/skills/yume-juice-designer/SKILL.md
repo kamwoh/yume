@@ -54,15 +54,17 @@ deliberately per game.
 
 - A GDD at `docs/games/<game>/GDD.md`
 - A world plan + game-rules sketches (knows the signal vocabulary)
-- Existing rules in world/rules.json + game/goals.json (where to attach
-  juice effects)
+- Existing rules in world/rules/*.json feature modules (where to
+  attach juice effects). Per ADR 0009 revision 2026-05-16, all rules
+  live under world/rules/; game/goals.json was removed.
 
 ## Outputs
 
 - `docs/games/<game>/juice-design.md` — design doc with feedback
   table per signal
-- Effect appendages to existing rules (juice rules can be ADDED to
-  game/goals.json or extracted to game/juice.json)
+- Effect appendages to existing rules. Juice rules typically belong
+  in their own chain file like `world/rules/12_juice.json` so they
+  stay browseable separately from gameplay logic.
 
 ## Core questions
 

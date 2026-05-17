@@ -412,6 +412,120 @@ programmatically is Session 6 engine work. Until it lands, run the
 boot+ui_accept variant manually after any change to screens.json or
 screen-firing rules.
 
+## HUD/UI design gate (MANDATORY for any change to hud.json or screens.json layout)
+
+Functional QA ("does it render?") is NOT enough for HUD/UI work.
+Visually ugly layouts pass functional checks all the time — every
+element renders at its specified rect, no clipping, no crashes — but
+the result still feels bad. Empirical: 2026-05-16 consolidated-HUD
+session shipped through functional captures cleanly. User reaction:
+"every hud not align now. super ugly." The consolidated layout had
+all elements present at correct coordinates; it was just bad design.
+
+When you touch `hud.json` or `screens.json` LAYOUT fields (anchor,
+position, size, panel structure), apply ALL THREE gates BEFORE
+declaring done:
+
+### Gate 1 — Reference compare BEFORE authoring
+
+If the user has previously shared a reference image (e.g. files
+under `~/Downloads/ui_refs/`, or screenshots they pasted in a prior
+turn), open the reference FIRST and list what's working in it:
+
+- Where do the major elements live (corners vs center)?
+- What's the visual hierarchy — what does the eye land on first?
+- How much whitespace is between elements?
+- What's the size relationship — primary big, secondary smaller?
+
+Then describe how your proposed change relates to the reference.
+The reference is the visual contract. You're not authoring in a
+vacuum.
+
+If no reference exists, name a well-known game in the genre and
+mentally compare ("Stardew Valley uses distributed-corner HUD",
+"Skyrim puts compass top-center + map M-key", etc.).
+
+### Gate 2 — Design-heuristic VQA prompt (replaces "does it render?")
+
+When you Read the capture, the prompt MUST include these questions
+in addition to the change-specific criteria:
+
+1. **Where does the eye land first?** Is that the most important
+   element on screen? If the player's eye lands on a controls hint
+   before the objective, hierarchy is inverted.
+2. **Is the screen visually balanced?** Look at left vs right
+   halves, top vs bottom halves. If one quadrant is dense and the
+   opposite is empty, the layout is unbalanced. Distributed-corner
+   HUDs almost always feel better than single-column stacks.
+3. **Does each element have breathing room?** No overlapping
+   widgets, no widgets touching the screen edge unintentionally,
+   no widgets crammed against each other. ~10-20px gap between
+   distinct widgets is a baseline.
+4. **Is the visual hierarchy correct?** Primary info (objective,
+   vitals) should have visual prominence (size, contrast, position).
+   Secondary info (controls hint) should be quieter (smaller, dimmer,
+   bottom edge).
+5. **Compare to a known-good reference.** What's different? Why is
+   that difference an improvement, or is it a regression?
+
+Failure modes that PASS functional QA but FAIL design heuristics:
+
+- All HUD elements stacked in one column (one half dense, other empty)
+- Widgets at correct coords but visually overlapping due to stretch
+- Widgets at correct coords but at wrong VISUAL hierarchy (controls
+  hint as large as objective)
+- Inconsistent widths producing jagged right/left edges
+- Progress bars stretched to vbox width when authored at 140px
+- Centered modal not actually centered (anchor + offset math broken)
+
+If you can't answer YES to all 5 questions, hand back to the
+designer (or invoke `yume-visual-designer`) before declaring done.
+
+### Gate 3 — Invoke yume-visual-designer for HUD/screen layout changes
+
+`yume-visual-designer` exists as a dedicated art-direction reviewer
+(see `.claude/skills/yume-visual-designer/SKILL.md`). It's NOT
+optional polish — it's the design-review counterpart to
+yume-tech-director's invariant review. Functional capture-reads
+miss design issues by construction.
+
+For any change to:
+- `hud.json` panel structure / anchors / positions
+- `screens.json` modal layout
+- New element types in control_factory.gd
+- HudBuilder._build_panel or _panel_defaults changes
+
+Invoke `yume-visual-designer` with the capture before merging.
+
+### Empirical case 2026-05-16 — three rounds of HUD consolidation
+
+User originally said "hud location is weird, put at right top."
+Author (Claude) interpreted as "consolidate ALL HUD to top-right" and
+shipped a single-column right-side stack. Captures showed all
+elements present + correctly sized — functional QA passed cleanly.
+
+User feedback: "every hud not align now. super ugly."
+
+Author iterated to fix progress-bar stretching, adjust alignments,
+tighten heights. Captures still showed "elements present + sized."
+Each round: functional QA passes, user still unhappy.
+
+Round 3, user explicitly described the right layout: "should be
+left top day 1/3, autumn, time 10h. bottom left is the vital, top
+right is the minimap. bottom right is the inventory thingy. top is
+the indicator. bottom is the control thingy."
+
+That's classic distributed-corner HUD (Stardew, Skyrim, every RPG).
+Author had never compared the consolidated layout against any
+reference game. Functional QA was running on autopilot — no design
+heuristics, no reference compare, no invocation of
+yume-visual-designer.
+
+**The lesson**: design judgment is a different skill from layout
+math. Both must be applied. Functional capture-read covers "does it
+render?" Design heuristics + reference compare + yume-visual-designer
+cover "is it good?"
+
 ## Per-skill prompt cheat sheets
 
 (Reference templates per skill. Compose your specific prompt by

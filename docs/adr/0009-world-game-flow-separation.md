@@ -567,3 +567,108 @@ implementation can proceed.
 starts.**
 
 ADR status updated: `accepted with conditions`.
+
+---
+
+## Revision 2026-05-16 — collapse game/goals.json + directory split
+
+_Status update: **revised** per task #110 (Change A) + task #109
+(Change B)._
+
+### What changed
+
+The world/game split as originally specified (world/rules.json vs
+game/goals.json) was implemented 2026-05-05 and shipped on all
+subsequent demos. After live use, the boundary proved fuzzy in
+practice — game/goals.json became a catch-all for "non-physics
+rules" rather than the originally-intended "goal declarations."
+Aldenmere's goals.json shipped with 14 rules, only 2 of which were
+actual win/lose declarations; the rest were boot latches, day-
+boundary transitions, objective HUD text updates, and tutorial
+overlays.
+
+The user's empirical observation (2026-05-16): the split adds
+authoring friction without paying off in reuse. Same-world /
+different-goals never actually happened in any shipped demo —
+each game has its own world and goals together.
+
+### The revised layout
+
+- **`world/rules/*.json`** — DIRECTORY of feature-module rule files.
+  Engine globs `*.json` alpha-sorted and concatenates their `rules`
+  arrays. Single-file `world/rules.json` still works for small games
+  (chess, sokoban) — directory form is opt-in by presence of the dir.
+- **`world/state.json`** — initial world_state values (unchanged).
+- **`game/flow.json`** — multi-level progression (unchanged).
+- **`game/goals.json`** — **REMOVED**. Its content moves to
+  `world/rules/13_transitions.json` (boot / day-boundary / win-lose
+  rules) + `world/rules/14_objectives.json` (HUD-text + tutorial
+  overlays). Declarative win/lose lives in `hud.json` win:/lose:
+  blocks as before.
+- **`tutorial.json`** — unchanged at root (per-game one-shot
+  overlay sequencing).
+
+### Why collapse, not just split
+
+Reuse-by-swap-goals never materialized. Keeping a separate
+goals.json file imposes:
+
+- A skill split (yume-game-rules-designer vs yume-systems-designer)
+  that has to make ambiguous calls on every new rule.
+- A second file the author must open + cross-reference.
+- A loader pass for content that 90% of games could put in their
+  world chain modules.
+
+The win/lose DETECTION is already declarative — `hud.json` carries
+`win: {binds, op, value, message, screen}` blocks that the engine
+reads at load and wires to a per-frame HUD evaluator. The
+transition-to-ending rule (`win_day3_survived` etc.) is just one
+signal-rule per condition and fits naturally in a transitions
+chain module.
+
+### Migration
+
+- **demo_aldenmere**: migrated 2026-05-16 (#110). goals.json deleted;
+  rules split across world/rules/13_transitions + 14_objectives.
+- **Other demos**: still using single-file `world/rules.json` +
+  `game/goals.json`. They continue to work — the engine accepts
+  both layouts. Migrate them lazily, only when next touching them
+  for unrelated work.
+
+### Engine support
+
+`WorldLoader.load_rules_files_for(path, append)` checks `<path
+without .json>/` directory first, falls back to single file.
+Wired into `world_boot._load_content` +
+`level_transition_coordinator`. Old games keep working without
+code change.
+
+### Skill implications
+
+- **yume-systems-designer**: scope grows to include scoring +
+  transitions + objectives + tutorials. Effectively absorbs
+  yume-game-rules-designer's prior scope.
+- **yume-game-rules-designer**: scope shrinks to declarative
+  win:/lose: block authoring in hud.json + transition-rule design.
+  Could merge into yume-systems-designer; deferred for now (skill
+  prompts unchanged this revision).
+
+### Validation
+
+- 875/0 unit tests stay green.
+- 19/19 aldenmere scenarios stay green.
+- Live boot capture shows objective "Find food before nightfall."
+  + HUD layout + inventory strip exactly as before (zero behavioral
+  regression).
+- `tools/validate_rules.py` mirrors the new directory-or-file
+  detection — same 8 production violations reported under new
+  file paths.
+
+### Status
+
+`revised` (supersedes the original "split world from game"
+granularity within the same ADR scope). The principle holds —
+different concerns live in different files — but the granularity
+moves from "world vs game" to "feature module within world."
+Game-only rules either live declaratively in HUD or as one
+signal-rule in transitions.json.

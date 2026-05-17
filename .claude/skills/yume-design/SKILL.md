@@ -7,6 +7,28 @@ description: Run the Yume text-to-game pipeline. Orchestrates 7 specialist skill
 
 Turn a prose game description into a runnable Yume game.
 
+> **REVISION BANNER 2026-05-16 (ADR 0009 revision, tasks #109 + #110).**
+> The file layout in this skill below still mentions the legacy
+> `world/rules.json` + `game/goals.json` split in several places.
+> Treat these as the CURRENT shape:
+>
+> - `world/rules/*.json` (directory of feature modules) — all rule
+>   authoring goes here. Filename prefix (`01_`, `02_`, ...) sets load
+>   order. Engine globs + concatenates alpha-sorted.
+> - Single-file `world/rules.json` still works for small games
+>   (chess, sokoban). Pick whichever fits the game's size.
+> - `game/goals.json` is GONE. Its content moves to
+>   `world/rules/13_transitions.json` (boot/day-boundary/win/lose
+>   signal-rules) + `world/rules/14_objectives.json` (HUD-text
+>   updates + tutorial overlays).
+> - Declarative win:/lose: blocks live in `hud.json` (HUD-driven
+>   overlay; the engine evaluates them per-frame and shows the
+>   win/lose panel automatically).
+> - `game/flow.json` (multi-level progression) is unchanged.
+> - Skill ownership: yume-systems-designer writes all rule files.
+>   yume-game-rules-designer's scope shrinks to declarative HUD
+>   win/lose blocks + game/flow.json. See each skill's own header.
+
 ## Usage
 
 ```
@@ -66,8 +88,8 @@ pattern (ADR 0006):
 data/<name>/
 ├── scene.json                              # camera, tick, renderer
 ├── world/state.json                        # initial world_state
-├── world/rules.json                      # how the world works
-├── game/goals.json                         # scoring + win/lose
+├── world/rules/*.json                    # how the world works + scoring + transitions + objectives (chain modules)
+├── hud.json                              # declarative win:/lose: blocks live here (per ADR 0009 revision)
 ├── game/flow.json                          # level order + start
 ├── ui/hud.json + ui/input.json + ui/strings.json
 ├── audio/cues.json                         # @cues.X mappings
@@ -109,14 +131,21 @@ based on prose-estimated scope:
   (e.g. `entities/world/`, `entities/creatures/`, `entities/plants/`),
   with one `entities/zz_instances.json` at the root
 
-**Rules layout** (ADR 0009 — always split by axis):
-- `world/rules.json` — motion, AI, contact resolution, decay,
-  lifecycle (yume-systems-designer)
-- `game/goals.json` — scoring, win/lose, transitions, level-up
-  (yume-game-rules-designer)
-- For pure simulations with no game layer (chess, ecology), omit
-  `game/goals.json` entirely — physics-only is fine.
-- Per-level rules go to `levels/<name>/rules.json`.
+**Rules layout** (ADR 0009 + revision 2026-05-16 — feature-module split):
+- `world/rules/*.json` — feature-module directory holding ALL rule
+  chains (motion, AI, contact, decay, lifecycle, scoring, transitions,
+  objectives, tutorials). yume-systems-designer owns all of these.
+  Engine globs the dir alpha-sorted at load. Per-feature splitting
+  (`01_movement.json`, `02_inventory.json`, `13_transitions.json`,
+  `14_objectives.json`, etc.) keeps each file scannable.
+- Smaller games (chess, sokoban) can still use single-file
+  `world/rules.json` — the engine accepts both layouts.
+- Declarative `win:` / `lose:` blocks live in `hud.json` — engine
+  evaluates per-frame and auto-shows the win/lose overlay.
+- `game/flow.json` — multi-level progression (level order + start).
+  yume-game-rules-designer owns this in its narrowed scope.
+- Per-level rules: `levels/<name>/rules.json` (or `levels/<name>/rules/*.json`
+  directory form).
 
 **Always**:
 - `scene.json` is single-file at root (camera/tick/renderer config)
@@ -136,7 +165,8 @@ writes files in the right structure:
 ```
 LAYOUT CHOSEN:
 - entity_layout: medium → entities/ directory
-- rules: world/rules.json (systems) + game/goals.json (game)
+- rules: world/rules/*.json feature modules (systems-designer)
+- flow: game/flow.json (game-rules-designer, multi-level only)
 - assets: code-draw shapes appended to data/shapes.json root
 ```
 
@@ -307,15 +337,19 @@ sandboxes / arcades skip.
 
 If trigger absent: skip.
 
-### Phase 2 — systems-designer (GDD → world physics)
+### Phase 2 — systems-designer (GDD → all rules)
 
-Per ADR 0009, this skill now writes `world/rules.json` directly
-(in addition to the rule-sketch document for review).
+Per ADR 0009 revision 2026-05-16, this skill now writes ALL rule
+chains under `world/rules/*.json` (feature modules): motion, AI,
+contact, decay, lifecycle, scoring, transitions, objectives, tutorial
+overlays. Previously split with yume-game-rules-designer — scope
+absorbed here.
 
 8. Invoke `yume-systems-designer` skill. Tool:
    `Skill(skill="yume-systems-designer", args=<GDD path + resolved questions>)`.
-9. Skill produces `docs/games/<name>/rules-sketch.md` + `world/rules.json`
-   under the data folder. May propose ADRs if new primitives needed.
+9. Skill produces `docs/games/<name>/rules-sketch.md` + `world/rules/*.json`
+   feature modules under the data folder. May propose ADRs if new
+   primitives needed.
 10. **If ADR proposed → escalate to tech-director:**
     `Skill(skill="yume-tech-director", args=<ADR path + diff>)`.
     On rejection → re-invoke systems-designer without the new primitive.
@@ -334,15 +368,22 @@ placements + world state. Rules are NOT written here.
     games), under `data/demo_<name>/`.
 14. Interactive: show file summary, ask approval. Autonomous: proceed.
 
-### Phase 3.5 — game-rules-designer (game logic) ★ NEW per ADR 0009
+### Phase 3.5 — game-rules-designer (HUD win/lose + flow) — NARROWED scope
+
+Post-ADR-0009-revision (2026-05-16), this phase covers only the
+declarative win/lose surface + multi-level progression. Rule
+authoring (scoring/transitions/objectives) moved to Phase 2's
+yume-systems-designer scope.
 
 15. Invoke `yume-game-rules-designer` skill. Tool:
-    `Skill(skill="yume-game-rules-designer", args=<GDD + world/rules.json>)`.
-16. Skill writes `game/goals.json` (scoring, win/lose, transitions,
-    restart) and `game/flow.json` (level sequence + on-all-complete).
-    For sandbox sims (no goals), this phase is SKIPPED — game/ folder
-    stays empty.
-17. Interactive: show game-logic decisions, ask approval. Autonomous: proceed.
+    `Skill(skill="yume-game-rules-designer", args=<GDD + world/rules/*.json>)`.
+16. Skill writes:
+    - Declarative `win:` / `lose:` blocks in `hud.json` (engine
+      evaluates per-frame, auto-shows the overlay).
+    - `game/flow.json` (level sequence + on-all-complete) for
+      multi-level games.
+    For sandbox sims (no goals, single-level), this phase is SKIPPED.
+17. Interactive: show decisions, ask approval. Autonomous: proceed.
 
 ### Phase 4 — asset-designer (visuals + audio + UI strings)
 
@@ -548,8 +589,9 @@ the single integration sync + unit tests + visual QA across the
 integrated state.**
 
 This is also why parallel agents stage their rules into files like
-`rules_haggle_staged.json` — the orchestrator splices them into
-`game/goals.json` AFTER all agents land, BEFORE the single sync.
+`rules_haggle_staged.json` — the orchestrator splices them into the
+appropriate `world/rules/<feature>.json` chain module AFTER all agents
+land, BEFORE the single sync.
 
 ### Spawning parallel builder agents
 
@@ -754,9 +796,9 @@ design-quality phases). The 8 specialist skills it invokes are at
 - `yume-combining-logic-designer` — Phase 1e.1 (recipe systems — CONDITIONAL)
 - `yume-economy-designer` — Phase 1e.2 (numeric balance + flows — CONDITIONAL)
 - `yume-story-planner` — Phase 1e.3 (narrative beats + arcs — CONDITIONAL)
-- `yume-systems-designer` — Phase 2 (world physics rules — `world/rules.json`)
+- `yume-systems-designer` — Phase 2 (ALL rules — `world/rules/*.json` feature modules, scope expanded per ADR 0009 revision 2026-05-16)
 - `yume-content-designer` — Phase 3 (entities + initial state)
-- `yume-game-rules-designer` — Phase 3.5 (game logic — `game/goals.json` + `game/flow.json`) ★ ADR 0009
+- `yume-game-rules-designer` — Phase 3.5 (declarative win/lose in `hud.json` + `game/flow.json` multi-level progression — NARROWED scope post-revision)
 - `yume-asset-designer` — Phase 4 (visuals + audio cues + UI strings)
 - `yume-qa-tester` — Phase 5 (headless + visual + scenario QA)
 - `yume-tech-director` — invariant guardian, on-demand

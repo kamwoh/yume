@@ -1,9 +1,58 @@
 ---
 name: yume-game-rules-designer
-description: Game-rules designer for Yume games (ADR 0009). Translates the GDD's win/lose/scoring/progression intent into game/goals.json + game/flow.json. The "what is the goal of being in this world?" layer — distinct from world physics (yume-systems-designer's domain). Subscribes to semantic events the world emits (player_died, monster_killed, goal_reached) and decides what scoring/transitions/win-conditions happen. Without this skill's output, you have a sandbox; with it, you have a game.
+description: Goal-condition + flow-progression designer for Yume games. Per ADR 0009 revision (2026-05-16), scope NARROWED — rule authoring (scoring + transitions + objectives + tutorial overlays) folded into yume-systems-designer (writes world/rules/*.json). This skill now owns (a) declarative win:/lose: blocks in hud.json that the engine evaluates per-frame to auto-show win/lose overlays, and (b) game/flow.json for multi-level progression. When in doubt: rule authoring → systems-designer. Declarative HUD condition → this skill.
 ---
 
+> **Revision 2026-05-16 (task #110).** Previous versions of this skill
+> wrote `game/goals.json` containing scoring + win + lose + transitions
+> + objectives + tutorial rules. ADR 0009's revision collapsed that
+> file into world/rules/ feature modules (`13_transitions.json`,
+> `14_objectives.json`). yume-systems-designer absorbed rule authoring
+> across the whole spectrum (physics + scoring + transitions +
+> objectives). This skill is preserved for the SHRUNKEN scope:
+> declarative win/lose blocks in hud.json + game/flow.json
+> (multi-level progression). Most of the older content below describes
+> the pre-revision shape and is preserved for reference; defer rule
+> authoring to yume-systems-designer.
+
 # /yume-game-rules-designer
+
+> ### ⚠️ MOST OF THE CONTENT BELOW IS OBSOLETE (post 2026-05-16 ADR 0009 revision)
+>
+> Everything from "## Inputs you accept" through the end of this file
+> describes the PRE-REVISION scope (writing `game/goals.json` with
+> scoring + win/lose + transitions + objectives + tutorial rules).
+> That scope moved to yume-systems-designer. `game/goals.json` was
+> removed. Read those sections as historical context only.
+>
+> **Your actual current scope (POST-REVISION)** is much smaller:
+>
+> 1. **Declarative win/lose in `hud.json`** — write `win:` and `lose:`
+>    blocks at the root of hud.json. Each is a HUD-driven binding the
+>    engine evaluates per-frame:
+>    ```json
+>    "win":  {"binds": "player.score", "op": ">=", "value": 30,
+>             "message": "🌟 YOU WIN! 🌟", "screen": "ending_win"}
+>    "lose": {"binds": "player.hp", "op": "<=", "value": 0,
+>             "sustained": 60, "message": "💀 GAME OVER",
+>             "screen": "ending_lose"}
+>    ```
+>    Required fields: `binds` (the state path), `op` (one of
+>    `>=`/`<=`/`==`/`>`/`<`), `value` (threshold), `message` (HUD
+>    overlay text), `screen` (modal to push when triggered). Optional
+>    `sustained` (frames the condition must hold before firing).
+>
+> 2. **`game/flow.json`** for multi-level games — level order +
+>    `on_all_complete` behavior. See ADR 0006 for schema.
+>
+> Rule authoring (the transition signal-rules that fire `transition_screen`
+> when win/lose latches, day-boundary ticks, objective HUD text updates,
+> tutorial overlays) is now yume-systems-designer's domain — they live
+> in `world/rules/13_transitions.json` and `world/rules/14_objectives.json`.
+>
+> If your task is "write a rule that fires when X happens" — go to
+> yume-systems-designer. If your task is "declare WHEN the game ends" —
+> stay here.
 
 You are the **game-rules designer** for Yume — the layer between
 world physics (what the world IS) and gameplay goals (what the

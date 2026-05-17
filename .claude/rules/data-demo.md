@@ -34,6 +34,150 @@ Godot's class cache: `godot --path <template> --headless --import`
 (otherwise the cache still maps `class_name X` to the deleted path and
 load-time class lookup explodes everywhere).
 
+## ⚠ CRITICAL: formula context bindings depend on the trigger type
+
+Formulas (`"value": "X.state.Y"`, `"index": "X.state.Y"`) get their
+context bindings from how the rule fires. Using the wrong binding name
+crashes at runtime with `self can't be used because instance is null
+(not passed)` — the Godot Expression engine has no way to soft-fail.
+
+| Trigger | Context bindings available in formulas |
+|---|---|
+| `tick` (with `query.tags_all` or flat query) | `self`, `self_entity` |
+| `tick` (with `query: {a: {...}, b: {...}}`) | named sub-bindings (`a`, `b`, ...) |
+| `contact` | `a`, `b` (pair-matched entities) |
+| `signal` (with `require: {actor: ..., target: ...}`) | the require-named bindings (`actor`, `target`, ...) — **no `self`** |
+| `signal` (with `query`) | `self` from the query match |
+| `input` (with `query.tags_all`) | `self` from the matched actor |
+| `spawn` / `despawn` | `self` (the spawning/despawning entity) |
+
+❌ **WRONG** — signal rule with `require` bindings, formula uses `self`:
+```jsonc
+{
+  "id": "gather_pickup",
+  "trigger": {"type": "signal", "name": "gather_request"},
+  "require": {
+    "actor": {"tags_all": ["player"]},
+    "target": {"tags_all": ["forageable"]}
+  },
+  "effect": [
+    {"type": "array_set_at",
+     "target": "actor",
+     "field": "inventory_cooked",
+     "index": "self.state._last_slot",   // ← CRASH: self not bound
+     "value": "target.state.cooked"}
+  ]
+}
+```
+
+Runtime error: `formula.exec_failed: 'self.state._last_slot'` →
+`self can't be used because instance is null`.
+
+✅ **RIGHT** — use the binding name from `require`:
+```jsonc
+"index": "actor.state._last_slot"
+```
+
+**Empirical case 2026-05-16**: TDTE multi-slot inventory shipped with
+`gather_pickup` referencing `self.state._last_slot` for its parallel
+array_set_at index. Unit tests passed (because the test bound `self`
+directly). Scenario tests passed (don't exercise gather — needs
+crosshair aim). User hit it on the first live pickup.
+
+**Second incident, same session**: switched to `actor.state._last_slot`
+to match the require-binding name. Still crashed. Root cause: even when
+the trigger/require has a binding called `actor`, the formula evaluator
+only sees it as an Entity object if `EffectResolution.formula_context`'s
+entity-id auto-promotion includes it. The original `entity_roles`
+allowlist (`self, target, a, b, source, from, to, piece, from_sq,
+to_sq`) didn't include `actor`. Fix: removed the allowlist as a
+correctness gate — any ctx value that's a string AND a known entity id
+is now auto-promoted to its Entity. Custom payload binding names like
+`actor`, `pursuer`, `prey`, etc. now drill into `.state.X` without
+needing engine code changes. The allowlist remains as an ORDERING hint
+(those names are resolved first to guarantee shadowing precedence) but
+unknown names fall through to auto-promotion.
+
+**Gate** — when authoring a rule, identify the trigger type and the
+shape of `query` vs `require`, then audit every formula in `effect`
+to confirm the binding it references is in the active context:
+
+```bash
+# Find effects in signal rules using `self.X` formulas that may be
+# unbound (require-driven binding instead):
+grep -B 8 '"self\.' godot/data/demo_*/world/rules.json | grep -A 8 '"signal"'
+```
+
+If you can't immediately confirm the binding from re-reading the rule,
+the safest move is to test the rule live (capture-input scripted
+playtest, not just unit + scenario). Unit tests that synthesize their
+own context easily mask binding-resolution bugs.
+
+## ⚠ CRITICAL: sync-derived fields used as filters must be pre-initialized
+
+When a tick rule derives a state field (e.g. `array_sync_to_field` writing
+`held_item` from `inventory[active_slot]`, or any `state_set` whose
+target field other rules later filter on), authors MUST also initialize
+that field in the source entity's `state_init`. Otherwise the field is
+MISSING at tick 1, and Yume's strict-missing query semantics will fail
+the filter — the first input-driven rule that gates on it silently
+refuses.
+
+❌ **WRONG** — derived `held_item` referenced by a tick-1 input rule but
+never initialized:
+```jsonc
+// player.json
+"state_init": {
+  "inventory": ["", "", "", ""],
+  "active_slot": 0
+  // held_item is derived by inventory_derive_view tick rule, but its
+  // initial absence means filter `held_item_eq: ""` fails at tick 1 input.
+}
+
+// world/rules.json
+{
+  "id": "eat_input_empty",
+  "trigger": {"type": "input", "action": "eat"},
+  "query": {"tags_all": ["player"], "state": {"held_item_eq": ""}}
+  // → first E press at tick 1 never fires. User reports "eat does
+  //   nothing on the first try."
+}
+```
+
+✅ **RIGHT** — pre-init derived fields in state_init too:
+```jsonc
+"state_init": {
+  "inventory": ["", "", "", ""],
+  "active_slot": 0,
+  "held_item": "",                  // pre-init derived (mirrors inventory[0])
+  "held_cooked": 0,
+  "held_wet": 0,
+  "inventory_empty_count": 4        // pre-init derived (count of '' slots)
+}
+```
+
+**Why this matters**: phase ordering. Tick scheduler runs input → flush
+→ signal-drain → decide-tick → flush. Sync tick rules fire in
+decide-tick — AFTER the input phase. So tick 1 input rules read the
+state from BEFORE any sync ever ran. Missing field = strict filter
+fails (per QueryLib strict-missing convention).
+
+**Empirical case 2026-05-16**: Three Days to Eat multi-slot inventory
+(#95). `gather_pickup`'s `require: {actor: {state: {inventory_empty_count_gt: 0}}}`
+silently refused the first E press because `inventory_empty_count`
+was only ever written by the tick rule `inventory_derive_view`, never
+in `state_init`. Caught during pre-commit verification by tracing the
+phase ordering manually, not by user playtest.
+
+**Gate**: when authoring a tick rule that writes a state field via
+`array_sync_to_field`, `array_count_matching`, or any `state_set` whose
+target field OTHER rules use as a filter, also add that field to the
+entity's `state_init` with a matching sentinel default. yume-game-rules-
+designer + yume-content-designer should check this jointly during the
+"final pass before declaring done" step. A future static validator
+(`tools/validate_derived_fields.py`) can grep for sync-rule outputs
+and verify each appears in the corresponding entity def's state_init.
+
 ## ⚠ CRITICAL: never ship a rule with `effect: []`
 
 The engine's `_load_rules_file` reports `[rule.effect_empty]` as a

@@ -68,7 +68,10 @@ Before declaring asset-designer pass complete, verify:
       ```bash
       # Every input-action referenced in rules MUST be in input.json:
       jq -r '.rules[]? | select(.trigger.type=="input") | .trigger.action' \
-        world/rules.json game/goals.json | sort -u > /tmp/want.txt
+        world/rules/*.json 2>/dev/null | sort -u > /tmp/want.txt
+      # Legacy single-file games: fall back to world/rules.json
+      [ -f world/rules.json ] && jq -r '.rules[]? | select(.trigger.type=="input") | .trigger.action' \
+        world/rules.json | sort -u >> /tmp/want.txt && sort -u /tmp/want.txt -o /tmp/want.txt
       jq -r '.actions[].name' ui/input.json | sort -u > /tmp/have.txt
       diff /tmp/want.txt /tmp/have.txt
       ```
@@ -87,8 +90,9 @@ Before declaring asset-designer pass complete, verify:
       written by any rule. Use grep:
       ```bash
       jq -r '.. | objects | select(.type=="progress_bar") | .binds' \
-        hud.json | while read b; do grep -l "$b" world/rules.json \
-        game/goals.json entities/*.json || echo "ORPHAN: $b"; done
+        hud.json | while read b; do grep -rl "$b" world/rules/ \
+        world/rules.json entities/ 2>/dev/null | head -1 \
+        || echo "ORPHAN: $b"; done
       ```
 
 - [ ] `current_objective` (or equivalent objective field) is written

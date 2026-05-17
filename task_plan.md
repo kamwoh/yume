@@ -2645,3 +2645,221 @@ The umbrella declares the three implementable sibling ADRs:
 Implementation trigger: a game pitch arrives that EXPLICITLY needs
 the primitive, OR the user requests starting a procedural-content
 game. Until then the umbrella serves as a validated waiting spec.
+
+## 2026-05-16 — Authoring contract enforcement + Python codegen position
+
+Two-incident bug class (same session): `gather_pickup` signal rule
+referenced `self.state._last_slot` (incident 1 — `self` not bound in
+require-driven signal rules), then `actor.state._last_slot` after
+"fix" (incident 2 — `actor` not in `EffectResolution.formula_context`
+entity-id auto-promote allowlist). User caught both at live play;
+neither was caught by unit tests (synthesized their own context with
+`self` already an Entity) nor scenario tests (don't exercise
+crosshair-aim gather flow).
+
+### Root-cause analysis
+
+- Layer 1 (script): formula_context allowlist was an arbitrary
+  10-name list (`self, target, a, b, source, from, to, piece,
+  from_sq, to_sq`). Custom payload binding names (`actor`,
+  `pursuer`, ...) silently dropped on the floor. Fixed
+  2026-05-16: any ctx string that names a real entity is now
+  auto-promoted to its Entity — allowlist is no longer a
+  correctness gate.
+- Layer 2 (post-mortem ritual): step 3a (bug-class
+  generalization) was skipped after incident 1. The fix patched
+  `self → actor` (symptom layer) without investigating "is the
+  trigger the wider primitive — that some binding names work in
+  formulas and some don't?" The right post-mortem would have
+  surfaced the allowlist in one pass. Empirical pattern matches
+  the `looks_like_formula` precedent from the rules.
+- Layer 3 (skill / authoring contract): no machine-enforced gate
+  exists for "formula references a binding the rule binds". The
+  guidance lives only in prose (`.claude/rules/data-demo.md`).
+  Skill prompts can't enforce; LLM authoring or human authoring
+  both slip past until live-play surfaces the bug.
+
+### Decision: validator first, codegen second, runtime Python never
+
+Three options considered for the recurring bug class:
+
+| Option | Where Python runs | Verdict |
+|---|---|---|
+| **A. Static validator** (tools/validate_rules.py) | sync time | **DO NOW (task #100)** |
+| **B. Python codegen library** | build/author time, emits JSON | Deferred (task #101). JSON canonical, Python optional emitter alongside skills + hand-author. ADR 0021 + Invariant #1 preserved. |
+| **C. Runtime Python DSL** | engine load / runtime | **NEVER**. Replaces JSON as source of truth → reverses ADR 0021. |
+
+Validator is the smallest thing that closes the bug class for both
+authoring paths (LLM-via-skills AND hand-author). It also defines
+the contract any future codegen library must conform to.
+
+### Tasks queued
+
+- **#100** (pending) — tools/validate_rules.py. Checks: formula
+  binding mismatch (the incident-1 class), destructive-effect-
+  chain ordering, modal-pop screen_fade pairing, empty-effect
+  rules, sync-derived field state_init coverage, engine_injected
+  marker for keyless input actions, 2-binding non-contact
+  queries, schema field-name landmines (delta vs amount, def vs
+  template). Wired into play.sh as pre-launch gate (strict mode
+  exits 1 for CI/agents). Estimated: one afternoon.
+- **#101** (deferred) — Python codegen library. Build only if
+  human-authored content volume hits "JSON-by-hand pain"
+  threshold. Maintenance cost is 2x (every new effect type needs
+  engine impl + helper). LLM/skill authoring doesn't benefit.
+
+### Animation primitive — ADR 0046
+
+Decided 2026-05-16: animation_director.gd reimplements Godot's
+AnimationPlayer/Animation interpolator (~300 lines of GDScript
+that should be C++). Audit was queued under the 2026-05-13 commit
+(`856e64a`). Now formalized as ADR 0046 with two phases.
+
+- **#96** (pending) — ADR 0046 draft (Phase A + B) +
+  tech-director gate. Phase A: replace
+  `_interp_keys`/`_apply_track`/`_cache_baselines` with
+  AnimationPlayer + Animation resource translation; keep
+  `_pick_state` as the JSON state-rule bridge. Phase B: accept
+  `visual.mesh = "res://x.glb"` to load skinned imported meshes
+  alongside code-drawn primitives. JSON authoring surface
+  unchanged across both phases.
+- **#97** (pending, blocked by #96) — Phase A: translator +
+  AnimationPlayer plumbing + delete GDScript interp + tests +
+  doc updates.
+- **#98** (pending, blocked by #97) — Phase B: .glb loader +
+  state-rule bridge to imported AnimationPlayer + material
+  override decision + asset-designer skill update.
+
+Out of scope across both phases: AnimationTree blend trees,
+Mixamo retargeting, ragdoll rigging, rigging code-drawn
+primitives. Those are separate-ADR follow-ups.
+
+### TDTE UX polish queue (user feedback 2026-05-16, after Tier A landed)
+
+Live-play feedback after the slot_grid + active-highlight session:
+
+| ID | Issue | Direct quote |
+|---|---|---|
+| **#102** | Too many keys, not UX | "too many keys and not ux enough" |
+| **#103** | Inventory ui is still ugly | "the inventory ui is still ugly" — wants icon-grid (Tier B) not text strings in cells |
+| **#104** | HUD is in wrong place + no map open/close | "map open and close. hud location is weird, put at right top" |
+| **#105** | Minimap doesn't show camera direction | "map HUD show what camera is 'viewing' (putting the cone thing)" |
+| **#106** | Crosshair selection feels off | "the object crosshair selection is abit weird feeling, is the collision box put correctly (wrapping the mesh tight?)" |
+
+Sequence proposal (cheapest → most-impactful per task):
+
+1. **#106 (collision-tightness audit)** — likely a 1-line fix per
+   entity def. Highest UX win-per-line. Direct cause of most "this
+   verb didn't fire" frustration in playtests.
+2. **#102 (input consolidation)** — collapse ~13 verb keys to ~6 by
+   making E a context-sensitive "interact" that dispatches by
+   crosshair target tag (forageable → gather, animal → attack,
+   tree → chop, NPC → talk). Engine: needs either a multi-effect
+   dispatch on `world.crosshair_target_tags` or per-tag input rules
+   gated by the target's tags. Open question to resolve before
+   coding.
+3. **#104 (HUD layout + map modal)** — re-anchor primary vitals to
+   top-right, strip the verbose bottom controls hint after #102
+   reduces what it has to say, add M-key full-screen map modal
+   (existing minimap data, freeze_world: true).
+4. **#105 (minimap view cone)** — small engine change in
+   minimap_widget.gd's _draw() to overlay a wedge from the player's
+   facing. Author-configurable (show_view_cone, view_cone_color,
+   view_cone_alpha, view_cone_radius).
+5. **#103 (UI Tier B — item_icon element)** — closes the "looks like
+   help text" gap. New element type that resolves def_id →
+   `visual.params.<primary_color>` as a ColorRect inside the slot
+   cell. Stack-count overlay optional.
+
+Sequencing rationale:
+- #106 is cheapest and unblocks frustration during dev play.
+- #102 is the LOAD-BEARING UX fix — too many keys is the dominant
+  complaint, and reducing them changes what HUD text is needed
+  (which #104 then displays).
+- #104 + #105 are layout/wiring work — both build on the
+  consolidated input + tighter targeting.
+- #103 is the visual polish that completes the inventory look.
+
+OPEN QUESTIONS to surface before each lands:
+- #102: hold vs press for "interact"? Examine merge into interact
+  or stay separate? Overlapping targets (tree near NPC) → which
+  wins?
+- #104: map modal freezes sim or stays live? Fog-of-war?
+- #106: tighten via per-shape redefine, OR via raycast `intersect_shape`
+  near-miss tolerance, OR both?
+
+### UI Tier A landed 2026-05-16 — slot_grid (#99 ✅)
+
+`slot_grid` element added to control_factory.gd: array-bound grid
+of bordered cells with per-cell active-slot highlighting. One
+primitive serves hotbar (1×N) AND full inventory grid (5×7). HUD
++ inventory screen both consume it. Foundation for Tier B (icon
+hotbar) + Tier C (full RPG inventory with tabs + paper-doll +
+stats panel). 12 new unit assertions land it (874/0 → 875/0
+after the custom-binding-promotion test).
+
+Sequencing for B/C if user pursues:
+- Tier B: new `item_icon` element type that swaps the slot_grid
+  cell's text Label for a colored swatch / mini-mesh / 2D icon
+  derived from a def_id. Lands when items need visual identity.
+- Tier C: TabContainer wrapper + equipment_slot single-cell
+  primitive + drag-and-drop input handling on cells. Lands when
+  a game's GDD actually needs full RPG inventory.
+
+### Rules file layout — reorganize 2026-05-16 (tasks #109, #110)
+
+User feedback: `world/rules.json` is too big (Aldenmere hit 3624
+lines) and the rules.json vs goals.json boundary is fuzzy — most of
+goals.json is world logic that happened to land there because of
+ADR 0009's split.
+
+Audit confirmed: aldenmere's game/goals.json has 14 rules, only 2
+of which are actual win/lose ('win_day3_survived',
+'lose_player_died'). The other 12 (boot_latch, day_boundary_advance,
+6 objective rules, 3 tutorial rules, win_screen_latch_assist) are
+world simulation that happens to share scope.
+
+Two separable changes:
+
+**Change B (#109, do first)** — split monolithic rules.json into a
+directory of feature modules. Engine: check for `world/rules/`
+dir; if exists, glob `*.json` + concatenate `rules` arrays. Falls
+back to single `world/rules.json` for backward compat. Aldenmere
+splits into ~10 chains (movement, needs, sleep, weather, animals,
+inventory, cooking, build, objectives, transitions). Each ~100-400
+lines vs the current 3624 monolith. Diff readability up massively.
+No ADR change needed — this is just file organization within
+ADR 0009's world/ boundary.
+
+**Change A (#110, blocked by B)** — collapse goals.json into
+world/rules/. The 12 non-goal rules move to the appropriate
+chain module (objective rules → objectives.json, transitions →
+transitions.json, etc.). The 2 actual goal rules either move to
+transitions.json (recommended: option α — delete goals.json
+entirely; HUD already has declarative win:/lose: blocks) OR
+keep a tiny declarative-only goals.json (option β: parallel
+declarative path, needs new engine plumbing). Recommended: α.
+Reverses ADR 0009; yume-game-rules-designer skill scope shrinks
+or merges into yume-systems-designer.
+
+Sequence: B is mechanical + low-risk + immediate readability win.
+After B lands, A becomes obvious to do (goals.json's contents
+clearly don't add anything over the chain modules).
+
+### Skills update (2026-05-16, task #111)
+
+After ADR 0009 revision landed, in-session updates touched only the
+three highest-priority skills (yume-systems-designer's
+description + global path rename; yume-game-rules-designer's
+description + revision banner narrowing scope; yume-design
+orchestrator's revision banner + one layout-block patch). 7 reader
+skills + deeper sections in the 3 writer skills still reference
+legacy paths (goals.json, single-file world/rules.json).
+
+Strategy: ship the banner now (course-corrects LLM-readers
+short-term), defer the thorough sweep to before the NEXT game runs
+through /yume-design. Until then, the banner says "treat these
+sections as legacy; here's the current shape." Empirically: user
+flagged this on 2026-05-16 with "are the skills also updated?"
+
+Task #111 tracks the sweep.

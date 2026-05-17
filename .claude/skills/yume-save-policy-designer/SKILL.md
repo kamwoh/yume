@@ -226,9 +226,10 @@ unlocks persist; single slot since action games don't branch.
   picks tags; this skill just lists which tags persist
 - ❌ Author the save UI (slot picker, save buttons) —
   yume-screen-flow-designer
-- ❌ Author the save_state effect rules in game/goals.json —
-  yume-game-rules-designer (the rules that fire save_state on win,
-  etc.)
+- ❌ Author the save_state effect rules — yume-systems-designer (post
+  ADR 0009 revision 2026-05-16, rule authoring including save_state
+  effects lives in world/rules/*.json feature modules, not in the now-
+  removed game/goals.json)
 
 ## When invoked by orchestrator
 

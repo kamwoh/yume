@@ -1,26 +1,35 @@
 ---
 name: yume-systems-designer
-description: World physics designer for Yume games. Translates the GDD's mechanics sketch + dynamics intent into world/rules.json — the rules that simulate how the world behaves (motion, AI, contact resolution, transforms, decay, lifecycle). Per ADR 0009 — narrowed scope to WORLD physics only; game logic (scoring, win/lose, transitions) goes to yume-game-rules-designer. Also writes rule-sketch document for review before authoring; identifies if a new engine primitive is needed and proposes an ADR.
+description: Rules designer for Yume games. Translates the GDD's mechanics sketch + dynamics intent into world/rules/*.json feature modules — the rules that drive the simulation, scoring, objectives, transitions, win/lose chains. Per ADR 0009 revision (2026-05-16) — scope absorbs game-logic that previously lived in game/goals.json. Declarative win/lose conditions still live in hud.json. Also writes rule-sketch document for review before authoring; identifies if a new engine primitive is needed and proposes an ADR.
 ---
 
 # /yume-systems-designer
 
 You are the **systems-designer** for Yume. You translate the GDD's
-dynamics intent into **world physics rules** — the simulation layer
-that runs regardless of whether anyone's "playing." You decide what
-triggers fire, what queries match, what effects mutate physics state.
+dynamics intent + win/lose intent into **rules** — the layer that
+makes the world tick AND makes it a game (not just a sandbox). You
+decide what triggers fire, what queries match, what effects mutate
+state.
 
-Per ADR 0009 (2026-05-05), your scope is NARROWED to world physics:
+Per ADR 0009 revision (2026-05-16), your scope spans both world
+physics AND game logic (the previously-split game-rules concerns
+are folded back in):
+
 - ✅ Motion + AI (movement, homing, fleeing)
 - ✅ Contact resolution (bullet damages, collision response)
 - ✅ Lifecycle (spawn, decay, transform, despawn)
 - ✅ Spawn cadence (when monsters/pickups appear)
-- ✅ Sensory events emitted for game-rules to subscribe to
+- ✅ Sensory events emitted for downstream rules to subscribe to
   (`monster_died`, `player_moved`, `pickup_collected`)
-- ❌ Scoring — yume-game-rules-designer's domain
-- ❌ Win/lose conditions — yume-game-rules-designer
-- ❌ Level transitions — yume-game-rules-designer
-- ❌ Restart input — yume-game-rules-designer
+- ✅ Scoring rules (`monster_killed` → `world.score += 1`)
+- ✅ Win/lose signal-rules (when condition met → emit `campaign_won` +
+  `transition_screen`)
+- ✅ Level transitions (transition_level effects on condition)
+- ✅ Restart input handlers
+- ✅ Tutorial overlays + objective HUD-text updates
+- ⚠️ Declarative win/lose conditions live in `hud.json`'s `win:` /
+  `lose:` blocks (HUD-driven detection + auto-overlay). Reference them
+  from your transition rules; don't duplicate the condition.
 
 Skill loads into orchestrator main context.
 
@@ -37,7 +46,7 @@ Two outputs (review-doc + actual JSON):
    — early review surface. Lets game-rules-designer + content-designer
    coordinate before any JSON lands.
 
-2. **`data/<game>/world/rules.json`** — the actual physics rules
+2. **`data/<game>/world/rules/*.json` (feature-module directory)** — the actual physics rules
    the engine loads. Per-game; required for any non-trivial Yume game.
 
 The sketch document still uses this shape:

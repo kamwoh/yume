@@ -66,9 +66,12 @@ Checklist before complete:
      sounds.json) and document the rule wiring + the limitation.
    - OR propose an ADR for ogg/loop playback. Don't claim BGM is
      authored if the engine can't play it.
-3. Verify each BGM track has a corresponding rule in game/goals.json
-   that fires `emit_shell_event {event: "play_music", name: "..."}`
-   on level entry. Without the rule, the cue is dead JSON.
+3. Verify each BGM track has a corresponding rule in
+   world/rules/*.json (any feature module — typically a transitions
+   or juice chain) that fires `emit_shell_event {event: "play_music",
+   name: "..."}` on level entry. Per ADR 0009 revision 2026-05-16, all
+   rules live under world/rules/ (game/goals.json was removed). Without
+   the rule, the cue is dead JSON.
 4. Document in audio-design.md exactly which cues are PLAYABLE today
    vs forward-compat metadata.
 
@@ -229,8 +232,8 @@ changes.
 ### Mapping music to game state
 
 Music plays based on signals + screen state. Rules in
-game/goals.json (yume-game-rules-designer's domain) fire effects
-like:
+world/rules/*.json (yume-systems-designer's domain post-ADR-0009-
+revision 2026-05-16) fire effects like:
 
 ```jsonc
 {"type": "play_music", "track": "level_1_bgm", "crossfade_s": 1.0},
