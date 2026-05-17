@@ -258,7 +258,10 @@ class MockBackend(Backend):
         self,
         prompt: str,
         out_path: Path,
+        reference_image: Path | None = None,
     ) -> Path:
+        # Mock backend ignores reference_image — there's no real
+        # image-to-mesh path in stdlib. Hue is just prompt-determined.
         hue = _hash_to_hue(prompt)
         body = _hsv_to_rgb(hue, 0.5, 0.8)
         trim = _hsv_to_rgb((hue + 0.5) % 1.0, 0.6, 0.4)

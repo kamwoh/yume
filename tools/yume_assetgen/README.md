@@ -104,15 +104,63 @@ After a run, the def becomes:
 
 | Name | Textures | Meshes | Notes |
 |------|---------|---------|-------|
-| `mock` | ✓ | ✓ | No external calls. Emits deterministic prompt-hash gradient PNGs + cube .glbs. Use for smoke testing + visual layout before art ships. |
-| `openai_images` | (planned) | ✗ | DALL-E 3 / DALL-E 2 via OpenAI API. Needs `OPENAI_API_KEY`. |
-| `stable_diffusion_local` | (planned) | ✗ | Automatic1111 / ComfyUI HTTP API. Free. |
-| `tripo3d` | ✗ | (planned) | Text + ref-image → .glb mesh. Needs `TRIPO3D_API_KEY`. |
+| `mock` | ✓ | ✓ | No external calls. Emits deterministic prompt-hash gradient PNGs + cube `.glb`s. Use for smoke testing + visual layout before art ships. Forced via `--backend mock`. |
+| `nanobanana` (alias `gemini_image`) | ✓ | ✗ | **Gemini 2.5 Flash Image** via Google's Generative Language API. Needs `GEMINI_API_KEY`. Accepts text + optional reference images. |
+| `tripo3d` | ✗ | ✓ | **Tripo3D** text→3D + image→3D mesh generation. Async (polls task status). Output `.glb` has baked-in materials. Needs `TRIPO_API_KEY`. |
 
-To add a backend: subclass `Backend` in
+To add a new backend: subclass `Backend` in
 `tools/yume_assetgen/backends/<name>.py`, implement
 `generate_texture` and/or `generate_mesh`, register in
 `backends/__init__.py::REGISTRY`.
+
+### Per-kind backend routing
+
+`asset_gen.json`'s `backend` field accepts EITHER a single string
+(one backend for everything) OR a dict mapping kinds to backends:
+
+```jsonc
+"backend": {
+  "texture": "nanobanana",   // 2D PNGs for material albedo
+  "mesh":    "tripo3d",      // .glb skinned meshes
+  "concept": "nanobanana"    // intermediate refs (fed to Tripo3D)
+                             // — optional; defaults to texture's backend
+}
+```
+
+Both backends are queried lazily — if your game only declares
+`*_texture_prompt` fields, the Tripo3D backend never instantiates
+and `TRIPO_API_KEY` doesn't need to be set.
+
+### Chained mode (nanobanana → Tripo3D)
+
+When an entity declares BOTH `mesh_reference_prompt` AND
+`mesh_prompt`, the pipeline:
+
+1. Calls nanobanana with `mesh_reference_prompt` → saves a PNG to
+   `assets/concepts/<entity>.png` (intermediate, not patched onto
+   the entity def).
+2. Calls Tripo3D with `mesh_prompt` + that PNG as `reference_image`
+   (image-to-3D mode) → saves `.glb` to `assets/meshes/<entity>.glb`.
+3. Patches `visual.mesh = "res://.../assets/meshes/<entity>.glb"`.
+
+```jsonc
+"visual": {
+  // Cheap iterable 2D concept — front view of the character
+  "mesh_reference_prompt": "elderly villager, dark robe, front view",
+  // Then Tripo3D matches the mesh to the concept
+  "mesh_prompt": "low-poly humanoid villager, T-pose, clean topology",
+
+  // (Separately, a loose texture for re-skinning the body surface)
+  "material_overrides": {
+    "body": {"albedo_texture_prompt": "weathered grey wool fabric"}
+  }
+}
+```
+
+If `mesh_reference_prompt` is absent, Tripo3D runs in text-only
+mode. If `mesh_prompt` is absent but `mesh_reference_prompt` is
+present, the concept is generated but no mesh — typical workflow:
+iterate on concepts first, add `mesh_prompt` once you're happy.
 
 ## CLI flags
 

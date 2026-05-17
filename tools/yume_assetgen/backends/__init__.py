@@ -20,10 +20,17 @@ Future (slot in by creating a module + adding to REGISTRY):
 
 from .base import Backend
 from .mock import MockBackend
+from .nanobanana import NanobananaBackend
+from .tripo3d import Tripo3DBackend
 
-# Backend registry — name (string in asset_gen.json) → class
+# Backend registry — name (string in asset_gen.json) → class.
+# Real backends require API keys in env (GEMINI_API_KEY / TRIPO_API_KEY);
+# `--backend mock` overrides config for offline iteration.
 REGISTRY = {
     "mock": MockBackend,
+    "nanobanana": NanobananaBackend,
+    "gemini_image": NanobananaBackend,  # alias — same underlying API
+    "tripo3d": Tripo3DBackend,
 }
 
 

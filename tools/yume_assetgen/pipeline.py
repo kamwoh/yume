@@ -32,13 +32,20 @@ from .config import AssetGenConfig, load_config
 @dataclass
 class PromptItem:
     entity_id: str
-    kind: str  # "texture" | "mesh"
+    kind: str  # "texture" | "mesh" | "concept"
     raw_prompt: str
     assembled_prompt: str
     out_path: Path
-    res_ref: str  # the res:// path entity_def will reference
+    res_ref: str  # the res:// path entity_def will reference (empty for concept)
     source_file: Path  # the entity .json file (for in-place patching)
-    visual_key: str  # field name on visual to patch ("albedo_texture" | "mesh")
+    visual_key: str  # visual field to patch ("albedo_texture" | "mesh" | "")
+    # When set, this mesh prompt consumes a concept image generated
+    # upstream in the same run. Pipeline routes concepts FIRST so the
+    # reference image exists before the mesh dispatch sees this path.
+    reference_image_path: Path | None = None
+    # When True, this prompt's output is an intermediate (concept ref)
+    # — pipeline doesn't patch the entity def with its path.
+    intermediate: bool = False
 
 
 def scan_prompts(
@@ -87,6 +94,31 @@ def scan_prompts(
                     source_file=f,
                     visual_key="albedo_texture",
                 ))
+
+            # Concept image: an intermediate ref fed to Tripo3D's
+            # image-to-mesh mode. Yields a "concept" PromptItem; the
+            # mesh PromptItem (below) gets `reference_image_path` set
+            # so the backend dispatch can read it. Concept comes
+            # FIRST in items so the file exists before the mesh runs.
+            concept_path: Path | None = None
+            if (only in (None, "mesh")) and visual.get("mesh_reference_prompt"):
+                concept_path = (
+                    cfg.concept_dir_abs(game_dir) / f"{entity_id}.png"
+                )
+                items.append(PromptItem(
+                    entity_id=entity_id,
+                    kind="concept",
+                    raw_prompt=str(visual["mesh_reference_prompt"]),
+                    assembled_prompt=_assemble(
+                        cfg, str(visual["mesh_reference_prompt"]), "concept"
+                    ),
+                    out_path=concept_path,
+                    res_ref="",
+                    source_file=f,
+                    visual_key="",
+                    intermediate=True,
+                ))
+
             if (only in (None, "mesh")) and visual.get("mesh_prompt"):
                 items.append(PromptItem(
                     entity_id=entity_id,
@@ -99,16 +131,22 @@ def scan_prompts(
                     res_ref=cfg.mesh_ref(repo_data_prefix, entity_id),
                     source_file=f,
                     visual_key="mesh",
+                    reference_image_path=concept_path,
                 ))
     return iter(items)
 
 
 def _assemble(cfg: AssetGenConfig, raw: str, kind: str) -> str:
-    """Concatenate style.global_prefix + raw + style.<kind>_suffix."""
+    """Concatenate style.global_prefix + raw + style.<kind>_suffix.
+    Kinds: "texture", "mesh", "concept". Each gets its own suffix."""
     style = cfg.style or {}
     prefix = style.get("global_prefix", "")
-    suffix_key = "texture_suffix" if kind == "texture" else "mesh_suffix"
-    suffix = style.get(suffix_key, "")
+    suffix_key = {
+        "texture": "texture_suffix",
+        "mesh": "mesh_suffix",
+        "concept": "concept_suffix",
+    }.get(kind, "")
+    suffix = style.get(suffix_key, "") if suffix_key else ""
     return f"{prefix}{raw}{suffix}"
 
 
@@ -151,21 +189,44 @@ def run_pipeline(
 ) -> dict:
     """Execute the full pipeline. Returns a summary dict with counts.
 
-    `dry_run=True` lists what WOULD be generated without invoking the
+    `dry_run=True` lists what WOULD be generated without invoking any
     backend or writing files. Useful for verifying scan + prompt
     assembly before paying API calls.
+
+    `backend_override` (CLI flag --backend) replaces ALL per-kind
+    backend choices in config with this single backend name. Useful
+    for forcing 'mock' on a config that's normally nanobanana+tripo3d.
     """
     cfg = load_config(game_dir)
-    backend_name = backend_override or cfg.backend
-    if dry_run:
-        backend = None
-    else:
-        backend_config = cfg.backend_config.get(backend_name, {})
-        backend = get_backend(backend_name, backend_config)
+
+    # Resolve which backend handles each kind. backend_override forces
+    # ONE backend for everything (e.g. --backend mock for cheap reruns).
+    def _kind_backend(kind: str) -> str:
+        if backend_override:
+            return backend_override
+        return cfg.backend_for(kind)
+
+    # Lazy backend instantiation — only create the ones we'll actually
+    # use, so a game with only texture prompts doesn't require
+    # TRIPO_API_KEY to be set.
+    backends: dict[str, "Backend"] = {}
+
+    def _get(kind: str):
+        if dry_run:
+            return None
+        name = _kind_backend(kind)
+        if name not in backends:
+            backend_config = cfg.backend_config.get(name, {})
+            backends[name] = get_backend(name, backend_config)
+        return backends[name]
 
     summary = {
         "game": game_dir.name,
-        "backend": backend_name,
+        "backends": {  # what got USED, populated below
+            "texture": _kind_backend("texture"),
+            "mesh": _kind_backend("mesh"),
+            "concept": _kind_backend("concept"),
+        },
         "dry_run": dry_run,
         "scanned": 0,
         "generated": 0,
@@ -198,13 +259,17 @@ def run_pipeline(
             if verbose:
                 print(f"  [skip] {item.kind:7s} {item.entity_id:20s} (exists)")
             continue
+        backend = _get(item.kind)
         try:
-            if item.kind == "texture":
+            if item.kind in ("texture", "concept"):
                 if not backend.supports_texture():
                     rec["status"] = "backend_lacks_support"
                     summary["errors"].append(rec)
                     if verbose:
-                        print(f"  [skip] {item.kind:7s} {item.entity_id} (backend can't gen textures)")
+                        print(
+                            f"  [skip] {item.kind:7s} {item.entity_id} "
+                            f"(backend can't gen textures)"
+                        )
                     continue
                 backend.generate_texture(
                     item.assembled_prompt,
@@ -216,23 +281,43 @@ def run_pipeline(
                     rec["status"] = "backend_lacks_support"
                     summary["errors"].append(rec)
                     if verbose:
-                        print(f"  [skip] {item.kind:7s} {item.entity_id} (backend can't gen meshes)")
+                        print(
+                            f"  [skip] {item.kind:7s} {item.entity_id} "
+                            f"(backend can't gen meshes)"
+                        )
                     continue
-                backend.generate_mesh(item.assembled_prompt, item.out_path)
+                # Pass reference_image kwarg if the backend accepts
+                # it (Tripo3D image-to-3D mode). MockBackend's signature
+                # only takes (prompt, out_path); guard with try/except
+                # or feature-test. Cleanest: pass kwarg only if set.
+                if item.reference_image_path and item.reference_image_path.exists():
+                    backend.generate_mesh(
+                        item.assembled_prompt,
+                        item.out_path,
+                        reference_image=item.reference_image_path,
+                    )
+                else:
+                    backend.generate_mesh(item.assembled_prompt, item.out_path)
             summary["generated"] += 1
             rec["status"] = "generated"
-            if cfg.patch_entities:
+            if cfg.patch_entities and not item.intermediate:
                 if _patch_entity_file(item):
                     summary["patched"] += 1
                     rec["patched"] = True
             summary["items"].append(rec)
             if verbose:
-                print(f"  [gen]  {item.kind:7s} {item.entity_id:20s} → {item.out_path.name}")
+                tag = "gen" if not item.intermediate else "ref"
+                print(
+                    f"  [{tag:3s}]  {item.kind:7s} {item.entity_id:20s} → {item.out_path.name}"
+                )
         except Exception as e:
             rec["status"] = "error"
             rec["error"] = str(e)
             summary["errors"].append(rec)
             if verbose:
-                print(f"  [err]  {item.kind:7s} {item.entity_id}: {e}", file=sys.stderr)
+                print(
+                    f"  [err]  {item.kind:7s} {item.entity_id}: {e}",
+                    file=sys.stderr,
+                )
 
     return summary

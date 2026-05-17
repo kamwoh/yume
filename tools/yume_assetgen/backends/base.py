@@ -56,8 +56,14 @@ class Backend(ABC):
         self,
         prompt: str,
         out_path: Path,
+        reference_image: "Path | None" = None,
     ) -> Path:
-        """Write a .glb to `out_path`. Returns the path written."""
+        """Write a .glb to `out_path`. Returns the path written.
+
+        `reference_image` (optional) is a path to a PNG that should be
+        used as a 2D concept-image input to image→3D mode (Tripo3D
+        supports this; other backends may ignore it).
+        """
         raise NotImplementedError(
             f"{self.name()}: mesh generation not supported"
         )
