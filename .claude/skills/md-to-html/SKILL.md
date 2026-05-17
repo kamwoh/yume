@@ -87,8 +87,14 @@ Not supported (use plain text or escape if needed):
 - Footnotes
 - HTML-in-markdown (escaped automatically)
 - Math / LaTeX
-- Mermaid / diagrams (would need a renderer pass — not in scope)
 - Multi-line list items with nested code blocks (single-line items only)
+
+**Mermaid** (added 2026-05-17): fenced blocks with ```mermaid get
+wrapped in `<div class="mermaid">` and rendered client-side by
+mermaid.js (loaded from CDN, ~50KB). Works for flowcharts,
+sequence diagrams, state diagrams, class diagrams, etc. Requires
+an internet connection on first page load (subsequent loads use
+the browser cache).
 
 ## Examples
 
@@ -129,7 +135,8 @@ After running, surface to the user:
 
 - ❌ Edit the source markdown (read-only on input)
 - ❌ Download external CSS/JS — output is fully self-contained
-- ❌ Render mermaid diagrams or math — see "Not supported" above
+- ❌ Render math / LaTeX — see "Not supported" above
+- ✓ Mermaid blocks DO render (added 2026-05-17 via CDN mermaid.js)
 - ❌ Generate PDFs — use a browser's print-to-PDF on the HTML output
 - ❌ Pull markdown from URLs — local files only
 

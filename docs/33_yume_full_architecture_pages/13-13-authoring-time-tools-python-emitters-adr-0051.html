@@ -128,6 +128,15 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+</script>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="12-12-why-yume-doesnx27t-use-godot-physics.html">← 12. Why Yume doesn&amp;#x27;t use Godot physics</a> <a href="14-stats-2026-05-17.html">Stats (2026-05-17) →</a></div></nav>
@@ -173,30 +182,30 @@ rule(
 <h3 id="132-yume-assetgen-texture-mesh-generation-pipeline">13.2 yume_assetgen — texture + mesh generation pipeline</h3>
 <p>Reads <code>data/&lt;game&gt;/asset_gen.json</code> (backend + style config), walks entity defs for <code>*_prompt</code> fields under <code>visual:</code>, dispatches each prompt to a configured <strong>Backend</strong>, and writes output to <code>data/&lt;game&gt;/assets/textures/</code> (PNGs) and <code>data/&lt;game&gt;/assets/meshes/</code> (<code>.glb</code>s). After write, patches the entity def in place with the resolved <code>res://</code> path so the engine finds it.</p>
 <p>End-to-end flow:</p>
-<pre><code class="lang-mermaid">flowchart TD
-    A[Entity def with&lt;br/&gt;albedo_texture_prompt&lt;br/&gt;+ mesh_prompt] --&gt; B[Pipeline scan]
-    B --&gt; C[Assemble prompt:&lt;br/&gt;global_prefix + raw + suffix]
-    C --&gt; D{Backend}
-    D --&gt;|mock| E[Stdlib gradient PNG&lt;br/&gt;+ cube .glb]
-    D --&gt;|openai_images&lt;br/&gt;future| F[DALL-E API call]
-    D --&gt;|stable_diffusion_local&lt;br/&gt;future| G[HTTP POST&lt;br/&gt;to localhost:7860]
-    D --&gt;|tripo3d&lt;br/&gt;future| H[Text+image to glb&lt;br/&gt;API call]
-    E --&gt; I[assets/textures/X.png&lt;br/&gt;assets/meshes/X.glb]
-    F --&gt; I
-    G --&gt; I
-    H --&gt; I
-    I --&gt; J[Patch entity def:&lt;br/&gt;visual.albedo_texture&lt;br/&gt;visual.mesh]
-    J --&gt; K[Engine reads patched def&lt;br/&gt;entity_mesh_3d.gd]
-    K --&gt; L{Mesh path&lt;br/&gt;ends in .glb?}
-    L --&gt;|yes| M[_load_glb_mesh&lt;br/&gt;ADR 0046 Phase B]
-    L --&gt;|no| N[mesh-lib path&lt;br/&gt;+ apply albedo_texture&lt;br/&gt;to every primitive]
-    M --&gt; O[Rendered entity]
-    N --&gt; O
+<div class="mermaid">flowchart TD
+    A[Entity def with<br/>albedo_texture_prompt<br/>+ mesh_prompt] --> B[Pipeline scan]
+    B --> C[Assemble prompt:<br/>global_prefix + raw + suffix]
+    C --> D{Backend}
+    D -->|mock| E[Stdlib gradient PNG<br/>+ cube .glb]
+    D -->|openai_images<br/>future| F[DALL-E API call]
+    D -->|stable_diffusion_local<br/>future| G[HTTP POST<br/>to localhost:7860]
+    D -->|tripo3d<br/>future| H[Text+image to glb<br/>API call]
+    E --> I[assets/textures/X.png<br/>assets/meshes/X.glb]
+    F --> I
+    G --> I
+    H --> I
+    I --> J[Patch entity def:<br/>visual.albedo_texture<br/>visual.mesh]
+    J --> K[Engine reads patched def<br/>entity_mesh_3d.gd]
+    K --> L{Mesh path<br/>ends in .glb?}
+    L -->|yes| M[_load_glb_mesh<br/>ADR 0046 Phase B]
+    L -->|no| N[mesh-lib path<br/>+ apply albedo_texture<br/>to every primitive]
+    M --> O[Rendered entity]
+    N --> O
 
     classDef green fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef yellow fill:#3f3a1e,stroke:#c9b562,color:#f8f0d8
     class A,J,K,M,N,O green
-    class C,I yellow</code></pre>
+    class C,I yellow</div>
 <p>Backends slotted into <code>tools/yume_assetgen/backends/REGISTRY</code>:</p>
 <table>
 <thead><tr>

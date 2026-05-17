@@ -128,6 +128,15 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+</script>
 </head>
 <body>
 

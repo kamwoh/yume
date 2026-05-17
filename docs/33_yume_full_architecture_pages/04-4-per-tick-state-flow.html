@@ -128,13 +128,22 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+</script>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="03-3-skill-pipeline-prose-to-running-game.html">← 3. Skill pipeline — prose to running game</a> <a href="05-5-invariants-cheat-sheet.html">5. Invariants cheat-sheet →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#4-per-tick-state-flow">4. Per-tick state flow</a></li></ul></div>
 <h2 id="4-per-tick-state-flow">4. Per-tick state flow</h2>
-<pre><code class="lang-mermaid">sequenceDiagram
+<div class="mermaid">sequenceDiagram
     participant Input as Player Input
     participant World as world.gd
     participant Sched as PhaseScheduler
@@ -144,36 +153,36 @@ hr {
 
     Note over Sched: Tick begins each world.tick_seconds
 
-    Input-&gt;&gt;World: keyboard or mouse event
-    World-&gt;&gt;Sched: queue_input action ctx
+    Input->>World: keyboard or mouse event
+    World->>Sched: queue_input action ctx
 
     Note over Sched: PHASE 1 input
-    Sched-&gt;&gt;Sched: fire input-trigger rules
-    Sched-&gt;&gt;Effects: enqueue effects
-    Sched-&gt;&gt;Effects: flush_effects
-    Effects-&gt;&gt;State: state_set or state_add or spawn
+    Sched->>Sched: fire input-trigger rules
+    Sched->>Effects: enqueue effects
+    Sched->>Effects: flush_effects
+    Effects->>State: state_set or state_add or spawn
 
     Note over Sched: drain signals then decide
 
     Note over Sched: PHASE 2 decide
-    Sched-&gt;&gt;Sched: fire tick and signal rules
-    Sched-&gt;&gt;Effects: enqueue effects
-    Sched-&gt;&gt;Effects: flush_effects
-    Effects-&gt;&gt;State: mutations apply
+    Sched->>Sched: fire tick and signal rules
+    Sched->>Effects: enqueue effects
+    Sched->>Effects: flush_effects
+    Effects->>State: mutations apply
 
     Note over Sched: drain signals then react CRITICAL FLUSH Invariant 9
 
     Note over Sched: PHASE 3 react
-    Sched-&gt;&gt;Sched: fire contact and lifecycle rules
-    Sched-&gt;&gt;Effects: enqueue effects
-    Sched-&gt;&gt;Effects: flush_effects
-    Effects-&gt;&gt;State: mutations apply
+    Sched->>Sched: fire contact and lifecycle rules
+    Sched->>Effects: enqueue effects
+    Sched->>Effects: flush_effects
+    Effects->>State: mutations apply
 
     Note over State: Tick ends and state stable
 
-    State-&gt;&gt;Render: position scale yaw mesh
-    Render-&gt;&gt;Render: animation_director tick per-piece keyframe interp
-    Render--&gt;&gt;Input: next frame shown</code></pre>
+    State->>Render: position scale yaw mesh
+    Render->>Render: animation_director tick per-piece keyframe interp
+    Render-->>Input: next frame shown</div>
 <hr>
 
 </div>

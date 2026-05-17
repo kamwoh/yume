@@ -128,6 +128,15 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+</script>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="05-5-invariants-cheat-sheet.html">← 5. Invariants cheat-sheet</a> <a href="07-7-per-module-deep-dive-input-json-action-tick-role.html">7. Per-module deep-dive — input JSON → action → tick role →</a></div></nav>
@@ -135,144 +144,144 @@ hr {
 <div class="toc"><h3>Contents</h3><ul><li><a href="#6-engine-modules-which-gd-reads-which-json">6. Engine modules — which `.gd` reads which `.json`</a></li>  <li><a href="#reading-the-diagram">Reading the diagram</a></li>  <li><a href="#boot-order-worldgdload-data">Boot order (`world.gd::load_data`)</a></li>  <li><a href="#key-invariant-single-parse-discipline">Key invariant — single-parse discipline</a></li></ul></div>
 <h2 id="6-engine-modules-which-gd-reads-which-json">6. Engine modules — which <code>.gd</code> reads which <code>.json</code></h2>
 <p>This is the <strong>boot-time data flow</strong>: every JSON file is parsed by exactly one <code>.gd</code> module which exposes the parsed data to the rest of the engine via in-memory structures (<code>env</code> dict, manager instances, registries). <code>world.gd::load_data</code> orchestrates the order; downstream consumers receive references, never re-parse.</p>
-<pre><code class="lang-mermaid">flowchart LR
+<div class="mermaid">flowchart LR
     %% =========================================================
     %% PER-GAME JSON files (data/demo_X/)
     %% =========================================================
-    subgraph GameData[&quot;Per-game JSON (data/demo_X/)&quot;]
+    subgraph GameData["Per-game JSON (data/demo_X/)"]
         direction TB
-        sceneJ[&quot;scene.json&quot;]:::json
-        physJ[&quot;world/rules.json&quot;]:::json
-        ruleJ[&quot;game/goals.json&quot;]:::json
-        flowJ[&quot;game/flow.json&quot;]:::json
-        stateJ[&quot;world/state.json&quot;]:::json
-        zoneJ[&quot;world/zones.json&quot;]:::json
-        worldJ[&quot;world.json&lt;br/&gt;(chunked games)&quot;]:::json
-        entsJ[&quot;entities/*.json&lt;br/&gt;levels/*/entities.json&quot;]:::json
-        hudJ[&quot;hud.json&quot;]:::json
-        screensJ[&quot;screens.json&quot;]:::json
-        inputJ[&quot;ui/input.json&quot;]:::json
-        stringsJ[&quot;ui/strings.json&quot;]:::json
-        cuesJ[&quot;audio/cues.json&quot;]:::json
-        tutJ[&quot;tutorial.json&quot;]:::json
-        saveJ[&quot;save_policy.json&quot;]:::json
-        settingsJ[&quot;settings_schema.json&quot;]:::json
-        factJ[&quot;factions.json&quot;]:::json
-        techJ[&quot;tech_trees.json&quot;]:::json
-        testJ[&quot;tests.json&quot;]:::json
-        macJ[&quot;macros.json&quot;]:::json
-        actorJ[&quot;actors.json&quot;]:::json
+        sceneJ["scene.json"]:::json
+        physJ["world/rules.json"]:::json
+        ruleJ["game/goals.json"]:::json
+        flowJ["game/flow.json"]:::json
+        stateJ["world/state.json"]:::json
+        zoneJ["world/zones.json"]:::json
+        worldJ["world.json<br/>(chunked games)"]:::json
+        entsJ["entities/*.json<br/>levels/*/entities.json"]:::json
+        hudJ["hud.json"]:::json
+        screensJ["screens.json"]:::json
+        inputJ["ui/input.json"]:::json
+        stringsJ["ui/strings.json"]:::json
+        cuesJ["audio/cues.json"]:::json
+        tutJ["tutorial.json"]:::json
+        saveJ["save_policy.json"]:::json
+        settingsJ["settings_schema.json"]:::json
+        factJ["factions.json"]:::json
+        techJ["tech_trees.json"]:::json
+        testJ["tests.json"]:::json
+        macJ["macros.json"]:::json
+        actorJ["actors.json"]:::json
     end
 
     %% =========================================================
     %% SHARED JSON (data/, cross-game)
     %% =========================================================
-    subgraph SharedData[&quot;Shared JSON (data/, cross-game)&quot;]
+    subgraph SharedData["Shared JSON (data/, cross-game)"]
         direction TB
-        meshJ[&quot;meshes.json&quot;]:::shared
-        shapeJ[&quot;shapes.json&quot;]:::shared
-        soundJ[&quot;sounds.json&quot;]:::shared
-        libJ[&quot;lib/manifest.json&lt;br/&gt;lib/*.json&quot;]:::shared
+        meshJ["meshes.json"]:::shared
+        shapeJ["shapes.json"]:::shared
+        soundJ["sounds.json"]:::shared
+        libJ["lib/manifest.json<br/>lib/*.json"]:::shared
     end
 
     %% =========================================================
     %% ENGINE MODULES (scripts/engine/*.gd)
     %% =========================================================
-    World[&quot;world.gd&lt;br/&gt;orchestrator&lt;br/&gt;opens FileAccess&lt;br/&gt;JSON.parse_string&quot;]:::core
-    Rule[&quot;rule.gd&lt;br/&gt;Rule.from_dict&quot;]:::core
-    Macro[&quot;macro_expander.gd&quot;]:::core
-    LibRes[&quot;lib_resolver.gd&quot;]:::core
-    Sched[&quot;phase_scheduler.gd&quot;]:::core
-    EffApply[&quot;effect_apply.gd&lt;br/&gt;+ formula.gd&quot;]:::core
-    Query[&quot;query.gd&quot;]:::core
+    World["world.gd<br/>orchestrator<br/>opens FileAccess<br/>JSON.parse_string"]:::core
+    Rule["rule.gd<br/>Rule.from_dict"]:::core
+    Macro["macro_expander.gd"]:::core
+    LibRes["lib_resolver.gd"]:::core
+    Sched["phase_scheduler.gd"]:::core
+    EffApply["effect_apply.gd<br/>+ formula.gd"]:::core
+    Query["query.gd"]:::core
 
-    InputReg[&quot;input_registrar.gd&quot;]:::module
-    ScreenF[&quot;screen_flow.gd&quot;]:::module
-    Overlay[&quot;overlay.gd&quot;]:::module
-    GShell[&quot;game_shell.gd&quot;]:::module
-    AudioB[&quot;audio_bus.gd&quot;]:::module
-    SaveS[&quot;save_state.gd&quot;]:::module
-    Settings[&quot;settings_manager.gd&quot;]:::module
-    Scenario[&quot;scenario_runner.gd&quot;]:::module
-    Capture[&quot;capture_runner.gd&quot;]:::module
+    InputReg["input_registrar.gd"]:::module
+    ScreenF["screen_flow.gd"]:::module
+    Overlay["overlay.gd"]:::module
+    GShell["game_shell.gd"]:::module
+    AudioB["audio_bus.gd"]:::module
+    SaveS["save_state.gd"]:::module
+    Settings["settings_manager.gd"]:::module
+    Scenario["scenario_runner.gd"]:::module
+    Capture["capture_runner.gd"]:::module
 
-    MeshLib[&quot;mesh_lib.gd&quot;]:::module
-    ShapeLib[&quot;shape_lib.gd&quot;]:::module
+    MeshLib["mesh_lib.gd"]:::module
+    ShapeLib["shape_lib.gd"]:::module
 
-    SchedD[&quot;schedule_director.gd&lt;br/&gt;reads entity def&lt;br/&gt;schedule blocks&quot;]:::director
-    LightD[&quot;lighting_director.gd&quot;]:::director
-    FactD[&quot;faction_director.gd&quot;]:::director
-    TechT[&quot;tech_tree.gd&quot;]:::director
-    DynD[&quot;dynasty_director.gd&lt;br/&gt;reads entity def&lt;br/&gt;lineage_id&quot;]:::director
-    LifeD[&quot;lifecycle_director.gd&lt;br/&gt;reads entity def&lt;br/&gt;age_stages&quot;]:::director
-    PartyD[&quot;party_director.gd&lt;br/&gt;reads entity tag&lt;br/&gt;party_member&quot;]:::director
-    MMD[&quot;multimesh_director.gd&lt;br/&gt;reads mesh def&lt;br/&gt;multimesh_eligible&quot;]:::director
-    AnimD[&quot;animation_director.gd&lt;br/&gt;reads mesh def&lt;br/&gt;animations&quot;]:::director
-    Chunk[&quot;chunk_streamer.gd&quot;]:::director
-    ZoneS[&quot;zone_store.gd&quot;]:::store
+    SchedD["schedule_director.gd<br/>reads entity def<br/>schedule blocks"]:::director
+    LightD["lighting_director.gd"]:::director
+    FactD["faction_director.gd"]:::director
+    TechT["tech_tree.gd"]:::director
+    DynD["dynasty_director.gd<br/>reads entity def<br/>lineage_id"]:::director
+    LifeD["lifecycle_director.gd<br/>reads entity def<br/>age_stages"]:::director
+    PartyD["party_director.gd<br/>reads entity tag<br/>party_member"]:::director
+    MMD["multimesh_director.gd<br/>reads mesh def<br/>multimesh_eligible"]:::director
+    AnimD["animation_director.gd<br/>reads mesh def<br/>animations"]:::director
+    Chunk["chunk_streamer.gd"]:::director
+    ZoneS["zone_store.gd"]:::store
 
     %% =========================================================
     %% PARSE EDGES — green = JSON loaded by this .gd
     %% =========================================================
-    sceneJ --&gt; World
-    physJ  --&gt; World
-    ruleJ  --&gt; World
-    flowJ  --&gt; World
-    stateJ --&gt; World
-    zoneJ  --&gt; World
-    worldJ --&gt; World
-    entsJ  --&gt; World
-    tutJ   --&gt; World
-    macJ   --&gt; Macro
-    actorJ --&gt; World
+    sceneJ --> World
+    physJ  --> World
+    ruleJ  --> World
+    flowJ  --> World
+    stateJ --> World
+    zoneJ  --> World
+    worldJ --> World
+    entsJ  --> World
+    tutJ   --> World
+    macJ   --> Macro
+    actorJ --> World
 
-    libJ      --&gt; LibRes
-    LibRes -.-&gt; World
-    Macro  -.-&gt; World
+    libJ      --> LibRes
+    LibRes -.-> World
+    Macro  -.-> World
 
-    inputJ    --&gt; InputReg
-    screensJ  --&gt; ScreenF
-    stringsJ  --&gt; ScreenF
-    hudJ      --&gt; GShell
-    cuesJ     --&gt; AudioB
-    soundJ    --&gt; AudioB
-    meshJ     --&gt; MeshLib
-    shapeJ    --&gt; ShapeLib
-    saveJ     --&gt; SaveS
-    settingsJ --&gt; Settings
-    factJ     --&gt; FactD
-    techJ     --&gt; TechT
-    testJ     --&gt; Scenario
+    inputJ    --> InputReg
+    screensJ  --> ScreenF
+    stringsJ  --> ScreenF
+    hudJ      --> GShell
+    cuesJ     --> AudioB
+    soundJ    --> AudioB
+    meshJ     --> MeshLib
+    shapeJ    --> ShapeLib
+    saveJ     --> SaveS
+    settingsJ --> Settings
+    factJ     --> FactD
+    techJ     --> TechT
+    testJ     --> Scenario
 
     %% =========================================================
     %% IN-MEMORY HANDOFFS — blue = .gd hands data to consumer
     %% =========================================================
-    World --&gt; Sched
-    Sched --&gt; Query
-    Sched --&gt; EffApply
-    World --&gt; SchedD
-    World --&gt; LightD
-    World --&gt; FactD
-    World --&gt; DynD
-    World --&gt; LifeD
-    World --&gt; PartyD
-    World --&gt; MMD
-    World --&gt; AnimD
-    World --&gt; Chunk
-    World --&gt; ZoneS
-    MeshLib -.-&gt; MMD
-    MeshLib -.-&gt; AnimD
-    ShapeLib -.-&gt; GShell
-    AudioB -.-&gt; EffApply
-    Settings -.-&gt; World
-    SaveS -.-&gt;|read/write&lt;br/&gt;user://| World
+    World --> Sched
+    Sched --> Query
+    Sched --> EffApply
+    World --> SchedD
+    World --> LightD
+    World --> FactD
+    World --> DynD
+    World --> LifeD
+    World --> PartyD
+    World --> MMD
+    World --> AnimD
+    World --> Chunk
+    World --> ZoneS
+    MeshLib -.-> MMD
+    MeshLib -.-> AnimD
+    ShapeLib -.-> GShell
+    AudioB -.-> EffApply
+    Settings -.-> World
+    SaveS -.->|read/write<br/>user://| World
 
     classDef json fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef shared fill:#3a3f1e,stroke:#c9b962,color:#f8f4d8
     classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold
     classDef module fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef director fill:#3f1e3a,stroke:#c962b3,color:#ffe0f0
-    classDef store fill:#3f2e1e,stroke:#c98762,color:#f8e8d8</code></pre>
+    classDef store fill:#3f2e1e,stroke:#c98762,color:#f8e8d8</div>
 <h3 id="reading-the-diagram">Reading the diagram</h3>
 <ul>
 <li><strong>Green nodes</strong> are JSON files (per-game = mid-green, shared = olive).</li>

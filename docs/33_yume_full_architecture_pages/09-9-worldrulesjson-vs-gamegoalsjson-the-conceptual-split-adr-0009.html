@@ -128,6 +128,15 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+</script>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="08-8-entities-the-only-quotnounquot-in-the-engine.html">← 8. Entities — the only &amp;quot;noun&amp;quot; in the engine</a> <a href="10-10-full-game-lifecycle-boot-to-render.html">10. Full game lifecycle — boot to render →</a></div></nav>
@@ -136,142 +145,142 @@ hr {
 <h2 id="9-worldrulesjson-vs-gamegoalsjson-the-conceptual-split-adr-0009">9. world/rules.json vs game/goals.json — the conceptual split (ADR 0009)</h2>
 <p>Both files are parsed by <code>world.gd::_load_rules_file</code> into the SAME typed <code>Rule</code> objects, registered with the SAME <code>PhaseScheduler</code>. The engine doesn&#x27;t care which file a rule came from. <strong>The split is for HUMANS</strong> — different skills own different files; different concerns live in different places.</p>
 <h3 id="91-the-decision-tree">9.1 The decision tree</h3>
-<pre><code class="lang-mermaid">flowchart TB
-    Q[&quot;I want to add a rule.&lt;br/&gt;Which file?&quot;]:::action
+<div class="mermaid">flowchart TB
+    Q["I want to add a rule.<br/>Which file?"]:::action
 
-    Q --&gt; Q1{&quot;Is this a TRUTH&lt;br/&gt;of the world&lt;br/&gt;(would exist even&lt;br/&gt;without a game)?&quot;}
-    Q1 --&gt;|yes| Phys[&quot;world/rules.json&quot;]:::phys
-    Q1 --&gt;|no| Q2{&quot;Is this a GOAL&lt;br/&gt;imposed by the&lt;br/&gt;player&#x27;s game?&lt;br/&gt;(score, win, lose,&lt;br/&gt;level progression)&quot;}
-    Q2 --&gt;|yes| Game[&quot;game/goals.json&quot;]:::game
-    Q2 --&gt;|no| Q3{&quot;Is this a tutorial&lt;br/&gt;or overlay-driven hint?&quot;}
-    Q3 --&gt;|yes| Tut[&quot;tutorial.json&quot;]:::tut
-    Q3 --&gt;|no| Lvl[&quot;levels/&amp;lt;N&amp;gt;/rules.json&lt;br/&gt;(only fires when&lt;br/&gt;that level is loaded)&quot;]:::lvl
+    Q --> Q1{"Is this a TRUTH<br/>of the world<br/>(would exist even<br/>without a game)?"}
+    Q1 -->|yes| Phys["world/rules.json"]:::phys
+    Q1 -->|no| Q2{"Is this a GOAL<br/>imposed by the<br/>player's game?<br/>(score, win, lose,<br/>level progression)"}
+    Q2 -->|yes| Game["game/goals.json"]:::game
+    Q2 -->|no| Q3{"Is this a tutorial<br/>or overlay-driven hint?"}
+    Q3 -->|yes| Tut["tutorial.json"]:::tut
+    Q3 -->|no| Lvl["levels/&lt;N&gt;/rules.json<br/>(only fires when<br/>that level is loaded)"]:::lvl
 
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef phys fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef game fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
     classDef tut fill:#3f1e3a,stroke:#c962b3,color:#ffe0f0
-    classDef lvl fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8</code></pre>
+    classDef lvl fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8</div>
 <h3 id="92-what-lives-in-each-file-example-rules">9.2 What lives in each file — example rules</h3>
-<pre><code class="lang-mermaid">flowchart TB
-    subgraph Physics[&quot;world/rules.json — SIMULATION&quot;]
+<div class="mermaid">flowchart TB
+    subgraph Physics["world/rules.json — SIMULATION"]
         direction TB
-        P1[&quot;hunger_decay&lt;br/&gt;(every tick, hunger -= 0.05)&quot;]:::phys
-        P2[&quot;wolf_pursue_villager&lt;br/&gt;(contact-pair AI)&quot;]:::phys
-        P3[&quot;fire_warmth_aura&lt;br/&gt;(spread heat in radius)&quot;]:::phys
-        P4[&quot;plant_grow&lt;br/&gt;(growth += 1 if wet)&quot;]:::phys
-        P5[&quot;day_rollover&lt;br/&gt;(hour ≥ 24 to day++, hour = 0)&quot;]:::phys
-        P6[&quot;motion_drag&lt;br/&gt;(velocity *= 0.95)&quot;]:::phys
+        P1["hunger_decay<br/>(every tick, hunger -= 0.05)"]:::phys
+        P2["wolf_pursue_villager<br/>(contact-pair AI)"]:::phys
+        P3["fire_warmth_aura<br/>(spread heat in radius)"]:::phys
+        P4["plant_grow<br/>(growth += 1 if wet)"]:::phys
+        P5["day_rollover<br/>(hour ≥ 24 to day++, hour = 0)"]:::phys
+        P6["motion_drag<br/>(velocity *= 0.95)"]:::phys
     end
 
-    subgraph Game[&quot;game/goals.json — GOALS&quot;]
+    subgraph Game["game/goals.json — GOALS"]
         direction TB
-        G1[&quot;score_on_kill&lt;br/&gt;(state_add world.score, 1)&quot;]:::game
-        G2[&quot;win_at_score_30&lt;br/&gt;(if world.score &amp;gt;= 30,&lt;br/&gt;transition_screen &#x27;win&#x27;)&quot;]:::game
-        G3[&quot;lose_at_hp_0&lt;br/&gt;(if player.hp ≤ 0,&lt;br/&gt;transition_screen &#x27;lose&#x27;)&quot;]:::game
-        G4[&quot;transition_to_next_level&lt;br/&gt;(on contact, transition_level)&quot;]:::game
-        G5[&quot;sale_complete_juice&lt;br/&gt;(on signal &#x27;sale_clinch&#x27;:&lt;br/&gt;shake + flash + toast)&quot;]:::game
-        G6[&quot;day_30_win&lt;br/&gt;(if world.day &amp;gt;= 30 AND&lt;br/&gt;50% villagers alive,&lt;br/&gt;show win screen)&quot;]:::game
+        G1["score_on_kill<br/>(state_add world.score, 1)"]:::game
+        G2["win_at_score_30<br/>(if world.score &gt;= 30,<br/>transition_screen 'win')"]:::game
+        G3["lose_at_hp_0<br/>(if player.hp ≤ 0,<br/>transition_screen 'lose')"]:::game
+        G4["transition_to_next_level<br/>(on contact, transition_level)"]:::game
+        G5["sale_complete_juice<br/>(on signal 'sale_clinch':<br/>shake + flash + toast)"]:::game
+        G6["day_30_win<br/>(if world.day &gt;= 30 AND<br/>50% villagers alive,<br/>show win screen)"]:::game
     end
 
-    subgraph Tutorial[&quot;tutorial.json — onboarding&quot;]
+    subgraph Tutorial["tutorial.json — onboarding"]
         direction TB
-        T1[&quot;show_overlay_movement_&lt;br/&gt;tip_first_tick&quot;]:::tut
-        T2[&quot;dismiss_overlay_on_first_&lt;br/&gt;move&quot;]:::tut
+        T1["show_overlay_movement_<br/>tip_first_tick"]:::tut
+        T2["dismiss_overlay_on_first_<br/>move"]:::tut
     end
 
-    subgraph Level[&quot;levels/L1/rules.json — per-level&quot;]
+    subgraph Level["levels/L1/rules.json — per-level"]
         direction TB
-        L1[&quot;spawn_boss_at_30s&lt;br/&gt;(only fires in this level)&quot;]:::lvl
-        L2[&quot;camera_intro_pan&lt;br/&gt;(once on level enter)&quot;]:::lvl
+        L1["spawn_boss_at_30s<br/>(only fires in this level)"]:::lvl
+        L2["camera_intro_pan<br/>(once on level enter)"]:::lvl
     end
 
-    Owner[&quot;Owner skill:&quot;]:::action
-    Owner --&gt; Physics
-    PhySys[&quot;yume-systems-designer&quot;]:::skill --&gt; Physics
-    Game --&gt; GameSys[&quot;yume-game-rules-designer&quot;]:::skill
-    Tutorial --&gt; TutSys[&quot;yume-tutorial-designer&quot;]:::skill
-    Level --&gt; AnySys[&quot;any (level-scoped)&quot;]:::skill
+    Owner["Owner skill:"]:::action
+    Owner --> Physics
+    PhySys["yume-systems-designer"]:::skill --> Physics
+    Game --> GameSys["yume-game-rules-designer"]:::skill
+    Tutorial --> TutSys["yume-tutorial-designer"]:::skill
+    Level --> AnySys["any (level-scoped)"]:::skill
 
     classDef phys fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef game fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
     classDef tut fill:#3f1e3a,stroke:#c962b3,color:#ffe0f0
     classDef lvl fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
-    classDef skill fill:#1e3a4a,stroke:#5fb3d9,color:#e8f4f8</code></pre>
+    classDef skill fill:#1e3a4a,stroke:#5fb3d9,color:#e8f4f8</div>
 <h3 id="93-what-happens-at-boot-both-files-merge-into-one-rule-list">9.3 What happens at boot — both files merge into one rule list</h3>
-<pre><code class="lang-mermaid">flowchart LR
-    F1[&quot;world/rules.json&quot;]:::phys
-    F2[&quot;game/goals.json&quot;]:::game
-    F3[&quot;tutorial.json&lt;br/&gt;(optional)&quot;]:::tut
-    F4[&quot;levels/L1/rules.json&quot;]:::lvl
+<div class="mermaid">flowchart LR
+    F1["world/rules.json"]:::phys
+    F2["game/goals.json"]:::game
+    F3["tutorial.json<br/>(optional)"]:::tut
+    F4["levels/L1/rules.json"]:::lvl
 
-    World[&quot;world.gd&lt;br/&gt;_load_rules_file()&lt;br/&gt;(× 4 times)&quot;]:::core
+    World["world.gd<br/>_load_rules_file()<br/>(× 4 times)"]:::core
 
-    F1 --&gt; World
-    F2 --&gt; World
-    F3 --&gt; World
-    F4 --&gt; World
+    F1 --> World
+    F2 --> World
+    F3 --> World
+    F4 --> World
 
-    Merged[&quot;one Array&amp;lt;Rule&amp;gt;&lt;br/&gt;(typed via&lt;br/&gt;Rule.from_dict)&quot;]:::out
+    Merged["one Array&lt;Rule&gt;<br/>(typed via<br/>Rule.from_dict)"]:::out
 
-    World --&gt; Merged
+    World --> Merged
 
-    Sched[&quot;PhaseScheduler.register_rules()&lt;br/&gt;(buckets by trigger type)&quot;]:::core
-    Merged --&gt; Sched
+    Sched["PhaseScheduler.register_rules()<br/>(buckets by trigger type)"]:::core
+    Merged --> Sched
 
-    Sched -.-&gt;|&quot;NO distinction —&lt;br/&gt;same buckets, same&lt;br/&gt;phase ordering&quot;| AllFire[&quot;all rules fire&lt;br/&gt;uniformly per tick&quot;]:::out
+    Sched -.->|"NO distinction —<br/>same buckets, same<br/>phase ordering"| AllFire["all rules fire<br/>uniformly per tick"]:::out
 
     classDef phys fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef game fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
     classDef tut fill:#3f1e3a,stroke:#c962b3,color:#ffe0f0
     classDef lvl fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold
-    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</code></pre>
+    classDef out fill:#1e3f3a,stroke:#62c9b3,color:#e0fff8</div>
 <h3 id="94-why-the-split-matters-reuse-ownership">9.4 Why the split matters — reuse + ownership</h3>
-<pre><code class="lang-mermaid">flowchart LR
-    subgraph Sim[&quot;world/rules.json&lt;br/&gt;(the simulation)&quot;]
-        S1[&quot;doomarena3d/&lt;br/&gt;rules.json&quot;]:::phys
+<div class="mermaid">flowchart LR
+    subgraph Sim["world/rules.json<br/>(the simulation)"]
+        S1["doomarena3d/<br/>rules.json"]:::phys
     end
 
-    subgraph Games[&quot;game/goals.json variants&lt;br/&gt;(same world, different games)&quot;]
-        G1[&quot;deathmatch/&lt;br/&gt;game/goals.json&lt;br/&gt;(win: 25 kills)&quot;]:::game
-        G2[&quot;score-attack/&lt;br/&gt;game/goals.json&lt;br/&gt;(win: 60s timer)&quot;]:::game
-        G3[&quot;capture-flag/&lt;br/&gt;game/goals.json&lt;br/&gt;(win: hold zone 30s)&quot;]:::game
-        G4[&quot;escape-chamber/&lt;br/&gt;game/goals.json&lt;br/&gt;(win: reach exit)&quot;]:::game
+    subgraph Games["game/goals.json variants<br/>(same world, different games)"]
+        G1["deathmatch/<br/>game/goals.json<br/>(win: 25 kills)"]:::game
+        G2["score-attack/<br/>game/goals.json<br/>(win: 60s timer)"]:::game
+        G3["capture-flag/<br/>game/goals.json<br/>(win: hold zone 30s)"]:::game
+        G4["escape-chamber/<br/>game/goals.json<br/>(win: reach exit)"]:::game
     end
 
-    Sim --&gt; G1
-    Sim --&gt; G2
-    Sim --&gt; G3
-    Sim --&gt; G4
+    Sim --> G1
+    Sim --> G2
+    Sim --> G3
+    Sim --> G4
 
-    Note[&quot;Same physics, 4 games.&lt;br/&gt;Without ADR 0009, each game&lt;br/&gt;would need to FORK the full&lt;br/&gt;rules.json — that&#x27;s the&lt;br/&gt;violation the split prevents.&quot;]:::action
+    Note["Same physics, 4 games.<br/>Without ADR 0009, each game<br/>would need to FORK the full<br/>rules.json — that's the<br/>violation the split prevents."]:::action
 
     classDef phys fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef game fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
-    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff</code></pre>
+    classDef action fill:#3a3a3a,stroke:#aaa,color:#fff</div>
 <h3 id="95-the-cross-file-conflict-trap-caught-2026-05-11">9.5 The cross-file conflict trap (caught 2026-05-11)</h3>
 <p>Because the split is conceptual not enforced, two designers working in different files can both mutate the same <code>(entity-tag, state-field)</code> pair under overlapping conditions. The engine&#x27;s last-writer-wins collapses them silently.</p>
-<pre><code class="lang-mermaid">flowchart TB
-    Phys[&quot;rules.json::day_rollover&lt;br/&gt;query: world_clock&lt;br/&gt;state.hour ≥ 24&lt;br/&gt;effect: state_set hour=0&quot;]:::phys
-    Game[&quot;game/goals.json::day_boundary_advance&lt;br/&gt;query: world_clock&lt;br/&gt;state.hour ≥ 24&lt;br/&gt;effect: state_set hour=6 (story-driven)&quot;]:::game
+<div class="mermaid">flowchart TB
+    Phys["rules.json::day_rollover<br/>query: world_clock<br/>state.hour ≥ 24<br/>effect: state_set hour=0"]:::phys
+    Game["game/goals.json::day_boundary_advance<br/>query: world_clock<br/>state.hour ≥ 24<br/>effect: state_set hour=6 (story-driven)"]:::game
 
-    Conflict[&quot;Both fire same tick&lt;br/&gt;both mutate world_clock.hour&lt;br/&gt;WHICH wins?&lt;br/&gt;Last-registered (file load order)&quot;]:::action
+    Conflict["Both fire same tick<br/>both mutate world_clock.hour<br/>WHICH wins?<br/>Last-registered (file load order)"]:::action
 
-    Phys --&gt; Conflict
-    Game --&gt; Conflict
+    Phys --> Conflict
+    Game --> Conflict
 
-    Conflict --&gt; Bug[&quot;BUG: hour reset oscillates&lt;br/&gt;depending on which file&lt;br/&gt;was processed last&quot;]:::out
+    Conflict --> Bug["BUG: hour reset oscillates<br/>depending on which file<br/>was processed last"]:::out
 
-    Validator[&quot;tools/validate_duplicate_&lt;br/&gt;mutations.py&lt;br/&gt;(NEW 2026-05-11)&quot;]:::core
-    Validator -.-&gt;|&quot;scans cross-file&lt;br/&gt;(tags, field) overlaps&lt;br/&gt;WARNs at sync time&quot;| Conflict
+    Validator["tools/validate_duplicate_<br/>mutations.py<br/>(NEW 2026-05-11)"]:::core
+    Validator -.->|"scans cross-file<br/>(tags, field) overlaps<br/>WARNs at sync time"| Conflict
 
     classDef phys fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef game fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
     classDef action fill:#3a3a3a,stroke:#aaa,color:#fff
     classDef out fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
-    classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold</code></pre>
+    classDef core fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff,font-weight:bold</div>
 <p>Rule of thumb when the validator flags an overlap:</p>
 <ul>
 <li><strong>Same field is BOTH physics-baseline AND game-story-override</strong> → intentional, keep both. (E.g., physics decays hunger; game forces hunger=0 on quest_complete.)</li>

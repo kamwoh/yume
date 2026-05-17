@@ -260,7 +260,13 @@ def parse_list_block(lines: list[str], i: int) -> tuple[str, int]:
 
 
 def parse_code_fence(lines: list[str], i: int) -> tuple[str, int]:
-    """Parse a fenced code block. Returns (html, consumed_lines)."""
+    """Parse a fenced code block. Returns (html, consumed_lines).
+
+    Mermaid carve-out (2026-05-17): code blocks with ```mermaid get
+    wrapped in <div class="mermaid"> so the mermaid.js client-side
+    library (loaded from CDN in the page head) renders them as SVG
+    diagrams. Other languages stay as <pre><code class="lang-X">.
+    """
     first = lines[i]
     lang = first[3:].strip()
     body: list[str] = []
@@ -269,6 +275,10 @@ def parse_code_fence(lines: list[str], i: int) -> tuple[str, int]:
         body.append(lines[j])
         j += 1
     code = "\n".join(body)
+    if lang.lower() == "mermaid":
+        # Mermaid expects RAW text (no HTML escaping); the library
+        # handles its own DSL parsing client-side.
+        return f'<div class="mermaid">{code}</div>', (j - i) + 1
     code_esc = html.escape(code)
     lang_attr = f' class="lang-{html.escape(lang)}"' if lang else ""
     return f'<pre><code{lang_attr}>{code_esc}</code></pre>', (j - i) + 1
@@ -419,6 +429,15 @@ def render_page(
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{html.escape(title)}</title>
 <style>{CSS}</style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({{ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' }});
+</script>
 </head>
 <body>
 {nav_html}
@@ -546,6 +565,11 @@ def main() -> int:
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{html.escape(stem)}</title>
 <style>{CSS}</style>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({{ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' }});
+</script>
 </head><body>{index_body}</body></html>"""
     (out_dir / f"{stem}.html").write_text(index_html, encoding="utf-8")
     print(f"wrote {out_dir / f'{stem}.html'} (index)")

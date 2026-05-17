@@ -128,32 +128,41 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+</script>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="04-4-per-tick-state-flow.html">← 4. Per-tick state flow</a> <a href="06-6-engine-modules-which-gd-reads-which-json.html">6. Engine modules — which .gd reads which .json →</a></div></nav>
 <div class="container">
 <div class="toc"><h3>Contents</h3><ul><li><a href="#5-invariants-cheat-sheet">5. Invariants cheat-sheet</a></li></ul></div>
 <h2 id="5-invariants-cheat-sheet">5. Invariants cheat-sheet</h2>
-<pre><code class="lang-mermaid">flowchart LR
-    I1[&quot;#1 JSON-only&lt;br/&gt;content channel&quot;]
-    I2[&quot;#2 No semantic&lt;br/&gt;effect types&quot;]
-    I3[&quot;#3 No entity-class&lt;br/&gt;hierarchy&quot;]
-    I5[&quot;#5 Queries&lt;br/&gt;first-class&quot;]
-    I8[&quot;#8 Engine =&lt;br/&gt;primitives + interpreter&quot;]
-    I9[&quot;#9 Phase boundaries&lt;br/&gt;flush effects&quot;]
-    I10[&quot;#10 Freeze-policy&lt;br/&gt;audit&quot;]
-    I11[&quot;#11 Level discontinuity&lt;br/&gt;cleanup&quot;]
-    I12[&quot;#12 Persistent&lt;br/&gt;instance guard&quot;]
+<div class="mermaid">flowchart LR
+    I1["#1 JSON-only<br/>content channel"]
+    I2["#2 No semantic<br/>effect types"]
+    I3["#3 No entity-class<br/>hierarchy"]
+    I5["#5 Queries<br/>first-class"]
+    I8["#8 Engine =<br/>primitives + interpreter"]
+    I9["#9 Phase boundaries<br/>flush effects"]
+    I10["#10 Freeze-policy<br/>audit"]
+    I11["#11 Level discontinuity<br/>cleanup"]
+    I12["#12 Persistent<br/>instance guard"]
 
-    I1 -.-&gt;|gates| Build1[&quot;No game logic&lt;br/&gt;in GDScript&quot;]
-    I2 -.-&gt;|gates| Build2[&quot;No &#x27;damage&#x27;&lt;br/&gt;&#x27;heal&#x27; effect strings&quot;]
-    I3 -.-&gt;|gates| Build3[&quot;No &#x27;extends Entity&#x27;&lt;br/&gt;or genre subclass&quot;]
-    I5 -.-&gt;|gates| Build5[&quot;No bypass of&lt;br/&gt;QueryLib&quot;]
-    I8 -.-&gt;|gates| Build8[&quot;No genre-specific&lt;br/&gt;engine code&quot;]
-    I9 -.-&gt;|gates| Build9[&quot;No phase-ordering&lt;br/&gt;changes without ADR&quot;]
-    I10 -.-&gt;|gates| Build10[&quot;Every _pending_X&lt;br/&gt;declares freeze policy&quot;]
-    I11 -.-&gt;|gates| Build11[&quot;Camera / particles /&lt;br/&gt;tweens cleared on swap&quot;]
-    I12 -.-&gt;|gates| Build12[&quot;world.gd preserves&lt;br/&gt;persistent state on&lt;br/&gt;level entry&quot;]</code></pre>
+    I1 -.->|gates| Build1["No game logic<br/>in GDScript"]
+    I2 -.->|gates| Build2["No 'damage'<br/>'heal' effect strings"]
+    I3 -.->|gates| Build3["No 'extends Entity'<br/>or genre subclass"]
+    I5 -.->|gates| Build5["No bypass of<br/>QueryLib"]
+    I8 -.->|gates| Build8["No genre-specific<br/>engine code"]
+    I9 -.->|gates| Build9["No phase-ordering<br/>changes without ADR"]
+    I10 -.->|gates| Build10["Every _pending_X<br/>declares freeze policy"]
+    I11 -.->|gates| Build11["Camera / particles /<br/>tweens cleared on swap"]
+    I12 -.->|gates| Build12["world.gd preserves<br/>persistent state on<br/>level entry"]</div>
 <hr>
 
 </div>

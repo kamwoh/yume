@@ -128,6 +128,15 @@ hr {
 .toc ul { padding-left: 1.4em; margin: 0.4em 0; }
 .toc > h3 { margin-top: 0.4em; }
 </style>
+<script type="module">
+// Mermaid client-side renderer (2026-05-17). Picks up every
+// <div class="mermaid">...</div> emitted by parse_code_fence.
+// Loaded from CDN unconditionally — small (~50KB) and harmless
+// when no mermaid blocks exist on the page.
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+mermaid.initialize({ startOnLoad: true, theme: isDark ? 'dark' : 'default', securityLevel: 'loose' });
+</script>
 </head>
 <body>
 <nav class="topnav"><div><span class="crumb">📖</span> <a href="../33_yume_full_architecture.html">Index</a></div><div><a href="10-10-full-game-lifecycle-boot-to-render.html">← 10. Full game lifecycle — boot to render</a> <a href="12-12-why-yume-doesnx27t-use-godot-physics.html">12. Why Yume doesn&amp;#x27;t use Godot physics →</a></div></nav>
@@ -136,51 +145,51 @@ hr {
 <h2 id="11-godots-reserved-virtuals-how-yume-uses-them">11. Godot&#x27;s reserved virtuals + how Yume uses them</h2>
 <p>Godot Node subclasses have a set of virtual functions that the engine calls automatically at specific moments. All are prefixed with <code>_</code>, but the <code>_</code> prefix is also GDScript convention for &quot;private&quot; — so not every <code>_method</code> is reserved. The reserved set is documented in Godot&#x27;s API; everything else is user-defined.</p>
 <h3 id="111-the-reserved-virtual-set-on-node">11.1 The reserved virtual set on Node</h3>
-<pre><code class="lang-mermaid">flowchart TB
-    Init[&quot;_init&lt;br/&gt;Object constructor&lt;br/&gt;before scene tree&quot;]:::lifecycle
-    Enter[&quot;_enter_tree&lt;br/&gt;just before Node enters&lt;br/&gt;the scene tree&quot;]:::lifecycle
-    Ready[&quot;_ready&lt;br/&gt;after Node + all children&lt;br/&gt;have entered tree&lt;br/&gt;(one-shot init)&quot;]:::lifecycle
+<div class="mermaid">flowchart TB
+    Init["_init<br/>Object constructor<br/>before scene tree"]:::lifecycle
+    Enter["_enter_tree<br/>just before Node enters<br/>the scene tree"]:::lifecycle
+    Ready["_ready<br/>after Node + all children<br/>have entered tree<br/>(one-shot init)"]:::lifecycle
 
-    Init --&gt; Enter --&gt; Ready
+    Init --> Enter --> Ready
 
-    subgraph PerFrame[&quot;fires every rendered frame&quot;]
-        Process[&quot;_process delta&lt;br/&gt;variable rate ~60Hz&quot;]:::frame
+    subgraph PerFrame["fires every rendered frame"]
+        Process["_process delta<br/>variable rate ~60Hz"]:::frame
     end
-    Ready --&gt; PerFrame
+    Ready --> PerFrame
 
-    subgraph PhysicsTick[&quot;fires at fixed physics rate&quot;]
-        Phys[&quot;_physics_process delta&lt;br/&gt;60Hz default&lt;br/&gt;(project settings)&quot;]:::phys
+    subgraph PhysicsTick["fires at fixed physics rate"]
+        Phys["_physics_process delta<br/>60Hz default<br/>(project settings)"]:::phys
     end
-    Ready --&gt; PhysicsTick
+    Ready --> PhysicsTick
 
-    subgraph InputCallbacks[&quot;input pipeline&quot;]
-        Input[&quot;_input event&lt;br/&gt;fires before UI&quot;]:::input
-        UnhandledInput[&quot;_unhandled_input event&lt;br/&gt;fires if UI didn&#x27;t consume&quot;]:::input
-        Shortcut[&quot;_shortcut_input event&lt;br/&gt;keyboard shortcuts&quot;]:::input
-        UnhandledKey[&quot;_unhandled_key_input event&lt;br/&gt;keyboard not handled&quot;]:::input
-        GuiInput[&quot;_gui_input event&lt;br/&gt;Control nodes only&lt;br/&gt;(mouse over this widget)&quot;]:::input
+    subgraph InputCallbacks["input pipeline"]
+        Input["_input event<br/>fires before UI"]:::input
+        UnhandledInput["_unhandled_input event<br/>fires if UI didn't consume"]:::input
+        Shortcut["_shortcut_input event<br/>keyboard shortcuts"]:::input
+        UnhandledKey["_unhandled_key_input event<br/>keyboard not handled"]:::input
+        GuiInput["_gui_input event<br/>Control nodes only<br/>(mouse over this widget)"]:::input
     end
-    Ready --&gt; InputCallbacks
+    Ready --> InputCallbacks
 
-    subgraph CanvasOnly[&quot;CanvasItem subclasses only&quot;]
-        Draw[&quot;_draw&lt;br/&gt;called when canvas item&lt;br/&gt;needs redraw&lt;br/&gt;use draw_line draw_rect etc&quot;]:::canvas
+    subgraph CanvasOnly["CanvasItem subclasses only"]
+        Draw["_draw<br/>called when canvas item<br/>needs redraw<br/>use draw_line draw_rect etc"]:::canvas
     end
-    Ready --&gt; CanvasOnly
+    Ready --> CanvasOnly
 
-    subgraph Notifications[&quot;engine events&quot;]
-        Notif[&quot;_notification what&lt;br/&gt;catch-all&lt;br/&gt;window resize app pause&lt;br/&gt;mouse enter exit etc&quot;]:::notif
+    subgraph Notifications["engine events"]
+        Notif["_notification what<br/>catch-all<br/>window resize app pause<br/>mouse enter exit etc"]:::notif
     end
-    Ready --&gt; Notifications
+    Ready --> Notifications
 
-    Exit[&quot;_exit_tree&lt;br/&gt;when Node leaves tree&lt;br/&gt;cleanup point&quot;]:::lifecycle
-    Ready --&gt; Exit
+    Exit["_exit_tree<br/>when Node leaves tree<br/>cleanup point"]:::lifecycle
+    Ready --> Exit
 
     classDef lifecycle fill:#2a3f1e,stroke:#9ac962,color:#e8f8d8
     classDef frame fill:#3f1e2e,stroke:#c96287,color:#ffe0e8
     classDef phys fill:#1e2e3f,stroke:#62a3c9,color:#e0f0ff
     classDef input fill:#3a3f1e,stroke:#c9b962,color:#f8f4d8
     classDef canvas fill:#3f2e1e,stroke:#c98762,color:#f8e8d8
-    classDef notif fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff</code></pre>
+    classDef notif fill:#2a1e3f,stroke:#a062c9,color:#f0e0ff</div>
 <h3 id="112-what-yume-actually-uses">11.2 What Yume actually uses</h3>
 <p>Counted across all engine + renderer modules:</p>
 <table>
