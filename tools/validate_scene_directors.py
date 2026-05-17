@@ -172,6 +172,30 @@ def detect_uses(game_dir, rule):
     return False
 
 
+# Directors WorldBoot auto-mounts via its _DEFAULT_DIRECTORS list. These
+# don't need to appear in a per-game .tscn — WorldBoot adds them at world
+# load. Keep in sync with godot/scripts/engine/coordinators/world_boot.gd
+# § _DEFAULT_DIRECTORS. Empirical case 2026-05-17: validator warned that
+# aldenmere_3d.tscn was missing LightingDirector, but WorldBoot mounts it
+# automatically since the Phase 3 auto-mount commit (2026-05-13).
+AUTO_MOUNTED_DIRECTORS = {
+    "GameShell",
+    "ScreenFlow",
+    "OverlayManager",
+    "SettingsManager",
+    "LightingDirector",
+    "PartyDirector",
+    "ScheduleDirector",
+    "LifecycleDirector",
+    "ClassManager",
+    "FactionDirector",
+    "TechTreeDirector",
+    "DynastyDirector",
+    "NameplateRenderer",
+    "ScreenSmokeRunner",
+}
+
+
 def validate_game(game_dir, repo_root, strict=False):
     game_dir = Path(game_dir)
     game_name = game_dir.name
@@ -185,6 +209,9 @@ def validate_game(game_dir, repo_root, strict=False):
     for director_name, rule in DIRECTOR_RULES.items():
         uses = detect_uses(game_dir, rule)
         if uses and director_name not in mounted:
+            # Skip false positives for WorldBoot-auto-mounted directors.
+            if director_name in AUTO_MOUNTED_DIRECTORS:
+                continue
             issues.append({
                 "director": director_name,
                 "scene": str(scene.relative_to(repo_root)),
