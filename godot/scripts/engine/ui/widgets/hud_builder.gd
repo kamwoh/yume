@@ -51,6 +51,19 @@ func build(hud_cfg: Dictionary) -> void:
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_layer.add_child(root)
 
+	# Tier 2.6l — full-screen flash overlay for damage / impact feedback.
+	# Added FIRST so panels + controls-hint render on TOP of it. Empirical
+	# case 2026-05-17: prior order (flash added after panels) made damage
+	# / sleep flashes cover the entire HUD — vitals bars, controls hint,
+	# objective banner all blanked out for the flash's duration. The
+	# fix is purely the add-order: later siblings render on top in Godot
+	# Control trees, so flash needs to be the FIRST child of HUD root.
+	_flash_overlay = ColorRect.new()
+	_flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_flash_overlay.color = Color(0, 0, 0, 0)
+	root.add_child(_flash_overlay)
+
 	# Panels
 	for panel_cfg in hud_cfg.get("panels", []):
 		_build_panel(root, panel_cfg as Dictionary)
@@ -71,13 +84,6 @@ func build(hud_cfg: Dictionary) -> void:
 		hl.offset_right = 360
 		_apply_label_style(hl, 14, Color(0.9, 0.95, 1, 0.85))
 		root.add_child(hl)
-
-	# Tier 2.6l — full-screen flash overlay for damage / impact feedback
-	_flash_overlay = ColorRect.new()
-	_flash_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_flash_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_flash_overlay.color = Color(0, 0, 0, 0)
-	root.add_child(_flash_overlay)
 
 	# Win / lose panel (hidden until triggered)
 	_win_panel = Panel.new()
