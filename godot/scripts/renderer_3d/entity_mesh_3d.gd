@@ -129,6 +129,10 @@ func _ready() -> void:
 					# Empty library name = default; clip names look up directly.
 					ap.add_animation_library("", anim_lib)
 				_animation_director.attach_player(ap)
+			# Task #117: paint every primitive with a shared albedo texture
+			# when the entity def declares one (typically asset-gen output).
+			if visual.has("albedo_texture"):
+				_apply_albedo_texture_to_primitives(str(visual["albedo_texture"]))
 			_mode = "mesh"
 			_apply_shadow_only_if_set(visual)
 			_sync_position()
@@ -232,15 +236,24 @@ func _find_imported_animation_player(node: Node) -> AnimationPlayer:
 ## Walk every MeshInstance3D under the imported scene. For each
 ## surface whose material has a `resource_name` matching a key in
 ## `overrides`, duplicate the material (so the override is per-entity,
-## not shared with other instances) and set its albedo_color.
+## not shared with other instances) and apply the override patch.
 ##
 ## Surface name resolution order:
 ##   1. material.resource_name (set by the GLTF importer to the
 ##      material name from Blender/Maya)
 ##   2. surface index ("surface_0", "surface_1", ...)
 ##
-## Color values follow the same parser as Yume's other JSON colors:
-## "#RRGGBB" hex, "white" Godot named colors, or [r, g, b, a] arrays.
+## Override values may be:
+##   - a string color ("#RRGGBB" hex, "white" Godot named, [r,g,b,a])
+##     → applied as albedo_color (legacy shorthand)
+##   - a dict with any of:
+##       albedo_color:     color string/array
+##       albedo_texture:   res:// path to a PNG → loaded + set
+##       roughness:        0..1 float
+##       metallic:         0..1 float
+##       normal_texture:   res:// path to a normal map
+##     → fine-grained material control. Enables AI-generated textures
+##       (task #116) to flow into the imported mesh's surfaces.
 func _apply_material_overrides(scene_root: Node, overrides: Dictionary) -> void:
 	if overrides.is_empty():
 		return
@@ -264,17 +277,52 @@ func _apply_material_overrides_recursive(node: Node, overrides: Dictionary) -> v
 						resolved_key = idx_key
 				if resolved_key == "":
 					continue
-				var color := _parse_color(overrides[resolved_key])
 				# Duplicate so we don't mutate the shared imported resource.
 				var dup: StandardMaterial3D
 				if mat is StandardMaterial3D:
 					dup = (mat as StandardMaterial3D).duplicate(true)
 				else:
 					dup = StandardMaterial3D.new()
-				dup.albedo_color = color
+				_apply_override_patch(dup, overrides[resolved_key])
 				mi.set_surface_override_material(i, dup)
 	for child in node.get_children():
 		_apply_material_overrides_recursive(child, overrides)
+
+
+## Apply a single override entry to a StandardMaterial3D. Accepts
+## both the legacy color-string shorthand AND the new dict form
+## with explicit fields. Texture paths are loaded via ResourceLoader.
+func _apply_override_patch(dup: StandardMaterial3D, override) -> void:
+	# Legacy shorthand: a bare color (string / Color / Array) sets
+	# albedo_color only. Kept for backwards-compat with material_
+	# overrides authored before task #117.
+	if not (override is Dictionary):
+		dup.albedo_color = _parse_color(override)
+		return
+	var od: Dictionary = override
+	if od.has("albedo_color"):
+		dup.albedo_color = _parse_color(od["albedo_color"])
+	if od.has("albedo_texture"):
+		var tex_path := str(od["albedo_texture"])
+		if tex_path != "" and ResourceLoader.exists(tex_path):
+			var tex = load(tex_path)
+			if tex is Texture2D:
+				dup.albedo_texture = tex
+		else:
+			push_warning(
+				"material_overrides: albedo_texture not found: %s" % tex_path
+			)
+	if od.has("normal_texture"):
+		var npath := str(od["normal_texture"])
+		if npath != "" and ResourceLoader.exists(npath):
+			var ntex = load(npath)
+			if ntex is Texture2D:
+				dup.normal_texture = ntex
+				dup.normal_enabled = true
+	if od.has("roughness"):
+		dup.roughness = float(od["roughness"])
+	if od.has("metallic"):
+		dup.metallic = float(od["metallic"])
 
 
 ## Build a {state_name: clip_name} map from animation_state_rules,
@@ -428,6 +476,46 @@ func _build_mesh_children() -> void:
 	# the shadow pass on grass / clouds / distant decoration where the
 	# shadow contribution costs more than it visually adds.
 	MeshLib.build_primitives_into(self, _mesh_primitives, _mesh_params, _mesh_cast_shadow)
+
+
+## Task #117: paint every primitive's material with a shared albedo
+## texture. Called when entity_def.visual.albedo_texture is set —
+## typically the resolved output of the asset-gen pipeline (#116).
+## Walks all child MeshInstance3D nodes, duplicates each one's
+## material, and sets albedo_texture. The flat colors authored in
+## meshes.json stay as multiplicative tint atop the texture.
+func _apply_albedo_texture_to_primitives(tex_path: String) -> void:
+	if tex_path == "" or not ResourceLoader.exists(tex_path):
+		if tex_path != "":
+			push_warning(
+				"EntityMesh3D: visual.albedo_texture not found: %s" % tex_path
+			)
+		return
+	var tex = load(tex_path)
+	if not (tex is Texture2D):
+		return
+	for child in get_children():
+		_paint_albedo_texture_recursive(child, tex)
+
+
+func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
+	if node is MeshInstance3D:
+		var mi: MeshInstance3D = node
+		var mesh := mi.mesh
+		if mesh != null:
+			for i in mesh.get_surface_count():
+				var mat: Material = mi.get_surface_override_material(i)
+				if mat == null:
+					mat = mesh.surface_get_material(i)
+				var dup: StandardMaterial3D
+				if mat is StandardMaterial3D:
+					dup = (mat as StandardMaterial3D).duplicate(true)
+				else:
+					dup = StandardMaterial3D.new()
+				dup.albedo_texture = tex
+				mi.set_surface_override_material(i, dup)
+	for child in node.get_children():
+		_paint_albedo_texture_recursive(child, tex)
 
 
 # ============================================================
