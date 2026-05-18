@@ -322,6 +322,43 @@ session randomization.
 - High counts (≥10 entries)
 - When replay-variance matters (procedural maps with seed)
 
+### ⚠ Pattern + AI-gen mesh interaction (post-mortem 2026-05-18)
+
+When a `scatter` or `cluster` pattern uses `scale_min` / `scale_max`
+to vary instance size (e.g. "dwarf bushes via scale 0.3-0.55 on the
+fruit-tree mesh"), the **target def must use `visual.y_offset_mesh`,
+not the legacy `visual.y_offset`**. Reason:
+
+- `y_offset` is a **constant in world units** authored for the def's
+  `state_init.scale`. Pattern-spawned instances at different scale
+  inherit the same constant lift → they float (if scaled down) or
+  sink (if scaled up).
+- `y_offset_mesh` is in **mesh-space**. The engine multiplies by the
+  per-instance `state.scale` at sync time → every variant lands with
+  its base at y=0.
+
+**Authoring gate** before approving a pattern spec:
+
+1. Identify every `def` (and every entry in `def_choices`) the pattern
+   spawns.
+2. For each def, check `visual` block:
+   - Has `y_offset_mesh`? ✓ Pattern-safe at any scale.
+   - Has legacy `y_offset` (numeric, no `_mesh` suffix)? Check whether
+     `scale_min`/`scale_max` matches the def's `state_init.scale`
+     within 10%. If yes, OK. If no, REJECT — request asset-designer
+     migrate the def to `y_offset_mesh` first.
+   - Has neither? Mesh likely doesn't need lifting (procedural or
+     code-drawn). Fine.
+3. The static validator `tools/validators/validate_mesh_y_offset.py`
+   enforces this at sync time.
+
+Empirical case: 2026-05-18 prop_tree_fruit shipped with `y_offset:
+1.337` (correct at state_init.scale=3.5). A level pattern spawned
+"dwarf bushes" using the same def at `scale_min: 0.3, scale_max:
+0.55`. The 1.337 lift was inherited regardless → bushes floated ~1.15m
+above ground. User counted 2 visible floaters. Fix: migrated def to
+`y_offset_mesh: 0.382` + engine multiplies by `state.scale` per-instance.
+
 **Style for level-design.md**: in your placement table, include a
 column or row showing the pattern spec when one applies. Example:
 

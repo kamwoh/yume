@@ -349,23 +349,50 @@ A reproducible test asset lives at
 
 #### A2 extras (2026-05-18) — fields for AI-gen .glb integration
 
-**`visual.y_offset`** — required for Tripo3D outputs and any .glb
-whose pivot isn't at the mesh base. Tripo3D's natural mesh origin
-is at the geometric center, so placing an entity at world y=0
-sinks the lower half underground. Compute:
+**`visual.y_offset_mesh`** (preferred) or `visual.y_offset` (legacy)
+— required for Tripo3D outputs and any .glb whose pivot isn't at the
+mesh base. Tripo3D's natural mesh origin is at the geometric center,
+so placing an entity at world y=0 sinks the lower half underground.
+
+**Preferred — author in MESH-space**:
 
 ```
-y_offset = -bbox.min.y * state.scale
+y_offset_mesh = -bbox.min.y       // mesh-space, NOT scaled
 ```
 
-This lifts the mesh base to world y=0. Auto-computed by
-`tools/yume_assetgen` when wiring AI-gen output to an entity def.
-Manually adjustable via `visual.y_offset_intentional: true` for
-debris-artifact meshes (e.g. a fire pit with baked-in ash below the
-visible ring — keep the artifact buried).
+Engine multiplies by current `state.scale` at sync time. This means
+pattern-spawned variants with different scale (e.g. dwarf bushes via
+`scale_min/scale_max` on the same fruit-tree def) also land correctly
+— their per-instance scale is applied to the same mesh-space lift.
 
-`tools/validators/validate_mesh_y_offset.py` catches missing
-y_offset at sync time. Run as part of `tools/validators/run_all.py`.
+**Legacy — `y_offset` in world units**:
+
+```
+y_offset = -bbox.min.y * state_init.scale     // world-units, bakes in def's reference scale
+```
+
+Constant lift regardless of per-instance scale. Pattern variants will
+float (scaled down) or sink (scaled up). Only use when you're certain
+no level pattern will scale this def's instances. New AI-gen output
+should always use `y_offset_mesh`.
+
+Auto-computed by `tools/yume_assetgen` when wiring AI-gen output to
+an entity def. Manually adjustable via `visual.y_offset_intentional:
+true` for debris-artifact meshes (e.g. a fire pit with baked-in ash
+below the visible ring — keep the artifact buried).
+
+`tools/validators/validate_mesh_y_offset.py` catches missing/wrong
+y_offset at sync time, AND flags legacy `y_offset` defs that get
+spawned by patterns with off-spec scale ranges. Run as part of
+`tools/validators/run_all.py`.
+
+**Empirical case 2026-05-18** — prop_tree_fruit shipped with
+`y_offset: 1.337` (correct at state_init.scale=3.5). A level scatter
+pattern reused the def at `scale_min: 0.3, scale_max: 0.55` for dwarf
+bushes. The constant 1.337 lift was inherited regardless of
+per-instance scale → bushes floated ~1.15m above ground. Migrating to
+`y_offset_mesh: 0.382` fixed all variants because the engine now
+multiplies by `state.scale` per-instance.
 
 **`material_overrides` PBR fields** — full schema (was: just
 albedo_color):

@@ -435,12 +435,29 @@ func _sync_position() -> void:
 	# Optional Y-offset for AI-gen meshes whose pivot isn't at the
 	# base (added 2026-05-17). Tripo3D outputs often have origin at
 	# the mesh's geometric center, so placing at y=0 sinks half the
-	# mesh underground. visual.y_offset is the value to ADD to the
-	# rendered Y position (typically positive, equal to -bbox.min.y).
-	# Applied AFTER position_scale so it's in world units.
+	# mesh underground.
+	#
+	# TWO fields supported (post-mortem 2026-05-18):
+	#   visual.y_offset_mesh — preferred. Authored in MESH-space units
+	#     (= -bbox.min.y). Engine multiplies by current state.scale
+	#     so pattern-spawned variants at non-default scale still land
+	#     with their base at y=0.
+	#   visual.y_offset — legacy. World-space constant. Correct only
+	#     when state.scale matches the def's state_init.scale. Pattern
+	#     scatters with scale_min/scale_max produce floaters/sinkers.
+	#     Kept for back-compat; new entities should use y_offset_mesh.
+	#
+	# Empirical case 2026-05-18: prop_tree_fruit def authored
+	# y_offset=1.337 for state_init.scale=3.5 (mesh min.y=-0.382).
+	# Pattern spawned bushes at scale 0.3-0.55 inherited the 1.337
+	# constant → bushes floated ~1.15m above ground. Two were visible
+	# enough that the user counted them. Migrated to y_offset_mesh=0.382.
 	var v = _entity_ref.visual
-	if v is Dictionary and v.has("y_offset"):
-		position.y += float(v["y_offset"])
+	if v is Dictionary:
+		if v.has("y_offset_mesh"):
+			position.y += float(v["y_offset_mesh"]) * _read_y_scale()
+		elif v.has("y_offset"):
+			position.y += float(v["y_offset"])
 
 	# Optional ground-snap (2026-05-18, ADR 0052 extension). When set,
 	# the entity follows the GROUND's displaced height at its (x, z)
@@ -480,6 +497,29 @@ func _sync_scale() -> void:
 			scale = Vector3(float(a[0]), float(a[1]), float(a[2]))
 		elif a.size() == 2:
 			scale = Vector3(float(a[0]), float(a[0]), float(a[1]))
+
+
+## Read the Y-component of state.scale for visual.y_offset_mesh
+## multiplication (post-mortem 2026-05-18). Mirrors _sync_scale's
+## parsing but returns just the Y factor since y_offset is vertical.
+## Defaults to 1.0 when state.scale is unset.
+func _read_y_scale() -> float:
+	if _entity_ref == null:
+		return 1.0
+	var s = _entity_ref.get_state("scale", 1.0)
+	if s is float or s is int:
+		return float(s)
+	if s is Vector3:
+		return (s as Vector3).y
+	if s is Array:
+		var a := s as Array
+		if a.size() == 3:
+			return float(a[1])
+		if a.size() == 2:
+			return float(a[0])
+		if a.size() == 1:
+			return float(a[0])
+	return 1.0
 
 
 ## Read state.yaw (radians, rotation around the Y axis) if set, and apply.

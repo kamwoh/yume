@@ -138,6 +138,20 @@ not just the specific code patched.
   (voice & texture density) + new yume-flavor-writer skill.
 - **2026-05-07 contact-as-sale instant-despawn**
   → Gate: yume-systems-designer core-verb multi-tick spec rule.
+- **2026-05-18 pattern-spawned dwarf bushes floated above ground**
+  → Bug fix in `entity_mesh_3d.gd` (new `visual.y_offset_mesh` that
+  multiplies by `state.scale` at sync time, replacing the constant
+  world-units `y_offset` for pattern-safe defs). Gate: hardened
+  `tools/validators/validate_mesh_y_offset.py` to iterate level
+  patterns + flag scale mismatches between def's `state_init.scale`
+  and pattern's `scale_min/scale_max` when the def uses legacy
+  `y_offset`. Gate: `yume-level-designer` SKILL §Pattern + AI-gen
+  mesh interaction (reject patterns spawning non-mesh-space defs at
+  off-spec scale). Gate: `yume-asset-designer` SKILL §A2 extras
+  (recommend `y_offset_mesh` for any pattern-spawned def).
+  Generalization: a numeric visual field authored against a def's
+  reference scale must scale with per-instance `state.scale`, OR the
+  field must be flagged as pattern-incompatible.
 
 Each gate now blocks that bug class at design time, not playtest
 time.
