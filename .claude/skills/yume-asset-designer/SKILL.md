@@ -236,6 +236,64 @@ For bespoke style. Add `*_prompt` fields per entity, plus project-wide
 style + backend config in `asset_gen.json`. Then `yume assets generate`
 (offline tool) realizes prompts to files.
 
+#### Game-perspective consistency (REQUIRED for AI-gen, added 2026-05-18)
+
+Every AI-gen prompt must be written with the **gameplay use case in
+mind**, not just "what does this entity look like". Different
+entities need different framing because they're consumed differently:
+
+| entity class | required prompt framing |
+|---|---|
+| **Characters** (player, NPCs, animals) | **FULL BODY** standing pose, T-pose preferred. Front 3/4 view from waist OR full standing height. Body must be complete from head to feet — characters get walked around, viewed from all angles, cast shadow even when hidden (`hide_for_camera_attach`). A waist-up portrait is a portrait, not a character mesh. |
+| **Architecture** (huts, structures) | Front 3/4 view showing entry side + roof line. Distinct silhouette at distance. |
+| **Foragables / props** (mushrooms, baskets) | Front 3/4 or top-3/4 view. Held visible. Scale-tagged ("small primitive" / "single ...") so Tripo3D doesn't oversize. |
+| **Tools / inventory items** | Side view if held. Top-down if dropped on ground. |
+| **Landmarks** (statues, markers) | Front view emphasizing recognizable silhouette. |
+
+**Empirical case 2026-05-18**: player_marken's prompt said "standing
+T-pose" but produced a waist-up portrait (Tripo3D's image-to-3D
+generated only the visible upper-body portion of the concept image).
+Same generation cycle, npc_morwen's prompt said "standing dignified"
++ "weathered face" + "holding a wooden walking staff" — produced a
+full-body figure because the prompt implicitly required the staff +
+posture, forcing the concept image to frame the whole body.
+
+**The principle**: the prompt has to MENTION every part of the body
+the game might ever show. For characters specifically:
+- Mention legs / feet / tunic-bottom explicitly
+- Specify "full body" or "standing T-pose, full standing height"
+- Include grounding details ("standing on the autumn ground" or
+  similar) so the concept image frames feet-to-head
+- Add "viewable from any angle" for emphasis
+
+Bad: `"young farmer in tunic, holding a tool"`
+Good: `"young farmer standing full body T-pose, brown-green tunic
+extending to mid-thigh, brown leather belt, simple trousers tucked
+into ankle-high boots, arms slightly extended at sides, head looking
+forward, viewable from any angle, front view with feet visible at
+the base of the frame, autumn ground beneath"`
+
+When in doubt: generate twice and compare. Cost is ~$0.40 per
+character retry; cheaper than shipping a half-body player who casts
+half a shadow.
+
+##### Consistency across a cast
+
+When prompting multiple characters that should feel like the same
+art direction (a village's NPCs + the player), use a SHARED prefix
+that locks the style:
+
+```
+shared_prefix = "low-poly stylized, painterly, earnest folkloric
+aesthetic, [autumn village setting / setting type], full body
+standing pose, front 3/4 view from head to feet, isolated against
+neutral background, viewable from any angle, "
+```
+
+Per-character details (clothes, hair, age) go AFTER the shared
+prefix. This guarantees coherent silhouette / palette / style across
+the cast — without it, each character drifts toward Tripo3D's mean.
+
 ### Strategy A2: .glb skinned meshes (ADR 0046 Phase B, 2026-05-17)
 
 Drop a `.glb` (or `.gltf`) export from Blender / Maya / GLB-emitting
