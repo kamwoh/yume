@@ -384,6 +384,38 @@ A reproducible test asset lives at
 
 #### A2 extras (2026-05-18) — fields for AI-gen .glb integration
 
+**`properties.mesh_yaw_offset` for Tripo3D characters** (REQUIRED, 2026-05-19):
+Tripo3D's image-to-3D outputs the mesh's authored "front" along **+Z**
+(toward the concept image's viewing angle — the side the concept was
+drawn from). Yume's convention is **-Z forward** (state.facing=0 means
+looking world-north which is -Z). Without compensation, a Tripo character
+faces TOWARD the camera in third-person AND walks BACKWARD relative to
+their visible front.
+
+Compensate via `properties.mesh_yaw_offset: 3.14159265` (π radians,
+180°). entity_mesh_3d's `_sync_yaw` adds this offset to `state.facing`
+when computing the rendered rotation.y. The mesh's authored +Z front
+rotates to align with Yume's -Z forward.
+
+```jsonc
+{
+  "id": "npc_morwen",
+  "properties": {
+    "display_name": "Elder Morwen",
+    "mesh_yaw_offset": 3.14159265,
+    "_comment_yaw_offset": "Tripo3D outputs +Z front; Yume convention is -Z. π aligns."
+  }
+}
+```
+
+Applies to ALL Tripo-generated character/animal meshes. Non-Tripo
+meshes (Blender exports with explicit -Z front, code-drawn meshes,
+existing aldenmere props like mud_hut) don't need the offset.
+
+Empirical case 2026-05-19: player_marken + morwen rendered facing the
+camera in third-person AND moonwalked (walked one direction, facing
+opposite) before the offset was added.
+
 **`visual.y_offset_mesh`** (preferred) or `visual.y_offset` (legacy)
 — required for Tripo3D outputs and any .glb whose pivot isn't at the
 mesh base. Tripo3D's natural mesh origin is at the geometric center,
