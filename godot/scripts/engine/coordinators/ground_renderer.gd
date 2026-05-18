@@ -1,6 +1,65 @@
 extends RefCounted
 class_name GroundRenderer
 
+# === Static ground-snap support (2026-05-18, ADR 0052 extension) ===
+#
+# When the ground shader does vertex displacement (heightmap-based
+# bumps), entities placed at world y=0 would float above or sink
+# below the displaced surface. Static y_offset compensation alone
+# can't fix this because the displacement varies per (x, z).
+#
+# Solution: cache the heightmap as a CPU-side Image at boot, and
+# expose `sample_y(x, z)` as a static method. Entity renderers
+# with `visual.snap_to_ground: true` call this every _sync_position
+# to set their Y to the actual displaced ground at their position.
+#
+# Cheap: one Image kept in memory; bilinear sample per query.
+# Used by entity_mesh_3d._sync_position.
+
+static var _heightmap_img: Image = null
+static var _heightmap_strength: float = 0.0
+static var _heightmap_plane_size: float = 80.0
+static var _heightmap_uv_tile: float = 60.0
+static var _heightmap_enabled: bool = false
+
+
+## Sample the displaced ground Y at world coordinates (x, z).
+## Matches the shader's vertex displacement exactly:
+##   VERTEX.y += (heightmap_sample - 0.5) * bump_strength
+## Returns 0.0 when bump displacement is disabled.
+static func sample_y(x: float, z: float) -> float:
+	if not _heightmap_enabled or _heightmap_img == null:
+		return 0.0
+	# World (x, z) → PlaneMesh UV [0..1]
+	var u: float = (x + _heightmap_plane_size * 0.5) / _heightmap_plane_size
+	var v: float = 1.0 - (z + _heightmap_plane_size * 0.5) / _heightmap_plane_size
+	# Tile by uv_tile (matches shader's `vec2 tiled_uv = UV * uv_tile`)
+	var tu: float = fposmod(u * _heightmap_uv_tile, 1.0)
+	var tv: float = fposmod(v * _heightmap_uv_tile, 1.0)
+	# Bilinear sample
+	var W: int = _heightmap_img.get_width()
+	var H: int = _heightmap_img.get_height()
+	var px: float = tu * float(W - 1)
+	var py: float = tv * float(H - 1)
+	var x0: int = int(px)
+	var y0: int = int(py)
+	var x1: int = mini(x0 + 1, W - 1)
+	var y1: int = mini(y0 + 1, H - 1)
+	var fx: float = px - float(x0)
+	var fy: float = py - float(y0)
+	# Image.get_pixel returns Color; .r is the R channel float
+	var c00: float = _heightmap_img.get_pixel(x0, y0).r
+	var c10: float = _heightmap_img.get_pixel(x1, y0).r
+	var c01: float = _heightmap_img.get_pixel(x0, y1).r
+	var c11: float = _heightmap_img.get_pixel(x1, y1).r
+	var sample: float = (
+		c00 * (1.0 - fx) * (1.0 - fy)
+		+ c10 * fx * (1.0 - fy)
+		+ c01 * (1.0 - fx) * fy
+		+ c11 * fx * fy
+	)
+	return (sample - 0.5) * _heightmap_strength
+
 ## Builds the floor mesh — MeshInstance3D + PlaneMesh + StandardMaterial3D —
 ## from scene.json's `ground.mesh` block. Lets a 3D game declare its ground
 ## plane as JSON instead of hand-rolling a Node in the per-game .tscn.
@@ -54,6 +113,17 @@ func build() -> void:
 	var d := float(size_arr[1]) if size_arr.size() >= 2 else w
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(w, d)
+	# Optional subdivision for vertex-displacement shaders (ADR 0052
+	# extension, 2026-05-18). PlaneMesh defaults to subdivide=0 = 2
+	# triangles, which can't show vertex bumps. Set `subdivide` to
+	# split the plane into N×N quads. Cost: (N+1)² vertices. For an
+	# 80m plane at N=128, quad pitch is ~0.6m → bumps visible at
+	# typical FPS view distance. Skip if no displacement shader is in
+	# use (default 0 = flat plane, no extra vertices).
+	var subdivide := int(cfg.get("subdivide", 0))
+	if subdivide > 0:
+		mesh.subdivide_width = subdivide
+		mesh.subdivide_depth = subdivide
 
 	# Typed as Material (parent class) so we can swap in a
 	# ShaderMaterial later if `cfg.shader` is set.
@@ -114,6 +184,24 @@ func build() -> void:
 			# separately. Lets the shader compute world-scale UVs.
 			sm.set_shader_parameter("plane_size", max(w, d))
 			mat = sm  # Override the StandardMaterial3D
+
+			# Cache heightmap as CPU-side Image for entity ground-snap.
+			# Reads `heightmap` shader_param (the same texture passed
+			# to the vertex displacement). Entities with
+			# `visual.snap_to_ground: true` query this via
+			# GroundRenderer.sample_y(x, z) in their _sync_position.
+			var hm_enabled := float(params.get("heightmap_enabled", 0.0)) > 0.5
+			var hm_val = params.get("heightmap", null)
+			if hm_enabled and hm_val is String:
+				var hm_path: String = hm_val as String
+				if ResourceLoader.exists(hm_path):
+					var hm_tex = load(hm_path)
+					if hm_tex is Texture2D:
+						_heightmap_img = (hm_tex as Texture2D).get_image()
+						_heightmap_strength = float(params.get("bump_strength", 0.0))
+						_heightmap_plane_size = max(w, d)
+						_heightmap_uv_tile = float(params.get("uv_tile", 60.0))
+						_heightmap_enabled = (_heightmap_strength > 0.0)
 		else:
 			push_warning("ground_renderer: shader failed to load: " + shader_path)
 

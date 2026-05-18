@@ -442,6 +442,16 @@ func _sync_position() -> void:
 	if v is Dictionary and v.has("y_offset"):
 		position.y += float(v["y_offset"])
 
+	# Optional ground-snap (2026-05-18, ADR 0052 extension). When set,
+	# the entity follows the GROUND's displaced height at its (x, z)
+	# instead of sitting at world y=0. Required when the ground shader
+	# does vertex displacement (heightmap-based bumps) — otherwise
+	# entities float above or sink below the bumpy ground.
+	# GroundRenderer caches the heightmap as a CPU-side Image at boot
+	# and exposes sample_y(x, z) as a static method.
+	if v is Dictionary and bool(v.get("snap_to_ground", false)):
+		position.y += GroundRenderer.sample_y(position.x, position.z)
+
 
 ## Read state.scale if set. Accepts:
 ##   - float / int  → uniform scale (Vector3(s, s, s))
