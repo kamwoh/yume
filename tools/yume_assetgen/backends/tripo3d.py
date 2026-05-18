@@ -306,15 +306,30 @@ class Tripo3DBackend(Backend):
         rig_task_id: str,
         animation: str,
         api_key: str,
+        animate_in_place: bool = True,
     ) -> str:
         """Submit a retarget task. `animation` is a Tripo preset string
         like 'preset:walk' or 'preset:quadruped:walk' — see ADR 0053's
-        animation-preset table."""
+        animation-preset table.
+
+        `animate_in_place=True` (default for Yume) strips root translation
+        from the clip so the rig's root bone stays at origin throughout the
+        cycle. The game engine drives world-space translation via
+        state.velocity / pathfind_to; the animation only moves limbs. If
+        False (Tripo default), the rig translates forward during the walk
+        cycle, producing a "jump-then-stop" artifact when Yume's engine ALSO
+        drives translation (double-counted motion + clip ends mid-step).
+
+        Empirical case 2026-05-18: player_marken + morwen walked one cycle
+        then froze. Two bugs: clip not looping (fixed engine-side) + root
+        motion baked in (fixed by flipping this default to True).
+        """
         body = {
             "type": "animate_retarget",
             "original_model_task_id": rig_task_id,
             "animation": animation,
             "bake_animation": True,
+            "animate_in_place": animate_in_place,
             "out_format": "glb",
         }
         return self._submit(body, api_key)

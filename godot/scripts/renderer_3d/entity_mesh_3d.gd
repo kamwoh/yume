@@ -204,6 +204,19 @@ func _load_glb_mesh(path: String, visual: Dictionary, ent: Entity) -> void:
 	# Locate the embedded AnimationPlayer. Godot's GLTF importer puts it
 	# directly under the scene root and names it "AnimationPlayer".
 	var ap: AnimationPlayer = _find_imported_animation_player(imported)
+	if ap != null:
+		# Force every imported clip to loop. Tripo/Blender-export GLBs
+		# default to loop_mode=LOOP_NONE; without this, AnimationPlayer
+		# plays the clip once and stops. State-driven animation_state_rules
+		# rely on the clip looping while the state condition holds (e.g.
+		# walk continues while velocity > 0.1). Set unconditionally — Yume's
+		# clips are all gameplay-state-driven, none are one-shots.
+		# Empirical case 2026-05-18: morwen + player walked one cycle then
+		# froze even though player kept moving.
+		for clip_name in ap.get_animation_list():
+			var anim := ap.get_animation(clip_name)
+			if anim != null:
+				anim.loop_mode = Animation.LOOP_LINEAR
 	var rules = visual.get("animation_state_rules", null)
 	if ap != null and rules is Array:
 		# Build a virtual mesh_def from the visual block so

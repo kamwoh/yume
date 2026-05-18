@@ -314,7 +314,13 @@ def main() -> int:
     print(f"\n[smoke] === Stage 4: animate_retarget ({len(clips)} clips) ===")
     retarget_glbs: list[Path] = []
     for clip in clips:
-        rt_disc = f"{rig_type}:{clip}:{RIG_MODEL_VERSION}"
+        # Discriminator includes ":in_place" suffix (2026-05-18 fix —
+        # ADR 0053 update). Old entries without it are now stale —
+        # they have root motion baked into the clip, which double-counts
+        # against engine-driven translation. New retargets pass
+        # animate_in_place=True; ledger key change ensures cache miss
+        # so old entries don't satisfy a re-roll.
+        rt_disc = f"{rig_type}:{clip}:{RIG_MODEL_VERSION}:in_place"
         rt_hit = ledger.has(
             "tripo3d", "tripo3d_retarget", p_hash, discriminator=rt_disc
         )
