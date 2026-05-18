@@ -581,11 +581,42 @@ When `visual.mesh` is a `res://...glb` (Tripo3D output, not a
 `@lib.meshes.X` code-drawn name), these additional `visual` fields
 are typically required:
 
-**`visual.y_offset`** (float, meters): lifts the mesh up during
-render. Required for any .glb with pivot at geometric center
-(Tripo3D defaults to this). Compute `-bbox.min.y * state.scale`.
-Without this, structures sink half-underground.
-`validate_mesh_y_offset.py` enforces.
+**`visual.y_offset_mesh`** (preferred, mesh-space) or
+**`visual.y_offset`** (legacy, world-units): lifts the mesh up
+during render. Required for any .glb with pivot at geometric center
+(Tripo3D defaults to this).
+
+- `y_offset_mesh = -bbox.min.y` (mesh-space). Engine multiplies by
+  per-instance `state.scale` at sync time. **Always use this for any
+  def that level patterns scatter at variable scale** (e.g. dwarf
+  bushes via scale_min/scale_max on the same fruit-tree def).
+- `y_offset` (legacy world-units) is `-bbox.min.y * state_init.scale`.
+  Pattern variants at different scale will float/sink.
+
+Without this, structures sink half-underground. Empirical case
+2026-05-18: prop_tree_fruit pattern at scale 0.3-0.55 floated until
+migrated to `y_offset_mesh`. `validate_mesh_y_offset.py` enforces +
+flags pattern-scale mismatches.
+
+**`visual.animate` + `visual.rig_type`** (ADR 0053): opt-in skeletal
+animation via Tripo3D's rig + retarget chain. Adds $1.10-1.40 to the
+per-entity asset-gen cost; produces a multi-clip GLB instead of a
+static mesh. Allowed `rig_type`: biped, quadruped, hexapod, octopod,
+avian, serpentine, aquatic, others.
+
+**When to opt in**:
+- Player + named NPCs: usually yes. Sliding NPCs read as prototype.
+- Predators / threats: yes. Visible pursuit is a soul beat.
+- Common animals (ambient prey, generic critters): cost-decide per
+  game. $1.10 each; an aldenmere-sized scene with 6 animals is ~$7.
+- Crowd NPCs / generic villagers: usually no. Crowd cost scales fast.
+- Static props (huts, trees, rocks): never. They don't move.
+
+When opting in, you ALSO need `visual.animation_state_rules` (per
+ADR 0046) to map engine state → clip name. The asset-gen pipeline
+auto-suggests a `velocity → walk / else idle` rule if absent, but
+explicit authoring is better. Validator
+`validate_animate_scope.py` enforces animate+rig_type pairing.
 
 **`visual.material_overrides[uuid].roughness` + `metallic`**:
 matte-PBR override per material UUID (find via `tools/inspect_glb.py`).

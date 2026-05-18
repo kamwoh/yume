@@ -95,6 +95,36 @@ class Tripo3DBackend(Backend):
     def supports_mesh(self) -> bool:
         return True
 
+    def supports_animation(self) -> bool:
+        # ADR 0053: rig + retarget chain produces animated GLBs for
+        # rig types {biped, quadruped, hexapod, octopod, avian,
+        # serpentine, aquatic, others}.
+        return True
+
+    # Tripo's animation preset list (verified 2026-05-18 from
+    # VAST-AI-Research/tripo-python-sdk/tripo3d/models.py:Animation).
+    # Use these strings as the `animation` parameter of retarget tasks.
+    ANIMATION_PRESETS = {
+        "biped": [
+            "preset:idle", "preset:walk", "preset:run",
+            "preset:dive", "preset:climb", "preset:jump",
+            "preset:slash", "preset:shoot", "preset:hurt",
+            "preset:fall", "preset:turn",
+        ],
+        "quadruped": ["preset:quadruped:walk"],
+        "hexapod": ["preset:hexapod:walk"],
+        "octopod": ["preset:octopod:walk"],
+        "avian": [],  # SDK doesn't enumerate; probe API at first use
+        "serpentine": ["preset:serpentine:march"],
+        "aquatic": ["preset:aquatic:march"],
+        "others": [],  # SDK doesn't enumerate; fallback rig
+    }
+
+    RIG_TYPES = (
+        "biped", "quadruped", "hexapod", "octopod",
+        "avian", "serpentine", "aquatic", "others",
+    )
+
     # ------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------
@@ -121,6 +151,97 @@ class Tripo3DBackend(Backend):
         self._download(result_url, out_path)
         return out_path
 
+    def generate_animated_mesh(
+        self,
+        prompt: str,
+        out_dir: Path,
+        rig_type: str,
+        animation_clips: list[str],
+        reference_image: Path | None = None,
+    ) -> dict:
+        """Run the full animation pipeline: image_to_model → prerigcheck →
+        rig → N×retarget. Returns a dict describing per-stage outputs
+        (caller is responsible for merging via glb_merge.py + ledger
+        caching of intermediate task_ids).
+
+        ADR 0053. This method makes paid API calls for every stage that
+        isn't cached by the caller. Caller must consult
+        tools/yume_assetgen/ledger.py before invoking.
+
+        Returns:
+            {
+              "base_glb": Path,              # image_to_model output
+              "base_task_id": str,
+              "rig_task_id": str | None,     # None if prerigcheck failed
+              "rig_glb": Path | None,
+              "retarget_glbs": {              # clip_id → Path
+                  "preset:walk": Path(...),
+                  "preset:idle": Path(...),
+              },
+              "retarget_task_ids": {clip_id: str, ...},
+              "riggable": bool,
+            }
+
+        Raises RuntimeError on submit/poll failure of base mesh stage.
+        Failures in later stages (prerigcheck reject, rig reject) are
+        returned as a partial dict with `riggable: False`; caller decides
+        whether to fall back to static mesh or surface to user.
+        """
+        if rig_type not in self.RIG_TYPES:
+            raise ValueError(
+                f"tripo3d: rig_type={rig_type!r} not in {self.RIG_TYPES}"
+            )
+        api_key = self._get_api_key()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Stage 1: base mesh (image_to_model preferred; falls back to text_to_model)
+        if reference_image is not None and Path(reference_image).exists():
+            file_token = self._upload_image(Path(reference_image), api_key)
+            base_task_id = self._submit_image_to_model(file_token, prompt, api_key)
+        else:
+            base_task_id = self._submit_text_to_model(prompt, api_key)
+        base_url = self._poll_until_done(base_task_id, api_key)
+        base_glb = out_dir / f"{base_task_id}_base.glb"
+        self._download(base_url, base_glb)
+
+        result: dict = {
+            "base_glb": base_glb,
+            "base_task_id": base_task_id,
+            "rig_task_id": None,
+            "rig_glb": None,
+            "retarget_glbs": {},
+            "retarget_task_ids": {},
+            "riggable": False,
+        }
+
+        # Stage 2: prerigcheck
+        pre_task = self._submit_prerigcheck(base_task_id, api_key)
+        pre_out = self._poll_for_status_dict(pre_task, api_key)
+        riggable = bool(pre_out.get("riggable", False))
+        result["riggable"] = riggable
+        if not riggable:
+            return result  # caller treats as "stay static, log + cache"
+
+        # Stage 3: rig
+        rig_task_id = self._submit_rig(base_task_id, rig_type, api_key)
+        rig_url = self._poll_until_done(rig_task_id, api_key)
+        rig_glb = out_dir / f"{rig_task_id}_rig.glb"
+        self._download(rig_url, rig_glb)
+        result["rig_task_id"] = rig_task_id
+        result["rig_glb"] = rig_glb
+
+        # Stage 4: retargets (per clip)
+        for clip in animation_clips:
+            re_task = self._submit_retarget(rig_task_id, clip, api_key)
+            re_url = self._poll_until_done(re_task, api_key)
+            safe_clip = clip.replace(":", "_")
+            re_glb = out_dir / f"{rig_task_id}_{safe_clip}.glb"
+            self._download(re_url, re_glb)
+            result["retarget_glbs"][clip] = re_glb
+            result["retarget_task_ids"][clip] = re_task
+
+        return result
+
     # ------------------------------------------------------------
     # Submit tasks
     # ------------------------------------------------------------
@@ -143,6 +264,94 @@ class Tripo3DBackend(Backend):
         if prompt:
             body["prompt"] = prompt
         return self._submit(body, api_key)
+
+    # Animation pipeline (ADR 0053, 2026-05-18) — three task types chain
+    # after image_to_model to produce a rigged + animated GLB:
+    #   prerigcheck → rig → retarget(per-clip)
+    # Each task is its own paid call. The orchestrator (generate_animated_mesh
+    # below) wires them into a single pipeline that ledger.is_paid_backend()
+    # respects + the ledger caches per task at the pipeline level (not here).
+
+    def _submit_prerigcheck(self, model_task_id: str, api_key: str) -> str:
+        """Submit a riggability check. Returns task_id; poll separately."""
+        body = {
+            "type": "animate_prerigcheck",
+            "original_model_task_id": model_task_id,
+        }
+        return self._submit(body, api_key)
+
+    def _submit_rig(
+        self,
+        model_task_id: str,
+        rig_type: str,
+        api_key: str,
+    ) -> str:
+        """Submit a rig task. rig_type ∈ {biped, quadruped, hexapod, octopod,
+        avian, serpentine, aquatic, others} per the official SDK's RigType."""
+        body: dict = {
+            "type": "animate_rig",
+            "original_model_task_id": model_task_id,
+            "rig_type": rig_type,
+            "spec": self.config.get("rig_spec", "tripo"),
+            "out_format": "glb",
+        }
+        # Default rig model version per the SDK; override via config.
+        rig_version = self.config.get("rig_model_version", "v1.0-20240301")
+        if rig_version:
+            body["model_version"] = rig_version
+        return self._submit(body, api_key)
+
+    def _submit_retarget(
+        self,
+        rig_task_id: str,
+        animation: str,
+        api_key: str,
+    ) -> str:
+        """Submit a retarget task. `animation` is a Tripo preset string
+        like 'preset:walk' or 'preset:quadruped:walk' — see ADR 0053's
+        animation-preset table."""
+        body = {
+            "type": "animate_retarget",
+            "original_model_task_id": rig_task_id,
+            "animation": animation,
+            "bake_animation": True,
+            "out_format": "glb",
+        }
+        return self._submit(body, api_key)
+
+    def _poll_for_status_dict(self, task_id: str, api_key: str) -> dict:
+        """Like _poll_until_done but returns the full success blob's
+        output dict rather than a URL. Used for prerigcheck (no URL,
+        only a `riggable` boolean) and rig tasks (need both URL + extra
+        metadata like joint count if Tripo exposes it)."""
+        interval = float(self.config.get("poll_interval", self.DEFAULT_POLL_INTERVAL))
+        timeout = float(self.config.get("timeout", self.DEFAULT_TIMEOUT))
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            req = urllib.request.Request(
+                f"{self.API_BASE}/task/{task_id}",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.load(resp)
+            except urllib.error.HTTPError as e:
+                raise RuntimeError(
+                    f"tripo3d poll: HTTP {e.code} {e.reason} (task {task_id})"
+                ) from e
+            blob = data.get("data", data)
+            status = str(blob.get("status", "")).lower()
+            if status == "success":
+                return blob.get("output", {})
+            if status in ("failed", "cancelled", "expired", "banned"):
+                err = blob.get("error", blob.get("message", "no detail"))
+                raise RuntimeError(
+                    f"tripo3d: task {task_id} ended status={status} — {err}"
+                )
+            time.sleep(interval)
+        raise RuntimeError(
+            f"tripo3d: task {task_id} did not complete within {timeout}s"
+        )
 
     def _base_submit_body(self, task_type: str) -> dict:
         body: dict = {"type": task_type}

@@ -57,9 +57,26 @@ class Ledger:
     entries: list[dict] = field(default_factory=list)
     _dirty: bool = False
 
-    def has(self, backend: str, kind: str, p_hash: str) -> dict | None:
+    def has(
+        self,
+        backend: str,
+        kind: str,
+        p_hash: str,
+        *,
+        discriminator: str | None = None,
+    ) -> dict | None:
         """Return the first matching entry, or None. Skip key is
-        (backend, kind, prompt_hash) — same as the design doc."""
+        (backend, kind, prompt_hash[, discriminator]).
+
+        `discriminator` is an optional extra dimension for paid call
+        chains where (backend, kind, prompt_hash) alone isn't unique.
+        Animation pipeline (ADR 0053) uses it to encode rig_type, clip
+        id, rig_model_version so cached REJECT/SUCCESS verdicts are
+        properly partitioned. Format: "<rig_type>:<rig_model_ver>" for
+        rig + prerigcheck, "<rig_type>:<clip>:<rig_model_ver>" for
+        retarget. A None discriminator only matches entries that ALSO
+        have no discriminator (i.e. existing pre-animation entries).
+        """
         # Treat nanobanana ↔ gemini_image as equivalent so a prior
         # call recorded under one alias still hits under the other.
         equivalents = {"nanobanana", "gemini_image"}
@@ -69,6 +86,7 @@ class Ledger:
                 e.get("backend") in match_set
                 and e.get("kind") == kind
                 and e.get("prompt_hash") == p_hash
+                and e.get("discriminator") == discriminator
             ):
                 return e
         return None
@@ -82,6 +100,7 @@ class Ledger:
         prompt: str,
         p_hash: str,
         out_path: str,
+        discriminator: str | None = None,
         extra: dict | None = None,
     ) -> None:
         entry = {
@@ -93,6 +112,8 @@ class Ledger:
             "prompt": prompt,
             "out_path": out_path,
         }
+        if discriminator is not None:
+            entry["discriminator"] = discriminator
         if extra:
             entry.update(extra)
         self.entries.append(entry)

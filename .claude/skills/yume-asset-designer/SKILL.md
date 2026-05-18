@@ -442,6 +442,71 @@ The shader-as-primitive ADR (0052) covers fire glow, ice, magic
 auras, force fields — anything that benefits from animated /
 view-aware materials beyond StandardMaterial3D.
 
+**`visual.animate` + `visual.rig_type` (ADR 0053, 2026-05-18)** —
+opt-in skeletal animation via Tripo3D's rig + retarget pipeline.
+For characters, animals, and any entity that walks/moves visibly,
+adding `animate: true` makes the asset-gen pipeline produce a
+multi-clip animated GLB instead of a static mesh.
+
+```jsonc
+"visual": {
+  "mesh": "res://...player_marken_animated_<hash>.glb",  // auto-set after gen
+  "animate": true,
+  "rig_type": "biped",                                    // REQUIRED when animate=true
+  "animation_clips": ["idle", "walk"],                    // optional; default
+  "animation_state_rules": [                              // engine — ADR 0046
+    { "if": { "velocity_magnitude_gt": 0.1 }, "play": "walk" },
+    { "default": true, "play": "idle" }
+  ]
+}
+```
+
+Allowed `rig_type` values (one per Tripo skeleton family):
+
+| rig_type | Use case | Default clips |
+|---|---|---|
+| `biped` | Players, NPCs | idle, walk (+ run, jump, attack, etc.) |
+| `quadruped` | Wolf, deer, rabbit, dog | quadruped:walk |
+| `hexapod` | Giant insect | hexapod:walk |
+| `octopod` | Spider | octopod:walk |
+| `avian` | Bird (probe API for clip list) | TBD |
+| `serpentine` | Snake | serpentine:march |
+| `aquatic` | Fish, eel | aquatic:march |
+| `others` | Fallback rig — may fail prerigcheck | TBD |
+
+Cost per entity (one-time, ledger-cached forever after success):
+
+| Stage | Cost |
+|---|---|
+| image_to_model (existing) | $0.40 |
+| prerigcheck | $0.10 (cached even on reject) |
+| rig | $0.30 |
+| retarget × N clips | $0.30 each |
+| **Biped total (idle + walk)** | **$1.40** |
+| **Non-biped total (1 walk)** | **$1.10** |
+
+Budget guidance:
+- Player + each named NPC: opt in. $1.40 per biped.
+- Generic crowd NPCs: usually keep static. Crowd costs scale to $20+
+  fast.
+- Predators / threats players track (wolf, boss): opt in. Visible
+  pursuit reads better animated than sliding.
+- Prey / ambient critters: optional. A single walk clip ($1.10/animal)
+  is enough to convey life.
+- "Others" rig: only when the entity genuinely doesn't fit other
+  taxonomies. Budget for a wasted $0.10 prerigcheck per entity.
+
+Validator: `tools/validators/validate_animate_scope.py` enforces
+animate + rig_type pair correctness at sync time. Run via
+`tools/validators/run_all.py demo_<name> --strict`.
+
+Non-biped clip diversity is limited: Tripo currently exposes ONE
+preset per non-biped rig type (walk/march). Bipeds get 11 presets.
+Animal `animation_state_rules` fall back to the single walk clip on
+the default branch — animals walk continuously instead of idling
+when stopped. Accept as v1 limitation; Tripo may add idle presets
+later, at which point update entity defs (no engine change).
+
 ### Strategy C: Code-draw fallback (default)
 
 Pure JSON. Each entity references a shape from `data/shapes.json`

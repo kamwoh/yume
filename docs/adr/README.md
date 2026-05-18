@@ -85,7 +85,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0050](./0050-frame-tick-trigger.md) | frame_tick trigger — content-authored per-frame behaviors | accepted | 2026-05-16 |
 | [0051](./0051-authoring-time-python-emitters.md) | Authoring-time Python emitters (yume_codegen + yume_assetgen) | accepted | 2026-05-17 |
 | [0052](./0052-shader-as-visual-primitive.md) | visual.shader — entity-level shader as visual primitive | accepted | 2026-05-17 |
-| [0053](./0053-tripo3d-animation-pipeline.md) | Tripo3D animation pipeline (rig + retarget for biped characters) | proposed | 2026-05-18 |
+| [0053](./0053-tripo3d-animation-pipeline.md) | Tripo3D animation pipeline (rig + retarget, all 8 rig types) | accepted | 2026-05-18 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 

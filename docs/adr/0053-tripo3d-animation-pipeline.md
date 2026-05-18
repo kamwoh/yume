@@ -1,7 +1,7 @@
 # ADR 0053 — Tripo3D animation pipeline (rig + retarget capability exposure)
 
 _Date: 2026-05-18_
-_Status: proposed_
+_Status: accepted_
 
 ## Context
 
