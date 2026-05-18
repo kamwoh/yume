@@ -152,6 +152,22 @@ not just the specific code patched.
   Generalization: a numeric visual field authored against a def's
   reference scale must scale with per-instance `state.scale`, OR the
   field must be flagged as pattern-incompatible.
+- **2026-05-18 animated npc_morwen floated 0.85m above ground**
+  → Bug fix in `villagers.json` (cleared stale `y_offset: 0.85`
+  inherited from the OLD static morwen mesh). Animated rigged GLBs
+  from Tripo have pivot at the foot (root bone), unlike static
+  Tripo image_to_model output whose pivot is at the geometric
+  center. So min.y is ~0 for animated meshes; the legacy world-units
+  y_offset value baked for the static center-pivot stays stale on
+  re-roll. Gate hardening: `animate_smoke.py` (and future
+  pipeline-side integration) MUST always pop legacy `y_offset` and
+  `y_offset_mesh` fields before re-deriving from the new animated
+  mesh's bbox, regardless of whether the new mesh's bbox warrants
+  a non-zero offset. Generalization: when replacing a mesh's pivot
+  semantics (static center-pivot → rigged foot-pivot, etc.), the
+  WHOLE pivot-dependent field family must be reset, not selectively
+  updated based on the new mesh's bbox. Selective updates leak
+  stale state from prior pivot conventions.
 
 Each gate now blocks that bug class at design time, not playtest
 time.

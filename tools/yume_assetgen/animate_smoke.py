@@ -326,14 +326,32 @@ def main() -> int:
         {"if_velocity_gt": 0.1, "state": "walk"},
         {"default": "idle"},
     ]
-    # Re-derive y_offset_mesh from the merged GLB's bbox
+    # Re-derive y_offset_mesh from the merged GLB's bbox.
+    #
+    # CRITICAL (2026-05-18 morwen v3 post-mortem): animated rigged GLBs
+    # from Tripo have their PIVOT at the foot (root bone of the rig),
+    # unlike static Tripo image_to_model output which centers at the
+    # geometric origin. So min.y is ~0 for animated meshes, not the
+    # negative half-height of static ones.
+    #
+    # The legacy `y_offset` field (in world units, authored for the
+    # OLD static mesh's center-pivot) MUST be cleared on the animated
+    # patch regardless of bbox; leaving it makes the engine lift the
+    # entity by the stale static-mesh value. Morwen floated 0.85m for
+    # exactly this reason — the smoke skipped the pop because bbox.min.y
+    # was ~0 and the guard checked < -0.01.
     bbox_min_y = _read_glb_bbox_min_y(merged_path)
+    visual.pop("y_offset", None)  # ALWAYS clear stale legacy field
+    visual.pop("y_offset_mesh", None)
     if bbox_min_y is not None and bbox_min_y < -0.01:
         visual["y_offset_mesh"] = round(-bbox_min_y, 4)
-        visual.pop("y_offset", None)
         print(f"[smoke] y_offset_mesh = {visual['y_offset_mesh']} (from bbox.min.y={bbox_min_y:.4f})")
+    else:
+        print(f"[smoke] no y_offset needed (animated rig pivots at foot; bbox.min.y={bbox_min_y})")
     # Clean up stale comments
     visual.pop("_comment_static_mesh", None)
+    visual.pop("_comment_y_offset", None)
+    visual.pop("_comment_y_offset_mesh", None)
     visual["_comment_animated"] = (
         f"ADR 0053 animated mesh — {len(CLIPS)} clips ({', '.join(CLIPS)}). "
         f"Rig: {RIG_TYPE}. Engine drives clips via animation_state_rules + clip_alias. "
