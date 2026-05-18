@@ -31,6 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from tools.yume_assetgen.backends.nanobanana import NanobananaBackend  # noqa: E402
 from tools.yume_assetgen.backends.tripo3d import Tripo3DBackend  # noqa: E402
 from tools.yume_assetgen.glb_merge import merge as glb_merge  # noqa: E402
 from tools.yume_assetgen.ledger import (  # noqa: E402
@@ -51,20 +52,23 @@ ENGINE_CLIP_NAMES = ["idle", "walk"]
 RIG_MODEL_VERSION = "v1.0-20240301"
 
 FULL_BODY_REF_PROMPT = (
-    "elderly village matriarch in T-POSE, arms straight out horizontal "
-    "to the sides palms facing down, legs slightly apart shoulder-width, "
-    "fingers spread open, full body from head to feet, front view with "
-    "feet visible at the base of the frame, grey-haired weathered woman, "
-    "knee-length earthy-brown wool tunic showing legs and brown trousers, "
-    "leather boots, NO held items NO staff NO long robe NO cloak, "
-    "neutral autumn background, viewable from any angle, low-poly stylized, "
-    "painterly, earnest folkloric aesthetic"
+    "elderly village matriarch in T-POSE for 3D model rigging, "
+    "arms straight out horizontal to the sides palms facing down, "
+    "legs slightly apart shoulder-width, fingers spread open, "
+    "full body from head to feet, front view with feet visible at the base of the frame, "
+    "grey-haired weathered kind face, "
+    "knee-length earthy-brown wool tunic showing legs, brown wool trousers, "
+    "leather boots, "
+    "NO held items, NO staff, NO long robe, NO cloak, NO held objects, "
+    "viewable from any angle, low-poly stylized, painterly, "
+    "earnest folkloric aesthetic"
 )
 FULL_BODY_MESH_PROMPT = (
-    "low-poly stylized elderly village matriarch full body T-pose, "
+    "low-poly stylized elderly village matriarch full body T-pose v3, "
     "arms straight out horizontal palms down, legs apart, fingers spread, "
     "grey hair tied back, knee-length brown wool tunic, brown trousers, "
-    "leather boots, no held items, no robe, no cloak"
+    "leather boots, no held items, no robe, no cloak, "
+    "rigged for biped animation"
 )
 
 
@@ -104,11 +108,31 @@ def main() -> int:
         return 2
     visual = target["visual"]
 
-    # Use text-to-model (no concept image). The existing morwen concept
-    # shows her in floor-length robe + walking staff, which Tripo's
-    # rigger can't handle (empirically rejected 2026-05-18). Text mode
-    # lets the T-pose prompt drive the geometry directly.
-    concept_path = None
+    # v3 test (2026-05-18): image-to-3D with a FRESHLY-generated
+    # rig-friendly concept. The new concept uses nanobanana + the
+    # background-stripping concept_suffix from asset_gen.json, plus a
+    # T-pose mesh_reference_prompt. If the concept comes out clean (no
+    # scenery, T-pose, no held items), Tripo's image-to-3D should both
+    # PASS prerigcheck AND give better style than text-to-3D.
+    import hashlib as _hl
+    concept_dir = game_dir / "assets" / "concepts"
+    concept_dir.mkdir(parents=True, exist_ok=True)
+    # Load the game's asset_gen.json for the concept_suffix
+    asset_cfg_path = game_dir / "asset_gen.json"
+    asset_cfg = json.loads(asset_cfg_path.read_text(encoding="utf-8"))
+    style = asset_cfg.get("style", {})
+    concept_suffix = style.get("concept_suffix", "")
+    assembled_concept_prompt = FULL_BODY_REF_PROMPT + concept_suffix
+    concept_hash = _hl.sha256(assembled_concept_prompt.encode("utf-8")).hexdigest()[:8]
+    concept_path = concept_dir / f"{ENTITY_ID}_v3_{concept_hash}.png"
+    if not concept_path.exists():
+        print(f"[smoke] generating fresh concept via nanobanana ({concept_hash})")
+        nano_cfg = asset_cfg.get("backend_config", {}).get("nanobanana", {})
+        nano = NanobananaBackend(nano_cfg)
+        nano.generate_texture(assembled_concept_prompt, concept_path, size=(512, 512))
+        print(f"[smoke] concept saved → {concept_path.name}")
+    else:
+        print(f"[smoke] using existing concept: {concept_path.name}")
 
     backend = Tripo3DBackend(
         {
