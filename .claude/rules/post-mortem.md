@@ -131,7 +131,7 @@ not just the specific code patched.
   Gate: yume-playtest Gate 5c (multi-modal commit-button must
   use `@root`).
 - **2026-05-08 11 broken `_close` buttons across merchant**
-  → Bug fix in screens.json. Gate: `tools/validate_screens.py`
+  → Bug fix in screens.json. Gate: `tools/validators/validate_screens.py`
   static validator + `.claude/rules/visual-qa.md` screen-flow gate.
 - **2026-05-07 game shipped feature-complete but soulless**
   → Bug fix: flavor-design.md. Gate: yume-game-reviewer Axis 14

@@ -30,11 +30,38 @@ Config (backend_config.tripo3d):
     api_key_env:   env var name (default TRIPO_API_KEY)
     poll_interval: seconds between status checks (default 5)
     timeout:       total seconds to wait for completion (default 600)
-    model_version: optional Tripo model version override
+    model_version: optional Tripo model version override (see below)
     style:         optional style preset
     texture:       bool — include PBR textures in the .glb (default true)
+    pbr:           bool — generate PBR materials (default true)
 
 Pure stdlib via urllib.request — no `requests` dep.
+
+## model_version + pricing (verified 2026-05-17)
+
+Available model_version strings (from official ComfyUI-Tripo node
++ Tripo OpenAPI docs):
+
+  v1.4-20240625    legacy
+  v2.0-20240919    legacy; seed param became deterministic from here
+  v2.5-20250123    Tripo API DEFAULT if model_version omitted
+  v3.0-20250812    sharper geometry, sculpture-level detail
+  v3.1-20260211    current latest stable (recommended drop-in upgrade)
+  P1-20260311      low-poly specialist for game assets (premium)
+
+Tripo OpenAPI pricing (separate from Tripo Studio subscription):
+  $0.01 per credit, 100-credit minimum top-up, 2000 free credits
+  per first API-key generation.
+
+Per-mesh credit cost (image-to-3D + texture + pbr):
+  v2.5 / v3.0 / v3.1:  ~40 credits  = $0.40 / mesh
+  P1:                  ~100 credits = $1.00 / mesh
+
+Switching versions: drop `"model_version": "v3.1-20260211"` (or
+similar) into backend_config.tripo3d. The ledger gates regen by
+prompt_hash, NOT by model_version — switching alone won't force
+regen of existing entries; nudge the prompt or remove specific
+ledger entries to re-run.
 """
 
 import json

@@ -146,13 +146,22 @@ func _draw() -> void:
 
 ## View-cone wedge (#105, 2026-05-16). Triangle apex at the player dot,
 ## opening in the player's facing direction. facing is in radians, where
-## facing=0 means "looking world-north" (-Z); increasing rotates CW
-## (matches face_motion's atan2(vx, -vz) convention). The minimap is
-## top-down (world X → widget X, world Z → widget Y, Y increases down),
-## so screen-space forward angle = facing - π/2 (facing=0 → -π/2 = "up"
-## in screen).
+## facing=0 means "looking world-north" (-Z). Godot 3D Y-rotation
+## convention: INCREASING facing rotates CCW when viewed from above
+## (looking down +Y at the XZ plane). The minimap is top-down (world X
+## → widget X, world Z → widget Y, Y increases down), so we negate
+## facing to convert CCW-world-rotation into CW-screen-rotation.
+##
+## Bug fix 2026-05-17: previous formula `facing - π/2` assumed CW
+## convention but camera_director's `_drain_mouse_facing` rotates the
+## camera Y by `facing` directly (CCW). When the player looked east
+## (facing=-π/2) the cone pointed west. Now: -facing - π/2.
+##   facing=0 (north): -0 - π/2 = -π/2 → screen UP ✓
+##   facing=-π/2 (east): π/2 - π/2 = 0 → screen RIGHT ✓
+##   facing=π (south): -π - π/2 → equivalent to π/2 → screen DOWN ✓
+##   facing=π/2 (west): -π/2 - π/2 = -π → screen LEFT ✓
 func _draw_view_cone(apex: Vector2, facing: float) -> void:
-	var fwd_angle: float = facing - PI * 0.5
+	var fwd_angle: float = -facing - PI * 0.5
 	var a_left: float = fwd_angle - _view_cone_half_angle
 	var a_right: float = fwd_angle + _view_cone_half_angle
 	var p_left: Vector2 = apex + Vector2(cos(a_left), sin(a_left)) * _view_cone_radius

@@ -133,6 +133,17 @@ func _ready() -> void:
 			# when the entity def declares one (typically asset-gen output).
 			if visual.has("albedo_texture"):
 				_apply_albedo_texture_to_primitives(str(visual["albedo_texture"]))
+			# ADR 0052: custom shader. Replaces the per-primitive
+			# StandardMaterial3D with a ShaderMaterial backed by the
+			# referenced .gdshader. Uniforms come from `visual.
+			# shader_params` (a dict of param-name → value). Applied
+			# to ALL primitives uniformly — for per-primitive shaders,
+			# extend with material_overrides later.
+			if visual.has("shader"):
+				_apply_shader_to_primitives(
+					str(visual["shader"]),
+					visual.get("shader_params", {})
+				)
 			_mode = "mesh"
 			_apply_shadow_only_if_set(visual)
 			_sync_position()
@@ -319,10 +330,20 @@ func _apply_override_patch(dup: StandardMaterial3D, override) -> void:
 			if ntex is Texture2D:
 				dup.normal_texture = ntex
 				dup.normal_enabled = true
+	# Roughness / metallic override. In Godot StandardMaterial3D, the
+	# final value = factor * texture_sample. Tripo3D bakes an ORM texture
+	# (Occlusion/Roughness/Metallic) into its outputs; setting only the
+	# factor leaves the texture in play and the override is partial.
+	# Clearing the texture as well makes the factor authoritative.
+	# Empirical case 2026-05-18: user reported "everything looks
+	# reflective" — Tripo3D's baked ORM was making roughness override
+	# silently partial.
 	if od.has("roughness"):
 		dup.roughness = float(od["roughness"])
+		dup.roughness_texture = null
 	if od.has("metallic"):
 		dup.metallic = float(od["metallic"])
+		dup.metallic_texture = null
 
 
 ## Build a {state_name: clip_name} map from animation_state_rules,
@@ -411,6 +432,15 @@ func _sync_position() -> void:
 		# Scale applies because the same data files are authored in 2D pixel
 		# units; 3D scenes scale them down to fit world-unit conventions.
 		position = Vector3(p.x, 0, p.y) * position_scale
+	# Optional Y-offset for AI-gen meshes whose pivot isn't at the
+	# base (added 2026-05-17). Tripo3D outputs often have origin at
+	# the mesh's geometric center, so placing at y=0 sinks half the
+	# mesh underground. visual.y_offset is the value to ADD to the
+	# rendered Y position (typically positive, equal to -bbox.min.y).
+	# Applied AFTER position_scale so it's in world units.
+	var v = _entity_ref.visual
+	if v is Dictionary and v.has("y_offset"):
+		position.y += float(v["y_offset"])
 
 
 ## Read state.scale if set. Accepts:
@@ -539,6 +569,42 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 				mi.set_surface_override_material(i, dup)
 	for child in node.get_children():
 		_paint_albedo_texture_recursive(child, tex)
+
+
+## ADR 0052: replace every primitive's material with a ShaderMaterial
+## backed by `shader_path`. Uniforms come from `shader_params` (dict
+## of param-name → value). Applied uniformly across all primitives
+## (e.g. river bands all become water). For per-band shaders, use
+## `material_overrides` instead — that path is for .glb meshes; code-
+## drawn primitives don't have material name slots.
+func _apply_shader_to_primitives(shader_path: String, shader_params: Variant) -> void:
+	if shader_path == "" or not ResourceLoader.exists(shader_path):
+		if shader_path != "":
+			push_warning(
+				"EntityMesh3D: visual.shader not found: %s" % shader_path
+			)
+		return
+	var shader = load(shader_path)
+	if not (shader is Shader):
+		push_warning(
+			"EntityMesh3D: visual.shader did not load as Shader: %s" % shader_path
+		)
+		return
+	var params: Dictionary = shader_params if shader_params is Dictionary else {}
+	for child in get_children():
+		_paint_shader_recursive(child, shader, params)
+
+
+func _paint_shader_recursive(node: Node, shader: Shader, params: Dictionary) -> void:
+	if node is MeshInstance3D:
+		var mi: MeshInstance3D = node
+		var sm := ShaderMaterial.new()
+		sm.shader = shader
+		for k in params:
+			sm.set_shader_parameter(str(k), params[k])
+		mi.material_override = sm
+	for child in node.get_children():
+		_paint_shader_recursive(child, shader, params)
 
 
 # ============================================================

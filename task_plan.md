@@ -3058,3 +3058,215 @@ Test bench: 907/0 unit + 19/19 Aldenmere scenarios +
   + per-backend testing. Mock backend covers the pipeline contract.
 - Lighting / mesh / texture aesthetic improvements — separate axis
   per user roadmap (asset-gen first, then those).
+
+## 2026-05-17 (session 2) — backends shipped + ledger + aldenmere asset replacement begun
+
+Catch-up on plan vs reality + next axis of work.
+
+### Backends shipped (closing the prior "pending" bullet)
+
+- `tools/yume_assetgen/backends/nanobanana.py` — Google Gemini 2.5
+  Flash Image text-to-image (PNG out). Used for textures + concept
+  reference images. Env: `GEMINI_API_KEY`. Alias `gemini_image`.
+- `tools/yume_assetgen/backends/tripo3d.py` — Tripo3D text-to-3D +
+  image-to-3D. Async (submit task → poll → download .glb). Env:
+  `TRIPO_API_KEY`. Endpoint shapes confirmed via live API test
+  2026-05-17 (commit cbd36ee): `/v2/openapi/upload` returns
+  `{"data": {"image_token": ...}}`; submit body uses
+  `{"file": {"type": "png", "file_token": "<image_token>"}}`.
+- asset_preview scene (`scenes/asset_preview.tscn`) +
+  `--texture=<path>` flag — load .glb assets at full scale and
+  preview with optional albedo override (commits 7d176cf, fb99d30).
+
+### Paid-call ledger (#118 — landed this session)
+
+`tools/yume_assetgen/ledger.py` — per-game JSON file at
+`data/<game>/.assetgen_ledger.json` recording every successful paid
+API call. Skip key: `(backend, kind, sha256(assembled_prompt))`.
+Skips re-pay even when the output file was moved/deleted. Mock
+backend stays untracked. Backend alias `nanobanana ↔ gemini_image`
+treated as equivalent on lookup.
+
+Why this exists: `skip_existing` only checked file presence; if a
+.png or .glb got deleted/moved/renamed, the next run silently re-
+paid. Ledger persists the "we already paid for this prompt" fact
+independently of output-file lifecycle.
+
+To force regen: delete the matching entry (or the whole file), or
+edit the prompt (hash changes).
+
+Smoke test extended with 2 new tests covering:
+- ledger blocks paid re-run after the output .glb is deleted
+- mock-backend run does NOT write to the ledger
+- nanobanana ↔ gemini_image alias hit
+
+### Aldenmere asset-replacement (in-flight, started this session)
+
+Goal: replace code-drawn `@lib.meshes.*` primitives with AI-gen
+`.glb`s entity-by-entity. Aesthetic target: "earnest, weathered,
+folkloric" (GDD §Aesthetics target, line 1115).
+
+State:
+- `data/demo_aldenmere/asset_gen.json` authored (nanobanana for
+  concepts + textures, tripo3d for meshes, style fields empty for
+  now — per-entity prompts carry full aesthetic intent).
+- `prop_tree` was the first replaced (Tripo3D, 2026-05-17,
+  pre-ledger). Backfilled into ledger with `backfilled: true` flag.
+  Underscore convention on its prompt keys (`_mesh_prompt`) dropped;
+  prompts now use real keys + are protected from regen by the
+  ledger hash. CAVEAT documented in entity `_asset_note`: if the
+  ledger entry is ever deleted, regen lands at the entity-id-derived
+  path (`prop_tree.glb`) not `conifer_tree.glb`, and material_
+  overrides keyed by Tripo3D's UUID would silently no-op.
+
+Active queue (user-directed: architecture first, then NPCs, then
+player character):
+- shelter_mud_hut + shelter_lean_to — prompts authored; pipeline
+  running this session. Mesh+concept × 2 = ~$0.20-0.40.
+- Next: NPC visuals (npc_morwen, then player_marken with animation
+  clip_alias for walk/idle).
+- After: foragables (food_berry_bush, food_red_mushroom, etc.) for
+  the moment-to-moment interaction layer.
+
+Per-entity post-gen tasks:
+1. Visually QA the .glb via `asset_preview` scene (`scenes/
+   asset_preview.tscn --asset=<path>`).
+2. Tune `state_init.scale` to match the entity's intended footprint.
+3. Inspect via `tools/inspect_glb.py` for material UUIDs; add
+   `material_overrides` if recoloring needed.
+4. Clean up stale `params` block (params don't apply to .glb meshes).
+5. Re-run scenario tests + capture for in-game visual check.
+
+### Asset naming system + no-overwrite directive (#119, 2026-05-17 session 2)
+
+User directive (2026-05-17): **never delete a generated asset to
+make room for an iteration.** AI-gen output is a paid artifact;
+each iteration must produce a new filename so prior versions stay
+on disk for side-by-side comparison.
+
+Pipeline change:
+- Output naming pattern: `<entity_id>[_<variant>]_<8char-hash>.<ext>`
+  where hash = first 8 hex chars of `sha256(assembled_prompt)`.
+- New optional fields per entity visual block:
+  - `albedo_texture_variant` — slugified human-readable tag for
+    texture iterations
+  - `mesh_variant` — slugified tag for concept + mesh iterations
+    (paired)
+- Editing a prompt produces a new hash → new filename → guaranteed
+  no overwrite of prior paid asset.
+- `visual.mesh` (and `visual.albedo_texture`) auto-patched to the
+  LATEST generation; older variants stay on disk as records.
+- Backward compat: pre-existing un-suffixed files (conifer_tree.glb,
+  shelter_lean_to.glb, shelter_mud_hut.glb) keep their names;
+  ledger lookup is hash-based so their re-skip behavior is intact.
+
+Feedback memory `feedback-never-delete-generated-assets.md` saved
+so future sessions inherit the directive.
+
+Smoke test extended to verify the new naming via glob pattern.
+
+### Followup: per-entity scale/position visual QA (2026-05-17 session 2)
+
+Tripo3D meshes have arbitrary internal scale + may include
+artifacts (debris around base, off-axis bounding boxes). The bbox-
+matching script (`fit-smallest ratio against original code-drawn
+mesh`) gives a numerically-correct first-pass scale, but:
+
+- bbox includes any baked-in debris (fallen leaves around lean_to,
+  small foliage at mud_hut base) which inflates natural bbox →
+  computed scale ends up too small.
+- mesh may not be axis-aligned to the entity's intended forward.
+- mesh's pivot point may not be at the entity's intended origin
+  (mud_hut foundation should sit AT y=0; if the .glb's origin is
+  at the geometric center, it floats above ground).
+
+**TODO**: after each batch of new Tripo3D assets lands, do a
+visual-QA pass in-game (not just asset_preview) to:
+1. confirm scale reads right against player height (~1.6m)
+2. confirm mesh sits flush with ground (translate y if needed)
+3. confirm forward direction matches entity facing
+4. add `state_init.position_offset_y` and/or rotation overrides if
+   the mesh's natural orientation doesn't match the intended one.
+
+Engine may need a small extension: per-entity visual offset
+(translate + rotate) applied between mesh load and renderer attach.
+Currently the mesh sits at the entity's position with no
+adjustment. This is fine for code-drawn (author controls the pivot)
+but breaks for AI-gen where the pivot is whatever Tripo3D chose.
+
+Logged for the next iteration. For now, scale values come from
+the bbox-matching script; expect 10-30% off in either direction
+and tune manually after seeing in-game.
+
+### Plan-vs-reality drift acknowledged
+
+Several prior "pending" items shipped without task_plan updates.
+Caught up here. Future skill/feature ships should append a brief
+section here per `.claude/rules/docs.md` ("Append, don't rewrite").
+
+### Aldenmere scene-1 progress + composition pass (2026-05-17 session 2 cont'd)
+
+**Asset-gen progress** (entity replacements):
+- Architecture batch (8): structure_fish_trap, prop_well, prop_log_pile,
+  prop_workbench, prop_market_stall, prop_drying_rack,
+  prop_wooden_bucket, grave_marker — all generated + scaled
+- Tree variants (4): prop_tree_oak, prop_tree_birch, prop_tree_fruit,
+  prop_tree_dead — all generated + scaled (4 tree species now
+  match each other in height range)
+- Foragables + atmospheric (12): generated via Tripo3D text-to-3D
+  fallback because **Gemini 403 PERMISSION_DENIED on project
+  460871333466** ("Lightning dunning decision is deny"). Meshes
+  themselves look acceptable (berry_bush sample inspected). User
+  needs to check Google Cloud console; outside Yume framework.
+
+**Pipeline hardening (2026-05-17, post-mortem)**:
+- Bug class: when a `mesh_reference_prompt` was declared but the
+  concept call failed (nanobanana 403), the pipeline silently fell
+  through to Tripo3D's text-to-3D mode + recorded a ledger entry
+  that looked like a normal image-to-3D generation. Future runs
+  would skip regen.
+- Fix: `pipeline.py` now detects missing concept files + skips the
+  mesh with `[skip-concept]` log + `skipped_concept_missing` status
+  in the summary. User must fix the upstream concept backend OR
+  remove `mesh_reference_prompt` to opt into text-to-3D.
+- Smoke test still passes.
+
+**Water shader primitive (ADR 0052)**:
+- `godot/data/lib/shaders/water_stylized.gdshader` — animated
+  value-noise ripples, no external textures
+- Engine: `entity_mesh_3d._apply_shader_to_primitives()` reads
+  `visual.shader` + `visual.shader_params`, swaps StandardMaterial3D
+  for ShaderMaterial across all primitives
+- ADR `docs/adr/0052-shader-as-visual-primitive.md` documents the
+  pattern; future fire / glass / ice / multi-biome ground shaders
+  reuse the same plumbing
+- Wired on `prop_water_plane` with autumn river params
+
+**WorldEnvironment polish (composition axes 5, 7, 8)**:
+- `lighting_director.gd` extended with `_apply_static_environment()`
+- New optional `scene.json` lighting blocks: `fog`, `tonemap`,
+  `glow`, `adjustments`, `ssao`
+- All applied once at boot (atmospheric mood, not time-of-day curves)
+- aldenmere wired: warm gold fog (#c8b890, density 0.004), filmic
+  tonemap, subtle bloom (intensity 0.25), saturation +12%, moderate
+  SSAO
+
+**Composition pass in flight** (per [[feedback-compose-dont-just-generate]]
++ `.claude/rules/soul.md` §Composition pass):
+- ✅ axis 5 (lighting drama) — WorldEnvironment polish
+- ✅ axis 7 (depth via fog) — distance haze added
+- ✅ axis 8 (palette cohesion) — color adjustments + tonemap
+- TODO axis 1 (ground variation / paths) — multi-biome ground shader
+- TODO axis 2 (focal point) — level-designer pass on placements
+- TODO axis 4 (tree clustering, density falloff) — level-designer pass
+- TODO axis 6 (lived-in detail) — small props (cooking pots, lanterns,
+  baskets) — needs Gemini fix OR text-to-3D acceptance
+
+**Skill / rule hardening (institutional memory)**:
+- Memory: `feedback_compose_dont_just_generate.md` — codifies the
+  ChatGPT critique pattern. Asset gen ≠ scene quality past ~10
+  entities; composition is the multiplier.
+- `.claude/rules/soul.md` §Composition pass — 10-axis checklist
+  + table mapping each axis to Yume primitives (existing or TBD).
+  Now a behavioral gate, not just memory.
+

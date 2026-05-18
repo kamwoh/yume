@@ -27,7 +27,7 @@ stale match-arm with no `velocity_add_relative` case → silent no-op.
 Player never moved; NPC `velocity_set` motion kept working (stale copy
 had that arm). User reported it as "drift / pulls sideways."
 
-**Gate**: `tools/validate_no_stray_scripts.py` (wired into `play.sh`)
+**Gate**: `tools/validators/validate_no_stray_scripts.py` (wired into `play.sh`)
 scans both `godot/data/` and the sync target's `data/` for any `*.gd`
 file and fails the pre-launch check. After deleting a stray .gd, rebuild
 Godot's class cache: `godot --path <template> --headless --import`
@@ -175,7 +175,7 @@ target field OTHER rules use as a filter, also add that field to the
 entity's `state_init` with a matching sentinel default. yume-game-rules-
 designer + yume-content-designer should check this jointly during the
 "final pass before declaring done" step. A future static validator
-(`tools/validate_derived_fields.py`) can grep for sync-rule outputs
+(`tools/validators/validate_derived_fields.py`) can grep for sync-rule outputs
 and verify each appears in the corresponding entity def's state_init.
 
 ## ⚠ CRITICAL: never ship a rule with `effect: []`
@@ -390,7 +390,7 @@ collapsing each rule to single-binding `self` query.
 **The gate**: `yume-systems-designer` skill must NEVER write a 2-
 binding query under a non-contact trigger. Both:
 - The skill's role spec calls this out under "Common rule shapes"
-- A static validator check in `tools/validate_rules.py` (future)
+- A static validator check in `tools/validators/validate_rules.py` (future)
   can grep for `(tick|signal|input).*"a":\s*{.*"b":\s*{` shape and
   fail at sync time
 

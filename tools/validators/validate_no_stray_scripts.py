@@ -50,7 +50,7 @@ def scan(roots: list[Path]) -> list[Path]:
 
 def main() -> int:
     strict = "--strict" in sys.argv
-    repo = Path(__file__).resolve().parent.parent
+    repo = Path(__file__).resolve().parent.parent.parent
     # Source tree + sync target. Source is usually clean (data/demo_*/ is
     # gitignored so nothing tracks there), but the sync target accumulates
     # orphans across `cp -r` runs — that's where the empirical bug lived.

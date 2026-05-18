@@ -166,7 +166,17 @@ def save_config_template(game_dir: Path, *, overwrite: bool = False) -> Path:
                 "poll_interval": 5,
                 "timeout": 600,
                 "texture": True,
-                "pbr": True
+                "pbr": True,
+                "_comment_model_versions": (
+                    "Available model_version values (Tripo OpenAPI): "
+                    "v1.4-20240625 (legacy), v2.5-20250123 (API default, "
+                    "~40 credits=$0.40/mesh), v3.0-20250812, v3.1-20260211 "
+                    "(latest stable, same price as v2.5), P1-20260311 "
+                    "(low-poly specialist, ~100 credits=$1.00/mesh). "
+                    "Add `\"model_version\": \"v3.1-20260211\"` to switch. "
+                    "Tripo OpenAPI: $0.01/credit, 100-credit min top-up, "
+                    "2000 free credits/account."
+                )
             }
         },
         "style": {

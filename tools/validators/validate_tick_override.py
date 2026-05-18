@@ -33,7 +33,7 @@ EPSILON = 1e-4  # allow exact-match drift
 
 def main() -> int:
     strict = "--strict" in sys.argv
-    repo = Path(__file__).resolve().parent.parent
+    repo = Path(__file__).resolve().parent.parent.parent
     data = repo / "godot" / "data"
     if not data.is_dir():
         print(f"[validate_tick_override] data root missing: {data}")

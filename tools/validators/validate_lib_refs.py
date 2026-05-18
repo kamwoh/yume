@@ -28,7 +28,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 GODOT_DATA = ROOT / "godot" / "data"
 LIB_ROOT = GODOT_DATA / "lib"
 MANIFEST_PATH = LIB_ROOT / "manifest.json"

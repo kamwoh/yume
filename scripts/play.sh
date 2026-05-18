@@ -89,66 +89,17 @@ if [ "${SKIP_SYNC}" != "1" ]; then
   cp -r "${TEMPLATE_SRC}/." "${TEMPLATE_DST}/"
 fi
 
-# Pre-launch screen-flow validation (non-blocking; prints WARN lines for
-# dangling transition_screen targets). Catches the bug class where a button
-# fires `transition_screen target='_close'` (or any other unknown id) which
-# silently warns at runtime instead of dismissing the modal. See
-# .claude/rules/visual-qa.md § screen-flow gate. Skip with SKIP_VALIDATE=1.
+# Pre-launch static validator bank (non-blocking). Each validator in
+# tools/validators/ catches a specific bug class at sync time. See
+# .claude/rules/README.md § Static validators for the per-validator
+# intent. Bypass entirely with SKIP_VALIDATE=1.
+#
+# Now consolidated under one runner (organized 2026-05-17). To run an
+# individual validator: `python3 tools/validators/validate_<name>.py
+# <game>`. Includes validate_schedule.py (ADR 0029) which the prior
+# hand-rolled invocation list had missed.
 if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
-  python3 "${YUME_ROOT}/tools/validate_screens.py" "${DATA_FOLDER}" || true
-  # Spawn-template static check (added 2026-05-10). Catches the bug class
-  # where a `spawn` effect references a `template` whose def id doesn't
-  # exist in entities/*.json (runtime fires [effect.spawn_no_def] error).
-  # Empirical case: Aldenmere had 7 `"template": "wolf"` refs while the
-  # def was `"animal_wolf"` — every wolf-spawn rule erroring at tick time.
-  python3 "${YUME_ROOT}/tools/validate_spawn_templates.py" "${DATA_FOLDER}" || true
-  # Scene-director static check (added 2026-05-11). Catches the bug class
-  # where entity defs reference a subsystem (schedule, party, faction)
-  # but the matching director Node isn't mounted in the per-game .tscn.
-  # Empirical case: Aldenmere shipped without ScheduleDirector mounted;
-  # all 8 villagers sat motionless despite their schedule blocks.
-  python3 "${YUME_ROOT}/tools/validate_scene_directors.py" "${DATA_FOLDER}" || true
-  # Duplicate-mutation cross-file check (added 2026-05-11). Catches the
-  # bug class where two rules across physics.json + game/rules.json
-  # mutate the same (entity-tag, field) pair under overlapping queries.
-  # Empirical case: Aldenmere shipped with day_rollover (physics) +
-  # day_boundary_advance (game/rules) both mutating current_hour with
-  # different reset values (0 vs 6). WARN by default — authors decide
-  # if each overlap is intentional (physics sim baseline + game story
-  # override) or a real bug.
-  python3 "${YUME_ROOT}/tools/validate_duplicate_mutations.py" "${DATA_FOLDER}" || true
-  # Player-perspective static check (added 2026-05-08). Catches
-  # undiscoverable keybinds + objective text referencing unlabeled
-  # landmarks. See .claude/skills/yume-game-reviewer/SKILL.md Axis 15.
-  python3 "${YUME_ROOT}/tools/validate_player_perspective.py" "${DATA_FOLDER}" || true
-  # ADR 0027 cross-game lib-ref check (added 2026-05-08). Verifies every
-  # @lib.X.Y reference resolves through data/lib/manifest.json.
-  python3 "${YUME_ROOT}/tools/validate_lib_refs.py" "${DATA_FOLDER}" || true
-  # ADR 0043 universal-input check (added 2026-05-11). After moving WASD
-  # bindings out of project.godot into data/lib/input/universal.json,
-  # gates against a game silently omitting the `$include
-  # @lib.input.universal.actions` line — bug class: WASD doesn't fire,
-  # engine code polling move_north no-ops at runtime.
-  python3 "${YUME_ROOT}/tools/validate_input_universal.py" "${DATA_FOLDER}" || true
-  # No-stray-scripts check (added 2026-05-15). Catches stale .gd files
-  # under data/ that shadow engine classes via Godot's global class_name
-  # registry. Empirical case: data/demo_aldenmere/effect_apply.gd (May 10
-  # leftover) shadowed the real EffectApply, dispatching velocity_add_relative
-  # to a dead match-arm. WASD player motion silently no-op'd for 5+ days.
-  python3 "${YUME_ROOT}/tools/validate_no_stray_scripts.py" || true
-  # Tick-rate contract check (added 2026-05-16). Per CLAUDE.md § Tick
-  # rate is the engine's heartbeat: tick_seconds defaults to 60Hz;
-  # per-game overrides must include `_comment_tick` with the reason.
-  # Empirical case: yume-code-reviewer's first session review flagged
-  # sokoban (10Hz) + doomarena3d (20Hz) overriding silently.
-  python3 "${YUME_ROOT}/tools/validate_tick_override.py" || true
-  # Rule-contract enforcer (added 2026-05-16, task #100). Catches the
-  # recurring bug class where a formula references a binding the rule
-  # doesn't bind ("self can't be used because instance is null" at
-  # runtime). Also: empty-effect rules, 2-binding non-contact queries,
-  # state_add/spawn schema field-name landmines, engine_injected marker
-  # for keyless input actions. Non-blocking; --strict for CI/agents.
-  python3 "${YUME_ROOT}/tools/validate_rules.py" "${DATA_FOLDER}" || true
+  python3 "${YUME_ROOT}/tools/validators/run_all.py" "${DATA_FOLDER}" || true
 fi
 
 # Build cmdline args for Godot's user-args section (after `--`)

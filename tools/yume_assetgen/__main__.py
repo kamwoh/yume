@@ -85,7 +85,8 @@ def main(argv=None):
             f"\n[{summary['game']}] {b_str} "
             f"scanned={summary['scanned']} "
             f"generated={summary['generated']} "
-            f"skipped={summary['skipped_existing']} "
+            f"skipped_existing={summary['skipped_existing']} "
+            f"skipped_ledger={summary.get('skipped_ledger', 0)} "
             f"patched={summary['patched']} "
             f"errors={len(summary['errors'])}"
         )

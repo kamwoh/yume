@@ -30,6 +30,9 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from tools.yume_assetgen.pipeline import run_pipeline, scan_prompts
 from tools.yume_assetgen.config import load_config, save_config_template
+from tools.yume_assetgen.ledger import (
+    LEDGER_FILENAME, Ledger, load_ledger, prompt_hash, is_paid_backend
+)
 
 
 def _check(label, ok):
@@ -167,6 +170,13 @@ def test_dry_run(game_dir):
     return fails
 
 
+def _glob_one(parent: Path, pattern: str) -> Path | None:
+    """Return the first file matching parent/pattern, or None.
+    Hash-suffixed naming means we don't know the exact name."""
+    matches = list(parent.glob(pattern))
+    return matches[0] if matches else None
+
+
 def test_generate_with_mock(game_dir):
     print("[generate with mock backend]")
     fails = 0
@@ -176,26 +186,19 @@ def test_generate_with_mock(game_dir):
     )
     fails += _check("generated 5 items", summary["generated"] == 5)
     fails += _check("0 errors", len(summary["errors"]) == 0)
-    fails += _check(
-        "wheat_seed.png is valid PNG",
-        _is_valid_png(game_dir / "assets/textures/wheat_seed.png"),
+    # New naming: <entity_id>_<8char-hash>.<ext>; check via glob.
+    wheat_png = _glob_one(game_dir / "assets/textures", "wheat_seed_*.png")
+    villager_png = _glob_one(game_dir / "assets/textures", "villager_alice_*.png")
+    wheat_glb = _glob_one(game_dir / "assets/meshes", "wheat_seed_*.glb")
+    villager_glb = _glob_one(game_dir / "assets/meshes", "villager_alice_*.glb")
+    villager_concept = _glob_one(
+        game_dir / "assets/concepts", "villager_alice_*.png"
     )
-    fails += _check(
-        "villager_alice.png is valid PNG",
-        _is_valid_png(game_dir / "assets/textures/villager_alice.png"),
-    )
-    fails += _check(
-        "wheat_seed.glb is valid GLB",
-        _is_valid_glb(game_dir / "assets/meshes/wheat_seed.glb"),
-    )
-    fails += _check(
-        "villager_alice.glb is valid GLB",
-        _is_valid_glb(game_dir / "assets/meshes/villager_alice.glb"),
-    )
-    fails += _check(
-        "villager_alice concept PNG written",
-        _is_valid_png(game_dir / "assets/concepts/villager_alice.png"),
-    )
+    fails += _check("wheat_seed_*.png is valid PNG", bool(wheat_png) and _is_valid_png(wheat_png))
+    fails += _check("villager_alice_*.png is valid PNG", bool(villager_png) and _is_valid_png(villager_png))
+    fails += _check("wheat_seed_*.glb is valid GLB", bool(wheat_glb) and _is_valid_glb(wheat_glb))
+    fails += _check("villager_alice_*.glb is valid GLB", bool(villager_glb) and _is_valid_glb(villager_glb))
+    fails += _check("villager_alice concept PNG written", bool(villager_concept) and _is_valid_png(villager_concept))
     return fails
 
 
@@ -208,9 +211,13 @@ def test_patch_entity_def(game_dir):
         "wheat.visual.albedo_texture patched",
         wheat["visual"].get("albedo_texture", "").startswith("res://data/demo_assetgen_smoke/"),
     )
+    # New naming: <entity_id>_<8char-hash>.glb; check the prefix.
     fails += _check(
-        "wheat.visual.mesh patched to .glb",
-        wheat["visual"].get("mesh", "").endswith("wheat_seed.glb"),
+        "wheat.visual.mesh patched to a wheat_seed_*.glb",
+        wheat["visual"].get("mesh", "").startswith(
+            "res://data/demo_assetgen_smoke/"
+        ) and "wheat_seed_" in wheat["visual"].get("mesh", "")
+          and wheat["visual"].get("mesh", "").endswith(".glb"),
     )
     fails += _check(
         "original albedo_texture_prompt preserved",
@@ -228,6 +235,110 @@ def test_skip_existing_on_rerun(game_dir):
     )
     fails += _check("re-run generated 0 new", summary["generated"] == 0)
     fails += _check("re-run skipped 5 existing", summary["skipped_existing"] == 5)
+    return fails
+
+
+def test_ledger_blocks_paid_rerun(game_dir):
+    """Simulate a prior paid Tripo3D call by seeding the ledger, then
+    delete the .glb on disk and re-run. With skip_existing AND the
+    ledger we should NOT re-pay even though the file is gone."""
+    print("[ledger blocks paid re-run]")
+    fails = 0
+    # Tighten config so wheat_seed's mesh prompt would be routed to
+    # tripo3d (paid). We force --backend=tripo3d but never reach the
+    # backend — the ledger catches it before dispatch.
+    (game_dir / "asset_gen.json").write_text(json.dumps({
+        "backend": {"texture": "mock", "mesh": "tripo3d", "concept": "mock"},
+    }), encoding="utf-8")
+
+    # Re-scan to get the assembled prompt for wheat_seed.glb.
+    cfg = load_config(game_dir)
+    items = list(scan_prompts(game_dir, cfg))
+    wheat_mesh = next(
+        i for i in items if i.entity_id == "wheat_seed" and i.kind == "mesh"
+    )
+
+    # Seed the ledger as if a prior Tripo3D call had succeeded.
+    ledger = load_ledger(game_dir)
+    ledger.add(
+        backend="tripo3d",
+        kind="mesh",
+        entity_id="wheat_seed",
+        prompt=wheat_mesh.assembled_prompt,
+        p_hash=prompt_hash(wheat_mesh.assembled_prompt),
+        out_path="assets/meshes/wheat_seed.glb",
+    )
+    ledger.save()
+    fails += _check(
+        "ledger file written",
+        (game_dir / LEDGER_FILENAME).exists(),
+    )
+
+    # Delete the .glb so skip_existing won't catch this case —
+    # only the ledger should.
+    glb = game_dir / "assets/meshes/wheat_seed.glb"
+    if glb.exists():
+        glb.unlink()
+    fails += _check("wheat_seed.glb removed on disk", not glb.exists())
+
+    # Re-run. The mesh kind is routed to tripo3d (paid); without the
+    # ledger this would call out to the API + fail without an API key.
+    summary = run_pipeline(game_dir, dry_run=False, verbose=False)
+    fails += _check(
+        "wheat_seed mesh blocked by ledger (no re-pay)",
+        summary["skipped_ledger"] >= 1,
+    )
+    fails += _check(
+        "no tripo3d error surfaced (we never dispatched)",
+        not any(
+            e.get("entity") == "wheat_seed" and e.get("kind") == "mesh"
+            for e in summary["errors"]
+        ),
+    )
+
+    # Now mutate the prompt: prompt_hash changes -> ledger MISS ->
+    # would attempt dispatch. We don't have a real API key, so we
+    # expect either an error OR the prompt being routed to mock if
+    # we re-route. Verify the LEDGER miss path by checking the
+    # ledger.has() lookup directly.
+    new_prompt = wheat_mesh.assembled_prompt + " EDITED"
+    fails += _check(
+        "ledger MISS when prompt changes",
+        ledger.has("tripo3d", "mesh", prompt_hash(new_prompt)) is None,
+    )
+
+    # Alias check: nanobanana ↔ gemini_image.
+    ledger2 = load_ledger(game_dir)
+    ledger2.add(
+        backend="nanobanana", kind="texture", entity_id="alias_probe",
+        prompt="a test", p_hash=prompt_hash("a test"),
+        out_path="assets/textures/alias_probe.png",
+    )
+    fails += _check(
+        "ledger hits across nanobanana ↔ gemini_image alias",
+        ledger2.has("gemini_image", "texture", prompt_hash("a test")) is not None,
+    )
+
+    return fails
+
+
+def test_ledger_does_not_track_mock(parent_tmp):
+    """Verify mock-backend generations DON'T write to the ledger.
+    Builds a fresh game dir so the prior ledger state isn't reused."""
+    print("[ledger does not track mock]")
+    fails = 0
+    game_dir = _make_game_dir(parent_tmp / "ledger_mock_isolation")
+    summary = run_pipeline(
+        game_dir, dry_run=False, verbose=False, backend_override="mock"
+    )
+    fails += _check("mock run generated > 0", summary["generated"] > 0)
+    fails += _check(
+        "mock run did NOT write a ledger file",
+        not (game_dir / LEDGER_FILENAME).exists(),
+    )
+    fails += _check("is_paid_backend(mock) is False", not is_paid_backend("mock"))
+    fails += _check("is_paid_backend(tripo3d) is True", is_paid_backend("tripo3d"))
+    fails += _check("is_paid_backend(nanobanana) is True", is_paid_backend("nanobanana"))
     return fails
 
 
@@ -284,13 +395,16 @@ def test_real_backends_register():
 def main():
     fails = 0
     with tempfile.TemporaryDirectory() as td:
-        game_dir = _make_game_dir(Path(td))
+        td_path = Path(td)
+        game_dir = _make_game_dir(td_path)
         fails += test_scan_finds_prompts(game_dir)
         fails += test_assemble_prefix_suffix(game_dir)
         fails += test_dry_run(game_dir)
         fails += test_generate_with_mock(game_dir)
         fails += test_patch_entity_def(game_dir)
         fails += test_skip_existing_on_rerun(game_dir)
+        fails += test_ledger_blocks_paid_rerun(game_dir)
+        fails += test_ledger_does_not_track_mock(td_path)
     fails += test_backend_routing()
     fails += test_real_backends_register()
     print()

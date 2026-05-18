@@ -32,7 +32,7 @@ REQUIRED_ACTIONS = [
     "stop_x", "stop_y", "stop",
 ]
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 GODOT_DATA = ROOT / "godot" / "data"
 LIB_PATH = GODOT_DATA / "lib" / "input" / "universal.json"
 

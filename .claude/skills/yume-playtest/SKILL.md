@@ -23,7 +23,7 @@ Empirical precedents that motivate the gate:
 - **2026-05-08 merchant**: 488 unit tests + 12 scenarios pass → user
   hit `transition_screen target='_close'` warnings on EVERY dismiss
   button (11 instances, multiple Tier A screens). Headless tests don't
-  fire `on_click`. Validator added (`tools/validate_screens.py`); skill
+  fire `on_click`. Validator added (`tools/validators/validate_screens.py`); skill
   mandates running it.
 
 - **2026-05-08 merchant**: validator caught 12 more dangling
@@ -91,7 +91,7 @@ not skip; report every failure with concrete reproduction steps.
 Run the validator in strict mode:
 
 ```bash
-python3 tools/validate_screens.py demo_<name> --strict
+python3 tools/validators/validate_screens.py demo_<name> --strict
 ```
 
 It scans every `transition_screen` effect across `screens.json`,
@@ -309,7 +309,7 @@ section lists blockers + caveats with reproduction steps.
 
 ## Reference files
 
-- `tools/validate_screens.py` — Gate 1
+- `tools/validators/validate_screens.py` — Gate 1
 - `.claude/rules/visual-qa.md` — Gate 6 prompt structure + per-skill
   cheat sheets
 - `.claude/rules/engine-scripts.md` § effect-chain gate — context for

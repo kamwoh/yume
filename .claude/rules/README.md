@@ -42,9 +42,14 @@ the invariant wins — rules document enforcement, not policy.
 ## Static validators
 
 Several rules above are MACHINE-ENFORCED at sync time by validators in
-`tools/`. They run automatically from `scripts/play.sh`; pass
-`--strict` to exit 1 on any violation (CI / agents should use strict
-mode). Skip the whole bank with `SKIP_VALIDATE=1`.
+`tools/validators/` (relocated 2026-05-17 from `tools/`). They run
+automatically from `scripts/play.sh` via `tools/validators/run_all.py`;
+pass `--strict` to exit 1 on any violation (CI / agents should use
+strict mode). Skip the whole bank with `SKIP_VALIDATE=1`.
+
+To run an individual validator: `python3 tools/validators/<name>.py
+<game> [--strict]`. To run the bank: `python3 tools/validators/
+run_all.py <game> [--strict]`.
 
 | Validator | What it catches | Sources |
 |---|---|---|

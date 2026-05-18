@@ -41,7 +41,7 @@ if not GAME_ARG:
     print("usage: validate_player_perspective.py demo_<game> [--strict]")
     sys.exit(2)
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 GAME_DIR = ROOT / "godot" / "data" / GAME_ARG
 if not GAME_DIR.exists():
     print(f"[fail] {GAME_DIR} not found")

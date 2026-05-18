@@ -122,7 +122,7 @@ def validate_game(game_dir, strict=False):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     strict = "--strict" in sys.argv
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent
     data_root = repo_root / "godot" / "data"
 
     if args:

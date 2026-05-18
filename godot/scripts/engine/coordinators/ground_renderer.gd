@@ -11,11 +11,15 @@ class_name GroundRenderer
 ##     "y": 0,                       // existing — sim ground primitive
 ##     "clamp_tags": ["creature"],   // existing
 ##     "despawn_tags": ["projectile"],
-##     "mesh": {                     // new — visual plane
+##     "mesh": {                     // visual plane
 ##       "size": [400, 400],         // width, depth in meters
 ##       "color": "#6b5c42",         // albedo hex or [r,g,b,a]
+##                                   //  (tints the texture if albedo_texture set)
 ##       "roughness": 0.92,
-##       "metallic": 0.0
+##       "metallic": 0.0,
+##       "albedo_texture": "res://data/<game>/assets/textures/...",  // optional
+##       "normal_texture": "res://data/<game>/assets/textures/...",  // optional
+##       "uv1_scale": 30              // optional — tile texture N times across the plane
 ##     }
 ##   }
 ##
@@ -51,10 +55,67 @@ func build() -> void:
 	var mesh := PlaneMesh.new()
 	mesh.size = Vector2(w, d)
 
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = _color(cfg.get("color", "#808080"))
-	mat.roughness = float(cfg.get("roughness", 0.9))
-	mat.metallic = float(cfg.get("metallic", 0.0))
+	# Typed as Material (parent class) so we can swap in a
+	# ShaderMaterial later if `cfg.shader` is set.
+	var mat: Material = StandardMaterial3D.new()
+	var smat: StandardMaterial3D = mat as StandardMaterial3D
+	smat.albedo_color = _color(cfg.get("color", "#808080"))
+	smat.roughness = float(cfg.get("roughness", 0.9))
+	smat.metallic = float(cfg.get("metallic", 0.0))
+
+	# Optional albedo texture (multiplied by albedo_color). Tiles via uv1_scale.
+	var albedo_path: String = str(cfg.get("albedo_texture", "")).strip_edges()
+	if albedo_path != "":
+		var tex = load(albedo_path)
+		if tex is Texture2D:
+			smat.albedo_texture = tex
+		else:
+			push_warning("ground_renderer: albedo_texture failed to load: " + albedo_path)
+
+	# Optional normal map. Tiles with the same uv1_scale.
+	var normal_path: String = str(cfg.get("normal_texture", "")).strip_edges()
+	if normal_path != "":
+		var ntex = load(normal_path)
+		if ntex is Texture2D:
+			smat.normal_enabled = true
+			smat.normal_texture = ntex
+		else:
+			push_warning("ground_renderer: normal_texture failed to load: " + normal_path)
+
+	# UV tiling. A 400m plane with uv1_scale=30 tiles the texture every ~13m
+	# — close-up surface detail without obvious repetition. Z component is
+	# unused for a planar UV but Godot stores Vector3 anyway.
+	var uv_scale: float = float(cfg.get("uv1_scale", 1.0))
+	if uv_scale != 1.0:
+		smat.uv1_scale = Vector3(uv_scale, uv_scale, 1.0)
+
+	# ADR 0052: optional custom shader. If `ground.mesh.shader` is set,
+	# REPLACE the StandardMaterial3D with a ShaderMaterial backed by
+	# the referenced .gdshader. Uniforms come from `shader_params`
+	# (dict of param-name -> value, or path-string -> Texture2D).
+	# Used for the multi-biome ground (composition pass 2026-05-17).
+	var shader_path: String = str(cfg.get("shader", "")).strip_edges()
+	if shader_path != "":
+		var shader_res = load(shader_path)
+		if shader_res is Shader:
+			var sm := ShaderMaterial.new()
+			sm.shader = shader_res
+			var params: Dictionary = cfg.get("shader_params", {})
+			for k in params:
+				var v = params[k]
+				# Auto-load Texture2D from res:// strings — handy
+				# so authors don't have to pre-load textures in JSON
+				if v is String and (v as String).begins_with("res://"):
+					var loaded = load(v)
+					if loaded is Texture2D:
+						v = loaded
+				sm.set_shader_parameter(str(k), v)
+			# Plane size uniform — derived from cfg.size, not authored
+			# separately. Lets the shader compute world-scale UVs.
+			sm.set_shader_parameter("plane_size", max(w, d))
+			mat = sm  # Override the StandardMaterial3D
+		else:
+			push_warning("ground_renderer: shader failed to load: " + shader_path)
 
 	var node := MeshInstance3D.new()
 	node.name = "Ground"

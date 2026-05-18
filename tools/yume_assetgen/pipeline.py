@@ -20,6 +20,7 @@ files.
 """
 
 import json
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,38 @@ from typing import Iterator
 
 from .backends import get_backend, Backend
 from .config import AssetGenConfig, load_config
+from .ledger import load_ledger, prompt_hash, is_paid_backend
+
+
+# Output naming: <entity_id>[_<variant>]_<8char-hash>.<ext>
+#
+# Per user directive 2026-05-17: NEVER overwrite a generated asset.
+# Re-prompting yields a new prompt_hash → a new filename → both old
+# and new assets coexist on disk. Authors compare via asset_preview.
+#
+# `variant` is an optional author-set slug on the entity's visual
+# block (e.g. visual.mesh_variant: "autumn") that prefixes the
+# hash for human readability. Without it, the filename is just
+# <entity_id>_<hash8>.<ext>.
+#
+# Backward compat: pre-existing un-suffixed files (e.g. conifer_tree
+# .glb) keep their names. The ledger lookup is hash-based, so
+# their entries still skip correctly on re-runs.
+
+def _slugify(s: str) -> str:
+    """Sanitize a variant tag to [a-z0-9_]. Empty → empty."""
+    return re.sub(r'[^a-z0-9_]+', '_', (s or "").lower()).strip('_')
+
+
+def _filename(entity_id: str, kind: str, assembled_prompt: str,
+              variant: str | None = None) -> str:
+    """Compute the output filename for a generated asset."""
+    ext = {"texture": "png", "concept": "png", "mesh": "glb"}[kind]
+    h = prompt_hash(assembled_prompt).split(":", 1)[1][:8]
+    slug = _slugify(variant) if variant else ""
+    if slug:
+        return f"{entity_id}_{slug}_{h}.{ext}"
+    return f"{entity_id}_{h}.{ext}"
 
 
 @dataclass
@@ -81,16 +114,30 @@ def scan_prompts(
             if not (entity_id and isinstance(visual, dict)):
                 continue
 
+            # Optional human-readable variant tags. albedo_texture_variant
+            # applies to the texture prompt; mesh_variant applies to BOTH
+            # the concept and mesh prompts (they're a pair). Authors set
+            # these to label iterations: e.g. visual.mesh_variant: "autumn"
+            # → shelter_lean_to_autumn_<hash>.glb. New filename per
+            # prompt-hash guarantees iterations never overwrite priors.
+            tex_variant = visual.get("albedo_texture_variant")
+            mesh_variant = visual.get("mesh_variant")
+            tex_dir = cfg.outputs.get("texture_dir", "assets/textures")
+            concept_dir = cfg.outputs.get("concept_dir", "assets/concepts")
+            mesh_dir = cfg.outputs.get("mesh_dir", "assets/meshes")
+
             if (only in (None, "texture")) and visual.get("albedo_texture_prompt"):
+                assembled = _assemble(
+                    cfg, str(visual["albedo_texture_prompt"]), "texture"
+                )
+                fname = _filename(entity_id, "texture", assembled, tex_variant)
                 items.append(PromptItem(
                     entity_id=entity_id,
                     kind="texture",
                     raw_prompt=str(visual["albedo_texture_prompt"]),
-                    assembled_prompt=_assemble(
-                        cfg, str(visual["albedo_texture_prompt"]), "texture"
-                    ),
-                    out_path=cfg.texture_dir_abs(game_dir) / f"{entity_id}.png",
-                    res_ref=cfg.texture_ref(repo_data_prefix, entity_id),
+                    assembled_prompt=assembled,
+                    out_path=cfg.texture_dir_abs(game_dir) / fname,
+                    res_ref=f"res://{repo_data_prefix}/{tex_dir}/{fname}",
                     source_file=f,
                     visual_key="albedo_texture",
                 ))
@@ -102,16 +149,16 @@ def scan_prompts(
             # FIRST in items so the file exists before the mesh runs.
             concept_path: Path | None = None
             if (only in (None, "mesh")) and visual.get("mesh_reference_prompt"):
-                concept_path = (
-                    cfg.concept_dir_abs(game_dir) / f"{entity_id}.png"
+                assembled = _assemble(
+                    cfg, str(visual["mesh_reference_prompt"]), "concept"
                 )
+                fname = _filename(entity_id, "concept", assembled, mesh_variant)
+                concept_path = cfg.concept_dir_abs(game_dir) / fname
                 items.append(PromptItem(
                     entity_id=entity_id,
                     kind="concept",
                     raw_prompt=str(visual["mesh_reference_prompt"]),
-                    assembled_prompt=_assemble(
-                        cfg, str(visual["mesh_reference_prompt"]), "concept"
-                    ),
+                    assembled_prompt=assembled,
                     out_path=concept_path,
                     res_ref="",
                     source_file=f,
@@ -120,15 +167,17 @@ def scan_prompts(
                 ))
 
             if (only in (None, "mesh")) and visual.get("mesh_prompt"):
+                assembled = _assemble(
+                    cfg, str(visual["mesh_prompt"]), "mesh"
+                )
+                fname = _filename(entity_id, "mesh", assembled, mesh_variant)
                 items.append(PromptItem(
                     entity_id=entity_id,
                     kind="mesh",
                     raw_prompt=str(visual["mesh_prompt"]),
-                    assembled_prompt=_assemble(
-                        cfg, str(visual["mesh_prompt"]), "mesh"
-                    ),
-                    out_path=cfg.mesh_dir_abs(game_dir) / f"{entity_id}.glb",
-                    res_ref=cfg.mesh_ref(repo_data_prefix, entity_id),
+                    assembled_prompt=assembled,
+                    out_path=cfg.mesh_dir_abs(game_dir) / fname,
+                    res_ref=f"res://{repo_data_prefix}/{mesh_dir}/{fname}",
                     source_file=f,
                     visual_key="mesh",
                     reference_image_path=concept_path,
@@ -220,6 +269,11 @@ def run_pipeline(
             backends[name] = get_backend(name, backend_config)
         return backends[name]
 
+    # Ledger of paid API calls; gates re-runs independently of whether
+    # the output file is still on disk. Mock-only runs skip ledger
+    # interaction entirely (mock is free).
+    ledger = load_ledger(game_dir)
+
     summary = {
         "game": game_dir.name,
         "backends": {  # what got USED, populated below
@@ -231,6 +285,7 @@ def run_pipeline(
         "scanned": 0,
         "generated": 0,
         "skipped_existing": 0,
+        "skipped_ledger": 0,
         "patched": 0,
         "errors": [],
         "items": [],
@@ -259,6 +314,24 @@ def run_pipeline(
             if verbose:
                 print(f"  [skip] {item.kind:7s} {item.entity_id:20s} (exists)")
             continue
+        # Ledger check — only for paid backends. Skips re-pay even
+        # when the output file was moved/deleted.
+        backend_name = _kind_backend(item.kind)
+        p_hash = prompt_hash(item.assembled_prompt)
+        if is_paid_backend(backend_name):
+            hit = ledger.has(backend_name, item.kind, p_hash)
+            if hit is not None:
+                rec["status"] = "skipped_ledger"
+                rec["ledger_timestamp"] = hit.get("timestamp", "")
+                summary["skipped_ledger"] += 1
+                summary["items"].append(rec)
+                if verbose:
+                    ts = hit.get("timestamp", "?")
+                    print(
+                        f"  [ledg] {item.kind:7s} {item.entity_id:20s} "
+                        f"(paid {backend_name} @ {ts})"
+                    )
+                continue
         backend = _get(item.kind)
         try:
             if item.kind in ("texture", "concept"):
@@ -290,16 +363,61 @@ def run_pipeline(
                 # it (Tripo3D image-to-3D mode). MockBackend's signature
                 # only takes (prompt, out_path); guard with try/except
                 # or feature-test. Cleanest: pass kwarg only if set.
-                if item.reference_image_path and item.reference_image_path.exists():
+                #
+                # Bug-class gate (2026-05-17): if the entity DECLARED a
+                # concept reference (mesh_reference_prompt → ref path)
+                # but the concept file is missing (likely because the
+                # upstream concept call failed), we previously fell
+                # through to text-to-3D silently. That hid upstream
+                # failures + recorded a ledger entry that LOOKED like a
+                # normal image-to-3D run, blocking future regen.
+                # Now: skip the mesh + surface the failure. Empirical:
+                # 2026-05-17 nanobanana 403 batch silently produced 12
+                # text-to-3D meshes labeled as normal generations.
+                ref = item.reference_image_path
+                if ref is not None and not ref.exists():
+                    rec["status"] = "skipped_concept_missing"
+                    rec["error"] = (
+                        f"declared mesh_reference_prompt but concept "
+                        f"file {ref.name} missing — upstream concept "
+                        f"call likely failed. Fix the concept backend "
+                        f"OR remove mesh_reference_prompt to opt into "
+                        f"text-to-3D."
+                    )
+                    summary["errors"].append(rec)
+                    if verbose:
+                        print(
+                            f"  [skip-concept] {item.kind:7s} "
+                            f"{item.entity_id} (concept missing — "
+                            f"upstream backend likely failed)"
+                        )
+                    continue
+                if ref is not None and ref.exists():
                     backend.generate_mesh(
                         item.assembled_prompt,
                         item.out_path,
-                        reference_image=item.reference_image_path,
+                        reference_image=ref,
                     )
                 else:
                     backend.generate_mesh(item.assembled_prompt, item.out_path)
             summary["generated"] += 1
             rec["status"] = "generated"
+            # Record paid API calls so a later run doesn't re-pay if
+            # the output file was moved/deleted. Mock stays free +
+            # untracked (smoke test re-runs against it).
+            if is_paid_backend(backend_name):
+                try:
+                    rel_out = str(item.out_path.relative_to(game_dir))
+                except ValueError:
+                    rel_out = str(item.out_path)
+                ledger.add(
+                    backend=backend_name,
+                    kind=item.kind,
+                    entity_id=item.entity_id,
+                    prompt=item.assembled_prompt,
+                    p_hash=p_hash,
+                    out_path=rel_out,
+                )
             if cfg.patch_entities and not item.intermediate:
                 if _patch_entity_file(item):
                     summary["patched"] += 1
@@ -320,4 +438,6 @@ def run_pipeline(
                     file=sys.stderr,
                 )
 
+    if not dry_run:
+        ledger.save()
     return summary

@@ -113,6 +113,50 @@ To add a new backend: subclass `Backend` in
 `generate_texture` and/or `generate_mesh`, register in
 `backends/__init__.py::REGISTRY`.
 
+### Paid-call ledger
+
+Every successful nanobanana or tripo3d call is recorded in
+`data/<game>/.assetgen_ledger.json` (auto-managed). On the next run
+the pipeline checks `(backend, kind, sha256(assembled_prompt))`
+against the ledger BEFORE dispatching; a hit logs `[ledg]` and skips,
+even if the output file was deleted or moved.
+
+This is independent of `skip_existing` (which only checks file
+presence). Together they prevent re-paying for an asset whose .png
+or .glb was lost.
+
+To force regen for a single entity: delete its entry from the JSON
+file (or change its prompt — prompt hash will miss). To force regen
+for the whole project: delete `.assetgen_ledger.json`. Mock-backend
+runs are NOT tracked.
+
+### Output naming + iteration
+
+Generated files are named `<entity_id>[_<variant>]_<8char-hash>.<ext>`.
+The hash is the first 8 chars of `sha256(assembled_prompt)`. This
+guarantees that **iterating a prompt always produces a new filename
+— prior assets are never overwritten.** Paid artifacts coexist on
+disk, available for side-by-side comparison via the `asset_preview`
+scene.
+
+Optional human-readable variant tags:
+- `visual.albedo_texture_variant` — applies to the texture prompt
+- `visual.mesh_variant` — applies to BOTH the concept and mesh
+  prompts (they're a pair)
+
+Example: setting `visual.mesh_variant: "autumn"` on `shelter_lean_to`
+produces `shelter_lean_to_autumn_<hash>.glb` instead of the default
+`shelter_lean_to_<hash>.glb`. Tags are slugified to `[a-z0-9_]`.
+
+The pipeline auto-patches `visual.mesh` (or `visual.albedo_texture`)
+to point at the **latest** generation. Older variants stay on disk
+as records. Pruning them is a user decision, not an automatic one
+(per directive 2026-05-17: never delete paid artifacts).
+
+Backward compat: pre-existing un-suffixed files (e.g. a manually-
+authored `conifer_tree.glb`) keep their names; the ledger lookup is
+hash-based, so their entries still skip correctly on re-runs.
+
 ### Per-kind backend routing
 
 `asset_gen.json`'s `backend` field accepts EITHER a single string

@@ -15,7 +15,7 @@ convention the engine never recognized — every dismiss button silently
 warned instead of popping the modal. 11 broken buttons across 13
 screens, 488 unit tests + 12 scenarios passed cleanly because headless
 tests don't fire on_click. The user hit it on first play. Fix:
-screen-flow gate now runs `tools/validate_screens.py` at sync time AND
+screen-flow gate now runs `tools/validators/validate_screens.py` at sync time AND
 this rule mandates a click-flow smoke test before declaring done.
 
 ## Who must run this gate
@@ -139,6 +139,34 @@ regardless of what the change-prompt says.
    (sky + ground present, lighting working) but with the camera
    pointing 180° away from all entities. Static baseline 1-6 missed
    it; this entity-presence check catches it.
+8. **Mesh bases ON the ground, not buried (added 2026-05-17)**:
+   for every visible structure / tree / large prop, confirm its
+   BOTTOM is flush with ground (you can see where the mesh meets
+   the floor). If the bottom is below the ground plane (buried),
+   that's a `visual.y_offset` missing — Tripo3D meshes have their
+   pivot at the geometric center, so placing at y=0 buries the
+   lower half. Empirical case 2026-05-17: aldenmere shipped 28 AI-gen
+   entities (mud_hut, lean_to, well, fish_trap, market_stall, all
+   trees, all foragables) with NO y_offset for 5 visual-review
+   iterations because the TOP half was visible and self-assessment
+   kept saying "structure visible" without checking the base. Caught
+   only when user explicitly asked. Gate: run
+   `tools/validators/validate_mesh_y_offset.py <game> --strict`
+   before declaring a 3D scene visually-done. Static gate; sync-time
+   catch.
+9. **HUD direction widgets track camera rotation (added 2026-05-17)**:
+   for any HUD widget that indicates direction (minimap cone, compass
+   arrow, waypoint marker, target indicator), rotate the camera
+   90° each direction in a capture sequence and verify the widget
+   tracks. Empirical case 2026-05-17: aldenmere minimap_widget
+   `_draw_view_cone` formula used CW convention while
+   `camera_director.gd` rotates Camera3D Y by `facing` directly
+   (Godot Y-rotation is CCW). When player looked east the cone
+   pointed west. Bug shipped in feature #105 commit (2026-05-16)
+   + survived a session of visual iteration because no rotation
+   test existed. Gate: any HUD change that touches a
+   direction-indicator widget must include 4-frame capture (face
+   N/E/S/W) and visual verification.
 
 ### For 2D scenes — required baseline criteria
 
@@ -299,7 +327,7 @@ For REMOVED directors:
 ScheduleDirector mounted. All NPCs sat motionless. Villager schedule
 blocks existed in defs but engine had no node to drain them. Surfaced
 only when the user asked about animation. A pre-launch validator
-(`tools/validate_scene_directors.py`) catches this at sync time —
+(`tools/validators/validate_scene_directors.py`) catches this at sync time —
 see `.claude/rules/data-demo.md` § scene-director audit (to be added
 alongside this gate).
 
@@ -368,18 +396,18 @@ does nothing because target is unrecognized." This gate has two layers:
 
 ### Layer 1 — static validator (cheap, runs at sync time)
 
-Run `tools/validate_screens.py` against the game's data dir. It scans
+Run `tools/validators/validate_screens.py` against the game's data dir. It scans
 every `transition_screen` effect across screens.json + game/goals.json
 + levels/*/rules.json + game/*_staged.json and verifies the `target` is
 either a known screen id OR the special token `@previous`.
 
 ```bash
 # Strict mode (exits 1 on broken refs) — agents + CI use this
-python3 tools/validate_screens.py demo_<name> --strict
+python3 tools/validators/validate_screens.py demo_<name> --strict
 
 # Non-strict (warns, exits 0) — play.sh uses this so the user can still
 # play with known dangling refs. Skill agents must NOT rely on this mode.
-python3 tools/validate_screens.py demo_<name>
+python3 tools/validators/validate_screens.py demo_<name>
 ```
 
 Wired into `scripts/play.sh` as a non-blocking pre-launch check. Set

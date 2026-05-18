@@ -215,6 +215,91 @@ Layers 2-4 can run in parallel (they touch different files). Layer
 1 is foundation (others reference its dialogue + voice). Layer 5
 ties them together via signal wiring.
 
+## Composition pass — the missing 6th step (added 2026-05-17)
+
+The 5 layers above are CONTENT channels (writing, visual, audio,
+kinetic, reactive). They produce ingredients. The **composition
+pass** arranges those ingredients into a believable scene.
+
+### When this applies
+
+After any major asset-gen batch (>5 entities replaced) in a 3D
+scene, run the composition pass BEFORE declaring scene done. Pure
+asset upgrades produce "better ingredients" but not automatically
+"better scenes" — past ~10 generated meshes the bottleneck shifts
+from asset quality to environment cohesion.
+
+### The 10 composition axes (run as a checklist)
+
+For each playable scene, verify:
+
+1. **Ground variation** — paths, trampled patches, biome edges,
+   forest floor. Single uniform texture across 80m+ reads as
+   "prototype map" no matter how nice the texture is.
+2. **Focal point** — one element anchors the eye (fire pit, well,
+   shrine, doorway). Surrounding entities radiate outward from it.
+3. **Scale consistency** — every entity reads at a believable size
+   relative to the player + each other. Per-entity visual QA pass
+   per task_plan followup.
+4. **Tree/foliage clustering** — density falloff toward the camp,
+   tight clusters at perimeter, paths cut through. NOT uniform
+   scatter. "The forest hugs the camp."
+5. **Sky + lighting drama** — directional contrast, atmospheric
+   tint shift through the day, fog at distance. Default Godot
+   lighting reads as "tech demo."
+6. **Lived-in detail** — soul-bearing flavor entities (axis 8)
+   need to be 15-25% of total entity count. Baskets, cooking pots,
+   lanterns, hanging cloth, small piles. Not features — texture.
+7. **Foreground / midground / background** — at least ONE
+   foreground silhouette frames the camera view (overhanging
+   branch, fence post). Distance fog or background mountains
+   create the far layer. Without this, the frame feels flat.
+8. **Color palette cohesion** — every asset reads as the same art
+   direction. Achieved either via per-entity material_overrides OR
+   global color grading (WorldEnvironment adjustments). Tripo3D's
+   default PBR may produce inconsistent palettes across assets.
+9. **Path / traffic logic** — actor footpaths between common
+   destinations (sleep → fire → water → workbench). Implies
+   trampled-ground texture variation along those paths.
+10. **Density spacing** — closer to camp = denser placement; far
+    wilderness = sparser. Empty wilderness ≠ empty design; it
+    means "explore further."
+
+### Yume primitives that support composition
+
+| axis | engine support | content support |
+|---|---|---|
+| 1 ground variation | multi-biome shader (ADR-worthy, extends ADR 0052) | level entity placement of decals / patches |
+| 2 focal point | n/a | level designer arranges entities around anchor |
+| 3 scale | `state.scale` per entity | manual tune per task_plan followup |
+| 4 clustering | n/a | level designer + density falloff |
+| 5 lighting | `scene.json` lighting block (ADR 0025) + WorldEnvironment fog/tonemap (TBD ADR) | per-scene tuning |
+| 6 lived-in | n/a | content authoring (more entity types + denser placement) |
+| 7 fg/mg/bg | distance fog (TBD), Godot Decal (TBD) | level placement of foreground entities |
+| 8 palette | `material_overrides`, WorldEnvironment color grading (TBD) | per-asset tint patches |
+| 9 paths | decals (TBD) OR multi-biome ground | level designer authoring |
+| 10 density | n/a | level designer authoring |
+
+### Process: when to invoke
+
+After asset-gen batch lands → BEFORE declaring scene complete,
+run the 10-axis checklist. Items with concrete framework gaps
+(multi-biome shader, decals, WorldEnvironment exposure) become
+new ADR proposals if not already queued. Items with content gaps
+(clustering, focal point, density) become level-designer revision
+requests.
+
+The user-facing phrasing: *"asset generation alone is necessary
+but not sufficient. The next pass is composition."*
+
+### Empirical case (2026-05-17 aldenmere)
+
+After replacing 16 entities + ground + water in aldenmere scene 1,
+external design critique returned 10 issues. ALL were composition,
+none were asset quality. Composition pass should have been
+scheduled BEFORE the foragable batch ran. Memory at
+[[feedback-compose-dont-just-generate]] codifies the pattern.
+
 ## What this rule is NOT
 
 - Not "add more particles." That's juice without intent.
