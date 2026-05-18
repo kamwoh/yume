@@ -31,6 +31,14 @@ uniform sampler2D albedo_a : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D albedo_b : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D normal_map : hint_normal, filter_linear_mipmap, repeat_enable;
 uniform sampler2D splat_mask : filter_linear, repeat_disable;
+// Optional heightmap for VERTEX DISPLACEMENT (real geometry bumps,
+// not just normal-map fake bumps). 0.0 sample = no displacement;
+// 1.0 sample = +bump_strength meters. If heightmap_enabled is 0,
+// the displacement is skipped (cheap no-op for flat-plane fallback).
+uniform sampler2D heightmap : filter_linear, repeat_enable;
+uniform float heightmap_enabled : hint_range(0.0, 1.0) = 0.0;
+uniform float bump_strength : hint_range(0.0, 2.0) = 0.3;
+
 uniform float plane_size = 400.0;
 uniform float uv_tile : hint_range(1.0, 200.0) = 60.0;
 uniform float roughness_uniform : hint_range(0.0, 1.0) = 0.92;
@@ -45,7 +53,23 @@ uniform float metallic_uniform : hint_range(0.0, 1.0) = 0.0;
 varying vec3 v_world_pos;
 
 void vertex() {
-    v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    // Compute world-space position BEFORE displacement so splatmap
+    // UVs anchor to the un-displaced plane (otherwise the splatmap
+    // would drift with the displaced surface).
+    vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    v_world_pos = world;
+
+    // Optional vertex displacement via heightmap. Sample in the
+    // same tiled UV space as the surface textures so bumps align
+    // with the visible noise pattern. heightmap is greyscale —
+    // R channel = displacement amount.
+    if (heightmap_enabled > 0.5) {
+        vec2 tiled_uv = UV * uv_tile;
+        float h = texture(heightmap, tiled_uv).r;
+        // Center around 0 so flat areas stay at plane height;
+        // peaks/valleys are symmetrical.
+        VERTEX.y += (h - 0.5) * bump_strength;
+    }
 }
 
 void fragment() {

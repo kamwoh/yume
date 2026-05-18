@@ -30,6 +30,14 @@ uniform float cloud_softness : hint_range(0.0, 1.0) = 0.40;
 uniform float cloud_speed : hint_range(0.0, 0.1) = 0.012;
 uniform float cloud_scale : hint_range(1.0, 20.0) = 5.0;
 
+// Distant mountain silhouette layer (2026-05-18). Procedural fBM
+// peaks ringing the horizon. Use mountain_enabled = 0 to disable.
+uniform float mountain_enabled : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 mountain_base_color : source_color = vec3(0.40, 0.48, 0.62);
+uniform vec3 mountain_peak_color : source_color = vec3(0.70, 0.74, 0.80);
+uniform float mountain_height : hint_range(0.0, 0.4) = 0.15;     // peak amplitude (radians of altitude)
+uniform float mountain_jaggedness : hint_range(1.0, 30.0) = 8.0; // higher = more peaks per 360°
+
 float hash21(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
@@ -88,4 +96,46 @@ void sky() {
                          smoothstep(0.25, 0.65, shade));
 
     COLOR = mix(base_sky, cloud_lit, cloud_mask);
+
+    // Distant mountain silhouette layer (in the horizon band).
+    // Idea: for the current horizontal view angle, sample fBM noise
+    // to get a "mountain height" — the altitude angle the silhouette
+    // reaches at this direction. If the ray's altitude is BELOW that
+    // height, the pixel is mountain (silhouette covers sky). Sharp
+    // smoothstep makes the edge crisp.
+    if (mountain_enabled > 0.5) {
+        // Horizontal view angle around the player (-π..π → 0..1).
+        // atan2(x, z) so angle=0 is looking +Z, ±π is -Z. Cyclic.
+        float angle = atan(dir.x, dir.z) / 6.28318 + 0.5;
+
+        // Multi-octave mountain height. Wrapping the seed by adding
+        // and-then-subtracting 1.0 at the noise sample helps avoid
+        // visible seam at the wrap (angle ~ 0 vs 1).
+        vec2 m1 = vec2(angle * mountain_jaggedness, 0.5);
+        vec2 m2 = vec2(angle * mountain_jaggedness * 2.5, 1.5);
+        float h = (fbm(m1) * 0.65 + fbm(m2) * 0.35) * mountain_height;
+
+        // Pixel is mountain when dir.y is BELOW the silhouette height
+        // at this angle. smoothstep(edge0, edge1, x) requires
+        // edge0 < edge1 (otherwise behavior is undefined per GLSL
+        // spec), so use 1.0 - smoothstep to flip.
+        float mtn_mask = 1.0 - smoothstep(h - 0.005, h + 0.005, dir.y);
+
+        // Restrict to the horizon band — don't poke into the lower
+        // hemisphere (the ground plane occupies that anyway, but
+        // some grazing angles can reveal under-horizon sky pixels).
+        mtn_mask *= smoothstep(-0.03, 0.0, dir.y);
+
+        // Mountain shading: peaks lighter, base darker. Driven by
+        // vertical position within the silhouette (higher dir.y / h
+        // ratio = closer to the peak).
+        float peak_factor = clamp(dir.y / max(h, 0.001), 0.0, 1.0);
+        // Plus per-direction texture variation so peaks have shading
+        float texture_var = fbm(vec2(angle * mountain_jaggedness * 3.0,
+                                     dir.y * 4.0 + 2.0));
+        vec3 mtn_color = mix(mountain_base_color, mountain_peak_color,
+                             peak_factor * 0.6 + texture_var * 0.4);
+
+        COLOR = mix(COLOR, mtn_color, mtn_mask);
+    }
 }
