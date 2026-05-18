@@ -113,6 +113,13 @@ func update_follow(scene_cfg: Dictionary) -> void:
 				actor.set_state("pitch", 0.0)
 		if not was_fp and is_fp:
 			_fp_initial_capture_done = false
+		# Toggle followed-entity mesh visibility on FPS transitions
+		# (2026-05-19, V-toggle support). visual.hide_for_camera_attach
+		# is statically applied at entity load to SHADOWS_ONLY for the
+		# followed entity in FPS (so the player's own body doesn't occlude
+		# the FPS camera). When switching to third-person we want the mesh
+		# visible. Mirror the bool: hide in FPS, show otherwise.
+		_apply_mesh_visibility_for_mode(cam_cfg, is_fp)
 		_mode_last = mode
 	# 2D modes need Camera2D; 3D modes need Camera3D. Silent skip if wrong
 	# type missing — content responsibility.
@@ -495,6 +502,47 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 ## an on-axis entity at 5m beats a slightly-off-axis entity at 2m —
 ## previously the closer-but-off-axis entity won, which is the "weird
 ## feeling" #106 was filed for.
+## Toggle the followed entity's MeshInstance3D cast_shadow setting on
+## camera-mode transitions (2026-05-19, V-toggle support). When the
+## entity has `visual.hide_for_camera_attach=true`, the entity's mesh
+## nodes are SHADOWS_ONLY by default (applied at load). In FPS that's
+## correct (camera inside mesh → don't render body parts). When the
+## camera switches to third-person, we want the mesh visible — flip
+## back to SHADOW_CASTING_SETTING_ON. Returning to FPS restores
+## SHADOWS_ONLY.
+func _apply_mesh_visibility_for_mode(cam_cfg: Dictionary, is_fp: bool) -> void:
+	var tag := str(cam_cfg.get("follow_tag", "player"))
+	if tag == "":
+		return
+	var ent := _find_entity_by_tag(tag)
+	if ent == null:
+		return
+	# Only act when the entity opted into the dual-mode behavior. Without
+	# this flag the entity is always visible — no toggling needed.
+	if not (ent.visual is Dictionary
+			and bool((ent.visual as Dictionary).get("hide_for_camera_attach", false))):
+		return
+	# Find the entity's renderer node (entity_mesh_3d / similar) — it's a
+	# Node3D child of World named after the entity's instance_id.
+	if _world == null:
+		return
+	var rend := _world.get_node_or_null(NodePath(str(ent.instance_id)))
+	if rend == null:
+		return
+	var target_mode := (
+		GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if is_fp
+		else GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	)
+	_set_shadow_mode_recursive(rend, target_mode)
+
+
+func _set_shadow_mode_recursive(node: Node, target_mode: int) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D:
+			(child as MeshInstance3D).cast_shadow = target_mode
+		_set_shadow_mode_recursive(child, target_mode)
+
+
 func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	if _world == null or _camera3d == null:
 		return
@@ -507,8 +555,37 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	var cone_rad := float(cam_cfg.get("crosshair_cone_rad", 0.26))
 	var tan_cone := tan(cone_rad)
 	var show_decorative := bool(cam_cfg.get("crosshair_show_decorative", false))
-	var cam_pos: Vector3 = _camera3d.global_position
-	var fwd: Vector3 = -_camera3d.global_transform.basis.z
+	# Raycast origin depends on camera mode (2026-05-18 V-toggle support):
+	# - FPS: camera position + camera forward (camera == player eye).
+	# - Third-person: PLAYER's eye + facing direction. The camera sits
+	#   behind the player so a camera-based raycast would target the
+	#   player's own back. Skyrim / Witcher / RE4-style: crosshair fires
+	#   from the player's point of view regardless of camera orbit.
+	var mode := str(cam_cfg.get("mode", "first_person_3d"))
+	# Per-frame override from world_clock.state.camera_mode (matches
+	# update_follow's lookup so V-toggle changes mode-of-truth in one place).
+	for eid in entities:
+		var ent_v = entities[eid]
+		if ent_v is Entity and (ent_v as Entity).has_tag("world_clock"):
+			var mv = (ent_v as Entity).get_state("camera_mode", "")
+			if str(mv) != "":
+				mode = str(mv)
+			break
+	var cam_pos: Vector3
+	var fwd: Vector3
+	if mode == "third_person_3d" and actor != null:
+		var eye_h := float(cam_cfg.get("eye_height", 1.6))
+		var apos_v = actor.get_position()
+		var apos: Vector3 = (
+			apos_v if apos_v is Vector3
+			else Vector3((apos_v as Vector2).x, 0, (apos_v as Vector2).y)
+		)
+		cam_pos = apos + Vector3(0, eye_h, 0)
+		var facing := float(actor.get_state("facing", 0.0))
+		fwd = Vector3(-sin(facing), 0, -cos(facing))
+	else:
+		cam_pos = _camera3d.global_position
+		fwd = -_camera3d.global_transform.basis.z
 	var best: Entity = null
 	var best_score: float = -INF
 	for id in entities.keys():
