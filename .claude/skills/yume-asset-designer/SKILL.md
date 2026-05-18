@@ -294,6 +294,41 @@ Per-character details (clothes, hair, age) go AFTER the shared
 prefix. This guarantees coherent silhouette / palette / style across
 the cast — without it, each character drifts toward Tripo3D's mean.
 
+##### Background discipline (concept_suffix — REQUIRED for image-to-3D)
+
+When a concept image will be fed to Tripo3D's `image_to_model`, the
+image MUST have a clean solid-color background. Gemini Flash Image
+(nanobanana) tends to add scenery (trees, buildings, ground) even
+when the per-entity prompt says "isolated against neutral
+background" — that directive is too weak when the entity prompt also
+mentions a setting (e.g. "autumn village setting").
+
+Background contamination has two costs:
+1. Tripo3D's image-to-3D may incorporate background geometry into
+   the mesh (extra polys for half-resolved tree shapes around the
+   character).
+2. Tripo3D's `animate_prerigcheck` may reject the mesh because
+   background "limbs" confuse skeleton binding.
+
+**The fix**: set `style.concept_suffix` in `asset_gen.json` to a
+strong background-stripping directive. Aldenmere uses:
+
+```json
+"concept_suffix": ", PLAIN SOLID NEUTRAL GREY BACKGROUND, subject only centered against featureless backdrop, NO scenery, NO trees, NO buildings, NO landscape, NO ground, NO environment, NO foliage, NO sky, studio reference image style for 3D modeling"
+```
+
+This is appended to EVERY concept prompt for the game. Per-entity
+prompts may still mention setting context (good for vibes), but the
+suffix overrides for the BACKGROUND of the IMAGE specifically.
+
+Empirical case 2026-05-18: morwen's first concept came back with
+trees and houses despite "isolated against neutral background" in
+the per-entity prompt. The aggressive suffix above resolves it.
+
+For new games, copy this `concept_suffix` (and `negative_prompt`)
+into `asset_gen.json` as part of the default style block. The
+asset-gen pipeline doesn't enforce it — it's a convention.
+
 ### Strategy A2: .glb skinned meshes (ADR 0046 Phase B, 2026-05-17)
 
 Drop a `.glb` (or `.gltf`) export from Blender / Maya / GLB-emitting
