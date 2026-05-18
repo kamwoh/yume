@@ -16,6 +16,10 @@ extends Node3D
 ##
 ## --rotate-y=DEG (optional, default 0) — turntable angle.
 ## --camera-distance=N (default auto-fit from AABB).
+## --play-anim=NAME (optional) — for animated GLBs, plays the named
+##   animation clip. Use --play-anim=auto to play the first available
+##   clip (handy when you don't know the clip names). Without this
+##   flag the asset shows its bind pose (T-pose for rigged meshes).
 
 @onready var _holder: Node3D = $AssetHolder
 @onready var _camera: Camera3D = $Camera3D
@@ -26,6 +30,7 @@ func _ready() -> void:
 	var texture_path := ""
 	var rotate_y := 0.0
 	var explicit_dist := -1.0
+	var play_anim := ""
 	for raw in OS.get_cmdline_user_args():
 		var s := str(raw)
 		if s.begins_with("--asset="):
@@ -36,6 +41,8 @@ func _ready() -> void:
 			rotate_y = float(s.substr(11))
 		elif s.begins_with("--camera-distance="):
 			explicit_dist = float(s.substr(18))
+		elif s.begins_with("--play-anim="):
+			play_anim = s.substr(12)
 	if asset_path == "":
 		push_warning("asset_preview: --asset=<path|mesh_lib_name> required")
 		return
@@ -93,6 +100,36 @@ func _ready() -> void:
 		dist = max(2.0, radius * 2.2)
 	_camera.position = Vector3(dist * 0.7, radius + dist * 0.45, dist * 0.7)
 	_camera.look_at(aabb.get_center(), Vector3.UP, false)
+
+	# Optional animation playback for animated GLBs (ADR 0053). The
+	# AnimationPlayer is embedded in the imported scene by Godot's
+	# GLTF importer; we just find it + call play().
+	if play_anim != "":
+		var ap := _find_anim_player(_holder)
+		if ap == null:
+			push_warning("asset_preview: --play-anim requested but no AnimationPlayer found in %s" % asset_path)
+		else:
+			var list := ap.get_animation_list()
+			var clip: String = play_anim
+			if play_anim == "auto" and list.size() > 0:
+				clip = list[0]
+			if not ap.has_animation(clip):
+				push_warning("asset_preview: clip '%s' not in player. Available: %s" % [clip, list])
+			else:
+				print("[asset_preview] playing animation: %s (from %s)" % [clip, list])
+				ap.play(clip)
+
+
+func _find_anim_player(node: Node) -> AnimationPlayer:
+	if node is AnimationPlayer:
+		return node
+	for c in node.get_children():
+		if c is AnimationPlayer:
+			return c
+		var nested := _find_anim_player(c)
+		if nested != null:
+			return nested
+	return null
 
 
 func _paint_texture_recursive(node: Node, tex: Texture2D) -> void:

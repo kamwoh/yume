@@ -42,21 +42,29 @@ GAME = "demo_aldenmere"
 ENTITY_ID = "npc_morwen"
 RIG_TYPE = "biped"
 CLIPS = ["preset:idle", "preset:walk"]
-CLIP_ALIAS_OUT = {"idle": "preset:idle", "walk": "preset:walk"}
+# Engine-side state names. Each CLIPS[i] retarget result gets renamed
+# to ENGINE_CLIP_NAMES[i] during glb_merge — Tripo/Blender exports clips
+# as "NlaTrack" / "NlaTrack_2" otherwise, which animation_state_rules
+# can't address. Renaming during merge bridges Tripo preset IDs to
+# engine state names without needing a clip_alias indirection.
+ENGINE_CLIP_NAMES = ["idle", "walk"]
 RIG_MODEL_VERSION = "v1.0-20240301"
 
 FULL_BODY_REF_PROMPT = (
-    "elderly village matriarch, full body standing pose from head to feet, "
-    "front 3/4 view with feet visible at the base of the frame, "
-    "grey-haired weathered woman in long earthy-brown wool robe and shawl, "
-    "holding a wooden walking staff, leather sandals visible at feet, "
-    "dignified posture, autumn village setting, isolated against neutral "
-    "background, viewable from any angle, low-poly stylized, painterly, "
-    "earnest folkloric aesthetic"
+    "elderly village matriarch in T-POSE, arms straight out horizontal "
+    "to the sides palms facing down, legs slightly apart shoulder-width, "
+    "fingers spread open, full body from head to feet, front view with "
+    "feet visible at the base of the frame, grey-haired weathered woman, "
+    "knee-length earthy-brown wool tunic showing legs and brown trousers, "
+    "leather boots, NO held items NO staff NO long robe NO cloak, "
+    "neutral autumn background, viewable from any angle, low-poly stylized, "
+    "painterly, earnest folkloric aesthetic"
 )
 FULL_BODY_MESH_PROMPT = (
-    "low-poly stylized elderly village matriarch full body, grey hair, "
-    "brown wool robe to ankles, walking staff, leather sandals, T-pose"
+    "low-poly stylized elderly village matriarch full body T-pose, "
+    "arms straight out horizontal palms down, legs apart, fingers spread, "
+    "grey hair tied back, knee-length brown wool tunic, brown trousers, "
+    "leather boots, no held items, no robe, no cloak"
 )
 
 
@@ -96,11 +104,11 @@ def main() -> int:
         return 2
     visual = target["visual"]
 
-    # Concept image — already full-body for morwen
-    concept_path = game_dir / "assets" / "concepts" / "npc_morwen_c5019f1e.png"
-    if not concept_path.exists():
-        print(f"ERROR: concept missing: {concept_path}")
-        return 2
+    # Use text-to-model (no concept image). The existing morwen concept
+    # shows her in floor-length robe + walking staff, which Tripo's
+    # rigger can't handle (empirically rejected 2026-05-18). Text mode
+    # lets the T-pose prompt drive the geometry directly.
+    concept_path = None
 
     backend = Tripo3DBackend(
         {
@@ -137,12 +145,18 @@ def main() -> int:
         base_glb = game_dir / base_hit.get("out_path", "")
     else:
         api_key = backend._get_api_key()
-        file_token = backend._upload_image(concept_path, api_key)
-        print(f"[smoke] image uploaded, file_token={file_token[:8]}...")
-        base_task_id = backend._submit_image_to_model(
-            file_token, FULL_BODY_MESH_PROMPT, api_key
-        )
-        print(f"[smoke] image_to_model submitted, task_id={base_task_id}")
+        if concept_path is not None and concept_path.exists():
+            file_token = backend._upload_image(concept_path, api_key)
+            print(f"[smoke] image uploaded, file_token={file_token[:8]}...")
+            base_task_id = backend._submit_image_to_model(
+                file_token, FULL_BODY_MESH_PROMPT, api_key
+            )
+            print(f"[smoke] image_to_model submitted, task_id={base_task_id}")
+        else:
+            base_task_id = backend._submit_text_to_model(
+                FULL_BODY_MESH_PROMPT, api_key
+            )
+            print(f"[smoke] text_to_model submitted, task_id={base_task_id}")
         base_url = backend._poll_until_done(base_task_id, api_key)
         base_glb = out_dir / f"{ENTITY_ID}_base_{base_task_id[:8]}.glb"
         backend._download(base_url, base_glb)
@@ -256,14 +270,20 @@ def main() -> int:
         )
         ledger.save()
 
-    # --- Stage 5: merge
+    # --- Stage 5: merge (with clip renaming)
     print(f"\n[smoke] === Stage 5: glb_merge ===")
     merge_hash = hashlib.sha256(
         (FULL_BODY_MESH_PROMPT + ":" + ",".join(CLIPS)).encode("utf-8")
     ).hexdigest()[:8]
     merged_path = out_dir / f"{ENTITY_ID}_animated_{merge_hash}.glb"
-    glb_merge(retarget_glbs, merged_path, on_name_collision="suffix")
+    glb_merge(
+        retarget_glbs,
+        merged_path,
+        on_name_collision="suffix",
+        rename_animations=ENGINE_CLIP_NAMES,
+    )
     print(f"[smoke] merged → {merged_path.name}")
+    print(f"[smoke] clips renamed: {ENGINE_CLIP_NAMES}")
 
     # --- Stage 6: patch entity def
     print(f"\n[smoke] === Stage 6: patch entity def ===")
@@ -273,11 +293,14 @@ def main() -> int:
     visual["mesh_prompt"] = FULL_BODY_MESH_PROMPT
     visual["animate"] = True
     visual["rig_type"] = RIG_TYPE
-    visual["animation_clips"] = CLIPS
-    visual["clip_alias"] = CLIP_ALIAS_OUT
+    visual["animation_clips"] = ENGINE_CLIP_NAMES
+    # Clip names in the merged GLB are renamed to ENGINE_CLIP_NAMES during
+    # merge (see Stage 5), so no clip_alias indirection is needed.
+    visual.pop("clip_alias", None)
+    # ADR 0046 schema — flat keys, NOT nested "if"
     visual["animation_state_rules"] = [
-        {"if": {"velocity_magnitude_gt": 0.1}, "play": "walk"},
-        {"default": True, "play": "idle"},
+        {"if_velocity_gt": 0.1, "state": "walk"},
+        {"default": "idle"},
     ]
     # Re-derive y_offset_mesh from the merged GLB's bbox
     bbox_min_y = _read_glb_bbox_min_y(merged_path)

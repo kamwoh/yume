@@ -76,6 +76,7 @@ def merge(
     inputs: Sequence[Path],
     out_path: Path,
     on_name_collision: str = "suffix",
+    rename_animations: Sequence[str] | None = None,
 ) -> Path:
     """Merge N GLBs (one animation clip each) into one multi-clip GLB.
 
@@ -88,6 +89,12 @@ def merge(
             animation named e.g. "Walking":
               "suffix" → append "_<i>" to the duplicate (default)
               "raise" → raise ValueError
+        rename_animations: optional parallel list to `inputs`. If
+            provided, each input's FIRST animation is renamed to the
+            matching string (e.g. ["idle", "walk"]). Useful when
+            Tripo/Blender export gives clips junk names like
+            "NlaTrack" / "Action.001" — engine-side state names need
+            to be stable + author-controlled.
 
     Returns: out_path.
     """
@@ -101,6 +108,19 @@ def merge(
 
     glbs = [pygltflib.GLTF2().load(str(p)) for p in inputs]
     _assert_skeletons_match(glbs)
+
+    # Apply rename_animations BEFORE merge so collision-detection sees
+    # the new names. Each input's FIRST animation is renamed in-memory
+    # (we don't write back to disk).
+    if rename_animations is not None:
+        if len(rename_animations) != len(glbs):
+            raise ValueError(
+                f"rename_animations length {len(rename_animations)} != "
+                f"inputs length {len(glbs)}"
+            )
+        for g, new_name in zip(glbs, rename_animations):
+            if new_name and g.animations:
+                g.animations[0].name = new_name
 
     base = glbs[0]
     # Deep-copy so we don't mutate the on-disk base when merging.
