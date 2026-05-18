@@ -523,3 +523,51 @@ After game-planner's world-plan.md is approved by reviewer.
   available to content-designer
 - `godot/data/demo_*/entities/zz_instances.json`
   — example placement files (good and bad)
+
+## Composition pass (added 2026-05-18)
+
+After all entities are placed, run the **composition pass** before
+declaring the level done. This is the difference between "everything
+fits in the map" and "the scene feels like a designed space."
+
+Reference the 10-axis checklist in `.claude/rules/soul.md`
+§Composition pass. For 3D scenes specifically:
+
+**Cardinal arrangement** — for camp / village / hub scenes, place
+8-12 major structures at compass points around a single focal
+anchor (fire pit, well, statue, throne). Each structure ~8-12m
+from focus, yaw facing toward center. Reads as "this is a camp"
+instead of "things were scattered."
+
+**Structure exclusion for procedural scatter** — when placing
+procedural trees / grass / stones, REJECT candidates within a
+per-structure radius. Without this, trees clip through houses.
+Typical radii: huts 3.5m, lean-to 2.5m, fire-pit 4m (with extra
+clearing), market-stall 3m, well/workbench 2m, props 1-2m.
+
+**Density falloff rings** — forest scatter should be TIGHT around
+the camp edge (e.g. 8-20m ring), NOT uniformly scattered to map
+edge. Reference "forest hugs camp" feel. Drop the sparse far-
+wilderness ring entirely if it reads as empty.
+
+**Tree-tree de-overlap** — pairwise min-distance 0.9-1.2m so trees
+don't clip into each other. Generate 2-3× candidates, accept those
+that pass the filter.
+
+**Path splatmap** — for camp scenes with a multi-biome ground
+shader (see yume-asset-designer §visual.shader and
+`data/lib/shaders/ground_multi_biome.gdshader`), generate the
+splatmap with radial paths from focal point to each landmark
+(~3m wide cleared trails). Procedurally derive via Python script
+(noise + line-distance to each landmark endpoint).
+
+**Map size discipline** — keep `ground.mesh.size` to ~2× the play
+area. Larger map = more sparse forest = "tech demo" feel. For a
+25m-radius camp, 80m × 80m is right; distance fog (from
+lighting-designer's `fog` block) covers the seam beyond.
+
+**Empirical case 2026-05-18 (aldenmere)**: shipped with 400×400m
+ground + uniform tree scatter — felt like a forest scene placed
+on an empty parking lot. Cut to 80×80m, tightened forest to 8-20m
+ring, arranged cardinal structures, added structure-exclusion to
+the scatter — composition transformed without changing any assets.

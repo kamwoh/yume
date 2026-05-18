@@ -96,7 +96,76 @@ omitting them keeps engine defaults.)
     "intensity_fuel_low":  0.4,
     "intensity_extinguished": 0.0
   },
-  "level_seed": 4412  // determinism for sky generation
+  "level_seed": 4412,  // determinism for sky generation
+
+  // === 2026-05-18: composition pass — WorldEnvironment polish ===
+  // All five blocks below are OPTIONAL, applied ONCE at boot
+  // (atmospheric mood, not per-frame day/night curves). Maps 1:1
+  // to Godot Environment.* properties. Per ADR 0021 — pure exposure.
+
+  "fog": {
+    "enabled": true,
+    "light_color": "#c8b890",     // warm gold for autumn
+    "light_energy": 1.0,
+    "sun_scatter": 0.25,
+    "density": 0.004,              // 0.001-0.02 typical; higher=denser
+    "aerial_perspective": 0.3,     // tints distant geometry sky-color
+    "height": -5.0,                // above this y, falls off
+    "height_density": 0.04
+  },
+  "tonemap": {
+    "mode": "filmic",              // linear|reinhardt|filmic|aces
+    "exposure": 1.05,
+    "white": 6.0
+  },
+  "glow": {                        // bloom on bright sources
+    "enabled": true,
+    "intensity": 0.25,
+    "strength": 0.9,
+    "bloom": 0.05,
+    "hdr_threshold": 1.1
+  },
+  "adjustments": {                 // global color grading
+    "enabled": true,
+    "brightness": 1.0,
+    "contrast": 1.15,
+    "saturation": 1.40             // 1.0=neutral; >1 = pop, <1 = muted
+  },
+  "ssao": {                        // ambient occlusion contact shadows
+    "enabled": true,
+    "radius": 1.0,
+    "intensity": 0.8
+  },
+
+  // === 2026-05-18: procedural sky-shader (ADR 0052) ===
+  // OPTIONAL — if `sky.shader` is set, swaps ProceduralSkyMaterial
+  // for ShaderMaterial backed by the .gdshader. Sky.process_mode
+  // is auto-switched to REALTIME so animation actually plays.
+  // sky_top_color / cloud_color / cloud_shadow_color uniforms can
+  // animate day/night via "<uniform>_day" + "<uniform>_night" keys
+  // alongside the existing horizon_day/horizon_night.
+
+  "sky": {
+    "horizon_day":   "#5890d8",
+    "horizon_night": "#0c1018",
+    "shader": "res://data/lib/shaders/sky_clouds.gdshader",
+    "shader_params": {
+      "sky_top_color":      [0.30, 0.55, 0.85],
+      "sky_horizon_color":  [0.66, 0.80, 0.92],
+      "cloud_color":        [0.96, 0.95, 0.92],
+      "cloud_shadow_color": [0.55, 0.60, 0.66],
+      "cloud_coverage":  0.55,    // 0=clear, 1=overcast
+      "cloud_softness":  0.18,    // 0=crisp, 1=hazy
+      "cloud_speed":     0.012,
+      "cloud_scale":     6.0
+    },
+    "sky_top_color_day":     "#508cd8",
+    "sky_top_color_night":   "#0a1530",
+    "cloud_color_day":       "#f4f0e8",
+    "cloud_color_night":     "#34384a",
+    "cloud_shadow_color_day":   "#888884",
+    "cloud_shadow_color_night": "#181a26"
+  }
 }
 ```
 
@@ -203,8 +272,12 @@ Match these to the GDD's narrative arc.
 - ❌ Author particle effects (sun rays, dust motes). That's juice-
   designer.
 - ❌ Pick screen palette (UI colors). That's asset-designer.
-- ❌ Set fog. ProceduralSky has a horizon-falloff that approximates
-  fog; engine doesn't expose true fog density yet.
+- ❌ ~~Set fog. ProceduralSky has a horizon-falloff that approximates~~
+  ~~fog; engine doesn't expose true fog density yet.~~
+  **Outdated as of 2026-05-18** — fog block now supported (see
+  "What the lighting block supports"). Set `lighting.fog.{enabled,
+  density, light_color, ...}`. Filmic tonemap + bloom + color
+  grading also exposed via tonemap / glow / adjustments blocks.
 
 ## Common pitfalls
 

@@ -244,6 +244,58 @@ faint to read = major. HUD too prominent / distracting = minor.
 **Severity calibration**: theme-contradicting visual = major.
 Theme-neutral (didn't lean into it) = minor.
 
+## Axes 8-10 — Composition pass (added 2026-05-18)
+
+The original 7 axes (above) cover per-frame aesthetic quality. For
+3D scenes specifically, also check the COMPOSITION axes from
+`.claude/rules/soul.md` §Composition pass. These catch "the scene
+feels like a tech demo of assets" — a different failure mode than
+"individual assets look bad."
+
+### Axis 8 — Ground variation
+Single uniform texture across 80m+ reads as "prototype map" no
+matter how nice. Need paths, trampled patches, biome edges. Check
+for the multi-biome ground shader (data/lib/shaders/
+ground_multi_biome.gdshader) + a splatmap with radial paths from
+the camp center to landmarks.
+
+### Axis 9 — Focal point + cardinal layout
+Where does the eye land? For camp / village scenes, an 8-12-piece
+cardinal arrangement around a central anchor (fire pit, well, statue)
+reads dramatically stronger than scattered placement. Check:
+- One unambiguous focal anchor entity (most-prominent in the frame)
+- 6-8 major structures at compass points around it
+- Each structure yaws toward the focal (rotation alignment)
+
+### Axis 10 — Foreground / midground / background
+Without ALL THREE layers, the frame feels exposed:
+- Foreground: 1-3 silhouette entities very close to player spawn
+  (overhanging branches, stones, posts) framing the camera
+- Midground: cardinal structures + named entities
+- Background: forest perimeter + distance fog (`lighting.fog`) +
+  procedural sky clouds (`lighting.sky.shader`)
+
+**Severity calibration for these axes**:
+- Missing focal anchor (eye has nowhere to land) = major
+- Single-texture ground across an outdoor scene = major
+- No foreground silhouette = minor (atmospheric, not gameplay)
+- All-uniform palette = minor (palette cohesion is OK; lack of
+  hierarchy via tone is what hurts)
+
+### Common revision targets for composition
+
+| issue | concrete fix |
+|---|---|
+| Ground reads as flat tan plain | Author multi-biome splatmap with paths to landmarks |
+| Everything looks reflective | Set `material_overrides.<uuid>.roughness 0.9-0.95, metallic 0.0` (renderer clears the PBR texture so the factor is authoritative) |
+| Trees clip through houses | Procedural placer needs structure-exclusion zones — see yume-level-designer §Composition pass |
+| AI-gen meshes sink into ground | Set `visual.y_offset = -bbox.min.y * scale` per entity. validate_mesh_y_offset.py catches this |
+| Sky too plain | Set `lighting.sky.shader: "res://data/lib/shaders/sky_clouds.gdshader"` + shader_params |
+| Far things crisp / no atmosphere | Add `lighting.fog` block with `density 0.003-0.008` + warm `light_color` |
+| Palette feels disjointed | Bump `lighting.adjustments.{contrast 1.10-1.20, saturation 1.30-1.45}` |
+| FOV makes things look small | scene.json camera `fov: 60-65` (Godot default 75 is wide for FPS) |
+| The "trampled circle follows me" | Check ground shader for `VERTEX.xz` use — Godot 4 VERTEX in fragment is VIEW space, needs varying world_pos set in vertex() function |
+
 ## Verdict guidelines
 
 - **accept**: All 7 axes at "ok" or "minor" only. No blockers, no

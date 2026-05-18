@@ -574,3 +574,31 @@ rendered as intended. See visual-qa.md for the full per-skill checklist.
 - `godot/data/demo_*/` — pattern library
 - `godot/data/shapes.json` — Tier 2 visual
   catalog (composite shapes with param overrides)
+
+## AI-gen .glb entity fields (added 2026-05-18)
+
+When `visual.mesh` is a `res://...glb` (Tripo3D output, not a
+`@lib.meshes.X` code-drawn name), these additional `visual` fields
+are typically required:
+
+**`visual.y_offset`** (float, meters): lifts the mesh up during
+render. Required for any .glb with pivot at geometric center
+(Tripo3D defaults to this). Compute `-bbox.min.y * state.scale`.
+Without this, structures sink half-underground.
+`validate_mesh_y_offset.py` enforces.
+
+**`visual.material_overrides[uuid].roughness` + `metallic`**:
+matte-PBR override per material UUID (find via `tools/inspect_glb.py`).
+Defaults: wood/cloth 0.92-0.95 / 0.0, stone 0.85 / 0.0, skin/fur
+0.88-0.90 / 0.0. Setting factor also clears the PBR texture so
+the override is authoritative (otherwise Tripo3D's baked ORM keeps
+the look reflective).
+
+**`visual.material_overrides[uuid].albedo_color`**: distinct hue per
+structure type for distance readability. Without per-type tints,
+AI-gen structures all blend into "orange-brown blob" at FPS distance.
+
+**`visual.shader` + `visual.shader_params`** (ADR 0052): replaces
+StandardMaterial3D with ShaderMaterial. Used on `prop_water_plane`
+and other entities needing animated / view-aware materials. See
+yume-asset-designer §A2 + §visual.shader for the full schema.

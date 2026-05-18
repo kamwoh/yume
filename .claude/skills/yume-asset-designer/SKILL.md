@@ -289,6 +289,74 @@ A reproducible test asset lives at
 `python3 tools/synth_test_glb.py` — it emits a 2-material cube with
 `Idle` + `Walking` clips.
 
+#### A2 extras (2026-05-18) — fields for AI-gen .glb integration
+
+**`visual.y_offset`** — required for Tripo3D outputs and any .glb
+whose pivot isn't at the mesh base. Tripo3D's natural mesh origin
+is at the geometric center, so placing an entity at world y=0
+sinks the lower half underground. Compute:
+
+```
+y_offset = -bbox.min.y * state.scale
+```
+
+This lifts the mesh base to world y=0. Auto-computed by
+`tools/yume_assetgen` when wiring AI-gen output to an entity def.
+Manually adjustable via `visual.y_offset_intentional: true` for
+debris-artifact meshes (e.g. a fire pit with baked-in ash below the
+visible ring — keep the artifact buried).
+
+`tools/validators/validate_mesh_y_offset.py` catches missing
+y_offset at sync time. Run as part of `tools/validators/run_all.py`.
+
+**`material_overrides` PBR fields** — full schema (was: just
+albedo_color):
+
+```jsonc
+"material_overrides": {
+  "tripo_material_<uuid>": {
+    "albedo_color":   "#9a6840",
+    "albedo_texture": "res://.../foo.png",   // optional
+    "normal_texture": "res://.../foo_n.png", // optional
+    "roughness":      0.92,                  // 0=mirror, 1=matte
+    "metallic":       0.0                    // 0=dielectric, 1=metal
+  }
+}
+```
+
+Setting `roughness` / `metallic` factors ALSO clears their respective
+PBR textures so the factor is authoritative. Without that, Tripo3D's
+baked ORM (Occlusion/Roughness/Metallic) makes the override silently
+partial — all 28 aldenmere entities shipped looking too reflective
+for 1 iteration until the renderer was fixed (2026-05-18).
+
+Sensible matte defaults for stylized low-poly:
+- Wood / cloth / foliage: `roughness 0.92-0.95`, `metallic 0.0`
+- Stone: `roughness 0.85`, `metallic 0.0`
+- Skin / fur: `roughness 0.88-0.90`, `metallic 0.0`
+
+Per-entity tinting via material_overrides also drives distinctness
+when 8+ structures look similar at distance (e.g. mud_hut warm
+terracotta, lean_to cool blue-grey, market_stall punchy orange).
+
+**`visual.shader` (ADR 0052)** — REPLACES the StandardMaterial3D
+with a ShaderMaterial backed by a `.gdshader` file. Uniforms via
+`visual.shader_params`. Used for animated / procedural visuals
+where flat PBR isn't enough.
+
+Available shared shaders under `data/lib/shaders/`:
+- `water_stylized.gdshader` — animated noise ripples for rivers /
+  ponds. Set on `prop_water_plane`-style entities.
+- `ground_multi_biome.gdshader` — used by ground_renderer; not
+  per-entity.
+- `sky_clouds.gdshader` — used by lighting_director; not
+  per-entity.
+
+Authors can add new entity-level shaders following the same pattern.
+The shader-as-primitive ADR (0052) covers fire glow, ice, magic
+auras, force fields — anything that benefits from animated /
+view-aware materials beyond StandardMaterial3D.
+
 ### Strategy C: Code-draw fallback (default)
 
 Pure JSON. Each entity references a shape from `data/shapes.json`
