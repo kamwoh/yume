@@ -67,9 +67,15 @@ func configure(cfg: Dictionary) -> void:
 	_border = _color(cfg.get("border", "#807060"))
 	var tc = cfg.get("tag_colors", {})
 	if tc is Dictionary:
-		# Preserve insertion order so authors control first-match precedence
+		# Preserve insertion order so authors control first-match precedence.
+		# Skip keys starting with `_` — these are the engine-wide
+		# comment convention (since JSON has no real comments) and would
+		# otherwise be treated as a tag whose value is a long English
+		# string that fails Color parsing.
 		for k in tc as Dictionary:
 			var key := str(k)
+			if key.begins_with("_"):
+				continue
 			_ordered_tags.append(key)
 			_tag_colors[key] = _color((tc as Dictionary)[k])
 	_player_tag = str(cfg.get("player_tag", "player"))
