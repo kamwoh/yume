@@ -347,6 +347,34 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	if target_v == null:
 		return
 	var target: Vector3 = target_v
+	# 2026-05-19: third-person also captures the mouse so _drain_mouse_facing
+	# updates state.facing. Without capture, the drain bails at its
+	# mouse_mode != CAPTURED check and the player can't rotate. Mirrors
+	# what _camera_first_person_3d does. Modal/overlay freeze releases the
+	# mouse same as in FPS (handled in the FP override branch below).
+	var freeze_world := false
+	if _world != null:
+		var ws: Dictionary = _world.get("world_state") as Dictionary
+		if ws != null:
+			freeze_world = (
+				int(ws.get("screen_freeze_world", 0)) != 0
+				or int(ws.get("overlay_freeze_world", 0)) != 0
+			)
+	if freeze_world:
+		if Input.get_mouse_mode() != Input.MOUSE_MODE_VISIBLE:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		_fp_initial_capture_done = false
+		if _world != null and _world.scheduler != null:
+			_world.scheduler.env["mouse_delta"] = Vector2.ZERO
+	else:
+		if not _fp_initial_capture_done:
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+			_fp_initial_capture_done = true
+		if (
+			Input.get_mouse_mode() == Input.MOUSE_MODE_VISIBLE
+			and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+		):
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	var actor = _drain_mouse_facing(cam_cfg)
 	var facing := 0.0
 	if actor != null:
@@ -362,8 +390,14 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 		_snap_pending = false
 	else:
 		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
-	_camera3d.look_at(target, Vector3.UP)
+	# Look at a point slightly above the player's feet for over-the-shoulder
+	# framing (eye-height level). Without this the camera tilts down at the
+	# feet, which puts the head near top of frame.
+	var look_h := float(cam_cfg.get("eye_height", 1.6))
+	_camera3d.look_at(target + Vector3(0, look_h, 0), Vector3.UP)
 	_apply_ortho(cam_cfg, false)
+	if actor != null:
+		_update_crosshair_target(actor, cam_cfg)
 
 
 ## First-person 3D: Camera3D at entity eye height. Doom/FPS feel.
