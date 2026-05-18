@@ -40,10 +40,7 @@ from tools.yume_assetgen.ledger import (  # noqa: E402
 )
 
 GAME = "demo_aldenmere"
-ENTITY_ID = "npc_morwen"
-RIG_TYPE = "biped"
-CLIPS = ["preset:idle", "preset:walk"]
-# Engine-side state names. Each CLIPS[i] retarget result gets renamed
+# Engine-side state names. Each clips[i] retarget result gets renamed
 # to ENGINE_CLIP_NAMES[i] during glb_merge — Tripo/Blender exports clips
 # as "NlaTrack" / "NlaTrack_2" otherwise, which animation_state_rules
 # can't address. Renaming during merge bridges Tripo preset IDs to
@@ -51,25 +48,61 @@ CLIPS = ["preset:idle", "preset:walk"]
 ENGINE_CLIP_NAMES = ["idle", "walk"]
 RIG_MODEL_VERSION = "v1.0-20240301"
 
-FULL_BODY_REF_PROMPT = (
-    "elderly village matriarch in T-POSE for 3D model rigging, "
-    "arms straight out horizontal to the sides palms facing down, "
-    "legs slightly apart shoulder-width, fingers spread open, "
-    "full body from head to feet, front view with feet visible at the base of the frame, "
-    "grey-haired weathered kind face, "
-    "knee-length earthy-brown wool tunic showing legs, brown wool trousers, "
-    "leather boots, "
-    "NO held items, NO staff, NO long robe, NO cloak, NO held objects, "
-    "viewable from any angle, low-poly stylized, painterly, "
-    "earnest folkloric aesthetic"
-)
-FULL_BODY_MESH_PROMPT = (
-    "low-poly stylized elderly village matriarch full body T-pose v3, "
-    "arms straight out horizontal palms down, legs apart, fingers spread, "
-    "grey hair tied back, knee-length brown wool tunic, brown trousers, "
-    "leather boots, no held items, no robe, no cloak, "
-    "rigged for biped animation"
-)
+# Per-entity config. Pick which entity to animate via --entity=<id> CLI.
+ENTITIES: dict[str, dict] = {
+    "npc_morwen": {
+        "source_file": "entities/villagers.json",
+        "rig_type": "biped",
+        "clips": ["preset:idle", "preset:walk"],
+        "ref_prompt": (
+            "elderly village matriarch in T-POSE for 3D model rigging, "
+            "arms straight out horizontal to the sides palms facing down, "
+            "legs slightly apart shoulder-width, fingers spread open, "
+            "full body from head to feet, front view with feet visible at the base of the frame, "
+            "grey-haired weathered kind face, "
+            "knee-length earthy-brown wool tunic showing legs, brown wool trousers, "
+            "leather boots, "
+            "NO held items, NO staff, NO long robe, NO cloak, NO held objects, "
+            "viewable from any angle, low-poly stylized, painterly, "
+            "earnest folkloric aesthetic"
+        ),
+        "mesh_prompt": (
+            "low-poly stylized elderly village matriarch full body T-pose v3, "
+            "arms straight out horizontal palms down, legs apart, fingers spread, "
+            "grey hair tied back, knee-length brown wool tunic, brown trousers, "
+            "leather boots, no held items, no robe, no cloak, "
+            "rigged for biped animation"
+        ),
+    },
+    "player_marken": {
+        "source_file": "entities/player.json",
+        "rig_type": "biped",
+        "clips": ["preset:idle", "preset:walk"],
+        "ref_prompt": (
+            "young adult farmer villager in T-POSE for 3D model rigging, "
+            "arms straight out horizontal to the sides palms facing down, "
+            "legs slightly apart shoulder-width, fingers spread open, "
+            "full body from head to feet, front view with feet visible at the base of the frame, "
+            "warm peach-tan skin, short messy dark brown hair, hopeful kind expression, "
+            "brown-green woven wool tunic to mid-thigh, brown leather belt, "
+            "brown wool trousers tucked into knee-high leather boots, "
+            "NO held items, NO weapon, NO cloak, NO long robe, "
+            "viewable from any angle, low-poly stylized, painterly, "
+            "earnest folkloric aesthetic"
+        ),
+        "mesh_prompt": (
+            "low-poly stylized young adult human male farmer full body T-pose, "
+            "arms straight out horizontal palms down, legs apart, fingers spread, "
+            "short dark brown hair, warm peach-tan skin, "
+            "brown-green wool tunic, brown trousers, knee-high leather boots, "
+            "no held items, no weapon, no cloak, "
+            "rigged for biped animation"
+        ),
+    },
+}
+
+# Default if --entity not provided
+DEFAULT_ENTITY = "npc_morwen"
 
 
 def _read_glb_bbox_min_y(path: Path) -> float | None:
@@ -99,12 +132,29 @@ def _find_entity(doc: dict, entity_id: str) -> dict | None:
 
 
 def main() -> int:
+    # Parse --entity= from CLI; fallback to DEFAULT_ENTITY.
+    entity_id = DEFAULT_ENTITY
+    for arg in sys.argv[1:]:
+        if arg.startswith("--entity="):
+            entity_id = arg[len("--entity="):]
+    if entity_id not in ENTITIES:
+        print(f"ERROR: --entity={entity_id} not in registry. Available: {list(ENTITIES.keys())}")
+        return 2
+    cfg_entity = ENTITIES[entity_id]
+    rig_type = cfg_entity["rig_type"]
+    clips = cfg_entity["clips"]
+    full_body_ref_prompt = cfg_entity["ref_prompt"]
+    full_body_mesh_prompt = cfg_entity["mesh_prompt"]
+
     game_dir = ROOT / "godot" / "data" / GAME
-    villagers_path = game_dir / "entities" / "villagers.json"
-    doc = json.loads(villagers_path.read_text(encoding="utf-8"))
-    target = _find_entity(doc, ENTITY_ID)
+    source_path = game_dir / cfg_entity["source_file"]
+    if not source_path.exists():
+        print(f"ERROR: source file not found: {source_path}")
+        return 2
+    doc = json.loads(source_path.read_text(encoding="utf-8"))
+    target = _find_entity(doc, entity_id)
     if target is None:
-        print(f"ERROR: {ENTITY_ID} not found in {villagers_path}")
+        print(f"ERROR: {entity_id} not found in {source_path}")
         return 2
     visual = target["visual"]
 
@@ -122,9 +172,9 @@ def main() -> int:
     asset_cfg = json.loads(asset_cfg_path.read_text(encoding="utf-8"))
     style = asset_cfg.get("style", {})
     concept_suffix = style.get("concept_suffix", "")
-    assembled_concept_prompt = FULL_BODY_REF_PROMPT + concept_suffix
+    assembled_concept_prompt = full_body_ref_prompt + concept_suffix
     concept_hash = _hl.sha256(assembled_concept_prompt.encode("utf-8")).hexdigest()[:8]
-    concept_path = concept_dir / f"{ENTITY_ID}_v3_{concept_hash}.png"
+    concept_path = concept_dir / f"{entity_id}_v3_{concept_hash}.png"
     if not concept_path.exists():
         print(f"[smoke] generating fresh concept via nanobanana ({concept_hash})")
         nano_cfg = asset_cfg.get("backend_config", {}).get("nanobanana", {})
@@ -149,11 +199,11 @@ def main() -> int:
         return 2
 
     ledger = load_ledger(game_dir)
-    p_hash = prompt_hash(FULL_BODY_MESH_PROMPT)
+    p_hash = prompt_hash(full_body_mesh_prompt)
 
-    print(f"[smoke] target: {GAME}/{ENTITY_ID}")
-    print(f"[smoke] rig_type: {RIG_TYPE}, clips: {CLIPS}")
-    print(f"[smoke] prompt: {FULL_BODY_MESH_PROMPT[:80]}...")
+    print(f"[smoke] target: {GAME}/{entity_id}")
+    print(f"[smoke] rig_type: {rig_type}, clips: {clips}")
+    print(f"[smoke] prompt: {full_body_mesh_prompt[:80]}...")
     print(f"[smoke] prompt_hash: {p_hash}")
 
     out_dir = game_dir / "assets" / "meshes"
@@ -173,23 +223,23 @@ def main() -> int:
             file_token = backend._upload_image(concept_path, api_key)
             print(f"[smoke] image uploaded, file_token={file_token[:8]}...")
             base_task_id = backend._submit_image_to_model(
-                file_token, FULL_BODY_MESH_PROMPT, api_key
+                file_token, full_body_mesh_prompt, api_key
             )
             print(f"[smoke] image_to_model submitted, task_id={base_task_id}")
         else:
             base_task_id = backend._submit_text_to_model(
-                FULL_BODY_MESH_PROMPT, api_key
+                full_body_mesh_prompt, api_key
             )
             print(f"[smoke] text_to_model submitted, task_id={base_task_id}")
         base_url = backend._poll_until_done(base_task_id, api_key)
-        base_glb = out_dir / f"{ENTITY_ID}_base_{base_task_id[:8]}.glb"
+        base_glb = out_dir / f"{entity_id}_base_{base_task_id[:8]}.glb"
         backend._download(base_url, base_glb)
         print(f"[smoke] base mesh downloaded → {base_glb.name}")
         ledger.add(
             backend="tripo3d",
             kind="tripo3d_base",
-            entity_id=ENTITY_ID,
-            prompt=FULL_BODY_MESH_PROMPT,
+            entity_id=entity_id,
+            prompt=full_body_mesh_prompt,
             p_hash=p_hash,
             out_path=str(base_glb.relative_to(game_dir)),
             extra={"task_id": base_task_id},
@@ -198,7 +248,7 @@ def main() -> int:
 
     # --- Stage 2: animate_prerigcheck
     print(f"\n[smoke] === Stage 2: animate_prerigcheck ===")
-    pre_disc = f"{RIG_TYPE}:{RIG_MODEL_VERSION}"
+    pre_disc = f"{rig_type}:{RIG_MODEL_VERSION}"
     pre_hit = ledger.has(
         "tripo3d", "tripo3d_prerigcheck", p_hash, discriminator=pre_disc
     )
@@ -215,8 +265,8 @@ def main() -> int:
         ledger.add(
             backend="tripo3d",
             kind="tripo3d_prerigcheck",
-            entity_id=ENTITY_ID,
-            prompt=FULL_BODY_MESH_PROMPT,
+            entity_id=entity_id,
+            prompt=full_body_mesh_prompt,
             p_hash=p_hash,
             out_path="",
             discriminator=pre_disc,
@@ -232,7 +282,7 @@ def main() -> int:
 
     # --- Stage 3: animate_rig
     print(f"\n[smoke] === Stage 3: animate_rig ===")
-    rig_disc = f"{RIG_TYPE}:{RIG_MODEL_VERSION}"
+    rig_disc = f"{rig_type}:{RIG_MODEL_VERSION}"
     rig_hit = ledger.has(
         "tripo3d", "tripo3d_rig", p_hash, discriminator=rig_disc
     )
@@ -242,17 +292,17 @@ def main() -> int:
         print(f"[smoke] (ledger cached) rig_task_id={rig_task_id}")
     else:
         api_key = backend._get_api_key()
-        rig_task_id = backend._submit_rig(base_task_id, RIG_TYPE, api_key)
+        rig_task_id = backend._submit_rig(base_task_id, rig_type, api_key)
         print(f"[smoke] rig submitted, task_id={rig_task_id}")
         rig_url = backend._poll_until_done(rig_task_id, api_key)
-        rig_glb = out_dir / f"{ENTITY_ID}_rig_{rig_task_id[:8]}.glb"
+        rig_glb = out_dir / f"{entity_id}_rig_{rig_task_id[:8]}.glb"
         backend._download(rig_url, rig_glb)
         print(f"[smoke] rigged mesh downloaded → {rig_glb.name}")
         ledger.add(
             backend="tripo3d",
             kind="tripo3d_rig",
-            entity_id=ENTITY_ID,
-            prompt=FULL_BODY_MESH_PROMPT,
+            entity_id=entity_id,
+            prompt=full_body_mesh_prompt,
             p_hash=p_hash,
             out_path=str(rig_glb.relative_to(game_dir)),
             discriminator=rig_disc,
@@ -261,10 +311,10 @@ def main() -> int:
         ledger.save()
 
     # --- Stage 4: animate_retarget × N
-    print(f"\n[smoke] === Stage 4: animate_retarget ({len(CLIPS)} clips) ===")
+    print(f"\n[smoke] === Stage 4: animate_retarget ({len(clips)} clips) ===")
     retarget_glbs: list[Path] = []
-    for clip in CLIPS:
-        rt_disc = f"{RIG_TYPE}:{clip}:{RIG_MODEL_VERSION}"
+    for clip in clips:
+        rt_disc = f"{rig_type}:{clip}:{RIG_MODEL_VERSION}"
         rt_hit = ledger.has(
             "tripo3d", "tripo3d_retarget", p_hash, discriminator=rt_disc
         )
@@ -278,15 +328,15 @@ def main() -> int:
         print(f"[smoke] retarget '{clip}' submitted, task_id={rt_task}")
         rt_url = backend._poll_until_done(rt_task, api_key)
         safe_clip = clip.replace(":", "_")
-        rt_glb = out_dir / f"{ENTITY_ID}_{safe_clip}_{rt_task[:8]}.glb"
+        rt_glb = out_dir / f"{entity_id}_{safe_clip}_{rt_task[:8]}.glb"
         backend._download(rt_url, rt_glb)
         retarget_glbs.append(rt_glb)
         print(f"[smoke] retarget '{clip}' downloaded → {rt_glb.name}")
         ledger.add(
             backend="tripo3d",
             kind="tripo3d_retarget",
-            entity_id=ENTITY_ID,
-            prompt=FULL_BODY_MESH_PROMPT,
+            entity_id=entity_id,
+            prompt=full_body_mesh_prompt,
             p_hash=p_hash,
             out_path=str(rt_glb.relative_to(game_dir)),
             discriminator=rt_disc,
@@ -297,9 +347,9 @@ def main() -> int:
     # --- Stage 5: merge (with clip renaming)
     print(f"\n[smoke] === Stage 5: glb_merge ===")
     merge_hash = hashlib.sha256(
-        (FULL_BODY_MESH_PROMPT + ":" + ",".join(CLIPS)).encode("utf-8")
+        (full_body_mesh_prompt + ":" + ",".join(clips)).encode("utf-8")
     ).hexdigest()[:8]
-    merged_path = out_dir / f"{ENTITY_ID}_animated_{merge_hash}.glb"
+    merged_path = out_dir / f"{entity_id}_animated_{merge_hash}.glb"
     glb_merge(
         retarget_glbs,
         merged_path,
@@ -313,10 +363,10 @@ def main() -> int:
     print(f"\n[smoke] === Stage 6: patch entity def ===")
     rel_mesh = f"res://data/{GAME}/assets/meshes/{merged_path.name}"
     visual["mesh"] = rel_mesh
-    visual["mesh_reference_prompt"] = FULL_BODY_REF_PROMPT
-    visual["mesh_prompt"] = FULL_BODY_MESH_PROMPT
+    visual["mesh_reference_prompt"] = full_body_ref_prompt
+    visual["mesh_prompt"] = full_body_mesh_prompt
     visual["animate"] = True
-    visual["rig_type"] = RIG_TYPE
+    visual["rig_type"] = rig_type
     visual["animation_clips"] = ENGINE_CLIP_NAMES
     # Clip names in the merged GLB are renamed to ENGINE_CLIP_NAMES during
     # merge (see Stage 5), so no clip_alias indirection is needed.
@@ -353,22 +403,22 @@ def main() -> int:
     visual.pop("_comment_y_offset", None)
     visual.pop("_comment_y_offset_mesh", None)
     visual["_comment_animated"] = (
-        f"ADR 0053 animated mesh — {len(CLIPS)} clips ({', '.join(CLIPS)}). "
-        f"Rig: {RIG_TYPE}. Engine drives clips via animation_state_rules + clip_alias. "
+        f"ADR 0053 animated mesh — {len(clips)} clips ({', '.join(clips)}). "
+        f"Rig: {rig_type}. Engine drives clips via animation_state_rules + clip_alias. "
         f"Generated 2026-05-18 via animate_smoke.py."
     )
-    villagers_path.write_text(
+    source_path.write_text(
         json.dumps(doc, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    print(f"[smoke] patched {villagers_path}")
+    print(f"[smoke] patched {source_path}")
 
     print(f"\n[smoke] SUCCESS")
     print(f"  base:      {base_glb.name}")
     print(f"  rig:       {rig_glb.name}")
     print(f"  retargets: {[g.name for g in retarget_glbs]}")
     print(f"  merged:    {merged_path.name}")
-    print(f"  entity:    {ENTITY_ID} patched (visual.mesh + animation fields)")
+    print(f"  entity:    {entity_id} patched (visual.mesh + animation fields)")
     return 0
 
 

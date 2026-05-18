@@ -523,15 +523,34 @@ func _read_y_scale() -> float:
 
 
 ## Read state.yaw (radians, rotation around the Y axis) if set, and apply.
-## Idempotent — when state.yaw is unset, rotation is left untouched, so
-## existing data without yaw renders identically. Authoring use: instance
-## overrides set `state: {yaw: 0.26}` (~15°) on cottages / props to break
-## the strict-grid feel (visual-density axis 6 — diagonal accents).
+## Falls back to state.facing when yaw is unset — this bridges the FPS
+## input → mesh-orientation gap (camera_director writes state.facing on
+## mouse-look; without this fallback, the player mesh stays at its spawn
+## yaw while the camera rotates independently).
+##
+## Authoring use:
+##   - Static props use state.yaw for explicit rotation
+##     (e.g. `state: {yaw: 0.26}` ~15° on cottages — visual-density axis 6).
+##   - FPS players + camera-rotating actors use state.facing implicitly
+##     (camera_director writes it on mouse-look).
+##   - NPCs with their own face-toward-move-direction logic can set
+##     either; yaw takes precedence.
+##
+## When BOTH are unset, rotation is left untouched (idempotent — existing
+## entities without yaw render identically).
+##
+## Empirical case 2026-05-18: aldenmere player_marken's animated mesh
+## (visible only as shadow in FPS due to hide_for_camera_attach=true)
+## stayed pointing north regardless of mouse-look. Cause: camera wrote
+## state.facing but mesh only read state.yaw. Shadow gave away the bug.
 func _sync_yaw() -> void:
 	if _entity_ref == null:
 		return
-	var yaw = _entity_ref.get_state("yaw", null)
-	if yaw == null:
+	var raw = _entity_ref.get_state("yaw", null)
+	if raw == null:
+		# Fallback to state.facing for FPS players + camera-driven actors.
+		raw = _entity_ref.get_state("facing", null)
+	if raw == null:
 		return
 	# Per-entity yaw offset compensates for meshes whose authored "forward"
 	# axis isn't the Yume convention (-Z). Quadrupeds (deer, rabbit, wolf)
@@ -541,7 +560,7 @@ func _sync_yaw() -> void:
 	# perpendicular to their body axis because the mesh-forward mismatch
 	# wasn't compensated.
 	var offset := float(_entity_ref.get_property("mesh_yaw_offset", 0.0))
-	rotation.y = float(yaw) + offset
+	rotation.y = float(raw) + offset
 
 
 # ============================================================
