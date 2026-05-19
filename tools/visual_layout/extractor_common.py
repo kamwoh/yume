@@ -76,11 +76,20 @@ class LegendEntry:
                   is tolerated.
     `min_area_px`: optional minimum connected-component area to consider
                    "present". Smaller components are filtered as noise.
+    `kind`:       extraction strategy (map legends only; UI legends
+                  default to "anchor" but the value is ignored). One of:
+                    "anchor" — discrete entity at centroid. UI panels,
+                               map landmarks like fire_pit, hut.
+                    "zone"   — continuous region. Forest, grass, water.
+                               Stored as a mask for downstream patterns.
+                    "path"   — thin connected curve. Roads, rivers.
+                               Skeletonized via skimage to a polyline.
     """
 
     name: str
     hex: str
     min_area_px: int = 8
+    kind: str = "anchor"
 
     @property
     def rgb(self) -> tuple[int, int, int]:
@@ -105,6 +114,7 @@ class Legend:
                     name=str(e["name"]),
                     hex=str(e["hex"]),
                     min_area_px=int(e.get("min_area_px", 8)),
+                    kind=str(e.get("kind", "anchor")),
                 )
                 for e in doc.get("entries", [])
             ],
