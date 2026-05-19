@@ -1,7 +1,7 @@
 # ADR 0054 — Visual layout compiler (image-gen → CV → JSON → engine)
 
 _Date: 2026-05-19_
-_Status: proposed_
+_Status: accepted_
 
 ## Context
 
@@ -164,7 +164,23 @@ tools/visual_layout/
     └── map_camp_default.json
 ```
 
-Dependency: `opencv-python-headless` + `scikit-learn` (for KMeans).
+### Dependencies
+
+| Package | Use |
+|---|---|
+| `opencv-python-headless` | Connected components, contours, morphological erode/dilate, bounding boxes |
+| `scikit-learn` | `KMeans` for color quantization |
+| `scikit-image` | `skeletonize` (Zhang-Suen) for path skeletonization + `rgb2lab` for CIE Lab distance |
+
+`opencv-python-headless` (not `opencv-python`) chosen to avoid GUI
+deps that don't apply to Yume's headless WSL render path. Total
+install size ~50 MB.
+
+Installation discipline: a new `tools/visual_layout/requirements.txt`
+ships with the package; the README documents `pip install -r ...`
+as part of first-run setup. Pinned versions follow nanobanana's
+existing approach (loose minimum, no upper cap unless empirical
+breakage forces it).
 
 ### Schema (common across UI + map)
 
@@ -213,20 +229,60 @@ Dependency: `opencv-python-headless` + `scikit-learn` (for KMeans).
 }
 ```
 
-This schema lives at `data/<game>/layouts/<hash>.layout.json`
-alongside the image. Both ledger-tracked (paid image gen +
-extraction time cost).
+**Schema positioning** (post tech-director review 2026-05-19):
+`.layout.json` is an **intermediate / debug artifact**, NOT a
+primary source of truth. The canonical JSON the engine consumes
+remains `hud.json` / `entities.json` (per ADR 0021). The compiler:
+1. Extracts the layout image into `.layout.json` (intermediate)
+2. Compiles `.layout.json` into the canonical `hud.json` /
+   `entities.json` directly
+3. Keeps `.layout.json` on disk for debugging + re-compilation
+   (e.g., if you tweak a legend's world-size, you can re-derive
+   without re-rolling the image)
+
+This avoids schema-duplication drift: a future change to
+`hud.json`'s rect shape automatically applies (the compiler
+re-emits). The `.layout.json` is what `tools/visual_layout/` owns;
+the canonical formats are unchanged.
+
+Both files live alongside the image. Ledger-tracked (paid image
+gen + extraction time cost).
 
 ### Validators
 
-New `tools/validators/validate_layout.py`:
-- For UI: rects within safe margins; no overlaps; expected components
-  present (vitals, hotbar, minimap, ...); hierarchy (vitals != center).
-- For map: no anchor overlap; critical anchors on grass not water;
-  paths form connected graph; player spawn ≤ 5m from at least one
-  anchor; bridges actually cross water; forest density coverage
-  in expected range.
-- Pluggable validation rules per legend type.
+New `tools/validators/validate_layout.py`. Failure classes split
+into **image-content** (the extracted scene graph is malformed —
+the image didn't follow the legend or extraction produced garbage)
+and **playability** (the extraction succeeded but the resulting
+scene isn't playable):
+
+**Image-content failures** (the new class — extraction step):
+
+| Class | Detection | Mitigation |
+|---|---|---|
+| `missing_required_component` | Expected legend entry has zero matching mask pixels OR zero connected components above min-area threshold | Re-roll image gen; on 3rd re-roll, surface to user |
+| `centroid_conflict` | Two distinct legend entries got matched to the same k-means centroid (the legend has 14 entries but quantization clustered the image into 9 with two entries collapsing) | Increase `expected_clusters`; or merge in extractor (warn) |
+| `over_count` | Legend says "exactly 1 fire_pit" but extractor found 3 connected components | Pick highest-confidence by area; warn |
+| `under_count` | Legend says "≥3 berry_bush" but only 1 found | Re-roll OR repair via scatter inside grass mask |
+| `mask_intersects_self` | A region's mask is non-simply-connected (donut shape) when legend says it should be simply-connected | Repair via fill holes; warn |
+| `noise_components` | Lots of tiny components (<5px²) suggesting JPEG artifacts or anti-aliasing leak | Drop components below min-area threshold; no warn |
+
+**Playability failures** (existing class — schema step, applies to
+any compiled layout regardless of source):
+
+| Class | Detection | Mitigation |
+|---|---|---|
+| `overlap` | Two anchor footprints have ≥20% AABB intersection | Move offending anchor toward nearest grass mask centroid |
+| `unreachable` | Anchor has no path-mask connection to spawn | Add repair-path via shortest A* through grass mask |
+| `unwalkable_path` | Path mask is interrupted (disjoint after skeletonization) | Re-roll OR repair via grass-fill |
+| `critical_on_wrong_zone` | E.g. fire_pit centroid lands inside river mask | Move to nearest grass mask centroid; warn |
+| `out_of_bounds_ui` | UI rect overflows screen safe-margin | Clamp to safe rect; warn |
+| `overlap_ui` | Two UI rects have ≥10% intersection | Reposition smaller toward nearest free quadrant |
+
+Each class is falsifiable (concrete numeric thresholds) and pluggable
+per legend (overridable thresholds in `legend.json`). Pluggable
+validation rules per legend type via the same loader pattern as
+`tools/validators/run_all.py`.
 
 ### New skills
 
@@ -234,6 +290,102 @@ New `tools/validators/validate_layout.py`:
 |---|---|---|
 | `yume-hud-layout` | augments `yume-asset-designer` HUD authoring | Phase 1 |
 | `yume-level-layout` | augments `yume-level-designer` placement | Phase 2 |
+
+### Phase / sequencing plan (post-review)
+
+User picked "both use cases in parallel". Tech-director flagged
+this as 2× surface area before the architecture is proven. Resolved
+sequencing:
+
+| Step | Scope | Duration | Output |
+|---|---|---|---|
+| **0** | Write `extractor_common.py` — k-means + legend match + mask helpers. Shared foundation. Unit tests with synthetic input. | ~1.5 hrs | Importable module + 4-6 tests |
+| **1** | UI pipeline end-to-end: `extract_ui.py` + `compile_ui.py` + `yume-hud-layout` skill + legend + validator | ~2 hrs | Aldenmere HUD wired via compiler |
+| **2** | Visual gate on Phase 1 output. Compare against current hand-authored hud.json. If extractor produces equivalent-or-better layout: declare proven. If worse: iterate before Phase 3. | ~30 min | A/B captures + decision |
+| **3** | Map pipeline: `extract_map.py` (zones, anchors, paths, skeletons) + `compile_map.py` + `yume-level-layout` skill + legend + validator | ~3 hrs | Aldenmere level layout via compiler |
+| **4** | Visual gate on Phase 3. Compare against current `level/entities.json`. Same A/B discipline as Phase 2. | ~30 min | Decision |
+
+Total: ~7.5 hours. Phase 0 is mandatory before either Phase 1 or
+Phase 3 — without the shared common module, the two pipelines would
+diverge in subtle ways. Phase 1 + 2 must complete + verify before
+Phase 3 starts; this catches architecture issues at half the cost.
+
+### Re-roll strategy (post-review)
+
+3 re-rolls cap per validation failure. Progressive escalation:
+
+1. **Re-roll 1**: same prompt + same legend. RNG variance may
+   resolve it.
+2. **Re-roll 2**: same prompt + appended emphasis suffix (e.g.
+   `", absolutely no decoration, only solid colors from the legend,
+   no shadows, no gradients"`).
+3. **Re-roll 3**: same prompt + EXPLICIT legend color list in body
+   (e.g. `", use only these exact colors: #c0a020 for fire pit,
+   #8a3030 for hut, #4a8030 for grass"`).
+4. **After 3 fails**: log to ledger as `image_gen_unparseable`,
+   surface to user, fall back to LLM-authored layout for this run.
+
+Per-rerolltool budget: $0.05. Worst-case $0.20 per layout. Acceptable
+for first-pass authoring (the layout is then JSON-canonical and
+editable without re-rolling).
+
+### K-means cluster count (post-review, was open question #1)
+
+**Default**: `k = len(legend) + 2` (the +2 absorbs anti-aliased
+edge pixels + JPEG-noise pseudo-clusters).
+
+**Override**: per-legend `expected_clusters: N` in `legend.json` for
+legends where empirical extraction quality wobbles.
+
+**Auto-tune**: deferred. Not implementing elbow-method in Phase 1;
+the default has worked in pixel-art game-asset extraction
+prototypes outside Yume. If the default proves wrong, the override
+path lets per-game tuning happen without engine changes.
+
+### Legend authoring (post-review, A1 clarification)
+
+Legends live at **`data/<game>/visual_layout/<legend>.json`** —
+per-game content, not framework-shipped. The framework ships
+**reference legends** at `tools/visual_layout/legends/` as
+templates. New games either:
+1. Copy a reference legend + tweak (most cases)
+2. Author a custom legend from scratch (rare; needs designer
+   experience with the extractor's invariants)
+
+This matches the existing pattern: `data/lib/` ships reference
+content (cameras, input bundles, motion rules); per-game `data/
+<game>/` overrides. Visual-layout legends slot in identically.
+
+### Concept image vs semantic image (A2 clarification)
+
+This ADR commits to **Phase 1 ships semantic-only**. Concept image
+generation already happens via `yume-asset-designer`'s existing
+nanobanana calls (for reference images that feed Tripo3D
+image-to-3D). The two pipelines stay separate:
+- Semantic image → `tools/visual_layout/` → extracted JSON
+- Concept image → `tools/yume_assetgen/` → mesh + texture
+
+A future ADR may unify them (same intent prompt drives both, output
+ledger-tracked together) but not in this ADR.
+
+### Visual gate (A3 commitment)
+
+Per `.claude/rules/visual-qa.md`, layout-affecting changes trigger
+the visual gate. New skills `yume-hud-layout` and `yume-level-layout`
+include the visual-qa step in their workflow:
+
+1. Generate semantic image
+2. Run extractor + validator + repair
+3. Compile to hud.json / entities.json
+4. **Sync to YumeTemplate**
+5. **Capture in-game**
+6. **Read PNG with the 7-axis rubric** (or invoke yume-visual-designer)
+7. If visual review fails: hand back to the LLM-authored revision
+   path OR re-roll image (depending on root cause)
+
+This gate is mandatory. We trade LLM-spatial-error for
+image-gen-spatial-error; without the gate we'd lose validation that
+catches both.
 
 Both skills follow the same outline:
 1. Read GDD / spec for layout intent
@@ -372,30 +524,26 @@ A Godot-editor step would re-add manual scene work.
 
 ## Open questions
 
-1. **K-means cluster count selection**. Should it be:
-   - Per-legend (each legend.json declares its expected k)?
-   - Auto-tuned (k = legend_size + n_buffer)?
-   - Elbow-method per image?
-   - The first prototype will hardcode `k = len(legend) + 2`; if
-     extraction quality wobbles, revisit.
+1. **K-means cluster count** — RESOLVED 2026-05-19 (tech-director
+   review). Default `k = len(legend) + 2`; per-legend override
+   via `expected_clusters` field. See §K-means cluster count above.
 
-2. **How many re-rolls before giving up?** Each re-roll costs $0.05.
-   First prototype caps at 3 re-rolls per prompt; if validation
-   still fails, log + surface to user. Per-game configurable later.
+2. **Re-roll cap** — RESOLVED 2026-05-19. 3 re-rolls max with
+   progressive prompt escalation. See §Re-roll strategy above.
 
 3. **Legend versioning**. When a legend changes (new component type
    added), do all prior layouts re-extract? Or stay valid against
    their original legend? First prototype: legend hash is part of
    the ledger key; layouts pin to their legend version.
 
-4. **Concept image generation alongside semantic image**. Same
-   intent → two prompts (semantic + concept). Cost: $0.10 per
-   layout iteration. Worth it for the designer reference? Phase 1
-   ships with only the semantic; concept image is an opt-in flag.
+4. **Concept image alongside semantic** — RESOLVED 2026-05-19.
+   Phase 1 ships semantic-only. Concept image is a separate
+   `yume-asset-designer` pipeline. Unification deferred to future
+   ADR. See §Concept image vs semantic image above.
 
 5. **Tile-based vs continuous extraction**. Some games (sokoban,
    chess) have grid-aligned layouts. Should the extractor support
-   "snap to N-meter grid"? Phase 2 question; Phase 1 is purely
+   "snap to N-meter grid"? Phase 2+ question; Phase 1 is purely
    continuous.
 
 6. **3D layout extraction (not just top-down)**. Can image gen
@@ -405,7 +553,7 @@ A Godot-editor step would re-add manual scene work.
 
 ## References
 
-- ADR 0021 — Yume as JSON layer over Godot (canonical authoring)
+- ADR 0021 — Yume as JSON layer over platform (canonical authoring)
 - ADR 0046 — Animation via Godot AnimationPlayer (engine consumer)
 - ADR 0051 — Authoring-time Python emitters (precedent for
   `tools/` Python pipelines)
