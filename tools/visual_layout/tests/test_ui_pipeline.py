@@ -189,7 +189,7 @@ def test_extract_missing_component_warns() -> None:
     try:
         layout = extract_ui_layout(tmp_path, legend, random_state=42)
         missing_warnings = [
-            w for w in layout.warnings if "missing_required_component" in w
+            w for w in layout.warnings if "missing_component" in w
         ]
         _check(
             len(missing_warnings) >= 2,

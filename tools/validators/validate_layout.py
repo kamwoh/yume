@@ -67,12 +67,12 @@ def check_layout(layout_path: Path, legend_path: Path | None) -> tuple[list[str]
 
     # === Image-content checks ===
 
-    # Surfaces warnings already attached to the layout
+    # Surfaces warnings already attached to the layout. The extractor
+    # doesn't know which entries are required — it just emits
+    # "missing_component" for everything absent. The legend-driven
+    # count check below decides fail vs warn.
     for w in layout.get("warnings", []):
-        if w.startswith("missing_required_component:"):
-            fails.append(f"image-content: {w}")
-        else:
-            warns.append(f"image-content: {w}")
+        warns.append(f"image-content: {w}")
 
     # Legend-driven counts (if legend supplied)
     if legend_path is not None and legend_path.exists():

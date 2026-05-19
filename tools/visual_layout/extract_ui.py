@@ -166,7 +166,11 @@ def extract_ui_layout(
         if legend_name in skip_legend_names:
             continue
         if not comps:
-            layout.warnings.append(f"missing_required_component: {legend_name}")
+            # Note: extractor doesn't know which entries are required.
+            # The validator (validate_layout.py) reads the legend's
+            # expected_count to decide whether a missing component
+            # is a FAIL (required) or a WARN (optional).
+            layout.warnings.append(f"missing_component: {legend_name}")
             continue
         for comp in comps:
             bx, by, bw, bh = comp.bbox_xywh
