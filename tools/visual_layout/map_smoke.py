@@ -35,46 +35,70 @@ MAP_SIZE_M = 80.0  # ~aldenmere's 50m village + 30m fringe
 # Top-down semantic map prompt. Mirrors aldenmere's camp:
 # fire pit center, mud hut + market east, river south, forest around.
 MAP_PROMPT = """\
-A clean flat 2D semantic top-down layout map for a cozy survival \
-forest camp clearing.
+TECHNICAL DIAGRAM — solid color regions only — like MS Paint with \
+the bucket fill tool. ZERO decoration. ZERO texture. ZERO shadows. \
+ZERO outlines. ZERO text. ZERO labels. ZERO icons. ZERO dots. \
+ZERO trees as separate shapes. ZERO illustrations of any kind.
 
-Strict requirements for machine extraction:
-- strict top-down view, flat 2D, no perspective
-- dark neutral grey background outside the map (#1a1a1a)
-- each object/region is a SOLID FILLED color
-- NO shadows, NO gradients, NO textures, NO decorative illustration
-- NO text labels, NO icons, NO handwritten characters
-- clean rectangular or rounded boundaries between regions
-- objects clearly separated, not touching
-- square 1:1 composition
+This is a CSS color palette test, NOT an illustration.
 
-Map content (top-down, north is up):
-- DARK GREEN (#2a5a2a) dense forest surrounding the clearing (the \
-outer ring covering most of the image)
-- LIGHT GREEN (#a0d870) open grass clearing in the center (a wide \
-oval shape, ~60% of map width)
-- YELLOW (#f0c020) small round FIRE PIT at the exact center of the \
-clearing
-- RED-BROWN (#a04020) HUT to the west of fire pit, a small square
-- ORANGE (#e08040) DRYING RACK to the east of fire pit, a small square
-- PURPLE (#9060c0) STORAGE area to the southeast, a small square
-- DARK OLIVE GREEN (#508030) GARDEN patch to the northwest of fire \
-pit, a small square
-- BLUE (#3070c0) RIVER along the bottom edge running east-west, a \
-horizontal blue band
-- DARK BROWN (#704020) BRIDGE crossing the river at bottom-center, \
-a small rectangle on top of the blue river
-- TAN (#c8a878) dirt PATH connecting the bridge to the fire pit, \
-plus shorter branches to hut, drying rack, storage, garden — these \
-are thin lines
-- PINK (#e040a0) BERRY BUSHES scattered as 3-4 small dots in the \
-northwest part of the clearing
-- GREY (#808080) ROCKS scattered as 3-4 small dots in the northeast \
-part of the clearing
+Top-down 2D layout. Each region is a perfectly FLAT solid block of \
+ONE hex color. No anti-aliasing artifacts. Plain rectangles or simple \
+rounded rectangles only.
 
-Use ONLY the exact hex colors listed above. Output must look like a \
-clean semantic map for a game layout compiler, NOT a painted \
-illustration. NO text characters. Square aspect ratio.
+Color regions (north is top of frame):
+
+#2a5a2a — solid dark green forest. Fills the outer 25% border of the \
+image as a frame around the central clearing.
+
+#a0d870 — solid light green grass clearing. Fills the central 50% of \
+the image as one big rectangle.
+
+#f0c020 — solid yellow circle ~8% of image width, placed at exact \
+center of frame. This is the fire pit.
+
+#a04020 — solid red-brown square ~8% of image width, placed in the \
+left-center of the clearing, west of the yellow circle. This is the hut.
+
+#e08040 — solid orange square ~8% of image width, placed in the \
+right-center of the clearing, east of the yellow circle. Drying rack.
+
+#9060c0 — solid purple square ~6% of image width, placed in the \
+lower-right of the clearing. Storage.
+
+#508030 — solid dark olive square ~6% of image width, placed in the \
+upper-left of the clearing. Garden.
+
+#3070c0 — solid blue rectangle filling the bottom 12% of the image, \
+edge to edge. River.
+
+#704020 — solid dark brown rectangle ~10% wide × 4% tall, placed at \
+the bottom-center crossing the blue river. Bridge.
+
+#c8a878 — solid tan thin straight lines ~1% thick, connecting the \
+brown bridge upward to the yellow circle in the center, then short \
+branches from the yellow circle to the hut, drying rack, garden, \
+storage. Dirt paths.
+
+#e040a0 — three solid pink circles ~3% of image width each, placed \
+together in the upper-left area of the clearing (between garden and \
+center). Berry bushes.
+
+#808080 — three solid grey circles ~3% of image width each, placed \
+together in the upper-right area of the clearing. Rocks.
+
+ABSOLUTE RULES:
+- Use ONLY the 11 hex colors listed above.
+- ZERO text characters anywhere.
+- ZERO illustrated trees, leaves, foliage, grass blades, brick \
+patterns, wood grain, water ripples.
+- ZERO drop shadows or gradient fills.
+- ZERO outline strokes around shapes.
+- The image looks like a color-coded blueprint, like a Tetris-style \
+filled-shape diagram.
+- If unsure, prefer fewer solid blocks over more decoration.
+
+Output: a clean 1024x1024 square color-block layout.
 """
 
 
