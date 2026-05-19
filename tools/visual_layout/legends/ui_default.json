@@ -1,0 +1,61 @@
+{
+  "_comment": "Reference UI legend per ADR 0054 Phase 1. Colors picked for maximum perceptual separation in CIE Lab space — primary hues at high saturation, no near-neighbors. Per-game legends can override colors, drop entries, or add new ones. Each entry's `name` matches the HUD panel role; the extractor classifies rects into 9 screen anchors (top-left, top-center, top-right, center-left, center, center-right, bottom-left, bottom-center, bottom-right).",
+  "name": "ui_default",
+  "expected_clusters": 10,
+  "entries": [
+    {
+      "_comment": "Background — large solid neutral. Anti-cluster pad: the wireframe should have a clean background so this dominates pixel count and isn't confused with a component.",
+      "name": "background",
+      "hex": "#1a1a1a",
+      "min_area_px": 1000
+    },
+    {
+      "name": "objective_text",
+      "hex": "#f0e0a0",
+      "min_area_px": 200,
+      "_comment": "Top-center quest/objective text. Warm yellow. Usually a wide narrow bar."
+    },
+    {
+      "name": "day_time_panel",
+      "hex": "#a0c0e0",
+      "min_area_px": 200,
+      "_comment": "Top-left day/season/time. Cool light-blue. Stacked label cluster."
+    },
+    {
+      "name": "minimap",
+      "hex": "#60c060",
+      "min_area_px": 400,
+      "_comment": "Top-right minimap. Bright green (matches grass-coded camp area inside the minimap render). Square."
+    },
+    {
+      "name": "vitals_panel",
+      "hex": "#e08080",
+      "min_area_px": 300,
+      "_comment": "Bottom-left vitals bars (hunger/energy/warmth/health). Salmon/coral pink."
+    },
+    {
+      "name": "hotbar",
+      "hex": "#c0a060",
+      "min_area_px": 300,
+      "_comment": "Bottom-center hotbar / inventory quickslots. Warm brown. Long narrow rect."
+    },
+    {
+      "name": "controls_hint",
+      "hex": "#808080",
+      "min_area_px": 100,
+      "_comment": "Controls hint text strip. Neutral mid-grey. Bottom edge thin."
+    },
+    {
+      "name": "inventory_panel",
+      "hex": "#9060c0",
+      "min_area_px": 300,
+      "_comment": "Bottom-right inventory / pouch grid. Purple."
+    },
+    {
+      "name": "tooltip_or_modal",
+      "hex": "#e0a040",
+      "min_area_px": 200,
+      "_comment": "Optional center modal / tooltip. Orange."
+    }
+  ]
+}
