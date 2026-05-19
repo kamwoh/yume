@@ -19,6 +19,7 @@ Future (slot in by creating a module + adding to REGISTRY):
 """
 
 from .base import Backend
+from .imagen import ImagenBackend
 from .mock import MockBackend
 from .nanobanana import NanobananaBackend
 from .tripo3d import Tripo3DBackend
@@ -26,10 +27,14 @@ from .tripo3d import Tripo3DBackend
 # Backend registry — name (string in asset_gen.json) → class.
 # Real backends require API keys in env (GEMINI_API_KEY / TRIPO_API_KEY);
 # `--backend mock` overrides config for offline iteration.
+# `nanobanana` + `imagen` both use GEMINI_API_KEY but different models:
+#   nanobanana = gemini-2.5-flash-image — 1024×1024 only, multimodal (refs)
+#   imagen     = imagen-3.0-generate-002 — supports 16:9 + other aspects
 REGISTRY = {
     "mock": MockBackend,
     "nanobanana": NanobananaBackend,
     "gemini_image": NanobananaBackend,  # alias — same underlying API
+    "imagen": ImagenBackend,
     "tripo3d": Tripo3DBackend,
 }
 

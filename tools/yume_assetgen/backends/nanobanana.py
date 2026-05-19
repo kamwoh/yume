@@ -97,9 +97,17 @@ class NanobananaBackend(Backend):
                 }
             })
 
+        gen_cfg: dict = {"responseModalities": ["IMAGE"]}
+        # Aspect ratio override (2026-05-19). Gemini 3.x image-preview
+        # models accept `imageConfig.aspectRatio` inside generationConfig
+        # with one of {"1:1", "16:9", "9:16", "4:3", "3:4"}. gemini-2.5-
+        # flash-image ignores this field and stays at 1024×1024.
+        ar = self.config.get("aspect_ratio")
+        if ar:
+            gen_cfg["imageConfig"] = {"aspectRatio": ar}
         body = {
             "contents": [{"parts": parts}],
-            "generationConfig": {"responseModalities": ["IMAGE"]},
+            "generationConfig": gen_cfg,
         }
 
         timeout = float(self.config.get("timeout", 120))
