@@ -377,14 +377,33 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	var actor = _drain_mouse_facing(cam_cfg)
 	var facing := 0.0
+	var pitch := 0.0
 	if actor != null:
 		facing = float(actor.get_state("facing", 0.0))
+		pitch = float(actor.get_state("pitch", 0.0))
 	var distance := float(cam_cfg.get("distance", 12.0))
 	var height := float(cam_cfg.get("height", 5.0))
 	var lerp_t := float(cam_cfg.get("lerp", 0.1))
+	# Pitch raises/lowers the orbiting camera around the player (2026-05-19).
+	# Without this, mouse-up/down doesn't move the 3rd-person camera at all
+	# even though _drain_mouse_facing successfully updates state.pitch.
+	# Sign convention: mouse-down decreases state.pitch (_drain_mouse_facing
+	# does `pitch -= delta.y * sens`, so negative-Y delta from mouse-down
+	# subtracts → negative pitch). User intuition for mouse-down is "look
+	# DOWN at the ground" = camera moves UP to see player's feet from above.
+	# So negative pitch → camera HIGHER. The math negates sin(pitch).
+	# Pitch ∈ [-π/2, +π/2] (clamped in drain).
+	# Horizontal distance shrinks slightly as pitch nears ±π/2 so the camera
+	# stays at a constant radius around the player.
+	var pitched_height := height - sin(pitch) * distance
+	var pitched_dist := distance * cos(pitch)
 	var fx := -sin(facing)
 	var fz := -cos(facing)
-	var desired := target + Vector3(-fx * distance, height, -fz * distance)
+	var desired := target + Vector3(
+		-fx * pitched_dist,
+		pitched_height,
+		-fz * pitched_dist,
+	)
 	if _snap_pending:
 		_camera3d.global_position = desired
 		_snap_pending = false
@@ -616,7 +635,16 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 		)
 		cam_pos = apos + Vector3(0, eye_h, 0)
 		var facing := float(actor.get_state("facing", 0.0))
-		fwd = Vector3(-sin(facing), 0, -cos(facing))
+		# Apply pitch too (2026-05-19). Without this the crosshair ray
+		# is horizontal even when the camera tilts via mouse-up/down,
+		# so the labeled target diverges from what the camera actually
+		# looks at. Sign matches the camera math above:
+		# mouse-down → state.pitch decreases → camera moves UP → looks
+		# down. The ray fwd.y should also tilt DOWNWARD on negative
+		# pitch, hence -sin(pitch).
+		var pitch := float(actor.get_state("pitch", 0.0))
+		var horiz := cos(pitch)
+		fwd = Vector3(-sin(facing) * horiz, -sin(pitch), -cos(facing) * horiz)
 	else:
 		cam_pos = _camera3d.global_position
 		fwd = -_camera3d.global_transform.basis.z

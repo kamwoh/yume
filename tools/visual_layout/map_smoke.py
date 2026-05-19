@@ -66,8 +66,8 @@ right-center of the clearing, east of the yellow circle. Drying rack.
 #9060c0 — solid purple square ~6% of image width, placed in the \
 lower-right of the clearing. Storage.
 
-#508030 — solid dark olive square ~6% of image width, placed in the \
-upper-left of the clearing. Garden.
+#c0b070 — solid wheat-gold square ~6% of image width, placed in the \
+upper-left of the clearing. Garden plot (cultivated grain field).
 
 #3070c0 — solid blue rectangle filling the bottom 12% of the image, \
 edge to edge. River.

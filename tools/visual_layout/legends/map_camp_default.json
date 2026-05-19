@@ -1,5 +1,5 @@
 {
-  "_comment": "Reference map legend per ADR 0054 Phase 3. Top-down semantic camp layout for cozy survival games. Mirrors aldenmere's camp scenario (fire pit, hut, market, drying rack, garden, river, forest, paths, berry bushes, rocks). Per-game legends can override colors, drop entries, or add new ones. Each entry has a `kind`: anchor (discrete entity at centroid) / zone (continuous mask) / path (skeletonized polyline).",
+  "_comment": "Reference map legend per ADR 0054 Phase 3. Top-down semantic camp layout for cozy survival games. Mirrors aldenmere's camp scenario (fire pit, hut, market, drying rack, river, forest, paths, berry bushes, rocks). Per-game legends can override colors, drop entries, or add new ones. Each entry has a `kind`: anchor (discrete entity at centroid) / zone (continuous mask) / path (skeletonized polyline).\n\nGarden DROPPED 2026-05-19 after empirical Lab-distance failures: dark olive #508030 was 21 Lab from forest #2a5a2a (collision); wheat-gold #c0b070 was 12 Lab from path #c8a878 (collision). Per-game legends needing a distinct garden anchor should pick a color verified distant from ALL existing entries (NOT just forest). Aldenmere's anchor_to_def already mapped garden→food_berry_bush, so dropping is no-op for that game.",
   "name": "map_camp_default",
   "expected_clusters": 14,
   "entries": [
@@ -65,13 +65,6 @@
       "kind": "anchor",
       "min_area_px": 50,
       "_comment": "Storage chest / pile. Purple. Anchor at centroid."
-    },
-    {
-      "name": "garden",
-      "hex": "#508030",
-      "kind": "anchor",
-      "min_area_px": 100,
-      "_comment": "Cultivated garden patch. Dark olive green. Anchor at centroid; compiler may emit footprint instead of single point."
     },
     {
       "name": "berry_bush",
