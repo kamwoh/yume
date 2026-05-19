@@ -38,6 +38,72 @@ def _flow_path(game: str) -> Path:
     return _game_dir(game) / "game" / "flow.json"
 
 
+def _screens_path(game: str) -> Path:
+    return _game_dir(game) / "screens.json"
+
+
+def _regenerate_level_picker(game: str) -> bool:
+    """Rewrite the level_picker screen's button list to match flow.json.
+    Idempotent. Skipped silently when there's no level_picker screen
+    in screens.json (per-game opt-in).
+
+    Returns True if a write happened.
+    """
+    flow_p = _flow_path(game)
+    screens_p = _screens_path(game)
+    if not (flow_p.exists() and screens_p.exists()):
+        return False
+    flow = json.loads(flow_p.read_text(encoding="utf-8"))
+    screens = json.loads(screens_p.read_text(encoding="utf-8"))
+    picker = None
+    for s in screens.get("screens", []):
+        if s.get("id") == "level_picker":
+            picker = s
+            break
+    if picker is None:
+        return False
+    # Find the vbox marked auto-regenerated
+    target_vbox = None
+    for el in picker.get("elements", []):
+        if el.get("type") == "vbox" and "_auto_regenerated_by" in el:
+            target_vbox = el
+            break
+    if target_vbox is None:
+        return False
+    # Build button per level
+    current = flow.get("starting_level", "")
+    buttons = []
+    for lv in flow.get("levels", []):
+        label = lv + ("  (current)" if lv == current else "")
+        buttons.append({
+            "type": "button",
+            "text": label,
+            "min_size": [320, 36],
+            "on_click": [
+                # screen_fade first (non-destructive), then transition_level
+                # so the world swap happens behind a fade — same pattern as
+                # other transition_level call sites.
+                {"type": "screen_fade", "alpha": 1.0, "duration": 0.15},
+                {"type": "transition_level", "target": lv, "fade_duration": 0.3},
+            ],
+        })
+    # Close button last
+    buttons.append({
+        "type": "button",
+        "text": "Close",
+        "min_size": [320, 36],
+        "on_click": [
+            {"type": "transition_screen", "target": "@previous"},
+        ],
+    })
+    target_vbox["children"] = buttons
+    screens_p.write_text(
+        json.dumps(screens, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return True
+
+
 def _resolve_fragment(game: str, fragment: str) -> Path | None:
     """Resolve a fragment arg (bare hash / filename / path) to an absolute Path."""
     # Try as path
@@ -119,6 +185,8 @@ def cmd_swap(game: str, fragment_arg: str) -> int:
     print(f"  {n_inst} instances + {n_pat} patterns")
     if prev:
         print(f"  previous: {prev} (use --back to restore)")
+    if _regenerate_level_picker(game):
+        print(f"  level_picker screen rebuilt (press K in-game to switch)")
     print()
     print(f"  ./scripts/play.sh {game}")
     return 0
@@ -144,6 +212,8 @@ def cmd_back(game: str) -> int:
         encoding="utf-8",
     )
     print(f"[back] {current} → {prev}")
+    if _regenerate_level_picker(game):
+        print(f"  level_picker screen rebuilt")
     return 0
 
 
