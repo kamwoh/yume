@@ -187,7 +187,7 @@ breakage forces it).
 ```jsonc
 {
   "intent": "<the prompt that drove generation>",
-  "image_path": "res://data/<game>/layouts/<hash>.png",
+  "image_path": "res://data/<game>/assets/layouts/<hash>.png",
   "legend_used": "ui_default | map_camp_default | ...",
   "extraction": {
     "image_size_px": [1024, 1024],

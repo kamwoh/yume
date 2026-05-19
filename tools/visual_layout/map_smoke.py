@@ -104,7 +104,7 @@ Output: a clean 1024x1024 square color-block layout.
 
 def main() -> int:
     game_dir = ROOT / "godot" / "data" / GAME
-    layouts_dir = game_dir / "layouts"
+    layouts_dir = game_dir / "assets" / "layouts"
     layouts_dir.mkdir(parents=True, exist_ok=True)
 
     asset_cfg_path = game_dir / "asset_gen.json"

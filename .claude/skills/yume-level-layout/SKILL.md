@@ -51,17 +51,17 @@ DO NOT invoke for:
 ## Outputs you produce
 
 1. **Semantic map image** at
-   `data/<game>/layouts/<level>_map_<hash>.png` — nanobanana-generated
+   `data/<game>/assets/layouts/<level>_map_<hash>.png` — nanobanana-generated
    flat color-coded top-down. Ledger-tracked. Per the no-delete rule,
    prior maps stay on disk.
 
 2. **Layout JSON** at
-   `data/<game>/layouts/<level>_layout_<hash>.layout.json` — the
+   `data/<game>/assets/layouts/<level>_layout_<hash>.layout.json` — the
    intermediate extracted structure. Debug artifact per
    ADR 0054 §Schema positioning.
 
 3. **Zone masks** at
-   `data/<game>/layouts/<level>_masks_<hash>/<zone>_mask.png` — per
+   `data/<game>/assets/layouts/<level>_masks_<hash>/<zone>_mask.png` — per
    zone, a single-channel PNG mask. Downstream consumed by
    `patterns` for scatter (trees inside forest mask, etc).
 
@@ -145,13 +145,13 @@ source venv/bin/activate
 python3 -m tools.visual_layout.map_smoke
 # OR explicit:
 python3 -m tools.visual_layout.extract_map \
-    --image data/<game>/layouts/<level>_map_<hash>.png \
+    --image data/<game>/assets/layouts/<level>_map_<hash>.png \
     --legend data/<game>/visual_layout/map_<game>.json \
     --map-size 80 \
-    --masks-dir data/<game>/layouts/<level>_masks_<hash>/ \
-    --output data/<game>/layouts/<level>_layout_<hash>.layout.json
+    --masks-dir data/<game>/assets/layouts/<level>_masks_<hash>/ \
+    --output data/<game>/assets/layouts/<level>_layout_<hash>.layout.json
 python3 -m tools.visual_layout.compile_map \
-    --layout data/<game>/layouts/<level>_layout_<hash>.layout.json \
+    --layout data/<game>/assets/layouts/<level>_layout_<hash>.layout.json \
     --output data/<game>/levels/<level>/entities_generated.json \
     --anchor-map data/<game>/visual_layout/anchor_to_def.json
 ```
@@ -162,7 +162,7 @@ Cost: ~$0.05 per map generation. Ledger-cached.
 
 ```bash
 python3 tools/validators/validate_layout.py \
-    data/<game>/layouts/<level>_layout_<hash>.layout.json \
+    data/<game>/assets/layouts/<level>_layout_<hash>.layout.json \
     --legend data/<game>/visual_layout/map_<game>.json --strict
 ```
 

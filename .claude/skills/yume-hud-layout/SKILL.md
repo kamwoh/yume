@@ -43,11 +43,11 @@ DO NOT invoke for:
 
 ## Outputs you produce
 
-1. **Wireframe image** at `data/<game>/layouts/hud_wireframe_<hash>.png`
+1. **Wireframe image** at `data/<game>/assets/layouts/hud_wireframe_<hash>.png`
    — the nanobanana-generated semantic image. Ledger-tracked. Per
    the no-delete rule, prior wireframes stay on disk.
 
-2. **Layout JSON** at `data/<game>/layouts/hud_layout_<hash>.layout.json`
+2. **Layout JSON** at `data/<game>/assets/layouts/hud_layout_<hash>.layout.json`
    — the intermediate extracted structure. Debug artifact per
    ADR 0054 §Schema positioning.
 
@@ -128,11 +128,11 @@ source venv/bin/activate
 python3 -m tools.visual_layout.ui_smoke
 # OR explicit:
 python3 -m tools.visual_layout.extract_ui \
-    --image data/<game>/layouts/hud_wireframe_<hash>.png \
+    --image data/<game>/assets/layouts/hud_wireframe_<hash>.png \
     --legend data/<game>/visual_layout/ui_<game>.json \
-    --output data/<game>/layouts/hud_layout_<hash>.layout.json
+    --output data/<game>/assets/layouts/hud_layout_<hash>.layout.json
 python3 -m tools.visual_layout.compile_ui \
-    --layout data/<game>/layouts/hud_layout_<hash>.layout.json \
+    --layout data/<game>/assets/layouts/hud_layout_<hash>.layout.json \
     --output data/<game>/hud.json
 ```
 
@@ -143,7 +143,7 @@ the same prompt skip re-pay.
 
 ```bash
 python3 tools/validators/validate_layout.py \
-    data/<game>/layouts/hud_layout_<hash>.layout.json \
+    data/<game>/assets/layouts/hud_layout_<hash>.layout.json \
     --legend data/<game>/visual_layout/ui_<game>.json --strict
 ```
 

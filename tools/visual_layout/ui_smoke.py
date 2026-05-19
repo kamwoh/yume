@@ -69,7 +69,7 @@ specified above. NO text characters anywhere in the image.
 
 def main() -> int:
     game_dir = ROOT / "godot" / "data" / GAME
-    layouts_dir = game_dir / "layouts"
+    layouts_dir = game_dir / "assets" / "layouts"
     layouts_dir.mkdir(parents=True, exist_ok=True)
 
     # Load nanobanana config from asset_gen.json (same backend setup)

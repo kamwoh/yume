@@ -14,7 +14,7 @@ ONE-COMMAND workflow:
 Fragment can be:
     - Bare hash:       camp_entities_68be49b0
     - Filename:        camp_entities_68be49b0.json
-    - Full path:       godot/data/demo_aldenmere/layouts/camp_entities_68be49b0.json
+    - Full path:       godot/data/demo_aldenmere/assets/layouts/camp_entities_68be49b0.json
 
 The level name is auto-derived from the fragment hash. Previous
 starting_level is remembered so --back undoes the switch.
@@ -113,7 +113,7 @@ def _resolve_fragment(game: str, fragment: str) -> Path | None:
     if p.exists():
         return p.resolve()
     # Try with .json appended
-    layouts_dir = _game_dir(game) / "layouts"
+    layouts_dir = _game_dir(game) / "assets" / "layouts"
     candidates = []
     if not fragment.endswith(".json"):
         candidates.append(layouts_dir / f"{fragment}.json")
@@ -131,7 +131,7 @@ def cmd_swap(game: str, fragment_arg: str) -> int:
     """Install + switch in one shot."""
     frag = _resolve_fragment(game, fragment_arg)
     if frag is None:
-        layouts_dir = _game_dir(game) / "layouts"
+        layouts_dir = _game_dir(game) / "assets" / "layouts"
         available = sorted(layouts_dir.glob("camp_entities_*.json")) if layouts_dir.exists() else []
         print(f"ERROR: could not resolve fragment '{fragment_arg}'")
         if available:
