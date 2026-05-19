@@ -1,0 +1,13 @@
+# tools/visual_layout — image-gen → CV extraction → JSON compiler.
+# Per ADR 0054 §Dependencies.
+#
+# Install:
+#     pip install -r tools/visual_layout/requirements.txt
+#
+# Loose minimums (no upper cap unless empirical breakage forces it).
+# Mirrors tools/yume_assetgen pinning discipline.
+
+opencv-python-headless>=4.10
+scikit-learn>=1.4
+scikit-image>=0.24
+numpy>=1.24
