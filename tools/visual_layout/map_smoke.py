@@ -174,16 +174,35 @@ def main() -> int:
     # demo_aldenmere/entities/). Reference legend defaults work but
     # the game's def ids differ slightly.
     aldenmere_anchor_map = {
-        "fire_pit": "prop_fire_pit",
-        "hut": "prop_mud_hut",
+        "fire_pit": "structure_fire_pit",
+        "hut": "shelter_mud_hut",
         "drying_rack": "prop_drying_rack",
-        "storage": "prop_lean_to",
+        "storage": "shelter_lean_to",
         "garden": "food_berry_bush",
         "berry_bush": "food_berry_bush",
-        "rock": "prop_stone_small",
-        "bridge": "prop_log_bridge",
+        "rock": "prop_stone",
+        "bridge": "prop_marker_stone",  # aldenmere has no bridge def; reuse stone as a placeholder marker
     }
-    fragment = compile_layout_to_entities(layout_dict, anchor_to_def=aldenmere_anchor_map)
+    # Override forest scatter to use aldenmere's actual tree def
+    aldenmere_zone_patterns = {
+        "forest": {
+            "_comment": "Trees scattered inside the forest mask region.",
+            "pattern": "scatter",
+            "def": "prop_tree_oak",  # aldenmere has oak/birch/dead/fruit — no pine
+            "id_prefix": "forest_tree",
+            "count": 50,
+            "min_spacing": 1.5,
+            "scale_min": 0.8,
+            "scale_max": 1.4,
+        },
+        "grass": {},
+        "water": {},
+    }
+    fragment = compile_layout_to_entities(
+        layout_dict,
+        anchor_to_def=aldenmere_anchor_map,
+        zone_patterns=aldenmere_zone_patterns,
+    )
     fragment_path = layouts_dir / f"camp_entities_{map_hash}.json"
     fragment_path.write_text(
         json.dumps(fragment, indent=2, ensure_ascii=False) + "\n",
