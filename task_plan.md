@@ -3369,3 +3369,129 @@ left is **art polish** the harness intentionally doesn't decide:
   screens.json.bak`. If the harness output is acceptable long-term,
   the .bak can be deleted; if the hand-authored richer version is
   preferred, restore from .bak.
+
+
+## Session wrap (2026-05-21) — audit of today + carry-overs
+
+### Shipped this session ✅
+
+- **Wireframe-to-UI harness** end-to-end: HUD + screen + map authoring
+  via LLM-as-parser. 3 new tools (`wireframe_to_*.py`), 3 new skills
+  (`yume-*-author`), 3 orchestrators rewired. CV chain deleted.
+- **ADR 0055 multi-biome ground** v2 accepted + implemented. New
+  shader, `GroundRenderer.rebind_shader_params` engine method, level-
+  transition hook (invariant #11 compliant), `gen_ground --biomes`
+  texture authoring, aldenmere migrated.
+- **Player jump** with gravity + grounding check + soft y-floor clamp
+  (covers no-collision-body scenes).
+- **Free-cam mode** for cinematic filming. WASD + Space/Ctrl +
+  Shift sprint, pitch-aware forward, freeze-world guard.
+- **Camera polish**: snap-orientation while position lerps,
+  shoulder_offset config (set 0 — Skyrim-centered), scroll-wheel
+  zoom (state.camera_distance clamped to [2,8]).
+- **Standard FPS ESC behavior**: 1st = release cursor, 2nd = quit,
+  click = re-capture. mouse_delta zeroed while released.
+- **Shared @lib palettes**: hud.json + screens.json minimaps
+  reference `@lib.palettes.wilderness_minimap`. ScreenFlow now
+  routes through LibResolver.
+- **Aldenmere Phase A flavor**: 4 new defs (log_bridge, water_tile,
+  dry_grass_tuft, fallen_leaves), 322 entities in level_test_compose,
+  prop_tree_oak + food_berry_bush migrated to y_offset_mesh.
+- **mesh_yaw_offset = π/2** for player (Tripo3D rig orientation).
+- **input_registrar mouse_button support** (Left/Right/Middle/
+  WheelUp/WheelDown/WheelLeft/WheelRight/XButton1/XButton2).
+- **Engine shutdown cleanup**: world.gd::_exit_tree clears
+  GroundRenderer + Formula static caches.
+
+### Gates hardened (post-mortem ritual) ✅
+
+- `tools/validators/validate_rules.py` — `check_require_bindings`
+  catches `require: {clock: ...}`-style mismatches against engine-set
+  bindings. + `mouse_button`/`mouse_buttons` accepted as binding
+  sources.
+- `tools/validators/validate_camera_freeze.py` (new) — every
+  `_camera_*` function that captures mouse must reference
+  `freeze_world`. yume-tech-director Invariant #10 extended.
+- `tools/validators/validate_level_instances.py` (new) — every
+  `initial_instances[].def` + `patterns[].def` in level entities.json
+  must exist in entities/. Catches stale legacy levels.
+- `instance_patterns.gd` — engine-side push_warnings
+  `[scatter.bounds_missing]` + `[scatter.under_spawn]`. Unit test
+  pins both. Catches ALL call sites, not just harness path.
+- `lib_resolver.gd` — depth counter no longer increments on plain
+  JSON-tree recursion; only at @lib resolution boundaries. Unit
+  test `test_deep_tree_no_lib_refs` pins the discipline.
+
+### Pending / deferred to future sessions ⏭
+
+ADR 0055 acceptance criteria not yet measured:
+- [ ] FPS comparison capture (single-albedo vs 5biome ground at
+  1080p, ≤5% drop threshold). Tech-director acceptance condition.
+- [ ] `yume-visual-designer` 7-axis review on the multi-biome render.
+- [ ] Sparse-override unit test in test_runner.gd for
+  GroundRenderer.rebind_shader_params.
+
+Third-person mode known issues from 2026-05-19 (carried forward):
+- [ ] Animation set expansion (run/jump/attack clips — currently
+  idle+walk only). Tripo3D SDK exposes 11 biped presets;
+  ADR 0053 §Animation presets table has the list.
+- [ ] Mode-transition snap (set_snap_pending on V-toggle).
+- [ ] Camera collision (raycast from player to desired-camera-pos;
+  shorten on hit).
+- [ ] HUD repositioning for 3rd-person (vitals/minimap framing).
+- [ ] Crosshair POV in 3rd-person (currently screen-center; user
+  expects player-facing-direction projection).
+- [ ] **Resolved this session — formerly pending:**
+  - ~~Pitch (vertical mouse-look) in 3rd-person~~ — works (pitched_height
+    in camera_director).
+  - ~~WASD-strafe rotates player by velocity~~ — explicitly chose
+    locked-mode (camera + player rotate together, Skyrim-style).
+    Witcher/GTA-style strafe-rotates-body deferred indefinitely.
+
+Wireframe-to-UI harness art polish (from earlier this session):
+- [ ] yume-visual-designer pass on aldenmere HUD + inventory.
+- [ ] Inventory item-detail panel content (richer than `Held: <id>`).
+- [ ] Crosshair aesthetic (default + glyph 24px white).
+- [ ] Inventory slot proportions (portrait vs landscape).
+- [ ] Vitals placement drift (center-left vs bottom-left).
+- [ ] Formalize "essentials check" report in the skill.
+- [ ] Screen-author regression test in test_runner.gd.
+- [ ] More screen presets (dialog, save-slot, level-select, etc.).
+- [ ] Decide on inventory backup (`screens.json.bak`).
+
+Nanobanana backend polish:
+- [ ] Auto-detect JPEG `inline_data` mime + transcode to PNG at save
+  time (currently we manually PIL-convert when Godot rejects). See
+  memory `reference_gemini_jpeg_with_png_extension.md`.
+
+Cosmetic warnings on game quit (deferred — Godot internals):
+- ~33 StringName orphans + 1 resource still in use at exit. Confirmed
+  cosmetic — they're from GDScript's static-class-name table +
+  ResourceLoader's internal cache, not from our code. World.gd's
+  _exit_tree cleans our known static refs (GroundRenderer + Formula);
+  the rest is Godot 4 framework. Accepted as-is.
+
+### Engine surface added this session
+
+- `GroundRenderer.rebind_shader_params(level_id)` — per-level shader
+  param override from `levels/<id>/scene.json` (ADR 0055)
+- `GroundRenderer.cleanup()` — static cache teardown
+- `Formula.clear_cache()` — already existed; now called from
+  world._exit_tree
+- `character_body_runner._apply_vertical()` + `_writeback_vertical_state()`
+  — gravity + grounding (jump support)
+- `camera_director._camera_free_cam()` — cinematic mode
+- `camera_director._mouse_released_by_user` static latch + ESC
+  handler in `update_follow`
+- `input_registrar._mouse_button_idx()` — mouse-button keycode lookup
+
+### New ADRs
+
+- ADR 0055 — Multi-biome ground from the semantic map (accepted)
+
+### Files added (new lib content)
+
+- `data/lib/shaders/ground_5biome.gdshader`
+- `data/lib/palettes/wilderness_minimap.json`
+- `tools/visual_layout/legends/scatter_presets.json` (carried from
+  earlier compose_map work, now lib-pathed)
