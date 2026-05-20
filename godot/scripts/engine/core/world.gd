@@ -150,6 +150,24 @@ func _ready() -> void:
 		start()
 
 
+## Shutdown cleanup (2026-05-21). Clears engine-side static caches that
+## survive the SceneTree teardown — otherwise Godot reports "ObjectDB
+## instances leaked at exit" + "1 resources still in use at exit" at
+## game-quit time. Cosmetic warnings (OS reclaims memory), but tidy.
+##
+## Targets:
+##   - GroundRenderer: ShaderMaterial + heightmap Image + params dict
+##   - Formula:        Expression cache (RefCounted refs)
+##
+## Add new static-cache cleanups here as the engine grows them. The
+## _exit_tree hook fires when the World node leaves the tree — which
+## happens at game-quit before Godot's ObjectDB sweep, so cleanup
+## lands BEFORE the warning would have been emitted.
+func _exit_tree() -> void:
+	GroundRenderer.cleanup()
+	Formula.clear_cache()
+
+
 func start() -> void:
 	if data_root != "":
 		load_data()

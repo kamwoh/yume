@@ -120,6 +120,16 @@ func _load_config() -> void:
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
 		return
+	# ADR 0027 (2026-05-20 consistency fix): route screens.json through lib
+	# resolver so `@lib.palettes.X` and `$extends: @lib.X.Y` refs expand
+	# before consumption. game_shell.gd already does this for hud.json /
+	# scene.json; screens.json was the only loader missing it. Empirical
+	# case: HUD-minimap and M-key map drifted on tag_colors (28 vs 9
+	# entries) — shared palette fixes the drift but only works if both
+	# loaders resolve lib refs.
+	var resolved = LibResolver.resolve(data)
+	if resolved is Dictionary:
+		data = resolved
 	_cfg = data
 	for s in _cfg.get("screens", []):
 		if s is Dictionary and (s as Dictionary).has("id"):

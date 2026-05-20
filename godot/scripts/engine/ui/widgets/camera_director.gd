@@ -44,6 +44,11 @@ var _snap_pending: bool = false
 # last-frame mode so enter/leave-FP can reset state.
 var _mode_last: String = ""
 var _fp_initial_capture_done: bool = false
+# Standard ESC-to-release-cursor behavior (2026-05-20). Toggle latches
+# across frames. While true: every camera-mode function releases the
+# mouse + skips orientation updates so the cursor stays free for
+# desktop use. Press ESC again to re-capture and resume play.
+var _mouse_released_by_user: bool = false
 
 
 func _init(shell: Node) -> void:
@@ -78,6 +83,44 @@ func set_snap_pending() -> void:
 func update_follow(scene_cfg: Dictionary) -> void:
 	var cam_cfg: Dictionary = scene_cfg.get("camera", {}) as Dictionary
 	if cam_cfg.is_empty():
+		return
+	# Standard FPS-game ESC behavior (2026-05-20). Three-state flow:
+	#   1st ESC press → release cursor (mouse becomes a normal pointer)
+	#   2nd ESC press while released → quit the game
+	#   Left-click while released → re-capture (resume play, no quit)
+	# When aldenmere (or any game) grows a pause menu, replace the
+	# quit() branch with `transition_screen target=pause_menu`.
+	if InputMap.has_action("toggle_mouse_capture") \
+			and Input.is_action_just_pressed("toggle_mouse_capture"):
+		if _mouse_released_by_user:
+			# Second ESC while cursor released → quit. Static-cache
+			# cleanup happens centrally in world.gd::_exit_tree on
+			# tree teardown — no per-call cleanup needed here.
+			print("[CameraDirector] ESC pressed while cursor released — quitting")
+			if _camera3d != null:
+				_camera3d.get_tree().quit()
+			elif _camera != null:
+				_camera.get_tree().quit()
+			return
+		_mouse_released_by_user = true
+	# Click-to-recapture: while the cursor is released, a left-mouse-
+	# button press signals "I want to play again". Release the latch so
+	# the next mode-handler can re-capture. Standard FPS convention —
+	# matches Half-Life, Counter-Strike, every modern shooter.
+	if _mouse_released_by_user \
+			and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_mouse_released_by_user = false
+	if _mouse_released_by_user:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		# Drain mouse_delta each frame while released so we don't
+		# accumulate desktop-cursor motion into the buffer. Without
+		# this, on re-capture the camera dumps the entire built-up
+		# delta in one frame → screen snaps to whatever direction the
+		# user moved the mouse while away. Empirical case 2026-05-21.
+		if _world != null:
+			var sched = _world.get("scheduler")
+			if sched != null:
+				sched.env["mouse_delta"] = Vector2.ZERO
 		return
 	# Per-frame override from world_clock entity's state.camera_mode if set.
 	# Lets a rule fire `state_set field=camera_mode value=...` to swap modes
@@ -148,6 +191,15 @@ func update_follow(scene_cfg: Dictionary) -> void:
 		"first_person_3d":
 			if _camera3d != null:
 				_camera_first_person_3d(cam_cfg)
+		"free_cam":
+			# 2026-05-20: cinematic free-camera mode. Decoupled from
+			# player entirely — WASD moves the camera, Space/Ctrl
+			# raise/lower it, mouse rotates it. Player input is
+			# gated off via JSON rules (camera_mode != 'free_cam')
+			# so AI/schedule continues but the player ignores WASD.
+			# Use case: filming the living world. Press C to toggle.
+			if _camera3d != null:
+				_camera_free_cam(cam_cfg)
 		_:
 			if _camera != null:
 				_apply_2d_zoom(cam_cfg)
@@ -381,7 +433,15 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	if actor != null:
 		facing = float(actor.get_state("facing", 0.0))
 		pitch = float(actor.get_state("pitch", 0.0))
-	var distance := float(cam_cfg.get("distance", 12.0))
+	# Distance: prefer per-actor override (state.camera_distance, set by
+	# scroll-wheel zoom rules), fall back to scene.json's `distance`.
+	# Clamped to [distance_min, distance_max] from cfg so rules can blindly
+	# add/subtract without overshooting.
+	var distance_default := float(cam_cfg.get("distance", 12.0))
+	var dmin := float(cam_cfg.get("distance_min", distance_default))
+	var dmax := float(cam_cfg.get("distance_max", distance_default))
+	var distance_raw = actor.get_state("camera_distance", distance_default)
+	var distance: float = clamp(float(distance_raw), dmin, dmax)
 	var height := float(cam_cfg.get("height", 5.0))
 	var lerp_t := float(cam_cfg.get("lerp", 0.1))
 	# Pitch raises/lowers the orbiting camera around the player (2026-05-19).
@@ -399,21 +459,45 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var pitched_dist := distance * cos(pitch)
 	var fx := -sin(facing)
 	var fz := -cos(facing)
+	# Over-the-shoulder offset (2026-05-20): shoulder_offset shifts the
+	# camera SIDEWAYS in the player's local frame. Positive = camera to
+	# the player's right (player appears LEFT of center on screen, GTA-
+	# style). Negative = camera to the player's left (mirrored framing).
+	# 0 = centered (Skyrim-style). Vector perpendicular to facing-forward
+	# in the XZ plane: right = (cos facing, -sin facing).
+	var shoulder := float(cam_cfg.get("shoulder_offset", 0.0))
+	var right := Vector3(cos(facing), 0, -sin(facing))
 	var desired := target + Vector3(
 		-fx * pitched_dist,
 		pitched_height,
 		-fz * pitched_dist,
-	)
+	) + right * shoulder
+	# Also shift the look-at target by the SAME shoulder amount so the
+	# camera doesn't try to re-center the player. With shift applied to
+	# both camera AND look_target, the player stays at the offset
+	# position in the frame (left third for positive shoulder).
+	var shoulder_look_shift := right * shoulder
 	if _snap_pending:
 		_camera3d.global_position = desired
 		_snap_pending = false
 	else:
 		_camera3d.global_position = _camera3d.global_position.lerp(desired, lerp_t)
-	# Look at a point slightly above the player's feet for over-the-shoulder
-	# framing (eye-height level). Without this the camera tilts down at the
-	# feet, which puts the head near top of frame.
+	# Camera-stability fix (2026-05-20): orientation computed against the
+	# DESIRED (final) position, NOT the current lerping position. Otherwise
+	# look_at recomputes from the mid-lerp camera each frame, making the
+	# orientation gradually rotate with the position lerp — user-felt as
+	# "mouse rotation has delay". See .claude/rules/engine-scripts.md
+	# § Camera-stability anti-patterns. Same bug class as the 2026-05-08
+	# merchant iso-3d issue; same fix.
 	var look_h := float(cam_cfg.get("eye_height", 1.6))
-	_camera3d.look_at(target + Vector3(0, look_h, 0), Vector3.UP)
+	var look_target := target + Vector3(0, look_h, 0) + shoulder_look_shift
+	# Basis.looking_at takes (target_direction, up, use_model_front=false).
+	# Camera3D forward is -Z, so use_model_front MUST be false (the default).
+	# True would flip +Z toward target and make the camera look AWAY
+	# (empirical case 2026-05-08 merchant: empty world rendered).
+	_camera3d.global_transform.basis = Basis.looking_at(
+		look_target - desired, Vector3.UP, false
+	)
 	_apply_ortho(cam_cfg, false)
 	if actor != null:
 		_update_crosshair_target(actor, cam_cfg)
@@ -468,6 +552,134 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 		vm.setup(cam_cfg)
 		vm.update(actor, cam_cfg)
 	_update_crosshair_target(actor, cam_cfg)
+
+
+## Cinematic free-camera mode (2026-05-20). Camera is FULLY decoupled from
+## the player — WASD moves the camera in its own local frame; Space/Ctrl
+## raise/lower; mouse rotates. Player input rules are gated off via
+## camera_mode == 'free_cam' filters, so the world's AI/schedule continues
+## but the player ignores WASD.
+##
+## State (stored on the followed-tag entity since it always exists):
+##   cam_pos    Vector3 — world position of the free camera
+##   cam_yaw    float   — Y-axis rotation
+##   cam_pitch  float   — X-axis rotation (clamped ±π/2)
+##
+## On entering free_cam (mode change detected), cam_pos/yaw/pitch are
+## initialized to the current camera's transform so the transition is
+## seamless. Same trick the FPS-leave branch uses for state.facing reset.
+func _camera_free_cam(cam_cfg: Dictionary) -> void:
+	# Modal / overlay open? Release mouse so the user can click pause-menu
+	# buttons. Without this, ESC opens the pause menu but our re-capture
+	# next frame steals the cursor → buttons un-clickable. Same gate as
+	# _camera_first_person_3d (lines ~436-441).
+	var freeze_world := false
+	if _world != null:
+		var ws: Dictionary = _world.get("world_state") as Dictionary
+		if ws != null:
+			freeze_world = (
+				int(ws.get("screen_freeze_world", 0)) != 0
+				or int(ws.get("overlay_freeze_world", 0)) != 0
+			)
+	if freeze_world:
+		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		# Hold the camera in place while paused — no input drain, no
+		# position update. Player sees the same frame they paused on.
+		return
+
+	# Mouse capture (same as FPS / third-person — keeps yaw/pitch live)
+	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+	var actor := _find_entity_by_tag(str(cam_cfg.get("follow_tag", "player")))
+	if actor == null:
+		return
+
+	# Read camera state from the actor's state slots. Initialize from
+	# the live Camera3D transform on first frame in this mode (when the
+	# slots are missing/null), so toggling INTO free_cam doesn't snap
+	# the camera somewhere unexpected.
+	var cam_pos_v = actor.get_state("cam_pos", null)
+	var cam_pos: Vector3
+	if cam_pos_v == null:
+		cam_pos = _camera3d.global_position
+		actor.set_state("cam_pos", [cam_pos.x, cam_pos.y, cam_pos.z])
+	else:
+		cam_pos = Vec3Util.from_world_pos(cam_pos_v)
+	var cam_yaw := float(actor.get_state("cam_yaw", _camera3d.rotation.y))
+	var cam_pitch := float(actor.get_state("cam_pitch", _camera3d.rotation.x))
+
+	# === Mouse → yaw/pitch ===
+	# Read + consume the per-frame mouse delta from the scheduler env
+	# (same source as _drain_mouse_facing — single source of truth).
+	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
+		var sched = _world.get("scheduler")
+		if sched != null:
+			var env: Dictionary = sched.env
+			var delta_v = env.get("mouse_delta", Vector2.ZERO)
+			var delta: Vector2 = delta_v if delta_v is Vector2 else Vector2.ZERO
+			if delta.length_squared() > 0.0:
+				var sensitivity := float(cam_cfg.get("mouse_sensitivity", 0.003))
+				cam_yaw -= delta.x * sensitivity
+				cam_pitch -= delta.y * sensitivity
+				cam_pitch = clamp(cam_pitch, -PI * 0.49, PI * 0.49)
+				actor.set_state("cam_yaw", cam_yaw)
+				actor.set_state("cam_pitch", cam_pitch)
+				env["mouse_delta"] = Vector2.ZERO
+
+	# === WASD / Space / Ctrl → camera position ===
+	# Speed = m/s in camera-local frame. Configurable per scene.json camera.
+	# Default 8 m/s = brisk fly; 16 = sprint (shift). Frame-rate-independent
+	# via Engine.get_process_delta_time.
+	var base_speed := float(cam_cfg.get("freecam_speed", 8.0))
+	var sprint_mult := float(cam_cfg.get("freecam_sprint", 2.0))
+	var speed := base_speed
+	if Input.is_action_pressed("sprint"):
+		speed *= sprint_mult
+	var dt := float(_camera3d.get_process_delta_time())
+	if dt <= 0.0:
+		dt = 1.0 / 60.0
+
+	# Local-frame movement basis. Forward INCLUDES pitch so aiming the
+	# camera at the ground and pressing W actually flies INTO the ground
+	# (and S retreats UP and back). Standard FPS-fly convention. Strafe
+	# stays horizontal (no pitch component) so left/right don't tilt the
+	# camera vertically when yaw isn't level. Vertical Space/Ctrl is
+	# world-Y so absolute up/down works regardless of pitch.
+	# Sign convention: mouse-down → cam_pitch decreases (goes negative)
+	# per `cam_pitch -= delta.y * sens` above. To make W push INTO the
+	# ground when aiming down, fwd.y must be negative when cam_pitch is
+	# negative → fwd.y = sin(cam_pitch). The XZ components carry
+	# cos(cam_pitch) so the forward magnitude stays unit-length as pitch
+	# tilts (W speed doesn't depend on look angle).
+	var fwd := Vector3(
+		-sin(cam_yaw) * cos(cam_pitch),
+		sin(cam_pitch),
+		-cos(cam_yaw) * cos(cam_pitch),
+	)
+	var right := Vector3(cos(cam_yaw), 0, -sin(cam_yaw))
+	var delta_pos := Vector3.ZERO
+	if Input.is_action_pressed("move_north"):
+		delta_pos += fwd
+	if Input.is_action_pressed("move_south"):
+		delta_pos -= fwd
+	if Input.is_action_pressed("move_east"):
+		delta_pos += right
+	if Input.is_action_pressed("move_west"):
+		delta_pos -= right
+	if Input.is_action_pressed("cam_up"):
+		delta_pos += Vector3.UP
+	if Input.is_action_pressed("cam_down"):
+		delta_pos -= Vector3.UP
+	if delta_pos.length_squared() > 0.0001:
+		delta_pos = delta_pos.normalized() * speed * dt
+		cam_pos += delta_pos
+		actor.set_state("cam_pos", [cam_pos.x, cam_pos.y, cam_pos.z])
+
+	# Apply to Camera3D
+	_camera3d.global_position = cam_pos
+	# Orientation: yaw on Y, pitch on X. Roll always 0 for cinematic feel.
+	_camera3d.rotation = Vector3(cam_pitch, cam_yaw, 0)
+	_apply_ortho(cam_cfg, false)
 
 
 # ============================================================

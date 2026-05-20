@@ -92,6 +92,17 @@ static func _register_one(action_def: Dictionary) -> String:
 	if action_def.has("keys") and action_def["keys"] is Array:
 		for k in action_def["keys"]:
 			keys.append(str(k))
+	# Mouse button support (2026-05-20). `mouse_button` field accepts:
+	#   "Left" | "Right" | "Middle" | "WheelUp" | "WheelDown"
+	#   "WheelLeft" | "WheelRight" | "XButton1" | "XButton2"
+	# Maps to Godot's MOUSE_BUTTON_* constants. Treated alongside key
+	# bindings — multiple action triggers can coexist.
+	var mouse_buttons: Array = []
+	if action_def.has("mouse_button"):
+		mouse_buttons.append(str(action_def["mouse_button"]))
+	if action_def.has("mouse_buttons") and action_def["mouse_buttons"] is Array:
+		for b in action_def["mouse_buttons"]:
+			mouse_buttons.append(str(b))
 	# 2026-05-11 (ADR 0043): WASD bindings moved to
 	# `data/lib/input/universal.json` and spliced into each game's
 	# ui/input.json via `{"$include": "@lib.input.universal.actions"}`.
@@ -103,7 +114,7 @@ static func _register_one(action_def: Dictionary) -> String:
 	# We still REGISTER the action (without events) so scenario_runner's
 	# Input.action_press can fire it programmatically. Silent — no typo
 	# warning.
-	if keys.is_empty():
+	if keys.is_empty() and mouse_buttons.is_empty():
 		if InputMap.has_action(name):
 			return name
 		if bool(action_def.get("engine_injected", false)):
@@ -111,7 +122,7 @@ static func _register_one(action_def: Dictionary) -> String:
 			return name
 		push_warning(
 			(
-				"[InputRegistrar] action '%s' has no key bindings AND is not already in InputMap — skipping (add `engine_injected: true` if intentional)"
+				"[InputRegistrar] action '%s' has no key/mouse_button bindings AND is not already in InputMap — skipping (add `engine_injected: true` if intentional)"
 				% name
 			)
 		)
@@ -132,7 +143,33 @@ static func _register_one(action_def: Dictionary) -> String:
 		var event := InputEventKey.new()
 		event.physical_keycode = keycode
 		InputMap.action_add_event(name, event)
+
+	for mb_str in mouse_buttons:
+		var mb_idx := _mouse_button_idx(str(mb_str))
+		if mb_idx == 0:
+			push_warning("[InputRegistrar] unknown mouse_button '%s' for action '%s'" % [mb_str, name])
+			continue
+		var mb_event := InputEventMouseButton.new()
+		mb_event.button_index = mb_idx
+		mb_event.pressed = true
+		InputMap.action_add_event(name, mb_event)
 	return name
+
+
+## Resolve a mouse-button string to Godot's MOUSE_BUTTON_* constant.
+## Returns 0 (invalid) for unknown names.
+static func _mouse_button_idx(s: String) -> int:
+	match s.to_lower():
+		"left":         return MOUSE_BUTTON_LEFT
+		"right":        return MOUSE_BUTTON_RIGHT
+		"middle":       return MOUSE_BUTTON_MIDDLE
+		"wheelup":      return MOUSE_BUTTON_WHEEL_UP
+		"wheeldown":    return MOUSE_BUTTON_WHEEL_DOWN
+		"wheelleft":    return MOUSE_BUTTON_WHEEL_LEFT
+		"wheelright":   return MOUSE_BUTTON_WHEEL_RIGHT
+		"xbutton1":     return MOUSE_BUTTON_XBUTTON1
+		"xbutton2":     return MOUSE_BUTTON_XBUTTON2
+	return 0
 
 
 # ============================================================

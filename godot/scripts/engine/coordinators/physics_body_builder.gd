@@ -483,7 +483,16 @@ static func sync_body_velocity(entity) -> void:
 	if v is Vector3:
 		v3 = v
 	elif v is Vector2:
-		v3 = Vector3(v.x, 0, v.y)
+		# Lift Vector2 (x, z-plane) to Vector3 with y from body's current
+		# vertical velocity (2026-05-20, ADR 0055 follow-up for jump support).
+		# CharacterBody3D's vertical velocity accumulates gravity / receives
+		# jump impulses via character_body_runner._apply_vertical — wiping it
+		# here would cancel gravity at every WASD-triggered sync, leaving the
+		# player floating mid-air or unable to fall after a jump.
+		var preserved_y: float = 0.0
+		if body is CharacterBody3D:
+			preserved_y = (body as CharacterBody3D).velocity.y
+		v3 = Vector3(v.x, preserved_y, v.y)
 	else:
 		return
 	if body is RID:

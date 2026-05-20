@@ -159,6 +159,46 @@ this pipeline still need to drain? If yes, place its call BEFORE the
 freeze early-return. If no, document why — usually 'sim-state changes
 are paused, this can wait.'"
 
+**Camera-mode functions extension (2026-05-20)**: every `_camera_*_3d`
+function in `camera_director.gd` that captures the mouse MUST honor
+`screen_freeze_world` / `overlay_freeze_world` — release mouse +
+early-return when either is set. Without this, ESC opens the pause
+menu but the camera function re-captures the cursor next frame →
+pause-menu buttons become un-clickable.
+
+Established pattern (mirrored from `_camera_first_person_3d`):
+```gdscript
+var freeze_world := false
+if _world != null:
+    var ws: Dictionary = _world.get("world_state") as Dictionary
+    if ws != null:
+        freeze_world = (
+            int(ws.get("screen_freeze_world", 0)) != 0
+            or int(ws.get("overlay_freeze_world", 0)) != 0
+        )
+if freeze_world:
+    Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+    return
+```
+
+Empirical case 2026-05-20: shipped `_camera_free_cam` without the
+guard. ESC in free_cam opened pause menu but the function re-captured
+mouse each frame; user couldn't click any pause-menu button. Caught
+by user testing, not by review.
+
+**The grep before approving any camera_director.gd change**:
+
+```bash
+# Find every camera-mode function that captures the mouse:
+grep -nB2 'MOUSE_MODE_CAPTURED' godot/scripts/engine/ui/widgets/camera_director.gd | grep '^func _camera_'
+
+# For each, verify it has a freeze_world early-return:
+awk '/^func _camera_/,/^func / { print }' godot/scripts/engine/ui/widgets/camera_director.gd \
+  | grep -E 'func _camera_|freeze_world|MOUSE_MODE_CAPTURED'
+```
+
+Camera-mode functions that don't capture the mouse (e.g. `_camera_top_down_3d`, `_camera_isometric_3d`) don't need the guard. The check applies to any function that calls `Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)`.
+
 ## How to review a change
 
 1. **Read the diff carefully.** What got added/changed/removed in

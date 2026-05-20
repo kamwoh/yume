@@ -1999,6 +1999,54 @@ func test_instance_patterns() -> void:
 		expect_eq(float(pa[0]), float(pb[0]), "deterministic: same seed → same x[0]")
 		expect_eq(float(pa[2]), float(pb[2]), "deterministic: same seed → same z[0]")
 
+	# Bounds-missing warning + under-spawn behavior (2026-05-20 post-mortem).
+	# A scatter with count=200 + defaulted min_r/max_r (0/5m disk) +
+	# min_spacing=1.5m cannot physically fit 200 entries. Engine must:
+	#   (a) push_warning [scatter.bounds_missing] before the loop
+	#   (b) push_warning [scatter.under_spawn] after the loop
+	# Both warnings are expected; what we assert here is the under-spawn
+	# behavior (the loop returns fewer than `count` instances).
+	# Without push_warning capture in Godot's test API, this section
+	# verifies the OUTCOME — partial placement — which is what would
+	# previously have caused a silent missing-trees bug in level loads.
+	_section("instance_patterns.scatter_bounds_protection")
+	seed(7)
+	var under := InstancePatterns.expand(
+		{
+			"def": "tree",
+			"pattern": "scatter",
+			"id_prefix": "pack_test",
+			"count": 200,
+			"min_spacing": 1.5,
+			# min_r + max_r OMITTED on purpose — defaults to 0..5m disk.
+		}
+	)
+	expect(
+		under.size() < 200,
+		"under-spawn: 200-count pattern in default 5m disk can't place all"
+	)
+	expect(
+		under.size() < 60,
+		"under-spawn: should place far fewer (~30) than 200 in 5m disk"
+	)
+	# With proper annulus 25-38m + same spacing, 200 fits comfortably:
+	seed(7)
+	var full := InstancePatterns.expand(
+		{
+			"def": "tree",
+			"pattern": "scatter",
+			"id_prefix": "pack_test_2",
+			"count": 200,
+			"min_r": 25.0,
+			"max_r": 38.0,
+			"min_spacing": 1.5,
+		}
+	)
+	expect_eq(
+		full.size(), 200,
+		"with min_r=25, max_r=38, min_spacing=1.5 — full 200 entities placed"
+	)
+
 
 # ============================================================
 # SCREEN FLOW (ADR 0011)
@@ -4289,6 +4337,31 @@ func test_lib_resolver() -> void:
 	expect_eq(t9.size(), 2, "same key count")
 	expect_eq(str((t9.get("unrelated") as Dictionary).get("key")), "value", "deep value preserved")
 	expect_eq((t9.get("array") as Array).size(), 2, "array preserved")
+
+	# === Test 9b: deeply-nested tree with NO @lib refs must not trip
+	# depth limit. The depth counter is meant to catch @lib-resolution
+	# chains (real cycle risk), not plain JSON tree walks. Empirical
+	# case 2026-05-20: screens.json with nested vbox layouts hit
+	# MAX_DEPTH=8 on tree walk alone (visited=[], no lib chasing). Fix:
+	# only increment depth at @lib boundaries. This test pins that
+	# discipline — if anyone re-adds `depth+1` to the dict/array recurse
+	# branches, the 20-level fixture will trip MAX_DEPTH and fail. ===
+	_section("lib_resolver.test_deep_tree_no_lib_refs")
+	var t9b_in: Dictionary = {"leaf": "value"}
+	for i in range(20):
+		t9b_in = {"level_%d" % i: t9b_in, "array_at_%d" % i: [t9b_in]}
+	var t9b_out = LibResolver.resolve(t9b_in)
+	expect_eq(typeof(t9b_out), TYPE_DICTIONARY, "20-level nested dict resolves without depth trip")
+	# Walk back down to verify leaf preserved
+	var t9b_cur: Variant = t9b_out
+	for i in range(19, -1, -1):
+		expect_eq(typeof(t9b_cur), TYPE_DICTIONARY, "level %d still dict" % i)
+		t9b_cur = (t9b_cur as Dictionary).get("level_%d" % i)
+	expect_eq(
+		str((t9b_cur as Dictionary).get("leaf")),
+		"value",
+		"deep-tree leaf survived 20-level walk",
+	)
 
 	# === Test 10: multi-level $extends chain (OOP-like single inheritance) ===
 	_section("lib_resolver.test_multi_level_extends")

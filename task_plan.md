@@ -3313,3 +3313,59 @@ reports remaining problems. To investigate next session:
 Followups also expected on Tripo3D animation: SDK exposes 11 biped
 presets; we only baked 2 (idle+walk). Next characters might want
 run/jump/attack — ADR 0053 §Animation presets table has the list.
+
+## Wireframe-to-UI harness: art / visual polish followups (2026-05-20)
+
+Tier 2.7v shipped end-to-end this session — `wireframe_to_hud` +
+`wireframe_to_screen` + `yume-hud-author` + `yume-screen-author`
+skills produce fit-fit HUD + screen JSON from gemini-3.1 wireframes
+via the LLM-as-parser pattern. What's mechanically done; what's
+left is **art polish** the harness intentionally doesn't decide:
+
+- [ ] **yume-visual-designer pass on aldenmere HUD + inventory.**
+  The harness produces structurally-correct UIs, not aesthetically-
+  tuned ones. Colors I chose (#a8c0e0 day, #f0e0a0 objective,
+  #c07060 vitals title, #e8d8a0 inventory title, #c0a070 held-item
+  label) are reasonable defaults — not curated for the aldenmere
+  palette. Run the 7-axis visual review + apply concrete JSON edits.
+- [ ] **Inventory item-detail panel content.** Currently shows
+  `Held: <item_id>` as a single bound label. Wireframe drew a
+  bigger right-side panel that could carry rich item info — name,
+  flavor text, cooked/wet state, stats. Requires either richer
+  binding paths (`def.<item>.flavor_text` lookup) or a small engine
+  extension for "show selected slot's def fields" resolution.
+- [ ] **Crosshair aesthetic.** Default `+` glyph 24px white is a
+  placeholder. Aldenmere's palette could use a stylized crosshair
+  (color-matched, custom glyph). Per-game decision; not a harness
+  concern.
+- [ ] **Inventory slot proportions.** Wireframe drew portrait tall
+  cells (95×239 viewport); the original aldenmere inventory had
+  landscape cells (110×65). Both valid; portrait cells are unusual
+  but match what gemini drew. May want a "slot-orientation" hint
+  in the inventory preset, OR accept that re-rolling produces
+  different shapes (fit-fit purity).
+- [ ] **Vitals placement drift.** Two HUD rolls produced different
+  placements for vitals — center-left (first roll) vs bottom-left
+  (second roll, with --crosshair). Both legitimate readings of the
+  survival preset prompt. Tighten the preset prompt to pin one
+  position, OR accept wireframe-is-spec semantics.
+- [ ] **Formalize the "essentials check" idea.** Skill could output
+  a report listing FUNCTIONAL elements likely missing from the
+  wireframe (no crosshair on an FPS game, no minimap on an
+  exploration game, etc.). Different from `--crosshair` — that
+  flag is opt-in BEFORE gen; essentials-check is a report AFTER
+  gen. Surfaces gaps the user can decide to fix or ignore.
+- [ ] **Screen-author regression test.** HUD harness has the
+  `test_deep_tree_no_lib_refs` gate. Screen harness doesn't have
+  an equivalent regression test yet. Add one to catch
+  effect-chain validator regressions.
+- [ ] **More screen presets.** Currently 4 (inventory / pause /
+  settings / title). Future games will want dialog modal, save-slot
+  picker, level-select, achievement screen, ending screens, etc.
+  Each is ~30 lines of preset prompt — cheap to add incrementally.
+- [ ] **Inventory backup left as `.bak`.** This session's authoring
+  replaced aldenmere's hand-authored inventory screen with the
+  harness-generated one. Backup at `data/demo_aldenmere/
+  screens.json.bak`. If the harness output is acceptable long-term,
+  the .bak can be deleted; if the hand-authored richer version is
+  preferred, restore from .bak.

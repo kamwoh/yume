@@ -1,39 +1,36 @@
-"""compose_hud.py — one-command HUD pipeline (ADR 0054 §S4 follow-up).
+"""compose_hud.py — fit-fit HUD pipeline harness (Tier 2.7v, 2026-05-19).
 
-Wraps the full chain in a single call:
+Rewired 2026-05-19 to drive the yume-hud-author skill instead of the
+CV-based compile_ui + merge_hud chain. The pipeline is now:
 
     prompt (or --edit-from existing wireframe)
         ↓ gemini-3.1-flash-image-preview ($0.05)
-    semantic wireframe PNG
-        ↓ extract_ui (opencv k-means)
-    layout.json
-        ↓ compile_ui
-    hud skeleton json
-        ↓ merge_hud (preserves rich existing elements)
-    merged hud.json (alongside or in-place)
+    wireframe PNG (1376×768)
+        ↓ wireframe_to_hud.py preprocess
+    /tmp/_hud_author_context.json
+        ↓ [LLM step] yume-hud-author reads context + wireframe
+        ↓ writes /tmp/_hud_draft.json
+        ↓ runs wireframe_to_hud.py postprocess
+    hud.json (fit-fit to the wireframe)
 
-Optionally syncs to YumeTemplate + launches the game.
+This script does the deterministic surface (gen + preprocess + the
+hand-off instructions). The LLM step happens between runs.
 
 Usage:
-    # Generate from scratch (writes preview, doesn't modify canonical):
+    # Generate wireframe + preprocess (stops at the LLM hand-off):
     python3 -m tools.visual_layout.compose_hud demo_aldenmere \\
-        --prompt "Survival HUD: big vitals dominate left, minimap top-right, ..."
+        --preset survival
 
-    # Generate + apply in-place (backs up canonical to .bak):
-    python3 -m tools.visual_layout.compose_hud demo_aldenmere \\
-        --prompt "..." --apply
+    # ...then invoke /yume-hud-author with the context file path printed
+    # at the end of the run. The skill writes hud.json and you're done.
 
-    # Iterate on the most recent wireframe:
+    # Iterate on the most recent wireframe via image-in-image-out:
     python3 -m tools.visual_layout.compose_hud demo_aldenmere \\
-        --edit "Shrink vitals to bottom-left only" --apply
+        --edit "Shrink vitals to bottom-left only"
 
-    # Full apply + launch:
-    python3 -m tools.visual_layout.compose_hud demo_aldenmere \\
-        --prompt "..." --apply --play
-
-Preset library (for convenience):
-    python3 -m tools.visual_layout.compose_hud demo_aldenmere \\
-        --preset survival --apply
+The earlier compile_ui + merge_hud chain remains in the repo but is no
+longer wired here. See `tools/visual_layout/merge_hud.py.deprecated`
+note in the file head for the new author-driven approach.
 """
 
 from __future__ import annotations
@@ -42,18 +39,12 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from tools.visual_layout.compile_ui import compile_layout_to_hud  # noqa: E402
-from tools.visual_layout.extract_ui import extract_ui_layout, layout_to_dict  # noqa: E402
-from tools.visual_layout.extractor_common import Legend  # noqa: E402
-from tools.visual_layout.merge_hud import merge_layouts  # noqa: E402
 from tools.yume_assetgen.backends.nanobanana import NanobananaBackend  # noqa: E402
 from tools.yume_assetgen.ledger import load_ledger, prompt_hash  # noqa: E402
 
@@ -195,6 +186,16 @@ def cmd_compose(args) -> int:
         if not intent:
             print("ERROR: provide --prompt, --preset, or --edit")
             return 2
+        # Append the crosshair clause to the intent BEFORE the strict
+        # template wraps it. The skill recognizes "small grey square
+        # at exact center" as a crosshair element.
+        if args.crosshair:
+            intent = intent.rstrip() + (
+                "\n\nALSO place a small medium-grey square ~24x24px "
+                "at the EXACT center of the canvas. This represents "
+                "the first-person crosshair indicator — author should "
+                "emit it as a `crosshair` element."
+            )
         full_prompt = _build_full_prompt(intent)
         kind = "visual_layout_wireframe"
 
@@ -211,6 +212,7 @@ def cmd_compose(args) -> int:
 
     cache_key = (
         f"[compose][model:{nano_cfg['model']}][aspect:16:9]"
+        f"{'[xhair]' if args.crosshair else ''}"
         f"{'[edit:' + edit_input.name + ']' if edit_input else ''}\n\n"
         + full_prompt
     )
@@ -244,78 +246,45 @@ def cmd_compose(args) -> int:
         )
         ledger.save()
 
-    # === Stage 2: extract ===
-    print(f"\n[compose] === Stage 2: extract ===")
-    legend = Legend.from_file(ROOT / "tools" / "visual_layout" / "legends" / "ui_default.json")
-    layout = extract_ui_layout(wf_path, legend, random_state=42)
-    print(f"[compose] {len(layout.components)} components")
-    for c in layout.components:
-        print(f"  - {c.name:18s} anchor={c.anchor:14s} bbox={c.bbox_px}")
-    if layout.warnings:
-        print(f"  warnings: {layout.warnings}")
-    layout_dict = layout_to_dict(layout)
-    layout_json = layouts_dir / f"hud_layout_{wf_hash}.layout.json"
-    layout_json.write_text(
-        json.dumps(layout_dict, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    # === Stage 2: preprocess for the fit-fit author ===
+    print(f"\n[compose] === Stage 2: preprocess (yume-hud-author harness) ===")
+    from tools.visual_layout.wireframe_to_hud import cmd_preprocess  # local import
 
-    # === Stage 3: compile ===
-    print(f"\n[compose] === Stage 3: compile ===")
-    compiled_hud = compile_layout_to_hud(layout_dict, target_screen_size=(1280, 720))
-    compiled_path = layouts_dir / f"hud_generated_{wf_hash}.json"
-    compiled_path.write_text(
-        json.dumps(compiled_hud, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    class _PreprocessArgs:
+        pass
 
-    # === Stage 4: merge with canonical hud.json ===
-    print(f"\n[compose] === Stage 4: merge ===")
-    canonical = game_dir / "hud.json"
-    if not canonical.exists():
-        print(f"WARNING: canonical hud.json not found; writing compiled directly")
-        merged = compiled_hud
-        summary = {"matched": [], "appended": [p["_source_component"] for p in compiled_hud["panels"]], "preserved": []}
-    else:
-        existing = json.loads(canonical.read_text(encoding="utf-8"))
-        merged = merge_layouts(compiled_hud, existing)
-        summary = merged.pop("_merge_summary")
-        print(f"  matched   ({len(summary['matched'])}): {summary['matched']}")
-        print(f"  appended  ({len(summary['appended'])}): {summary['appended']}")
-        print(f"  preserved ({len(summary['preserved'])}): {summary['preserved']}")
+    pa = _PreprocessArgs()
+    pa.game = args.game
+    pa.wireframe = str(wf_path)
+    pa.out = None  # use default /tmp/_hud_author_context.json
+    rc = cmd_preprocess(pa)
+    if rc != 0:
+        return rc
 
-    # === Stage 5: apply or preview ===
-    if args.apply:
-        backup = canonical.with_suffix(canonical.suffix + ".bak")
-        if canonical.exists():
-            shutil.copy(canonical, backup)
-        canonical.write_text(
-            json.dumps(merged, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        print(f"\n[compose] APPLIED → {canonical.name}")
-        print(f"  backup: {backup.name}")
-        print(f"  revert: cp {backup.name} {canonical.name}")
-    else:
-        preview = game_dir / "hud.preview.json"
-        preview.write_text(
-            json.dumps(merged, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        print(f"\n[compose] PREVIEW → {preview.name} (not applied)")
-        print(f"  apply later: cp {preview.name} {canonical.name}")
-        print(f"  OR re-run with --apply")
+    ctx_path = Path("/tmp/_hud_author_context.json")
 
-    # === Stage 6 (optional): sync + play ===
+    # === Stage 3: hand off to the LLM author ===
+    print()
+    print("=" * 70)
+    print("[compose] WIREFRAME READY — hand off to /yume-hud-author")
+    print("=" * 70)
+    print()
+    print(f"  wireframe: {wf_path.relative_to(ROOT)}")
+    print(f"  context:   {ctx_path}")
+    print()
+    print(f"Next step — in your Claude session, invoke the skill:")
+    print(f"  /yume-hud-author game={args.game}")
+    print()
+    print(f"The skill will:")
+    print(f"  1. Read {ctx_path.name}")
+    print(f"  2. Read the wireframe via vision")
+    print(f"  3. Author hud.json fit-fit to the wireframe")
+    print(f"  4. Run postprocess (validates + backs up + applies)")
+    print()
     if args.play:
-        play_sh = ROOT / "scripts" / "play.sh"
-        if not play_sh.exists():
-            print(f"WARNING: scripts/play.sh not found; can't auto-launch")
-        else:
-            print(f"\n[compose] launching ./scripts/play.sh {args.game}...")
-            os.execvp("bash", ["bash", str(play_sh), args.game])
-            # exec doesn't return
-
+        print(f"After the skill applies hud.json, run:")
+        print(f"  ./scripts/play.sh {args.game}")
+        print()
     return 0
 
 
@@ -336,10 +305,13 @@ def main() -> int:
                        help="Use a named preset prompt.")
     group.add_argument("--edit", help="Delta instruction to apply to the most recent wireframe.")
     ap.add_argument("--edit-from", help="Specific wireframe path for --edit (defaults to most recent).")
-    ap.add_argument("--apply", action="store_true",
-                    help="Write merged into canonical hud.json (with .bak backup). Otherwise saves to hud.preview.json.")
+    ap.add_argument("--crosshair", action="store_true",
+                    help="Append a crosshair clause to the prompt. Use for first-person / FPS / "
+                         "third-person-shooter games where the player needs a center aim indicator. "
+                         "Adds a small ~24x24px square at exact canvas center; the skill emits it as "
+                         "a `crosshair` element. Not needed for top-down / iso / 2D games.")
     ap.add_argument("--play", action="store_true",
-                    help="After applying, launch ./scripts/play.sh <game>.")
+                    help="Hint at the play command in the hand-off message.")
     args = ap.parse_args()
 
     if not (args.prompt or args.preset or args.edit):

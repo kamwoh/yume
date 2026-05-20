@@ -82,13 +82,33 @@ GLOBAL_ROOTS = {
 
 # Per-trigger default bindings (when query/require don't override).
 TRIGGER_DEFAULTS = {
-    "tick":            {"self"},   # query.tags_all → self bound to each match
-    "input":           {"self"},
-    "signal":          set(),      # bindings come from require or query
-    "contact":         {"a", "b"}, # engine pair-matches
+    "tick":            {"self"},          # query.tags_all → self bound to each match
+    "input":           {"self", "actor"}, # input_registrar sets actor=player_id
+    "signal":          set(),             # bindings come from require or query
+    "contact":         {"a", "b"},        # engine pair-matches
     "spawn":           {"self"},
     "despawn":         {"self"},
     "relation_changed": {"from", "to"},
+}
+
+
+# Bindings that the engine populates implicitly per trigger type.
+# require: keys MUST come from this set ∪ query's named bindings — otherwise
+# the require validates against a binding the engine never sets, which
+# means require ALWAYS fails and the rule never fires (silent no-op).
+#
+# Signal is the exception: require's keys DECLARE which payload fields to
+# bind, so any name is acceptable. Empirical anti-pattern documented in
+# .claude/rules/data-demo.md § query vs require — they are NOT
+# interchangeable.
+REQUIRE_ENGINE_BINDINGS = {
+    "tick":             {"self"},
+    "input":            {"self", "actor"},
+    "contact":          {"a", "b", "self"},
+    "spawn":            {"self"},
+    "despawn":          {"self"},
+    "relation_changed": {"from", "to", "self"},
+    # "signal" intentionally omitted — see _check_require_bindings.
 }
 
 
@@ -260,6 +280,58 @@ def check_empty_effects(rule, errors):
         ))
 
 
+def check_require_bindings(rule, errors):
+    """(7b — 2026-05-20) `require:` keys MUST match a binding the engine
+    actually populates for this trigger type, OR a named sub-binding in
+    `query`. Otherwise the require validates ctx[name] which is null →
+    require ALWAYS fails → rule never fires (silent no-op).
+
+    Empirical case 2026-05-20: `player_jump` rule shipped with
+        require: {clock: {tags_all: [world_clock], state: {camera_mode_in: ...}}}
+    The intent was to filter on world_clock's camera_mode. But the
+    engine never binds ctx["clock"] for input triggers (it binds
+    "actor", and the query's `self`). require failed every time;
+    Space pressed → nothing happened. User caught it.
+
+    The fix-pattern: put the world_clock check in `query` (which makes
+    self=world_clock), and use require for ACTOR-state filters (since
+    `actor` IS bound by input_registrar).
+
+    Signal triggers are exempt — `require: {<payload_field>: ...}`
+    DECLARES bindings from the signal's payload, so any key is legal.
+    """
+    rule_id = rule.get("id", "<unnamed>")
+    trigger = rule.get("trigger", {})
+    t_type = trigger.get("type", "") if isinstance(trigger, dict) else ""
+    require = rule.get("require")
+    if not isinstance(require, dict):
+        return
+    # Signal: require KEYS declare payload bindings — anything goes.
+    if t_type == "signal":
+        return
+    allowed_from_engine = REQUIRE_ENGINE_BINDINGS.get(t_type, set())
+    allowed_from_query = collect_query_bindings(rule.get("query", {}))
+    allowed = allowed_from_engine | allowed_from_query
+    for key in require.keys():
+        if key.startswith("_"):
+            continue
+        if key in allowed:
+            continue
+        errors.append((
+            rule_id, "require",
+            f"`require: {{{key}: ...}}` — binding `{key}` is never set "
+            f"by the engine for trigger `{t_type}` and is not a named "
+            f"sub-binding in this rule's `query`. The require will "
+            f"validate ctx['{key}']=null and ALWAYS FAIL → rule never "
+            f"fires (silent no-op). Allowed bindings for `{t_type}`: "
+            f"{sorted(allowed) or '(none — check trigger type)'}. To "
+            f"filter on a singleton's state, move it to `query` (e.g. "
+            f"`query: {{tags_all: ['world_clock'], state: {{X_eq: Y}}}}` "
+            f"makes `self`=world_clock). See .claude/rules/data-demo.md "
+            f"§ query vs require — they are NOT interchangeable.",
+        ))
+
+
 def check_2binding_non_contact(rule, errors):
     """(7) `{a: {...}, b: {...}}` queries fire as scan rules on non-contact
     triggers, leaving `b` unbound. Only `contact` does pair-matching."""
@@ -335,7 +407,17 @@ def check_input_actions(input_json, errors):
         if "$include" in action:
             continue
         name = action.get("name", f"action[{i}]")
-        if "key" in action or action.get("engine_injected"):
+        # Any concrete binding source — key, keys, mouse_button,
+        # mouse_buttons — satisfies the gate. `mouse_button` support
+        # added 2026-05-20 alongside scroll-wheel zoom.
+        has_binding = (
+            "key" in action
+            or "keys" in action
+            or "mouse_button" in action
+            or "mouse_buttons" in action
+            or action.get("engine_injected")
+        )
+        if has_binding:
             continue
         # Override-edge pattern: only name + edge (no other auth fields).
         # The lib's key inheritance covers this case.
@@ -344,9 +426,10 @@ def check_input_actions(input_json, errors):
             continue
         errors.append((
             f"input.{name}", "key",
-            "action has no `key` and no `engine_injected: true` marker. "
-            "Keyless actions (engine-queued stop_x / stop_y / etc.) need "
-            "this marker or InputRegistrar warns + skips at load.",
+            "action has no `key` / `keys` / `mouse_button` / `mouse_buttons` "
+            "AND no `engine_injected: true` marker. Keyless engine-injected "
+            "actions (stop_x / stop_y) need the marker or InputRegistrar "
+            "warns + skips at load.",
         ))
 
 
@@ -427,6 +510,7 @@ def validate_game(game_dir):
             r_errors = []
             check_formula_bindings(rule, r_errors)
             check_empty_effects(rule, r_errors)
+            check_require_bindings(rule, r_errors)
             check_2binding_non_contact(rule, r_errors)
             check_schema_field_landmines(rule, r_errors)
             for rid, field, msg in r_errors:

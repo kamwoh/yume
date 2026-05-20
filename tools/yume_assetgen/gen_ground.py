@@ -225,12 +225,160 @@ def run(game: str, strength: float = 4.0) -> int:
     return 0
 
 
+# ============================================================
+# Biome textures (ADR 0055)
+# ============================================================
+#
+# Generate one seamless tileable albedo per biome name listed in
+# data/<game>/visual_layout/asset_resolution.json's `biomes` section.
+# Each entry can declare a custom `prompt`; if missing, the default
+# below is used (keyed by biome NAME — dirt/grass/water/path/forest).
+# Resolved paths get auto-filled back into asset_resolution.biomes.
+# <name>.albedo so the wireframe_to_map harness can reference them.
+
+
+DEFAULT_BIOME_PROMPTS: dict[str, str] = {
+    "dirt": (
+        "seamless tileable top-down photographic texture of bare earth "
+        "dirt path, warm autumn brown tones, scattered small pebbles "
+        "and grit, low contrast, no central focal point, evenly "
+        "distributed grain, repeating-pattern safe across all edges, "
+        "no shadows baked in, soft uniform overhead light"
+    ),
+    "grass": (
+        "seamless tileable top-down texture of dry autumn grass "
+        "meadow, mixed olive-yellow and ochre blades, occasional "
+        "fallen leaves, low painterly stylization, no central focal "
+        "point, evenly distributed grass density, repeating-pattern "
+        "safe across all edges, soft uniform overhead light"
+    ),
+    "water": (
+        "seamless tileable top-down texture of calm shallow river "
+        "water, gentle ripples, slate-blue to teal palette, faint "
+        "lighter highlights, no whitecaps, painterly stylization, "
+        "no central focal point, evenly distributed ripple pattern, "
+        "repeating-pattern safe across all edges"
+    ),
+    "path": (
+        "seamless tileable top-down texture of trampled dirt "
+        "footpath, slightly lighter than surrounding bare earth, "
+        "minimal pebbles, faint linear wear marks, warm tan palette, "
+        "no central focal point, evenly distributed wear, "
+        "repeating-pattern safe across all edges"
+    ),
+    "forest": (
+        "seamless tileable top-down texture of forest floor under "
+        "canopy, deep autumn brown with scattered fallen oak and "
+        "pine leaves, occasional twigs, low contrast, painterly "
+        "stylization, no central focal point, evenly distributed "
+        "leaf litter, repeating-pattern safe across all edges, "
+        "soft dappled overhead light"
+    ),
+}
+
+
+def run_biomes(game: str) -> int:
+    """Generate seamless albedo textures for each biome in
+    data/<game>/visual_layout/asset_resolution.json's `biomes`
+    section. Patches asset_resolution.biomes.<name>.albedo with the
+    resolved res:// path.
+    """
+    game_dir = DATA_ROOT / game
+    if not game_dir.exists():
+        print(f"error: {game_dir} does not exist", file=sys.stderr)
+        return 1
+
+    ar_path = game_dir / "visual_layout" / "asset_resolution.json"
+    if not ar_path.exists():
+        print(f"[{game}] no visual_layout/asset_resolution.json — "
+              f"skipping biome texture gen.")
+        return 0
+    ar = json.loads(ar_path.read_text(encoding="utf-8"))
+    biomes = ar.get("biomes", {})
+    if not isinstance(biomes, dict) or not biomes:
+        print(f"[{game}] asset_resolution.biomes is empty — "
+              f"skipping biome texture gen.")
+        return 0
+
+    cfg = load_config(game_dir)
+    ledger = load_ledger(game_dir)
+    backend_name = cfg.backend_for("texture")
+    backend_config = cfg.backend_config.get(backend_name, {})
+    backend = get_backend(backend_name, backend_config)
+    tex_dir = game_dir / cfg.outputs.get("texture_dir", "assets/textures")
+    tex_dir.mkdir(parents=True, exist_ok=True)
+    repo_data_prefix = "data/" + game_dir.name
+    res_tex_dir = "res://" + repo_data_prefix + "/" + cfg.outputs.get(
+        "texture_dir", "assets/textures")
+
+    n_generated = 0
+    n_skipped = 0
+    changed = False
+    for biome_name, biome_cfg in biomes.items():
+        if biome_name.startswith("_") or not isinstance(biome_cfg, dict):
+            continue
+        # Prompt: per-game override > default by name. If no default
+        # AND no override, skip with a warning.
+        prompt = biome_cfg.get("prompt", "") or DEFAULT_BIOME_PROMPTS.get(biome_name, "")
+        if not prompt:
+            print(f"  [warn] biome '{biome_name}' has no prompt + no "
+                  f"default — skipping. Add `prompt` field or use a "
+                  f"name in {sorted(DEFAULT_BIOME_PROMPTS)}.")
+            continue
+        assembled = _assemble(cfg, prompt, "texture")
+        p_hash = prompt_hash(assembled)
+        h8 = _short_hash(assembled)
+        filename = f"biome_{biome_name}_{h8}.png"
+        out_path = tex_dir / filename
+        if is_paid_backend(backend_name) and ledger.has(backend_name, "texture", p_hash):
+            print(f"  [ledg] biome '{biome_name}' (paid, skip) → {filename}")
+            n_skipped += 1
+        elif out_path.exists():
+            print(f"  [skip] biome '{biome_name}' (file exists) → {filename}")
+            n_skipped += 1
+        else:
+            backend.generate_texture(
+                assembled, out_path,
+                size=cfg.outputs.get("image_size", (1024, 1024)),
+            )
+            if is_paid_backend(backend_name):
+                ledger.add(
+                    backend=backend_name, kind="texture",
+                    entity_id=f"@biome_{biome_name}",
+                    prompt=assembled, p_hash=p_hash,
+                    out_path=str(out_path.relative_to(game_dir)),
+                )
+            print(f"  [gen]  biome '{biome_name}' → {filename}")
+            n_generated += 1
+        # Patch asset_resolution.json with the resolved path.
+        ref = f"{res_tex_dir}/{filename}"
+        if biome_cfg.get("albedo") != ref:
+            biome_cfg["albedo"] = ref
+            changed = True
+
+    if changed:
+        ar_path.write_text(
+            json.dumps(ar, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(f"  [patch] asset_resolution.json biomes.*.albedo updated")
+    ledger.save()
+    print(f"[{game}] biome gen: {n_generated} generated, {n_skipped} skipped")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="gen_ground")
     ap.add_argument("game", help="game folder name (e.g. demo_aldenmere)")
     ap.add_argument("--strength", type=float, default=4.0,
                     help="normal-map exaggeration (default 4.0)")
+    ap.add_argument("--biomes", action="store_true",
+                    help="Generate per-biome seamless albedos for the "
+                         "game's asset_resolution.biomes section (ADR "
+                         "0055). Independent of the main ground gen.")
     args = ap.parse_args(argv)
+    if args.biomes:
+        return run_biomes(args.game)
     return run(args.game, strength=args.strength)
 
 

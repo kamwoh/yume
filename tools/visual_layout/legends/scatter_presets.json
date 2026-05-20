@@ -1,0 +1,61 @@
+{
+  "_comment": "Reference scatter presets for zone-based pattern emission (ADR 0054 follow-up). Per-zone-NAME defaults for density / spacing / scale jitter. compile_map applies these by zone name; per-game asset_resolution.json can override OR pick a preset by name.",
+  "presets": {
+    "forest_dense": {
+      "_comment": "Tight tree cover, ~3m spacing. Survival game camp perimeters, dark woods.",
+      "density_per_m2": 0.30,
+      "min_spacing": 1.5,
+      "scale_min": 0.8,
+      "scale_max": 1.4,
+      "yaw_jitter": 3.14
+    },
+    "forest_sparse": {
+      "_comment": "Open woodland, ~6m spacing. Walkable forest between landmarks.",
+      "density_per_m2": 0.10,
+      "min_spacing": 3.0,
+      "scale_min": 0.9,
+      "scale_max": 1.6,
+      "yaw_jitter": 3.14
+    },
+    "forest_very_dense": {
+      "_comment": "Impenetrable thicket. Use only for narrative boundary forests, not walkable.",
+      "density_per_m2": 0.50,
+      "min_spacing": 1.0,
+      "scale_min": 0.7,
+      "scale_max": 1.3,
+      "yaw_jitter": 3.14
+    },
+    "grass_tuft": {
+      "_comment": "Decorative ground grass — sparse small tufts. Use on grass-zone for flavor.",
+      "density_per_m2": 0.05,
+      "min_spacing": 4.0,
+      "scale_min": 0.6,
+      "scale_max": 1.2,
+      "yaw_jitter": 1.57
+    },
+    "rocks_scattered": {
+      "_comment": "Loose rock cluster.",
+      "density_per_m2": 0.08,
+      "min_spacing": 2.5,
+      "scale_min": 0.7,
+      "scale_max": 1.5,
+      "yaw_jitter": 3.14
+    },
+    "rocks_field": {
+      "_comment": "Open rock field — quarry, mountain face.",
+      "density_per_m2": 0.18,
+      "min_spacing": 1.5,
+      "scale_min": 0.5,
+      "scale_max": 1.8,
+      "yaw_jitter": 3.14
+    },
+    "decorative_props": {
+      "_comment": "Generic decorative scatter — flowers, mushrooms, debris. Low density.",
+      "density_per_m2": 0.03,
+      "min_spacing": 3.0,
+      "scale_min": 0.8,
+      "scale_max": 1.2,
+      "yaw_jitter": 3.14
+    }
+  }
+}

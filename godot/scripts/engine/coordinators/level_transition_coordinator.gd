@@ -117,6 +117,13 @@ func do_transition(target: String) -> void:
 	_world.current_level = target
 	load_level(target)
 	_world.scheduler.flush_effects()
+	# ADR 0055 (2026-05-20): rebind ground shader params from the new
+	# level's optional scene.json override. Per invariant #11, this is
+	# how the engine handles "engine state coupled to OLD level
+	# identity" — biome_map is one such piece of state. Safe no-op
+	# when ground uses StandardMaterial3D, or when the new level has
+	# no scene.json override.
+	GroundRenderer.rebind_shader_params(target)
 	# ADR 0041: re-batch the new level's static decoration. Mirrors the
 	# load_data() call at boot, but for mid-session level swaps.
 	_world._run_multimesh_director()

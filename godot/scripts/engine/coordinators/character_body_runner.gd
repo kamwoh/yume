@@ -47,9 +47,71 @@ func bind(entity: Entity) -> void:
 func _physics_process(_delta: float) -> void:
 	if entity_ref == null:
 		return
+	_apply_vertical(_delta)
 	_apply_speed_clamp()
 	move_and_slide()
+	_writeback_vertical_state()
 	_writeback_position()
+
+
+## Apply gravity + jump-impulse mechanics (2026-05-20). Each physics
+## frame BEFORE move_and_slide:
+##
+##   1. Read state.y_velocity (defaults to 0). This is the entity's
+##      authoritative up-axis velocity; rules write to it for jumps.
+##   2. If state.on_floor is 0 (mid-air), accumulate gravity into
+##      state.y_velocity. Gravity is configurable via state.gravity
+##      (default 18.0 m/s², a touch heavier than Earth for snappy
+##      arcade-jump feel; tune down to 9.8 for realism).
+##   3. Set body.velocity.y = state.y_velocity so move_and_slide sees
+##      the vertical motion.
+##
+## After move_and_slide, _writeback_vertical_state mirrors is_on_floor()
+## back to state.on_floor and updates state.y_velocity to body.velocity.y
+## (capturing the floor-clamped value so we don't keep accumulating
+## negative gravity while grounded).
+##
+## Players opt in by declaring state.y_velocity / state.on_floor /
+## state.gravity in their state_init (or accepting the defaults). The
+## existing Vector2 horizontal velocity continues to work — only the
+## body's y component is owned by this path.
+func _apply_vertical(delta: float) -> void:
+	var y_vel := float(entity_ref.get_state("y_velocity", 0.0))
+	var on_floor := int(entity_ref.get_state("on_floor", 1))
+	if on_floor == 0:
+		var gravity := float(entity_ref.get_state("gravity", 18.0))
+		y_vel -= gravity * delta
+	# Write into body.velocity.y BEFORE move_and_slide. Horizontal x/z
+	# came from sync_body_velocity (which now preserves y per the same
+	# ADR 0055-follow-up change in physics_body_builder.gd).
+	velocity.y = y_vel
+	entity_ref.set_state("y_velocity", y_vel)
+
+
+## After move_and_slide: capture grounded state + clamped y-velocity.
+## When grounded with a downward y_velocity, snap it to 0 so the
+## accumulator doesn't run away during stationary frames.
+##
+## Y-floor clamp (2026-05-20): aldenmere (and many Yume games) draw the
+## ground as a visual PlaneMesh without a collision body — so
+## is_on_floor() never returns true via physics. We treat y <= 0 as
+## "on floor" by convention. Authors who want a custom floor height
+## can set state.floor_y; default 0. This is a soft clamp: jump impulse
+## still rises, gravity still falls, but the player can't tunnel
+## through y=floor_y.
+func _writeback_vertical_state() -> void:
+	var grounded := is_on_floor()
+	var floor_y := float(entity_ref.get_state("floor_y", 0.0))
+	# Soft y-floor clamp — covers no-collision-body scenes.
+	if global_position.y <= floor_y:
+		global_position.y = floor_y
+		grounded = true
+	entity_ref.set_state("on_floor", 1 if grounded else 0)
+	if grounded and velocity.y < 0.0:
+		velocity.y = 0.0
+		entity_ref.set_state("y_velocity", 0.0)
+	else:
+		entity_ref.set_state("y_velocity", velocity.y)
 
 
 ## Headless equivalent of _physics_process for tests. Same velocity-read

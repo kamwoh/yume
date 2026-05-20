@@ -22,6 +22,36 @@ static var _heightmap_plane_size: float = 80.0
 static var _heightmap_uv_tile: float = 60.0
 static var _heightmap_enabled: bool = false
 
+# === Per-level shader_params rebind (ADR 0055, 2026-05-20) ===
+#
+# Cached at boot in build(); replayed at level_transition by
+# rebind_shader_params(level_id) which reads
+# data/<game>/levels/<level_id>/scene.json sparse overrides and
+# deep-merges over the cached game-level params.
+#
+# Per invariant #11 (level-discontinuity engine-state cleanup): the
+# biome_map shader uniform is level-coupled state. Snap behavior is
+# synchronous — the shader switches in one frame, matching the
+# camera-snap semantics from `transition_level_fade_request`.
+static var _shader_material: ShaderMaterial = null
+static var _game_shader_params: Dictionary = {}
+static var _cached_data_root: String = ""
+
+
+## Clear all cached static references before game shutdown. Without
+## this, the ShaderMaterial + heightmap Image references survive the
+## SceneTree teardown → Godot reports "ObjectDB instances leaked at
+## exit" and "1 resources still in use at exit". Cosmetic warnings
+## (OS reclaims memory anyway), but cleaning up avoids the log noise.
+## Called from camera_director's ESC-quit path; safe no-op if called
+## multiple times.
+static func cleanup() -> void:
+	_shader_material = null
+	_game_shader_params = {}
+	_cached_data_root = ""
+	_heightmap_img = null
+	_heightmap_enabled = false
+
 
 ## Sample the displaced ground Y at world coordinates (x, z).
 ## Matches the shader's vertex displacement exactly:
@@ -202,6 +232,12 @@ func build() -> void:
 						_heightmap_plane_size = max(w, d)
 						_heightmap_uv_tile = float(params.get("uv_tile", 60.0))
 						_heightmap_enabled = (_heightmap_strength > 0.0)
+			# Cache for per-level rebind (ADR 0055, 2026-05-20).
+			# The game-level params dict is the baseline; per-level
+			# overrides merge over it on transition.
+			_shader_material = sm
+			_game_shader_params = (params as Dictionary).duplicate(true)
+			_cached_data_root = str(_world.get("data_root")).rstrip("/")
 		else:
 			push_warning("ground_renderer: shader failed to load: " + shader_path)
 
@@ -210,6 +246,75 @@ func build() -> void:
 	node.mesh = mesh
 	node.material_override = mat
 	_world.add_child(node)
+
+
+## Rebind ground shader parameters when a level transition has loaded
+## a new level. Reads `data/<game>/levels/<level_id>/scene.json` if
+## it exists, deep-merges its `ground.mesh.shader_params` over the
+## cached game-level params, and calls `set_shader_parameter()` on
+## the existing Ground MeshInstance3D's ShaderMaterial for each
+## changed key. No node teardown — the same ShaderMaterial is reused.
+##
+## Per ADR 0055 v2 / invariant #11: called from
+## level_transition_coordinator.do_transition() AFTER load_level()
+## completes, paired with camera-snap. The shader switches in one
+## frame — no interpolation between biome maps.
+##
+## Safe no-op when:
+##   - Ground uses StandardMaterial3D (no shader configured)
+##   - Per-level scene.json doesn't exist
+##   - Per-level scene.json doesn't override ground.mesh.shader_params
+##
+## Empirical case 2026-05-20: ADR 0055 added per-level biome maps.
+## Without this rebind, transitioning to a level with a different
+## biome map would show the OLD level's ground texture under the NEW
+## level's entities — exactly the kind of "engine state coupled to
+## OLD level identity" bug class invariant #11 was written to catch.
+static func rebind_shader_params(level_id: String) -> void:
+	if _shader_material == null:
+		# Ground uses StandardMaterial3D — nothing to rebind.
+		return
+	if _cached_data_root == "" or level_id == "":
+		return
+	var path := _cached_data_root + "/levels/" + level_id + "/scene.json"
+	if not FileAccess.file_exists(path):
+		# No per-level override — re-apply the game-level baseline
+		# in case a PREVIOUS level had overrides that need clearing.
+		_apply_params(_game_shader_params)
+		return
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return
+	var raw := f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(raw)
+	if not (parsed is Dictionary):
+		return
+	var doc := parsed as Dictionary
+	var ground: Dictionary = doc.get("ground", {}) as Dictionary
+	var mesh_cfg: Dictionary = ground.get("mesh", {}) as Dictionary
+	var level_params: Dictionary = mesh_cfg.get("shader_params", {}) as Dictionary
+	# Deep-merge: start from the game-level baseline, overlay the
+	# level-level keys. Sparse override semantics — undeclared keys
+	# inherit from the game-level baseline.
+	var merged: Dictionary = _game_shader_params.duplicate(true)
+	for k in level_params:
+		merged[str(k)] = level_params[k]
+	_apply_params(merged)
+
+
+## Apply a shader_params dict to the cached ShaderMaterial. Auto-loads
+## Texture2D for any `res://` string value (matches build()'s logic).
+static func _apply_params(params: Dictionary) -> void:
+	if _shader_material == null:
+		return
+	for k in params:
+		var v = params[k]
+		if v is String and (v as String).begins_with("res://"):
+			var loaded = load(v as String)
+			if loaded is Texture2D:
+				v = loaded
+		_shader_material.set_shader_parameter(str(k), v)
 
 
 ## Read scene.json's `ground.mesh` block. Returns {} if the file or block

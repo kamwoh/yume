@@ -41,6 +41,13 @@
       "entries": {
         "face_motion": "1 rule: auto-rotate yaw to face direction of motion for every entity tagged 'face_motion'. Mesh-forward convention -Z, Vector2 velocity (floor-walkers). Splice via {$include: '@lib.motion.face_motion.rules'} in a game's rules.json. Per-entity opt-in via tag — silent for entities without it."
       }
+    },
+    "palettes": {
+      "_shape": "palette_dict",
+      "_path": "data/lib/palettes/<name>.json",
+      "entries": {
+        "wilderness_minimap": "Survival/wilderness-genre minimap tag_colors dict (28 entries: tree, wolf, deer, fire_pit, named_npc, ...). Reference via value-replacement string \"@lib.palettes.wilderness_minimap\" inside minimap element configs in hud.json AND screens.json — so both the always-on HUD minimap and the M-key map screen render the same colors for every entity type."
+      }
     }
   },
 
@@ -49,6 +56,7 @@
     "input_bundle":   "Dict {actions: [<inputs.json action>...], rules: [<rule>...]}. The `rules` array is spliced into a parent rules array via $include @lib.input_bundles.NAME.rules. The `actions` array is for documentation; per-game inputs.json still authors its own action list.",
     "input_actions":  "Dict {actions: [<inputs.json action>...]}. The `actions` array is spliced into a per-game ui/input.json's actions array via $include @lib.input.NAME.actions. Each action is {name, edge, keys?, engine_injected?}.",
     "physics_layers": "Dict {layers: {name: bit_index}}. Maps human-readable collision layer names to Godot's 1..32 bit indices. Engine reads via @lib.physics.layers.layers at boot, uses to translate entity.physics.collision_layer/mask string arrays to bit masks.",
+    "palette_dict":   "Flat dict {tag_name: hex_color, ...}. Resolved as a value-replacement (string ref) inside minimap.tag_colors fields. Both hud.json and screens.json minimap elements can reference the same palette so colors stay in sync.",
     "entity_def":     "Dict {id, tags, properties, state_init, visual} matching entities.json def schema. Spliced into a `definitions` array via $include.",
     "screen_spec":    "Dict {id, modal, freeze_world, background_color, elements, ...} matching screens.json schema. Spliced into a `screens` array via $include.",
     "rule_array":     "Array of rule dicts. Spliced via $include into a parent rules array."

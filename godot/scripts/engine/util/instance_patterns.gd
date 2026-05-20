@@ -155,6 +155,24 @@ static func _scatter(p: Dictionary) -> Array:
 		def_choices = [def_id]
 	var id_prefix := str(p.get("id_prefix", def_id if def_id != "" else "scatter"))
 	var count := int(p.get("count", 1))
+	# Per the engine convention, `min_r`/`max_r` define the annulus
+	# (ring) around `origin` where scatter spawns. Defaults are 0/5
+	# meters — fine for a small flower cluster, but with count > 10
+	# and min_spacing ~1m the engine can only fit ~30 entities in a
+	# 5m disk before exhausting placement attempts. The caller then
+	# silently gets ~30 instances instead of `count`.
+	#
+	# Empirical case 2026-05-20: yume-map-author shipped a 200-tree
+	# forest pattern without min_r/max_r; engine spawned ~30 trees
+	# clumped at origin. The harness validator was added the same
+	# day but only catches drafts going through wireframe_to_map
+	# postprocess — hand-edits and --force still bypass it.
+	# Engine-side warning catches ALL call sites.
+	var has_min_r: bool = p.has("min_r")
+	var has_max_r: bool = p.has("max_r")
+	if count > 10 and not (has_min_r and has_max_r):
+		var msg := "[scatter.bounds_missing] pattern id_prefix='%s' count=%d > 10 with default min_r/max_r (0/5m). Engine will spawn at most ~30 entities due to packing; expected silently dropped. Add min_r and max_r to the pattern." % [id_prefix, count]
+		push_warning(msg)
 	var min_r := float(p.get("min_r", 0.0))
 	var max_r := float(p.get("max_r", 5.0))
 	var y := float(p.get("y", 0.0))
@@ -207,6 +225,15 @@ static func _scatter(p: Dictionary) -> Array:
 				inst["state"] = state_ov
 			out.append(inst)
 		attempts += 1
+	# Under-spawn warning: if the loop exited via the attempt budget
+	# rather than reaching `count`, the requested entity count silently
+	# dropped. Could be: min_r/max_r too tight, min_spacing too large,
+	# exclude_zones covering most of the annulus. Surface so the author
+	# knows their pattern under-delivered. Independent gate from the
+	# `min_r/max_r missing` warning above — catches OTHER reasons too.
+	if out.size() < count:
+		var msg2 := "[scatter.under_spawn] pattern id_prefix='%s' requested count=%d but engine placed %d. Likely: annulus too tight (min_r=%.1f, max_r=%.1f), min_spacing=%.1f too large, or exclude_zones covering most of the area." % [id_prefix, count, out.size(), min_r, max_r, min_spacing]
+		push_warning(msg2)
 	return out
 
 

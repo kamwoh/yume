@@ -88,17 +88,24 @@ static func resolve(value, depth: int = 0, visited: Array = []):
 			return _resolve_string_ref(s, depth, visited)
 		return s
 
-	# Dict — check for $extends operator first, then recurse into children
+	# Dict — check for $extends operator first, then recurse into children.
+	# Plain JSON-tree recursion does NOT increment depth — only @lib
+	# resolution boundaries do (see _resolve_string_ref / _resolve_extends).
+	# depth+visited together catch lib-ref cycles; depth alone shouldn't
+	# fire on a deeply-nested screens.json that has no @lib refs at all.
+	# Empirical case 2026-05-20: screens.json with nested vbox/elements
+	# tripped MAX_DEPTH=8 on plain tree walk (visited=[], no lib chasing).
 	if value is Dictionary:
 		var d := value as Dictionary
 		if d.has("$extends"):
 			return _resolve_extends(d, depth, visited)
 		var out: Dictionary = {}
 		for k in d.keys():
-			out[str(k)] = resolve(d[k], depth + 1, visited)
+			out[str(k)] = resolve(d[k], depth, visited)
 		return out
 
-	# Array — handle $include splices inline
+	# Array — handle $include splices inline. Depth not incremented on
+	# plain array recursion (same rationale as the dict case above).
 	if value is Array:
 		var arr := value as Array
 		var out_arr: Array = []
@@ -106,7 +113,7 @@ static func resolve(value, depth: int = 0, visited: Array = []):
 			if item is Dictionary and (item as Dictionary).has("$include"):
 				_resolve_include_into(out_arr, item as Dictionary, depth, visited)
 			else:
-				out_arr.append(resolve(item, depth + 1, visited))
+				out_arr.append(resolve(item, depth, visited))
 		return out_arr
 
 	# Scalars (int / float / bool / null) — pass through.

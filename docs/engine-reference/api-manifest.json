@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-05-07T00:05:50+00:00",
+  "generated_at": "2026-05-20T00:37:32+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -17,6 +17,7 @@
   ],
   "triggers": [
     "tick",
+    "frame_tick",
     "contact",
     "signal",
     "input",
@@ -40,6 +41,18 @@
     },
     {
       "type": "state_clamp",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "zone_state_set",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "zone_state_add",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "zone_state_clamp",
       "source": "effect_apply.gd"
     },
     {
@@ -91,6 +104,10 @@
       "source": "effect_apply.gd"
     },
     {
+      "type": "pathfind_to",
+      "source": "effect_apply.gd"
+    },
+    {
       "type": "raycast_hit",
       "source": "effect_apply.gd"
     },
@@ -100,6 +117,22 @@
     },
     {
       "type": "emit",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "array_set_at",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "array_insert_first_empty",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "array_sync_to_field",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "array_count_matching",
       "source": "effect_apply.gd"
     },
     {
@@ -164,6 +197,70 @@
     },
     {
       "type": "reset_world",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "party_join",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "party_leave",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "party_ko",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "build_place",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "switch_class",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "declare_war",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "sign_treaty",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "propose_alliance",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "swear_loyalty",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "try_discover_tech",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "learn_from_master",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "pass_to_apprentice",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transfer_inventory",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transfer_reputation",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transfer_techs",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "transition_player_to",
       "source": "effect_apply.gd"
     }
   ],
@@ -278,6 +375,18 @@
       "code": "effect.emit_no_buffer"
     },
     {
+      "constant": "EFFECT_BUILD_PLACE_NO_DEF",
+      "code": "effect.build_place_no_def"
+    },
+    {
+      "constant": "EFFECT_BUILD_PLACE_INVALID",
+      "code": "effect.build_place_invalid"
+    },
+    {
+      "constant": "EFFECT_BUILD_PLACE_NO_SOURCE",
+      "code": "effect.build_place_no_source"
+    },
+    {
       "constant": "FORMULA_PARSE_FAILED",
       "code": "formula.parse_failed"
     },
@@ -316,6 +425,82 @@
     {
       "constant": "SCHEDULER_TOPO_CYCLE",
       "code": "scheduler.topo_cycle"
+    },
+    {
+      "constant": "ANIMATION_NO_DEFAULT",
+      "code": "animation.no_default"
+    },
+    {
+      "constant": "CLASS_SWITCH_NO_DEF",
+      "code": "class.switch_no_def"
+    },
+    {
+      "constant": "CLASS_SWITCH_COOLDOWN",
+      "code": "class.switch_cooldown"
+    },
+    {
+      "constant": "CLASS_MISSING_ID",
+      "code": "class.missing_id"
+    },
+    {
+      "constant": "CLASS_INVALID_JSON",
+      "code": "class.invalid_json"
+    },
+    {
+      "constant": "FACTION_NO_DEF",
+      "code": "faction.no_def"
+    },
+    {
+      "constant": "FACTION_INVALID_STANCE",
+      "code": "faction.invalid_stance"
+    },
+    {
+      "constant": "TECH_NO_TREE",
+      "code": "tech.no_tree"
+    },
+    {
+      "constant": "TECH_PREREQ_MISSING",
+      "code": "tech.prereq_missing"
+    },
+    {
+      "constant": "TECH_PREREQ_CYCLE",
+      "code": "tech.prereq_cycle"
+    },
+    {
+      "constant": "STEP_UNKNOWN_VERB",
+      "code": "step.unknown_verb"
+    },
+    {
+      "constant": "STEP_UNKNOWN_ACTION",
+      "code": "step.unknown_action"
+    },
+    {
+      "constant": "STEP_CLICK_NOT_FOUND",
+      "code": "step.click_not_found"
+    },
+    {
+      "constant": "STEP_CLICK_AMBIGUOUS",
+      "code": "step.click_ambiguous"
+    },
+    {
+      "constant": "STEP_EXPECT_FAILED",
+      "code": "step.expect_failed"
+    },
+    {
+      "constant": "STEP_RELEASE_NOT_HELD",
+      "code": "step.release_not_held"
+    },
+    {
+      "constant": "STEP_INVALID_DURATION",
+      "code": "step.invalid_duration"
+    },
+    {
+      "constant": "DYNASTY_NO_HEIR",
+      "code": "dynasty.no_heir"
+    },
+    {
+      "constant": "DYNASTY_EXTINCT",
+      "code": "dynasty.extinct"
     }
   ],
   "reserved_state_fields": [
@@ -323,5 +508,407 @@
     "velocity",
     "age"
   ],
-  "invariants_count": 8
+  "invariants_count": 8,
+  "hud_elements": [
+    {
+      "type": "label",
+      "fields": {
+        "text": "literal string (capital-start avoids formula eval)",
+        "binds": "binding path (e.g. 'world_clock.current_day')",
+        "format": "template \u2014 {} substitutes the bound value",
+        "size": "int \u2014 font size px (default 18)",
+        "color": "hex #RRGGBB (default #ffffff)",
+        "bold": "bool",
+        "shadow": "bool",
+        "shadow_color": "hex",
+        "shadow_offset": "[x, y] px",
+        "align": "begin | center | right"
+      },
+      "source": "hud_builder.gd _build_element 'label'"
+    },
+    {
+      "type": "progress_bar",
+      "fields": {
+        "binds": "binding path (required)",
+        "max": "number (default 100)",
+        "width": "px or '%' (default 280)",
+        "height": "px or '%' (default 16)",
+        "color": "hex (fixed color)",
+        "color_lerp": "[hex, hex, hex] \u2014 interpolated by value/max",
+        "size_flags_h": "shrink_begin|shrink_center|shrink_end|expand|expand_fill|fill"
+      },
+      "source": "hud_builder.gd _build_element 'progress_bar'"
+    },
+    {
+      "type": "spacer",
+      "fields": {
+        "height": "px (default 8)"
+      },
+      "source": "hud_builder.gd _build_element 'spacer'"
+    },
+    {
+      "type": "crosshair",
+      "fields": {
+        "glyph": "string (default '+')",
+        "size": "int (default 28)",
+        "color": "hex (default #ffffff)"
+      },
+      "source": "hud_builder.gd _build_element 'crosshair'"
+    },
+    {
+      "type": "minimap",
+      "fields": {
+        "size": "[w, h] px",
+        "world_bounds": "[x_min, z_min, x_max, z_max]",
+        "background": "hex",
+        "border": "hex",
+        "tag_colors": "dict { tag: hex } \u2014 first match wins",
+        "player_tag": "string (which tag = the player dot, default 'player')",
+        "dot_radius": "px (default 1.5)",
+        "player_radius": "px (default 4.0)",
+        "show_view_cone": "bool",
+        "view_cone_radius": "world units",
+        "view_cone_half_angle": "radians",
+        "view_cone_color": "hex",
+        "view_cone_alpha": "0..1"
+      },
+      "source": "minimap_widget.gd configure()"
+    },
+    {
+      "type": "slot_grid",
+      "fields": {
+        "cell_count": "int (required)",
+        "columns": "int (required)",
+        "binds": "array binding path (e.g. 'player.inventory')",
+        "active_binds": "int binding path (highlights cell i where i==value)",
+        "cell_size": "[w, h] px (default [56, 48])",
+        "gap": "px (default 4)",
+        "show_index": "bool (default true)",
+        "cell_content_type": "label | item_icon",
+        "bg_color": "hex",
+        "bg_active_color": "hex",
+        "border_color": "hex",
+        "border_active_color": "hex",
+        "border_width": "px (default 2)",
+        "index_color": "hex",
+        "default_icon_color": "hex (item_icon fallback)"
+      },
+      "source": "control_factory.gd _build_slot_grid"
+    }
+  ],
+  "hud_anchors": [
+    "top-left",
+    "top-center",
+    "top-right",
+    "center-left",
+    "center",
+    "center-right",
+    "bottom-left",
+    "bottom-center",
+    "bottom-right"
+  ],
+  "hud_panel_fields": {
+    "anchor": "anchor name (from hud_anchors)",
+    "width": "px or '%' (panel width)",
+    "height": "px or '%' (panel height)",
+    "x_offset": "px or '%' offset from anchor",
+    "y_offset": "px or '%' offset from anchor",
+    "align": "begin | center | end (inner vbox alignment)",
+    "elements": "list of element dicts"
+  },
+  "hud_anchor_geometry": {
+    "top-left": {
+      "x_offset": "bbox.x",
+      "y_offset": "bbox.y"
+    },
+    "top-center": {
+      "x_offset": "bbox.cx - vp.w/2",
+      "y_offset": "bbox.y"
+    },
+    "top-right": {
+      "x_offset": "-(vp.w - bbox.x2)",
+      "y_offset": "bbox.y"
+    },
+    "center-left": {
+      "x_offset": "bbox.x",
+      "y_offset": "bbox.cy - vp.h/2"
+    },
+    "center": {
+      "x_offset": "bbox.cx - vp.w/2",
+      "y_offset": "bbox.cy - vp.h/2"
+    },
+    "center-right": {
+      "x_offset": "-(vp.w - bbox.x2)",
+      "y_offset": "bbox.cy - vp.h/2"
+    },
+    "bottom-left": {
+      "x_offset": "bbox.x",
+      "y_offset": "-(vp.h - bbox.y2)"
+    },
+    "bottom-center": {
+      "x_offset": "bbox.cx - vp.w/2",
+      "y_offset": "-(vp.h - bbox.y2)"
+    },
+    "bottom-right": {
+      "x_offset": "-(vp.w - bbox.x2)",
+      "y_offset": "-(vp.h - bbox.y2)"
+    }
+  },
+  "viewport": {
+    "source": "godot/project.godot",
+    "width": 960,
+    "height": 540,
+    "stretch_mode": "disabled",
+    "stretch_aspect": "ignore",
+    "aspect_ratio": "16:9"
+  },
+  "screen_elements": [
+    {
+      "type": "label",
+      "fields": {
+        "text": "literal string (capital-start avoids formula eval)",
+        "binds": "binding path (e.g. 'player.hunger')",
+        "format": "template \u2014 {} substitutes the bound value",
+        "font_size": "int px",
+        "color": "hex #RRGGBB",
+        "halign": "left | center | right",
+        "anchor": "anchor name (see screen_anchors)",
+        "x_offset": "px",
+        "y_offset": "px",
+        "width": "px or '%'",
+        "height": "px or '%'"
+      },
+      "source": "control_factory.gd _build_label"
+    },
+    {
+      "type": "button",
+      "fields": {
+        "text": "button label",
+        "font_size": "int px",
+        "id": "Control.name for testing (#39)",
+        "anchor": "anchor name",
+        "x_offset": "px",
+        "y_offset": "px",
+        "width": "px or '%'",
+        "height": "px or '%'",
+        "on_click": "effect chain \u2014 list of effect dicts to fire on press",
+        "visible_if": "formula \u2014 set node.visible each frame",
+        "enabled_if": "formula \u2014 set node.disabled each frame"
+      },
+      "source": "control_factory.gd _build_button"
+    },
+    {
+      "type": "vbox",
+      "fields": {
+        "separation": "px between children (default 4)",
+        "children": "list of element dicts (recurses)",
+        "anchor": "anchor name",
+        "x_offset": "px",
+        "y_offset": "px",
+        "width": "px or '%'",
+        "height": "px or '%'",
+        "size_flags_h": "shrink_begin|shrink_center|shrink_end|expand|expand_fill|fill",
+        "size_flags_v": "shrink_begin|shrink_center|shrink_end|expand|expand_fill|fill"
+      },
+      "source": "control_factory.gd _build_vbox"
+    },
+    {
+      "type": "hbox",
+      "fields": {
+        "separation": "px between children",
+        "children": "list of element dicts (recurses)",
+        "anchor": "anchor name",
+        "x_offset": "px",
+        "y_offset": "px",
+        "width": "px or '%'",
+        "height": "px or '%'"
+      },
+      "source": "control_factory.gd _build_hbox"
+    },
+    {
+      "type": "color_rect",
+      "fields": {
+        "color": "hex (default #000000)",
+        "alpha": "0..1",
+        "anchor": "anchor name (often 'fill' for full-cover background)",
+        "x_offset": "px",
+        "y_offset": "px",
+        "width": "px or '%'",
+        "height": "px or '%'"
+      },
+      "source": "control_factory.gd _build_color_rect"
+    },
+    {
+      "type": "spacer",
+      "fields": {
+        "width": "px (default 0)",
+        "height": "px (default 8)"
+      },
+      "source": "control_factory.gd _build_spacer"
+    },
+    {
+      "type": "image",
+      "fields": {
+        "texture": "res:// path",
+        "anchor": "anchor name",
+        "x_offset": "px",
+        "y_offset": "px",
+        "width": "px or '%'",
+        "height": "px or '%'"
+      },
+      "source": "control_factory.gd _build_image"
+    },
+    {
+      "type": "slider",
+      "fields": {
+        "min": "float (default 0.0)",
+        "max": "float (default 1.0)",
+        "step": "float (default 0.05)",
+        "value": "float (current)",
+        "default": "float (initial if no value)",
+        "width": "px (default 200)",
+        "height": "px (default 20)",
+        "on_change": "effect chain \u2014 receives {value: new}"
+      },
+      "source": "control_factory.gd _build_slider"
+    },
+    {
+      "type": "checkbox",
+      "fields": {
+        "text": "label next to checkbox",
+        "value": "bool (current)",
+        "default": "bool (initial)",
+        "on_change": "effect chain \u2014 receives {value: new}"
+      },
+      "source": "control_factory.gd _build_checkbox"
+    },
+    {
+      "type": "option_button",
+      "fields": {
+        "options": "list of strings",
+        "value": "current selected string",
+        "default": "initial selected string",
+        "on_change": "effect chain \u2014 receives {value: new}"
+      },
+      "source": "control_factory.gd _build_option_button"
+    },
+    {
+      "type": "slot_grid",
+      "fields": "see hud_elements[slot_grid] \u2014 same primitive, used in both",
+      "source": "control_factory.gd _build_slot_grid"
+    },
+    {
+      "type": "minimap",
+      "fields": "see hud_elements[minimap] \u2014 same primitive, used in both",
+      "source": "minimap_widget.gd configure()"
+    },
+    {
+      "type": "settings_renderer",
+      "fields": {
+        "_note": "Special: filled in by SettingsManager-aware screens (e.g. settings menu). ControlFactory creates a placeholder VBox; settings layer adds child elements from settings_schema.json."
+      },
+      "source": "control_factory.gd 'settings_renderer'"
+    }
+  ],
+  "screen_anchors": [
+    "top_left",
+    "top_center",
+    "top_right",
+    "center_left",
+    "center",
+    "center_right",
+    "bottom_left",
+    "bottom_center",
+    "bottom_right",
+    "fill"
+  ],
+  "screen_fields": {
+    "id": "unique string \u2014 referenced by transition_screen targets",
+    "modal": "bool \u2014 when true, previous screen stays visible underneath",
+    "freeze_world": "bool \u2014 when true, world simulation pauses while shown",
+    "background_color": "hex \u2014 full-cover background (default #000000)",
+    "background_alpha": "0..1 \u2014 for modal screens, dim the world (default 1.0)",
+    "elements": "list of element dicts"
+  },
+  "screen_doc_fields": {
+    "starting_screen": "id of the screen pushed on first load",
+    "screens": "list of screen dicts",
+    "global_inputs": "list of {action, if_screen, on_press} \u2014 global input \u2192 effect chain bindings"
+  },
+  "interaction_events": {
+    "button": [
+      "on_click"
+    ],
+    "slider": [
+      "on_change"
+    ],
+    "checkbox": [
+      "on_change"
+    ],
+    "option_button": [
+      "on_change"
+    ],
+    "global_input": [
+      "on_press"
+    ]
+  },
+  "map_authoring_concepts": {
+    "anchor": {
+      "definition": "A single distinct point of interest \u2014 fire pit, hut, well, market stall, bridge. Emitted as ONE entry in the level's initial_instances array.",
+      "wireframe_cue": "Small to medium solid-color region (~3-8% of canvas) at a specific location. Often centered on a path or near other anchors. The shape is distinct (square, circle, rectangle) and the color is unique per anchor type per the per-game legend.",
+      "json_shape": {
+        "def": "<def_id from game's entities/>",
+        "id": "<unique instance id, e.g. fire_pit_00>",
+        "position": [
+          "<x in world units>",
+          "<y, usually 0 for floor-anchored>",
+          "<z in world units>"
+        ],
+        "state": "<optional state overrides>"
+      },
+      "output_array": "initial_instances"
+    },
+    "zone": {
+      "definition": "A region populated by SCATTER of similar entities \u2014 forest of trees, rock field, mushroom patch. Emitted as ONE entry in the level's patterns array with a density count derived from area + scatter_preset.",
+      "wireframe_cue": "Large solid-color region (>10% of canvas) covering an irregular or rectangular area. The color matches the per-game legend's zone-type color (forest, grass, water, rocks_field, etc.).",
+      "json_shape": {
+        "pattern": "scatter",
+        "def": "<def_id of the scattered entity>",
+        "id_prefix": "<id prefix for scattered instances>",
+        "count": "<int \u2014 total entities to scatter>",
+        "min_r": "<float \u2014 REQUIRED for count > 10. Inner annulus radius in world units around origin. Engine default 0 only fits ~30 entities in min_spacing-packed disk.>",
+        "max_r": "<float \u2014 REQUIRED for count > 10. Outer annulus radius. Engine default 5; pick from wireframe geometry.>",
+        "min_spacing": "<float \u2014 minimum spacing in world units>",
+        "scale_min": "<float \u2014 per-instance random scale lower bound>",
+        "scale_max": "<float \u2014 upper bound>",
+        "yaw_jitter": "<float radians \u2014 random rotation range>",
+        "origin": [
+          "<x>",
+          "<y>",
+          "<z>"
+        ]
+      },
+      "output_array": "patterns"
+    },
+    "path": {
+      "definition": "A sequence of waypoints connecting anchors. Currently EMITTED AS METADATA ONLY (engine does not consume paths directly; level designers can use them as a design reference for foot-traffic intent). Deferred to a future primitive.",
+      "wireframe_cue": "Thin elongated solid-color band connecting two or more anchors. Often tan/brown for foot paths.",
+      "json_shape": {
+        "_path": true,
+        "from_anchor": "<source anchor id>",
+        "to_anchor": "<dest anchor id>",
+        "_note": "Deferred; engine does not consume paths yet."
+      },
+      "output_array": "_paths_meta (informational only)"
+    }
+  },
+  "map_coord_transform": {
+    "_doc": "How to convert a wireframe pixel (px_x, px_y) to a world position (wx, wz). The map's center is world origin; +X is east (image right); +Z is south (image down). Y stays at 0 for floor-anchored entities.",
+    "formula": {
+      "wx": "(px_x - image.width/2) / image.width * world_bounds.width",
+      "wz": "(px_y - image.height/2) / image.height * world_bounds.depth",
+      "wy": "0.0"
+    },
+    "example": "image 1024x1024, world_bounds.width=160 (80m radius). Center pixel (512, 512) \u2192 world (0, 0, 0). Pixel (640, 256) \u2192 world ((640-512)/1024 * 160, 0, (256-512)/1024 * 160) = (20, 0, -40) [20m east, 40m north]."
+  }
 }

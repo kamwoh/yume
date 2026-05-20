@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-05-07T00:05:50+00:00_
+_Generated: 2026-05-20T00:37:32+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -18,16 +18,19 @@ should reference this file instead of hand-edited markdown.
 
 Valid `rule.trigger.type` strings:
 
-`tick`, `contact`, `signal`, `input`, `spawn`, `despawn`, `relation_changed`, `scheduled`
+`tick`, `frame_tick`, `contact`, `signal`, `input`, `spawn`, `despawn`, `relation_changed`, `scheduled`
 
 ## Effect types
 
-35 effect types (used as `rule.effect[].type`):
+59 effect types (used as `rule.effect[].type`):
 
 - `state_set` — `effect_apply.gd`
 - `state_add` — `effect_apply.gd`
 - `state_mul` — `effect_apply.gd`
 - `state_clamp` — `effect_apply.gd`
+- `zone_state_set` — `effect_apply.gd`
+- `zone_state_add` — `effect_apply.gd`
+- `zone_state_clamp` — `effect_apply.gd`
 - `spawn` — `effect_apply.gd`
 - `remove` — `effect_apply.gd`
 - `transform` — `effect_apply.gd`
@@ -40,9 +43,14 @@ Valid `rule.trigger.type` strings:
 - `velocity_lerp` — `effect_apply.gd`
 - `velocity_set_relative` — `effect_apply.gd`
 - `velocity_add_relative` — `effect_apply.gd`
+- `pathfind_to` — `effect_apply.gd`
 - `raycast_hit` — `effect_apply.gd`
 - `transition_level` — `effect_apply.gd`
 - `emit` — `effect_apply.gd`
+- `array_set_at` — `effect_apply.gd`
+- `array_insert_first_empty` — `effect_apply.gd`
+- `array_sync_to_field` — `effect_apply.gd`
+- `array_count_matching` — `effect_apply.gd`
 - `emit_shell_event` — `effect_apply.gd`
 - `transition_screen` — `effect_apply.gd`
 - `quit_app` — `effect_apply.gd`
@@ -59,6 +67,22 @@ Valid `rule.trigger.type` strings:
 - `switch_actor` — `effect_apply.gd`
 - `queue_input_for_actor` — `effect_apply.gd`
 - `reset_world` — `effect_apply.gd`
+- `party_join` — `effect_apply.gd`
+- `party_leave` — `effect_apply.gd`
+- `party_ko` — `effect_apply.gd`
+- `build_place` — `effect_apply.gd`
+- `switch_class` — `effect_apply.gd`
+- `declare_war` — `effect_apply.gd`
+- `sign_treaty` — `effect_apply.gd`
+- `propose_alliance` — `effect_apply.gd`
+- `swear_loyalty` — `effect_apply.gd`
+- `try_discover_tech` — `effect_apply.gd`
+- `learn_from_master` — `effect_apply.gd`
+- `pass_to_apprentice` — `effect_apply.gd`
+- `transfer_inventory` — `effect_apply.gd`
+- `transfer_reputation` — `effect_apply.gd`
+- `transfer_techs` — `effect_apply.gd`
+- `transition_player_to` — `effect_apply.gd`
 
 ## Query clauses
 
@@ -92,7 +116,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 
 ## Error codes (Tier 2.6a)
 
-26 stable codes for matching in retry loops:
+48 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -112,6 +136,9 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `effect.spawn_no_def` | `EngineError.EFFECT_SPAWN_NO_DEF` |
 | `effect.transform_no_def` | `EngineError.EFFECT_TRANSFORM_NO_DEF` |
 | `effect.emit_no_buffer` | `EngineError.EFFECT_EMIT_NO_BUFFER` |
+| `effect.build_place_no_def` | `EngineError.EFFECT_BUILD_PLACE_NO_DEF` |
+| `effect.build_place_invalid` | `EngineError.EFFECT_BUILD_PLACE_INVALID` |
+| `effect.build_place_no_source` | `EngineError.EFFECT_BUILD_PLACE_NO_SOURCE` |
 | `formula.parse_failed` | `EngineError.FORMULA_PARSE_FAILED` |
 | `formula.exec_failed` | `EngineError.FORMULA_EXEC_FAILED` |
 | `world.entities_missing` | `EngineError.WORLD_ENTITIES_MISSING` |
@@ -122,6 +149,25 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `mesh.file_missing` | `EngineError.MESH_FILE_MISSING` |
 | `mesh.invalid_json` | `EngineError.MESH_INVALID_JSON` |
 | `scheduler.topo_cycle` | `EngineError.SCHEDULER_TOPO_CYCLE` |
+| `animation.no_default` | `EngineError.ANIMATION_NO_DEFAULT` |
+| `class.switch_no_def` | `EngineError.CLASS_SWITCH_NO_DEF` |
+| `class.switch_cooldown` | `EngineError.CLASS_SWITCH_COOLDOWN` |
+| `class.missing_id` | `EngineError.CLASS_MISSING_ID` |
+| `class.invalid_json` | `EngineError.CLASS_INVALID_JSON` |
+| `faction.no_def` | `EngineError.FACTION_NO_DEF` |
+| `faction.invalid_stance` | `EngineError.FACTION_INVALID_STANCE` |
+| `tech.no_tree` | `EngineError.TECH_NO_TREE` |
+| `tech.prereq_missing` | `EngineError.TECH_PREREQ_MISSING` |
+| `tech.prereq_cycle` | `EngineError.TECH_PREREQ_CYCLE` |
+| `step.unknown_verb` | `EngineError.STEP_UNKNOWN_VERB` |
+| `step.unknown_action` | `EngineError.STEP_UNKNOWN_ACTION` |
+| `step.click_not_found` | `EngineError.STEP_CLICK_NOT_FOUND` |
+| `step.click_ambiguous` | `EngineError.STEP_CLICK_AMBIGUOUS` |
+| `step.expect_failed` | `EngineError.STEP_EXPECT_FAILED` |
+| `step.release_not_held` | `EngineError.STEP_RELEASE_NOT_HELD` |
+| `step.invalid_duration` | `EngineError.STEP_INVALID_DURATION` |
+| `dynasty.no_heir` | `EngineError.DYNASTY_NO_HEIR` |
+| `dynasty.extinct` | `EngineError.DYNASTY_EXTINCT` |
 
 ## Reserved state fields
 
