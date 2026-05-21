@@ -82,6 +82,20 @@ uniform float metallic_forest : hint_range(0.0, 1.0) = 0.00;
 uniform float water_scroll_speed : hint_range(0.0, 1.0) = 0.15;
 uniform float water_scroll_amplitude : hint_range(0.0, 0.5) = 0.06;
 
+// Heightmap displacement (task #82). Vertex shader samples heightmap.r
+// at world-XZ → displace VERTEX.y by (sample - 0.5) * height_scale.
+// PURELY VISUAL — player collision plane stays at y=0, so high
+// height_scale will make the player visibly float over the bumps.
+// Keep height_scale small (≤0.6m) for "rolling terrain" feel.
+//
+// To enable: set ground.mesh.subdivide ≥ 32 in scene.json (PlaneMesh
+// defaults to 0 subdivisions = 2 triangles, can't show bumps) and
+// set heightmap to a valid texture. height_scale=0 disables the
+// displacement entirely (default).
+uniform sampler2D heightmap : source_color, filter_linear, repeat_disable;
+uniform float height_scale : hint_range(0.0, 5.0) = 0.0;
+uniform float height_offset : hint_range(-1.0, 1.0) = -0.5;
+
 // World-space position carried from vertex() to fragment(). REQUIRED
 // because Godot 4's `VERTEX` in fragment() is view-space — using it
 // directly would make the biome regions drift with the camera (the
@@ -90,6 +104,35 @@ uniform float water_scroll_amplitude : hint_range(0.0, 0.5) = 0.06;
 varying vec3 v_world_pos;
 
 void vertex() {
+    // Heightmap displacement (task #82). Sample heightmap at the
+    // vertex's world-XZ → biome UV (same mapping as fragment's biome
+    // lookup). PlaneMesh PRE-displacement: VERTEX is in model space
+    // = world space (no parent rotation), so we can use VERTEX.xz
+    // directly to compute UV.
+    vec2 hm_uv = vec2(
+        (VERTEX.x + plane_size * 0.5) / plane_size,
+        1.0 - (VERTEX.z + plane_size * 0.5) / plane_size
+    );
+    float h_center = texture(heightmap, hm_uv).r + height_offset;
+    VERTEX.y += h_center * height_scale;
+
+    // Analytical normal from 4-neighbor finite differences. Sample
+    // the heightmap at small UV offsets; the tangent + bitangent give
+    // a cross-product normal that follows the actual slope. Without
+    // this, per-vertex normals stay flat (0,1,0) and lighting doesn't
+    // respond to the bumps. eps is 1/1024 (1 texel for our 1024² map).
+    float eps_uv = 1.0 / 1024.0;
+    float h_xp = texture(heightmap, hm_uv + vec2(eps_uv, 0.0)).r + height_offset;
+    float h_xn = texture(heightmap, hm_uv - vec2(eps_uv, 0.0)).r + height_offset;
+    float h_zp = texture(heightmap, hm_uv + vec2(0.0, eps_uv)).r + height_offset;
+    float h_zn = texture(heightmap, hm_uv - vec2(0.0, eps_uv)).r + height_offset;
+    // dx in world space = 2 * eps_uv * plane_size; dh = (h_xp - h_xn) * height_scale.
+    // Slope along X = dh/dx; the normal's X component opposes the slope.
+    float ds = 2.0 * eps_uv * plane_size;
+    vec3 slope_x = vec3(ds, (h_xp - h_xn) * height_scale, 0.0);
+    vec3 slope_z = vec3(0.0, (h_zp - h_zn) * height_scale, ds);
+    NORMAL = normalize(cross(slope_z, slope_x));
+
     v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 
