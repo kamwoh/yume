@@ -50,6 +50,16 @@ var _fp_initial_capture_done: bool = false
 # desktop use. Press ESC again to re-capture and resume play.
 var _mouse_released_by_user: bool = false
 
+# Ephemeral free-cam pose when no free_camera entity exists in the world.
+# Stored director-local so we don't write to player.state.position (the
+# physics body would overwrite immediately, producing a "stuck" feel).
+# Lost on game restart — that's fine, it's a fallback for unauthored levels.
+var _freecam_ephemeral_pos: Vector3 = Vector3.ZERO
+var _freecam_ephemeral_yaw: float = 0.0
+var _freecam_ephemeral_pitch: float = 0.0
+var _freecam_ephemeral_initialized: bool = false
+var _warned_no_free_camera: bool = false
+
 
 func _init(shell: Node) -> void:
 	_shell = shell
@@ -156,6 +166,12 @@ func update_follow(scene_cfg: Dictionary) -> void:
 				actor.set_state("pitch", 0.0)
 		if not was_fp and is_fp:
 			_fp_initial_capture_done = false
+		# Reset ephemeral free-cam init on mode change so re-entering
+		# free_cam picks up the new mode's Camera3D pose.
+		var was_free := _mode_last == "free_cam"
+		var is_free := mode == "free_cam"
+		if was_free and not is_free:
+			_freecam_ephemeral_initialized = false
 		# Toggle followed-entity mesh visibility on FPS transitions
 		# (2026-05-19, V-toggle support). visual.hide_for_camera_attach
 		# is statically applied at entity load to SHADOWS_ONLY for the
@@ -592,9 +608,11 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 
 	# === Resolve the active camera entity ===
 	# Look up world_clock to get active_camera_id, then find that entity.
-	# If not found, fall back to the first free_camera-tagged entity, or
-	# the player entity (legacy fallback). Last-resort: if no entity has
-	# pose data, the Camera3D's current transform persists.
+	# If not found, fall back to the first free_camera-tagged entity in
+	# the world. If still none, use director-local ephemeral pose vars
+	# (NOT the player — writing to player.state.position fights physics +
+	# WASD systems, producing a "stuck" feel). The level should author
+	# free_camera initial_instances; we log a one-time warning when not.
 	var clock := _find_entity_by_tag("world_clock")
 	var active_id := ""
 	if clock != null:
@@ -606,14 +624,14 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 			cam_ent = ents[active_id]
 	if cam_ent == null:
 		cam_ent = _find_entity_by_tag("free_camera")
-	if cam_ent == null:
-		# Fallback: store pose on the follow_tag entity (player)
-		cam_ent = _find_entity_by_tag(str(cam_cfg.get("follow_tag", "player")))
-	if cam_ent == null:
-		return
+	var use_ephemeral := cam_ent == null
+	if use_ephemeral and not _warned_no_free_camera:
+		push_warning("[CameraDirector.free_cam] no free_camera entity in level — flying from Camera3D's current pose (pose will not persist across level transitions). Author free_camera initial_instances per .claude/skills/yume-content-designer/SKILL.md.")
+		_warned_no_free_camera = true
 
 	# === Tab cycles to the next free_camera entity ===
-	if Input.is_action_just_pressed("cycle_camera") and _world != null:
+	# Skipped in ephemeral mode (nothing to cycle through).
+	if not use_ephemeral and Input.is_action_just_pressed("cycle_camera") and _world != null:
 		var ents2: Dictionary = _world.get("entities") as Dictionary
 		var cams: Array = []
 		for ent_id in ents2.keys():
@@ -631,17 +649,30 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 				cam_ent = ents2[next_id]
 
 	# === Read pose ===
-	# Initialize from live Camera3D on first entry (if state.position
-	# isn't set yet) so the cinematic-mode transition is seamless.
-	var pos_v = cam_ent.get_state("position", null)
+	# Initialize from live Camera3D on first entry so the cinematic-mode
+	# transition is seamless (camera lands where the previous mode left
+	# it). Both entity-backed and ephemeral paths handle this.
 	var cam_pos: Vector3
-	if pos_v == null:
-		cam_pos = _camera3d.global_position
-		cam_ent.set_state("position", [cam_pos.x, cam_pos.y, cam_pos.z])
+	var cam_yaw: float
+	var cam_pitch: float
+	if use_ephemeral:
+		if not _freecam_ephemeral_initialized:
+			_freecam_ephemeral_pos = _camera3d.global_position
+			_freecam_ephemeral_yaw = _camera3d.rotation.y
+			_freecam_ephemeral_pitch = _camera3d.rotation.x
+			_freecam_ephemeral_initialized = true
+		cam_pos = _freecam_ephemeral_pos
+		cam_yaw = _freecam_ephemeral_yaw
+		cam_pitch = _freecam_ephemeral_pitch
 	else:
-		cam_pos = Vec3Util.from_world_pos(pos_v)
-	var cam_yaw := float(cam_ent.get_state("yaw", _camera3d.rotation.y))
-	var cam_pitch := float(cam_ent.get_state("pitch", _camera3d.rotation.x))
+		var pos_v = cam_ent.get_state("position", null)
+		if pos_v == null:
+			cam_pos = _camera3d.global_position
+			cam_ent.set_state("position", [cam_pos.x, cam_pos.y, cam_pos.z])
+		else:
+			cam_pos = Vec3Util.from_world_pos(pos_v)
+		cam_yaw = float(cam_ent.get_state("yaw", _camera3d.rotation.y))
+		cam_pitch = float(cam_ent.get_state("pitch", _camera3d.rotation.x))
 
 	# === Mouse → yaw/pitch on the active camera entity ===
 	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
@@ -655,8 +686,12 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 				cam_yaw -= delta.x * sensitivity
 				cam_pitch -= delta.y * sensitivity
 				cam_pitch = clamp(cam_pitch, -PI * 0.49, PI * 0.49)
-				cam_ent.set_state("yaw", cam_yaw)
-				cam_ent.set_state("pitch", cam_pitch)
+				if use_ephemeral:
+					_freecam_ephemeral_yaw = cam_yaw
+					_freecam_ephemeral_pitch = cam_pitch
+				else:
+					cam_ent.set_state("yaw", cam_yaw)
+					cam_ent.set_state("pitch", cam_pitch)
 				env["mouse_delta"] = Vector2.ZERO
 
 	# === WASD / Space / Ctrl → camera position on the active entity ===
@@ -694,7 +729,10 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 	if delta_pos.length_squared() > 0.0001:
 		delta_pos = delta_pos.normalized() * speed * dt
 		cam_pos += delta_pos
-		cam_ent.set_state("position", [cam_pos.x, cam_pos.y, cam_pos.z])
+		if use_ephemeral:
+			_freecam_ephemeral_pos = cam_pos
+		else:
+			cam_ent.set_state("position", [cam_pos.x, cam_pos.y, cam_pos.z])
 
 	# Apply to Camera3D
 	_camera3d.global_position = cam_pos
