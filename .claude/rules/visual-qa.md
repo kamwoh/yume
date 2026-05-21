@@ -75,17 +75,88 @@ Two paths to frame the feature:
 - Use Tab to cycle between them OR set `active_camera_id` on
   world_clock to the desired test camera before capture.
 
-### Choose the angle for what you're verifying
+### Step 0a — DERIVE world position from authoritative data (don't guess)
 
-| Feature class | Required camera framing |
-|---|---|
-| Animation (ripples, particles, flame, weather) | Multi-frame A/B capture at the target location. Diff with `.convert('RGB')` first — PIL ImageChops drops modes silently. |
-| Material differentiation (water shine vs grass matte) | Oblique angle (pitch -0.3 to -0.5) so specular highlights show. Top-down hides them. |
-| Vertex displacement / relief / hills | Low-angle profile shot (pitch ≈ -0.05 to -0.2, eye-level height) so the silhouette reveals the bumps. Top-down minimizes parallax. |
-| Color blending / biome boundaries | Top-down (pitch -1.4 to -1.5) so the semantic map's regions are clearly visible. |
-| Lighting transitions / dawn-grazing | Camera aligned with the light source's azimuth so shadow falloff is in frame. |
-| HUD / screens / overlays | Whatever camera state the UI is meant to overlay — usually FPS default since HUD is anchored to the viewport, not the world. |
-| Scene composition / focal point | Eye-level wide shot from outside the focal radius, looking IN at the anchor entity. |
+The world tells you where its features are. Consult these primitives
+BEFORE picking a position — never improvise. The signal source is
+chosen by what kind of feature you're verifying:
+
+| Verifying… | Authoritative source | What to extract |
+|---|---|---|
+| Biome / ground material (water shine, dirt blend, path traffic) | `assets/layouts/<map>.png` (semantic map referenced from `scene.json.ground.mesh.shader_params.biome_map`) | Sample pixels matching the biome's reference RGB → centroid → world coord via `(x/w - 0.5) * plane_size` and `(0.5 - y/h) * plane_size`. |
+| Terrain relief (heightmap displacement) | `assets/textures/*heightmap*.png` | Sample R-channel; locate (argmin, argmax) for valley and peak coords; pick a profile vantage perpendicular to their line. |
+| Named entity (a specific NPC, fire_pit, well, focal anchor) | `levels/<level>/entities.json` `initial_instances` | Grep for `def == "<name>"` → read `position`. |
+| Lighting / shadow direction / dawn-grazing | `scene.json.lighting.sun.direction` (Vector3) | Sun direction defines specular highlight azimuth; place camera looking along ± that axis. |
+| Patterns / scattered prop clusters | `levels/<level>/entities.json` `patterns[]` (center + radius) | Pattern center is the cluster's framing target. |
+| Player POV / signature beat | GDD `docs/games/<game>/GDD.md` "signature beats" section | Beat's stated location coordinates or named anchor. |
+| Composition / focal point | `levels/<level>/entities.json` — entity with the largest `state.scale` OR named "fire_pit" / "well" / "shrine" | The visual anchor; place camera looking IN at it. |
+
+**Concrete pattern (Python one-liner for biome centroids)**:
+
+```python
+from PIL import Image
+img = Image.open("data/<game>/assets/layouts/<map>.png").convert("RGB")
+w, h = img.size; data = img.load()
+ref = (48, 112, 192)  # water ref (read from scene.json biome_color_water)
+xs, ys = [], []
+for y in range(0, h, 4):
+    for x in range(0, w, 4):
+        if sum((a-b)**2 for a,b in zip(data[x,y], ref)) < 5000:
+            xs.append(x); ys.append(y)
+cx, cy = sum(xs)/len(xs), sum(ys)/len(ys)
+plane = 80.0  # from scene.json ground.mesh.size[0]
+print((cx/w - 0.5)*plane, (0.5 - cy/h)*plane)  # → world (x, z)
+```
+
+Write the world coord down — `target = (wx, wy, wz)` — before
+picking a camera angle. This becomes the LOOK-AT point. The camera
+position is derived from it via the angle table below.
+
+### Step 0b — DERIVE camera params from feature class
+
+| Feature class | Required framing | Height | Pitch | Distance to target |
+|---|---|---|---|---|
+| Animation (ripples, particles, flame, weather) | Multi-frame A/B at target. Diff with `.convert('RGB')` first — PIL ImageChops drops modes silently. | 10-20m | -1.0 to -1.4 (mostly straight down) | 0 (camera above target) |
+| Material differentiation (water shine vs grass matte) | Oblique so specular highlights show | 3-8m | -0.3 to -0.5 | 5-15m offset toward sun-azimuth |
+| Vertex displacement / relief / hills | Low-angle profile so silhouette reveals bumps | 0.5-1.0m | -0.05 to -0.15 | 10-30m on the side, perpendicular to slope axis |
+| Color blending / biome boundaries | Top-down so semantic regions show | 15-30m | -1.4 to -1.5 | 0 (directly over boundary) |
+| Lighting transitions / dawn-grazing | Camera aligned with light azimuth so shadow falloff is in frame | 2-5m | -0.1 to -0.3 | 10-20m, light vector behind camera |
+| HUD / screens / overlays | Player's intended camera (FPS default) — HUD is viewport-anchored not world-anchored | — | — | — |
+| Scene composition / focal point | Eye-level wide from outside focal radius, looking IN | 1.6-3m | -0.05 to -0.2 | focal radius × 1.5 |
+
+The position is then:
+
+```
+camera_pos = target + (offset_vec * distance_to_target)
+camera_pos.y = height
+camera_yaw = atan2(target.x - camera_pos.x, -(target.z - camera_pos.z))
+camera_pitch = (from table)
+```
+
+Where `offset_vec` depends on the angle desired (sun-azimuth, slope-
+perpendicular, anchor-radial). The camera always LOOKS AT the
+target — yaw + pitch derived from the look vector, not guessed.
+
+### Step 0c — Scene sanity sweep (one extra capture per session)
+
+After framing the feature, ALSO take ONE wide overview capture
+from a random vantage point (e.g. high overhead at level center,
+or from a corner looking diagonally across). Inspect for
+unrelated artifacts:
+
+- Mystery cubes (missing `visual.hidden=true` on logical entities —
+  see data-demo.md)
+- Floating meshes (missing `y_offset` on AI-gen models)
+- Z-fighting (overlapping ground decals, walls)
+- Terrain holes (subdivision boundary tears in heightmap shaders)
+- Pink fallback meshes (failed texture loads, broken shader params)
+
+This is cheap insurance against the bug class where you verify the
+feature correctly but ship a regression in unrelated geometry.
+Empirical case 2026-05-21: free_camera defs rendered as cubes at
+their initial_instance positions for the entire session before
+being caught by the user. A scene sanity sweep after task #83
+would have caught it before tasks #80-#82.
 
 ### Tool 1: capture
 
