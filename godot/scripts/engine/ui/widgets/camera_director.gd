@@ -554,25 +554,27 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	_update_crosshair_target(actor, cam_cfg)
 
 
-## Cinematic free-camera mode (2026-05-20). Camera is FULLY decoupled from
-## the player — WASD moves the camera in its own local frame; Space/Ctrl
-## raise/lower; mouse rotates. Player input rules are gated off via
-## camera_mode == 'free_cam' filters, so the world's AI/schedule continues
-## but the player ignores WASD.
+## Cinematic free-camera mode (2026-05-21 refactor to entity model).
+## Camera state lives on a `free_camera`-tagged ENTITY (per ADR 0001 +
+## the everything-is-an-entity principle) — not on the player. Engine
+## reads world_clock.active_camera_id, finds that entity, applies its
+## state.position + state.yaw + state.pitch to Camera3D.
 ##
-## State (stored on the followed-tag entity since it always exists):
-##   cam_pos    Vector3 — world position of the free camera
-##   cam_yaw    float   — Y-axis rotation
-##   cam_pitch  float   — X-axis rotation (clamped ±π/2)
+## Multi-camera: any number of free_camera entities can coexist in a
+## level (camera_a, camera_b, etc.). Tab cycles to the next one.
+## Each camera tagged `persistent` survives level transitions (its
+## position is saved per ADR 0010 save/restore).
 ##
-## On entering free_cam (mode change detected), cam_pos/yaw/pitch are
-## initialized to the current camera's transform so the transition is
-## seamless. Same trick the FPS-leave branch uses for state.facing reset.
+## State (per free_camera entity):
+##   position    [x, y, z] world position
+##   yaw         float — Y-axis rotation
+##   pitch       float — X-axis rotation (clamped ±π/2)
+##
+## Falls back to the current Camera3D pose if no free_camera entity
+## exists in the level (single-camera ad-hoc case).
 func _camera_free_cam(cam_cfg: Dictionary) -> void:
 	# Modal / overlay open? Release mouse so the user can click pause-menu
-	# buttons. Without this, ESC opens the pause menu but our re-capture
-	# next frame steals the cursor → buttons un-clickable. Same gate as
-	# _camera_first_person_3d (lines ~436-441).
+	# buttons. Same gate as _camera_first_person_3d (lines ~436-441).
 	var freeze_world := false
 	if _world != null:
 		var ws: Dictionary = _world.get("world_state") as Dictionary
@@ -583,34 +585,65 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 			)
 	if freeze_world:
 		Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-		# Hold the camera in place while paused — no input drain, no
-		# position update. Player sees the same frame they paused on.
 		return
 
 	# Mouse capture (same as FPS / third-person — keeps yaw/pitch live)
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
-	var actor := _find_entity_by_tag(str(cam_cfg.get("follow_tag", "player")))
-	if actor == null:
+	# === Resolve the active camera entity ===
+	# Look up world_clock to get active_camera_id, then find that entity.
+	# If not found, fall back to the first free_camera-tagged entity, or
+	# the player entity (legacy fallback). Last-resort: if no entity has
+	# pose data, the Camera3D's current transform persists.
+	var clock := _find_entity_by_tag("world_clock")
+	var active_id := ""
+	if clock != null:
+		active_id = str(clock.get_state("active_camera_id", ""))
+	var cam_ent: Object = null
+	if active_id != "" and _world != null:
+		var ents: Dictionary = _world.get("entities") as Dictionary
+		if ents != null and ents.has(active_id):
+			cam_ent = ents[active_id]
+	if cam_ent == null:
+		cam_ent = _find_entity_by_tag("free_camera")
+	if cam_ent == null:
+		# Fallback: store pose on the follow_tag entity (player)
+		cam_ent = _find_entity_by_tag(str(cam_cfg.get("follow_tag", "player")))
+	if cam_ent == null:
 		return
 
-	# Read camera state from the actor's state slots. Initialize from
-	# the live Camera3D transform on first frame in this mode (when the
-	# slots are missing/null), so toggling INTO free_cam doesn't snap
-	# the camera somewhere unexpected.
-	var cam_pos_v = actor.get_state("cam_pos", null)
-	var cam_pos: Vector3
-	if cam_pos_v == null:
-		cam_pos = _camera3d.global_position
-		actor.set_state("cam_pos", [cam_pos.x, cam_pos.y, cam_pos.z])
-	else:
-		cam_pos = Vec3Util.from_world_pos(cam_pos_v)
-	var cam_yaw := float(actor.get_state("cam_yaw", _camera3d.rotation.y))
-	var cam_pitch := float(actor.get_state("cam_pitch", _camera3d.rotation.x))
+	# === Tab cycles to the next free_camera entity ===
+	if Input.is_action_just_pressed("cycle_camera") and _world != null:
+		var ents2: Dictionary = _world.get("entities") as Dictionary
+		var cams: Array = []
+		for ent_id in ents2.keys():
+			var e = ents2[ent_id]
+			if e is Entity and (e as Entity).has_tag("free_camera"):
+				cams.append(str(ent_id))
+		cams.sort()
+		if cams.size() > 0:
+			var idx := cams.find(active_id)
+			var next_id: String = cams[(idx + 1) % cams.size()] if idx >= 0 else cams[0]
+			if clock != null:
+				clock.set_state("active_camera_id", next_id)
+			# Switch cam_ent to the new camera for THIS frame
+			if ents2.has(next_id):
+				cam_ent = ents2[next_id]
 
-	# === Mouse → yaw/pitch ===
-	# Read + consume the per-frame mouse delta from the scheduler env
-	# (same source as _drain_mouse_facing — single source of truth).
+	# === Read pose ===
+	# Initialize from live Camera3D on first entry (if state.position
+	# isn't set yet) so the cinematic-mode transition is seamless.
+	var pos_v = cam_ent.get_state("position", null)
+	var cam_pos: Vector3
+	if pos_v == null:
+		cam_pos = _camera3d.global_position
+		cam_ent.set_state("position", [cam_pos.x, cam_pos.y, cam_pos.z])
+	else:
+		cam_pos = Vec3Util.from_world_pos(pos_v)
+	var cam_yaw := float(cam_ent.get_state("yaw", _camera3d.rotation.y))
+	var cam_pitch := float(cam_ent.get_state("pitch", _camera3d.rotation.x))
+
+	# === Mouse → yaw/pitch on the active camera entity ===
 	if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
 		var sched = _world.get("scheduler")
 		if sched != null:
@@ -622,14 +655,11 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 				cam_yaw -= delta.x * sensitivity
 				cam_pitch -= delta.y * sensitivity
 				cam_pitch = clamp(cam_pitch, -PI * 0.49, PI * 0.49)
-				actor.set_state("cam_yaw", cam_yaw)
-				actor.set_state("cam_pitch", cam_pitch)
+				cam_ent.set_state("yaw", cam_yaw)
+				cam_ent.set_state("pitch", cam_pitch)
 				env["mouse_delta"] = Vector2.ZERO
 
-	# === WASD / Space / Ctrl → camera position ===
-	# Speed = m/s in camera-local frame. Configurable per scene.json camera.
-	# Default 8 m/s = brisk fly; 16 = sprint (shift). Frame-rate-independent
-	# via Engine.get_process_delta_time.
+	# === WASD / Space / Ctrl → camera position on the active entity ===
 	var base_speed := float(cam_cfg.get("freecam_speed", 8.0))
 	var sprint_mult := float(cam_cfg.get("freecam_sprint", 2.0))
 	var speed := base_speed
@@ -639,18 +669,9 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 	if dt <= 0.0:
 		dt = 1.0 / 60.0
 
-	# Local-frame movement basis. Forward INCLUDES pitch so aiming the
-	# camera at the ground and pressing W actually flies INTO the ground
-	# (and S retreats UP and back). Standard FPS-fly convention. Strafe
-	# stays horizontal (no pitch component) so left/right don't tilt the
-	# camera vertically when yaw isn't level. Vertical Space/Ctrl is
-	# world-Y so absolute up/down works regardless of pitch.
-	# Sign convention: mouse-down → cam_pitch decreases (goes negative)
-	# per `cam_pitch -= delta.y * sens` above. To make W push INTO the
-	# ground when aiming down, fwd.y must be negative when cam_pitch is
-	# negative → fwd.y = sin(cam_pitch). The XZ components carry
-	# cos(cam_pitch) so the forward magnitude stays unit-length as pitch
-	# tilts (W speed doesn't depend on look angle).
+	# Local-frame movement basis. Forward includes pitch (W into ground
+	# when aiming down); strafe stays horizontal; vertical is world-Y.
+	# See 2026-05-20 notes for sign convention.
 	var fwd := Vector3(
 		-sin(cam_yaw) * cos(cam_pitch),
 		sin(cam_pitch),
@@ -673,11 +694,10 @@ func _camera_free_cam(cam_cfg: Dictionary) -> void:
 	if delta_pos.length_squared() > 0.0001:
 		delta_pos = delta_pos.normalized() * speed * dt
 		cam_pos += delta_pos
-		actor.set_state("cam_pos", [cam_pos.x, cam_pos.y, cam_pos.z])
+		cam_ent.set_state("position", [cam_pos.x, cam_pos.y, cam_pos.z])
 
 	# Apply to Camera3D
 	_camera3d.global_position = cam_pos
-	# Orientation: yaw on Y, pitch on X. Roll always 0 for cinematic feel.
 	_camera3d.rotation = Vector3(cam_pitch, cam_yaw, 0)
 	_apply_ortho(cam_cfg, false)
 
