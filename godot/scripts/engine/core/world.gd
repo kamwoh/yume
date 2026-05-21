@@ -166,6 +166,19 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	GroundRenderer.cleanup()
 	Formula.clear_cache()
+	# MultiMeshDirector is a Node but NEVER added to the tree (held only
+	# as world._multimesh_director). When World exits, its Node lingers
+	# as an orphan → Godot reports "1 resources still in use at exit"
+	# (the GDScript) + "Leaked instance: Node:... path: ''" + the
+	# GDScript+GDScriptNativeClass refs that hold it. Free here so the
+	# ref count drops to 0 before Godot's ObjectDB sweep.
+	#
+	# Empirical case 2026-05-21: --verbose at exit pointed at
+	# multimesh_director.gd as the resource leak. The hint was right —
+	# orphan Node, never queued.
+	if _multimesh_director != null and is_instance_valid(_multimesh_director):
+		_multimesh_director.free()
+		_multimesh_director = null
 
 
 func start() -> void:

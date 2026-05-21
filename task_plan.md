@@ -3271,44 +3271,44 @@ section here per `.claude/rules/docs.md` ("Append, don't rewrite").
   Now a behavioral gate, not just memory.
 
 
-## Third-person mode — known issues (deferred, 2026-05-19)
+## Third-person mode — known issues (2026-05-19, audited 2026-05-21)
 
-V-toggle FPS↔3rd-person works (ba338b6, 7992d77, 2171792) but user
-reports remaining problems. To investigate next session:
+V-toggle FPS↔3rd-person works (ba338b6, 7992d77, 2171792). Original
+seven-item issue list, with current status after this session:
 
-- [ ] **Pitch (vertical mouse-look) in third-person** — FPS uses
-  `use_pitch=true` to drive camera tilt via state.pitch. Third-person
-  formula doesn't read pitch, only state.facing. Mouse-up/down
-  probably does nothing in third-person. Expected: pitch should
-  orbit the camera vertically around the player (Witcher-style).
-- [ ] **Mode-transition snap** — when V is pressed, camera lerp
-  may snap weirdly. _snap_pending is set on level transitions but
-  not on camera-mode swaps within the same level. Symptom: 0.3-0.5s
-  of camera glide on mode-swap. Mitigation: trigger `set_snap_pending()`
-  in the mode-change branch of `update_follow`.
-- [ ] **Animation set is minimal (idle+walk)** — pressing other
-  movement actions (sprint, jump, attack) plays the default branch
-  (idle) regardless. Expand morwen+player retargets: add run, jump,
-  hurt clips ($0.30 each).
-- [ ] **WASD-strafe rotates player by their own velocity** —
-  `face_motion` lib applies to entities tagged that way, but player
-  isn't `face_motion`-tagged. State.facing is mouse-driven only, so
-  pure-strafe (A/D without W/S) doesn't visibly rotate the body —
-  player slides sideways while facing camera-forward. That's
-  correct for Witcher-style but felt weird per user. Decision
-  needed: should A/D strafe (current) or turn (Skyrim-style)?
-- [ ] **Camera collision** — at distance=4, the camera can clip
-  through walls/trees behind the player. Need raycast from player to
-  desired-camera-position; if blocked, shorten distance.
-- [ ] **HUD layout in third-person** — minimap, vitals, hotbar
-  positioned for FPS framing; third-person view might want them
-  repositioned or hidden.
-- [ ] **Crosshair visual feedback** — in FPS the crosshair sits at
-  screen center (camera-forward). In third-person the actual target
-  point is in front of the PLAYER, not the camera. Should the
-  crosshair render at the screen-space projection of the
-  player's-facing-direction-ray, or stay at screen center? Currently
-  stays at screen center which is misleading.
+- [x] **Pitch (vertical mouse-look) in third-person** — RESOLVED. The
+  pitched_height + pitched_dist math in `_camera_third_person_3d`
+  orbits the camera vertically around the player; mouse-up/down works.
+- [x] **Mode-transition snap** — EFFECTIVELY RESOLVED via `lerp:
+  1.0` in scene.json camera config (per user choice for instant-snap
+  feel). With lerp=1.0, position snaps to desired each frame, so
+  no 0.3-0.5s glide on V-toggle. If a future game wants smoothed
+  follow (lerp < 1.0), `set_snap_pending()` would still be needed
+  in the mode-change branch.
+- [ ] **Animation set is minimal (idle+walk)** — STILL DEFERRED.
+  Pressing other actions (sprint, jump, attack) plays idle. The
+  jump action shipped this session but no jump CLIP plays. Expand
+  morwen+player Tripo3D retargets: add run, jump, hurt clips ($0.30
+  each). SDK exposes 11 biped presets per ADR 0053.
+- [x] **WASD-strafe rotates player by velocity** — DECIDED. User
+  explicitly chose locked-mode (camera + player rotate together,
+  Skyrim/GTA-style) over Witcher-style face-motion. A/D strafes;
+  body stays facing camera-forward. Not a bug; an explicit
+  design call.
+- [ ] **Camera collision** — STILL DEFERRED. At distance 4-8m, the
+  camera can clip through walls/trees behind the player. Need
+  raycast from player to desired-camera-position; if blocked,
+  shorten distance. Becomes more important now that scroll-zoom
+  goes up to 8m (was 4m fixed).
+- [ ] **HUD layout in third-person** — STILL DEFERRED. Minimap,
+  vitals, hotbar positioned for FPS framing; 3rd-person view might
+  want them repositioned or hidden. Low priority — they're not
+  visibly broken.
+- [ ] **Crosshair visual feedback** — STILL DEFERRED. Crosshair
+  renders at screen center in 3rd-person, but the actual target
+  point is in front of the PLAYER, not the camera. Misleading for
+  aim-based interactions. Fix: project player-facing-direction-ray
+  to screen-space, render crosshair there.
 
 Followups also expected on Tripo3D animation: SDK exposes 11 biped
 presets; we only baked 2 (idle+walk). Next characters might want

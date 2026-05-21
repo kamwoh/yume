@@ -80,6 +80,7 @@ func _ready() -> void:
 	test_multimesh_director()
 	test_array_primitives()
 	test_animation_translator()
+	test_ground_renderer_rebind()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -9424,3 +9425,107 @@ func test_animation_translator() -> void:
 		Animation.INTERPOLATION_LINEAR,
 		"no interp → INTERPOLATION_LINEAR by default"
 	)
+
+
+# ============================================================
+# GROUND_RENDERER.REBIND_SHADER_PARAMS — sparse override semantics
+# ============================================================
+#
+# ADR 0055 v2 acceptance gate (2026-05-21). Verifies that calling
+# GroundRenderer.rebind_shader_params(level_id) deep-merges per-level
+# scene.json overrides over the cached game-level baseline:
+#   - Keys declared in the level override → new values
+#   - Keys absent from the level override → baseline persists
+#
+# Empirical motivation: at code-review time the reviewer (tech-director)
+# flagged "deep-merge of level scene.json over game scene.json needs to
+# be defined clearly. Sparse override semantics — what happens if level
+# says shader_params.biome_map but doesn't say biome_color_grass?" This
+# test pins the answer in code.
+
+
+func test_ground_renderer_rebind() -> void:
+	_section("ground_renderer.rebind_shader_params — sparse override")
+	# Build a tiny temp data root with one level + a sparse scene.json
+	var tmp := "user://_test_rebind_%d" % Time.get_ticks_msec()
+	DirAccess.make_dir_recursive_absolute(tmp + "/levels/level_a")
+	var f := FileAccess.open(tmp + "/levels/level_a/scene.json", FileAccess.WRITE)
+	# Sparse override — only biome_map; biome_color_grass + uv_tile
+	# should fall through to the game-level baseline.
+	f.store_string(JSON.stringify({
+		"ground": {
+			"mesh": {
+				"shader_params": {
+					"biome_map": "fake://overridden_map.png",
+					"blend_softness": 0.99,
+				}
+			}
+		}
+	}))
+	f.close()
+
+	# Stage GroundRenderer's static caches. ShaderMaterial.new() without
+	# an attached Shader still accepts set_shader_parameter calls — the
+	# values are stored as Variants regardless. Read-back via
+	# get_shader_parameter works the same.
+	var sm := ShaderMaterial.new()
+	GroundRenderer._shader_material = sm
+	GroundRenderer._cached_data_root = tmp.replace("user://", OS.get_user_data_dir() + "/")
+	GroundRenderer._game_shader_params = {
+		"biome_map":          "fake://baseline_map.png",
+		"biome_color_grass":  [0.5, 0.5, 0.5, 1.0],
+		"uv_tile":            30.0,
+		"blend_softness":     0.18,
+	}
+	# Apply the baseline first (mirrors what build() does)
+	for k in GroundRenderer._game_shader_params:
+		sm.set_shader_parameter(str(k), GroundRenderer._game_shader_params[k])
+
+	# Sanity: baseline applied
+	expect_eq(
+		str(sm.get_shader_parameter("biome_map")), "fake://baseline_map.png",
+		"baseline biome_map applied"
+	)
+
+	# Trigger the rebind
+	GroundRenderer.rebind_shader_params("level_a")
+
+	# Declared keys in the override → new values
+	expect_eq(
+		str(sm.get_shader_parameter("biome_map")), "fake://overridden_map.png",
+		"override: biome_map replaced",
+	)
+	expect_eq(
+		float(sm.get_shader_parameter("blend_softness")), 0.99,
+		"override: blend_softness replaced",
+	)
+	# Undeclared keys → baseline persists (deep-merge sparseness)
+	expect_eq(
+		float(sm.get_shader_parameter("uv_tile")), 30.0,
+		"sparse merge: uv_tile keeps baseline value",
+	)
+	var grass = sm.get_shader_parameter("biome_color_grass")
+	expect_eq(
+		typeof(grass), TYPE_ARRAY,
+		"sparse merge: biome_color_grass keeps baseline (typed Array)",
+	)
+	if grass is Array and (grass as Array).size() == 4:
+		expect_eq(
+			float((grass as Array)[0]), 0.5,
+			"sparse merge: biome_color_grass[0] preserved",
+		)
+
+	# Second rebind to a non-existent level → should fall back to baseline,
+	# re-applying the game-level params. The biome_map we previously
+	# overrode is now reset to baseline. This pins the "level transition
+	# back to a level without an override" carry-over behavior.
+	GroundRenderer.rebind_shader_params("level_no_override")
+	expect_eq(
+		str(sm.get_shader_parameter("biome_map")), "fake://baseline_map.png",
+		"absent level scene.json → baseline restored",
+	)
+
+	# Cleanup
+	GroundRenderer._shader_material = null
+	GroundRenderer._game_shader_params = {}
+	GroundRenderer._cached_data_root = ""

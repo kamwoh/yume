@@ -67,7 +67,17 @@ func _ready() -> void:
 			push_warning("[CaptureRunner] step failed: %s" % str(f))
 
 	# Settle delay before final capture (mirrors legacy behavior).
-	if delay > 0.0:
+	# During settle, sample FPS each second so ADR acceptance gates can
+	# track performance regressions. Skipped when delay < 1.0s — no
+	# meaningful sample window.
+	var fps_samples: Array = []
+	if delay >= 1.0:
+		var settle_start := Time.get_ticks_msec()
+		var settle_ms := int(delay * 1000.0)
+		while (Time.get_ticks_msec() - settle_start) < settle_ms:
+			await get_tree().create_timer(1.0).timeout
+			fps_samples.append(Engine.get_frames_per_second())
+	elif delay > 0.0:
 		await get_tree().create_timer(delay).timeout
 
 	# Final viewport capture (the "post-script" frame).
@@ -81,6 +91,18 @@ func _ready() -> void:
 		print("[CaptureRunner] saved %s" % output_path)
 	else:
 		push_error("[CaptureRunner] save_png error %d at %s" % [err, output_path])
+	# Print FPS summary if we collected samples (used by ADR 0055 §
+	# acceptance gate: ≤5% drop threshold between configs).
+	if not fps_samples.is_empty():
+		var lo: int = 99999
+		var hi: int = 0
+		var sum: int = 0
+		for s in fps_samples:
+			lo = mini(lo, int(s))
+			hi = maxi(hi, int(s))
+			sum += int(s)
+		print("[CaptureRunner] FPS: min=%d max=%d avg=%d (n=%d samples over %.1fs)"
+			% [lo, hi, sum / fps_samples.size(), fps_samples.size(), delay])
 	get_tree().quit()
 
 
