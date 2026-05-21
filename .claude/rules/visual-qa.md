@@ -45,7 +45,47 @@ gate, this rule applies.
 
 ## How to invoke
 
-Two complementary tools, run in sequence:
+Three steps, run in sequence. **Step 0 is mandatory** — skipping it
+guarantees you'll PASS or FAIL on the wrong frame.
+
+### Step 0: frame the feature (MANDATORY before any capture)
+
+Before invoking `--capture`, answer: **"will the feature I'm
+verifying actually be in the frame from this camera?"** The
+player's spawn-point view rarely frames a specific feature. The
+3rd-person follow camera trails behind the player; the FPS camera
+shows whatever is in front. Neither knows about your water region,
+relief slope, or specular angle.
+
+Two paths to frame the feature:
+
+**(a) Free-cam scripted control** — for one-off verification:
+- Add `--capture-input='toggle_freecam,0.3'` to enter free-cam at
+  the start of the run. Minimum 0.3s hold — 0.05s isn't long
+  enough for the press-edge to register (empirical 2026-05-21).
+- Temporarily reposition the active `free_camera` entity's
+  `state.position` / `yaw` / `pitch` in the level's entities.json
+  to the target framing. Restore after the capture.
+
+**(b) Pre-author dedicated test cameras** — for repeated checks:
+- Add `free_camera` initial_instances at well-framed test points
+  (over-water, oblique-relief, low-angle-profile, biome-boundary,
+  etc.) named descriptively (`camera_water_test`,
+  `camera_relief_oblique`).
+- Use Tab to cycle between them OR set `active_camera_id` on
+  world_clock to the desired test camera before capture.
+
+### Choose the angle for what you're verifying
+
+| Feature class | Required camera framing |
+|---|---|
+| Animation (ripples, particles, flame, weather) | Multi-frame A/B capture at the target location. Diff with `.convert('RGB')` first — PIL ImageChops drops modes silently. |
+| Material differentiation (water shine vs grass matte) | Oblique angle (pitch -0.3 to -0.5) so specular highlights show. Top-down hides them. |
+| Vertex displacement / relief / hills | Low-angle profile shot (pitch ≈ -0.05 to -0.2, eye-level height) so the silhouette reveals the bumps. Top-down minimizes parallax. |
+| Color blending / biome boundaries | Top-down (pitch -1.4 to -1.5) so the semantic map's regions are clearly visible. |
+| Lighting transitions / dawn-grazing | Camera aligned with the light source's azimuth so shadow falloff is in frame. |
+| HUD / screens / overlays | Whatever camera state the UI is meant to overlay — usually FPS default since HUD is anchored to the viewport, not the world. |
+| Scene composition / focal point | Eye-level wide shot from outside the focal radius, looking IN at the anchor entity. |
 
 ### Tool 1: capture
 
