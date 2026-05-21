@@ -60,6 +60,12 @@ uniform float blend_softness : hint_range(0.05, 2.0) = 0.5;
 uniform float roughness_uniform : hint_range(0.0, 1.0) = 0.92;
 uniform float metallic_uniform : hint_range(0.0, 1.0) = 0.0;
 
+// Water-only animated UV scroll. Two crossed sin/cos waves at
+// different rates so the surface never looks like a single repeating
+// pattern. Set to 0 to disable ripples (e.g., frozen lakes).
+uniform float water_scroll_speed : hint_range(0.0, 1.0) = 0.15;
+uniform float water_scroll_amplitude : hint_range(0.0, 0.5) = 0.06;
+
 // World-space position carried from vertex() to fragment(). REQUIRED
 // because Godot 4's `VERTEX` in fragment() is view-space — using it
 // directly would make the biome regions drift with the camera (the
@@ -92,9 +98,18 @@ void fragment() {
 
     // === Tiled albedos ===
     vec2 tex_uv = UV * uv_tile;
+    // Water gets an animated UV warp — two crossed scrolls at
+    // different rates + spatial offset so adjacent samples shift
+    // out of phase (no obvious global pulse). Other biomes use the
+    // static UV. Both scrolls multiplied by `water_scroll_amplitude`
+    // — set to 0 for frozen / still water.
+    vec2 water_uv = tex_uv + vec2(
+        sin(TIME * water_scroll_speed + v_world_pos.x * 0.18) * water_scroll_amplitude,
+        cos(TIME * water_scroll_speed * 0.73 + v_world_pos.z * 0.18) * water_scroll_amplitude
+    );
     vec3 a_dirt   = texture(albedo_dirt,   tex_uv).rgb;
     vec3 a_grass  = texture(albedo_grass,  tex_uv).rgb;
-    vec3 a_water  = texture(albedo_water,  tex_uv).rgb;
+    vec3 a_water  = texture(albedo_water,  water_uv).rgb;
     vec3 a_path   = texture(albedo_path,   tex_uv).rgb;
     vec3 a_forest = texture(albedo_forest, tex_uv).rgb;
 
