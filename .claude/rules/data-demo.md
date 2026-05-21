@@ -542,6 +542,76 @@ AND skills writing world/rules.json with WASD lib bundle splice
 this rule. The yume-asset-designer skill's camera-mode-pick must
 FLAG the requirement to the content-designer downstream.
 
+## ⚠ CRITICAL: mode-transition rules must reset state mutated by the OLD mode
+
+When a rule transitions an entity from mode A to mode B by writing
+`state_set` on a field that **gates downstream rules' queries** (e.g.
+`camera_mode`, `input_active`, `game_phase`), the transition rule
+MUST also reset any state field that:
+
+1. Was being written by input/tick rules under mode A's filter, AND
+2. Won't be reached by mode B's rules (because the filter excludes B), AND
+3. Doesn't have an automatic decay path (drag=0, no zero_velocity_pretick,
+   no `stop` action firing while the input is still held).
+
+The canonical case: `velocity` written by `velocity_add_relative` WASD
+rules. ADR 0048's per-tick auto-reset only triggers on the FIRST add
+per tick — it doesn't fire if the rule's filter excludes the new mode.
+Drag=0 (FPS-snappy feel) doesn't decay it. The `stop` action only
+queues when no keys are held; if the player is still holding W during
+the mode transition, `stop` never fires and velocity persists.
+
+❌ **WRONG** — freecam_enter only sets camera_mode:
+```jsonc
+{
+  "id": "freecam_enter_from_fp",
+  "trigger": {"type": "input", "action": "toggle_freecam"},
+  "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "first_person_3d"}},
+  "effect": [
+    {"type": "state_set", "target": "self", "field": "camera_mode", "value": "free_cam"}
+    // Missing: actor velocity reset. Player drifts while W held until release.
+  ]
+}
+```
+
+✅ **RIGHT** — also zero velocity on the player (input-triggered rules
+bind `actor` to the input source):
+```jsonc
+"effect": [
+  {"type": "state_set", "target": "self", "field": "camera_mode", "value": "free_cam"},
+  {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
+]
+```
+
+**Empirical case 2026-05-21**: aldenmere `freecam_enter_from_fp` /
+`freecam_enter_from_tp` shipped without the velocity reset. User held
+W (player moving north in first-person), pressed C to enter free_cam.
+Camera + player both moved north until W release because the WASD rule
+filter (`camera_mode_in: [first_person_3d, third_person_3d]`) no longer
+matched, the velocity_add_relative auto-reset never fired, and drag=0
+held the previous velocity. User feedback: "now 'w' control both cam &
+player until i release."
+
+**The gate**: when authoring ANY rule that flips a state field gating
+downstream input/tick rules, audit what state those downstream rules
+WRITE. Each written field needs a reset effect in the transition rule
+unless one of these is true:
+- The field has automatic decay (drag>0, or zero_velocity_pretick=true)
+- A queryable `stop_*` rule fires unconditionally on mode B (no camera_mode filter)
+- The new mode's rules will overwrite the field on their first tick
+
+Common state fields that need reset on input-driven mode transitions:
+`velocity`, `facing`, `aim_target`, `charge_progress`, `pending_action`.
+
+This applies to: camera_mode transitions (free_cam, pause), level_phase
+transitions, character_class transitions (rare), any state-machine
+flag that gates an input rule's query.
+
+A future static validator (`tools/validators/validate_mode_transitions.py`)
+can grep for rules that `state_set` a field that appears in any other
+rule's `query.state.<field>_eq|_in|_neq` filter, then verify the
+transition rule's effects include resets for the gated rules' targets.
+
 ## ⚠ CRITICAL: state.velocity dimensionality — Vector2 NOT Vector3 for floor-walkers
 
 The WASD lib bundle (`@lib.input_bundles.wasd_with_fp_variant.rules`)
