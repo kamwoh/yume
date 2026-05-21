@@ -542,6 +542,73 @@ AND skills writing world/rules.json with WASD lib bundle splice
 this rule. The yume-asset-designer skill's camera-mode-pick must
 FLAG the requirement to the content-designer downstream.
 
+## ⚠ CRITICAL: logical/singleton entities need `visual: {hidden: true}`
+
+Entities without a `visual.mesh` / `visual.model_3d` / `visual.shape`
+block fall through to entity_mesh_3d.gd's tier-3 fallback: **a bare
+colored box at entity.state.position**. The renderer doesn't know
+"this is a logical entity with no representation" vs "the author
+forgot to set a visual" — it picks the safe default (visible box).
+
+For logical-only entities (clocks, score trackers, camera anchors,
+zone markers, event spawners, world state holders), the def MUST
+declare `visual: {hidden: true}` so spawn_manager.gd's renderer-
+attach skips the entity entirely.
+
+❌ **WRONG** — logical entity with no visual block:
+```jsonc
+{
+  "id": "world_clock",
+  "tags": ["world_clock", "persistent"],
+  "properties": {},
+  "state_init": {"current_day": 1, ...}
+  // No visual → renderer spawns a colored box at position [0,0,0].
+  // Player sees a mystery cube floating at origin.
+}
+```
+
+✅ **RIGHT** — explicit hidden flag:
+```jsonc
+{
+  "id": "world_clock",
+  "tags": ["world_clock", "persistent"],
+  "properties": {},
+  "state_init": {"current_day": 1, ...},
+  "visual": {"hidden": true}
+}
+```
+
+**Empirical cases**:
+- 2026-05-03 towerdef3d: singleton tracker entity showed as pink
+  square. spawn_manager.gd line 187 was added to honor
+  `visual.hidden=true` after this.
+- 2026-05-21 aldenmere `free_camera` def: cameras were spawned as
+  bare cubes at the 3 authored positions. Player saw the cube when
+  entering free_cam and the cinematic camera flew near it. User
+  asked "why do i see a cube spawn when i switch to freecam?"
+  Cube was always there; just first visible when the user-controlled
+  camera moved into a frame containing one.
+
+**The gate**: when authoring an entity def under
+`data/<game>/entities/`, decide upfront: does this entity have a
+visual representation?
+
+| Entity purpose | visual block required |
+|---|---|
+| Player, NPC, animal, prop | `visual.mesh` / `visual.model_3d` / `visual.shape` REQUIRED |
+| Code-drawn primitive (cube, sphere, custom mesh) | `visual.mesh` referencing meshes.json |
+| AI-gen mesh (.glb from tripo3d) | `visual.model_3d` + path |
+| Library shape (tree, rock, hut) | `visual.shape` referencing shapes.json |
+| Singleton / logical state holder | `visual: {hidden: true}` REQUIRED |
+| Zone marker / trigger volume | `visual: {hidden: true}` REQUIRED |
+| Camera anchor (`free_camera` etc.) | `visual: {hidden: true}` REQUIRED |
+| Spawner / event source | `visual: {hidden: true}` REQUIRED |
+
+A future static validator (`tools/validators/validate_visual_presence.py`)
+can grep entity defs and fail any def where `visual` is missing OR
+empty AND no `visual.hidden: true` opt-out exists. Treats forgotten
+visual as a hard error rather than a silent colored-box.
+
 ## ⚠ CRITICAL: mode-transition rules must reset state mutated by the OLD mode
 
 When a rule transitions an entity from mode A to mode B by writing
