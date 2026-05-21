@@ -57,8 +57,24 @@ uniform sampler2D albedo_forest : source_color, filter_linear_mipmap, repeat_ena
 uniform float plane_size = 80.0;
 uniform float uv_tile : hint_range(1.0, 200.0) = 30.0;
 uniform float blend_softness : hint_range(0.05, 2.0) = 0.5;
-uniform float roughness_uniform : hint_range(0.0, 1.0) = 0.92;
-uniform float metallic_uniform : hint_range(0.0, 1.0) = 0.0;
+
+// Per-biome material differentiation. Blended with the same weights
+// as albedo so transitions feel natural — wet shore fades into dry
+// dirt smoothly, not as a sharp specular line. Defaults chosen for
+// physical plausibility: water gets a low roughness + slight
+// dielectric metallic so sunlight reflects believably; paths are
+// slightly less rough than open dirt (packed by foot traffic);
+// grass + forest stay matte.
+uniform float roughness_dirt   : hint_range(0.0, 1.0) = 0.92;
+uniform float roughness_grass  : hint_range(0.0, 1.0) = 0.95;
+uniform float roughness_water  : hint_range(0.0, 1.0) = 0.25;
+uniform float roughness_path   : hint_range(0.0, 1.0) = 0.80;
+uniform float roughness_forest : hint_range(0.0, 1.0) = 0.90;
+uniform float metallic_dirt   : hint_range(0.0, 1.0) = 0.00;
+uniform float metallic_grass  : hint_range(0.0, 1.0) = 0.00;
+uniform float metallic_water  : hint_range(0.0, 1.0) = 0.05;
+uniform float metallic_path   : hint_range(0.0, 1.0) = 0.00;
+uniform float metallic_forest : hint_range(0.0, 1.0) = 0.00;
 
 // Water-only animated UV scroll. Two crossed sin/cos waves at
 // different rates so the surface never looks like a single repeating
@@ -131,6 +147,16 @@ void fragment() {
             + a_path   * w_path
             + a_forest * w_forest) / wsum;
 
-    ROUGHNESS = roughness_uniform;
-    METALLIC = metallic_uniform;
+    // Per-biome material blend — same weights as albedo so the
+    // specular response transitions smoothly along biome boundaries.
+    ROUGHNESS = (roughness_dirt   * w_dirt
+               + roughness_grass  * w_grass
+               + roughness_water  * w_water
+               + roughness_path   * w_path
+               + roughness_forest * w_forest) / wsum;
+    METALLIC  = (metallic_dirt    * w_dirt
+               + metallic_grass   * w_grass
+               + metallic_water   * w_water
+               + metallic_path    * w_path
+               + metallic_forest  * w_forest) / wsum;
 }
