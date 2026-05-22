@@ -352,6 +352,21 @@ def sync_to_template() -> None:
             shutil.copy2(item, dst)
 
 
+def reimport_godot() -> None:
+    """Run `godot --headless --import` to refresh asset/shader cache.
+    Required after shader/PNG/.glb changes — Godot's ResourceLoader uses
+    cached metadata and serves null/stale resources otherwise, making
+    captures meaningless. Empirical: 2026-05-22 first visual_qa run had
+    cubes-everywhere baseline because shader edits from prior tasks
+    invalidated the cache and Godot served default fallbacks. See
+    [[feedback-always-import-after-new-assets]]."""
+    cmd = [GODOT_BIN, "--path", ".", "--headless", "--import"]
+    proc = subprocess.run(cmd, cwd=TEMPLATE_DST, capture_output=True, text=True, timeout=120)
+    if proc.returncode != 0:
+        print(f"[run_plan] --import exit={proc.returncode}", file=sys.stderr)
+        print(proc.stderr[-500:], file=sys.stderr)
+
+
 def capture_once(
     game: str,
     capture_filename: str,
@@ -532,6 +547,14 @@ def main() -> int:
     tests = [t for t in plan["tests"] if (only is None or t["id"] in only)]
 
     output_dir = Path(args.output) if args.output else plan_path.parent / "visual_test_report"
+
+    # Sync + import ONCE at the start. Per-test runs only sync the
+    # transient camera change (cheap) and rely on the shared cache.
+    if not args.dry_run:
+        print(f"[run_plan] syncing godot/. → {TEMPLATE_DST}")
+        sync_to_template()
+        print(f"[run_plan] refreshing import cache (--headless --import)")
+        reimport_godot()
 
     runs: list[TestRun] = []
     for idx, test in enumerate(tests):
