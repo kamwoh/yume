@@ -1,0 +1,15 @@
+{
+  "id": "no_clipping",
+  "description": "Verify entity A's mesh does not visibly pass through entity B's mesh. Catches walls/floors with insufficient thickness, buildings sunk into ground, characters with feet through floor, etc.",
+  "params_schema": {
+    "entity_a": "entity_id_or_def — the subject",
+    "entity_b": "entity_id_or_def — the surface/volume that should NOT be penetrated (often 'ground')"
+  },
+  "framing": {
+    "rule": "low_angle_oblique",
+    "subject": "interface_between_a_and_b",
+    "_doc": "Low height (~0.5-1.2m), pitch slightly upward toward the interface between A and B. Frame the JOIN between them so any clipping is in clear view."
+  },
+  "prompt_template": "This capture frames the interface between Entity A ({entity_a_label}, at {pos_a}) and Entity B ({entity_b_label}, at {pos_b}). Camera is positioned to show their contact zone clearly.\n\nInspect: does A's mesh visibly intersect B's mesh in a way that violates physical plausibility?\n\nSpecifically:\n  - Buildings: base should sit on ground, not sink below ground plane\n  - Characters: feet should touch ground, no foot-through-floor\n  - Walls: should have visible thickness, no through-views unless intentional\n  - Stacked entities: top entity rests on bottom, no penetration\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence — describe what's clipping (or confirm clean contact).\n  CONFIDENCE: high | medium | low",
+  "common_fix": "For sinking meshes: set visual.y_offset (constant world-units, for non-scaled entities) OR visual.y_offset_mesh (mesh-space, multiplied by state.scale at sync time — preferred for pattern-spawned defs). Tripo3D outputs have geometric-center pivot; rigged GLBs have foot pivot — they need DIFFERENT y_offset values. See data-demo.md § y_offset semantics."
+}

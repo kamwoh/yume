@@ -1,0 +1,14 @@
+{
+  "id": "pivot_at_foot",
+  "description": "Verify a rigged animated character mesh has its pivot at the FOOT (so state.position is the ground-contact point), not the geometric center. Catches animated GLBs that inherited a stale y_offset from a previous static (center-pivot) mesh — a pivot-convention mismatch that produces 0.5-1m floating.",
+  "params_schema": {
+    "entity": "entity_id_or_def — an animated character (typically has physics.body_type=character + a .glb model_3d)"
+  },
+  "framing": {
+    "rule": "low_angle_profile",
+    "subject": "character_feet_visible_against_ground",
+    "_doc": "Same as no_floating — low height (0.3-0.6m), pitch slightly up. Frame the character's feet against the ground/horizon line."
+  },
+  "prompt_template": "This low-angle capture frames the animated character {entity_label} at world {pos_entity}. The character is a RIGGED animated mesh whose pivot convention is FOOT-PIVOT (root bone at y=0). The engine sets the character's world Y to pos_entity[1] (typically 0 = ground).\n\nInspect: do the character's FEET touch the ground? Look at where the soles/foot bottom contact the ground plane.\n\nThree possible failures:\n  1. Floating — feet are visibly ABOVE ground (gap underneath). Stale y_offset from a prior pivot convention.\n  2. Sunken — feet/legs visibly BELOW ground (legs partially through floor). Wrong y_offset OR pivot not actually at foot.\n  3. Clean — feet flush with ground.\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence — describe the foot-ground relationship (gap above? sinking? clean?).\n  CONFIDENCE: high | medium | low",
+  "common_fix": "For animated rigged GLBs (Tripo3D animation pipeline ADR 0053): the FBX/GLB exporter places the root bone at the foot. Default y_offset MUST be 0 — do NOT inherit y_offset from a previous static center-pivot version of the same character. animate_smoke.py and the animation pipeline must pop legacy y_offset + y_offset_mesh BEFORE re-deriving (see [[feedback-reset-field-families-on-pivot-change]] for the empirical case). If the GLB has non-zero foot-bone Y in the file itself, that's a content-side fix in the animation prep."
+}

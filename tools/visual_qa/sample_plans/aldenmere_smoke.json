@@ -1,0 +1,77 @@
+{
+  "_comment": "Smoke test plan for aldenmere — 8 assertions covering all 8 starter classes. Hand-authored 2026-05-22 as Phase A acceptance gate proof. Generated automatically via yume-visual-tester skill in Phase B (ADR 0057).",
+  "game": "demo_aldenmere",
+  "level": "level_proto_village",
+  "tests": [
+    {
+      "id": "rel_size_oak_player",
+      "_doc": "Oak trees should be taller than the player. Catches scale_init mismatch on tree defs.",
+      "assertion": "relative_size",
+      "params": {
+        "entity_a": "prop_tree_oak_00_00",
+        "entity_b": "marken",
+        "expected": "taller"
+      }
+    },
+    {
+      "id": "rel_size_hut_player",
+      "_doc": "Mud huts should be bigger than the player (single-story shelter, ~3m tall, vs ~1.8m human).",
+      "assertion": "relative_size",
+      "params": {
+        "entity_a": "cabin_player",
+        "entity_b": "marken",
+        "expected": "taller"
+      }
+    },
+    {
+      "id": "no_clip_hut_ground",
+      "_doc": "Mud hut base should rest on ground, not sink into it. Empirical case 2026-05-18 — Tripo3D outputs needed y_offset adjustment.",
+      "assertion": "no_clipping",
+      "params": {
+        "entity_a": "cabin_player",
+        "entity_b": "ground"
+      }
+    },
+    {
+      "id": "no_float_player",
+      "_doc": "Player feet on ground. Empirical case 2026-05-18 — animated morwen floated 0.85m due to stale y_offset from static-era mesh.",
+      "assertion": "no_floating",
+      "params": {
+        "entity": "marken"
+      }
+    },
+    {
+      "id": "distinct_player_morwen",
+      "_doc": "Player and Morwen should be visually distinguishable — soul layer 2 (visual identity) requirement for Fellowship aesthetic.",
+      "assertion": "distinct_silhouettes",
+      "params": {
+        "entity_a": "marken",
+        "entity_b": "morwen"
+      }
+    },
+    {
+      "id": "sanity_cubes_NE",
+      "_doc": "Wide NE-corner shot. Catches mystery cubes — empirical case 2026-05-21, free_camera defs without visual.hidden rendered as cubes.",
+      "assertion": "no_orphan_cubes",
+      "params": {
+        "shot": "wide_NE"
+      }
+    },
+    {
+      "id": "sanity_cubes_SW",
+      "_doc": "Mirror sweep from SW. Two corners cover the full level.",
+      "assertion": "no_orphan_cubes",
+      "params": {
+        "shot": "wide_SW"
+      }
+    },
+    {
+      "id": "pivot_player_at_foot",
+      "_doc": "Animated rigged player (Tripo3D animation pipeline ADR 0053) must have foot pivot — feet flush with ground.",
+      "assertion": "pivot_at_foot",
+      "params": {
+        "entity": "marken"
+      }
+    }
+  ]
+}

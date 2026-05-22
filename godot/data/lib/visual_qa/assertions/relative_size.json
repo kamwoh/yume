@@ -1,0 +1,16 @@
+{
+  "id": "relative_size",
+  "description": "Verify entity A's visual height relative to entity B. Catches scale mismatches: tree-as-tall-as-player, house-smaller-than-character, rabbit-larger-than-human, etc.",
+  "params_schema": {
+    "entity_a": "entity_id_or_def — the subject",
+    "entity_b": "entity_id_or_def — the reference",
+    "expected": "taller | shorter | similar"
+  },
+  "framing": {
+    "rule": "side_profile",
+    "subject": "both_in_frame",
+    "_doc": "Eye-level wide shot at ~3-5m from the midpoint of A and B, pitch ~0 to slightly down. Both subjects within frame at comparable distance so pixel height is a fair proxy for world height."
+  },
+  "prompt_template": "This capture frames two entities. Entity A ({entity_a_label}) is at world position {pos_a}. Entity B ({entity_b_label}) is at {pos_b}. Camera is at world {cam_pos}, looking-at midpoint, pitch {cam_pitch}.\n\nIn this image, is A {expected} than B? Compare PIXEL HEIGHTS of their bounding silhouettes (NOT their world Y coords — pixel height accounts for perspective foreshortening).\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence with approximate pixel-height ratio (e.g., 'A spans ~280px, B spans ~120px → A is 2.3× taller, passes \"taller\"').\n  CONFIDENCE: high | medium | low",
+  "common_fix": "Adjust state_init.scale on the wrong-sized entity. For pattern-spawned defs, check scale_min/scale_max in the pattern. If the entity is .glb-based, verify the mesh's intrinsic scale matches the def's expected world size — Tripo3D outputs are normalized to bbox=1m, so state.scale literally is meters."
+}

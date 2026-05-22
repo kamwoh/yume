@@ -1,0 +1,15 @@
+{
+  "id": "rotation_facing",
+  "description": "Verify an entity is rotated so that its 'front' faces a specific target entity. Catches NPCs facing the wrong way during dialogue, structures with backwards doors, schedule-driven NPCs not oriented toward their schedule target, etc.",
+  "params_schema": {
+    "entity": "entity_id — the subject whose facing matters",
+    "target": "entity_id_or_tag — the thing 'entity' should face"
+  },
+  "framing": {
+    "rule": "top_down_overhead",
+    "subject": "entity_and_target_both_in_frame",
+    "_doc": "Top-down view from above the midpoint of entity and target, height 15-25m, pitch -1.4 to -1.5 (nearly straight down). Top-down view makes facing direction unambiguous; oblique views can mislead the LLM about whether 'forward' actually points at the target."
+  },
+  "prompt_template": "This top-down capture shows {entity_label} at world {pos_entity} (rotation yaw {entity_yaw} rad) and the target {target_label} at world {pos_target}.\n\nIn engine convention: yaw=0 is +X direction; +π/2 is +Z (looking 'south'). The entity's FRONT is the direction its yaw points.\n\nDoes the entity's front face the target? Tolerance: ±30°.\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence — what direction does the entity face, and where is the target relative to it.\n  CONFIDENCE: high | medium | low",
+  "common_fix": "For static NPCs: set state_init.facing in the entity def. For schedule-driven NPCs: the schedule slot must set facing OR the NPC needs a face_target rule that runs on entering the slot. For structures with directional features (doors, windows): check the def's mesh primitive yaw_offset or the instance's state.facing in the level entities.json."
+}

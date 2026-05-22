@@ -1,0 +1,14 @@
+{
+  "id": "no_floating",
+  "description": "Verify an entity's base touches the ground — no visible gap between the entity's lower silhouette and the ground plane. Catches missing or wrong y_offset, especially after Tripo3D mesh swaps (geometric-center pivot vs foot pivot) and pattern-spawned defs at off-spec scale.",
+  "params_schema": {
+    "entity": "entity_id_or_def — the subject"
+  },
+  "framing": {
+    "rule": "low_angle_profile",
+    "subject": "entity_base_visible_against_horizon",
+    "_doc": "Low height (~0.3-0.6m), pitch slightly UP (-0.05 to +0.05). Frame the entity's base against the horizon line so any gap between mesh-bottom and ground is silhouetted."
+  },
+  "prompt_template": "This low-angle profile capture frames {entity_label} at world {pos_entity}. The camera is at ground-grazing height ({cam_pos[1]}m). Ground plane is at y=0.\n\nInspect: is there a visible GAP between the entity's lowest mesh extent and the ground? Look at the entity's bottom silhouette against the horizon.\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence — describe the gap if any (estimate height in screen px or world m), or confirm clean contact.\n  CONFIDENCE: high | medium | low",
+  "common_fix": "Compute the correct y_offset: read the .glb's bbox.min.y, set visual.y_offset = -bbox.min.y * state.scale (for static center-pivot Tripo outputs) OR check whether the mesh is rigged (foot-pivot — usually needs y_offset=0). For pattern-spawned defs, use y_offset_mesh (mesh-space, scaled per-instance at sync time). validate_mesh_y_offset.py is the static gate; this assertion is the visual confirm."
+}

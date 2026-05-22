@@ -1,0 +1,15 @@
+{
+  "id": "distinct_silhouettes",
+  "description": "Verify two named entities are visually distinguishable at a glance — different mesh OR clearly different palette OR different scale. Catches Fellowship-aesthetic games where all NPCs look the same and the player can't tell them apart.",
+  "params_schema": {
+    "entity_a": "entity_id — first named entity",
+    "entity_b": "entity_id — second named entity"
+  },
+  "framing": {
+    "rule": "eye_level_wide",
+    "subject": "both_in_frame_at_similar_distance",
+    "_doc": "Eye-level (~1.6m) wide framing showing both entities at similar distance from camera, so apparent size differences reflect REAL differences, not perspective."
+  },
+  "prompt_template": "This capture shows two named entities. Entity A is {entity_a_label} ({entity_a_def_id}) at world {pos_a}. Entity B is {entity_b_label} ({entity_b_def_id}) at world {pos_b}.\n\nWithout reading nameplates or HUD text, are A and B visually DISTINGUISHABLE? Specifically:\n  - Different mesh / silhouette shape\n  - Different color palette (clothing, skin, accessories)\n  - Different scale / posture\n  - At least ONE clear identifying mark\n\nIf you could only see this image and someone asked 'which one is {entity_a_label}?', could you answer confidently?\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence — describe the distinguishing features, or note they look identical.\n  CONFIDENCE: high | medium | low",
+  "common_fix": "Per yume-asset-designer SKILL.md soul layer 2 (visual identity): every named_npc must have nameplate + distinct visual signature. For Tripo3D-generated NPCs, vary the prompt per character (different clothing color, hair, age, posture). For code-drawn NPCs, vary visual.color and visual.shape per entity. yume-flavor-writer's voice profiles should drive the visual differentiation too — gruff bailiff looks different from kindly elder."
+}

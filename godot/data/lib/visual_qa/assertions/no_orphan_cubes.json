@@ -1,0 +1,14 @@
+{
+  "id": "no_orphan_cubes",
+  "description": "Verify NO mystery cubes (bare colored boxes) are visible anywhere in the scene. Catches logical/singleton entities (world_clock, free_camera, zone markers, spawners) that were authored without `visual: {hidden: true}` and fell through to entity_mesh_3d.gd's tier-3 fallback (default colored box at state.position).",
+  "params_schema": {
+    "shot": "wide_NE | wide_SW | wide_NW | wide_SE | overhead — which sanity-sweep vantage to use"
+  },
+  "framing": {
+    "rule": "wide_corner",
+    "subject": "full_level_visible",
+    "_doc": "From a level corner at height 30-50m, pitch -0.4 to -0.6, looking toward the opposite corner. Captures the maximum scene area in one frame. Mystery cubes are small, but they're cubes — distinct silhouette against any natural scene."
+  },
+  "prompt_template": "This wide capture shows the level from a corner vantage ({shot}). Camera at world {cam_pos}, looking-at level center.\n\nInspect the entire scene for MYSTERY CUBES — small, untextured, geometric box meshes that do NOT belong in the scene. These are NOT:\n  - Authored structures (huts, walls, fences — those have material, doors, details)\n  - Inventory props or items with intentional cube shapes\n\nMystery cubes are typically:\n  - Pure flat-shaded colored boxes (no texture detail)\n  - At positions like (0,0,0), (3,1.6,4), or other ad-hoc-looking coords\n  - Cube proportions (roughly equal x/y/z)\n  - Without surrounding context (no doors, no furniture, just floating geometry)\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence — if FAIL, describe the cube's approximate screen position. If PASS, confirm 'no mystery cubes visible'.\n  CONFIDENCE: high | medium | low",
+  "common_fix": "Locate the entity at the cube's approximate world coord (cross-reference state.position in level entities.json). Add `visual: {hidden: true}` to its def — see .claude/rules/data-demo.md § logical/singleton entities. The static validator validate_visual_presence.py catches this at sync time; this assertion is the visual confirm."
+}

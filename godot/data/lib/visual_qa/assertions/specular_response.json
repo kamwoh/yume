@@ -1,0 +1,15 @@
+{
+  "id": "specular_response",
+  "description": "Verify a surface material responds to lighting as expected — water/glass/metal should show specular highlights at oblique angles; rough dielectrics should NOT. Catches per-biome roughness/metallic misconfigured, lighting direction conflicts, or material override regressions.",
+  "params_schema": {
+    "entity_or_biome": "entity_id or biome name (water | dirt | grass | path | forest)",
+    "expected": "shiny | matte"
+  },
+  "framing": {
+    "rule": "oblique_toward_sun",
+    "subject": "surface_with_sun_grazing",
+    "_doc": "Oblique angle (pitch -0.3 to -0.5) positioned so the sun direction is in the back half of the camera's forward hemisphere. This is the angle where specular highlights are maximal. Top-down hides them; flat-on hides them; only grazing catches them."
+  },
+  "prompt_template": "This oblique capture frames a {entity_or_biome} surface. Sun direction is approximately {sun_dir}. Camera positioned for grazing-angle viewing.\n\nExpected: surface should be {expected} (shiny = bright specular highlight visible; matte = diffuse only, no highlight).\n\nInspect the surface in frame:\n  - If 'shiny' expected: do you see a bright concentrated highlight that brightens significantly toward the sun-azimuth direction?\n  - If 'matte' expected: is the surface uniformly diffuse, no concentrated bright spots?\n\nAnswer:\n  VERDICT: PASS | FAIL\n  EVIDENCE: one sentence describing the lighting response observed.\n  CONFIDENCE: high | medium | low",
+  "common_fix": "For per-biome materials in ground_5biome.gdshader: adjust roughness_{biome} (0.0=mirror, 1.0=fully matte) and metallic_{biome} (0=dielectric, slight value gives sheen). Water default 0.25/0.05; grass 0.95/0.0; dirt 0.92/0.0; path 0.80/0.0. For entity material_overrides: check the dict-form roughness + metallic fields. See ADR 0055 + scene.json shader_params."
+}
