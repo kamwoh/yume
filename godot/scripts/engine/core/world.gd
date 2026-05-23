@@ -158,10 +158,49 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	_apply_debug_flags()
 	_init_stores()
 	_init_coordinators()
 	if auto_start:
 		start()
+
+
+## Read debug flags from cmdline + scene.json BEFORE physics bodies are
+## created, so Godot's built-in collision-wireframe drawing picks them up.
+##
+## Enabled by either:
+##   - cmdline:    --debug-colliders
+##   - scene.json: { "debug": {"show_colliders": true} }
+##
+## Draws every CollisionShape3D / CollisionShape2D as a wireframe (Godot's
+## built-in "Visible Collision Shapes" behavior). Useful for diagnosing
+## mesh-vs-collider misalignment (e.g., "I can't jump on the bench" → its
+## collider doesn't extend up to the bench's visual top).
+##
+## Per docs/00_what_yume_is.md, this is PROJECTION (debug overlay), not
+## world-model state. Doesn't affect game behavior, only visualization.
+func _apply_debug_flags() -> void:
+	var show_colliders := false
+	for arg in OS.get_cmdline_user_args():
+		if str(arg) == "--debug-colliders":
+			show_colliders = true
+			break
+	if not show_colliders and data_root != "":
+		var scene_path := data_root.rstrip("/") + "/scene.json"
+		if FileAccess.file_exists(scene_path):
+			var f := FileAccess.open(scene_path, FileAccess.READ)
+			if f != null:
+				var raw := f.get_as_text()
+				f.close()
+				var sj := JSON.new()
+				if sj.parse(raw) == OK and sj.data is Dictionary:
+					var debug_cfg = (sj.data as Dictionary).get("debug", {})
+					if debug_cfg is Dictionary:
+						show_colliders = bool(debug_cfg.get("show_colliders", false))
+	if show_colliders:
+		get_tree().debug_collisions_hint = true
+		if verbose:
+			print("[World] collider debug overlay ON")
 
 
 ## Shutdown cleanup (2026-05-21). Clears engine-side static caches that
