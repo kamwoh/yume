@@ -102,6 +102,16 @@ if [ "${SKIP_VALIDATE}" != "1" ] && command -v python3 >/dev/null 2>&1; then
   python3 "${YUME_ROOT}/tools/validators/run_all.py" "${DATA_FOLDER}" || true
 fi
 
+# Render any shader templates declared in scene.json (ADR 0058 Phase A).
+# If ground.mesh.shader_template is set, yume_shadergen reads the spec,
+# renders the Jinja2 template, writes the concrete .gdshader, patches
+# scene.json.ground.mesh.shader to point at it. Skip if scene.json has
+# no shader_template field (engine-default shader path). Bypass with
+# SKIP_SHADERGEN=1.
+if [ "${SKIP_SHADERGEN}" != "1" ] && command -v python3 >/dev/null 2>&1; then
+  python3 -m tools.yume_shadergen "${DATA_FOLDER}" 2>/dev/null || true
+fi
+
 # Build cmdline args for Godot's user-args section (after `--`)
 USER_ARGS=()
 if [ -n "$CAPTURE_DELAY" ]; then

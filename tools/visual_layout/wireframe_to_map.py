@@ -283,7 +283,6 @@ def cmd_preprocess(args) -> int:
         "zone_hints": zone_hints,
         "scatter_presets": presets,
         "biome_config": biome_config,
-        "biome_shader_path": "res://data/lib/shaders/ground_5biome.gdshader",
         "existing_level_summary": existing_summary,
         "authoring_rules": [
             "Every emitted `def` (in initial_instances or patterns) "
@@ -307,16 +306,17 @@ def cmd_preprocess(args) -> int:
             "what was at this level_id before. Your output REPLACES "
             "the level; if the user wants to preserve specific "
             "anchors, they'll re-roll with --edit.",
-            "BIOMES (ADR 0055): if biome_config is non-empty, emit a "
-            "`_scene_patch` block in the draft (alongside "
-            "initial_instances / patterns) containing the "
-            "shader_params for ground.mesh. Use biome_shader_path as "
-            "the `shader` field. For each biome in biome_config, set "
-            "two uniforms: biome_color_<name> (= color_uniform list) "
-            "and albedo_<name> (= albedo path string). Unused biome "
-            "slots (e.g. game has no `water` biome) should re-point "
-            "their albedo at the `dirt` albedo so the math still "
-            "blends correctly. Postprocess writes the patch to "
+            "BIOMES (ADR 0055 + ADR 0058 Phase A): if biome_config "
+            "is non-empty, emit a `_scene_patch` block in the draft "
+            "(alongside initial_instances / patterns) containing "
+            "ONLY the per-level shader_params overrides: biome_map "
+            "(the level's semantic map PNG) and any per-level "
+            "albedo_<name> override (e.g., a winter level using a "
+            "snow-tinted grass albedo). Do NOT set the `shader` "
+            "field — the game's scene.json declares "
+            "shader_template + biomes[] at game level (ADR 0058 "
+            "Phase A); per-level patches only override texture "
+            "references. Postprocess writes the patch to "
             "levels/<level_id>/scene.json (sparse override).",
         ],
     }

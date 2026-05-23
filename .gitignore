@@ -68,3 +68,6 @@ Thumbs.db
 tools/visual_qa/sample_plans/visual_test_report/
 tools/visual_qa/**/visual_test_report/
 tools/visual_qa/plans/
+
+# ADR 0058: compiled shaders from tools/yume_shadergen — regenerate from scene.json shader_template + template
+godot/data/demo_*/assets/shaders/
