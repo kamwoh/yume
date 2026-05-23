@@ -255,7 +255,45 @@ func _resolve_data_root_from_cmdline() -> void:
 ## loaded" warning on an old game, rename world_rules.json →
 ## world/rules.json (or split per Phase 3b classification).
 func load_data() -> void:
+	# Apply deterministic RNG seed if scene.json declares one. Required
+	# for trajectory replay — without seeding, the global Random
+	# continues from whatever state the previous run left it in, so
+	# stochastic effects (rule chance rolls, scatter patterns, formula
+	# randf() calls) drift between rollouts even with identical input
+	# sequences. ADR 0058 audit follow-up (2026-05-23).
+	_apply_world_seed_from_scene()
 	WorldBoot.new(self).run()
+
+
+func _apply_world_seed_from_scene() -> void:
+	"""Read ground.mesh-adjacent `world_seed` from scene.json and seed
+	the global RNG. Zero / unset = leave RNG to default (non-deterministic).
+	Set to a non-zero int in scene.json to make rollouts deterministic."""
+	if data_root == "":
+		return
+	var scene_path: String = data_root.rstrip("/") + "/scene.json"
+	if not FileAccess.file_exists(scene_path):
+		return
+	var f := FileAccess.open(scene_path, FileAccess.READ)
+	if f == null:
+		return
+	var raw := f.get_as_text()
+	f.close()
+	var sj := JSON.new()
+	if sj.parse(raw) != OK or not (sj.data is Dictionary):
+		return
+	var cfg: Dictionary = sj.data
+	if not cfg.has("world_seed"):
+		return
+	var s = cfg["world_seed"]
+	if not (s is int or s is float):
+		return
+	var seed_int := int(s)
+	if seed_int == 0:
+		return
+	seed(seed_int)
+	if verbose:
+		print("[World] seeded RNG with world_seed=%d" % seed_int)
 
 
 # ADR 0041 — bootstrap the multimesh director (lazy-init on first use).
