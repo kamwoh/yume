@@ -121,6 +121,41 @@ PRESETS: dict[str, str] = {
         "#a04020 — three solid red-brown rectangles vertically stacked at center, each ~280px wide × 56px tall, ~20px gap. New Game / Continue / Quit buttons. Top button ~80px below title.\n"
         "#807060 — small grey label band ~200px wide × 18px tall at bottom-center, ~30px from bottom. Version label."
     ),
+    "dialog": (
+        "NPC dialog modal (semi-transparent dark backdrop over the world).\n"
+        "#0e0c0a — solid dark backdrop covering the lower 40% of the canvas (full width, bottom-anchored). Dialog panel background.\n"
+        "#e8d8a0 — solid tan horizontal band at the TOP of the panel, ~280px wide × 36px tall, ~30px from left + ~30px below the panel top. NPC name label.\n"
+        "#d8cba0 — solid lighter-tan large rectangle filling most of the panel interior, ~85% width × ~140px tall, centered inside the dialog backdrop. Dialog text area.\n"
+        "#a04020 — three solid red-brown rectangles vertically stacked at right-bottom of the panel, each ~200px wide × 36px tall, ~10px gap. Player response choices (1-3 options).\n"
+        "#807060 — small grey indicator at bottom-right ~40px square. 'Press E to continue' affordance."
+    ),
+    "save_slot": (
+        "Save slot picker modal — pick a slot to save into or load from.\n"
+        "#0e0c0a — solid dark backdrop covering 90% of canvas. Modal background.\n"
+        "#e8d8a0 — solid tan horizontal band at top-center, ~360px wide × 40px tall, ~80px from top. 'SAVE GAME' or 'LOAD GAME' title.\n"
+        "#1c1812 — solid dark-brown large rectangle centered, ~680px wide × 440px tall. Slot list container.\n"
+        "#c0a070 — three solid tan horizontal bands stacked vertically inside the slot list, each ~640px wide × 110px tall, ~10px gap between. Each represents one save slot row (thumbnail + name + timestamp).\n"
+        "#7a7068 — small grey square ~96px on the left of each slot row. Save thumbnail placeholder.\n"
+        "#a04020 — solid red-brown rectangle ~140px wide × 44px tall at bottom-center, ~30px from bottom. Cancel button."
+    ),
+    "level_select": (
+        "Level / chapter selector — campaign progress with locked + unlocked entries.\n"
+        "#0a0c08 — solid very-dark backdrop covering full canvas.\n"
+        "#e8d8a0 — solid tan horizontal band at top-center, ~440px wide × 48px tall, ~60px from top. 'CHAPTERS' title.\n"
+        "#1c1812 — solid dark-brown grid container centered, ~960px wide × 420px tall. Chapter grid background.\n"
+        "#c0a070 — six solid tan rectangles in a 3×2 grid inside the container, each ~280px wide × 180px tall, ~20px gap. Each represents one chapter. UNLOCKED chapters are filled tan; LOCKED chapters use #555 grey overlay.\n"
+        "#ffd040 — small yellow dot ~16px diameter at top-right of one chapter card. 'CURRENT' marker.\n"
+        "#a04020 — solid red-brown rectangle ~140px wide × 44px tall at bottom-left, ~40px from edges. Back button.\n"
+        "#807060 — small grey progress band ~600px wide × 20px tall at bottom-center, ~30px from bottom. Campaign progress label/bar."
+    ),
+    "ending": (
+        "End-of-game screen (success or failure variant). Full-cover, not a modal.\n"
+        "#0a0c08 — solid very-dark backdrop covering full canvas. Background.\n"
+        "#e8d8a0 — solid tan horizontal band at top-center, ~720px wide × 80px tall, ~120px from top. End-state title (e.g. 'You Survived' or 'The Forest Claims You').\n"
+        "#d8cba0 — solid lighter-tan large rectangle centered, ~720px wide × 240px tall, ~40px below the title. Body text — game summary / epilogue.\n"
+        "#7a7068 — four small grey horizontal bands stacked vertically below the body, each ~480px wide × 22px tall, ~14px gap. Stat lines (days survived / villagers saved / etc.).\n"
+        "#a04020 — solid red-brown rectangle ~280px wide × 56px tall at bottom-center, ~40px from bottom. 'Continue' / 'Return to title' button."
+    ),
 }
 
 

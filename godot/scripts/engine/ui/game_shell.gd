@@ -451,15 +451,39 @@ func _resolve_binding(path: String):
 		# slot cells can resolve a held def_id to its inventory_icon_color
 		# (or any other def-side property) without per-game wiring. Path
 		# example: "def.food_berry_bush.properties.inventory_icon_color".
+		#
+		# Task #110: also support "def.@<root>.<field>.<sub>.<...>" — the
+		# def_id is INDIRECT. Resolves @<root>.<field> via the normal
+		# binding path, uses the resulting string as def_id, then walks
+		# the remaining path. Example:
+		#   "def.@player.held_item.properties.flavor_text"
+		# Two-step: 1) player.held_item → "food_berry_bush",
+		#          2) def.food_berry_bush.properties.flavor_text → "Tart wild berries."
+		# Used by inventory detail panels that show the active item's
+		# flavor without coupling HUD to specific def ids.
 		var defs: Dictionary = _world.get("defs") if _world != null else {}
 		if defs == null or not (defs is Dictionary):
 			return null
-		var def_id := field
+		var def_id: String
+		var path_start: int  # index into parts[] where the def-path starts
+		if field.begins_with("@") and parts.size() >= 3:
+			# Indirect form: parts[1] is "@<root>", parts[2] is "<field>"
+			var indirect_root := field.substr(1)
+			var indirect_field := str(parts[2])
+			var indirect_path := indirect_root + "." + indirect_field
+			var resolved_def_id = _resolve_binding(indirect_path)
+			if not (resolved_def_id is String) or resolved_def_id == "":
+				return null
+			def_id = str(resolved_def_id)
+			path_start = 3
+		else:
+			def_id = field
+			path_start = 2
 		var def_v = defs.get(def_id, null)
 		if not (def_v is Dictionary):
 			return null
 		var cur = def_v
-		for i in range(2, parts.size()):
+		for i in range(path_start, parts.size()):
 			var seg := str(parts[i])
 			if cur is Dictionary and (cur as Dictionary).has(seg):
 				cur = (cur as Dictionary)[seg]
