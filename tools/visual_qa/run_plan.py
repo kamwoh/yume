@@ -200,14 +200,98 @@ def _make_resolved(inst: dict[str, Any]) -> ResolvedEntity:
     )
 
 
+def count_nearby_occluders(
+    cam_x: float, cam_z: float,
+    target_x: float, target_z: float,
+    all_instances: list[dict[str, Any]],
+    occluder_tags: set[str] = frozenset({"tree", "blocks_motion", "structure", "world_prop"}),
+    near_radius: float = 2.5,
+    line_radius: float = 1.5,
+    def_tags_map: dict[str, set[str]] | None = None,
+) -> int:
+    """Count entities near the camera position OR along the camera→target
+    sight line. Used as a proxy for "is the camera inside / occluded by
+    a cluster?" — no Godot raycast needed.
+
+    Returns the count of potential occluders. Camera placements with
+    count > some threshold should try alternatives (flip perpendicular,
+    shorten distance, etc.).
+
+    `occluder_tags` filters to entities that actually block the view —
+    trees, structures, walls. Ignores ground decals, items, characters
+    (which are usually the subjects we're framing).
+
+    `def_tags_map` maps def_id → tag set. If provided, the function
+    filters by def tags. If None, falls back to "any entity within
+    radius counts." (Less accurate but works with no extra inputs.)
+    """
+    if not all_instances:
+        return 0
+    count = 0
+    dx_seg = target_x - cam_x
+    dz_seg = target_z - cam_z
+    seg_len_sq = dx_seg * dx_seg + dz_seg * dz_seg
+    for inst in all_instances:
+        pos = inst.get("position", [0, 0, 0])
+        if len(pos) < 3:
+            continue
+        ix, iz = float(pos[0]), float(pos[2])
+        # Tag filter
+        if def_tags_map is not None:
+            def_id = inst.get("def", "")
+            tags = def_tags_map.get(def_id, set())
+            if not (tags & occluder_tags):
+                continue
+        # 1) Inside the near-camera bubble?
+        dx_c, dz_c = ix - cam_x, iz - cam_z
+        if dx_c * dx_c + dz_c * dz_c <= near_radius * near_radius:
+            count += 1
+            continue
+        # 2) Close to the camera→target segment?
+        if seg_len_sq < 0.001:
+            continue
+        t = ((ix - cam_x) * dx_seg + (iz - cam_z) * dz_seg) / seg_len_sq
+        if t <= 0.0 or t >= 1.0:
+            continue
+        # Distance from point to segment
+        perp_x = (cam_x + t * dx_seg) - ix
+        perp_z = (cam_z + t * dz_seg) - iz
+        if perp_x * perp_x + perp_z * perp_z <= line_radius * line_radius:
+            count += 1
+    return count
+
+
+def load_def_tags_map(game: str) -> dict[str, set[str]]:
+    """Walk all entity def files, return {def_id: {tags}}."""
+    out: dict[str, set[str]] = {}
+    defs_dir = GODOT_DATA / game / "entities"
+    if not defs_dir.is_dir():
+        return out
+    for fp in defs_dir.glob("*.json"):
+        try:
+            d = json.loads(fp.read_text())
+        except json.JSONDecodeError:
+            continue
+        for ed in d.get("definitions", []):
+            if "id" in ed:
+                out[ed["id"]] = set(ed.get("tags", []))
+    return out
+
+
 def compute_camera_pose(
     rule: str,
     entities: list[ResolvedEntity],
     extra: dict[str, Any] | None = None,
+    all_instances: list[dict[str, Any]] | None = None,
+    def_tags_map: dict[str, set[str]] | None = None,
 ) -> tuple[list[float], float, float]:
     """Apply the framing rule to derive (camera_pos, yaw, pitch).
 
-    yaw is computed to look-at the target.
+    yaw is computed to look-at the target. If `all_instances` is
+    provided, runs an occlusion check after the algebraic placement
+    and tries alternatives (flip perpendicular, shorten distance) if
+    the candidate camera position sits inside or near a cluster of
+    occluding entities (trees, structures, walls).
     """
     if rule not in FRAMING_RULES:
         raise ValueError(f"unknown framing rule: {rule}")
@@ -230,52 +314,73 @@ def compute_camera_pose(
     height = float(f["height"])
     pitch = float(f["pitch"])
 
-    if approach == "above":
-        cam_x = target[0]
-        cam_z = target[2]
-    elif approach == "corner":
-        # Choose corner by the 'shot' param: wide_NE/NW/SE/SW
-        shot = extra.get("shot", "wide_NE")
-        sx = 1.0 if "E" in shot else -1.0
-        sz = -1.0 if "N" in shot else 1.0
-        cam_x = target[0] + sx * dist
-        cam_z = target[2] + sz * dist
-    elif approach == "lateral":
-        # Perpendicular to the line between first 2 entities. Scale
-        # distance by subject spread so wide-apart subjects don't go
-        # off-frame: total_distance = base + spread * spread_factor.
-        if n >= 2:
-            ax, az = entities[0].position[0], entities[0].position[2]
-            bx, bz = entities[1].position[0], entities[1].position[2]
-            dx, dz = bx - ax, bz - az
-            length = max(0.001, math.hypot(dx, dz))
-            spread_factor = float(f.get("_subject_spread_factor", 1.0))
-            adj_dist = dist + length * spread_factor
-            # Perpendicular unit vector (rotate 90°)
-            px, pz = -dz / length, dx / length
-            cam_x = target[0] + px * adj_dist
-            cam_z = target[2] + pz * adj_dist
+    def place(approach_dist: float, lateral_sign: float = 1.0) -> tuple[float, float]:
+        """Compute (cam_x, cam_z) for the given distance + sign flip."""
+        if approach == "above":
+            return target[0], target[2]
+        if approach == "corner":
+            shot = extra.get("shot", "wide_NE")
+            sx = 1.0 if "E" in shot else -1.0
+            sz = -1.0 if "N" in shot else 1.0
+            return target[0] + sx * approach_dist, target[2] + sz * approach_dist
+        if approach == "lateral":
+            if n >= 2:
+                ax, az = entities[0].position[0], entities[0].position[2]
+                bx, bz = entities[1].position[0], entities[1].position[2]
+                dx, dz = bx - ax, bz - az
+                length = max(0.001, math.hypot(dx, dz))
+                spread_factor = float(f.get("_subject_spread_factor", 1.0))
+                adj_dist = approach_dist + length * spread_factor
+                px, pz = -dz / length * lateral_sign, dx / length * lateral_sign
+                return target[0] + px * adj_dist, target[2] + pz * adj_dist
+            return target[0] + approach_dist * lateral_sign, target[2]
+        if approach == "radial":
+            return target[0], target[2] + approach_dist * lateral_sign
+        if approach == "sun_relative":
+            return target[0] + approach_dist * 0.7, target[2] + approach_dist * 0.7
+        return target[0], target[2] + approach_dist
+
+    # Try candidates in order, pick the least-occluded
+    # 1) primary placement
+    # 2) flipped lateral / radial direction
+    # 3) shortened distance (70%)
+    # 4) shortened + flipped
+    OCCLUDER_THRESHOLD = 2  # candidate is "blocked" if 2+ occluders nearby
+    subject_ids = {e.instance_id for e in entities}
+    # Filter occluders to skip the subject entities (they're not blocking themselves)
+    occluder_pool: list[dict[str, Any]] = []
+    if all_instances is not None:
+        for inst in all_instances:
+            if inst.get("id") in subject_ids:
+                continue
+            occluder_pool.append(inst)
+
+    candidates = [
+        (dist, 1.0),
+        (dist, -1.0),
+        (dist * 0.7, 1.0),
+        (dist * 0.7, -1.0),
+    ]
+    best: tuple[float, float, int] | None = None
+    for d_try, sign_try in candidates:
+        cx, cz = place(d_try, sign_try)
+        if all_instances is not None and def_tags_map is not None:
+            occ = count_nearby_occluders(
+                cx, cz, target[0], target[2],
+                occluder_pool, def_tags_map=def_tags_map,
+            )
         else:
-            cam_x = target[0] + dist
-            cam_z = target[2]
-    elif approach == "radial":
-        # Pull camera back along a fixed bearing (south for now)
-        cam_x = target[0]
-        cam_z = target[2] + dist
-    elif approach == "sun_relative":
-        # TODO: read scene.json lighting.sun.direction. For now, south-southeast.
-        cam_x = target[0] + dist * 0.7
-        cam_z = target[2] + dist * 0.7
-    else:
-        cam_x = target[0]
-        cam_z = target[2] + dist
+            occ = 0
+        if best is None or occ < best[2]:
+            best = (cx, cz, occ)
+        if occ < OCCLUDER_THRESHOLD:
+            break  # good enough
+
+    assert best is not None
+    cam_x, cam_z, _ = best
 
     # Yaw: look-at target. Engine fwd vector (camera_director.gd):
     #   fwd = (-sin(yaw)*cos(pitch), sin(pitch), -cos(yaw)*cos(pitch))
-    # We want fwd ∝ (target - cam) normalized, so:
-    #   sin(yaw) = -(target.x - cam.x)/r = (cam.x - target.x)/r
-    #   cos(yaw) = -(target.z - cam.z)/r = (cam.z - target.z)/r
-    #   yaw = atan2(cam.x - target.x, cam.z - target.z)
     yaw = math.atan2(cam_x - target[0], cam_z - target[2])
 
     return [cam_x, height, cam_z], yaw, pitch
@@ -431,7 +536,9 @@ def capture_once(
     return CAPTURE_USER_DIR / capture_filename
 
 
-def run_test(game: str, level: str, test: dict[str, Any], idx: int) -> TestRun:
+def run_test(game: str, level: str, test: dict[str, Any], idx: int,
+             all_instances: list[dict[str, Any]] | None = None,
+             def_tags_map: dict[str, set[str]] | None = None) -> TestRun:
     """Execute one test: resolve entities, compute pose, sync, capture."""
     test_id = test["id"]
     assertion_id = test["assertion"]
@@ -448,9 +555,12 @@ def run_test(game: str, level: str, test: dict[str, Any], idx: int) -> TestRun:
                 # Some assertions reference biomes or shots — skip resolution
                 print(f"[run_plan] {test_id}: skipping resolution for {k}={v} ({e})")
 
-    # Camera pose
+    # Camera pose (occlusion-aware if all_instances + def_tags_map provided)
     rule = assertion["framing"]["rule"]
-    cam_pos, yaw, pitch = compute_camera_pose(rule, entities, extra=params)
+    cam_pos, yaw, pitch = compute_camera_pose(
+        rule, entities, extra=params,
+        all_instances=all_instances, def_tags_map=def_tags_map,
+    )
 
     # Write transient camera, set active, sync, capture, restore
     cam_id = write_test_camera(game, level, cam_pos, yaw, pitch)
@@ -588,6 +698,12 @@ def main() -> int:
         print(f"[run_plan] refreshing import cache (--headless --import)")
         reimport_godot()
 
+    # Pre-load the level's full instance list + def→tags map for the
+    # occlusion-aware camera placement (avoids the "camera inside a
+    # tree cluster" bug class).
+    all_instances = load_level_entities(game, level).get("initial_instances", [])
+    def_tags_map = load_def_tags_map(game)
+
     runs: list[TestRun] = []
     for idx, test in enumerate(tests):
         print(f"[run_plan] [{idx+1}/{len(tests)}] {test['id']} ({test['assertion']})")
@@ -603,13 +719,17 @@ def main() -> int:
                             ents.append(resolve_entity(game, level, v))
                         except ValueError as e:
                             print(f"  [dry] skip {k}: {e}")
-                cam, yaw, pitch = compute_camera_pose(assertion["framing"]["rule"], ents, extra=params)
+                cam, yaw, pitch = compute_camera_pose(
+                    assertion["framing"]["rule"], ents, extra=params,
+                    all_instances=all_instances, def_tags_map=def_tags_map,
+                )
                 print(f"  [dry] camera pos={cam} yaw={yaw:.3f} pitch={pitch:.3f}")
             except Exception as e:
                 print(f"  [dry] FAIL: {e}")
             continue
         try:
-            run = run_test(game, level, test, idx)
+            run = run_test(game, level, test, idx,
+                           all_instances=all_instances, def_tags_map=def_tags_map)
             runs.append(run)
         except Exception as e:
             import traceback
