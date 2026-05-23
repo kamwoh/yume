@@ -369,10 +369,30 @@ def reimport_godot() -> None:
     captures meaningless. Empirical: 2026-05-22 first visual_qa run had
     cubes-everywhere baseline because shader edits from prior tasks
     invalidated the cache and Godot served default fallbacks. See
-    [[feedback-always-import-after-new-assets]]."""
+    [[feedback-always-import-after-new-assets]].
+
+    Also clears stale `valid=false` .import sidecars before re-import.
+    Once Godot fails to import a resource (sync race, partial Tripo3D
+    write, etc.), the sidecar gets `valid=false` and Godot WILL NOT
+    retry on subsequent --import calls without intervention. Each
+    visual_qa pass would then silently render every affected entity
+    as a tier-3 fallback cube. Empirical 2026-05-23: 10 meshes hit
+    this state in aldenmere; cleanup fixed all of them."""
+    # Phase 1: nuke stale `valid=false` import sidecars so the next
+    # --import retries them
+    n_cleaned = 0
+    for ext in (".glb.import", ".png.import", ".jpg.import"):
+        for fp in TEMPLATE_DST.rglob(f"*{ext}"):
+            try:
+                if "valid=false" in fp.read_text():
+                    fp.unlink()
+                    n_cleaned += 1
+            except (OSError, UnicodeDecodeError):
+                pass
+    if n_cleaned > 0:
+        print(f"[run_plan] cleared {n_cleaned} stale valid=false .import sidecar(s)")
+    # Phase 2: re-import
     cmd = [GODOT_BIN, "--path", ".", "--headless", "--import"]
-    # --import can take 2-4 min on first run after shader/asset changes
-    # because it regenerates ImageTexture imports + recompiles shaders.
     proc = subprocess.run(cmd, cwd=TEMPLATE_DST, capture_output=True, text=True, timeout=360)
     if proc.returncode != 0:
         print(f"[run_plan] --import exit={proc.returncode}", file=sys.stderr)
