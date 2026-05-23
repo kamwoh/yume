@@ -1,6 +1,6 @@
 # Yume — Universal Simulation Framework
 
-_Last updated: 2026-05-16_
+_Last updated: 2026-05-23_
 
 ---
 
@@ -3495,3 +3495,192 @@ Cosmetic warnings on game quit (deferred — Godot internals):
 - `data/lib/palettes/wilderness_minimap.json`
 - `tools/visual_layout/legends/scatter_presets.json` (carried from
   earlier compose_map work, now lib-pathed)
+
+
+---
+
+
+## Session wrap (2026-05-22 / 23) — visual_qa Phase A + world-model framing
+
+Two days of work that span a complete arc: identified visual QA as
+a generation-gate gap, designed and shipped Phase A (assertion
+library + capture-per-test runner), caught a real bug class on the
+first run (non-tileable albedos producing tile-grid artifacts),
+fixed it at three layers (per-game scene.json, shared default
+prompts, static validator), and crystallized Yume's positioning as
+an explicit programmable world model.
+
+### Shipped ✅
+
+**Visual QA test-driven gate (ADR 0056 Phase A):**
+- 8 starter assertion JSONs under
+  `data/lib/visual_qa/assertions/`: relative_size, no_clipping,
+  rotation_facing, no_floating, distinct_silhouettes,
+  no_orphan_cubes, specular_response, pivot_at_foot.
+- `tools/visual_qa/run_plan.py` runner. Reads
+  `visual_test_plan.json`, resolves entities → world coords,
+  computes camera pose per assertion's framing rule, drives
+  Godot once per test (toggles freecam + temp camera), produces
+  `visual_test_report.md` with PNG paths + rendered prompts +
+  PASS/FAIL slots.
+- `tools/visual_qa/sample_plans/aldenmere_smoke.json` — 8-test
+  hand-authored plan covering all 8 starter assertions on
+  aldenmere/level_proto_village.
+- Self-healing for stale Godot `.import` sidecars with
+  `valid=false` — runner sweeps them before `--import` so the
+  cubes-everywhere bug class can't fool subsequent runs.
+
+**Biome regen with anti-centroid prompts:**
+- `gen_ground.py` DEFAULT_BIOME_PROMPTS for water + path rewritten
+  with positive 9-thirds composition rule (replaces ignored
+  "no central focal point" negative phrasing).
+- `biome_water_dfc54f3f.png` + `biome_path_13233ca8.png` generated
+  via nanobanana, uniformly distributed (validator passes).
+- `tools/validators/validate_tileable_albedo.py` (new) — measures
+  radial-concentration intensity diff (center vs edge) on every
+  ACTIVE biome albedo referenced by `scene.json.shader_params`.
+  Flags > 25 on the 0-255 scale. Old/orphaned PNGs on disk
+  skipped (per never-delete-generated-assets discipline).
+
+**Visual QA framing tuning + math fix:**
+- look-at yaw formula corrected (previous version pointed camera
+  180° away from target). `atan2(cam.x - target.x, cam.z -
+  target.z)` per Godot's fwd convention.
+- All 7 framing rules tuned: low_angle_profile 6→2.5m,
+  eye_level_wide 10→4.5m, etc. Added `_subject_spread_factor` so
+  multi-subject framings widen the camera proportionally.
+
+**Visual-QA rule hardening:**
+- `.claude/rules/visual-qa.md` extended with Step 0/0a/0b/0c —
+  MANDATORY pre-capture protocol: frame the feature (Step 0),
+  derive world position from authoritative data (Step 0a — biome
+  map / heightmap / entities.json / scene.json lighting), derive
+  camera params per feature class (Step 0b — height/pitch/distance
+  table), scene sanity sweep (Step 0c — one extra capture per
+  session from random vantage). Turns improvised visual QA into a
+  data-driven procedure.
+
+**Yume positioning document:**
+- `docs/00_what_yume_is.md` — load-bearing positioning. Yume is an
+  EXPLICIT PROGRAMMABLE WORLD MODEL. JSON = world specification
+  language. Runtime = interpreter. Godot = projection function.
+  Cites the implicit (DreamerV3, MuZero, Genie) vs explicit (game
+  engines, sims) split from ML literature. Includes "Implications
+  for ADR authors" with 4 cite-able questions every future ADR
+  defers to.
+
+**Visual_qa runner robustness:**
+- `cp -r` shell call instead of `shutil.copytree` (WSL mount race
+  between rmtree-then-copytree).
+- `--import` timeout bumped 120 → 360s (asset/shader regen can
+  take 2-4 min on first run after changes).
+- Stale `valid=false` sidecar cleanup before `--import`.
+
+**New gates / validators:**
+- `validate_tileable_albedo.py` — radial-concentration check on
+  active biome albedos. 18 validators pass for demo_aldenmere now
+  (was 16 last session).
+- Visual-qa Step 0/0a/0b/0c gate in `.claude/rules/visual-qa.md`.
+- `[[reference-godot-valid-false-import]]` memory entry for the
+  stale-.import-sidecar gotcha (manual Godot runs need to clean
+  these by hand).
+
+### New ADRs
+
+- **ADR 0056** — Visual assertion library + capture-per-test
+  runner. ACCEPTED. Phase A shipped.
+- **ADR 0057** — yume-visual-tester skill (auto-generate visual
+  test plans). PROPOSED. Implementation deferred to validate ADR
+  0056 first.
+- **ADR 0058** — Shader as JSON (templates + composable
+  primitives). PROPOSED. Two-phase design covering both Jinja2
+  templates (Phase A) and DAG-composable primitives (Phase B).
+  Seven generality principles baked in from day one.
+
+### Pending / next session ⏭
+
+- [ ] **Task #92** — ADR 0057 Phase B: yume-visual-tester skill
+  implementation. Drafts priors library + the skill that auto-
+  generates `visual_test_plan.json` from GDD + entities.json + git
+  diff. Eliminates per-game hand-authoring of test plans.
+
+- [ ] **ADR 0058 Phase A** — shader templates. Convert
+  `ground_5biome.gdshader` to a Jinja2 template; build
+  `tools/yume_shadergen/` codegen; migrate aldenmere; gate via
+  visual_qa runner. Acceptance: identical render before/after,
+  6th biome takes one JSON entry not a GLSL edit.
+
+- [ ] **ADR 0058 Phase B** — composable shader primitives.
+  Define primitive interface schema; land 6-8 starter primitives
+  (sample_world_uv, biome_blend, vertex_displace, uv_scroll,
+  triplanar_sample, ...); DAG compiler.
+
+- [ ] Carry-overs from last session (still valid):
+  - FPS comparison capture for ADR 0055 (single-albedo vs 5biome
+    @ 1080p, ≤5% drop threshold)
+  - yume-visual-designer 7-axis review on multi-biome render
+  - Sparse-override unit test for GroundRenderer.rebind_shader_params
+  - Animation set expansion (run/jump/attack — Tripo3D 11 biped
+    presets, only baked 2)
+  - Camera collision in 3rd-person mode
+  - HUD repositioning for 3rd-person framing
+  - Crosshair POV in 3rd-person (player-facing-direction projection)
+  - Nanobanana auto-detect JPEG mime + transcode at save time
+
+### Empirical bug classes caught this arc
+
+- **Stale `.glb.import` `valid=false` sidecars** — once Godot
+  fails to import a resource, it marks the sidecar invalid and
+  NEVER retries. 10 .glb files in aldenmere were in this state;
+  caused cubes-everywhere baseline that initially looked like a
+  shader regression. Gate: `tools/visual_qa/run_plan.py` sweeps
+  these before `--import`.
+- **Non-tileable albedos** — water + path biome textures had
+  radial concentration (center 60% brighter than edges) that
+  produced visible N×N grid patterns at uv_tile=30 across the
+  plane. The radial check is now a static validator.
+- **Negative-only prompts ignored by Gemini** — "no central focal
+  point" doesn't constrain the model. Positive 9-thirds
+  composition rule ("each of the 9 thirds has equal density")
+  does. Codified in DEFAULT_BIOME_PROMPTS.
+- **Yaw sign error in look-at math** — initial visual_qa runner
+  pointed cameras 180° away from targets. Caught by capturing
+  with extreme uv_tile + comparing screen content to expected.
+- **Improvised visual QA framing** — pre-Step 0/0a/0b/0c, the
+  operator picked camera positions by trial and error. ~6
+  attempts on a single shader verification before realizing the
+  target wasn't even in frame. Codified into the rule.
+
+### Engine surface added
+
+- `camera_director.gd` — ephemeral free-cam pose vars + fallback
+  chain so games without `free_camera` entities still get a
+  functional cinematic mode (without writing to player.state.
+  position and fighting physics)
+- `tools/yume_assetgen/gen_ground.py` DEFAULT_BIOME_PROMPTS — new
+  positive composition rule prompts for water + path
+
+### Files added (tracked)
+
+- `docs/00_what_yume_is.md` — positioning document
+- `docs/adr/0056-visual-assertion-library.md` — accepted
+- `docs/adr/0057-yume-visual-tester-skill.md` — proposed
+- `docs/adr/0058-shader-as-json.md` — proposed
+- `tools/visual_qa/__init__.py`
+- `tools/visual_qa/run_plan.py` — assertion runner
+- `tools/visual_qa/sample_plans/aldenmere_smoke.json` — example plan
+- `godot/data/lib/visual_qa/assertions/*.json` — 8 starter
+  assertions (gitignored under godot/data/ — these are lib content
+  treated as content, not engine)
+- `tools/validators/validate_tileable_albedo.py` — new validator
+- `tools/validators/validate_visual_presence.py` — new validator
+  (catches missing visual.hidden on logical entities — added during
+  the cube post-mortem mid-session)
+
+### Memory entries added
+
+- `feedback_visual_qa_control_camera.md` — Step 0/0a/0b/0c
+  procedure for camera framing during visual QA
+- `reference_godot_valid_false_import.md` — the .import sidecar
+  gotcha
+
