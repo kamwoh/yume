@@ -69,11 +69,42 @@ class EmittedTest:
     target_recently_changed: bool = False
 
 
-def load_priors() -> list[dict[str, Any]]:
+def load_priors(game: str | None = None) -> list[dict[str, Any]]:
+    """Load the library priors, then overlay any per-game override at
+    data/<game>/visual_qa/priors_override.json. Override semantics:
+
+    - The override file has the same shape as priors.json: `{"priors": [...]}`
+    - For each prior id in the override, REPLACES the library entry
+    - Override entries with no id, or with `disabled: true`, REMOVE
+      the library entry of the same id
+    - Entries with a NEW id are appended (per-game additions)
+
+    Lets games opt out of priors that don't fit (e.g., a desert game
+    removing `trees_taller_than_characters`) or add genre-specific
+    ones (a sci-fi game declaring `ships_bigger_than_humans`)."""
     if not PRIORS_PATH.is_file():
         print(f"error: priors not found at {PRIORS_PATH}", file=sys.stderr)
         sys.exit(1)
-    return json.loads(PRIORS_PATH.read_text()).get("priors", [])
+    base = json.loads(PRIORS_PATH.read_text()).get("priors", [])
+    by_id = {p["id"]: p for p in base if "id" in p}
+
+    if game:
+        override_path = DATA_ROOT / game / "visual_qa" / "priors_override.json"
+        if override_path.is_file():
+            overrides = json.loads(override_path.read_text()).get("priors", [])
+            for entry in overrides:
+                if not isinstance(entry, dict):
+                    continue
+                pid = entry.get("id")
+                if not pid:
+                    continue
+                if entry.get("disabled", False):
+                    by_id.pop(pid, None)
+                else:
+                    by_id[pid] = entry
+            print(f"[load_priors] applied {len(overrides)} override(s) from {override_path.relative_to(REPO_ROOT)}")
+
+    return list(by_id.values())
 
 
 def load_assertions() -> dict[str, dict[str, Any]]:
@@ -477,7 +508,7 @@ def main() -> int:
         print(f"[cache hit] {plan_path}")
         return 0
 
-    priors = load_priors()
+    priors = load_priors(game=game)
     assertions = load_assertions()
     entities = load_entities(game, level)
     aesthetics = load_gdd_aesthetics(game)

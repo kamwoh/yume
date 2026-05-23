@@ -247,6 +247,102 @@ code follows.
 
 ---
 
+## ADR extension policy
+
+When an ADR proposes a new effect type, trigger, or query operator
+— or a new "director" Node that exposes a Godot subsystem (party,
+faction, dynasty, schedule, etc.) — it MUST satisfy the following
+gate before merge. This applies to every ADR-numbered extension
+under `effect_adr_extensions.gd`, every new director under
+`directors/`, and every new entry to the engine's effect dispatch
+table in `effect_apply.gd`.
+
+### Gate 1 — Composition citation
+
+Every new effect type MUST name the primitives it composes. The
+ADR's "Decision" section names them; the GDScript implementation
+implements via them. Example, ADR 0026's `party_join`:
+
+```gdscript
+func party_join(...):
+    member.add_tag("party_member")              # tag primitive
+    store.relate("party_member_of", m, leader)  # relation primitive
+    member.set_state("party_index", slot)       # state mutation
+    leader_ent.add_state("party_count", 1)      # state mutation
+```
+
+If the implementation contains a state machine, an arithmetic
+expression that encodes game rules, or a hardcoded threshold not
+declared in JSON, the ADR is REJECTED. The effect must delegate to
+existing primitives or declare new primitives explicitly.
+
+### Gate 2 — State field declaration
+
+Any new state field the extension introduces (e.g.,
+`state.faction_loyalty` in ADR 0032, `state.tech_progress` in ADR
+0033) MUST be:
+
+1. Declared in the ADR with name + semantic + valid range
+2. Authored by content (in `state_init` blocks) rather than
+   default-injected by engine code
+3. Documented as part of the new vocabulary, not as a hidden
+   engine-internal field
+
+Fields named with a leading underscore (`_pending_save_load`,
+`_freecam_ephemeral_pos`) are exempt — those are documented engine-
+internal conventions.
+
+### Gate 3 — Director boundary
+
+A new director Node must be read-only on entity state OR mutate
+ONLY via the same effect interface that JSON rules use (route
+through `effect_apply.dispatch`). Directors MAY NOT:
+
+- Read entity state and decide game behavior based on it
+- Mutate entity state directly outside the effect pipeline
+- Hold game-relevant state that isn't reflected in
+  `entity.state` / `world.world_state`
+
+Directors MAY:
+
+- Read entity state and drive Godot projection (lighting, camera,
+  animation, multimesh, nameplate)
+- Hold ephemeral projection-only state (camera pose smoothing,
+  shake decay, animation blend) that doesn't affect game outcomes
+
+### Gate 4 — Implicit-model compatibility check
+
+The ADR must demonstrate that its addition preserves trajectory
+serializability. Specifically:
+
+1. After the new effect/trigger/director runs, the resulting world
+   state MUST round-trip through `SaveState._serialize_persistent_entities()`
+   + reload, producing identical behavior.
+2. The new vocabulary's outcomes must be deterministic given the
+   same seed + same input sequence.
+3. If the addition introduces randomness, it MUST use a seeded
+   RNG accessible via `world.rng_for(<key>)` — never raw `randf()`.
+
+Trajectory replay is how the explicit world model feeds implicit
+trainers. Breaking it breaks the bridge.
+
+### Gate review
+
+The yume-tech-director skill enforces gates 1-4 at ADR review
+time. Empirical drift catch: this policy was added 2026-05-23
+after `effect_adr_extensions.gd` had grown to ~724 lines across
+6 ADR extensions without an explicit per-ADR gate. The audit
+found no actual violations — every extension delegated correctly
+— but the policy codifies the implicit review that has been
+holding the line.
+
+When in doubt, ask: *"could this game-specific logic live in JSON
+rules without a new engine effect?"* If yes, push it down to
+content. If the JSON would become unreadable or duplicated across
+games, the new primitive is justified — and Gates 1-4 apply.
+
+---
+
 ## Inspirations + further reading
 
 - LeCun, *A Path Towards Autonomous Machine Intelligence* — world

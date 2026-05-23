@@ -51,6 +51,25 @@ except ImportError:
 BUILTINS = {"NORMAL", "ALBEDO", "ROUGHNESS", "METALLIC", "VERTEX",
             "ALPHA", "EMISSION"}
 
+# Known Godot spatial-shader builtins + Yume conventional varyings.
+# Used by the type checker to validate string references that aren't
+# $spec or @local. New varyings declared by primitives should be
+# added here OR carried through the primitives' `varyings` lists.
+WELL_KNOWN_TYPES: dict[str, str] = {
+    "NORMAL": "vec3",
+    "ALBEDO": "vec3",
+    "VERTEX": "vec3",
+    "ROUGHNESS": "float",
+    "METALLIC": "float",
+    "ALPHA": "float",
+    "EMISSION": "vec3",
+    "UV": "vec2",
+    "TIME": "float",
+    "MODEL_MATRIX": "mat4",
+    # Yume varyings (per data/lib/shaders/primitives/world_pos_from_model.json)
+    "v_world_pos": "vec3",
+}
+
 
 @dataclass
 class Primitive:
@@ -310,9 +329,158 @@ def collect_biome_albedo_uniforms(dag: dict[str, Any],
     return out
 
 
+def _spec_type(value: Any) -> str:
+    """Infer a type tag from a spec_params value."""
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, int):
+        return "int"
+    if isinstance(value, float):
+        return "float"
+    if isinstance(value, list):
+        # vec2/3/4 if numeric components; list<biome> if dicts with biome shape
+        if value and all(isinstance(e, dict) for e in value):
+            if all("name" in e and "color" in e for e in value):
+                return "list<biome>"
+            return "list<dict>"
+        if value and all(isinstance(e, (int, float)) for e in value):
+            return f"vec{len(value)}" if 2 <= len(value) <= 4 else "list<float>"
+        return "list<unknown>"
+    if isinstance(value, str):
+        # Heuristic: looks-like-texture-path → sampler2D
+        if value.endswith((".png", ".jpg", ".jpeg", ".gltf", ".glb")) or value.startswith("res://"):
+            return "sampler2D"
+        return "string"
+    return "unknown"
+
+
+# Compatible-with rules. Loose where the GLSL allows implicit promotion
+# (int → float), strict otherwise.
+_TYPE_COMPATIBLE: dict[str, set[str]] = {
+    "float": {"float", "int"},
+    "int": {"int"},
+    "bool": {"bool"},
+    "vec2": {"vec2"},
+    "vec3": {"vec3"},
+    "vec4": {"vec4"},
+    "sampler2D": {"sampler2D"},
+    "list<float>": {"list<float>"},
+    "list<biome>": {"list<biome>"},
+    "list<dict>": {"list<biome>", "list<dict>"},
+    "string": {"string", "sampler2D"},  # paths come through as strings
+}
+
+
+def types_compatible(expected: str, actual: str) -> bool:
+    """Return True if a value of type `actual` can satisfy an input
+    declared `expected`. Used by the DAG type-checker to catch
+    mismatches at plan time (not at GLSL compile time)."""
+    if expected == actual:
+        return True
+    return actual in _TYPE_COMPATIBLE.get(expected, set())
+
+
+def type_check_dag(dag: dict[str, Any], spec_params: dict[str, Any],
+                   primitives: dict[str, Primitive]) -> list[str]:
+    """Walk the DAG, tracking each local's type. Return a list of
+    error strings (empty = clean). The compiler MUST call this
+    before GLSL emission so type drift surfaces as a clean Python
+    error rather than a cryptic GLSL crash at sync time."""
+    errors: list[str] = []
+    stages_block = dag.get("stages", {})
+
+    for stage_name in ("vertex", "fragment"):
+        ops = stages_block.get(stage_name, [])
+        local_types: dict[str, str] = {}
+
+        for idx, op in enumerate(ops):
+            prim_id = op.get("op", "")
+            if prim_id not in primitives:
+                errors.append(f"[{stage_name}#{idx}] unknown primitive '{prim_id}'")
+                continue
+            prim = primitives[prim_id]
+
+            # Validate stage compatibility
+            if prim.stage != "both" and prim.stage != stage_name:
+                errors.append(
+                    f"[{stage_name}#{idx} {prim_id}] stage='{prim.stage}', "
+                    f"cannot run in '{stage_name}'"
+                )
+
+            in_block = op.get("in", {})
+
+            # Validate each declared input
+            for in_name, in_def in prim.inputs.items():
+                expected_type = in_def.get("type", "unknown")
+                if in_name not in in_block:
+                    if "default" not in in_def:
+                        errors.append(
+                            f"[{stage_name}#{idx} {prim_id}] missing required "
+                            f"input '{in_name}' (type {expected_type})"
+                        )
+                    continue
+                raw = in_block[in_name]
+                actual_type: str
+                if isinstance(raw, str) and raw.startswith("$"):
+                    key = raw[1:]
+                    if key not in spec_params:
+                        errors.append(
+                            f"[{stage_name}#{idx} {prim_id}] input '{in_name}': "
+                            f"$key '{key}' not in spec"
+                        )
+                        continue
+                    actual_type = _spec_type(spec_params[key])
+                elif isinstance(raw, str) and raw.startswith("@"):
+                    key = raw[1:]
+                    if key not in local_types:
+                        errors.append(
+                            f"[{stage_name}#{idx} {prim_id}] input '{in_name}': "
+                            f"@var '{key}' not declared by a prior op in '{stage_name}'"
+                        )
+                        continue
+                    actual_type = local_types[key]
+                elif isinstance(raw, str) and raw in WELL_KNOWN_TYPES:
+                    # Engine builtin or Yume conventional varying
+                    actual_type = WELL_KNOWN_TYPES[raw]
+                else:
+                    actual_type = _spec_type(raw)
+
+                if not types_compatible(expected_type, actual_type):
+                    errors.append(
+                        f"[{stage_name}#{idx} {prim_id}] input '{in_name}': "
+                        f"expected {expected_type}, got {actual_type} (from {raw!r})"
+                    )
+
+            # Register outputs in local_types
+            out_block = op.get("out", "")
+            if isinstance(out_block, str) and len(prim.outputs) == 1:
+                out_name = next(iter(prim.outputs))
+                out_type = prim.outputs[out_name].get("type", "unknown")
+                if out_block not in BUILTINS:
+                    local_types[out_block] = out_type
+            elif isinstance(out_block, dict):
+                for out_name, var_name in out_block.items():
+                    if out_name not in prim.outputs:
+                        errors.append(
+                            f"[{stage_name}#{idx} {prim_id}] unknown output "
+                            f"'{out_name}' in 'out' (declared: {sorted(prim.outputs)})"
+                        )
+                        continue
+                    if var_name not in BUILTINS:
+                        local_types[var_name] = prim.outputs[out_name].get("type", "unknown")
+
+    return errors
+
+
 def compile_dag(dag: dict[str, Any], spec_params: dict[str, Any],
                 primitives: dict[str, Primitive]) -> CompiledShader:
     """Compile the DAG into a CompiledShader."""
+    # Phase 0: type-check the DAG before emitting any GLSL.
+    type_errors = type_check_dag(dag, spec_params, primitives)
+    if type_errors:
+        msg = "DAG type check failed (" + str(len(type_errors)) + " error(s)):\n  - " + "\n  - ".join(type_errors)
+        raise CompilerError(msg)
+
     stages_block = dag.get("stages", {})
 
     vertex_state = CompiledStage()
