@@ -1,0 +1,17 @@
+{
+  "id": "weighted_material_blend",
+  "description": "Compute roughness + metallic as weight-blended per-biome values, using biome_blend's weights. Per-biome roughness/metallic are embedded as compile-time constants from the biomes list. Used downstream of biome_blend.",
+  "stage": "fragment",
+  "_pairing_note": "Must follow biome_blend in the same fragment stage; reads its w_<name> locals implicitly.",
+  "inputs": {
+    "biomes": {"type": "list<biome>", "doc": "biome list with roughness + metallic"},
+    "wsum": {"type": "float", "doc": "weight sum from biome_blend"}
+  },
+  "outputs": {
+    "roughness": {"type": "float", "doc": "blended roughness"},
+    "metallic":  {"type": "float", "doc": "blended metallic"}
+  },
+  "uniforms": [],
+  "varyings": [],
+  "glsl_fragment": "float {{ outputs.roughness }} = ({% for b in inputs.biomes_list %}{{ b.roughness }} * w_{{ b.name }}{% if not loop.last %}\n        + {% endif %}{% endfor %}) / {{ inputs.wsum }};\nfloat {{ outputs.metallic }} = ({% for b in inputs.biomes_list %}{{ b.metallic }} * w_{{ b.name }}{% if not loop.last %}\n        + {% endif %}{% endfor %}) / {{ inputs.wsum }};"
+}

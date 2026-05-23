@@ -1,0 +1,12 @@
+{
+  "id": "world_pos_from_model",
+  "description": "Compute world-space position from MODEL_MATRIX * VERTEX and write to a varying so fragment ops can read it. REQUIRED for any shader that needs world-XZ in fragment() — Godot 4's `VERTEX` in fragment is VIEW-space, so using it directly would make world-anchored features drift with the camera. Empirical case: 2026-05-18 splatmap drift bug took 4 iterations to diagnose because of this.",
+  "stage": "vertex",
+  "inputs": {},
+  "outputs": {
+    "world_pos": {"type": "vec3", "doc": "world-space VERTEX, available to fragment ops via the varying v_world_pos"}
+  },
+  "uniforms": [],
+  "varyings": ["v_world_pos"],
+  "glsl_vertex": "v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;\nvec3 {{ outputs.world_pos }} = v_world_pos;"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "world_uv_from_position",
+  "description": "Convert a world-space XZ position to a [0,1] UV coordinate centered on the plane. PlaneMesh UV(0,0) is top-left when viewed from above; world Z grows southward — Y is flipped to match. Used by sample_biome_map / sample_height_map.",
+  "stage": "both",
+  "inputs": {
+    "pos": {"type": "vec3", "doc": "world-space position (only .x and .z are used)"},
+    "plane_size": {"type": "float", "doc": "edge length of the plane in world units", "default": 80.0}
+  },
+  "outputs": {
+    "uv": {"type": "vec2", "doc": "[0,1] uv coordinate"}
+  },
+  "uniforms": [],
+  "varyings": [],
+  "glsl_vertex": "vec2 {{ outputs.uv }} = vec2(\n    ({{ inputs.pos }}.x + {{ inputs.plane_size }} * 0.5) / {{ inputs.plane_size }},\n    1.0 - ({{ inputs.pos }}.z + {{ inputs.plane_size }} * 0.5) / {{ inputs.plane_size }}\n);",
+  "glsl_fragment": "vec2 {{ outputs.uv }} = vec2(\n    ({{ inputs.pos }}.x + {{ inputs.plane_size }} * 0.5) / {{ inputs.plane_size }},\n    1.0 - ({{ inputs.pos }}.z + {{ inputs.plane_size }} * 0.5) / {{ inputs.plane_size }}\n);"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "heightmap_displace",
+  "description": "Vertex displacement + analytical normal from a heightmap. Three things in one primitive because they share the same 5 texture samples (center + 4 neighbors). Splitting them would either duplicate the samples or require a shared-state primitive convention we don't have yet. Samples heightmap.r at a UV → displaces VERTEX.y → cross-product normal from finite differences. Set height_scale=0 to disable entirely.",
+  "stage": "vertex",
+  "inputs": {
+    "uv": {"type": "vec2", "doc": "UV coordinate (typically from world_uv_from_position on VERTEX)"},
+    "map": {"type": "sampler2D", "doc": "heightmap texture (R channel = height)"},
+    "height_scale": {"type": "float", "doc": "displacement amplitude (meters)", "default": 0.0},
+    "height_offset": {"type": "float", "doc": "center adjustment (-0.5 = mean centered around 0)", "default": -0.5},
+    "plane_size": {"type": "float", "doc": "plane edge length for slope normalization", "default": 80.0}
+  },
+  "outputs": {
+    "displaced_y": {"type": "float", "doc": "(unused; primitive writes directly to VERTEX.y)"},
+    "normal": {"type": "vec3", "doc": "analytical normal from finite differences"}
+  },
+  "uniforms": [],
+  "varyings": [],
+  "glsl_vertex": "float _h_center = texture({{ inputs.map }}, {{ inputs.uv }}).r + {{ inputs.height_offset }};\nVERTEX.y += _h_center * {{ inputs.height_scale }};\nfloat _eps_uv = 1.0 / 1024.0;\nfloat _h_xp = texture({{ inputs.map }}, {{ inputs.uv }} + vec2(_eps_uv, 0.0)).r + {{ inputs.height_offset }};\nfloat _h_xn = texture({{ inputs.map }}, {{ inputs.uv }} - vec2(_eps_uv, 0.0)).r + {{ inputs.height_offset }};\nfloat _h_zp = texture({{ inputs.map }}, {{ inputs.uv }} + vec2(0.0, _eps_uv)).r + {{ inputs.height_offset }};\nfloat _h_zn = texture({{ inputs.map }}, {{ inputs.uv }} - vec2(0.0, _eps_uv)).r + {{ inputs.height_offset }};\nfloat _ds = 2.0 * _eps_uv * {{ inputs.plane_size }};\nvec3 _slope_x = vec3(_ds, (_h_xp - _h_xn) * {{ inputs.height_scale }}, 0.0);\nvec3 _slope_z = vec3(0.0, (_h_zp - _h_zn) * {{ inputs.height_scale }}, _ds);\nvec3 {{ outputs.normal }} = normalize(cross(_slope_z, _slope_x));"
+}

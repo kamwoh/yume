@@ -1,0 +1,20 @@
+{
+  "id": "tile_sample_per_biome",
+  "description": "Sample N tileable albedo textures at the plane's UV * uv_tile, weight-blend the results using biome_blend's weights, return ALBEDO. Per-biome animation: any biome with `animate: true` in its dict uses a TIME-driven UV warp (two crossed sin/cos scrolls) instead of the static UV — typically used for water.",
+  "stage": "fragment",
+  "_pairing_note": "Must follow biome_blend in the same fragment stage; reads its w_<name> locals implicitly. The compiler doesn't track per-biome weight vars individually because they're emitted as a side-effect list, not a single named value.",
+  "inputs": {
+    "biomes": {"type": "list<biome>", "doc": "biome list with name + albedo + animate flag"},
+    "wsum": {"type": "float", "doc": "weight sum from biome_blend"},
+    "uv_tile": {"type": "float", "doc": "how many times to tile across the plane", "default": 30.0},
+    "world_pos": {"type": "vec3", "doc": "world position varying (for animation phase offset)"},
+    "scroll_speed": {"type": "float", "doc": "TIME multiplier for animated biomes", "default": 0.15},
+    "scroll_amplitude": {"type": "float", "doc": "UV warp magnitude for animated biomes", "default": 0.06}
+  },
+  "outputs": {
+    "albedo": {"type": "vec3", "doc": "weighted-blended albedo"}
+  },
+  "uniforms": [],
+  "varyings": [],
+  "glsl_fragment": "vec2 _tile_uv = UV * {{ inputs.uv_tile }};\nvec2 _anim_uv = _tile_uv + vec2(\n    sin(TIME * {{ inputs.scroll_speed }} + {{ inputs.world_pos }}.x * 0.18) * {{ inputs.scroll_amplitude }},\n    cos(TIME * {{ inputs.scroll_speed }} * 0.73 + {{ inputs.world_pos }}.z * 0.18) * {{ inputs.scroll_amplitude }}\n);\n{% for b in inputs.biomes_list %}vec3 a_{{ b.name }} = texture(albedo_{{ b.name }}, {% if b.animate %}_anim_uv{% else %}_tile_uv{% endif %}).rgb;\n{% endfor %}vec3 {{ outputs.albedo }} = ({% for b in inputs.biomes_list %}a_{{ b.name }} * w_{{ b.name }}{% if not loop.last %}\n        + {% endif %}{% endfor %}) / {{ inputs.wsum }};"
+}

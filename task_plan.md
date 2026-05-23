@@ -3424,12 +3424,18 @@ left is **art polish** the harness intentionally doesn't decide:
 
 ### Pending / deferred to future sessions ⏭
 
-ADR 0055 acceptance criteria not yet measured:
-- [ ] FPS comparison capture (single-albedo vs 5biome ground at
-  1080p, ≤5% drop threshold). Tech-director acceptance condition.
-- [ ] `yume-visual-designer` 7-axis review on the multi-biome render.
+ADR 0055 acceptance criteria — STATUS as of 2026-05-23:
+- ~~FPS comparison capture (single-albedo vs 5biome)~~ — OBSOLETE.
+  Per ADR 0058 Phase A (2026-05-23), the single-albedo shader was
+  deleted; there's no baseline left to compare against. Replace
+  with: per-game perf baseline captured in scene.json's
+  `_perf_baseline` block + a future ADR-0058 acceptance gate that
+  measures FPS drop between template-rendered shaders.
+- [ ] `yume-visual-designer` 7-axis review on the multi-biome render
+  — STILL PENDING. Worth one round before declaring ADR 0055 done.
 - [ ] Sparse-override unit test in test_runner.gd for
-  GroundRenderer.rebind_shader_params.
+  GroundRenderer.rebind_shader_params — STILL PENDING (cheap;
+  ~20 lines).
 
 Third-person mode known issues from 2026-05-19 (carried forward):
 - [ ] Animation set expansion (run/jump/attack clips — currently

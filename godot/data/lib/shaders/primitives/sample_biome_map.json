@@ -1,0 +1,19 @@
+{
+  "id": "sample_biome_map",
+  "description": "Sample the biome semantic map at a UV coordinate, return the per-pixel RGB color (the 'probe' that biome_blend uses to compute weights).",
+  "stage": "fragment",
+  "inputs": {
+    "uv": {"type": "vec2", "doc": "UV coordinate (typically from world_uv_from_position)"},
+    "map": {"type": "sampler2D", "doc": "biome semantic map texture (typed shader_param, content provides path)"}
+  },
+  "outputs": {
+    "probe": {"type": "vec3", "doc": "RGB color sample"}
+  },
+  "uniforms": [
+    {"name": "biome_map", "type": "sampler2D",
+     "hint": "source_color, filter_linear, repeat_disable",
+     "_doc": "wired from primitive's `map` input — compiler emits one uniform per unique map name"}
+  ],
+  "varyings": [],
+  "glsl_fragment": "vec3 {{ outputs.probe }} = texture({{ inputs.map }}, {{ inputs.uv }}).rgb;"
+}

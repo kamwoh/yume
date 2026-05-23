@@ -1,0 +1,19 @@
+{
+  "id": "biome_blend",
+  "description": "Color-distance blend across N biomes. For each biome's reference color, compute distance to the probe + soft-min weight = max(0, softness - distance)^2. Returns the unnormalized weights AND the sum (the consumer typically uses weight/wsum for the blend). Per-biome reference colors are embedded as compile-time constants from the biomes list.",
+  "stage": "fragment",
+  "inputs": {
+    "probe": {"type": "vec3", "doc": "probe color from sample_biome_map"},
+    "biomes": {"type": "list<biome>", "doc": "biome list with name + color"},
+    "softness": {"type": "float", "doc": "distance threshold; larger = softer transitions", "default": 0.5}
+  },
+  "outputs": {
+    "wsum": {"type": "float", "doc": "sum of all per-biome weights. The per-biome weights themselves are emitted as side-effect locals named w_<biome.name>, consumed implicitly by paired primitives (tile_sample_per_biome, weighted_material_blend) that follow in the same stage."}
+  },
+  "uniforms": [],
+  "varyings": [],
+  "constants": [
+    {"_doc": "Per-biome reference colors are emitted as const vec3 BIOME_COLOR_<NAME> = vec3(...) — compiler walks inputs.biomes and emits one const per biome."}
+  ],
+  "glsl_fragment": "{% for b in inputs.biomes_list %}float d_{{ b.name }} = distance({{ inputs.probe }}, vec3({{ b.color[0] }}, {{ b.color[1] }}, {{ b.color[2] }}));\n{% endfor %}{% for b in inputs.biomes_list %}float w_{{ b.name }} = pow(max(0.001, {{ inputs.softness }} - d_{{ b.name }}), 2.0);\n{% endfor %}float {{ outputs.wsum }} = {% for b in inputs.biomes_list %}w_{{ b.name }}{% if not loop.last %} + {% endif %}{% endfor %};"
+}

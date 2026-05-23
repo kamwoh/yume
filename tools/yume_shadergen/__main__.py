@@ -1,42 +1,20 @@
 #!/usr/bin/env python3
 """
-yume_shadergen — render a Jinja2 shader template using the per-game
-shader spec, write a concrete .gdshader to data/<game>/assets/shaders/,
-and patch scene.json.ground.mesh.shader to point at it.
+yume_shadergen — compile a JSON shader DAG (ADR 0058 Phase B) into
+a concrete .gdshader.
 
-Implements ADR 0058 Phase A. Per docs/00_what_yume_is.md, the shader
-is projection-configuration which means it's content — and the
-content channel is JSON. The template lives in the shared library
-(`data/lib/shaders/templates/`); the compiled output is a per-game
-build artifact (gitignored).
+Reads scene.json under `ground.mesh.shader_dag`. Each DAG node
+references a primitive from `data/lib/shaders/primitives/<id>.json`;
+the compiler walks the graph (vertex stage then fragment stage),
+validates types, stitches the primitives' hand-tuned GLSL
+fragments together, and emits the output to
+`data/<game>/assets/shaders/ground.gdshader`. Patches
+`scene.json.ground.mesh.shader` to point at the compiled output.
 
-Spec format (in scene.json under ground.mesh):
-    {
-      "ground": {
-        "mesh": {
-          "size": [80, 80],
-          "subdivide": 64,
-          "shader_template": "ground_biome",
-          "biomes": [
-            {"name": "dirt",  "color": [0.66, 0.55, 0.32],
-             "roughness": 0.92, "metallic": 0.00},
-            {"name": "water", "color": [0.19, 0.44, 0.75],
-             "roughness": 0.25, "metallic": 0.05, "animate": true},
-            ...
-          ],
-          "features": {
-            "blend_softness": 0.10,
-            "uv_tile": 30.0,
-            "water_animation": {"speed": 0.15, "amplitude": 0.06},
-            "displacement": {"scale": 0.6, "offset": -0.5}
-          }
-        }
-      }
-    }
-
-After rendering: writes
-`data/<game>/assets/shaders/ground.gdshader`, sets
-`scene.json.ground.mesh.shader` to the res:// path.
+Per docs/00_what_yume_is.md, the shader is projection-configuration
+= content = JSON-driven. No game-specific GLSL files live in the
+repo long-term; per-game compiled .gdshaders are build artifacts
+(gitignored).
 
 Usage:
     python3 -m tools.yume_shadergen <game>
@@ -51,17 +29,15 @@ import json
 import sys
 from pathlib import Path
 
-try:
-    import jinja2
-except ImportError:
-    print("error: jinja2 not installed. pip install jinja2", file=sys.stderr)
-    sys.exit(1)
+from .compiler import (
+    CompilerError, compile_dag, load_primitives,
+)
 
 
 HERE = Path(__file__).resolve()
 REPO_ROOT = HERE.parents[2]
 DATA_ROOT = REPO_ROOT / "godot" / "data"
-TEMPLATES_DIR = DATA_ROOT / "lib" / "shaders" / "templates"
+PRIMITIVES_DIR = DATA_ROOT / "lib" / "shaders" / "primitives"
 
 
 def load_spec(game: str) -> tuple[dict, Path]:
@@ -72,39 +48,33 @@ def load_spec(game: str) -> tuple[dict, Path]:
         sys.exit(1)
     scene = json.loads(scene_path.read_text())
     mesh = scene.get("ground", {}).get("mesh", {})
-    if "shader_template" not in mesh:
-        print(f"[{game}] no ground.mesh.shader_template — nothing to do.")
+    if "shader_dag" not in mesh:
+        print(f"[{game}] no ground.mesh.shader_dag — nothing to compile.")
         sys.exit(0)
-    if "biomes" not in mesh:
-        print(f"error: ground.mesh.shader_template set but no biomes list", file=sys.stderr)
-        sys.exit(1)
     return mesh, scene_path
 
 
-def render(mesh: dict) -> str:
-    template_name = mesh["shader_template"]
-    template_path = TEMPLATES_DIR / f"{template_name}.gdshader.j2"
-    if not template_path.is_file():
-        print(f"error: template not found at {template_path}", file=sys.stderr)
+def compile_shader(mesh: dict, primitives: dict) -> str:
+    """Compile the DAG → final .gdshader source string."""
+    dag = mesh["shader_dag"]
+    # Spec params: everything in mesh except meta keys, plus all
+    # shader_params (where texture paths / runtime uniforms live).
+    SKIP = {"shader_dag", "shader", "shader_params", "_comment",
+            "_comment_template", "_comment_subdivide", "_comment_color"}
+    spec_params = {k: v for k, v in mesh.items() if k not in SKIP}
+    # Texture paths live in shader_params — DAG references uniform
+    # names via $name, which the compiler resolves to the bare name
+    # for sampler2D inputs. We expose shader_params keys here for
+    # validation; the actual path is set by the engine at runtime.
+    for k, v in mesh.get("shader_params", {}).items():
+        if not k.startswith("_") and k not in spec_params:
+            spec_params[k] = v
+    try:
+        compiled = compile_dag(dag, spec_params, primitives)
+    except CompilerError as e:
+        print(f"error: {e}", file=sys.stderr)
         sys.exit(1)
-
-    env = jinja2.Environment(
-        loader=jinja2.FileSystemLoader(str(TEMPLATES_DIR)),
-        trim_blocks=False,
-        lstrip_blocks=False,
-        keep_trailing_newline=True,
-    )
-    template = env.get_template(f"{template_name}.gdshader.j2")
-    biomes = mesh["biomes"]
-    features = mesh.get("features", {})
-    return template.render(
-        template_path=str(template_path.relative_to(REPO_ROOT)),
-        spec_path=f"data/<game>/scene.json (ground.mesh)",
-        n_biomes=len(biomes),
-        biomes=biomes,
-        biome_names=[b["name"] for b in biomes],
-        features=features,
-    )
+    return compiled.full_source()
 
 
 def write_shader(game: str, source: str) -> tuple[Path, str]:
@@ -119,8 +89,6 @@ def write_shader(game: str, source: str) -> tuple[Path, str]:
 
 
 def patch_scene(scene_path: Path, res_path: str) -> bool:
-    """Set scene.json.ground.mesh.shader = res_path. Returns True if
-    file was modified."""
     scene = json.loads(scene_path.read_text())
     mesh = scene["ground"]["mesh"]
     prior = mesh.get("shader", "")
@@ -131,55 +99,66 @@ def patch_scene(scene_path: Path, res_path: str) -> bool:
     return True
 
 
-def needs_regen(mesh: dict, output_path: Path) -> bool:
-    """Compare a hash of the mesh spec + template against the
-    compiled shader's first-line hash sentinel. If they match,
-    skip regeneration."""
+def needs_regen(mesh: dict, output_path: Path,
+                primitives: dict) -> tuple[bool, str]:
+    """Hash the DAG + spec params + every referenced primitive's source.
+    Returns (regen_required, new_hash)."""
+    h = hashlib.sha256()
+    h.update(json.dumps(mesh.get("shader_dag", {}), sort_keys=True).encode())
+    # Include relevant spec params
+    for k in sorted(mesh.keys()):
+        if k in {"shader_dag", "shader", "_comment", "_comment_template",
+                 "_comment_subdivide", "_comment_color"}:
+            continue
+        h.update(f"|{k}={json.dumps(mesh[k], sort_keys=True)}".encode())
+    # Include each referenced primitive's source
+    referenced: set[str] = set()
+    for stage_ops in mesh["shader_dag"].get("stages", {}).values():
+        for op in stage_ops:
+            if "op" in op:
+                referenced.add(op["op"])
+    for prim_id in sorted(referenced):
+        prim_fp = PRIMITIVES_DIR / f"{prim_id}.json"
+        if prim_fp.is_file():
+            h.update(prim_fp.read_bytes())
+    new_hash = h.hexdigest()[:12]
     if not output_path.is_file():
-        return True
-    template_path = TEMPLATES_DIR / f"{mesh['shader_template']}.gdshader.j2"
-    if not template_path.is_file():
-        return True
-    spec_hash = hashlib.sha256(
-        (json.dumps(mesh, sort_keys=True) + template_path.read_text()).encode()
-    ).hexdigest()[:12]
-    # Read first 4 lines of compiled shader; expect "// hash: <hash>"
-    existing = output_path.read_text().splitlines()[:6]
+        return True, new_hash
+    existing = output_path.read_text().splitlines()[:2]
     for line in existing:
         if line.startswith("// hash: "):
-            return line.split(": ", 1)[1].strip() != spec_hash
-    return True
+            return line.split(": ", 1)[1].strip() != new_hash, new_hash
+    return True, new_hash
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="yume_shadergen")
     ap.add_argument("game", help="game folder name (e.g. demo_aldenmere)")
     ap.add_argument("--dry-run", action="store_true",
-                    help="print the rendered shader to stdout, no writes")
+                    help="print the compiled shader to stdout, no writes")
     ap.add_argument("--force", action="store_true",
-                    help="regenerate even if spec hash matches")
+                    help="regenerate even if hash matches")
     args = ap.parse_args()
 
     mesh, scene_path = load_spec(args.game)
-    biome_names = [b["name"] for b in mesh["biomes"]]
-    print(f"[{args.game}] template={mesh['shader_template']} "
-          f"biomes={biome_names} features={list(mesh.get('features', {}).keys())}")
+    primitives = load_primitives(PRIMITIVES_DIR)
+    referenced = sorted({op.get("op", "")
+                         for ops in mesh["shader_dag"].get("stages", {}).values()
+                         for op in ops})
+    print(f"[{args.game}] DAG: {len(referenced)} primitive(s) referenced: "
+          f"{referenced}")
 
-    rendered = render(mesh)
-    # Prepend spec-hash sentinel for cache check
-    spec_hash = hashlib.sha256(
-        (json.dumps(mesh, sort_keys=True) +
-         (TEMPLATES_DIR / f"{mesh['shader_template']}.gdshader.j2").read_text()).encode()
-    ).hexdigest()[:12]
-    rendered = f"// hash: {spec_hash}\n" + rendered
+    output_path = DATA_ROOT / args.game / "assets" / "shaders" / "ground.gdshader"
+    needs, new_hash = needs_regen(mesh, output_path, primitives)
+    if not args.force and not needs and not args.dry_run:
+        print(f"[{args.game}] spec unchanged — skipping (cache hit on {new_hash})")
+        return 0
+
+    rendered = compile_shader(mesh, primitives)
+    rendered = f"// hash: {new_hash}\n// AUTO-GENERATED by tools/yume_shadergen — edit primitives or scene.json shader_dag\n" + rendered
 
     if args.dry_run:
         sys.stdout.write(rendered)
-        return 0
-
-    output_path = DATA_ROOT / args.game / "assets" / "shaders" / "ground.gdshader"
-    if not args.force and not needs_regen(mesh, output_path):
-        print(f"[{args.game}] spec unchanged — skipping (cache hit on {spec_hash})")
         return 0
 
     fp, res_path = write_shader(args.game, rendered)
