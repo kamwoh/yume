@@ -67,3 +67,4 @@ Thumbs.db
 # Visual QA reports — per-run artifacts, regenerate via tools/visual_qa/run_plan.py
 tools/visual_qa/sample_plans/visual_test_report/
 tools/visual_qa/**/visual_test_report/
+tools/visual_qa/plans/

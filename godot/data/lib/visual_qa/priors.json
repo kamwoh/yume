@@ -1,0 +1,196 @@
+{
+  "_comment": "Visual-QA priors library (ADR 0057). Each prior describes a common-sense world fact + which visual assertion to emit when it applies to the entities present in a given game. yume-visual-tester walks each level's entities, matches them against each prior's trigger, and emits a concrete test instance into visual_test_plan.json. Priors are content (JSON), not engine code — extensible by any author + reviewed by the team. New priors should be added here whenever a post-mortem reveals a generalizable visual rule.",
+  "_schema": {
+    "id": "unique prior id, kebab-case",
+    "description": "one-line explanation of the world fact",
+    "trigger": "what entity shapes does this prior apply to. Mirrors engine query language (tags_any, tags_all, tags_none, def_id). For two-entity priors, use entities_a + entities_b. For single-entity, use entity. For unconditional (always emit one test), omit trigger.",
+    "emit": {
+      "assertion": "id from data/lib/visual_qa/assertions/",
+      "params": "concrete param values; supports tokens <a.id>, <a.def>, <b.id>, <entity.id>, etc. that the skill resolves to actual entity ids at plan-emit time"
+    },
+    "priority": "high | medium | low. high = always emit. medium = emit if not over plan budget. low = emit only when explicitly requested.",
+    "max_pairs": "for two-entity priors, cap how many pairs to test (default 3, so 100 trees don't blow up the plan)"
+  },
+  "priors": [
+    {
+      "id": "trees_taller_than_characters",
+      "description": "Trees are taller than human-sized characters. Catches scale_init mismatch where a tree was authored at the wrong state.scale.",
+      "trigger": {
+        "entities_a": {"tags_any": ["tree"]},
+        "entities_b": {"tags_any": ["character", "human", "player", "npc", "villager", "actor"]}
+      },
+      "emit": {
+        "assertion": "relative_size",
+        "params": {
+          "entity_a": "<a.id>",
+          "entity_b": "<b.id>",
+          "expected": "taller"
+        }
+      },
+      "priority": "high",
+      "max_pairs": 2
+    },
+    {
+      "id": "structures_taller_than_characters",
+      "description": "Buildings, shelters, huts are taller than human-sized characters.",
+      "trigger": {
+        "entities_a": {"tags_any": ["structure", "world_prop"], "tags_none": ["tree", "plant", "prop"]},
+        "entities_b": {"tags_any": ["character", "human", "player", "npc", "villager", "actor"]}
+      },
+      "emit": {
+        "assertion": "relative_size",
+        "params": {
+          "entity_a": "<a.id>",
+          "entity_b": "<b.id>",
+          "expected": "taller"
+        }
+      },
+      "priority": "high",
+      "max_pairs": 2
+    },
+    {
+      "id": "small_animals_shorter_than_characters",
+      "description": "Rabbits, mice, prey-type small animals are shorter than human-sized characters.",
+      "trigger": {
+        "entities_a": {"tags_any": ["prey", "small_animal", "rabbit", "mouse"]},
+        "entities_b": {"tags_any": ["character", "human", "player", "npc", "villager", "actor"]}
+      },
+      "emit": {
+        "assertion": "relative_size",
+        "params": {
+          "entity_a": "<a.id>",
+          "entity_b": "<b.id>",
+          "expected": "shorter"
+        }
+      },
+      "priority": "medium",
+      "max_pairs": 2
+    },
+    {
+      "id": "structures_rest_on_ground",
+      "description": "Buildings and large props rest on the ground (no visible gap under base, no clipping below ground plane).",
+      "trigger": {
+        "entity": {"tags_any": ["structure"], "tags_none": ["floating", "elevated"]}
+      },
+      "emit": {
+        "assertion": "no_floating",
+        "params": {
+          "entity": "<entity.id>"
+        }
+      },
+      "priority": "high",
+      "max_pairs": 3
+    },
+    {
+      "id": "animated_characters_foot_pivot",
+      "description": "Rigged animated characters use foot-pivot (state.position is ground contact point, not geometric center). Catches stale y_offset from a static-era mesh.",
+      "trigger": {
+        "entity": {
+          "tags_any": ["character", "human", "player", "npc"],
+          "has_visual": {"model_3d_contains": "animated"}
+        }
+      },
+      "emit": {
+        "assertion": "pivot_at_foot",
+        "params": {
+          "entity": "<entity.id>"
+        }
+      },
+      "priority": "high",
+      "max_pairs": 3
+    },
+    {
+      "id": "named_npc_pairs_distinguishable",
+      "description": "When the GDD aesthetic includes Fellowship, every pair of named NPCs must be visually distinguishable at a glance (different mesh, palette, or scale). Without this the player can't tell characters apart.",
+      "trigger": {
+        "entities_a": {"tags_any": ["named_npc"], "has_property": "display_name"},
+        "entities_b": {"tags_any": ["named_npc"], "has_property": "display_name"}
+      },
+      "guard": {"gdd_aesthetic_any": ["Fellowship", "Narrative"]},
+      "emit": {
+        "assertion": "distinct_silhouettes",
+        "params": {
+          "entity_a": "<a.id>",
+          "entity_b": "<b.id>"
+        }
+      },
+      "priority": "high",
+      "max_pairs": 3
+    },
+    {
+      "id": "no_orphan_cubes_overhead",
+      "description": "Wide-angle sanity sweep from each corner to catch mystery cubes (logical entities authored without visual.hidden). Always emitted regardless of level contents.",
+      "emit": {
+        "assertion": "no_orphan_cubes",
+        "params": {
+          "shot": "<shot>"
+        },
+        "expand_for_each": {
+          "shot": ["wide_NE", "wide_SW"]
+        }
+      },
+      "priority": "high"
+    },
+    {
+      "id": "water_biome_shiny",
+      "description": "When the semantic biome map has a water region, the water surface should show specular response (low roughness + slight metallic).",
+      "trigger": {
+        "biome_map_has": "water"
+      },
+      "emit": {
+        "assertion": "specular_response",
+        "params": {
+          "entity_or_biome": "water",
+          "expected": "shiny"
+        }
+      },
+      "priority": "medium"
+    },
+    {
+      "id": "grass_biome_matte",
+      "description": "Grass biome should be matte (high roughness, no specular).",
+      "trigger": {
+        "biome_map_has": "grass"
+      },
+      "emit": {
+        "assertion": "specular_response",
+        "params": {
+          "entity_or_biome": "grass",
+          "expected": "matte"
+        }
+      },
+      "priority": "low"
+    },
+    {
+      "id": "focal_npcs_face_anchor",
+      "description": "NPCs explicitly associated with a focal anchor (fire_pit, well, shrine) via schedule or proximity tag should face that anchor during their default state.",
+      "trigger": {
+        "entities_a": {"tags_any": ["named_npc", "focal_actor"], "has_property": "faces_anchor"},
+        "entities_b": {"tags_any": ["focal_anchor"]}
+      },
+      "emit": {
+        "assertion": "rotation_facing",
+        "params": {
+          "entity": "<a.id>",
+          "target": "<b.id>"
+        }
+      },
+      "priority": "low",
+      "max_pairs": 2
+    },
+    {
+      "id": "recently_changed_entity_audit",
+      "description": "Entities whose def files appear in the session's git diff get prioritized audits. The skill prepends these tests to the plan and runs them first so regressions to recently-changed defs are caught immediately. Operates at plan-generation time — the trigger reads git diff state, not entity tags.",
+      "trigger": {
+        "git_diff_touches_def": true
+      },
+      "emit": {
+        "assertion_set": ["relative_size", "no_floating", "pivot_at_foot", "no_clipping"],
+        "params": {
+          "entity": "<entity.id>"
+        }
+      },
+      "priority": "high"
+    }
+  ]
+}
