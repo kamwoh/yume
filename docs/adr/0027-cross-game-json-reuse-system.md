@@ -342,8 +342,12 @@ when they choose. Initial migration:
   add `data/lib/manifest.json` listing all entries with one-line
   descriptions. SKILLs reference this.
 - **Versioning**: changing a lib entry breaks consuming games.
-  Mitigation: version sub-keys (`@lib.cameras.iso_top_down_v2`)
-  and document deprecation.
+  Mitigation: when the change is semantic (not a bugfix), update
+  all consuming games in the same commit. Yume is pre-1.0 — no
+  external users to protect, no deprecation periods needed.
+  Treat lib edits like any other engine refactor: update + commit
+  + delete the old. Future-1.0+ may revisit if commercial users
+  emerge.
 - **Performance**: load-time resolution adds overhead.
   Mitigation: cache lib files at startup; resolution is O(N) over
   game JSON tree, runs once per level load.
