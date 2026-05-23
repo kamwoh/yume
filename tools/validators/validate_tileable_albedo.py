@@ -74,15 +74,36 @@ def measure_radial_concentration(img_path: Path) -> float:
 
 
 def scan_game(game_dir: Path) -> list[tuple[str, Path, float]]:
-    """Scan biome_*.png textures, return list of (biome, path, diff) over threshold."""
-    tex_dir = game_dir / "assets" / "textures"
-    if not tex_dir.is_dir():
+    """Scan the ACTIVE biome albedo textures referenced from scene.json
+    shader_params.albedo_<biome>. Old/orphaned biome_*.png files on
+    disk (kept per never-delete-generated-assets discipline) are
+    skipped — only what's actually wired into the shader counts."""
+    import json
+    scene_path = game_dir / "scene.json"
+    if not scene_path.is_file():
         return []
+    try:
+        scene = json.loads(scene_path.read_text())
+    except json.JSONDecodeError:
+        return []
+    shader_params = (
+        scene.get("ground", {}).get("mesh", {}).get("shader_params", {})
+    )
     flagged: list[tuple[str, Path, float]] = []
-    for fp in sorted(tex_dir.glob("biome_*.png")):
-        # Parse biome name from filename: biome_water_xxx.png → water
-        name_parts = fp.stem.split("_")
-        biome = name_parts[1] if len(name_parts) >= 2 else "?"
+    for key, val in shader_params.items():
+        if not key.startswith("albedo_") or not isinstance(val, str):
+            continue
+        biome = key[len("albedo_"):]
+        if not val.startswith("res://"):
+            continue
+        # res://data/<game>/path → repo_root/godot/data/<game>/path
+        rel = val[len("res://"):]
+        fp = game_dir.parent.parent / rel
+        # godot/ root prefix
+        if not fp.exists():
+            fp = REPO_ROOT / "godot" / rel
+        if not fp.is_file():
+            continue
         diff = measure_radial_concentration(fp)
         if diff > RADIAL_DIFF_THRESHOLD:
             flagged.append((biome, fp, diff))
