@@ -991,6 +991,17 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	if best != null:
 		new_target = str(best.get_property("display_name", ""))
 		new_target_id = str(best.instance_id)
+	# Task #106: project the aim ray to screen-space so HUD can move
+	# the crosshair to match the player-POV ray (not the camera POV).
+	# Only in third-person (FPS uses screen-center; sentinel = -1).
+	if mode == "third_person_3d" and _camera3d != null:
+		var aim_world_pos: Vector3 = cam_pos + fwd * max_distance * 0.5
+		var screen_pos: Vector2 = _camera3d.unproject_position(aim_world_pos)
+		world_state["crosshair_screen_x"] = screen_pos.x
+		world_state["crosshair_screen_y"] = screen_pos.y
+	else:
+		world_state["crosshair_screen_x"] = -1
+		world_state["crosshair_screen_y"] = -1
 	world_state["crosshair_target"] = new_target
 	world_state["crosshair_target_id"] = new_target_id
 

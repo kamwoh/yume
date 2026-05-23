@@ -239,13 +239,21 @@ func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) 
 			sp.custom_minimum_size = Vector2(1, int(cfg.get("height", 8)))
 			parent.add_child(sp)
 		"crosshair":
-			# Simple text-based crosshair — Label with a glyph.
+			# Simple text-based crosshair — Label with a glyph. In
+			# 3rd-person mode the glyph re-positions per-frame to track
+			# the player's facing-direction projection on screen (task
+			# #106). FPS mode leaves it centered.
 			var ch := Label.new()
 			ch.text = str(cfg.get("glyph", "+"))
 			_apply_label_style(ch, int(cfg.get("size", 28)), _color(cfg.get("color", "#ffffff")))
 			ch.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			ch.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			parent.add_child(ch)
+			# Tag with type so update_bound_elements applies the dynamic
+			# POV offset each frame.
+			var ch_cfg: Dictionary = cfg.duplicate()
+			ch_cfg["type"] = "crosshair"
+			_bound_elements.append({"node": ch, "cfg": ch_cfg})
 		"minimap":
 			# Drawn-dot top-down map. See minimap_widget.gd for spec docs.
 			var mm := MinimapWidget.new()
@@ -290,6 +298,14 @@ func update_bound_elements() -> void:
 			ControlFactory.update_slot_grid(
 				node, Callable(_shell, "_resolve_binding")
 			)
+			continue
+		# Dynamic-POV crosshair (task #106). When camera mode is third-
+		# person, position the crosshair to match the player-facing
+		# direction projected to screen space (camera_director writes
+		# world_state.crosshair_screen_x/y). FPS mode leaves the label
+		# centered.
+		if cfg.get("type", "") == "crosshair":
+			_apply_crosshair_pov(node as Label)
 			continue
 		var binding := str(cfg.get("binds", ""))
 		if binding == "":
@@ -381,3 +397,33 @@ static func _color(v) -> Color:
 	if v is String:
 		return Color(v as String)
 	return Color.WHITE
+
+
+## Dynamic-POV crosshair positioning (task #106). When camera_mode is
+## third_person_3d, camera_director writes world_state.crosshair_screen_x
+## and crosshair_screen_y (in viewport pixels) per frame. We move the
+## crosshair Label to that screen pixel. FPS mode (sentinel < 0) leaves
+## the label centered. Called every frame from update_bound_elements.
+func _apply_crosshair_pov(lbl: Label) -> void:
+	if lbl == null or _shell == null:
+		return
+	var world = _shell.get("_world")
+	if world == null:
+		return
+	var ws: Dictionary = world.get("world_state") as Dictionary
+	if ws == null:
+		return
+	var sx = ws.get("crosshair_screen_x", -1)
+	var sy = ws.get("crosshair_screen_y", -1)
+	if not (sx is float or sx is int):
+		return
+	# Sentinel < 0 = "use default center placement" (FPS mode)
+	if float(sx) < 0 or float(sy) < 0:
+		# Restore to the default center alignment if we had moved it
+		lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+		return
+	# Custom screen position. Anchor to top-left then offset to (sx, sy)
+	# minus half-size so the glyph center lands at the target pixel.
+	lbl.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	var half := lbl.size / 2.0
+	lbl.position = Vector2(float(sx) - half.x, float(sy) - half.y)
