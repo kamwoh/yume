@@ -44,6 +44,15 @@ var failed := 0
 var failures: Array = []
 var verbose := true
 
+# Trajectory recording (ADR 0058 audit follow-up / docs/00_what_yume_is.md
+# § "Bridging to implicit world models"). When --record-trajectory=path
+# is on the cmdline, ScenarioRunner asks World to record per-tick (state,
+# action) JSONL rows. Paired consecutive rows give (state_t, action_t,
+# state_{t+1}) triples suitable for training an implicit world model.
+# Recorder lives in World (covers both legacy actions[] and modern
+# steps[] paths automatically).
+var _trajectory_path: String = ""
+
 
 func _ready() -> void:
 	var data_root := _resolve_data_root()
@@ -51,6 +60,9 @@ func _ready() -> void:
 		push_error("[scenario] no --game=<name> cmdline arg")
 		get_tree().quit(2)
 		return
+	_trajectory_path = _resolve_trajectory_path()
+	if _trajectory_path != "":
+		print("[scenario] will record trajectory → %s" % _trajectory_path)
 	var tests_path := data_root + "/tests.json"
 	if not FileAccess.file_exists(tests_path):
 		print("[scenario] no tests.json at %s — skipping" % tests_path)
@@ -72,6 +84,8 @@ func _ready() -> void:
 		print("\nFAILURES:")
 		for f in failures:
 			print("  ✗ " + f)
+	if _trajectory_path != "":
+		print("[scenario] trajectory written (one file per scenario, prefix %s)" % _trajectory_path)
 	get_tree().quit(0 if failed == 0 else 1)
 
 
@@ -99,6 +113,15 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	# Run lifecycle: _ready on World already fired during add_child; data
 	# isn't loaded because auto_start=false. Load explicitly.
 	world.load_data()
+	# Wire trajectory recording if --record-trajectory was set. World
+	# owns the recorder (covers both legacy actions[] and modern
+	# steps[] paths automatically).
+	if _trajectory_path != "":
+		var path_for_scenario := _trajectory_path
+		if not path_for_scenario.ends_with(".jsonl"):
+			path_for_scenario += "_" + name + ".jsonl"
+		world.set_trajectory_recorder(path_for_scenario, name)
+
 	# Mirror GameShell's scene.json read so tick_seconds matches live play.
 	# Without this, motion integration uses the World default (0.5s) and
 	# velocity test results are 10× off for games with tick_seconds=0.05.
@@ -159,7 +182,11 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 					var act := str((a as Dictionary).get("input", ""))
 					if act != "" and actor_id != "":
 						world.scheduler.queue_input(act, {"actor": actor_id})
+						world.record_trajectory_action(act)
 			world.scheduler.tick()
+			# Trajectory write (legacy actions[] path doesn't go through
+			# advance_one_tick — manually trigger).
+			world.call("_write_trajectory_row")
 			if world.has_method("_decrement_lifetimes"):
 				world._decrement_lifetimes()
 			# ADR 0006: process any queued level transitions between ticks.
@@ -494,3 +521,23 @@ func _resolve_data_root() -> String:
 		if s.begins_with("--game="):
 			return "res://data/" + s.substr(7)
 	return ""
+
+
+# ============================================================
+# Trajectory recording (ADR 0058 audit follow-up)
+# ============================================================
+
+
+func _resolve_trajectory_path() -> String:
+	for arg in OS.get_cmdline_user_args():
+		var s := str(arg)
+		if s.begins_with("--record-trajectory="):
+			return s.substr(20)
+	return ""
+
+
+# Trajectory snapshot/write functions now live in World
+# (set_trajectory_recorder, record_trajectory_action, _write_trajectory_row).
+# ScenarioRunner only orchestrates: it asks World to record, the legacy
+# tick loop calls World._write_trajectory_row directly, and the modern
+# StepRunner path picks it up automatically via advance_one_tick.

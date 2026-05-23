@@ -488,6 +488,32 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 		pitched_height,
 		-fz * pitched_dist,
 	) + right * shoulder
+	# Camera collision (task #96 follow-up). Raycast from the player's
+	# eye-level to the desired camera position. If something solid is
+	# in between (wall, tree trunk, structure), shorten the camera
+	# distance to keep line-of-sight clear. Without this, the camera
+	# can clip through walls or end up inside foliage when the player
+	# walks past a tree on the camera's side.
+	# Layer 1 is the engine's default static-collider layer (walls,
+	# structures, blocks_motion entities). Layer mask 0xFFFFFFFE
+	# skips layer 1 to exclude... actually we WANT layer 1 (static).
+	# Use mask=1 to hit only the default layer.
+	var space = _camera3d.get_world_3d().direct_space_state if _camera3d.get_world_3d() != null else null
+	if space != null:
+		var ray_from := target + Vector3(0, 1.0, 0)  # eye-level start
+		var query := PhysicsRayQueryParameters3D.create(ray_from, desired)
+		query.collision_mask = 1  # static colliders (layer 1)
+		query.collide_with_areas = false
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty() and hit.has("position"):
+			var hit_pos: Vector3 = hit.position
+			var to_desired: Vector3 = desired - ray_from
+			var hit_distance: float = (hit_pos - ray_from).length()
+			# Pull camera back to just before the hit, with a small
+			# clearance buffer so we don't z-fight the wall.
+			var dir := to_desired.normalized()
+			var pulled_distance: float = max(1.2, hit_distance - 0.3)
+			desired = ray_from + dir * pulled_distance
 	# Also shift the look-at target by the SAME shoulder amount so the
 	# camera doesn't try to re-center the player. With shift applied to
 	# both camera AND look_target, the player stays at the offset

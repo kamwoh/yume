@@ -97,6 +97,20 @@ var _tick_elapsed: float = 0.0
 var _tick_count: int = 0
 
 # ============================================================
+# STATE — trajectory recording (ADR 0058 audit follow-up)
+# ============================================================
+#
+# When set_trajectory_recorder(path) is called, World opens a JSONL
+# file and writes one row per tick capturing (state, actions). This
+# is the explicit-world-model → implicit-world-model bridge per
+# docs/00_what_yume_is.md. The recorder is opt-in; default is null
+# (no recording, no overhead).
+
+var _trajectory_file: FileAccess = null
+var _trajectory_path: String = ""
+var _trajectory_scenario: String = ""
+
+# ============================================================
 # STATE — multi-level progression (ADR 0006)
 # ============================================================
 #
@@ -179,6 +193,8 @@ func _exit_tree() -> void:
 	if _multimesh_director != null and is_instance_valid(_multimesh_director):
 		_multimesh_director.free()
 		_multimesh_director = null
+	# Close trajectory recorder if open (ADR 0058 audit follow-up).
+	stop_trajectory_recording()
 
 
 func start() -> void:
@@ -307,6 +323,14 @@ func advance_one_tick() -> void:
 	_stream_chunks_if_active()  # ADR 0014
 	if actor_manager != null:
 		actor_manager.process_pending(scheduler.env, world_state, verbose)  # ADR 0016
+	# Trajectory recording (opt-in, ADR 0058 audit follow-up /
+	# docs/00_what_yume_is.md § "Bridging to implicit world models").
+	# Set via set_trajectory_recorder(path); writes one JSONL row per
+	# tick capturing (state_t, actions_applied_this_tick). Paired
+	# consecutive rows give (state_t, action_t, state_{t+1}) triples
+	# for training an implicit world model from explicit rollouts.
+	if _trajectory_file != null:
+		_write_trajectory_row()
 
 
 ## ADR 0036: advance entity ages + stage thresholds. dt=tick_seconds so
@@ -606,3 +630,109 @@ func _build_env() -> Dictionary:
 		# build_place + SpawnManager.spawn all read this via GridSnap helpers.
 		"scene_grid": _grid_cfg,
 	}
+
+
+# ============================================================
+# TRAJECTORY RECORDING (ADR 0058 audit follow-up)
+# ============================================================
+#
+# Opt-in JSONL-per-tick world-state dump. Bridges the explicit world
+# model (Yume's JSON-spec'd rollouts) to implicit world model
+# trainers (DreamerV3, MuZero, etc. — see docs/00_what_yume_is.md
+# § "Bridging to implicit world models").
+
+
+## Open a trajectory file. Subsequent ticks write one JSONL row each
+## containing (tick, scenario, actions_applied_this_tick, entities,
+## world_state). Paired consecutive rows give (state_t, action_t,
+## state_{t+1}) triples. Call stop_trajectory_recording() to close.
+## Returns true on success.
+func set_trajectory_recorder(path: String, scenario_name: String = "") -> bool:
+	if _trajectory_file != null:
+		_trajectory_file.close()
+	_trajectory_file = FileAccess.open(path, FileAccess.WRITE)
+	if _trajectory_file == null:
+		push_warning("[world] could not open trajectory file: %s" % path)
+		_trajectory_path = ""
+		return false
+	_trajectory_path = path
+	_trajectory_scenario = scenario_name
+	return true
+
+
+## Close + flush the trajectory file. Safe to call without an open
+## recorder (no-op).
+func stop_trajectory_recording() -> void:
+	if _trajectory_file != null:
+		_trajectory_file.close()
+		_trajectory_file = null
+
+
+## Record the inputs about to be applied this tick. ScenarioRunner /
+## StepRunner / capture_runner can call this immediately before
+## advance_one_tick() to associate inputs with the resulting state.
+## The list is consumed (cleared) by _write_trajectory_row.
+var _trajectory_actions_this_tick: Array = []
+
+
+func record_trajectory_action(action_name: String) -> void:
+	_trajectory_actions_this_tick.append(action_name)
+
+
+## Internal: write one JSONL row capturing the just-completed tick.
+## Called from advance_one_tick() AFTER scheduler.tick() — captures
+## state_{t+1} (the result of this tick's actions).
+func _write_trajectory_row() -> void:
+	if _trajectory_file == null:
+		return
+	var ents: Dictionary = {}
+	for id in entities:
+		var e = entities[id]
+		if not (e is Entity):
+			continue
+		var ent: Entity = e
+		var state_subset: Dictionary = {}
+		for k in ent.state.keys():
+			var ks: String = str(k)
+			if ks.begins_with("_"):
+				continue
+			var v = ent.state[k]
+			if v is int or v is float or v is String or v is bool:
+				state_subset[ks] = v
+			elif v is Vector2:
+				state_subset[ks] = [v.x, v.y]
+			elif v is Vector3:
+				state_subset[ks] = [v.x, v.y, v.z]
+			elif v is Array and v.size() <= 8:
+				state_subset[ks] = v.duplicate()
+		var pos = ent.get_position()
+		var pos_arr: Array
+		if pos is Vector3:
+			pos_arr = [pos.x, pos.y, pos.z]
+		elif pos is Vector2:
+			pos_arr = [pos.x, pos.y]
+		else:
+			pos_arr = []
+		ents[id] = {
+			"def": ent.def_id,
+			"pos": pos_arr,
+			"state": state_subset,
+			"tags": ent.tags.duplicate() if ent.tags is Array else [],
+		}
+	var ws: Dictionary = {}
+	for k in world_state.keys():
+		var ks: String = str(k)
+		if ks.begins_with("_"):
+			continue
+		var v = world_state[k]
+		if v is int or v is float or v is String or v is bool:
+			ws[ks] = v
+	var row: Dictionary = {
+		"tick": _tick_count,
+		"scenario": _trajectory_scenario,
+		"actions": _trajectory_actions_this_tick.duplicate(),
+		"entities": ents,
+		"world_state": ws,
+	}
+	_trajectory_file.store_line(JSON.stringify(row))
+	_trajectory_actions_this_tick.clear()

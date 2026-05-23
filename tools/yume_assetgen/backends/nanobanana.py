@@ -128,6 +128,28 @@ class NanobananaBackend(Backend):
             img_b64 = inline.get("data", "")
             img_bytes = base64.b64decode(img_b64)
             out_path.parent.mkdir(parents=True, exist_ok=True)
+            # Gemini-3.1 sometimes returns JPEG even when the caller asked
+            # for image/png — Godot's ResourceLoader picks the decoder by
+            # FILE EXTENSION, not by bytes, so writing JPEG bytes to a
+            # `.png` path produces "Failed loading resource" + a black
+            # texture in the shader. Auto-transcode when there's a mime
+            # mismatch with the output path's extension.
+            # See [[reference-gemini-jpeg-with-png-extension]] memory.
+            ext = out_path.suffix.lower()
+            mime_implies_png = "png" in mime.lower()
+            mime_implies_jpeg = "jpeg" in mime.lower() or "jpg" in mime.lower()
+            ext_is_png = ext == ".png"
+            if ext_is_png and mime_implies_jpeg:
+                try:
+                    from PIL import Image
+                    import io
+                    Image.open(io.BytesIO(img_bytes)).save(out_path, format="PNG")
+                    print(f"[nanobanana] auto-transcoded JPEG → PNG: {out_path.name}")
+                    return out_path
+                except ImportError:
+                    print("[nanobanana] WARNING: got JPEG bytes for .png "
+                          "path, but PIL not installed — saving raw JPEG "
+                          "as .png (Godot will reject). Install Pillow.")
             out_path.write_bytes(img_bytes)
             return out_path
 

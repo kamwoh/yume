@@ -227,6 +227,8 @@ static func _queue_input(world: World, action: String) -> void:
 	if actor_id != "":
 		ctx_dict["actor"] = actor_id
 	world.scheduler.queue_input(action, ctx_dict)
+	# Trajectory recording — opt-in, no-op if World has no recorder set
+	world.record_trajectory_action(action)
 
 
 # One-tick advance helper. Mirrors legacy scenario_runner's per-tick block:
