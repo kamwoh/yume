@@ -229,12 +229,14 @@ into a corner:
    compiled .gdshader, equivalent to a baked texture — content,
    not code.
 
-7. **Backward compatibility is via deprecation, not preservation.**
-   Phase A obsoletes hand-written `data/lib/shaders/*.gdshader`
-   (they become templates instead). Phase B obsoletes Phase A
-   templates (they become primitive DAGs instead). We migrate
-   shaders one at a time; we don't maintain three competing systems
-   forever.
+7. **Each phase replaces the previous outright.** Yume is pre-1.0;
+   there are no external users on the shader system. Phase A
+   replaces hand-written `data/lib/shaders/*.gdshader` with
+   templates. Phase B replaces templates with primitive DAGs.
+   We migrate shaders one at a time and DELETE the old version
+   once the new one ships — no deprecation period, no parallel
+   systems, no compatibility shims. Cleanest move from any state
+   is to overwrite + commit.
 
 ## Consequences
 
@@ -332,8 +334,9 @@ edits.
   Verify identical output to Phase A's templated version.
 - **B.4**: Land the remaining 6-8 primitives (water animation,
   triplanar, procedural noise, etc.).
-- **B.5**: Deprecate the Phase-A template engine; Phase B's
-  compiler subsumes it.
+- **B.5**: Delete the Phase-A template engine and templates;
+  Phase B's compiler replaces it. Migrate all Phase-A `.j2`
+  templates to primitive DAGs in the same commit.
 - **B.6**: Document primitive vocabulary in
   `docs/30_framework_primitives.md` § Shader primitives.
 
