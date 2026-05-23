@@ -101,12 +101,15 @@ CRITICAL RULES:
 PRESETS = {
     "survival": (
         "Survival game HUD. The vitals panel (SALMON PINK) DOMINATES the "
-        "left side — large vertical rectangle ~22% wide × 40% tall, anchored "
-        "to the bottom-left with small gap. Everything else stays small: "
-        "day/time tiny in top-left, objective narrow strip at top-center, "
-        "minimap small square at top-right, hotbar narrow strip at bottom-"
-        "center, controls hint very thin at very bottom edge, inventory "
-        "tiny square at bottom-right. The eye should land on vitals FIRST."
+        "left side — large vertical rectangle ~22% wide × 40% tall, "
+        "ANCHORED STRICTLY TO THE BOTTOM-LEFT CORNER (bottom edge gap "
+        "~30px, left edge gap ~30px — the panel's bottom and left edges "
+        "MUST be near the canvas corners, NOT in the vertical middle "
+        "of the canvas). Everything else stays small: day/time tiny in "
+        "top-left, objective narrow strip at top-center, minimap small "
+        "square at top-right, hotbar narrow strip at bottom-center, "
+        "controls hint very thin at very bottom edge, inventory tiny "
+        "square at bottom-right. The eye should land on vitals FIRST."
     ),
     "minimal": (
         "Minimal HUD. Only 3 elements: objective text strip at top-center, "
