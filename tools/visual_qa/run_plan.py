@@ -66,40 +66,46 @@ CAPTURE_USER_DIR = Path(
 # relative to a target world position. yaw is computed to look-at
 # the target at runtime.
 FRAMING_RULES: dict[str, dict[str, Any]] = {
+    # Distances tuned so that a human-scale subject (~1.8m tall) at the
+    # target occupies ~30-50% of frame height at 75° FOV. Empirical
+    # 2026-05-22: prior distances (6-10m) put subjects at ~10% of frame
+    # — too small to read for any visual assertion.
     "side_profile": {
         # Eye-level wide for relative_size — both subjects at similar dist
-        "height": 2.2,
+        "height": 1.8,
         "pitch": -0.05,
-        "distance": 8.0,
+        "distance": 4.0,
         "approach": "lateral",  # offset perpendicular to A→B axis
+        "_subject_spread_factor": 1.5,  # extra distance per meter of subject spread
     },
     "low_angle_oblique": {
-        # For no_clipping — frame the interface
-        "height": 1.0,
+        # For no_clipping — frame the interface zone
+        "height": 0.8,
         "pitch": 0.05,  # slightly upward
-        "distance": 4.0,
+        "distance": 2.5,
         "approach": "radial",
     },
     "top_down_overhead": {
-        # For rotation_facing — top-down to disambiguate facing
-        "height": 18.0,
+        # For rotation_facing — top-down disambiguates facing
+        "height": 12.0,
         "pitch": -1.45,
         "distance": 0.0,  # directly above midpoint
         "approach": "above",
     },
     "low_angle_profile": {
-        # For no_floating, pivot_at_foot — base against horizon
-        "height": 0.4,
+        # For no_floating, pivot_at_foot — base against horizon, CLOSE
+        "height": 0.5,
         "pitch": 0.0,
-        "distance": 6.0,
+        "distance": 2.5,
         "approach": "radial",
     },
     "eye_level_wide": {
-        # For distinct_silhouettes — both at similar perspective
-        "height": 1.6,
+        # For distinct_silhouettes — both subjects readable at glance
+        "height": 1.7,
         "pitch": -0.05,
-        "distance": 10.0,
+        "distance": 4.5,
         "approach": "lateral",
+        "_subject_spread_factor": 1.0,
     },
     "wide_corner": {
         # For no_orphan_cubes — corner vantage, wide capture
@@ -110,9 +116,9 @@ FRAMING_RULES: dict[str, dict[str, Any]] = {
     },
     "oblique_toward_sun": {
         # For specular_response — sun behind/above camera
-        "height": 4.0,
+        "height": 3.0,
         "pitch": -0.35,
-        "distance": 8.0,
+        "distance": 5.0,
         "approach": "sun_relative",
     },
 }
@@ -235,16 +241,20 @@ def compute_camera_pose(
         cam_x = target[0] + sx * dist
         cam_z = target[2] + sz * dist
     elif approach == "lateral":
-        # Perpendicular to the line between first 2 entities
+        # Perpendicular to the line between first 2 entities. Scale
+        # distance by subject spread so wide-apart subjects don't go
+        # off-frame: total_distance = base + spread * spread_factor.
         if n >= 2:
             ax, az = entities[0].position[0], entities[0].position[2]
             bx, bz = entities[1].position[0], entities[1].position[2]
             dx, dz = bx - ax, bz - az
             length = max(0.001, math.hypot(dx, dz))
+            spread_factor = float(f.get("_subject_spread_factor", 1.0))
+            adj_dist = dist + length * spread_factor
             # Perpendicular unit vector (rotate 90°)
             px, pz = -dz / length, dx / length
-            cam_x = target[0] + px * dist
-            cam_z = target[2] + pz * dist
+            cam_x = target[0] + px * adj_dist
+            cam_z = target[2] + pz * adj_dist
         else:
             cam_x = target[0] + dist
             cam_z = target[2]
@@ -337,19 +347,19 @@ def set_active_camera(game: str, camera_id: str) -> str:
 
 
 def sync_to_template() -> None:
-    """Sync godot/. → YumeTemplate."""
+    """Sync godot/. → YumeTemplate. Uses `cp -r` rather than shutil
+    because shutil.rmtree + copytree races against WSL's mount cache —
+    rmtree returns before the FS actually frees the dir, then copytree
+    sees the still-existing target. cp -r overlays cleanly."""
     src = REPO_ROOT / "godot"
     if not TEMPLATE_DST.is_dir():
         raise FileNotFoundError(f"YumeTemplate not at {TEMPLATE_DST}")
-    # Use cp -r equivalent
-    for item in src.iterdir():
-        dst = TEMPLATE_DST / item.name
-        if item.is_dir():
-            if dst.exists():
-                shutil.rmtree(dst, ignore_errors=True)
-            shutil.copytree(item, dst, symlinks=False)
-        else:
-            shutil.copy2(item, dst)
+    proc = subprocess.run(
+        ["cp", "-r", f"{src}/.", f"{TEMPLATE_DST}/"],
+        capture_output=True, text=True, timeout=60,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"sync_to_template cp -r failed: {proc.stderr}")
 
 
 def reimport_godot() -> None:
@@ -361,7 +371,9 @@ def reimport_godot() -> None:
     invalidated the cache and Godot served default fallbacks. See
     [[feedback-always-import-after-new-assets]]."""
     cmd = [GODOT_BIN, "--path", ".", "--headless", "--import"]
-    proc = subprocess.run(cmd, cwd=TEMPLATE_DST, capture_output=True, text=True, timeout=120)
+    # --import can take 2-4 min on first run after shader/asset changes
+    # because it regenerates ImageTexture imports + recompiles shaders.
+    proc = subprocess.run(cmd, cwd=TEMPLATE_DST, capture_output=True, text=True, timeout=360)
     if proc.returncode != 0:
         print(f"[run_plan] --import exit={proc.returncode}", file=sys.stderr)
         print(proc.stderr[-500:], file=sys.stderr)
