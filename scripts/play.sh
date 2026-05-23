@@ -28,12 +28,17 @@
 
 set -e
 
-# Parse positional + flags
+# Parse positional + flags. Flags recognized here are play.sh-level
+# (control sync / capture / record behavior). Any --flag not listed
+# here is forwarded verbatim to Godot's user-args (after the `--`
+# separator), so engine-side flags like --debug-colliders /
+# --record-trajectory= just work without play.sh-side parsing changes.
 GAME_NAME=""
 CAPTURE_DELAY=""
 OUTPUT_PATH=""
 RECORD_PATH=""
 RECORD_DEFAULT=0
+EXTRA_USER_ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --capture)
@@ -52,8 +57,11 @@ for arg in "$@"; do
       RECORD_PATH="${arg#*=}"
       ;;
     -*)
-      echo "Unknown flag: $arg"
-      exit 1
+      # Forward to Godot. Catches --debug-colliders,
+      # --record-trajectory=, --capture-input=, etc. that the engine
+      # parses via OS.get_cmdline_user_args(). play.sh stays a thin
+      # launcher — it doesn't need to know every engine-side flag.
+      EXTRA_USER_ARGS+=("$arg")
       ;;
     *)
       if [ -z "$GAME_NAME" ]; then
@@ -133,6 +141,11 @@ done
 if [ -z "$SCENE" ]; then
   SCENE="scenes/play.tscn"
   USER_ARGS+=("--game=${DATA_FOLDER}")
+fi
+
+# Forward unrecognized flags (engine-side) to Godot's user-args.
+if [ ${#EXTRA_USER_ARGS[@]} -gt 0 ]; then
+  USER_ARGS+=("${EXTRA_USER_ARGS[@]}")
 fi
 
 # Resolve --record default path (user://recordings/<game>_<timestamp>.avi)
