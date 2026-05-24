@@ -5,6 +5,16 @@ description: Fit-fit HUD authoring from a wireframe image. Reads the per-game co
 
 # /yume-hud-author
 
+> **STABLE — 2D fit-fit pipeline (confirmed 2026-05-24).** This skill
+> + its harness (compose_hud, wireframe_to_hud) is locked. Modifying
+> the workflow requires an ADR + scenario regression tests. Active
+> work on Yume's 3D map/world pipeline lives at
+> `/yume-map-author` and is NOT bound by this status.
+>
+> Note: the live `hud.json` per-game CONTENT can keep evolving. Stable
+> means "the harness produces JSON correctly." Per-game UX iteration
+> is normal authoring, not a harness change.
+
 You are the **HUD author** for Yume. You read a wireframe image and
 produce a fit-fit `hud.json` — meaning the in-game HUD matches the
 wireframe pixel-for-pixel (modulo the wireframe→viewport scale).

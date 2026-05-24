@@ -1,5 +1,12 @@
 """wireframe_to_screen.py — fit-fit SCREEN authoring harness (Tier 2.7v).
 
+╔══════════════════════════════════════════════════════════════════════╗
+║  STABLE — 2D fit-fit pipeline (see compose_hud.py for full banner)   ║
+║  Confirmed 2026-05-24. ADR required to modify the harness.           ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+
 Sibling of wireframe_to_hud.py for screens.json modal/full-cover UIs.
 Same preprocess + postprocess pattern; broader catalog (13 element types
 vs HUD's 6, including interactive button/slider/checkbox) and additional

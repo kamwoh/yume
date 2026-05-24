@@ -34,6 +34,7 @@ cat ~/yume/.claude/rules/data-demo.md
 | `visual-qa.md` | (skill-applied, not path-scoped) | Visual capture + Read mandatory after any rendering-affecting change; subagent prompts must include the gate |
 | `post-mortem.md` | (always-on behavioral rule) | After every user-surfaced bug: fix → identify gate that should have caught it → harden gate → commit both. Skipping leaks the bug class into future sessions. |
 | `soul.md` | (cross-skill workflow rule) | The 5-layer soul checklist (writing / visual / audio / kinetic / reactive) for any game with aesthetic targets like Fellowship/Narrative/Submission/Discovery/Sensation. Soul comes from layer cross-reinforcement — every signature beat must hit all 5 layers, all pulling the same emotional direction. |
+| `pipeline-stability.md` | `tools/visual_layout/**` + yume-{hud,screen,map}-author skills | 2D fit-fit pipelines (HUD + screen) are STABLE — ADR required to modify the harness. 3D map/world pipeline is ACTIVE — modify freely. The live content (hud.json / screens.json) is NOT locked even when its harness is. |
 
 Each rule file links back to relevant **invariants** from
 `docs/30_framework_primitives.md`. If a rule and an invariant ever conflict,

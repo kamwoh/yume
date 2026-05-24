@@ -139,6 +139,74 @@ analysis.
 
 ---
 
+## Pipeline status (2026-05-24)
+
+Three sibling pipelines under `tools/visual_layout/` follow the same
+LLM-as-parser pattern (prompt → image → preprocess → LLM authors
+draft → postprocess validates + splices). Their stability differs:
+
+| Pipeline | Category | Status | Owner skill |
+|---|---|---|---|
+| `compose_hud` + `wireframe_to_hud` | 2D fit-fit | **STABLE** (confirmed 2026-05-24) | `/yume-hud-author` |
+| `compose_screen` + `wireframe_to_screen` | 2D fit-fit | **STABLE** (confirmed 2026-05-24) | `/yume-screen-author` |
+| `compose_map` + `wireframe_to_map` | 3D | **ACTIVE — not complete** | `/yume-map-author` |
+
+### What "STABLE — 2D fit-fit" means
+
+The 2D pipelines treat input space = output space (wireframe pixels
+→ viewport pixels). The LLM does coordinate transform + vocabulary
+mapping; there's no semantic interpretation layer. Validators close
+all known schema gaps. **The harness is locked: modifying the
+workflow requires an ADR + the existing scenario regression tests
+in `tools/visual_layout/tests/` must continue to pass.**
+
+The locked surface includes:
+- `tools/visual_layout/compose_hud.py` + `compose_screen.py`
+- `tools/visual_layout/wireframe_to_hud.py` + `wireframe_to_screen.py`
+- `.claude/skills/yume-hud-author/SKILL.md`
+- `.claude/skills/yume-screen-author/SKILL.md`
+- `tools/visual_layout/tests/test_screen_chain_validator.py`
+
+The locked surface does NOT include the live JSON content the
+harness produces. `hud.json` / `screens.json` per-game CAN keep
+evolving — that's normal authoring. Open per-game UX work (#102–
+#106 in this doc) is content tuning, not pipeline change.
+
+### What "ACTIVE — 3D" means
+
+`compose_map` ships end-to-end (commit `6711a7b`, 2026-05-20) but
+is structurally harder than its 2D siblings:
+
+- 2D input (semantic map PNG) → 3D output (world coords + scene)
+- Multi-consumer: same map drives entities + ground shader + (TBD)
+  lighting + (TBD) audio zones
+- Composition concerns (10 axes from soul.md) don't apply to HUDs
+  but do apply here
+- Camera + framing are part of the deliverable — a 3D scene only
+  exists as something the player SEES through a camera
+
+The pipeline is functional but does NOT yet handle: water/path/
+biome interpretation as entities (some closed by ADR 0055 shader-
+side), composition validation, cinematic scene.json generation
+(lighting/fog/camera per-scene), more than 3 hand-authored presets.
+
+**Active development. Modify freely with the usual discipline
+(post-mortem ritual, validators, scenario tests). No stability lock
+yet — the surface is still settling.**
+
+### Where extension work goes
+
+New work on the 3D map/world pipeline:
+- Extend `compose_map.py` presets or generalize them
+- Improve `wireframe_to_map.py` preprocess context
+- Refine `/yume-map-author` skill
+- Add sibling stages (e.g. `compose_scene_cinema` for lighting/fog
+  generation from the same map's palette + intent)
+
+Touch the 2D harness ONLY if you have an ADR.
+
+---
+
 ## Strategic reframe (2026-04-22)
 
 Earlier framing positioned this as "agent simulation" with a world as the

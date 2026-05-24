@@ -1,5 +1,25 @@
 """compose_hud.py — fit-fit HUD pipeline harness (Tier 2.7v, 2026-05-19).
 
+╔══════════════════════════════════════════════════════════════════════╗
+║  STABLE — 2D fit-fit pipeline                                        ║
+║                                                                      ║
+║  Input space (2D wireframe pixels) = output space (2D viewport).     ║
+║  No interpretation layer; pixel→viewport math + schema validation.   ║
+║  Confirmed stable 2026-05-24 — do NOT modify without an ADR + the    ║
+║  scenario regression tests (tools/visual_layout/tests/).             ║
+║                                                                      ║
+║  NOTE: this protects the HARNESS, not the live content. The live     ║
+║  hud.json / screens.json in per-game data CAN evolve freely —        ║
+║  that's normal authoring. Open UX work on aldenmere's HUD content    ║
+║  (tasks #102-#106) is separate from harness stability.               ║
+║                                                                      ║
+║  Active sibling under development: tools/visual_layout/compose_map   ║
+║  + wireframe_to_map + yume-map-author. 3D pipeline, much harder      ║
+║  (multi-consumer outputs, semantic interpretation, cinematic frame). ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+
 Rewired 2026-05-19 to drive the yume-hud-author skill instead of the
 CV-based compile_ui + merge_hud chain. The pipeline is now:
 

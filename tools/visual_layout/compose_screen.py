@@ -1,5 +1,12 @@
 """compose_screen.py — fit-fit SCREEN pipeline harness (Tier 2.7v).
 
+╔══════════════════════════════════════════════════════════════════════╗
+║  STABLE — 2D fit-fit pipeline (see compose_hud.py for full banner)   ║
+║  Confirmed 2026-05-24. ADR required to modify the harness.           ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+
 Sibling of compose_hud.py for modal/full-cover UIs (inventory, pause,
 settings, title, ...). Wraps gen + preprocess + hand-off:
 

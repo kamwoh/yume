@@ -1,5 +1,12 @@
 """wireframe_to_hud.py — fit-fit HUD authoring harness (Tier 2.7v, 2026-05-19).
 
+╔══════════════════════════════════════════════════════════════════════╗
+║  STABLE — 2D fit-fit pipeline (see compose_hud.py for full banner)   ║
+║  Confirmed 2026-05-24. ADR required to modify the harness.           ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+
+
 Two sub-commands wrap the LLM-in-the-loop step:
 
     preprocess  <game> <wireframe.png>

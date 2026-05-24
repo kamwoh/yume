@@ -5,6 +5,16 @@ description: Fit-fit SCREEN authoring from a wireframe image — for modal/full-
 
 # /yume-screen-author
 
+> **STABLE — 2D fit-fit pipeline (confirmed 2026-05-24).** This skill
+> + its harness (compose_screen, wireframe_to_screen) is locked.
+> Modifying the workflow requires an ADR + scenario regression tests.
+> Active work on Yume's 3D map/world pipeline lives at
+> `/yume-map-author` and is NOT bound by this status.
+>
+> Note: the live `screens.json` per-game CONTENT can keep evolving.
+> Stable means "the harness produces JSON correctly." Per-game UX
+> iteration is normal authoring, not a harness change.
+
 You are the **screen author** for Yume. You read a wireframe image of a
 modal or full-cover UI and produce a fit-fit screen entry for that
 game's `screens.json` — meaning the in-game screen matches the
