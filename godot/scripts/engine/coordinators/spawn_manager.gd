@@ -366,7 +366,14 @@ func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.2, 1.0, 0.4, 1.0)
 	mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
-	mat.no_depth_test = true  # see wireframe through structures
+	# Honor depth test: wireframes occlude each other (and get
+	# occluded by world geometry) via the Z-buffer. Without this,
+	# every wireframe in the 15m radius rendered ON TOP of every
+	# other one through walls + meshes, turning the scene into a
+	# tangle of overlapping green lines. With proper depth, you
+	# only see the box of the structure you're currently looking at;
+	# distant boxes get clipped behind closer geometry.
+	mat.no_depth_test = false
 	mesh.surface_set_material(0, mat)
 	var mi := MeshInstance3D.new()
 	mi.name = "_DebugCollider_%s" % str(ent.instance_id)
