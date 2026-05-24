@@ -368,38 +368,17 @@ static func translate_blocks_motion(def: Dictionary) -> Dictionary:
 		return {}
 
 	var ext_arr: Array = extents
-	# Optional aabb_offset shifts the collider center relative to entity
+	# aabb_offset shifts the collider center relative to entity
 	# position. Required when the mesh isn't centered at the entity's
-	# origin — e.g., Tripo3D meshes are bbox-centered, so a collider at
-	# entity.position (with no offset) would sit half-underground. The
-	# offset lifts the collider to match the mesh's rendered position
-	# (typically equal to visual.y_offset for bbox-centered meshes).
-	# 2026-05-24.
-	#
-	# Default behavior when no aabb_offset is declared:
-	#   - For defs with `_aabb_intent: "design"` (intentionally
-	#     mesh-mismatched colliders — narrow trunks, shallow table
-	#     footprints, symbolic markers): default to [0, aabb_extents.y,
-	#     0] so the box's bottom rests at entity.position.y (ground).
-	#     Authors typically place ground entities at y=0 thinking
-	#     "feet on floor"; centering the box there buries half of it.
-	#   - For all other defs without aabb_offset: default to [0, 0, 0]
-	#     (engine convention since pre-2026-05-24). Such defs are
-	#     usually pre-validator content or non-mesh entities; the
-	#     validator should have computed an explicit offset already
-	#     for any def with a .glb mesh.
-	# The default is only consulted when aabb_offset isn't present;
-	# authors who explicitly set it (even to [0,0,0]) override the
-	# default unchanged.
-	var explicit_offset = props.get("aabb_offset", null)
-	var intent = str(props.get("_aabb_intent", ""))
-	var offset_v
-	if explicit_offset != null:
-		offset_v = explicit_offset
-	elif intent == "design" and ext_arr.size() >= 2:
-		offset_v = [0.0, float(ext_arr[1]), 0.0]
-	else:
-		offset_v = [0, 0, 0]
+	# origin (Tripo3D meshes are bbox-centered, so a collider at
+	# entity.position with no offset would sit half-underground).
+	# The validator (tools/validators/validate_aabb_extents.py)
+	# computes this from the .glb mesh bbox + state.scale +
+	# visual.y_offset and writes it into every def. The engine
+	# trusts that authored value verbatim — no defaults, no
+	# heuristics. Defs without aabb_offset default to [0,0,0]
+	# (purely zero state — engine never invents physics geometry).
+	var offset_v = props.get("aabb_offset", [0, 0, 0])
 	var off_arr: Array = offset_v if offset_v is Array else [0, 0, 0]
 	# Detect 2D vs 3D from extents length
 	# 3D: [hx, hy, hz] (3 components). 2D: [hx, hy] (2 components).

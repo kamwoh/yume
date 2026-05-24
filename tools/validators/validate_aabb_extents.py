@@ -187,13 +187,6 @@ def scan_game(game_dir: Path, tolerance: float, apply_fix: bool
             declared = props.get("aabb_extents", None)
             if not isinstance(declared, list) or len(declared) < 3:
                 continue
-            # Skip defs that explicitly opt out — `_aabb_intent: "design"`
-            # means the declared collider deliberately differs from the
-            # mesh bbox (intentionally narrow for foliage, intentionally
-            # wide for player-shouldn't-pass-through obstacles, etc.).
-            intent = props.get("_aabb_intent", "")
-            if isinstance(intent, str) and intent.lower() == "design":
-                continue
             declared_f = [float(v) for v in declared[:3]]
             state_init = d.get("state_init", {})
             if not isinstance(state_init, dict):

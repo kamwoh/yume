@@ -8,6 +8,60 @@ globs: godot/data/**
 Demos live as JSON folders under `data/`. They are **content**, not code —
 no GDScript files belong here.
 
+## ⚠ INVARIANT: no per-def escape hatches from automated derivation
+
+Anything the engine can derive from the world model, the engine
+**must** derive — every time, with no per-def opt-outs. Colliders
+come from mesh bbox × state.scale. Mesh offsets come from
+visual.y_offset / y_offset_mesh × scale. Material UUIDs come from
+the .glb's authored materials. Director mounting comes from the
+content's needs. Authors don't override these by hand.
+
+**Why this is non-negotiable**: every escape hatch (a JSON field
+that says "ignore the auto-derivation for THIS def") creates a
+class of silent drift. Author sets one of the override fields,
+forgets to set the others, and the wireframe / collider / sync
+drifts away from the mesh — visible only with --debug-colliders
+or after a player reports a weird hitbox. Then someone has to
+manually fix that one def. Then a similar def hits the same bug.
+Then a similar game. The escape hatch becomes a chronic source
+of "fix individually" labor that should never exist.
+
+**The principle Yume aims for**: explicit world model, fully
+automated. State is JSON. Geometry is derived. Behavior is
+declared. Nothing is hand-tuned. Anywhere we author a manual
+override on a derivable value, we're admitting the derivation
+isn't good enough — fix the derivation, don't add an exception.
+
+**Empirical case 2026-05-24**: `_aabb_intent: "design"` was an
+escape hatch in `validate_aabb_extents.py` that let authors opt
+defs out of mesh-bbox-derived colliders. 7 aldenmere defs (5
+trees + workbench + grave_marker) abused it: set aabb_extents
+manually but forgot aabb_offset, so colliders sat half-buried
+under the floor. User had to manually flag each one. Fix:
+deleted the `_aabb_intent` field entirely from the validator
++ engine + data. Now collider derivation is 100% automatic from
+the .glb mesh — no override path exists. Authors who want
+different gameplay (e.g., walk between trees) author the MESH
+differently, not the collider.
+
+**Gate**: when proposing a new "I'll author this manually because
+the auto-behavior isn't right" override, REJECT the override.
+Either:
+  (a) fix the auto-derivation so the right thing happens for all
+      cases of this class, OR
+  (b) fix the source data (re-author the mesh, change the bbox,
+      etc.) so the existing auto-derivation produces the right
+      thing.
+
+Never (c) ship the escape hatch.
+
+This rule applies to every primitive the framework already
+derives: aabb (collider sizing), y_offset (mesh-to-ground sync),
+material UUIDs, scale propagation, director mounting, position
+scaling. New derivations land with NO opt-out. Old opt-outs
+get deleted as the post-mortem ritual surfaces their failures.
+
 ## ⚠ CRITICAL: NEVER drop a `.gd` file under `godot/data/`
 
 `data/` is content-only. Engine code lives at `godot/scripts/engine/`.
