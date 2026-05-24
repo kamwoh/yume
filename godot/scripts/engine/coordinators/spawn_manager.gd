@@ -372,6 +372,10 @@ func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
 	mi.name = "_DebugCollider"
 	mi.mesh = mesh
 	mi.position = off_v
+	# Register in a group so GameShell._cull_debug_colliders_by_distance
+	# can hide wireframes far from the active Camera3D (otherwise 200+
+	# overlapping wireframes turn the screen into a tangle of green lines).
+	mi.add_to_group("_yume_debug_collider")
 	# Parent to the entity's visual node (EntityMesh3D — a Node3D that
 	# tracks entity.state.position via _sync_position). The Entity
 	# itself is just a Node with no transform, so attaching there would

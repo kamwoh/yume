@@ -138,6 +138,38 @@ func _process(delta: float) -> void:
 	_hud_builder.tick_flash()
 	_update_fade(delta)
 	_win_lose.check(_hud_cfg)
+	_cull_debug_colliders_by_distance()
+
+
+## Per-frame proximity culling for collider debug wireframes (task #125).
+## Showing ALL static collider wireframes at once is visually noisy in
+## scenes with 200+ entities. Hide wireframes farther than DEBUG_COLLIDER_
+## VIEW_RADIUS from the active Camera3D so only nearby colliders show.
+## No-op when debug_collisions_hint isn't set.
+const DEBUG_COLLIDER_VIEW_RADIUS: float = 15.0
+const DEBUG_COLLIDER_VIEW_RADIUS_SQ: float = DEBUG_COLLIDER_VIEW_RADIUS * DEBUG_COLLIDER_VIEW_RADIUS
+
+
+func _cull_debug_colliders_by_distance() -> void:
+	var tree := get_tree()
+	if tree == null or not tree.debug_collisions_hint:
+		return
+	var vp := get_viewport()
+	if vp == null:
+		return
+	var cam := vp.get_camera_3d()
+	if cam == null:
+		return
+	var cam_pos: Vector3 = cam.global_position
+	# Iterate all _DebugCollider nodes (spawn_manager tagged them with
+	# the group "_yume_debug_collider"). Group iteration is O(group_size),
+	# cheaper than walking the whole entity list.
+	for node in tree.get_nodes_in_group("_yume_debug_collider"):
+		if not (node is MeshInstance3D):
+			continue
+		var mi: MeshInstance3D = node
+		var d2: float = (mi.global_position - cam_pos).length_squared()
+		mi.visible = d2 <= DEBUG_COLLIDER_VIEW_RADIUS_SQ
 
 
 ## Drain game-level pending pipelines (level transition, save/load,
