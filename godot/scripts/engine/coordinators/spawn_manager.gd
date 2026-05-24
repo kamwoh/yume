@@ -303,6 +303,91 @@ func _build_physics_body_if_declared(ent: Entity) -> void:
 		PhysicsBodyBuilder.build_character_3d(ent, phys_cfg, layer_map)
 	else:
 		PhysicsBodyBuilder.build_3d(ent, phys_cfg, space, layer_map)
+	# Static bodies use PhysicsServer3D RIDs (not scene-tree nodes), so
+	# Godot's built-in debug_collisions_hint can't render their wireframes.
+	# When debug-colliders is on, also attach a MeshInstance3D with a
+	# wireframe BoxMesh to make the static collider visible. Skipped for
+	# character bodies (their CollisionShape3D child IS picked up by
+	# the built-in viz). Task #123, 2026-05-24.
+	if body_type != "character":
+		_maybe_build_collider_debug_viz(ent, phys_cfg)
+
+
+## Render a wireframe box matching the static collider's shape/offset.
+## Only fires when get_tree().debug_collisions_hint is true (set in
+## World._apply_debug_flags from cmdline / scene.json).
+func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
+	if _world == null:
+		return
+	var tree := _world.get_tree()
+	if tree == null or not tree.debug_collisions_hint:
+		return
+	var shape_cfg = phys_cfg.get("collision_shape", null)
+	if not (shape_cfg is Dictionary):
+		return
+	if str(shape_cfg.get("type", "")) != "box":
+		return
+	var size_arr = shape_cfg.get("size", [1, 1, 1])
+	if not (size_arr is Array) or (size_arr as Array).size() < 3:
+		return
+	var off_arr = shape_cfg.get("offset", [0, 0, 0])
+	var off_v := Vector3(
+		float(off_arr[0]) if off_arr is Array and off_arr.size() >= 1 else 0.0,
+		float(off_arr[1]) if off_arr is Array and off_arr.size() >= 2 else 0.0,
+		float(off_arr[2]) if off_arr is Array and off_arr.size() >= 3 else 0.0,
+	)
+	# Build a 12-line wireframe box (8 corners + 12 edges). Filled
+	# translucent boxes stack badly when multiple structures overlap
+	# the view — the screen turns solid green. Lines only render
+	# where edges are, so 50 wireframes don't compose into a wall of color.
+	var sx = float(size_arr[0]) * 0.5
+	var sy = float(size_arr[1]) * 0.5
+	var sz = float(size_arr[2]) * 0.5
+	var corners = [
+		Vector3(-sx, -sy, -sz), Vector3( sx, -sy, -sz),
+		Vector3( sx, -sy,  sz), Vector3(-sx, -sy,  sz),
+		Vector3(-sx,  sy, -sz), Vector3( sx,  sy, -sz),
+		Vector3( sx,  sy,  sz), Vector3(-sx,  sy,  sz),
+	]
+	var edges = [
+		[0,1],[1,2],[2,3],[3,0],  # bottom
+		[4,5],[5,6],[6,7],[7,4],  # top
+		[0,4],[1,5],[2,6],[3,7],  # verticals
+	]
+	var verts := PackedVector3Array()
+	for e in edges:
+		verts.append(corners[e[0]])
+		verts.append(corners[e[1]])
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_LINES)
+	for v in verts:
+		st.add_vertex(v)
+	var mesh := st.commit()
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.2, 1.0, 0.4, 1.0)
+	mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
+	mat.no_depth_test = true  # see wireframe through structures
+	mesh.surface_set_material(0, mat)
+	var mi := MeshInstance3D.new()
+	mi.name = "_DebugCollider"
+	mi.mesh = mesh
+	mi.position = off_v
+	# Parent to the entity's visual node (EntityMesh3D — a Node3D that
+	# tracks entity.state.position via _sync_position). The Entity
+	# itself is just a Node with no transform, so attaching there would
+	# render the box at world origin. The renderer node is tagged with
+	# the `_yume_renderer` meta key in entity_mesh_3d.gd:51.
+	var visual_parent: Node = null
+	for child in ent.get_children():
+		if child.has_meta("_yume_renderer"):
+			visual_parent = child
+			break
+	if visual_parent == null:
+		# Fallback: defer one frame and retry — renderer may not be
+		# attached yet when spawn_manager calls us.
+		ent.call_deferred("add_child", mi)
+	else:
+		visual_parent.add_child(mi)
 
 
 ## Resolve the 3D physics space RID for the current scene. Returns
