@@ -224,12 +224,22 @@ static func build_character_3d(
 ## build_character_3d (CharacterBody3D needs shapes as scene-tree
 ## children, not as raw RIDs attached via PhysicsServer3D.body_add_shape).
 ##
-## Returns null if shape_cfg is empty / invalid.
+## Capsule/cylinder shapes get an automatic vertical offset of
+## height/2 so the shape's BASE sits at the body's transform.origin.
+## Otherwise the capsule is centered on origin → feet end up below
+## ground, mesh renders height/2 above floor after Godot pushes the
+## body up. Yume convention: entity.position = feet-on-floor.
+## 2026-05-24 — was the root cause of "character & collider have
+## different offsets."
+##
+## Explicit shape_cfg.offset (Vector3-like list) overrides the auto-
+## lift. Returns null if shape_cfg is empty / invalid.
 static func _build_collision_shape_node(shape_cfg: Dictionary) -> CollisionShape3D:
 	if shape_cfg.is_empty():
 		return null
 	var shape_type := str(shape_cfg.get("type", ""))
 	var shape: Shape3D = null
+	var auto_lift_y := 0.0  # default: no auto-lift
 	match shape_type:
 		"box":
 			var box := BoxShape3D.new()
@@ -240,20 +250,30 @@ static func _build_collision_shape_node(shape_cfg: Dictionary) -> CollisionShape
 			var sph := SphereShape3D.new()
 			sph.radius = float(shape_cfg.get("radius", 0.5))
 			shape = sph
+			auto_lift_y = sph.radius  # ball sits on its bottom
 		"capsule":
 			var cap := CapsuleShape3D.new()
 			cap.radius = float(shape_cfg.get("radius", 0.4))
 			cap.height = float(shape_cfg.get("height", 1.8))
 			shape = cap
+			auto_lift_y = cap.height / 2.0  # capsule base at origin
 		"cylinder":
 			var cyl := CylinderShape3D.new()
 			cyl.radius = float(shape_cfg.get("radius", 0.5))
 			cyl.height = float(shape_cfg.get("height", 1.0))
 			shape = cyl
+			auto_lift_y = cyl.height / 2.0  # cylinder base at origin
 		_:
 			return null
 	var node := CollisionShape3D.new()
 	node.shape = shape
+	# Explicit offset (3-element list) wins; otherwise auto-lift Y so
+	# the shape's BASE sits at the body's transform.origin.
+	var off = shape_cfg.get("offset", null)
+	if off is Array and (off as Array).size() >= 3:
+		node.position = Vector3(float(off[0]), float(off[1]), float(off[2]))
+	elif auto_lift_y > 0.0:
+		node.position = Vector3(0, auto_lift_y, 0)
 	return node
 
 
