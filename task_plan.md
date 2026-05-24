@@ -1,6 +1,6 @@
-# Yume — Universal Simulation Framework
+# Yume — Aesthetic + Coherent + Cinematic Text-to-World Procedural Generation Harness
 
-_Last updated: 2026-05-23_
+_Last updated: 2026-05-24_
 
 ---
 
@@ -61,29 +61,66 @@ all of them. Game = `data/`.
 
 ---
 
-## North Star
+## North Star (restated 2026-05-24)
 
-> Describe a game in natural language. Yume produces the JSON. The same
-> engine runs it. Any simulation-shaped game, any data-driven rules,
-> discrete-tick physics.
+> **An aesthetic and coherent and cinematic text-to-world procedural
+> generation harness.**
+
+Three adjectives, all load-bearing:
+
+- **Aesthetic**: scenes don't just compile — they LOOK like a coherent
+  visual world. Soul.md's 5 layers (writing / visual / audio / kinetic
+  / reactive) and 10 composition axes (ground variation / focal point
+  / fg-mg-bg / palette cohesion / lighting drama / etc.) are the
+  rubric.
+- **Coherent**: the world makes internal sense. NPCs behave
+  consistently with their voice profiles. Schedules respect time-of-
+  day. Layouts have a focal anchor and radial organization.
+  Discoverable rules are testable.
+- **Cinematic**: framing, lighting, depth, atmosphere — the world
+  feels FILMED, not flat-rendered. Distance fog, vertical relief,
+  foreground silhouettes, dramatic sun angles, soul-bearing detail
+  density.
+
+The path: text → GDD → world plan → level layout → entity defs →
+rules → assets → captures → 5-layer/10-axis review → polish loop.
+Each stage has a skill (or has gaps tracked as ADRs / open tasks).
+Northstar names which gap matters next.
+
+### The underlying technical claim
+
+Yume is an **explicit programmable world model** (see
+`docs/00_what_yume_is.md`). JSON is the world specification language;
+the runtime is its interpreter; Godot is the projection function.
+Implicit world models (DreamerV3, MuZero, Genie) bake the world into
+weights; Yume keeps it auditable, editable, version-controllable
+human-readable JSON. Every aesthetic / coherent / cinematic property
+of the output is something a future contributor can inspect, modify,
+or extend WITHOUT retraining.
 
 Three layers, all needed:
 
-1. **Design layer** (Tier 2.5): prose → structured GDD (Mechanics / Dynamics
-   / Aesthetics)
-2. **Spec layer** (Tier 2.5): GDD → entity defs + rule specs, ADR-tracked
-3. **Runtime layer** (Tier 2): seven primitives (Entity, Tag, Rule, Trigger,
-   Effect, Query, Relation), all JSON-driven, genre-agnostic. No genre-
-   specific engine code, ever.
+1. **Design layer**: prose → structured GDD (Mechanics / Dynamics /
+   Aesthetics)
+2. **Spec layer**: GDD → entity defs + rule specs + assets, ADR-
+   tracked
+3. **Runtime layer**: seven primitives (Entity, Tag, Rule, Trigger,
+   Effect, Query, Relation), all JSON-driven, genre-agnostic. No
+   genre-specific engine code, ever.
 
-**Success smell test:** user types *"a farming game where crops grow faster
-in moonlight and rot in direct sun"*. Yume produces validated JSON that runs
-immediately. Then: ecology, shooter, RPG, chess all generate the same way.
-Engine never changes. New games = new prose, which becomes new JSON.
+**Success smell test:** user types *"a small forest survival where
+the player has 3 days to figure out which mushrooms are safe"*. Yume
+produces validated JSON that runs immediately — and the result is
+visually coherent (autumn palette, weathered camp, dawn lighting),
+cinematic (distance fog, vertical relief, framed shots), and the
+mechanic feels like its theme. Then: dungeon-crawler, archive-
+puzzle, fishing-village all generate the same way. Engine never
+changes. New games = new prose → new JSON → new captures.
 
-**Honest scope:** simulation-shaped games only. Non-goals: rhythm, precision
-platformers, continuous physics, narrative-heavy adventures. See
-`docs/31_text_to_game_pipeline.md` for full analysis.
+**Honest scope:** simulation-shaped scenes/games. Non-goals: rhythm,
+precision platformers, continuous physics, narrative-heavy
+adventures. See `docs/31_text_to_game_pipeline.md` for full
+analysis.
 
 ---
 
@@ -3689,4 +3726,195 @@ an explicit programmable world model.
   procedure for camera framing during visual QA
 - `reference_godot_valid_false_import.md` — the .import sidecar
   gotcha
+
+---
+
+## Session wrap (2026-05-24) — physics derivation cleanup + no-escape-hatches invariant
+
+One day of physics-pipeline cleanup that surfaced a deeper framework
+principle. Started with "real ground collider instead of magic
+y_floor clamp," ended with "every collider geometry, static or
+character, derives from a real .glb mesh — no per-def manual
+numbers anywhere." The arc was driven by progressively-stricter user
+review of debug-collider captures.
+
+### Shipped ✅
+
+**Real ground collider (task #124, commit `b1b23b2`):**
+- Replaced the soft `y <= 0 → snap` convention in
+  `character_body_runner._writeback_vertical_state` with a real
+  StaticBody3D + BoxShape3D attached by GroundRenderer.build,
+  sized to `scene.json.ground.mesh.size`. Critical fix: explicit
+  `collision_layer = 1 << 2` ("floor") so the player's mask
+  detects it.
+- Soft clamp kept as opt-in fallback (entity declares
+  `state.floor_y`) for collider-less scenes (2D demos, abstract
+  puzzles, headless tests).
+- Walk off the visible plane → fall indefinitely. Walk on it →
+  Godot's `is_on_floor()` returns true via physics, no convention
+  layer needed.
+
+**Debug-collider wireframe pipeline (commits `d6b5426`, `009c59c`,
+`ccf87e0`, `8c2a295`, `7234f78`):**
+- Static colliders (PhysicsServer3D RIDs) get custom green
+  wireframe MeshInstance3Ds — Godot's built-in
+  `debug_collisions_hint` only renders scene-node CollisionShape3D
+  children. SurfaceTool.PRIMITIVE_LINES, 12 edges per box.
+- Wireframe parented to `_world` directly (NOT renderer) and
+  positioned in world space — bypasses both `visual.y_offset` lift
+  AND `state.scale` propagation that the renderer applies. The
+  intermediate attempts (subtract y_offset only / 009c59c)
+  surfaced the second transform issue (scale inheritance) that
+  required parenting-to-world.
+- Proximity cull (15m radius from active Camera3D) + frustum
+  cull (`is_position_in_frustum`) + Z-buffer occlusion. Each
+  layer reduces the on-screen wireframe count progressively.
+- Group `_yume_debug_collider` tags each wireframe; GameShell
+  `_cull_debug_colliders_by_distance` runs per-frame.
+
+**Character body honors state.scale (task #126, commit `8c2a295`):**
+- PhysicsBodyBuilder.build_character_3d's new
+  `_apply_state_scale_to_body` helper sets the CharacterBody3D's
+  `transform.scale` from `state.scale`, mirroring
+  EntityMesh3D._sync_scale. CollisionShape3D child inherits via
+  Godot's scene-tree transform composition.
+- Rabbit at `state.scale=0.35` → capsule scaled by 0.35 → bunny-
+  sized hitbox. Was human-sized (lib value) before.
+
+**The post-mortem moment — `_aabb_intent` escape hatch killed
+(task #128, commit `8f0f175`):**
+- Trees + workbench + grave_marker had
+  `_aabb_intent: "design"` opting out of validator's mesh-bbox
+  derivation. Authors set `aabb_extents` manually, forgot
+  `aabb_offset` → colliders sat half-buried. User had to flag
+  each individually.
+- Fix: deleted the `_aabb_intent` skip entirely from
+  `validate_aabb_extents.py`. Engine + data + validator all
+  unified: collider derived from mesh, NO escape.
+- New top-of-file invariant in `.claude/rules/data-demo.md`:
+  **"no per-def escape hatches from automated derivation"**.
+  Codifies that every value the engine can derive from the world
+  model MUST be derived; per-def manual overrides are an
+  anti-pattern. Anywhere we'd reach for one, the fix is to
+  improve the derivation OR fix the source data.
+
+**Character lib body sizing convention (task #129,
+commit `35ddbf9`):**
+- Surfaced when state.scale-on-body made `player_marken` (scale
+  1.7) a 3m giant. Cause: lib values authored at inconsistent
+  conventions — animal lib sized for natural .glb,
+  player/npc libs sized for final world dims (so state.scale
+  double-counted).
+- Re-authored all character_* libs to a uniform "natural .glb
+  mesh at state.scale=1.0" convention. Added explicit
+  `_sizing_convention` doc to bodies.json. Deleted dead-code
+  `standard_kinematic_*` libs (no references — pre-1.0 just
+  delete).
+- Converted `player_marken` inline physics block to
+  `$extends @lib.physics.bodies.standard_character_player`.
+
+**Option 2: split-mesh visual/collision (task #130, commit
+`52f0e92` equiv):**
+- After removing `_aabb_intent`, the trees collided as their
+  full canopy bbox — couldn't walk between trunks. User asked
+  for the principled fix. Discussion converged on "second
+  derivation source, not override": new
+  `properties.collision_mesh` field points at a different .glb
+  whose bbox defines the collider.
+- New primitive `data/lib/assets/meshes/primitive_cylinder.glb`
+  (radius=0.1, height=1.0, bottom-rooted). Generated by
+  `tools/gen_primitive_cylinder.py` (pure-stdlib .glb writer,
+  no pygltflib/trimesh).
+- Aldenmere's 5 tree species now point at the primitive →
+  narrow trunk colliders. Visual canopy stays wide. Player
+  weaves between trunks.
+
+**Unified mesh derivation across static + character (task #131,
+commit `7286179`):**
+- Generalized the .glb-derived-collider pattern to character
+  capsules. New primitive
+  `primitive_humanoid_capsule.glb` (radius=0.15, height=1.0).
+  PhysicsBodyBuilder.`_build_collision_shape_node` reads optional
+  `mesh` field on every shape type; new `_glb_bbox` helper parses
+  .glb header directly in GDScript (mirrors Python validator),
+  cached per path.
+- Lib character templates ditched manual radius/height values
+  entirely — all reference the humanoid primitive. To change
+  humanoid proportions: regenerate the primitive .glb.
+- Result: every collider geometry — static box, character
+  capsule, trunk cylinder — derives from a real .glb. No manual
+  dimension numbers anywhere in any per-game def or per-game
+  lib reference.
+
+### Framework invariant crystallized
+
+**Anything the engine can derive from the world model, the
+engine MUST derive — every time, no per-def opt-outs.**
+
+Codified at `.claude/rules/data-demo.md` top-of-file. Empirical
+case: `_aabb_intent` (the escape hatch this session killed) is the
+template. Applies forward to every derivation: aabb sizing,
+y_offset, material UUIDs, scale, body shape, director mounting.
+Codified in memory as `feedback_no_escape_hatches.md`.
+
+### New files (tracked)
+
+- `tools/gen_primitive_cylinder.py` — pure-stdlib .glb emitter
+  for collision primitives
+- `godot/data/lib/assets/meshes/primitive_cylinder.glb` —
+  narrow trunk primitive
+- `godot/data/lib/assets/meshes/primitive_humanoid_capsule.glb` —
+  humanoid capsule primitive
+- `data/lib/assets/` directory established for framework-shared
+  collision/visual primitives
+
+### Memory entries added
+
+- `feedback_no_escape_hatches.md` — invariant + empirical case
+
+### Tasks completed this session
+
+124 (real ground collider), 125 (frustum-cull wireframes), 126
+(state.scale on character bodies), 127 (design-intent offset
+defaults; later superseded by 128), 128 (delete `_aabb_intent`
+entirely), 129 (lib body sizing convention), 130 (option 2 —
+properties.collision_mesh), 131 (unified mesh-derived capsule).
+
+All commits + tests green: 941/941 unit tests, 19/19 aldenmere
+scenario tests, all validators pass --strict.
+
+---
+
+## Northstar restated (2026-05-24)
+
+**"An aesthetic and coherent and cinematic text-to-world
+procedural generation harness."**
+
+Three adjectives, all load-bearing:
+
+- **Aesthetic**: scenes don't just compile — they LOOK like a
+  coherent visual world. Soul.md's 5 layers (writing / visual /
+  audio / kinetic / reactive) and 10 composition axes
+  (ground variation / focal point / fg/mg/bg / palette
+  cohesion / etc.) are the rubric.
+- **Coherent**: the world makes internal sense. NPCs behave
+  consistently with their voice profiles. Schedules respect
+  time-of-day. Layouts have a focal anchor and radial
+  organization. Discoverable rules are testable.
+- **Cinematic**: framing, lighting, depth, atmosphere — the
+  world feels FILMED, not flat-rendered. Distance fog,
+  vertical relief, foreground silhouettes, dramatic sun
+  angles, soul-bearing detail density.
+
+Path: text input → GDD → world plan → level layout → entity defs
+→ rules → assets → captures → 5-layer/10-axis review → polish
+loop. Each stage already has a skill (or has gaps marked as
+ADRs / task #92 / task #98 / etc.). The northstar guides which
+gap matters next.
+
+Next session resumes on scene/map generation pipeline. The
+physics derivation is done; the visual/composition pipeline
+still has open work (visual_qa Phase B / ADR 0057, shader
+templates / ADR 0058 Phase A, composition pass automation per
+soul.md §Composition).
 
