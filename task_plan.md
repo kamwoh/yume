@@ -73,10 +73,12 @@ weights, never hidden inside engine code. Every property a player
 can perceive is something a future contributor can inspect, modify,
 or extend without retraining anything.
 
-This is the foundational technical claim. See
+This is the foundational technical claim — what Yume IS. See
 `docs/00_what_yume_is.md` for the implicit-vs-explicit world-model
-framing (DreamerV3 / MuZero / Genie vs game engines / sims) and the
-4 ADR-extension questions every future framework decision defers to.
+framing (DreamerV3 / MuZero / Genie bake worlds into weights; game
+engines + sims keep them explicit; Yume sits in the explicit cell)
+and the 4 ADR-extension questions every future framework decision
+defers to.
 
 ### What an explicit world model is made of
 
@@ -90,46 +92,45 @@ Three layers, all needed:
    Effect, Query, Relation), all JSON-driven, genre-agnostic. No
    genre-specific engine code, ever.
 
-Plus the invariant that makes it stay explicit: **anything the
-engine can derive from the world model, the engine MUST derive —
-no per-def opt-outs.** Codified in `.claude/rules/data-demo.md`.
+Plus the invariant that keeps it explicit: **anything the engine
+can derive from the world model, the engine MUST derive — no
+per-def opt-outs.** Codified in `.claude/rules/data-demo.md`.
 Empirical case: `_aabb_intent` escape hatch deleted 2026-05-24.
 
-### What the worlds we produce should LOOK like
+### Features (non-exhaustive, all flowing from "explicit")
 
-The northstar for the **output quality** Yume aims to produce —
-this is what an explicit world model is FOR, not what Yume itself
-is:
+Because the world is fully explicit, Yume can offer features that
+implicit world models can't:
 
-- **Aesthetic**: scenes don't just compile — they LOOK like a
-  coherent visual world. Soul.md's 5 layers (writing / visual /
-  audio / kinetic / reactive) and 10 composition axes (ground
-  variation / focal point / fg-mg-bg / palette cohesion / lighting
-  drama / etc.) are the rubric.
-- **Coherent**: the world makes internal sense. NPCs behave
-  consistently with their voice profiles. Schedules respect time-
-  of-day. Layouts have a focal anchor and radial organization.
-  Discoverable rules are testable.
-- **Cinematic**: framing, lighting, depth, atmosphere — the world
-  feels FILMED, not flat-rendered. Distance fog, vertical relief,
-  foreground silhouettes, dramatic sun angles, soul-bearing detail
-  density.
+- **Genre-agnostic substrate** — one engine, any simulation-shaped
+  game. New game = new prose → new JSON. Engine never changes.
+- **LLM-authorable end-to-end** — every layer (GDD, world plan,
+  entity defs, rules, assets) can be generated, reviewed, and
+  edited by an LLM. JSON is the contract.
+- **Hot-reloadable, version-controllable** — every change is a
+  JSON diff. Worlds live in git. No re-baking, no opaque state.
+- **Test-driven worlds** — scenario tests, unit tests, validators
+  all check the world model at the JSON layer before runtime.
+  Every bug hardens a gate per the post-mortem ritual.
+- **Trajectory recording / RL bridge** — explicit state means
+  every tick's action + observation + reward can be logged for
+  research signal export (task #105 et al).
+- **Aesthetic + coherent + cinematic generation** — when the
+  output is a 3D scene, Yume aims to produce worlds that LOOK
+  filmed: 5-layer soul (writing/visual/audio/kinetic/reactive) +
+  10 composition axes (ground variation / focal point / fg-mg-bg
+  / palette cohesion / lighting drama / etc.). The current
+  pipeline focus.
+- **Composable primitives** — new behaviors emerge from existing
+  verbs. New game wants gravity / weather / faction politics?
+  Compose existing rules + tags + queries — almost never add an
+  engine primitive.
+- **Cross-renderer** — same JSON runs in 2D and 3D scenes with
+  different projection functions. Same world, different views.
 
-The pipeline path: text → GDD → world plan → level layout → entity
-defs → rules → assets → captures → 5-layer/10-axis review → polish
-loop. Each stage has a skill (or has gaps tracked as ADRs / open
-tasks). This output rubric names which gap matters next.
-
-**Success smell test:** user types *"a small forest survival where
-the player has 3 days to figure out which mushrooms are safe"*.
-Yume produces validated JSON that runs immediately — and the result
-is visually coherent (autumn palette, weathered camp, dawn
-lighting), cinematic (distance fog, vertical relief, framed shots),
-and the mechanic feels like its theme. The world is BOTH explicit
-(every value is in JSON) AND aesthetic/coherent/cinematic. Then:
-dungeon-crawler, archive-puzzle, fishing-village all generate the
-same way. Engine never changes. New games = new prose → new JSON
-→ new captures.
+Each feature traces back to one structural property: the world is
+explicit. Implicit alternatives (neural world models, hand-coded
+genre engines) trade some subset of these features for others.
 
 **Honest scope:** simulation-shaped scenes/games. Non-goals:
 rhythm, precision platformers, continuous physics, narrative-heavy
@@ -3903,33 +3904,26 @@ scenario tests, all validators pass --strict.
 
 **Yume IS an explicit, programmable world model.**
 
-This is the foundational claim — what Yume actually IS, not what
-it produces. Every game world Yume runs is a fully-explicit
-specification: state, mechanics, agents, aesthetics, all in
-auditable JSON that the runtime interprets. The world isn't baked
-into a neural net (implicit world models like DreamerV3, MuZero,
-Genie); it lives where a human (or another LLM, or another
-program) can read it, modify it, version-control it, ADR it.
+This is the foundational claim — what Yume actually IS. Every
+game world Yume runs is a fully-explicit specification: state,
+mechanics, agents, aesthetics, all in auditable JSON the runtime
+interprets. The world isn't baked into a neural net (implicit
+world models like DreamerV3, MuZero, Genie); it lives where a
+human (or another LLM, or another program) can read it, modify
+it, version-control it, ADR it.
 
-The **output goal** for what an explicit world model should
-PRODUCE: aesthetic, coherent, cinematic worlds from text input.
-Three adjectives describing the output quality, not Yume's nature:
+**Aesthetic + coherent + cinematic generation is ONE of Yume's
+features** — current focus when the output is a 3D scene. Other
+features (all flowing from the same "explicit world" property)
+include: genre-agnostic substrate, LLM-authorable end-to-end,
+hot-reloadable + version-controllable worlds, test-driven via
+validators/scenarios, trajectory recording for RL research,
+composable primitives, cross-renderer (2D/3D). Each traces back
+to the same structural property: the world is explicit.
 
-- **Aesthetic**: 5-layer soul (writing/visual/audio/kinetic/
-  reactive) + 10 composition axes per soul.md
-- **Coherent**: internally consistent — NPC voices match
-  behavior, schedules match time-of-day, layouts have focal
-  anchors, rules are testable
-- **Cinematic**: filmed not flat — fog, depth, lighting drama,
-  fg/mg/bg, soul-bearing density
-
-Pipeline: text → GDD → world plan → level layout → entity defs
-→ rules → assets → captures → 5-layer/10-axis review → polish.
-The output rubric drives which gap is next.
-
-Next session resumes on scene/map generation pipeline. The
-physics derivation is done; the visual/composition pipeline
-still has open work (visual_qa Phase B / ADR 0057, shader
-templates / ADR 0058 Phase A, composition pass automation per
-soul.md §Composition).
+Next session resumes on the scene/map generation pipeline (the
+aesthetic-cinematic feature). The physics derivation work is
+done; the visual/composition pipeline still has open work
+(visual_qa Phase B / ADR 0057, shader templates / ADR 0058
+Phase A, composition pass automation per soul.md §Composition).
 
