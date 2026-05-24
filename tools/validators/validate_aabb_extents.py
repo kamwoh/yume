@@ -1,0 +1,259 @@
+#!/usr/bin/env python3
+"""
+Static validator: properties.aabb_extents must match the entity's
+mesh bbox × state.scale.
+
+When an entity has both `visual.model_3d` (a .glb path) AND
+`properties.aabb_extents` (the physics collider half-extents for
+ADR 0004's blocks_motion translation), the two MUST agree:
+
+    aabb_extents = (glb_bbox.max - glb_bbox.min) / 2 * state_init.scale
+
+If the .glb mesh changes (re-rolled Tripo3D, scaled differently,
+swapped to a different file) but aabb_extents is stale, the
+collider stops wrapping the mesh — player tries to jump on the
+bench and falls through, or walks through walls that visually look
+solid.
+
+This validator catches the drift. For each entity def with both
+fields:
+1. Parses the .glb header (pure Python, no Godot needed)
+2. Computes expected aabb_extents from bbox + scale
+3. Flags drift > tolerance with the corrected values
+
+Empirical case 2026-05-24: user enabled --debug-colliders, observed
+"all aldenmere entity colliders don't wrap the meshes enough."
+Manual fix of each def is unsustainable; this validator catches the
+class for every game.
+
+Usage:
+    python3 tools/validators/validate_aabb_extents.py
+    python3 tools/validators/validate_aabb_extents.py demo_aldenmere
+    python3 tools/validators/validate_aabb_extents.py demo_aldenmere --strict
+    python3 tools/validators/validate_aabb_extents.py demo_aldenmere --fix
+        (auto-patches the entity defs with corrected values)
+
+Tolerance default: 20% per axis. Tunable via --tolerance=0.10 etc.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import struct
+import sys
+from pathlib import Path
+
+
+HERE = Path(__file__).resolve()
+REPO_ROOT = HERE.parents[2]
+DATA_ROOT = REPO_ROOT / "godot" / "data"
+
+
+def parse_glb_bbox(path: Path) -> tuple[list[float], list[float]] | None:
+    """Read the .glb header + accessor min/max → return (min_xyz, max_xyz)
+    spanning all mesh POSITION accessors. Returns None on parse failure.
+    Pure Python — no pygltflib / trimesh / Godot dependency."""
+    if not path.is_file():
+        return None
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return None
+    if raw[:4] != b"glTF":
+        return None
+    try:
+        json_len = struct.unpack_from("<II", raw, 12)[0]
+        doc = json.loads(raw[20:20 + json_len].decode("utf-8"))
+    except (struct.error, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    bbox_min = [float("inf"), float("inf"), float("inf")]
+    bbox_max = [float("-inf"), float("-inf"), float("-inf")]
+    for m in doc.get("meshes", []):
+        for p in m.get("primitives", []):
+            pos = p.get("attributes", {}).get("POSITION")
+            if pos is None:
+                continue
+            try:
+                acc = doc["accessors"][pos]
+            except (IndexError, KeyError):
+                continue
+            mn = acc.get("min", [])
+            mx = acc.get("max", [])
+            if len(mn) >= 3 and len(mx) >= 3:
+                for i in range(3):
+                    bbox_min[i] = min(bbox_min[i], float(mn[i]))
+                    bbox_max[i] = max(bbox_max[i], float(mx[i]))
+    if bbox_min[0] == float("inf"):
+        return None
+    return bbox_min, bbox_max
+
+
+def resolve_res_path(res_path: str) -> Path | None:
+    """`res://data/<game>/path/to/file.glb` → filesystem Path."""
+    if not res_path.startswith("res://"):
+        return None
+    rel = res_path[len("res://"):]
+    return REPO_ROOT / "godot" / rel
+
+
+def expected_aabb_extents(
+    bbox_min: list[float], bbox_max: list[float], scale: float
+) -> list[float]:
+    """Half-extents in WORLD units = (max - min) / 2 * state.scale."""
+    return [
+        (bbox_max[i] - bbox_min[i]) / 2.0 * scale
+        for i in range(3)
+    ]
+
+
+def drift_severity(declared: list[float], expected: list[float],
+                   tolerance: float) -> tuple[float, bool]:
+    """Return (max_axis_relative_drift, exceeds_tolerance)."""
+    if len(declared) < 3 or len(expected) < 3:
+        return (0.0, False)
+    max_drift = 0.0
+    for i in range(3):
+        if expected[i] <= 0.001:
+            continue
+        rel = abs(declared[i] - expected[i]) / expected[i]
+        max_drift = max(max_drift, rel)
+    return max_drift, max_drift > tolerance
+
+
+def scan_game(game_dir: Path, tolerance: float, apply_fix: bool
+              ) -> list[dict]:
+    """Walk entities/*.json. For each def with both glb + aabb_extents,
+    return a list of drift records. If apply_fix, also patch the def
+    in-place."""
+    entities_dir = game_dir / "entities"
+    if not entities_dir.is_dir():
+        return []
+    drifts: list[dict] = []
+    for fp in sorted(entities_dir.glob("*.json")):
+        try:
+            doc = json.loads(fp.read_text())
+        except json.JSONDecodeError:
+            continue
+        defs = doc.get("definitions", [])
+        if not isinstance(defs, list):
+            continue
+        file_modified = False
+        for d in defs:
+            if not isinstance(d, dict):
+                continue
+            visual = d.get("visual", {})
+            if not isinstance(visual, dict):
+                continue
+            # .glb path can live in EITHER visual.model_3d (preferred per
+            # ADR 0046 Phase B) OR visual.mesh (when the mesh field points
+            # directly at a .glb instead of a meshes.json library key).
+            glb_path = ""
+            for key in ("model_3d", "mesh"):
+                v = visual.get(key, "")
+                if isinstance(v, str) and v.endswith(".glb"):
+                    glb_path = v
+                    break
+            if not glb_path:
+                continue
+            props = d.get("properties", {})
+            if not isinstance(props, dict):
+                continue
+            declared = props.get("aabb_extents", None)
+            if not isinstance(declared, list) or len(declared) < 3:
+                continue
+            # Skip defs that explicitly opt out — `_aabb_intent: "design"`
+            # means the declared collider deliberately differs from the
+            # mesh bbox (intentionally narrow for foliage, intentionally
+            # wide for player-shouldn't-pass-through obstacles, etc.).
+            intent = props.get("_aabb_intent", "")
+            if isinstance(intent, str) and intent.lower() == "design":
+                continue
+            declared_f = [float(v) for v in declared[:3]]
+            state_init = d.get("state_init", {})
+            if not isinstance(state_init, dict):
+                state_init = {}
+            scale_v = state_init.get("scale", 1.0)
+            try:
+                scale = float(scale_v)
+            except (TypeError, ValueError):
+                scale = 1.0
+            res_fs = resolve_res_path(glb_path)
+            if res_fs is None or not res_fs.is_file():
+                continue
+            bbox = parse_glb_bbox(res_fs)
+            if bbox is None:
+                continue
+            bbox_min, bbox_max = bbox
+            expected = expected_aabb_extents(bbox_min, bbox_max, scale)
+            drift, exceeds = drift_severity(declared_f, expected, tolerance)
+            if exceeds:
+                drifts.append({
+                    "def_id": d.get("id", "?"),
+                    "file": fp.relative_to(REPO_ROOT),
+                    "glb": glb_path,
+                    "scale": scale,
+                    "declared": declared_f,
+                    "expected": [round(v, 4) for v in expected],
+                    "max_drift": round(drift, 3),
+                })
+                if apply_fix:
+                    props["aabb_extents"] = [round(v, 4) for v in expected]
+                    props["_comment_aabb_autofix"] = (
+                        "Auto-recomputed by validate_aabb_extents.py "
+                        "from .glb bbox × state.scale (2026-05-24). "
+                        "Prior value drifted from the mesh; collider "
+                        "stopped wrapping. Re-fix on every mesh swap."
+                    )
+                    file_modified = True
+        if file_modified:
+            fp.write_text(json.dumps(doc, indent=2) + "\n")
+    return drifts
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="validate_aabb_extents")
+    ap.add_argument("game", nargs="?", default=None,
+                    help="game folder name (e.g. demo_aldenmere). "
+                         "Omit to scan every demo_* folder.")
+    ap.add_argument("--strict", action="store_true",
+                    help="exit 1 on any drift > tolerance")
+    ap.add_argument("--fix", action="store_true",
+                    help="auto-patch entity defs with corrected aabb_extents")
+    ap.add_argument("--tolerance", type=float, default=0.20,
+                    help="relative drift tolerance (default 0.20 = 20%%)")
+    args = ap.parse_args()
+
+    if args.game:
+        targets = [args.game]
+    else:
+        targets = sorted(
+            d.name for d in DATA_ROOT.iterdir()
+            if d.is_dir() and d.name.startswith("demo_")
+        )
+
+    any_drift = False
+    for game in targets:
+        gdir = DATA_ROOT / game
+        if not gdir.is_dir():
+            continue
+        drifts = scan_game(gdir, args.tolerance, args.fix)
+        if drifts:
+            any_drift = True
+            verb = "fixed" if args.fix else "flagged"
+            print(f"[{verb}] {game}: {len(drifts)} aabb_extents drift(s) > "
+                  f"{int(args.tolerance * 100)}%:")
+            for r in drifts:
+                print(f"  - {r['def_id']}  (scale={r['scale']}, "
+                      f"max_drift={int(r['max_drift'] * 100)}%)")
+                print(f"      declared: {r['declared']}")
+                print(f"      expected: {r['expected']}  "
+                      f"({r['file']})")
+        else:
+            print(f"[ok] {game}")
+
+    if any_drift and args.strict and not args.fix:
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
