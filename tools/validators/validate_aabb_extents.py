@@ -106,16 +106,42 @@ def expected_aabb_extents(
     ]
 
 
+def expected_aabb_offset(
+    bbox_min: list[float], bbox_max: list[float], scale: float,
+    visual_y_offset: float
+) -> list[float]:
+    """Where the collider CENTER sits relative to entity.position. The
+    mesh is rendered at entity.position + (0, y_offset, 0); the bbox
+    center within the mesh is ((min + max) / 2) * scale. The collider
+    center = those summed.
+
+    For Tripo3D bbox-centered meshes (min.y == -max.y, etc.), the bbox
+    center is at the mesh origin → offset = visual.y_offset alone.
+    For foot-pivoted rigged meshes (min.y ≈ 0), offset.y =
+    visual.y_offset (typically 0) + extents.y."""
+    return [
+        (bbox_min[i] + bbox_max[i]) / 2.0 * scale + (
+            visual_y_offset if i == 1 else 0.0
+        )
+        for i in range(3)
+    ]
+
+
 def drift_severity(declared: list[float], expected: list[float],
                    tolerance: float) -> tuple[float, bool]:
-    """Return (max_axis_relative_drift, exceeds_tolerance)."""
+    """Return (max_axis_relative_drift, exceeds_tolerance). For axes
+    where expected magnitude is very small (< 0.05 world units),
+    fall back to absolute drift in meters — relative drift on tiny
+    numbers is meaningless."""
     if len(declared) < 3 or len(expected) < 3:
         return (0.0, False)
     max_drift = 0.0
     for i in range(3):
-        if expected[i] <= 0.001:
+        if abs(expected[i]) <= 0.05:
+            # Absolute drift in meters: 0.1m = 10% notional drift
+            max_drift = max(max_drift, abs(declared[i] - expected[i]) * 10.0)
             continue
-        rel = abs(declared[i] - expected[i]) / expected[i]
+        rel = abs(declared[i] - expected[i]) / abs(expected[i])
         max_drift = max(max_drift, rel)
     return max_drift, max_drift > tolerance
 
@@ -184,25 +210,48 @@ def scan_game(game_dir: Path, tolerance: float, apply_fix: bool
             if bbox is None:
                 continue
             bbox_min, bbox_max = bbox
-            expected = expected_aabb_extents(bbox_min, bbox_max, scale)
-            drift, exceeds = drift_severity(declared_f, expected, tolerance)
-            if exceeds:
+            # Mesh's authored y_offset — the renderer lifts the mesh by
+            # this amount, so the collider needs to be lifted too.
+            visual_y_off = float(visual.get("y_offset", 0.0))
+            expected_ext = expected_aabb_extents(bbox_min, bbox_max, scale)
+            expected_off = expected_aabb_offset(
+                bbox_min, bbox_max, scale, visual_y_off
+            )
+            declared_off_raw = props.get("aabb_offset", [0.0, 0.0, 0.0])
+            declared_off = (
+                [float(v) for v in declared_off_raw[:3]]
+                if isinstance(declared_off_raw, list) and len(declared_off_raw) >= 3
+                else [0.0, 0.0, 0.0]
+            )
+            drift_ext, exceeds_ext = drift_severity(declared_f, expected_ext, tolerance)
+            drift_off, exceeds_off = drift_severity(declared_off, expected_off, tolerance)
+            if exceeds_ext or exceeds_off:
                 drifts.append({
                     "def_id": d.get("id", "?"),
                     "file": fp.relative_to(REPO_ROOT),
                     "glb": glb_path,
                     "scale": scale,
-                    "declared": declared_f,
-                    "expected": [round(v, 4) for v in expected],
-                    "max_drift": round(drift, 3),
+                    "declared_ext": declared_f,
+                    "expected_ext": [round(v, 4) for v in expected_ext],
+                    "declared_off": declared_off,
+                    "expected_off": [round(v, 4) for v in expected_off],
+                    "max_drift": round(max(drift_ext, drift_off), 3),
+                    "y_offset_from_visual": visual_y_off,
                 })
                 if apply_fix:
-                    props["aabb_extents"] = [round(v, 4) for v in expected]
+                    props["aabb_extents"] = [round(v, 4) for v in expected_ext]
+                    # Only set offset if it's non-zero (keep defs clean)
+                    if max(abs(v) for v in expected_off) > 0.01:
+                        props["aabb_offset"] = [round(v, 4) for v in expected_off]
+                    elif "aabb_offset" in props:
+                        # Drift below tolerance + declared exists = remove stale
+                        del props["aabb_offset"]
                     props["_comment_aabb_autofix"] = (
                         "Auto-recomputed by validate_aabb_extents.py "
-                        "from .glb bbox × state.scale (2026-05-24). "
-                        "Prior value drifted from the mesh; collider "
-                        "stopped wrapping. Re-fix on every mesh swap."
+                        "from .glb bbox + visual.y_offset (2026-05-24). "
+                        "Collider center now aligned to mesh center "
+                        "(was sitting half-underground when offset "
+                        "was missing for bbox-centered Tripo3D meshes)."
                     )
                     file_modified = True
         if file_modified:
@@ -245,9 +294,12 @@ def main():
             for r in drifts:
                 print(f"  - {r['def_id']}  (scale={r['scale']}, "
                       f"max_drift={int(r['max_drift'] * 100)}%)")
-                print(f"      declared: {r['declared']}")
-                print(f"      expected: {r['expected']}  "
-                      f"({r['file']})")
+                print(f"      extents  declared: {r['declared_ext']}")
+                print(f"      extents  expected: {r['expected_ext']}")
+                print(f"      offset   declared: {r['declared_off']}")
+                print(f"      offset   expected: {r['expected_off']}  "
+                      f"(y_offset={r['y_offset_from_visual']} from visual)")
+                print(f"      {r['file']}")
         else:
             print(f"[ok] {game}")
 

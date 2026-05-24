@@ -73,7 +73,19 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Di
 	if shape_cfg is Dictionary:
 		var shape_rid := _create_shape_3d(shape_cfg)
 		if shape_rid.is_valid():
-			PhysicsServer3D.body_add_shape(body, shape_rid)
+			# Optional shape offset (collision_shape.offset = [x, y, z]).
+			# Lets the collider sit elsewhere than the body's origin —
+			# critical for Tripo3D meshes that are bbox-centered (collider
+			# at entity.position would sit half-underground). 2026-05-24.
+			var off_v = (shape_cfg as Dictionary).get("offset", null)
+			if off_v is Array and (off_v as Array).size() >= 3:
+				var shape_xform := Transform3D(
+					Basis.IDENTITY,
+					Vector3(float(off_v[0]), float(off_v[1]), float(off_v[2]))
+				)
+				PhysicsServer3D.body_add_shape(body, shape_rid, shape_xform)
+			else:
+				PhysicsServer3D.body_add_shape(body, shape_rid)
 	else:
 		push_warning(
 			(
@@ -302,15 +314,31 @@ static func translate_blocks_motion(def: Dictionary) -> Dictionary:
 		return {}
 
 	var ext_arr: Array = extents
+	# Optional aabb_offset shifts the collider center relative to entity
+	# position. Required when the mesh isn't centered at the entity's
+	# origin — e.g., Tripo3D meshes are bbox-centered, so a collider at
+	# entity.position (with no offset) would sit half-underground. The
+	# offset lifts the collider to match the mesh's rendered position
+	# (typically equal to visual.y_offset for bbox-centered meshes).
+	# 2026-05-24.
+	var offset_v = props.get("aabb_offset", [0, 0, 0])
+	var off_arr: Array = offset_v if offset_v is Array else [0, 0, 0]
 	# Detect 2D vs 3D from extents length
 	# 3D: [hx, hy, hz] (3 components). 2D: [hx, hy] (2 components).
 	if ext_arr.size() >= 3:
 		var hx := float(ext_arr[0])
 		var hy := float(ext_arr[1])
 		var hz := float(ext_arr[2])
+		var ox := float(off_arr[0]) if off_arr.size() >= 1 else 0.0
+		var oy := float(off_arr[1]) if off_arr.size() >= 2 else 0.0
+		var oz := float(off_arr[2]) if off_arr.size() >= 3 else 0.0
 		return {
 			"body_type": "static",
-			"collision_shape": {"type": "box", "size": [hx * 2.0, hy * 2.0, hz * 2.0]},
+			"collision_shape": {
+				"type": "box",
+				"size": [hx * 2.0, hy * 2.0, hz * 2.0],
+				"offset": [ox, oy, oz],
+			},
 			"collision_layer": ["wall"],
 			"collision_mask": "all",
 			"_translated_from": "blocks_motion+aabb_extents (3D)"
