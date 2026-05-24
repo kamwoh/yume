@@ -173,13 +173,13 @@ def scan_game(game_dir: Path, tolerance: float, apply_fix: bool
             # .glb path can live in EITHER visual.model_3d (preferred per
             # ADR 0046 Phase B) OR visual.mesh (when the mesh field points
             # directly at a .glb instead of a meshes.json library key).
-            glb_path = ""
+            visual_glb_path = ""
             for key in ("model_3d", "mesh"):
                 v = visual.get(key, "")
                 if isinstance(v, str) and v.endswith(".glb"):
-                    glb_path = v
+                    visual_glb_path = v
                     break
-            if not glb_path:
+            if not visual_glb_path:
                 continue
             props = d.get("properties", {})
             if not isinstance(props, dict):
@@ -196,6 +196,37 @@ def scan_game(game_dir: Path, tolerance: float, apply_fix: bool
                 scale = float(scale_v)
             except (TypeError, ValueError):
                 scale = 1.0
+            # Two sources of truth for the collider's bbox, both
+            # mesh-derived (NO manual radius/height values anywhere):
+            #
+            #   1. `properties.collision_mesh` (path to a .glb authored
+            #      as the collision shape, decoupled from the visual
+            #      mesh). Used when the visible mesh's bbox would
+            #      produce an undesirable gameplay collider — e.g. a
+            #      tree's wide-canopy visual bbox blocks the player
+            #      from walking between trunks. The tree's
+            #      `properties.collision_mesh` points at the shared
+            #      narrow cylinder primitive instead. Convention:
+            #      collision_mesh is authored bottom-rooted (min.y=0,
+            #      max.y=1) in its own coordinate frame — NO
+            #      visual.y_offset added to the aabb_offset.
+            #
+            #   2. `visual.model_3d` / `visual.mesh` (the default).
+            #      Collider matches the visible mesh's bbox.
+            #      visual.y_offset is added to aabb_offset to
+            #      compensate for the renderer's lift on bbox-centered
+            #      Tripo3D meshes.
+            #
+            # Both sources are MESH-derived: authors can't type
+            # "radius=0.3" manually anywhere. They either accept the
+            # visual mesh's bbox or point properties.collision_mesh
+            # at a different .glb. No escape hatches.
+            collision_mesh_path = ""
+            cm = props.get("collision_mesh", "")
+            if isinstance(cm, str) and cm.endswith(".glb"):
+                collision_mesh_path = cm
+            use_collision_mesh = bool(collision_mesh_path)
+            glb_path = collision_mesh_path if use_collision_mesh else visual_glb_path
             res_fs = resolve_res_path(glb_path)
             if res_fs is None or not res_fs.is_file():
                 continue
@@ -203,9 +234,13 @@ def scan_game(game_dir: Path, tolerance: float, apply_fix: bool
             if bbox is None:
                 continue
             bbox_min, bbox_max = bbox
-            # Mesh's authored y_offset — the renderer lifts the mesh by
-            # this amount, so the collider needs to be lifted too.
-            visual_y_off = float(visual.get("y_offset", 0.0))
+            # visual.y_offset compensates for the visual renderer's lift.
+            # It does NOT apply when collision_mesh is the source — that
+            # mesh is in its own coordinate frame.
+            visual_y_off = (
+                0.0 if use_collision_mesh
+                else float(visual.get("y_offset", 0.0))
+            )
             expected_ext = expected_aabb_extents(bbox_min, bbox_max, scale)
             expected_off = expected_aabb_offset(
                 bbox_min, bbox_max, scale, visual_y_off
