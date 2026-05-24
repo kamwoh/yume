@@ -247,6 +247,35 @@ func build() -> void:
 	node.material_override = mat
 	_world.add_child(node)
 
+	# Real ground collider — replaces the soft y_floor convention in
+	# character_body_runner. Walk off the visible plane, you fall (no
+	# collider outside the bounds). Inside, is_on_floor() works
+	# natively (no soft clamp needed). Per Yume's "expose Godot, don't
+	# reimplement" — use a StaticBody3D + BoxShape3D instead of a
+	# magic constant in GDScript. 2026-05-24.
+	#
+	# Collider is a thin box (0.2m tall) centered slightly below y=0
+	# so its TOP sits at y=0 — matching the visible plane surface.
+	# Heightmap displacement is purely visual; the collider stays flat.
+	# When/if displacement amplitude grows large enough to matter for
+	# collision, a HeightMapShape3D-based collider becomes the next
+	# step (rebuilt from the heightmap texture at boot).
+	var body := StaticBody3D.new()
+	body.name = "GroundCollider"
+	# Collision layer: "floor" (bit 3 per data/lib/physics/layers.json).
+	# Player + NPC collision_masks include "floor" so they collide with
+	# the ground. Without this explicit layer, the default (bit 1) means
+	# entities whose masks don't include bit 1 fall through.
+	body.collision_layer = 1 << 2  # bit 3 = "floor"
+	body.collision_mask = 0  # ground itself doesn't need to react to anything
+	var shape_node := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(w, 0.2, d)
+	shape_node.shape = box
+	shape_node.position = Vector3(0, -0.1, 0)  # top at y=0
+	body.add_child(shape_node)
+	_world.add_child(body)
+
 
 ## Rebind ground shader parameters when a level transition has loaded
 ## a new level. Reads `data/<game>/levels/<level_id>/scene.json` if

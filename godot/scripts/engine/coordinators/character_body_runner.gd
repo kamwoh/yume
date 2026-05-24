@@ -92,20 +92,28 @@ func _apply_vertical(delta: float) -> void:
 ## When grounded with a downward y_velocity, snap it to 0 so the
 ## accumulator doesn't run away during stationary frames.
 ##
-## Y-floor clamp (2026-05-20): aldenmere (and many Yume games) draw the
-## ground as a visual PlaneMesh without a collision body — so
-## is_on_floor() never returns true via physics. We treat y <= 0 as
-## "on floor" by convention. Authors who want a custom floor height
-## can set state.floor_y; default 0. This is a soft clamp: jump impulse
-## still rises, gravity still falls, but the player can't tunnel
-## through y=floor_y.
+## Real ground collision (2026-05-24, task #124): GroundRenderer now
+## attaches a StaticBody3D + BoxShape3D matching the ground.mesh.size,
+## so is_on_floor() returns true via physics inside the plane. Outside
+## the plane (player walks off the edge), no collider → gravity pulls
+## them down indefinitely. Replaces the prior soft y_floor convention
+## that clamped y<=0 everywhere in world space.
+##
+## Optional soft fallback: if state.floor_y is explicitly set on the
+## entity, still apply the clamp. Lets games without ground colliders
+## (2D demos, abstract puzzles, scenes with no PlaneMesh) opt into the
+## old behavior via JSON.
 func _writeback_vertical_state() -> void:
 	var grounded := is_on_floor()
-	var floor_y := float(entity_ref.get_state("floor_y", 0.0))
-	# Soft y-floor clamp — covers no-collision-body scenes.
-	if global_position.y <= floor_y:
-		global_position.y = floor_y
-		grounded = true
+	# Optional soft clamp — only active when state.floor_y is set.
+	# Default null/missing = use physics-based grounding from
+	# move_and_slide + ground StaticBody3D.
+	var floor_y_v = entity_ref.get_state("floor_y", null)
+	if floor_y_v != null:
+		var floor_y := float(floor_y_v)
+		if global_position.y <= floor_y:
+			global_position.y = floor_y
+			grounded = true
 	entity_ref.set_state("on_floor", 1 if grounded else 0)
 	if grounded and velocity.y < 0.0:
 		velocity.y = 0.0
