@@ -1,20 +1,30 @@
 #!/usr/bin/env python3
 """
-Generate a minimal cylinder .glb at data/lib/assets/meshes/primitive_cylinder.glb.
+Generate collision-primitive .glbs at data/lib/assets/meshes/.
 
-Convention for collision_mesh primitives (used via physics.collision_mesh on
-an entity def):
-- bottom-rooted: bbox.y ∈ [0.0, 1.0]
-- narrow horizontal: radius=0.1, so bbox.x ∈ [-0.1, +0.1], bbox.z same
+Convention: every collision primitive is bottom-rooted (bbox.y starts at
+0, ends at 1.0) in its own coordinate frame. The entity referencing it
+applies state.scale to bring the shape to actual world dimensions.
 
-When an entity at state.scale=S references this primitive as its
-collision_mesh, the validator computes:
-  aabb_extents = (bbox/2) * S = (0.1*S, 0.5*S, 0.1*S)
-  aabb_offset  = (bbox center) * S = (0, 0.5*S, 0)
+Two primitives ship today:
 
-For a prop_tree at state.scale=3.5 this gives a 0.7m-wide × 3.5m-tall
-trunk collider with its bottom on the ground. Trees use this so the
-player can walk between trunks even though the visible canopy is wide.
+- primitive_cylinder.glb        (radius=0.1, height=1.0)
+  Trees reference this as their properties.collision_mesh — the wide
+  canopy mesh stays the visual, but the collider becomes a narrow
+  trunk. Player walks between trees. The validator reads its bbox to
+  derive aabb_extents (for BoxShape3D static collision).
+
+- primitive_humanoid_capsule.glb (radius=0.15, height=1.0)
+  CharacterBody3D templates in @lib.physics.bodies reference this as
+  collision_shape.mesh. The engine reads its bbox at build time to
+  derive a CapsuleShape3D (radius = bbox.x/2, height = bbox.y).
+  Author humanoid proportions ONCE here; per-entity scale via
+  state.scale.
+
+Both are tall thin cylinder meshes — the engine only reads bbox,
+not the actual geometry, so a cylinder is fine for a capsule's bbox.
+The shape TYPE (box vs capsule) is set by the entity's body config;
+this primitive only provides the dimensions.
 
 Pure stdlib — no pygltflib / trimesh dependency.
 
@@ -30,7 +40,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve()
 REPO_ROOT = HERE.parents[1]
-OUT_PATH = REPO_ROOT / "godot" / "data" / "lib" / "assets" / "meshes" / "primitive_cylinder.glb"
+OUT_DIR = REPO_ROOT / "godot" / "data" / "lib" / "assets" / "meshes"
 
 
 def build_cylinder(radius: float = 0.1, height: float = 1.0, segments: int = 16) -> bytes:
@@ -179,11 +189,17 @@ def build_cylinder(radius: float = 0.1, height: float = 1.0, segments: int = 16)
 
 
 def main() -> None:
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    data = build_cylinder(radius=0.1, height=1.0, segments=16)
-    OUT_PATH.write_bytes(data)
-    print(f"wrote {OUT_PATH.relative_to(REPO_ROOT)}  ({len(data)} bytes)")
-    # Sanity check
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    primitives = [
+        ("primitive_cylinder.glb",         0.1,  1.0, "trunk-narrow trees / posts"),
+        ("primitive_humanoid_capsule.glb", 0.15, 1.0, "humanoid CapsuleShape3D"),
+    ]
+    for name, r, h, purpose in primitives:
+        data = build_cylinder(radius=r, height=h, segments=16)
+        path = OUT_DIR / name
+        path.write_bytes(data)
+        print(f"wrote {path.relative_to(REPO_ROOT)}  "
+              f"(r={r}, h={h}, {len(data)}b) — {purpose}")
     sys.stdout.flush()
 
 

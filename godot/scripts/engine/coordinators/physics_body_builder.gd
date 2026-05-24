@@ -268,33 +268,66 @@ static func _apply_state_scale_to_body(body: Node3D, entity: Entity) -> void:
 ##
 ## Explicit shape_cfg.offset (Vector3-like list) overrides the auto-
 ## lift. Returns null if shape_cfg is empty / invalid.
+##
+## Shape dimensions come from one of two sources:
+##   - shape_cfg.mesh (path to .glb): dimensions derived from mesh bbox
+##     at build time. Author points at a primitive .glb (e.g. lib/assets/
+##     meshes/primitive_humanoid_capsule.glb); engine reads the bbox and
+##     fits the chosen shape type. Same mesh-derivation pattern as static
+##     bodies use via properties.collision_mesh — no manual numbers.
+##   - shape_cfg.{radius, height, size}: manual numeric values.
+##     Used by lib templates that ship as the framework's primitive
+##     numeric defaults (e.g. static_wall's box, rigid_projectile's
+##     sphere). Game-specific entities should NOT author these directly
+##     — point shape_cfg.mesh at a primitive instead.
 static func _build_collision_shape_node(shape_cfg: Dictionary) -> CollisionShape3D:
 	if shape_cfg.is_empty():
 		return null
 	var shape_type := str(shape_cfg.get("type", ""))
+	# Resolve dimensions: mesh-derived bbox wins over numeric fields.
+	var mesh_bbox: AABB = AABB()
+	var has_mesh_bbox := false
+	var mesh_path = shape_cfg.get("mesh", null)
+	if mesh_path is String and mesh_path != "":
+		mesh_bbox = _glb_bbox(mesh_path)
+		has_mesh_bbox = mesh_bbox.size.length() > 0.0
 	var shape: Shape3D = null
 	var auto_lift_y := 0.0  # default: no auto-lift
 	match shape_type:
 		"box":
 			var box := BoxShape3D.new()
-			var size = shape_cfg.get("size", [1.0, 1.0, 1.0])
-			box.size = Vec3Util.from_world_pos(size)
+			if has_mesh_bbox:
+				box.size = mesh_bbox.size
+			else:
+				var size = shape_cfg.get("size", [1.0, 1.0, 1.0])
+				box.size = Vec3Util.from_world_pos(size)
 			shape = box
 		"sphere":
 			var sph := SphereShape3D.new()
-			sph.radius = float(shape_cfg.get("radius", 0.5))
+			if has_mesh_bbox:
+				sph.radius = max(mesh_bbox.size.x, mesh_bbox.size.z) / 2.0
+			else:
+				sph.radius = float(shape_cfg.get("radius", 0.5))
 			shape = sph
 			auto_lift_y = sph.radius  # ball sits on its bottom
 		"capsule":
 			var cap := CapsuleShape3D.new()
-			cap.radius = float(shape_cfg.get("radius", 0.4))
-			cap.height = float(shape_cfg.get("height", 1.8))
+			if has_mesh_bbox:
+				cap.radius = max(mesh_bbox.size.x, mesh_bbox.size.z) / 2.0
+				cap.height = mesh_bbox.size.y
+			else:
+				cap.radius = float(shape_cfg.get("radius", 0.4))
+				cap.height = float(shape_cfg.get("height", 1.8))
 			shape = cap
 			auto_lift_y = cap.height / 2.0  # capsule base at origin
 		"cylinder":
 			var cyl := CylinderShape3D.new()
-			cyl.radius = float(shape_cfg.get("radius", 0.5))
-			cyl.height = float(shape_cfg.get("height", 1.0))
+			if has_mesh_bbox:
+				cyl.radius = max(mesh_bbox.size.x, mesh_bbox.size.z) / 2.0
+				cyl.height = mesh_bbox.size.y
+			else:
+				cyl.radius = float(shape_cfg.get("radius", 0.5))
+				cyl.height = float(shape_cfg.get("height", 1.0))
 			shape = cyl
 			auto_lift_y = cyl.height / 2.0  # cylinder base at origin
 		_:
@@ -587,3 +620,88 @@ static func sync_body_velocity(entity) -> void:
 		PhysicsServer3D.body_set_state(rid, PhysicsServer3D.BODY_STATE_LINEAR_VELOCITY, v3)
 	elif body is CharacterBody3D:
 		(body as CharacterBody3D).velocity = v3
+
+
+# ============================================================
+# GLB BBOX PARSER — reads min/max from a .glb's POSITION accessors
+# ============================================================
+#
+# Mirrors tools/validators/validate_aabb_extents.py::parse_glb_bbox.
+# Pure GDScript — no Mesh resource instantiation (would require
+# importing the scene + walking its children). The .glb header
+# encodes POSITION accessor min/max directly, so we read them
+# straight out of the JSON chunk.
+#
+# Used by _build_collision_shape_node when shape_cfg.mesh is a
+# .glb path: bbox dimensions drive the chosen shape's radius / height
+# / size, with NO manual numbers anywhere in the entity / lib def.
+
+const _GLB_MAGIC := 0x46546C67  # "glTF"
+const _GLB_CHUNK_JSON := 0x4E4F534A  # "JSON"
+const _GLB_CHUNK_BIN := 0x004E4942  # "BIN\0"
+static var _glb_bbox_cache: Dictionary = {}
+
+
+## Read POSITION min/max from a .glb file. Returns an empty AABB
+## (size = (0,0,0)) on parse failure. Cached by path so subsequent
+## calls are O(1).
+static func _glb_bbox(res_path: String) -> AABB:
+	if _glb_bbox_cache.has(res_path):
+		return _glb_bbox_cache[res_path]
+	var aabb := _glb_bbox_uncached(res_path)
+	_glb_bbox_cache[res_path] = aabb
+	return aabb
+
+
+static func _glb_bbox_uncached(res_path: String) -> AABB:
+	if not FileAccess.file_exists(res_path):
+		push_warning("[PhysicsBodyBuilder] collision_shape.mesh not found: %s" % res_path)
+		return AABB()
+	var f := FileAccess.open(res_path, FileAccess.READ)
+	if f == null:
+		return AABB()
+	var magic := f.get_32()
+	var _version := f.get_32()
+	var _total_length := f.get_32()
+	if magic != _GLB_MAGIC:
+		push_warning("[PhysicsBodyBuilder] not a .glb file: %s" % res_path)
+		return AABB()
+	var json_chunk_length := f.get_32()
+	var json_chunk_type := f.get_32()
+	if json_chunk_type != _GLB_CHUNK_JSON:
+		return AABB()
+	var json_bytes := f.get_buffer(json_chunk_length)
+	var json_text := json_bytes.get_string_from_utf8()
+	var parser := JSON.new()
+	if parser.parse(json_text) != OK:
+		return AABB()
+	var doc = parser.data
+	if not (doc is Dictionary):
+		return AABB()
+	# Walk meshes[].primitives[].attributes.POSITION → accessors[N]
+	var bbox_min := Vector3(INF, INF, INF)
+	var bbox_max := Vector3(-INF, -INF, -INF)
+	var found := false
+	var meshes: Array = doc.get("meshes", [])
+	var accessors: Array = doc.get("accessors", [])
+	for m in meshes:
+		var prims: Array = m.get("primitives", [])
+		for p in prims:
+			var attrs: Dictionary = p.get("attributes", {})
+			var pos_idx = attrs.get("POSITION", null)
+			if pos_idx == null or int(pos_idx) >= accessors.size():
+				continue
+			var acc: Dictionary = accessors[int(pos_idx)]
+			var mn = acc.get("min", null)
+			var mx = acc.get("max", null)
+			if mn is Array and mx is Array and (mn as Array).size() >= 3 and (mx as Array).size() >= 3:
+				bbox_min.x = min(bbox_min.x, float(mn[0]))
+				bbox_min.y = min(bbox_min.y, float(mn[1]))
+				bbox_min.z = min(bbox_min.z, float(mn[2]))
+				bbox_max.x = max(bbox_max.x, float(mx[0]))
+				bbox_max.y = max(bbox_max.y, float(mx[1]))
+				bbox_max.z = max(bbox_max.z, float(mx[2]))
+				found = true
+	if not found:
+		return AABB()
+	return AABB(bbox_min, bbox_max - bbox_min)

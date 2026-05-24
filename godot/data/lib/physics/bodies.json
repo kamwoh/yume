@@ -1,28 +1,28 @@
 {
   "_origin": "lib/physics/bodies.json",
   "_comment": "ADR 0044/0045 — common physics body templates. Per-game entity defs spread these via $extends to get sensible defaults. Override individual fields after the $extends to customize. Bits 1..16 from @lib.physics.layers used here; games with custom layer names can override collision_layer / collision_mask. ADR 0045: `body_type: \"character\"` creates a CharacterBody3D Node (move_and_slide-driven, the right pick for velocity-controlled actors). Other body_types create raw PhysicsServer3D RIDs.",
-  "_sizing_convention": "All character_* templates are sized for the NATURAL .glb mesh at state.scale=1.0 (Tripo3D normalizes to bbox.y=1.0). The engine multiplies the body's transform by state.scale at build time (physics_body_builder._apply_state_scale_to_body), so the visible mesh and the capsule scale together uniformly. NEVER author body dimensions sized for the 'final world size' — that double-counts state.scale.",
+  "_sizing_convention": "Character template capsule dimensions come from a PRIMITIVE .glb under data/lib/assets/meshes/ — NOT from manual radius/height numbers. The engine reads the primitive's bbox at build time (physics_body_builder._glb_bbox) and fits the CapsuleShape3D: radius = max(bbox.x, bbox.z)/2, height = bbox.y. state.scale on the entity propagates uniformly to the body so the capsule and the visible mesh stay aligned. To change humanoid proportions: regenerate the primitive .glb (tools/gen_primitive_cylinder.py — adjust radius/height there). Never author radius/height in a per-entity collision_shape — that's the escape hatch pattern banned by .claude/rules/data-demo.md.",
 
   "standard_character_player": {
-    "_comment": "ADR 0045 — player CharacterBody3D. Sized for a natural humanoid Tripo3D mesh (bbox.y=1.0). Player def's state.scale brings it to final dimensions (e.g. scale=1.7 → 1.7m tall × 0.425m radius human).",
+    "_comment": "ADR 0045 — player CharacterBody3D. Capsule dimensions derived from primitive_humanoid_capsule.glb (bbox 0.30 × 1.0 × 0.30 → radius 0.15, height 1.0). state.scale brings it to final size (player at scale=1.7 → 0.255m radius × 1.7m tall — thin human silhouette).",
     "body_type": "character",
-    "collision_shape": {"type": "capsule", "radius": 0.25, "height": 1.0},
+    "collision_shape": {"type": "capsule", "mesh": "res://data/lib/assets/meshes/primitive_humanoid_capsule.glb"},
     "collision_layer": ["player"],
     "collision_mask": ["wall", "floor", "ceiling", "npc", "enemy", "animal", "pickup", "trigger"]
   },
 
   "standard_character_npc": {
-    "_comment": "ADR 0045 — NPC CharacterBody3D. Sized for a natural humanoid Tripo3D mesh (bbox.y=1.0). Same dimensions as player; differs only in collision layer/mask.",
+    "_comment": "ADR 0045 — NPC CharacterBody3D. Same humanoid capsule primitive as the player; differs only in collision layer/mask.",
     "body_type": "character",
-    "collision_shape": {"type": "capsule", "radius": 0.25, "height": 1.0},
+    "collision_shape": {"type": "capsule", "mesh": "res://data/lib/assets/meshes/primitive_humanoid_capsule.glb"},
     "collision_layer": ["npc"],
     "collision_mask": ["wall", "floor", "player", "npc", "enemy", "animal"]
   },
 
   "standard_character_animal": {
-    "_comment": "ADR 0045 — animal CharacterBody3D. Sized for a natural quadruped Tripo3D mesh (bbox.y=1.0). The mesh aspect ratio varies (rabbit is wider than tall, deer is taller than wide), but a capsule sized to bbox.y * scale produces an acceptable approximation. Specific animals scale via state.scale: rabbit=0.35, deer=1.6, wolf=1.0 (unset).",
+    "_comment": "ADR 0045 — animal CharacterBody3D. Reuses the humanoid capsule primitive — works because quadrupeds happen to fit a tall thin capsule when bbox-derived from a normalized 1m-tall Tripo3D mesh + state.scale (rabbit=0.35, deer=1.6, wolf=1.0). If a specific animal needs different proportions, add another primitive .glb to lib/assets/meshes/ and reference it here — DON'T author manual radius/height.",
     "body_type": "character",
-    "collision_shape": {"type": "capsule", "radius": 0.25, "height": 1.0},
+    "collision_shape": {"type": "capsule", "mesh": "res://data/lib/assets/meshes/primitive_humanoid_capsule.glb"},
     "collision_layer": ["animal"],
     "collision_mask": ["wall", "floor", "player", "npc", "animal"]
   },
