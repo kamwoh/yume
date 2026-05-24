@@ -214,10 +214,44 @@ static func build_character_3d(
 	elif pos is Vector2:
 		body.position = Vector3(pos.x, 0, pos.y)
 
+	# Honor state.scale on the body's transform so its CollisionShape3D
+	# child inherits the scale — same convention EntityMesh3D._sync_scale
+	# applies to the visual mesh. Without this, a rabbit authored with
+	# state.scale=0.35 renders as a 35cm bunny (mesh scaled) but collides
+	# as if it were a full-sized animal (lib's capsule radius=0.35, height=
+	# 0.8 — human-shaped hitbox). 2026-05-24.
+	_apply_state_scale_to_body(body, entity)
+
 	# Attach to the Entity Node so the body lives in the scene tree.
 	entity.add_child(body)
 	entity.set_meta("_physics_body", body)
 	return body
+
+
+## Read state.scale and apply it to the body's transform.scale.
+## Mirrors EntityMesh3D._sync_scale's parsing — accepts:
+##   - float / int → uniform Vector3(s, s, s)
+##   - Vector3     → per-axis
+##   - Array[3]    → per-axis [x, y, z]
+##   - Array[2]    → 2D-friendly (x, x, y), mirrors the iso convention
+## Idempotent — leaves body.scale unchanged when state.scale isn't set.
+static func _apply_state_scale_to_body(body: Node3D, entity: Entity) -> void:
+	if entity == null or not entity.has_method("get_state"):
+		return
+	var s = entity.get_state("scale", null)
+	if s == null:
+		return
+	if s is float or s is int:
+		var f := float(s)
+		body.scale = Vector3(f, f, f)
+	elif s is Vector3:
+		body.scale = s
+	elif s is Array:
+		var a := s as Array
+		if a.size() == 3:
+			body.scale = Vector3(float(a[0]), float(a[1]), float(a[2]))
+		elif a.size() == 2:
+			body.scale = Vector3(float(a[0]), float(a[0]), float(a[1]))
 
 
 ## Build a CollisionShape3D node from a shape config dict. Used by

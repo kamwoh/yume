@@ -164,12 +164,24 @@ func _cull_debug_colliders_by_distance() -> void:
 	# Iterate all _DebugCollider nodes (spawn_manager tagged them with
 	# the group "_yume_debug_collider"). Group iteration is O(group_size),
 	# cheaper than walking the whole entity list.
+	# Show a wireframe only when BOTH conditions hold:
+	#   1. distance to camera within DEBUG_COLLIDER_VIEW_RADIUS (cheap
+	#      LOD — even an in-frustum collider 80m away clutters the view)
+	#   2. its position is inside the camera frustum (Camera3D-native
+	#      is_position_in_frustum — fast O(1), 6 plane checks)
+	# Frustum check uses the wireframe's center. A box whose center is
+	# off-screen but whose corners would clip in is acceptable to hide
+	# here — the radius pre-filter ensures only nearby boxes are even
+	# considered, so the cull-too-aggressively case is rare in practice.
 	for node in tree.get_nodes_in_group("_yume_debug_collider"):
 		if not (node is MeshInstance3D):
 			continue
 		var mi: MeshInstance3D = node
 		var d2: float = (mi.global_position - cam_pos).length_squared()
-		mi.visible = d2 <= DEBUG_COLLIDER_VIEW_RADIUS_SQ
+		if d2 > DEBUG_COLLIDER_VIEW_RADIUS_SQ:
+			mi.visible = false
+			continue
+		mi.visible = cam.is_position_in_frustum(mi.global_position)
 
 
 ## Drain game-level pending pipelines (level transition, save/load,
