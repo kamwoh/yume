@@ -336,6 +336,17 @@ func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
 		float(off_arr[1]) if off_arr is Array and off_arr.size() >= 2 else 0.0,
 		float(off_arr[2]) if off_arr is Array and off_arr.size() >= 3 else 0.0,
 	)
+	# The real PhysicsServer3D body sits at entity.position (NO visual
+	# lift) with shape offset = collision_shape.offset. Our wireframe
+	# parents to the EntityMesh3D renderer, which is itself lifted by
+	# `visual.y_offset` (or `y_offset_mesh` × state.scale.y) per
+	# entity_mesh_3d._sync_position. If we just set mi.position = off_v,
+	# the wireframe ends up at (entity.pos.y + visual.y_offset + off_v.y)
+	# while the actual collider is at (entity.pos.y + off_v.y) — i.e.
+	# one `visual.y_offset` too high. Subtract the renderer's lift here
+	# so the wireframe lands on top of the real collider. 2026-05-24.
+	var renderer_lift_y := _resolve_renderer_lift_y(ent)
+	off_v.y -= renderer_lift_y
 	# Build a 12-line wireframe box (8 corners + 12 edges). Filled
 	# translucent boxes stack badly when multiple structures overlap
 	# the view — the screen turns solid green. Lines only render
@@ -392,6 +403,38 @@ func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
 		ent.call_deferred("add_child", mi)
 	else:
 		visual_parent.add_child(mi)
+
+
+## Compute the vertical lift the renderer applies to its position
+## relative to entity.state.position. Mirrors entity_mesh_3d._sync_position's
+## y_offset / y_offset_mesh logic so the debug wireframe can subtract
+## this lift and land on the actual physics body (which has no visual
+## lift baked in). Returns 0.0 if no def / no visual block / no offset.
+## y_offset_mesh is mesh-space (multiplied by state.scale.y); y_offset
+## is world-units (constant).
+func _resolve_renderer_lift_y(ent: Entity) -> float:
+	if ent == null or _world == null:
+		return 0.0
+	var defs = _world.defs if "defs" in _world else null
+	if not (defs is Dictionary):
+		return 0.0
+	var def = defs.get(ent.def_id, null)
+	if not (def is Dictionary):
+		return 0.0
+	var v = def.get("visual", null)
+	if not (v is Dictionary):
+		return 0.0
+	if v.has("y_offset_mesh"):
+		var scale_v = ent.get_state("scale", 1.0)
+		var sy := 1.0
+		if scale_v is Array and (scale_v as Array).size() >= 2:
+			sy = float(scale_v[1])
+		elif scale_v is float or scale_v is int:
+			sy = float(scale_v)
+		return float(v["y_offset_mesh"]) * sy
+	if v.has("y_offset"):
+		return float(v["y_offset"])
+	return 0.0
 
 
 ## Resolve the 3D physics space RID for the current scene. Returns
