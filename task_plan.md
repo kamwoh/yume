@@ -3995,3 +3995,99 @@ done; the visual/composition pipeline still has open work
 (visual_qa Phase B / ADR 0057, shader templates / ADR 0058
 Phase A, composition pass automation per soul.md §Composition).
 
+---
+
+## Proposed pipeline: text-to-world scene generation (2026-05-25)
+
+Default backend: OpenAI (gpt-image-2-2026-04-21 for image gen,
+gpt-4.1-mini for vision). nanobanana / imagen remain available
+for ad-hoc use.
+
+### 7-stage pipeline
+
+```
+SCENE BRIEF
+  ↓
+Stage 1  REFERENCE         photoreal top-down aerial
+Stage 2  CLASS CATALOG     per-scene class list (dynamic)
+Stage 3  SEMANTIC MAP      flat-color, conditioned on reference
+Stage 4  HEIGHTMAP         grayscale, TERRAIN ONLY (no building height)
+Stage 5  EXTRACTION SCRIPT LLM writes custom Python per-map
+Stage 6  ASSET PROMPTS     per object, style-anchored to reference
+Stage 7  ENGINE WIRING     shader + objects + heightmap
+  ↓
+PLAYABLE SCENE
+```
+
+### Mapping to existing vs new
+
+| Stage | Existing | New |
+|---|---|---|
+| 1 | `/yume-topdown-prompt` + `openai_images.generations` | — |
+| 2 | — | `yume-scene-class-catalog` skill |
+| 3 | `openai_images.edits` route (shipped 2026-05-25, commit c11645b) | per-scene prompt template |
+| 4 | `ADR 0052` engine support | gpt-image-2 grayscale heightmap test |
+| 5 | — | `yume-extract-author` skill (LLM-as-script-author) + `compose_semantic_extract` harness |
+| 6 | `yume-asset-designer` writes prompt fields | style-consistency anchor (pass reference image to every asset gen) |
+| 7 | ADR 0055 multi-biome shader, ADR 0052 heightmap, `compose_map` placement | orchestration wiring auto-gen outputs |
+
+### Terrain vs object split (load-bearing design)
+
+Class catalog (stage 2) tags each class with an intent-type
+that routes its consumption:
+
+| Intent | Examples | How it manifests |
+|---|---|---|
+| `terrain_shader` | grass, dirt, cobblestone, sand, water_shallow | one big ground plane, biome shader (ADR 0055) |
+| `terrain_displacement` | hill, valley, ridge, riverbed | heightmap.png drives vertex displacement (ADR 0052) |
+| `object_placement` | house, townhall, market, well, tree, statue | spawned as Yume entities at extracted positions |
+
+"River" might be `terrain_shader` (blue ground biome) OR
+`object_placement` (with fish + current entities) depending on scene
+needs — the catalog is where the decision lives.
+
+### Open design questions
+
+1. **Object rotation** — semantic colors don't encode orientation.
+   Three options: (a) infer at extraction time from spatial context
+   ("house faces nearest road"), (b) per-class default rotation, or
+   (c) separate pass: Claude reads photoreal ref + per-object bbox
+   and infers rotation.
+
+2. **Heightmap conditioning** — does gpt-image-2 emit a clean
+   grayscale heightmap when image-conditioned on a photoreal aerial?
+   First test on the medieval-town reference. If no, consider depth-
+   estimation model (MiDaS) or default flat terrain.
+
+3. **Class catalog source** — pure auto vs library+override vs
+   user-specified. Lean toward LIBRARY+OVERRIDE: base catalog
+   of common classes (forest/grass/water/dirt + house/wall/road) so
+   terrain-shader biomes stay consistent for the engine; LLM adds
+   per-scene object classes (townhall/market/temple/etc.).
+
+4. **Style anchor for assets** — pass photoreal aerial via /edits
+   to every asset-gen call (strong style transfer, expensive) vs
+   extract a "style sheet" text once (palette + material vibe) and
+   inject into every asset prompt (cheap, weaker). Probably hybrid:
+   style sheet for cheap iter, /edits for hero assets.
+
+5. **Heightmap = TERRAIN ONLY** — need the model to "ignore
+   building tops, render only ground elevation." Building footprint
+   should be SAME color as surrounding ground. Test prompt:
+   two-pass or explicit instruction.
+
+### First concrete piece (de-risk)
+
+Stage 4 is the most uncertain — does gpt-image-2 actually emit a
+clean grayscale heightmap? Everything else is orchestration of
+patterns already proven. Test:
+- Reference: existing photoreal medieval-town aerial
+- /v1/images/edits, gpt-image-2, grayscale-only prompt
+- Verify output: grayscale, river dark, ground mid, buildings
+  blend with footprint (not rendered as elevated)
+
+If yes → lock the rest of the design.
+If no → swap to depth-estimation model OR flat-default terrain.
+
+
+
