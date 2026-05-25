@@ -1,55 +1,204 @@
 {
-  "_comment": "3D mesh library (W5.0b). Composes engine MESH PRIMITIVES (box, sphere, cylinder, capsule, plane, prism, torus, quad — Godot's PrimitiveMesh classes). Each entry is a list of primitives with positions + sizes + $param substitution. Same authoring shape as shapes.json.",
-
+  "_comment": "3D mesh library (W5.0b). Composes engine MESH PRIMITIVES (box, sphere, cylinder, capsule, plane, prism, torus, quad \u2014 Godot's PrimitiveMesh classes). Each entry is a list of primitives with positions + sizes + $param substitution. Same authoring shape as shapes.json.",
   "meshes": {
     "tree": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.12, "height": 0.8, "color": "$trunk"},
-        {"op": "sphere",   "pos": [0, 1.1, 0], "radius": 0.5,                 "color": "$foliage"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "radius": 0.12,
+          "height": 0.8,
+          "color": "$trunk"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.1,
+            0
+          ],
+          "radius": 0.5,
+          "color": "$foliage"
+        }
       ],
-      "params": {"foliage": "#3a8a3a", "trunk": "#6b3a1a"}
+      "params": {
+        "foliage": "#3a8a3a",
+        "trunk": "#6b3a1a"
+      }
     },
-
     "rock": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0.3, 0], "radius": 0.35, "color": "$stone"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.3,
+            0
+          ],
+          "radius": 0.35,
+          "color": "$stone"
+        }
       ],
-      "params": {"stone": "#7a7a7a"}
+      "params": {
+        "stone": "#7a7a7a"
+      }
     },
-
     "person": {
       "primitives": [
-        {"op": "capsule", "pos": [0, 0.6, 0], "radius": 0.2, "height": 1.0, "color": "$shirt"},
-        {"op": "sphere",  "pos": [0, 1.4, 0], "radius": 0.18,                "color": "$skin"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.6,
+            0
+          ],
+          "radius": 0.2,
+          "height": 1.0,
+          "color": "$shirt"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.4,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$skin"
+        }
       ],
-      "params": {"shirt": "#5b9bff", "skin": "#e0b094"}
+      "params": {
+        "shirt": "#5b9bff",
+        "skin": "#e0b094"
+      }
     },
-
     "water": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.6, "height": 0.1, "color": "$water"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "radius": 0.6,
+          "height": 0.1,
+          "color": "$water"
+        }
       ],
-      "params": {"water": "#3b7fb8"}
+      "params": {
+        "water": "#3b7fb8"
+      }
     },
-
     "fire": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0.3, 0], "radius": 0.3, "color": "$flame_outer"},
-        {"op": "sphere", "pos": [0, 0.5, 0], "radius": 0.18, "color": "$flame_inner"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.3,
+            0
+          ],
+          "radius": 0.3,
+          "color": "$flame_outer"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$flame_inner"
+        }
       ],
-      "params": {"flame_outer": "#d94c1a", "flame_inner": "#ffe066"}
+      "params": {
+        "flame_outer": "#d94c1a",
+        "flame_inner": "#ffe066"
+      }
     },
-
     "fire_pit_3d": {
-      "_comment": "Substantial fire pit — 1.5m diameter stone base + visible log fuel + flame mass. Reads as a 3D structure at distance instead of an icon. Use this for any game needing a proper fire structure; legacy 'fire' mesh (2 small spheres) kept for backward compat.",
+      "_comment": "Substantial fire pit \u2014 1.5m diameter stone base + visible log fuel + flame mass. Reads as a 3D structure at distance instead of an icon. Use this for any game needing a proper fire structure; legacy 'fire' mesh (2 small spheres) kept for backward compat.",
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.1, 0], "radius": 1.0, "height": 0.2, "color": "$stone"},
-        {"op": "cylinder", "pos": [-0.3, 0.45, 0.2], "radius": 0.12, "height": 0.7, "color": "$log"},
-        {"op": "cylinder", "pos": [0.25, 0.45, -0.15], "radius": 0.12, "height": 0.7, "color": "$log"},
-        {"op": "cylinder", "pos": [0.0, 0.45, 0.3], "radius": 0.12, "height": 0.7, "color": "$log"},
-        {"op": "sphere", "pos": [0, 0.85, 0], "radius": 0.55, "color": "$flame_outer"},
-        {"op": "sphere", "pos": [0, 1.15, 0], "radius": 0.4, "color": "$flame_mid"},
-        {"op": "sphere", "pos": [0, 1.4, 0], "radius": 0.25, "color": "$flame_inner"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.1,
+            0
+          ],
+          "radius": 1.0,
+          "height": 0.2,
+          "color": "$stone"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.3,
+            0.45,
+            0.2
+          ],
+          "radius": 0.12,
+          "height": 0.7,
+          "color": "$log"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.25,
+            0.45,
+            -0.15
+          ],
+          "radius": 0.12,
+          "height": 0.7,
+          "color": "$log"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.0,
+            0.45,
+            0.3
+          ],
+          "radius": 0.12,
+          "height": 0.7,
+          "color": "$log"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.85,
+            0
+          ],
+          "radius": 0.55,
+          "color": "$flame_outer"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.15,
+            0
+          ],
+          "radius": 0.4,
+          "color": "$flame_mid"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.4,
+            0
+          ],
+          "radius": 0.25,
+          "color": "$flame_inner"
+        }
       ],
       "params": {
         "stone": "#5a5550",
@@ -59,66 +208,265 @@
         "flame_inner": "#ffe066"
       }
     },
-
     "conifer_tree_3d": {
-      "_comment": "Proper conifer — brown trunk + green stacked-sphere canopy. 3m total height. Replaces the merchant_pillar_3d fallback (stone-color pillar) which didn't read as vegetation.",
+      "_comment": "Proper conifer \u2014 brown trunk + green stacked-sphere canopy. 3m total height. Replaces the merchant_pillar_3d fallback (stone-color pillar) which didn't read as vegetation.",
       "multimesh_eligible": true,
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.75, 0], "radius": 0.2, "height": 1.5, "color": "$trunk"},
-        {"op": "cylinder", "pos": [0, 1.8, 0], "radius": 0.85, "height": 0.05, "color": "$canopy"},
-        {"op": "sphere", "pos": [0, 2.1, 0], "radius": 0.8, "color": "$canopy"},
-        {"op": "sphere", "pos": [0, 2.6, 0], "radius": 0.6, "color": "$canopy"},
-        {"op": "sphere", "pos": [0, 3.0, 0], "radius": 0.35, "color": "$canopy"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.75,
+            0
+          ],
+          "radius": 0.2,
+          "height": 1.5,
+          "color": "$trunk"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.8,
+            0
+          ],
+          "radius": 0.85,
+          "height": 0.05,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            2.1,
+            0
+          ],
+          "radius": 0.8,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "radius": 0.6,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            3.0,
+            0
+          ],
+          "radius": 0.35,
+          "color": "$canopy"
+        }
       ],
       "params": {
         "trunk": "#5a3820",
         "canopy": "#2d5028"
       }
     },
-
     "oak_tree_3d": {
-      "_comment": "Round broadleaf — bigger trunk, blob canopy. ~3.5m. Distinct silhouette from conifer (round vs triangular).",
+      "_comment": "Round broadleaf \u2014 bigger trunk, blob canopy. ~3.5m. Distinct silhouette from conifer (round vs triangular).",
       "multimesh_eligible": true,
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.9, 0], "radius": 0.28, "height": 1.8, "color": "$trunk"},
-        {"op": "sphere", "pos": [0,  2.2, 0],     "radius": 1.1,  "color": "$canopy"},
-        {"op": "sphere", "pos": [0.5, 2.4, 0.3],  "radius": 0.7,  "color": "$canopy"},
-        {"op": "sphere", "pos": [-0.5, 2.4, -0.3],"radius": 0.7,  "color": "$canopy"},
-        {"op": "sphere", "pos": [0, 2.9, 0],      "radius": 0.6,  "color": "$canopy"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.9,
+            0
+          ],
+          "radius": 0.28,
+          "height": 1.8,
+          "color": "$trunk"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            2.2,
+            0
+          ],
+          "radius": 1.1,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.5,
+            2.4,
+            0.3
+          ],
+          "radius": 0.7,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.5,
+            2.4,
+            -0.3
+          ],
+          "radius": 0.7,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            2.9,
+            0
+          ],
+          "radius": 0.6,
+          "color": "$canopy"
+        }
       ],
       "params": {
         "trunk": "#4a2e18",
         "canopy": "#3a6428"
       }
     },
-
     "birch_tree_3d": {
       "_comment": "Slim white-bark tree, sparse pale canopy. ~3m. Light accent against dark conifer mass.",
       "multimesh_eligible": true,
       "primitives": [
-        {"op": "cylinder", "pos": [0, 1.0, 0], "radius": 0.13, "height": 2.0, "color": "$bark"},
-        {"op": "sphere", "pos": [0, 2.4, 0],   "radius": 0.55, "color": "$canopy"},
-        {"op": "sphere", "pos": [0.3, 2.6, 0], "radius": 0.4,  "color": "$canopy"},
-        {"op": "sphere", "pos": [-0.2, 2.8, 0.2], "radius": 0.35, "color": "$canopy"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.0,
+            0
+          ],
+          "radius": 0.13,
+          "height": 2.0,
+          "color": "$bark"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            2.4,
+            0
+          ],
+          "radius": 0.55,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.3,
+            2.6,
+            0
+          ],
+          "radius": 0.4,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.2,
+            2.8,
+            0.2
+          ],
+          "radius": 0.35,
+          "color": "$canopy"
+        }
       ],
       "params": {
         "bark": "#dad6c8",
         "canopy": "#9aa860"
       }
     },
-
     "fruit_tree_3d": {
       "_comment": "Apple/berry-bearing broadleaf. Reddish-orange fruit dots on green canopy. Player can identify edible trees at a glance. ~2.8m.",
       "multimesh_eligible": true,
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.8, 0], "radius": 0.22, "height": 1.6, "color": "$trunk"},
-        {"op": "sphere", "pos": [0, 2.0, 0],     "radius": 0.95, "color": "$canopy"},
-        {"op": "sphere", "pos": [0.4, 2.2, 0.3],  "radius": 0.55, "color": "$canopy"},
-        {"op": "sphere", "pos": [-0.4, 2.2, -0.3],"radius": 0.55, "color": "$canopy"},
-        {"op": "sphere", "pos": [0.5, 1.9, 0.1], "radius": 0.12, "color": "$fruit"},
-        {"op": "sphere", "pos": [-0.4, 2.1, 0.4],"radius": 0.10, "color": "$fruit"},
-        {"op": "sphere", "pos": [0.2, 2.4, -0.5],"radius": 0.11, "color": "$fruit"},
-        {"op": "sphere", "pos": [-0.5, 1.7, -0.2],"radius": 0.10, "color": "$fruit"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.8,
+            0
+          ],
+          "radius": 0.22,
+          "height": 1.6,
+          "color": "$trunk"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            2.0,
+            0
+          ],
+          "radius": 0.95,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.4,
+            2.2,
+            0.3
+          ],
+          "radius": 0.55,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.4,
+            2.2,
+            -0.3
+          ],
+          "radius": 0.55,
+          "color": "$canopy"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.5,
+            1.9,
+            0.1
+          ],
+          "radius": 0.12,
+          "color": "$fruit"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.4,
+            2.1,
+            0.4
+          ],
+          "radius": 0.1,
+          "color": "$fruit"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.2,
+            2.4,
+            -0.5
+          ],
+          "radius": 0.11,
+          "color": "$fruit"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.5,
+            1.7,
+            -0.2
+          ],
+          "radius": 0.1,
+          "color": "$fruit"
+        }
       ],
       "params": {
         "trunk": "#5a3820",
@@ -126,107 +474,485 @@
         "fruit": "#d83828"
       }
     },
-
     "dead_tree_3d": {
-      "_comment": "Bare branches, no canopy. Reads as 'old' or 'winter' tree. ~3m. Lighter visual weight — fills space without overwhelming the forest.",
+      "_comment": "Bare branches, no canopy. Reads as 'old' or 'winter' tree. ~3m. Lighter visual weight \u2014 fills space without overwhelming the forest.",
       "multimesh_eligible": true,
       "primitives": [
-        {"op": "cylinder", "pos": [0, 1.2, 0], "radius": 0.18, "height": 2.4, "color": "$bark"},
-        {"op": "cylinder", "pos": [0.4, 2.0, 0],   "radius": 0.05, "height": 0.8, "color": "$bark"},
-        {"op": "cylinder", "pos": [-0.3, 2.4, 0.2],"radius": 0.05, "height": 0.6, "color": "$bark"},
-        {"op": "cylinder", "pos": [0.1, 2.7, -0.3],"radius": 0.04, "height": 0.4, "color": "$bark"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.2,
+            0
+          ],
+          "radius": 0.18,
+          "height": 2.4,
+          "color": "$bark"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.4,
+            2.0,
+            0
+          ],
+          "radius": 0.05,
+          "height": 0.8,
+          "color": "$bark"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.3,
+            2.4,
+            0.2
+          ],
+          "radius": 0.05,
+          "height": 0.6,
+          "color": "$bark"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.1,
+            2.7,
+            -0.3
+          ],
+          "radius": 0.04,
+          "height": 0.4,
+          "color": "$bark"
+        }
       ],
       "params": {
         "bark": "#4a3828"
       }
     },
-
     "water_plane_3d": {
-      "_comment": "Flat blue water — 10m × 10m square. Suited for ponds / small lakes. For long flowing rivers use `river_3d` instead. Surface at y=0.05 (no z-fight with ground at y=0).",
+      "_comment": "Flat blue water \u2014 10m \u00d7 10m square. Suited for ponds / small lakes. For long flowing rivers use `river_3d` instead. Surface at y=0.05 (no z-fight with ground at y=0).",
       "primitives": [
-        {"op": "box", "pos": [0, 0.05, 0], "size": [10.0, 0.08, 10.0], "color": "$water"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "size": [
+            10.0,
+            0.08,
+            10.0
+          ],
+          "color": "$water"
+        }
       ],
-      "params": {"water": "#3a6a8c"}
+      "params": {
+        "water": "#3a6a8c"
+      }
     },
-
     "river_3d": {
-      "_comment": "Long flowing river — 6m wide × 50m long (Z axis). Aspect 1:8 reads as 'river' not 'pond.' Three depth bands: sandy bank strips on each side, shallow lighter-blue edges, deeper blue main flow, and a thin centerline ripple highlight. Banks at y=0.02; shallow at y=0.04; main at y=0.06; ripple at y=0.10. Author at any position via instance; use state.yaw to angle the flow, state.scale to stretch (e.g. scale [1, 1, 2] = 100m river).",
+      "_comment": "Long flowing river \u2014 6m wide \u00d7 50m long (Z axis). Aspect 1:8 reads as 'river' not 'pond.' Three depth bands: sandy bank strips on each side, shallow lighter-blue edges, deeper blue main flow, and a thin centerline ripple highlight. Banks at y=0.02; shallow at y=0.04; main at y=0.06; ripple at y=0.10. Author at any position via instance; use state.yaw to angle the flow, state.scale to stretch (e.g. scale [1, 1, 2] = 100m river).",
       "primitives": [
-        {"op": "box", "pos": [-3.5, 0.02, 0], "size": [1.0, 0.05, 50.0], "color": "$bank"},
-        {"op": "box", "pos": [ 3.5, 0.02, 0], "size": [1.0, 0.05, 50.0], "color": "$bank"},
-        {"op": "box", "pos": [-2.6, 0.04, 0], "size": [0.8, 0.05, 50.0], "color": "$shallow"},
-        {"op": "box", "pos": [ 2.6, 0.04, 0], "size": [0.8, 0.05, 50.0], "color": "$shallow"},
-        {"op": "box", "pos": [ 0.0, 0.06, 0], "size": [4.4, 0.08, 50.0], "color": "$water"},
-        {"op": "box", "pos": [ 0.0, 0.10, 0], "size": [0.8, 0.02, 50.0], "color": "$ripple"}
+        {
+          "op": "box",
+          "pos": [
+            -3.5,
+            0.02,
+            0
+          ],
+          "size": [
+            1.0,
+            0.05,
+            50.0
+          ],
+          "color": "$bank"
+        },
+        {
+          "op": "box",
+          "pos": [
+            3.5,
+            0.02,
+            0
+          ],
+          "size": [
+            1.0,
+            0.05,
+            50.0
+          ],
+          "color": "$bank"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -2.6,
+            0.04,
+            0
+          ],
+          "size": [
+            0.8,
+            0.05,
+            50.0
+          ],
+          "color": "$shallow"
+        },
+        {
+          "op": "box",
+          "pos": [
+            2.6,
+            0.04,
+            0
+          ],
+          "size": [
+            0.8,
+            0.05,
+            50.0
+          ],
+          "color": "$shallow"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.06,
+            0
+          ],
+          "size": [
+            4.4,
+            0.08,
+            50.0
+          ],
+          "color": "$water"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.1,
+            0
+          ],
+          "size": [
+            0.8,
+            0.02,
+            50.0
+          ],
+          "color": "$ripple"
+        }
       ],
       "params": {
-        "water":   "#2a5878",
+        "water": "#2a5878",
         "shallow": "#5a98b8",
-        "bank":    "#8a7050",
-        "ripple":  "#a0c8d8"
+        "bank": "#8a7050",
+        "ripple": "#a0c8d8"
       }
     },
-
     "wolf_3d": {
-      "_comment": "Lean grey quadruped — body, 4 legs, head, pointed ears, slim tail. Faces +X. ~1.0m at shoulder × 1.3m long. Wolf-grey palette: charcoal coat, lighter underbelly.",
+      "_comment": "Lean grey quadruped \u2014 body, 4 legs, head, pointed ears, slim tail. Faces +X. ~1.0m at shoulder \u00d7 1.3m long. Wolf-grey palette: charcoal coat, lighter underbelly.",
       "primitives": [
-        {"op": "cylinder", "pos": [ 0.35, 0.30,  0.14], "radius": 0.06, "height": 0.60, "color": "$leg"},
-        {"op": "cylinder", "pos": [ 0.35, 0.30, -0.14], "radius": 0.06, "height": 0.60, "color": "$leg"},
-        {"op": "cylinder", "pos": [-0.35, 0.30,  0.14], "radius": 0.06, "height": 0.60, "color": "$leg"},
-        {"op": "cylinder", "pos": [-0.35, 0.30, -0.14], "radius": 0.06, "height": 0.60, "color": "$leg"},
-        {"op": "box",      "pos": [ 0.0,  0.75, 0.0],   "size":   [0.85, 0.35, 0.30],  "color": "$coat"},
-        {"op": "box",      "pos": [ 0.40, 0.95, 0.0],   "size":   [0.18, 0.30, 0.18],  "color": "$coat"},
-        {"op": "box",      "pos": [ 0.52, 1.05, 0.0],   "size":   [0.26, 0.20, 0.22],  "color": "$coat"},
-        {"op": "box",      "pos": [ 0.62, 1.00, 0.0],   "size":   [0.10, 0.12, 0.14],  "color": "$snout"},
-        {"op": "cylinder", "pos": [ 0.50, 1.18,  0.07], "radius": 0.025, "height": 0.12, "color": "$ear"},
-        {"op": "cylinder", "pos": [ 0.50, 1.18, -0.07], "radius": 0.025, "height": 0.12, "color": "$ear"},
-        {"op": "box",      "pos": [-0.48, 0.80, 0.0],   "size":   [0.20, 0.06, 0.05],  "color": "$coat"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0.35,
+            0.3,
+            0.14
+          ],
+          "radius": 0.06,
+          "height": 0.6,
+          "color": "$leg"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.35,
+            0.3,
+            -0.14
+          ],
+          "radius": 0.06,
+          "height": 0.6,
+          "color": "$leg"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.35,
+            0.3,
+            0.14
+          ],
+          "radius": 0.06,
+          "height": 0.6,
+          "color": "$leg"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.35,
+            0.3,
+            -0.14
+          ],
+          "radius": 0.06,
+          "height": 0.6,
+          "color": "$leg"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.75,
+            0.0
+          ],
+          "size": [
+            0.85,
+            0.35,
+            0.3
+          ],
+          "color": "$coat"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.4,
+            0.95,
+            0.0
+          ],
+          "size": [
+            0.18,
+            0.3,
+            0.18
+          ],
+          "color": "$coat"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.52,
+            1.05,
+            0.0
+          ],
+          "size": [
+            0.26,
+            0.2,
+            0.22
+          ],
+          "color": "$coat"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.62,
+            1.0,
+            0.0
+          ],
+          "size": [
+            0.1,
+            0.12,
+            0.14
+          ],
+          "color": "$snout"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.5,
+            1.18,
+            0.07
+          ],
+          "radius": 0.025,
+          "height": 0.12,
+          "color": "$ear"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.5,
+            1.18,
+            -0.07
+          ],
+          "radius": 0.025,
+          "height": 0.12,
+          "color": "$ear"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.48,
+            0.8,
+            0.0
+          ],
+          "size": [
+            0.2,
+            0.06,
+            0.05
+          ],
+          "color": "$coat"
+        }
       ],
       "params": {
-        "coat":  "#4a4448",
-        "leg":   "#3a3640",
+        "coat": "#4a4448",
+        "leg": "#3a3640",
         "snout": "#2a262a",
-        "ear":   "#5a5258"
+        "ear": "#5a5258"
       }
     },
-
     "lean_to_3d": {
-      "_comment": "Simple shelter — 3 angled logs leaning against an upright + branch-mat roof. ~1.5m × 1.5m × 1.2m. Tilt is implied by stacking boxes diagonally.",
+      "_comment": "Simple shelter \u2014 3 angled logs leaning against an upright + branch-mat roof. ~1.5m \u00d7 1.5m \u00d7 1.2m. Tilt is implied by stacking boxes diagonally.",
       "primitives": [
-        {"op": "cylinder", "pos": [-0.6, 0.6, 0.0], "radius": 0.07, "height": 1.2, "color": "$log"},
-        {"op": "cylinder", "pos": [ 0.6, 0.6, 0.0], "radius": 0.07, "height": 1.2, "color": "$log"},
-        {"op": "box",      "pos": [ 0.0, 1.10, 0.0], "size": [1.3, 0.04, 1.4], "color": "$thatch"},
-        {"op": "box",      "pos": [ 0.0, 0.20, 0.7], "size": [1.4, 0.40, 0.05], "color": "$log_dark"},
-        {"op": "box",      "pos": [ 0.0, 0.20,-0.7], "size": [1.4, 0.40, 0.05], "color": "$log_dark"}
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.6,
+            0.6,
+            0.0
+          ],
+          "radius": 0.07,
+          "height": 1.2,
+          "color": "$log"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.6,
+            0.6,
+            0.0
+          ],
+          "radius": 0.07,
+          "height": 1.2,
+          "color": "$log"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            1.1,
+            0.0
+          ],
+          "size": [
+            1.3,
+            0.04,
+            1.4
+          ],
+          "color": "$thatch"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.2,
+            0.7
+          ],
+          "size": [
+            1.4,
+            0.4,
+            0.05
+          ],
+          "color": "$log_dark"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.2,
+            -0.7
+          ],
+          "size": [
+            1.4,
+            0.4,
+            0.05
+          ],
+          "color": "$log_dark"
+        }
       ],
       "params": {
-        "log":      "#7a5028",
+        "log": "#7a5028",
         "log_dark": "#5a3818",
-        "thatch":   "#a08858"
+        "thatch": "#a08858"
       }
     },
-
     "fish_trap_3d": {
-      "_comment": "Small woven willow basket — cylinder with open top, set on the river bank. ~0.5m diameter × 0.45m tall.",
+      "_comment": "Small woven willow basket \u2014 cylinder with open top, set on the river bank. ~0.5m diameter \u00d7 0.45m tall.",
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.20, 0], "radius": 0.28, "height": 0.40, "color": "$willow"},
-        {"op": "cylinder", "pos": [0, 0.42, 0], "radius": 0.30, "height": 0.04, "color": "$willow_dark"},
-        {"op": "cylinder", "pos": [0, 0.40, 0], "radius": 0.22, "height": 0.02, "color": "$inside"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.2,
+            0
+          ],
+          "radius": 0.28,
+          "height": 0.4,
+          "color": "$willow"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.42,
+            0
+          ],
+          "radius": 0.3,
+          "height": 0.04,
+          "color": "$willow_dark"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "radius": 0.22,
+          "height": 0.02,
+          "color": "$inside"
+        }
       ],
       "params": {
-        "willow":      "#a08458",
+        "willow": "#a08458",
         "willow_dark": "#6e5028",
-        "inside":      "#3a2a18"
+        "inside": "#3a2a18"
       }
     },
-
     "bird_3d": {
-      "_comment": "Small bird — central body + 2 wing boxes that flap. ~0.3m wingspan. Wings rotate around their Z axis to read as flapping. Body alone is a tiny sphere so the wings dominate the silhouette. cast_shadow:false — tiny entity at high altitude, shadow invisible.",
+      "_comment": "Small bird \u2014 central body + 2 wing boxes that flap. ~0.3m wingspan. Wings rotate around their Z axis to read as flapping. Body alone is a tiny sphere so the wings dominate the silhouette. cast_shadow:false \u2014 tiny entity at high altitude, shadow invisible.",
       "cast_shadow": false,
       "primitives": [
-        {"op": "sphere",   "name": "body",      "pos": [0, 0, 0],       "radius": 0.05, "color": "$body"},
-        {"op": "box",      "name": "left_wing", "pos": [-0.12, 0, 0],   "size": [0.18, 0.02, 0.10], "color": "$body"},
-        {"op": "box",      "name": "right_wing","pos": [ 0.12, 0, 0],   "size": [0.18, 0.02, 0.10], "color": "$body"}
+        {
+          "op": "sphere",
+          "name": "body",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.05,
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "name": "left_wing",
+          "pos": [
+            -0.12,
+            0,
+            0
+          ],
+          "size": [
+            0.18,
+            0.02,
+            0.1
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "name": "right_wing",
+          "pos": [
+            0.12,
+            0,
+            0
+          ],
+          "size": [
+            0.18,
+            0.02,
+            0.1
+          ],
+          "color": "$body"
+        }
       ],
       "params": {
         "body": "#1a1a1a"
@@ -236,44 +962,170 @@
           "duration": 0.45,
           "loop": true,
           "tracks": [
-            {"piece": "left_wing",  "rotation_z": [ 0.0,  0.7,  0.0, -0.4,  0.0]},
-            {"piece": "right_wing", "rotation_z": [ 0.0, -0.7,  0.0,  0.4,  0.0]}
+            {
+              "piece": "left_wing",
+              "rotation_z": [
+                0.0,
+                0.7,
+                0.0,
+                -0.4,
+                0.0
+              ]
+            },
+            {
+              "piece": "right_wing",
+              "rotation_z": [
+                0.0,
+                -0.7,
+                0.0,
+                0.4,
+                0.0
+              ]
+            }
           ]
         }
       },
       "animation_state_rules": [
-        {"default": "fly"}
+        {
+          "default": "fly"
+        }
       ]
     },
-
     "cloud_3d": {
-      "_comment": "Puffy cloud — 4 overlapping white spheres. ~5m wide, drifts slowly via velocity. Per-instance scale via state.scale lets some clouds be bigger (3x) for variety. cast_shadow:false — clouds at y=30 wouldn't render meaningful ground shadows anyway and the cost is wasted.",
+      "_comment": "Puffy cloud \u2014 4 overlapping white spheres. ~5m wide, drifts slowly via velocity. Per-instance scale via state.scale lets some clouds be bigger (3x) for variety. cast_shadow:false \u2014 clouds at y=30 wouldn't render meaningful ground shadows anyway and the cost is wasted.",
       "cast_shadow": false,
       "primitives": [
-        {"op": "sphere", "pos": [ 0.0, 0.0, 0.0],  "radius": 1.6, "color": "$fluff"},
-        {"op": "sphere", "pos": [ 1.4, 0.2, 0.3],  "radius": 1.2, "color": "$fluff"},
-        {"op": "sphere", "pos": [-1.3, 0.1, -0.2], "radius": 1.3, "color": "$fluff"},
-        {"op": "sphere", "pos": [ 0.3, 0.5, -0.5], "radius": 1.0, "color": "$fluff_top"}
+        {
+          "op": "sphere",
+          "pos": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "radius": 1.6,
+          "color": "$fluff"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            1.4,
+            0.2,
+            0.3
+          ],
+          "radius": 1.2,
+          "color": "$fluff"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -1.3,
+            0.1,
+            -0.2
+          ],
+          "radius": 1.3,
+          "color": "$fluff"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.3,
+            0.5,
+            -0.5
+          ],
+          "radius": 1.0,
+          "color": "$fluff_top"
+        }
       ],
       "params": {
-        "fluff":     "#f4f0e8",
+        "fluff": "#f4f0e8",
         "fluff_top": "#ffffff"
       }
     },
-
     "villager_3d": {
-      "_comment": "Humanoid with addressable limbs (ADR 0035). torso/head/4 limbs named so animation_director can swing them. Arm/leg pieces use `pivot` to put the rotation joint at the SHOULDER/HIP (top of limb) instead of the limb's geometric center — otherwise rotating an arm makes the hand AND the shoulder swing in opposite directions through the body. Walk = arm + leg swing in opposing pairs (left arm + right leg forward, then swap). Activates on velocity > 0.5.",
+      "_comment": "Humanoid with addressable limbs (ADR 0035). torso/head/4 limbs named so animation_director can swing them. Arm/leg pieces use `pivot` to put the rotation joint at the SHOULDER/HIP (top of limb) instead of the limb's geometric center \u2014 otherwise rotating an arm makes the hand AND the shoulder swing in opposite directions through the body. Walk = arm + leg swing in opposing pairs (left arm + right leg forward, then swap). Activates on velocity > 0.5.",
       "primitives": [
-        {"op": "box",      "name": "torso",     "pos": [0, 1.0, 0],      "size": [0.42, 0.65, 0.26], "color": "$shirt"},
-        {"op": "sphere",   "name": "head",      "pos": [0, 1.55, 0],     "radius": 0.18,             "color": "$skin"},
-        {"op": "cylinder", "name": "left_arm",  "pos": [-0.30, 1.05, 0], "pivot": "top", "radius": 0.06, "height": 0.55, "color": "$shirt"},
-        {"op": "cylinder", "name": "right_arm", "pos": [ 0.30, 1.05, 0], "pivot": "top", "radius": 0.06, "height": 0.55, "color": "$shirt"},
-        {"op": "cylinder", "name": "left_leg",  "pos": [-0.11, 0.35, 0], "pivot": "top", "radius": 0.08, "height": 0.70, "color": "$pants"},
-        {"op": "cylinder", "name": "right_leg", "pos": [ 0.11, 0.35, 0], "pivot": "top", "radius": 0.08, "height": 0.70, "color": "$pants"}
+        {
+          "op": "box",
+          "name": "torso",
+          "pos": [
+            0,
+            1.0,
+            0
+          ],
+          "size": [
+            0.42,
+            0.65,
+            0.26
+          ],
+          "color": "$shirt"
+        },
+        {
+          "op": "sphere",
+          "name": "head",
+          "pos": [
+            0,
+            1.55,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$skin"
+        },
+        {
+          "op": "cylinder",
+          "name": "left_arm",
+          "pos": [
+            -0.3,
+            1.05,
+            0
+          ],
+          "pivot": "top",
+          "radius": 0.06,
+          "height": 0.55,
+          "color": "$shirt"
+        },
+        {
+          "op": "cylinder",
+          "name": "right_arm",
+          "pos": [
+            0.3,
+            1.05,
+            0
+          ],
+          "pivot": "top",
+          "radius": 0.06,
+          "height": 0.55,
+          "color": "$shirt"
+        },
+        {
+          "op": "cylinder",
+          "name": "left_leg",
+          "pos": [
+            -0.11,
+            0.35,
+            0
+          ],
+          "pivot": "top",
+          "radius": 0.08,
+          "height": 0.7,
+          "color": "$pants"
+        },
+        {
+          "op": "cylinder",
+          "name": "right_leg",
+          "pos": [
+            0.11,
+            0.35,
+            0
+          ],
+          "pivot": "top",
+          "radius": 0.08,
+          "height": 0.7,
+          "color": "$pants"
+        }
       ],
       "params": {
         "shirt": "#6a5440",
-        "skin":  "#d8b894",
+        "skin": "#d8b894",
         "pants": "#3a2818"
       },
       "animations": {
@@ -282,41 +1134,158 @@
           "duration": 1.0,
           "loop": true,
           "tracks": [
-            {"piece": "left_arm",  "rotation_x": [0.0, 0.0]},
-            {"piece": "right_arm", "rotation_x": [0.0, 0.0]},
-            {"piece": "left_leg",  "rotation_x": [0.0, 0.0]},
-            {"piece": "right_leg", "rotation_x": [0.0, 0.0]},
-            {"piece": "torso", "translation_y": [0.0, 0.0]}
+            {
+              "piece": "left_arm",
+              "rotation_x": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "piece": "right_arm",
+              "rotation_x": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "piece": "left_leg",
+              "rotation_x": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "piece": "right_leg",
+              "rotation_x": [
+                0.0,
+                0.0
+              ]
+            },
+            {
+              "piece": "torso",
+              "translation_y": [
+                0.0,
+                0.0
+              ]
+            }
           ]
         },
         "walk": {
           "_comment_duration": "0.85s/cycle (was 0.55s, felt frantic). 0.85 reads as 'steady walk'; under ~0.7 limbs look hurried; over ~1.1 reads as 'sluggish'.",
-          "_comment_no_torso_bob": "Removed torso translation_y bob (2026-05-15) — user feedback 'body no need shakey when move'. Walk feels grounded without bob; bob reads as 'jittery' rather than 'animated' at low fps.",
+          "_comment_no_torso_bob": "Removed torso translation_y bob (2026-05-15) \u2014 user feedback 'body no need shakey when move'. Walk feels grounded without bob; bob reads as 'jittery' rather than 'animated' at low fps.",
           "duration": 0.85,
           "loop": true,
           "tracks": [
-            {"piece": "left_arm",  "rotation_x": [0.0,  0.55, 0.0, -0.55, 0.0]},
-            {"piece": "right_arm", "rotation_x": [0.0, -0.55, 0.0,  0.55, 0.0]},
-            {"piece": "left_leg",  "rotation_x": [0.0, -0.45, 0.0,  0.45, 0.0]},
-            {"piece": "right_leg", "rotation_x": [0.0,  0.45, 0.0, -0.45, 0.0]}
+            {
+              "piece": "left_arm",
+              "rotation_x": [
+                0.0,
+                0.55,
+                0.0,
+                -0.55,
+                0.0
+              ]
+            },
+            {
+              "piece": "right_arm",
+              "rotation_x": [
+                0.0,
+                -0.55,
+                0.0,
+                0.55,
+                0.0
+              ]
+            },
+            {
+              "piece": "left_leg",
+              "rotation_x": [
+                0.0,
+                -0.45,
+                0.0,
+                0.45,
+                0.0
+              ]
+            },
+            {
+              "piece": "right_leg",
+              "rotation_x": [
+                0.0,
+                0.45,
+                0.0,
+                -0.45,
+                0.0
+              ]
+            }
           ]
         }
       },
       "animation_state_rules": [
-        {"_comment_threshold": "0.5 chosen 2026-05-11 after observing wander + schedule attractors emit ~0.25 m/s near-target velocities that kept walk firing perpetually. 0.5 = brisk-walk minimum; idle below.",
-         "if_velocity_gt": 0.5, "state": "walk"},
-        {"default": "idle"}
+        {
+          "_comment_threshold": "0.5 chosen 2026-05-11 after observing wander + schedule attractors emit ~0.25 m/s near-target velocities that kept walk firing perpetually. 0.5 = brisk-walk minimum; idle below.",
+          "if_velocity_gt": 0.5,
+          "state": "walk"
+        },
+        {
+          "default": "idle"
+        }
       ]
     },
-
     "rabbit_3d": {
-      "_comment": "Tiny quadruped — 0.35m tall × 0.4m long. Round white-tail back, small head, two pointy ears. Reads as rabbit at a glance vs other ground props.",
+      "_comment": "Tiny quadruped \u2014 0.35m tall \u00d7 0.4m long. Round white-tail back, small head, two pointy ears. Reads as rabbit at a glance vs other ground props.",
       "primitives": [
-        {"op": "sphere",   "pos": [-0.1, 0.15, 0.0], "radius": 0.15, "color": "$body"},
-        {"op": "sphere",   "pos": [ 0.15, 0.20, 0.0], "radius": 0.10, "color": "$body"},
-        {"op": "cylinder", "pos": [ 0.16, 0.34, -0.04], "radius": 0.018, "height": 0.12, "color": "$ear"},
-        {"op": "cylinder", "pos": [ 0.16, 0.34,  0.04], "radius": 0.018, "height": 0.12, "color": "$ear"},
-        {"op": "sphere",   "pos": [-0.22, 0.16, 0.0], "radius": 0.06, "color": "$tail"}
+        {
+          "op": "sphere",
+          "pos": [
+            -0.1,
+            0.15,
+            0.0
+          ],
+          "radius": 0.15,
+          "color": "$body"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.15,
+            0.2,
+            0.0
+          ],
+          "radius": 0.1,
+          "color": "$body"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.16,
+            0.34,
+            -0.04
+          ],
+          "radius": 0.018,
+          "height": 0.12,
+          "color": "$ear"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.16,
+            0.34,
+            0.04
+          ],
+          "radius": 0.018,
+          "height": 0.12,
+          "color": "$ear"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.22,
+            0.16,
+            0.0
+          ],
+          "radius": 0.06,
+          "color": "$tail"
+        }
       ],
       "params": {
         "body": "#d8c8a0",
@@ -324,18 +1293,89 @@
         "tail": "#f8f0e0"
       }
     },
-
     "berry_bush_3d": {
-      "_comment": "Dome shrub with red berries. Green canopy + 5 red berry dots. ~0.7m tall × 1m wide. Reads as 'food shrub' from a distance.",
+      "_comment": "Dome shrub with red berries. Green canopy + 5 red berry dots. ~0.7m tall \u00d7 1m wide. Reads as 'food shrub' from a distance.",
       "primitives": [
-        {"op": "sphere", "pos": [ 0.0,  0.35, 0.0],  "radius": 0.45, "color": "$leaf"},
-        {"op": "sphere", "pos": [ 0.25, 0.42, 0.1],  "radius": 0.30, "color": "$leaf_dark"},
-        {"op": "sphere", "pos": [-0.25, 0.42, -0.1], "radius": 0.30, "color": "$leaf_dark"},
-        {"op": "sphere", "pos": [ 0.18, 0.60,  0.18],"radius": 0.06, "color": "$berry"},
-        {"op": "sphere", "pos": [-0.20, 0.55, -0.20],"radius": 0.06, "color": "$berry"},
-        {"op": "sphere", "pos": [ 0.05, 0.68,  0.10],"radius": 0.06, "color": "$berry"},
-        {"op": "sphere", "pos": [-0.10, 0.45,  0.25],"radius": 0.05, "color": "$berry"},
-        {"op": "sphere", "pos": [ 0.30, 0.50, -0.15],"radius": 0.05, "color": "$berry"}
+        {
+          "op": "sphere",
+          "pos": [
+            0.0,
+            0.35,
+            0.0
+          ],
+          "radius": 0.45,
+          "color": "$leaf"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.25,
+            0.42,
+            0.1
+          ],
+          "radius": 0.3,
+          "color": "$leaf_dark"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.25,
+            0.42,
+            -0.1
+          ],
+          "radius": 0.3,
+          "color": "$leaf_dark"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.18,
+            0.6,
+            0.18
+          ],
+          "radius": 0.06,
+          "color": "$berry"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.2,
+            0.55,
+            -0.2
+          ],
+          "radius": 0.06,
+          "color": "$berry"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.05,
+            0.68,
+            0.1
+          ],
+          "radius": 0.06,
+          "color": "$berry"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.1,
+            0.45,
+            0.25
+          ],
+          "radius": 0.05,
+          "color": "$berry"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.3,
+            0.5,
+            -0.15
+          ],
+          "radius": 0.05,
+          "color": "$berry"
+        }
       ],
       "params": {
         "leaf": "#487830",
@@ -343,18 +1383,93 @@
         "berry": "#c8283a"
       }
     },
-
     "mushroom_patch_3d": {
-      "_comment": "Cluster of 4 small brown mushrooms — stem cylinders + dome cap spheres. ~0.4m tall × 0.5m spread. Subdued earth-tone so the BRIGHT red_mushroom variant stands out by contrast.",
+      "_comment": "Cluster of 4 small brown mushrooms \u2014 stem cylinders + dome cap spheres. ~0.4m tall \u00d7 0.5m spread. Subdued earth-tone so the BRIGHT red_mushroom variant stands out by contrast.",
       "primitives": [
-        {"op": "cylinder", "pos": [ 0.0,  0.10, 0.0],  "radius": 0.04, "height": 0.20, "color": "$stem"},
-        {"op": "sphere",   "pos": [ 0.0,  0.24, 0.0],  "radius": 0.12, "color": "$cap"},
-        {"op": "cylinder", "pos": [ 0.18, 0.08, 0.10], "radius": 0.03, "height": 0.16, "color": "$stem"},
-        {"op": "sphere",   "pos": [ 0.18, 0.20, 0.10], "radius": 0.09, "color": "$cap"},
-        {"op": "cylinder", "pos": [-0.15, 0.07, 0.12], "radius": 0.03, "height": 0.14, "color": "$stem"},
-        {"op": "sphere",   "pos": [-0.15, 0.18, 0.12], "radius": 0.08, "color": "$cap"},
-        {"op": "cylinder", "pos": [-0.08, 0.06, -0.15],"radius": 0.025, "height": 0.12, "color": "$stem"},
-        {"op": "sphere",   "pos": [-0.08, 0.16, -0.15],"radius": 0.07, "color": "$cap_dark"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0.0,
+            0.1,
+            0.0
+          ],
+          "radius": 0.04,
+          "height": 0.2,
+          "color": "$stem"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.0,
+            0.24,
+            0.0
+          ],
+          "radius": 0.12,
+          "color": "$cap"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.18,
+            0.08,
+            0.1
+          ],
+          "radius": 0.03,
+          "height": 0.16,
+          "color": "$stem"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.18,
+            0.2,
+            0.1
+          ],
+          "radius": 0.09,
+          "color": "$cap"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.15,
+            0.07,
+            0.12
+          ],
+          "radius": 0.03,
+          "height": 0.14,
+          "color": "$stem"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.15,
+            0.18,
+            0.12
+          ],
+          "radius": 0.08,
+          "color": "$cap"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.08,
+            0.06,
+            -0.15
+          ],
+          "radius": 0.025,
+          "height": 0.12,
+          "color": "$stem"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.08,
+            0.16,
+            -0.15
+          ],
+          "radius": 0.07,
+          "color": "$cap_dark"
+        }
       ],
       "params": {
         "stem": "#d8c8a0",
@@ -362,16 +1477,70 @@
         "cap_dark": "#6a4828"
       }
     },
-
     "red_mushroom_3d": {
-      "_comment": "SINGLE distinctive red-cap mushroom — bigger than patch siblings so the player notices it. Pale stem + bright red cap with white dots. ~0.5m tall × 0.4m wide. Used by food_red_mushroom (Three Days to Eat hidden rule).",
+      "_comment": "SINGLE distinctive red-cap mushroom \u2014 bigger than patch siblings so the player notices it. Pale stem + bright red cap with white dots. ~0.5m tall \u00d7 0.4m wide. Used by food_red_mushroom (Three Days to Eat hidden rule).",
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.15, 0],     "radius": 0.07, "height": 0.30, "color": "$stem"},
-        {"op": "sphere",   "pos": [0, 0.38, 0],     "radius": 0.22, "color": "$cap"},
-        {"op": "sphere",   "pos": [ 0.12, 0.46, 0.08],  "radius": 0.04, "color": "$dot"},
-        {"op": "sphere",   "pos": [-0.10, 0.50, -0.06], "radius": 0.04, "color": "$dot"},
-        {"op": "sphere",   "pos": [ 0.05, 0.55, 0.10],  "radius": 0.035, "color": "$dot"},
-        {"op": "sphere",   "pos": [-0.08, 0.42, 0.15],  "radius": 0.035, "color": "$dot"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.15,
+            0
+          ],
+          "radius": 0.07,
+          "height": 0.3,
+          "color": "$stem"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.38,
+            0
+          ],
+          "radius": 0.22,
+          "color": "$cap"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.12,
+            0.46,
+            0.08
+          ],
+          "radius": 0.04,
+          "color": "$dot"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.1,
+            0.5,
+            -0.06
+          ],
+          "radius": 0.04,
+          "color": "$dot"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.05,
+            0.55,
+            0.1
+          ],
+          "radius": 0.035,
+          "color": "$dot"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.08,
+            0.42,
+            0.15
+          ],
+          "radius": 0.035,
+          "color": "$dot"
+        }
       ],
       "params": {
         "stem": "#f0e8d0",
@@ -379,76 +1548,439 @@
         "dot": "#f8f4e8"
       }
     },
-
     "log_pile_3d": {
-      "_comment": "Stacked split logs — 3-row pyramid. Bottom row 4 logs, middle row 3, top row 2. ~1.6m wide × 0.9m tall × 0.45m deep. Boxes rather than cylinders because the mesh primitive only does Y-axis cylinders (logs are horizontal). Light/dark wood color alternation gives stack texture.",
+      "_comment": "Stacked split logs \u2014 3-row pyramid. Bottom row 4 logs, middle row 3, top row 2. ~1.6m wide \u00d7 0.9m tall \u00d7 0.45m deep. Boxes rather than cylinders because the mesh primitive only does Y-axis cylinders (logs are horizontal). Light/dark wood color alternation gives stack texture.",
       "primitives": [
-        {"op": "box", "pos": [-0.6, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
-        {"op": "box", "pos": [-0.2, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
-        {"op": "box", "pos": [ 0.2, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
-        {"op": "box", "pos": [ 0.6, 0.18, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
-        {"op": "box", "pos": [-0.4, 0.54, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
-        {"op": "box", "pos": [ 0.0, 0.54, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
-        {"op": "box", "pos": [ 0.4, 0.54, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"},
-        {"op": "box", "pos": [-0.2, 0.90, 0], "size": [0.36, 0.36, 0.4], "color": "$wood"},
-        {"op": "box", "pos": [ 0.2, 0.90, 0], "size": [0.36, 0.36, 0.4], "color": "$wood_dark"}
+        {
+          "op": "box",
+          "pos": [
+            -0.6,
+            0.18,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.2,
+            0.18,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood_dark"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.2,
+            0.18,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.6,
+            0.18,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood_dark"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.4,
+            0.54,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood_dark"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.54,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.4,
+            0.54,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood_dark"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.2,
+            0.9,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.2,
+            0.9,
+            0
+          ],
+          "size": [
+            0.36,
+            0.36,
+            0.4
+          ],
+          "color": "$wood_dark"
+        }
       ],
       "params": {
         "wood": "#7a5028",
         "wood_dark": "#5a3818"
       }
     },
-
     "grass_tuft_3d": {
-      "_comment": "Tiny grass tuft — 3 angled blades on a small base. 0.3m wide × 0.4m tall. Scatter densely across village floor for ground texture; reads as 'this isn't bare earth.' cast_shadow:false — at this size shadow contribution is invisible, but each tuft shadow costs as much as its color pass.",
+      "_comment": "Tiny grass tuft \u2014 3 angled blades on a small base. 0.3m wide \u00d7 0.4m tall. Scatter densely across village floor for ground texture; reads as 'this isn't bare earth.' cast_shadow:false \u2014 at this size shadow contribution is invisible, but each tuft shadow costs as much as its color pass.",
       "multimesh_eligible": true,
       "cast_shadow": false,
       "primitives": [
-        {"op": "box", "pos": [ 0.0, 0.07, 0.0], "size": [0.05, 0.30, 0.04], "color": "$blade"},
-        {"op": "box", "pos": [ 0.08, 0.05, 0.0], "size": [0.04, 0.22, 0.04], "color": "$blade"},
-        {"op": "box", "pos": [-0.08, 0.06, 0.0], "size": [0.04, 0.26, 0.04], "color": "$blade_dark"}
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.07,
+            0.0
+          ],
+          "size": [
+            0.05,
+            0.3,
+            0.04
+          ],
+          "color": "$blade"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.08,
+            0.05,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.22,
+            0.04
+          ],
+          "color": "$blade"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.08,
+            0.06,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.26,
+            0.04
+          ],
+          "color": "$blade_dark"
+        }
       ],
       "params": {
-        "blade":      "#588040",
+        "blade": "#588040",
         "blade_dark": "#3a6028"
       }
     },
-
     "deer_3d": {
-      "_comment": "Quadruped buck — 4 legs, elongated body, neck, head, simple antlers. ~1.6m tall at antler tips, ~1.0m at back, ~1.5m long. Faces +X by default (head pokes out +X). Warm-brown coat. Reads unambiguously as a 4-legged animal — not human.",
+      "_comment": "Quadruped buck \u2014 4 legs, elongated body, neck, head, simple antlers. ~1.6m tall at antler tips, ~1.0m at back, ~1.5m long. Faces +X by default (head pokes out +X). Warm-brown coat. Reads unambiguously as a 4-legged animal \u2014 not human.",
       "primitives": [
-        {"op": "cylinder", "pos": [ 0.4, 0.35,  0.17], "radius": 0.07, "height": 0.7, "color": "$leg"},
-        {"op": "cylinder", "pos": [ 0.4, 0.35, -0.17], "radius": 0.07, "height": 0.7, "color": "$leg"},
-        {"op": "cylinder", "pos": [-0.4, 0.35,  0.17], "radius": 0.07, "height": 0.7, "color": "$leg"},
-        {"op": "cylinder", "pos": [-0.4, 0.35, -0.17], "radius": 0.07, "height": 0.7, "color": "$leg"},
-        {"op": "box",      "pos": [ 0.0, 0.92,  0.0 ], "size":   [1.0, 0.45, 0.4], "color": "$coat"},
-        {"op": "box",      "pos": [ 0.45, 1.15, 0.0 ], "size":   [0.18, 0.35, 0.18], "color": "$coat"},
-        {"op": "box",      "pos": [ 0.6, 1.38,  0.0 ], "size":   [0.3, 0.22, 0.22], "color": "$coat"},
-        {"op": "box",      "pos": [ 0.78, 1.35, 0.0 ], "size":   [0.12, 0.14, 0.15], "color": "$snout"},
-        {"op": "box",      "pos": [-0.55, 0.95, 0.0 ], "size":   [0.15, 0.15, 0.10], "color": "$tail"},
-        {"op": "cylinder", "pos": [ 0.6, 1.65,  0.08], "radius": 0.025, "height": 0.4, "color": "$antler"},
-        {"op": "cylinder", "pos": [ 0.6, 1.65, -0.08], "radius": 0.025, "height": 0.4, "color": "$antler"},
-        {"op": "cylinder", "pos": [ 0.7, 1.8,   0.15], "radius": 0.02, "height": 0.2, "color": "$antler"},
-        {"op": "cylinder", "pos": [ 0.7, 1.8,  -0.15], "radius": 0.02, "height": 0.2, "color": "$antler"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0.4,
+            0.35,
+            0.17
+          ],
+          "radius": 0.07,
+          "height": 0.7,
+          "color": "$leg"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.4,
+            0.35,
+            -0.17
+          ],
+          "radius": 0.07,
+          "height": 0.7,
+          "color": "$leg"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.4,
+            0.35,
+            0.17
+          ],
+          "radius": 0.07,
+          "height": 0.7,
+          "color": "$leg"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.4,
+            0.35,
+            -0.17
+          ],
+          "radius": 0.07,
+          "height": 0.7,
+          "color": "$leg"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.92,
+            0.0
+          ],
+          "size": [
+            1.0,
+            0.45,
+            0.4
+          ],
+          "color": "$coat"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.45,
+            1.15,
+            0.0
+          ],
+          "size": [
+            0.18,
+            0.35,
+            0.18
+          ],
+          "color": "$coat"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.6,
+            1.38,
+            0.0
+          ],
+          "size": [
+            0.3,
+            0.22,
+            0.22
+          ],
+          "color": "$coat"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.78,
+            1.35,
+            0.0
+          ],
+          "size": [
+            0.12,
+            0.14,
+            0.15
+          ],
+          "color": "$snout"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.55,
+            0.95,
+            0.0
+          ],
+          "size": [
+            0.15,
+            0.15,
+            0.1
+          ],
+          "color": "$tail"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.6,
+            1.65,
+            0.08
+          ],
+          "radius": 0.025,
+          "height": 0.4,
+          "color": "$antler"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.6,
+            1.65,
+            -0.08
+          ],
+          "radius": 0.025,
+          "height": 0.4,
+          "color": "$antler"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.7,
+            1.8,
+            0.15
+          ],
+          "radius": 0.02,
+          "height": 0.2,
+          "color": "$antler"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.7,
+            1.8,
+            -0.15
+          ],
+          "radius": 0.02,
+          "height": 0.2,
+          "color": "$antler"
+        }
       ],
       "params": {
-        "coat":   "#7a4a28",
-        "leg":    "#5a3818",
-        "snout":  "#3a2810",
-        "tail":   "#d8c8a8",
+        "coat": "#7a4a28",
+        "leg": "#5a3818",
+        "snout": "#3a2810",
+        "tail": "#d8c8a8",
         "antler": "#c0a070"
       }
     },
-
     "market_stall_3d": {
-      "_comment": "Market stall — wooden counter + 4 awning poles + striped roof plane. ~2.5m wide × 2.2m tall. Vendor NPC stands behind the counter to read as 'this is the market.'",
+      "_comment": "Market stall \u2014 wooden counter + 4 awning poles + striped roof plane. ~2.5m wide \u00d7 2.2m tall. Vendor NPC stands behind the counter to read as 'this is the market.'",
       "primitives": [
-        {"op": "box", "pos": [0, 0.5, 0.4], "size": [2.5, 1.0, 0.6], "color": "$counter"},
-        {"op": "cylinder", "pos": [-1.1, 1.4, -0.3], "radius": 0.06, "height": 1.8, "color": "$pole"},
-        {"op": "cylinder", "pos": [1.1, 1.4, -0.3], "radius": 0.06, "height": 1.8, "color": "$pole"},
-        {"op": "cylinder", "pos": [-1.1, 1.4, 0.8], "radius": 0.06, "height": 1.8, "color": "$pole"},
-        {"op": "cylinder", "pos": [1.1, 1.4, 0.8], "radius": 0.06, "height": 1.8, "color": "$pole"},
-        {"op": "box", "pos": [0, 2.35, 0.3], "size": [2.5, 0.06, 1.4], "color": "$awning"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0.4
+          ],
+          "size": [
+            2.5,
+            1.0,
+            0.6
+          ],
+          "color": "$counter"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -1.1,
+            1.4,
+            -0.3
+          ],
+          "radius": 0.06,
+          "height": 1.8,
+          "color": "$pole"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            1.1,
+            1.4,
+            -0.3
+          ],
+          "radius": 0.06,
+          "height": 1.8,
+          "color": "$pole"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -1.1,
+            1.4,
+            0.8
+          ],
+          "radius": 0.06,
+          "height": 1.8,
+          "color": "$pole"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            1.1,
+            1.4,
+            0.8
+          ],
+          "radius": 0.06,
+          "height": 1.8,
+          "color": "$pole"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.35,
+            0.3
+          ],
+          "size": [
+            2.5,
+            0.06,
+            1.4
+          ],
+          "color": "$awning"
+        }
       ],
       "params": {
         "counter": "#7a5a30",
@@ -456,670 +1988,3567 @@
         "awning": "#a04030"
       }
     },
-
     "building": {
       "primitives": [
-        {"op": "box",   "pos": [0, 0.5, 0], "size": [1.6, 1.0, 1.2], "color": "$wall"},
-        {"op": "prism", "pos": [0, 1.3, 0], "size": [1.8, 0.6, 1.4], "color": "$roof"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "size": [
+            1.6,
+            1.0,
+            1.2
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            1.3,
+            0
+          ],
+          "size": [
+            1.8,
+            0.6,
+            1.4
+          ],
+          "color": "$roof"
+        }
       ],
-      "params": {"wall": "#b8a98a", "roof": "#7a3a2a"}
+      "params": {
+        "wall": "#b8a98a",
+        "roof": "#7a3a2a"
+      }
     },
-
     "ash": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.3, "height": 0.1, "color": "$ash"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "radius": 0.3,
+          "height": 0.1,
+          "color": "$ash"
+        }
       ],
-      "params": {"ash": "#2a2618"}
+      "params": {
+        "ash": "#2a2618"
+      }
     },
-
     "burning_tree": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.12, "height": 0.8, "color": "$char"},
-        {"op": "sphere",   "pos": [0, 1.1, 0], "radius": 0.5,                 "color": "$flame"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "radius": 0.12,
+          "height": 0.8,
+          "color": "$char"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.1,
+            0
+          ],
+          "radius": 0.5,
+          "color": "$flame"
+        }
       ],
-      "params": {"char": "#3a1810", "flame": "#d94c1a"}
+      "params": {
+        "char": "#3a1810",
+        "flame": "#d94c1a"
+      }
     },
-
     "marker": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.05, 0], "size": [0.2, 0.1, 0.2], "color": "$mark"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "size": [
+            0.2,
+            0.1,
+            0.2
+          ],
+          "color": "$mark"
+        }
       ],
-      "params": {"mark": "#aaaaaa"}
+      "params": {
+        "mark": "#aaaaaa"
+      }
     },
-
     "imp_3d": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0.45, 0], "radius": 0.4, "color": "$body"},
-        {"op": "sphere", "pos": [0.18, 0.6, 0.18], "radius": 0.07, "color": "$eye"},
-        {"op": "sphere", "pos": [-0.18, 0.6, 0.18], "radius": 0.07, "color": "$eye"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.45,
+            0
+          ],
+          "radius": 0.4,
+          "color": "$body"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.18,
+            0.6,
+            0.18
+          ],
+          "radius": 0.07,
+          "color": "$eye"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.18,
+            0.6,
+            0.18
+          ],
+          "radius": 0.07,
+          "color": "$eye"
+        }
       ],
-      "params": {"body": "#a02020", "eye": "#ffd040"}
+      "params": {
+        "body": "#a02020",
+        "eye": "#ffd040"
+      }
     },
-
     "demon_3d": {
       "primitives": [
-        {"op": "sphere",   "pos": [0, 0.7, 0], "radius": 0.6, "color": "$body"},
-        {"op": "cylinder", "pos": [0.3, 1.2, 0], "radius": 0.06, "height": 0.3, "color": "$horn"},
-        {"op": "cylinder", "pos": [-0.3, 1.2, 0], "radius": 0.06, "height": 0.3, "color": "$horn"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.7,
+            0
+          ],
+          "radius": 0.6,
+          "color": "$body"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.3,
+            1.2,
+            0
+          ],
+          "radius": 0.06,
+          "height": 0.3,
+          "color": "$horn"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.3,
+            1.2,
+            0
+          ],
+          "radius": 0.06,
+          "height": 0.3,
+          "color": "$horn"
+        }
       ],
-      "params": {"body": "#601810", "horn": "#3a0a0a"}
+      "params": {
+        "body": "#601810",
+        "horn": "#3a0a0a"
+      }
     },
-
     "bolt_3d": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.18, "color": "$core"},
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.30, "color": "$tail"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$core"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.3,
+          "color": "$tail"
+        }
       ],
-      "params": {"core": "#ffe060", "tail": "#ff8020"}
+      "params": {
+        "core": "#ffe060",
+        "tail": "#ff8020"
+      }
     },
-
     "spark_3d": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.10, "color": "$glow"},
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.05, "color": "$core"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.1,
+          "color": "$glow"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.05,
+          "color": "$core"
+        }
       ],
-      "params": {"glow": "#ffe080", "core": "#ffffff"}
+      "params": {
+        "glow": "#ffe080",
+        "core": "#ffffff"
+      }
     },
-
     "med_kit_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.25, 0],  "size": [0.5, 0.5, 0.5], "color": "$body"},
-        {"op": "box", "pos": [0, 0.26, 0.26], "size": [0.3, 0.08, 0.02], "color": "$cross"},
-        {"op": "box", "pos": [0, 0.26, 0.26], "size": [0.08, 0.3, 0.02], "color": "$cross"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.25,
+            0
+          ],
+          "size": [
+            0.5,
+            0.5,
+            0.5
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.26,
+            0.26
+          ],
+          "size": [
+            0.3,
+            0.08,
+            0.02
+          ],
+          "color": "$cross"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.26,
+            0.26
+          ],
+          "size": [
+            0.08,
+            0.3,
+            0.02
+          ],
+          "color": "$cross"
+        }
       ],
-      "params": {"body": "#cc1818", "cross": "#ffffff"}
+      "params": {
+        "body": "#cc1818",
+        "cross": "#ffffff"
+      }
     },
-
     "ammo_box_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.2, 0],  "size": [0.5, 0.4, 0.35], "color": "$body"},
-        {"op": "box", "pos": [0, 0.42, 0], "size": [0.55, 0.04, 0.4], "color": "$band"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.2,
+            0
+          ],
+          "size": [
+            0.5,
+            0.4,
+            0.35
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.42,
+            0
+          ],
+          "size": [
+            0.55,
+            0.04,
+            0.4
+          ],
+          "color": "$band"
+        }
       ],
-      "params": {"body": "#e8c020", "band": "#806000"}
+      "params": {
+        "body": "#e8c020",
+        "band": "#806000"
+      }
     },
-
     "wp_marker": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.4, "height": 0.1, "color": "$glow"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "radius": 0.4,
+          "height": 0.1,
+          "color": "$glow"
+        }
       ],
-      "params": {"glow": "#3a8a3a"}
+      "params": {
+        "glow": "#3a8a3a"
+      }
     },
-
     "base_3d": {
       "primitives": [
-        {"op": "box",  "pos": [0, 0.5, 0], "size": [2, 1, 2], "color": "$frame"},
-        {"op": "box",  "pos": [0, 1.3, 0], "size": [1.4, 0.6, 1.4], "color": "$core"},
-        {"op": "sphere", "pos": [0, 1.9, 0], "radius": 0.3, "color": "$core"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "size": [
+            2,
+            1,
+            2
+          ],
+          "color": "$frame"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.3,
+            0
+          ],
+          "size": [
+            1.4,
+            0.6,
+            1.4
+          ],
+          "color": "$core"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.9,
+            0
+          ],
+          "radius": 0.3,
+          "color": "$core"
+        }
       ],
-      "params": {"core": "#1860d0", "frame": "#80b0ff"}
+      "params": {
+        "core": "#1860d0",
+        "frame": "#80b0ff"
+      }
     },
-
     "grunt_3d": {
       "primitives": [
-        {"op": "capsule", "pos": [0, 0.45, 0], "radius": 0.3, "height": 0.6, "color": "$body"},
-        {"op": "sphere",  "pos": [0, 1.1, 0], "radius": 0.18, "color": "$body"},
-        {"op": "cylinder","pos": [0.18, 1.25, 0], "radius": 0.04, "height": 0.18, "color": "$spike"},
-        {"op": "cylinder","pos": [-0.18, 1.25, 0], "radius": 0.04, "height": 0.18, "color": "$spike"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.45,
+            0
+          ],
+          "radius": 0.3,
+          "height": 0.6,
+          "color": "$body"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.1,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$body"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.18,
+            1.25,
+            0
+          ],
+          "radius": 0.04,
+          "height": 0.18,
+          "color": "$spike"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.18,
+            1.25,
+            0
+          ],
+          "radius": 0.04,
+          "height": 0.18,
+          "color": "$spike"
+        }
       ],
-      "params": {"body": "#a02020", "spike": "#3a0a0a"}
+      "params": {
+        "body": "#a02020",
+        "spike": "#3a0a0a"
+      }
     },
-
     "tower_3d": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.6, "height": 0.8, "color": "$base"},
-        {"op": "box",      "pos": [0, 1.0, 0], "size": [0.6, 0.4, 0.6], "color": "$base"},
-        {"op": "cylinder", "pos": [0, 1.25, 0.5], "radius": 0.12, "height": 0.6, "color": "$barrel"},
-        {"op": "sphere",   "pos": [0, 1.55, 0], "radius": 0.12, "color": "$glow"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "radius": 0.6,
+          "height": 0.8,
+          "color": "$base"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.0,
+            0
+          ],
+          "size": [
+            0.6,
+            0.4,
+            0.6
+          ],
+          "color": "$base"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.25,
+            0.5
+          ],
+          "radius": 0.12,
+          "height": 0.6,
+          "color": "$barrel"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.55,
+            0
+          ],
+          "radius": 0.12,
+          "color": "$glow"
+        }
       ],
-      "params": {"base": "#404048", "barrel": "#a0a0b0", "glow": "#ffe060"}
+      "params": {
+        "base": "#404048",
+        "barrel": "#a0a0b0",
+        "glow": "#ffe060"
+      }
     },
-
     "path_dot": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.02, 0], "radius": 0.18, "height": 0.04, "color": "$track"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.02,
+            0
+          ],
+          "radius": 0.18,
+          "height": 0.04,
+          "color": "$track"
+        }
       ],
-      "params": {"track": "#7050a0"}
+      "params": {
+        "track": "#7050a0"
+      }
     },
-
     "slot_ghost_mesh": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.04, 0], "radius": 0.7, "height": 0.08, "color": "$glow"},
-        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.5, "height": 0.02, "color": "#101020"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.04,
+            0
+          ],
+          "radius": 0.7,
+          "height": 0.08,
+          "color": "$glow"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "radius": 0.5,
+          "height": 0.02,
+          "color": "#101020"
+        }
       ],
-      "params": {"glow": "#5050a0"}
+      "params": {
+        "glow": "#5050a0"
+      }
     },
-
     "ranger_3d": {
       "primitives": [
-        {"op": "capsule",  "pos": [0, 0.45, 0],   "radius": 0.28, "height": 0.55, "color": "$body"},
-        {"op": "box",      "pos": [0, 1.05, 0],   "size": [0.45, 0.3, 0.45],       "color": "$body"},
-        {"op": "sphere",   "pos": [0, 1.1, 0.22], "radius": 0.1,                   "color": "$lens"},
-        {"op": "cylinder", "pos": [0.3, 0.85, 0.2], "radius": 0.05, "height": 0.5, "color": "$lens"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.45,
+            0
+          ],
+          "radius": 0.28,
+          "height": 0.55,
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.05,
+            0
+          ],
+          "size": [
+            0.45,
+            0.3,
+            0.45
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.1,
+            0.22
+          ],
+          "radius": 0.1,
+          "color": "$lens"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.3,
+            0.85,
+            0.2
+          ],
+          "radius": 0.05,
+          "height": 0.5,
+          "color": "$lens"
+        }
       ],
-      "params": {"body": "#603030", "lens": "#ff8040"}
+      "params": {
+        "body": "#603030",
+        "lens": "#ff8040"
+      }
     },
-
     "boss_3d": {
       "primitives": [
-        {"op": "sphere",   "pos": [0, 1.0, 0],    "radius": 1.0, "color": "$body"},
-        {"op": "sphere",   "pos": [0, 1.05, 0.6], "radius": 0.35, "color": "$core"},
-        {"op": "cylinder", "pos": [0.55, 1.7, 0], "radius": 0.1,  "height": 0.55, "color": "$horn"},
-        {"op": "cylinder", "pos": [-0.55, 1.7, 0], "radius": 0.1, "height": 0.55, "color": "$horn"},
-        {"op": "box",      "pos": [0, 0.25, 0],   "size": [1.4, 0.5, 1.4], "color": "$horn"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.0,
+            0
+          ],
+          "radius": 1.0,
+          "color": "$body"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.05,
+            0.6
+          ],
+          "radius": 0.35,
+          "color": "$core"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.55,
+            1.7,
+            0
+          ],
+          "radius": 0.1,
+          "height": 0.55,
+          "color": "$horn"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.55,
+            1.7,
+            0
+          ],
+          "radius": 0.1,
+          "height": 0.55,
+          "color": "$horn"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.25,
+            0
+          ],
+          "size": [
+            1.4,
+            0.5,
+            1.4
+          ],
+          "color": "$horn"
+        }
       ],
-      "params": {"body": "#2a0a0a", "core": "#ff4040", "horn": "#1a0505"}
+      "params": {
+        "body": "#2a0a0a",
+        "core": "#ff4040",
+        "horn": "#1a0505"
+      }
     },
-
     "enemy_bolt_3d": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.18, "color": "$core"},
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.30, "color": "$tail"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$core"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.3,
+          "color": "$tail"
+        }
       ],
-      "params": {"core": "#ff4040", "tail": "#a02020"}
+      "params": {
+        "core": "#ff4040",
+        "tail": "#a02020"
+      }
     },
-
     "wall_panel_ns": {
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [44, 3, 0.5],   "color": "#3a3a40"},
-        {"op": "box", "pos": [0, 0.4, 0], "size": [44, 0.25, 0.55], "color": "#cc7000"},
-        {"op": "box", "pos": [0, 2.6, 0], "size": [44, 0.25, 0.55], "color": "#cc7000"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            44,
+            3,
+            0.5
+          ],
+          "color": "#3a3a40"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            44,
+            0.25,
+            0.55
+          ],
+          "color": "#cc7000"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "size": [
+            44,
+            0.25,
+            0.55
+          ],
+          "color": "#cc7000"
+        }
       ]
     },
-
     "wall_panel_short_ns": {
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [16, 3, 0.5],   "color": "#3a3a40"},
-        {"op": "box", "pos": [0, 0.4, 0], "size": [16, 0.25, 0.55], "color": "#cc7000"},
-        {"op": "box", "pos": [0, 2.6, 0], "size": [16, 0.25, 0.55], "color": "#cc7000"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            16,
+            3,
+            0.5
+          ],
+          "color": "#3a3a40"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            16,
+            0.25,
+            0.55
+          ],
+          "color": "#cc7000"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "size": [
+            16,
+            0.25,
+            0.55
+          ],
+          "color": "#cc7000"
+        }
       ]
     },
-
     "wall_panel_ns_28": {
-      "_comment": "Chamber 1 (Outer Containment) NS wall — 28m wide vs 44m full-chamber wall.",
+      "_comment": "Chamber 1 (Outer Containment) NS wall \u2014 28m wide vs 44m full-chamber wall.",
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [28, 3, 0.5],   "color": "#3a3a40"},
-        {"op": "box", "pos": [0, 0.4, 0], "size": [28, 0.25, 0.55], "color": "#cc7000"},
-        {"op": "box", "pos": [0, 2.6, 0], "size": [28, 0.25, 0.55], "color": "#cc7000"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            28,
+            3,
+            0.5
+          ],
+          "color": "#3a3a40"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            28,
+            0.25,
+            0.55
+          ],
+          "color": "#cc7000"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "size": [
+            28,
+            0.25,
+            0.55
+          ],
+          "color": "#cc7000"
+        }
       ]
     },
-
     "wall_panel_ew_28": {
-      "_comment": "Chamber 1 EW wall — 28m deep, oriented along Z axis.",
+      "_comment": "Chamber 1 EW wall \u2014 28m deep, oriented along Z axis.",
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [0.5, 3, 28],   "color": "#3a3a40"},
-        {"op": "box", "pos": [0, 0.4, 0], "size": [0.55, 0.25, 28], "color": "#cc7000"},
-        {"op": "box", "pos": [0, 2.6, 0], "size": [0.55, 0.25, 28], "color": "#cc7000"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            0.5,
+            3,
+            28
+          ],
+          "color": "#3a3a40"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            0.55,
+            0.25,
+            28
+          ],
+          "color": "#cc7000"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "size": [
+            0.55,
+            0.25,
+            28
+          ],
+          "color": "#cc7000"
+        }
       ]
     },
-
     "machinery_crate": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.75, 0], "size": [1.5, 1.5, 1.5], "color": "$body"},
-        {"op": "box", "pos": [0, 0.15, 0], "size": [1.6, 0.18, 1.6], "color": "$band"},
-        {"op": "box", "pos": [0, 1.35, 0], "size": [1.6, 0.18, 1.6], "color": "$band"},
-        {"op": "cylinder", "pos": [0.5, 1.6, 0.5], "radius": 0.08, "height": 0.3, "color": "$pipe"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.75,
+            0
+          ],
+          "size": [
+            1.5,
+            1.5,
+            1.5
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.15,
+            0
+          ],
+          "size": [
+            1.6,
+            0.18,
+            1.6
+          ],
+          "color": "$band"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.35,
+            0
+          ],
+          "size": [
+            1.6,
+            0.18,
+            1.6
+          ],
+          "color": "$band"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.5,
+            1.6,
+            0.5
+          ],
+          "radius": 0.08,
+          "height": 0.3,
+          "color": "$pipe"
+        }
       ],
-      "params": {"body": "#5a3018", "band": "#cc7000", "pipe": "#1a1a1a"}
+      "params": {
+        "body": "#5a3018",
+        "band": "#cc7000",
+        "pipe": "#1a1a1a"
+      }
     },
-
     "wall_panel_ew": {
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [0.5, 3, 44],    "color": "#3a3a40"},
-        {"op": "box", "pos": [0, 0.4, 0], "size": [0.55, 0.25, 44], "color": "#cc7000"},
-        {"op": "box", "pos": [0, 2.6, 0], "size": [0.55, 0.25, 44], "color": "#cc7000"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            0.5,
+            3,
+            44
+          ],
+          "color": "#3a3a40"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            0.55,
+            0.25,
+            44
+          ],
+          "color": "#cc7000"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "size": [
+            0.55,
+            0.25,
+            44
+          ],
+          "color": "#cc7000"
+        }
       ]
     },
-
     "pillar_steel": {
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [1, 3, 1],   "color": "$body"},
-        {"op": "box", "pos": [0, 0.4, 0], "size": [1.1, 0.2, 1.1], "color": "$band"},
-        {"op": "box", "pos": [0, 2.6, 0], "size": [1.1, 0.2, 1.1], "color": "$band"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            1,
+            3,
+            1
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            1.1,
+            0.2,
+            1.1
+          ],
+          "color": "$band"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "size": [
+            1.1,
+            0.2,
+            1.1
+          ],
+          "color": "$band"
+        }
       ],
-      "params": {"body": "#2a2a32", "band": "#cc7000"}
+      "params": {
+        "body": "#2a2a32",
+        "band": "#cc7000"
+      }
     },
-
     "floor_grate": {
       "primitives": [
-        {"op": "box", "pos": [0, -0.55, 0], "size": [44, 1, 44], "color": "#1c1c20"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            -0.55,
+            0
+          ],
+          "size": [
+            44,
+            1,
+            44
+          ],
+          "color": "#1c1c20"
+        }
       ]
     },
-
     "pellet_3d": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.10, "color": "$core"},
-        {"op": "sphere", "pos": [0, 0, 0], "radius": 0.16, "color": "$tail"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.1,
+          "color": "$core"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.16,
+          "color": "$tail"
+        }
       ],
-      "params": {"core": "#fff8d8", "tail": "#a09870"}
+      "params": {
+        "core": "#fff8d8",
+        "tail": "#a09870"
+      }
     },
-
     "rocket_3d": {
       "primitives": [
-        {"op": "capsule",  "pos": [0, 0, 0], "radius": 0.18, "height": 0.5, "color": "$core"},
-        {"op": "sphere",   "pos": [0, 0, 0], "radius": 0.34, "color": "$tail"},
-        {"op": "cylinder", "pos": [0, 0, -0.3], "radius": 0.06, "height": 0.4, "color": "$tail"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.18,
+          "height": 0.5,
+          "color": "$core"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            0
+          ],
+          "radius": 0.34,
+          "color": "$tail"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0,
+            -0.3
+          ],
+          "radius": 0.06,
+          "height": 0.4,
+          "color": "$tail"
+        }
       ],
-      "params": {"core": "#ff5020", "tail": "#902020"}
+      "params": {
+        "core": "#ff5020",
+        "tail": "#902020"
+      }
     },
-
     "viewmodel_plasma": {
       "primitives": [
-        {"op": "box",      "pos": [0, 0, -0.2],  "size": [0.18, 0.18, 0.6], "color": "$body"},
-        {"op": "cylinder", "pos": [0, -0.05, -0.55], "radius": 0.08, "height": 0.35, "color": "$barrel"},
-        {"op": "sphere",   "pos": [0, -0.05, -0.74], "radius": 0.07, "color": "$glow"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0,
+            -0.2
+          ],
+          "size": [
+            0.18,
+            0.18,
+            0.6
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            -0.05,
+            -0.55
+          ],
+          "radius": 0.08,
+          "height": 0.35,
+          "color": "$barrel"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            -0.05,
+            -0.74
+          ],
+          "radius": 0.07,
+          "color": "$glow"
+        }
       ],
-      "params": {"body": "#404048", "barrel": "#a0a0b0", "glow": "#ffe060"}
+      "params": {
+        "body": "#404048",
+        "barrel": "#a0a0b0",
+        "glow": "#ffe060"
+      }
     },
-
     "viewmodel_shotgun": {
       "primitives": [
-        {"op": "box",      "pos": [0, 0, -0.25], "size": [0.22, 0.16, 0.7], "color": "$body"},
-        {"op": "cylinder", "pos": [-0.06, -0.04, -0.65], "radius": 0.06, "height": 0.5, "color": "$barrel"},
-        {"op": "cylinder", "pos": [0.06, -0.04, -0.65],  "radius": 0.06, "height": 0.5, "color": "$barrel"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0,
+            -0.25
+          ],
+          "size": [
+            0.22,
+            0.16,
+            0.7
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.06,
+            -0.04,
+            -0.65
+          ],
+          "radius": 0.06,
+          "height": 0.5,
+          "color": "$barrel"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.06,
+            -0.04,
+            -0.65
+          ],
+          "radius": 0.06,
+          "height": 0.5,
+          "color": "$barrel"
+        }
       ],
-      "params": {"body": "#5a3a20", "barrel": "#1a1a1c"}
+      "params": {
+        "body": "#5a3a20",
+        "barrel": "#1a1a1c"
+      }
     },
-
     "viewmodel_rocket": {
       "primitives": [
-        {"op": "box",      "pos": [0, 0, -0.2],  "size": [0.22, 0.22, 0.6], "color": "$body"},
-        {"op": "cylinder", "pos": [0, 0, -0.6],  "radius": 0.16, "height": 0.5, "color": "$tube"},
-        {"op": "sphere",   "pos": [0, 0, -0.85], "radius": 0.13, "color": "$cap"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0,
+            -0.2
+          ],
+          "size": [
+            0.22,
+            0.22,
+            0.6
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0,
+            -0.6
+          ],
+          "radius": 0.16,
+          "height": 0.5,
+          "color": "$tube"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0,
+            -0.85
+          ],
+          "radius": 0.13,
+          "color": "$cap"
+        }
       ],
-      "params": {"body": "#3a2a1a", "tube": "#202022", "cap": "#ff5020"}
+      "params": {
+        "body": "#3a2a1a",
+        "tube": "#202022",
+        "cap": "#ff5020"
+      }
     },
-
     "wall_block_2m": {
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [2, 3, 2],   "color": "$body"},
-        {"op": "box", "pos": [0, 0.4, 0], "size": [2.05, 0.2, 2.05], "color": "$stripe"},
-        {"op": "box", "pos": [0, 2.6, 0], "size": [2.05, 0.2, 2.05], "color": "$stripe"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            2,
+            3,
+            2
+          ],
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            2.05,
+            0.2,
+            2.05
+          ],
+          "color": "$stripe"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.6,
+            0
+          ],
+          "size": [
+            2.05,
+            0.2,
+            2.05
+          ],
+          "color": "$stripe"
+        }
       ],
-      "params": {"body": "#3a3a40", "stripe": "#cc7000"}
+      "params": {
+        "body": "#3a3a40",
+        "stripe": "#cc7000"
+      }
     },
-
     "goal_pad": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.05, 0], "radius": 0.9, "height": 0.1, "color": "$glow"},
-        {"op": "cylinder", "pos": [0, 0.12, 0], "radius": 0.4, "height": 0.05, "color": "#ffffff"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "radius": 0.9,
+          "height": 0.1,
+          "color": "$glow"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.12,
+            0
+          ],
+          "radius": 0.4,
+          "height": 0.05,
+          "color": "#ffffff"
+        }
       ],
-      "params": {"glow": "#3adb40"}
+      "params": {
+        "glow": "#3adb40"
+      }
     },
-
     "merchant_player_3d": {
       "primitives": [
-        {"op": "capsule",  "pos": [0, 0.85, 0], "radius": 0.25, "height": 1.4, "color": "$shirt"},
-        {"op": "sphere",   "pos": [0, 1.65, 0], "radius": 0.22,                "color": "$skin"},
-        {"op": "cylinder", "pos": [0, 1.85, 0], "radius": 0.28, "height": 0.18, "color": "$hat"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.85,
+            0
+          ],
+          "radius": 0.25,
+          "height": 1.4,
+          "color": "$shirt"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.65,
+            0
+          ],
+          "radius": 0.22,
+          "color": "$skin"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.85,
+            0
+          ],
+          "radius": 0.28,
+          "height": 0.18,
+          "color": "$hat"
+        }
       ],
-      "params": {"shirt": "#3aa050", "skin": "#f4d6b4", "hat": "#5040a0"}
+      "params": {
+        "shirt": "#3aa050",
+        "skin": "#f4d6b4",
+        "hat": "#5040a0"
+      }
     },
-
     "merchant_npc_3d": {
       "primitives": [
-        {"op": "capsule", "pos": [0, 0.8, 0], "radius": 0.22, "height": 1.3, "color": "$shirt"},
-        {"op": "sphere",  "pos": [0, 1.55, 0], "radius": 0.2,                "color": "$skin"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.8,
+            0
+          ],
+          "radius": 0.22,
+          "height": 1.3,
+          "color": "$shirt"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.55,
+            0
+          ],
+          "radius": 0.2,
+          "color": "$skin"
+        }
       ],
-      "params": {"shirt": "#7a6050", "skin": "#d8b894"}
+      "params": {
+        "shirt": "#7a6050",
+        "skin": "#d8b894"
+      }
     },
-
     "merchant_slime_3d": {
       "primitives": [
-        {"op": "sphere", "pos": [0, 0.4, 0], "radius": 0.45, "color": "$body"},
-        {"op": "sphere", "pos": [-0.15, 0.55, 0.3], "radius": 0.06, "color": "#000000"},
-        {"op": "sphere", "pos": [0.15, 0.55, 0.3], "radius": 0.06, "color": "#000000"}
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "radius": 0.45,
+          "color": "$body"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.15,
+            0.55,
+            0.3
+          ],
+          "radius": 0.06,
+          "color": "#000000"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.15,
+            0.55,
+            0.3
+          ],
+          "radius": 0.06,
+          "color": "#000000"
+        }
       ],
-      "params": {"body": "#90c060"}
+      "params": {
+        "body": "#90c060"
+      }
     },
-
     "merchant_chest_t1_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.3, 0], "size": [0.8, 0.5, 0.5], "color": "$wood"},
-        {"op": "box", "pos": [0, 0.6, 0], "size": [0.85, 0.15, 0.55], "color": "$lid"},
-        {"op": "box", "pos": [0, 0.4, 0.27], "size": [0.1, 0.1, 0.05], "color": "$lock"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.3,
+            0
+          ],
+          "size": [
+            0.8,
+            0.5,
+            0.5
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.6,
+            0
+          ],
+          "size": [
+            0.85,
+            0.15,
+            0.55
+          ],
+          "color": "$lid"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0.27
+          ],
+          "size": [
+            0.1,
+            0.1,
+            0.05
+          ],
+          "color": "$lock"
+        }
       ],
-      "params": {"wood": "#7a5030", "lid": "#5a3820", "lock": "#d8b048"}
+      "params": {
+        "wood": "#7a5030",
+        "lid": "#5a3820",
+        "lock": "#d8b048"
+      }
     },
-
     "merchant_chest_t2_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.32, 0], "size": [0.9, 0.55, 0.55], "color": "$wood"},
-        {"op": "box", "pos": [0, 0.65, 0], "size": [0.95, 0.18, 0.6], "color": "$lid"},
-        {"op": "box", "pos": [0, 0.45, 0.3], "size": [0.12, 0.12, 0.05], "color": "$lock"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.32,
+            0
+          ],
+          "size": [
+            0.9,
+            0.55,
+            0.55
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.65,
+            0
+          ],
+          "size": [
+            0.95,
+            0.18,
+            0.6
+          ],
+          "color": "$lid"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.45,
+            0.3
+          ],
+          "size": [
+            0.12,
+            0.12,
+            0.05
+          ],
+          "color": "$lock"
+        }
       ],
-      "params": {"wood": "#5a4040", "lid": "#3a2828", "lock": "#c0c0c0"}
+      "params": {
+        "wood": "#5a4040",
+        "lid": "#3a2828",
+        "lock": "#c0c0c0"
+      }
     },
-
     "merchant_chest_t3_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.35, 0], "size": [1.0, 0.6, 0.6], "color": "$wood"},
-        {"op": "box", "pos": [0, 0.7, 0], "size": [1.05, 0.2, 0.65], "color": "$lid"},
-        {"op": "box", "pos": [0, 0.5, 0.32], "size": [0.14, 0.14, 0.06], "color": "$lock"},
-        {"op": "sphere", "pos": [0, 0.9, 0], "radius": 0.08, "color": "$gem"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.35,
+            0
+          ],
+          "size": [
+            1.0,
+            0.6,
+            0.6
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.7,
+            0
+          ],
+          "size": [
+            1.05,
+            0.2,
+            0.65
+          ],
+          "color": "$lid"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0.32
+          ],
+          "size": [
+            0.14,
+            0.14,
+            0.06
+          ],
+          "color": "$lock"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.9,
+            0
+          ],
+          "radius": 0.08,
+          "color": "$gem"
+        }
       ],
-      "params": {"wood": "#3a2840", "lid": "#1a1428", "lock": "#ffd040", "gem": "#a040ff"}
+      "params": {
+        "wood": "#3a2840",
+        "lid": "#1a1428",
+        "lock": "#ffd040",
+        "gem": "#a040ff"
+      }
     },
-
     "merchant_counter_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.5, 0], "size": [3.0, 1.0, 0.8], "color": "$wood"},
-        {"op": "box", "pos": [0, 1.05, 0], "size": [3.1, 0.1, 0.9], "color": "$top"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "size": [
+            3.0,
+            1.0,
+            0.8
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.05,
+            0
+          ],
+          "size": [
+            3.1,
+            0.1,
+            0.9
+          ],
+          "color": "$top"
+        }
       ],
-      "params": {"wood": "#7a5030", "top": "#a07040"}
+      "params": {
+        "wood": "#7a5030",
+        "top": "#a07040"
+      }
     },
-
     "merchant_shelf_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.8, 0], "size": [2.0, 1.6, 0.4], "color": "$wood"},
-        {"op": "box", "pos": [0, 0.5, 0.05], "size": [2.05, 0.1, 0.5], "color": "$shelf"},
-        {"op": "box", "pos": [0, 1.0, 0.05], "size": [2.05, 0.1, 0.5], "color": "$shelf"},
-        {"op": "box", "pos": [0, 1.5, 0.05], "size": [2.05, 0.1, 0.5], "color": "$shelf"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.8,
+            0
+          ],
+          "size": [
+            2.0,
+            1.6,
+            0.4
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0.05
+          ],
+          "size": [
+            2.05,
+            0.1,
+            0.5
+          ],
+          "color": "$shelf"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.0,
+            0.05
+          ],
+          "size": [
+            2.05,
+            0.1,
+            0.5
+          ],
+          "color": "$shelf"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0.05
+          ],
+          "size": [
+            2.05,
+            0.1,
+            0.5
+          ],
+          "color": "$shelf"
+        }
       ],
-      "params": {"wood": "#6a4828", "shelf": "#9a7050"}
+      "params": {
+        "wood": "#6a4828",
+        "shelf": "#9a7050"
+      }
     },
-
     "merchant_door_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 1.0, 0], "size": [1.0, 2.0, 0.1], "color": "$wood"},
-        {"op": "sphere", "pos": [0.35, 1.0, 0.06], "radius": 0.05, "color": "$knob"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.0,
+            0
+          ],
+          "size": [
+            1.0,
+            2.0,
+            0.1
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.35,
+            1.0,
+            0.06
+          ],
+          "radius": 0.05,
+          "color": "$knob"
+        }
       ],
-      "params": {"wood": "#5a3820", "knob": "#d8b048"}
+      "params": {
+        "wood": "#5a3820",
+        "knob": "#d8b048"
+      }
     },
-
     "merchant_city_wall_segment_3d": {
-      "_comment": "Stone wall segment, 10m long × 4m tall × 1m thick. Tile multiple along perimeter for a continuous wall. Crenellated top (small box pattern) gives medieval keep silhouette.",
+      "_comment": "Stone wall segment, 10m long \u00d7 4m tall \u00d7 1m thick. Tile multiple along perimeter for a continuous wall. Crenellated top (small box pattern) gives medieval keep silhouette.",
       "primitives": [
-        {"op": "box", "pos": [0, 2.0, 0],   "size": [10.0, 4.0, 1.0], "color": "$stone"},
-        {"op": "box", "pos": [-4.0, 4.3, 0], "size": [1.5, 0.6, 1.2], "color": "$stone"},
-        {"op": "box", "pos": [-1.5, 4.3, 0], "size": [1.5, 0.6, 1.2], "color": "$stone"},
-        {"op": "box", "pos": [1.5, 4.3, 0],  "size": [1.5, 0.6, 1.2], "color": "$stone"},
-        {"op": "box", "pos": [4.0, 4.3, 0],  "size": [1.5, 0.6, 1.2], "color": "$stone"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.0,
+            0
+          ],
+          "size": [
+            10.0,
+            4.0,
+            1.0
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -4.0,
+            4.3,
+            0
+          ],
+          "size": [
+            1.5,
+            0.6,
+            1.2
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.5,
+            4.3,
+            0
+          ],
+          "size": [
+            1.5,
+            0.6,
+            1.2
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.5,
+            4.3,
+            0
+          ],
+          "size": [
+            1.5,
+            0.6,
+            1.2
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "box",
+          "pos": [
+            4.0,
+            4.3,
+            0
+          ],
+          "size": [
+            1.5,
+            0.6,
+            1.2
+          ],
+          "color": "$stone"
+        }
       ],
-      "params": {"stone": "#6a5a4a"}
+      "params": {
+        "stone": "#6a5a4a"
+      }
     },
-
     "merchant_city_gate_3d": {
       "_comment": "Wider gate: 2 stone pillars + arched lintel. Place where roads meet city perimeter (4 cardinal gates).",
       "primitives": [
-        {"op": "box", "pos": [-3.5, 3.0, 0], "size": [1.5, 6.0, 1.5], "color": "$stone"},
-        {"op": "box", "pos": [3.5, 3.0, 0],  "size": [1.5, 6.0, 1.5], "color": "$stone"},
-        {"op": "box", "pos": [0, 5.5, 0],    "size": [9.0, 1.0, 1.2], "color": "$stone"},
-        {"op": "box", "pos": [0, 6.3, 0],    "size": [10.0, 0.6, 1.4], "color": "$stone"},
-        {"op": "sphere", "pos": [-3.5, 6.7, 0], "radius": 0.4, "color": "$banner"},
-        {"op": "sphere", "pos": [3.5, 6.7, 0],  "radius": 0.4, "color": "$banner"}
+        {
+          "op": "box",
+          "pos": [
+            -3.5,
+            3.0,
+            0
+          ],
+          "size": [
+            1.5,
+            6.0,
+            1.5
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "box",
+          "pos": [
+            3.5,
+            3.0,
+            0
+          ],
+          "size": [
+            1.5,
+            6.0,
+            1.5
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            5.5,
+            0
+          ],
+          "size": [
+            9.0,
+            1.0,
+            1.2
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            6.3,
+            0
+          ],
+          "size": [
+            10.0,
+            0.6,
+            1.4
+          ],
+          "color": "$stone"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -3.5,
+            6.7,
+            0
+          ],
+          "radius": 0.4,
+          "color": "$banner"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            3.5,
+            6.7,
+            0
+          ],
+          "radius": 0.4,
+          "color": "$banner"
+        }
       ],
-      "params": {"stone": "#6a5a4a", "banner": "#aa3030"}
+      "params": {
+        "stone": "#6a5a4a",
+        "banner": "#aa3030"
+      }
     },
-
     "merchant_lamppost_lit_3d": {
-      "_comment": "FAT lamppost — 0.3m radius lamp head (was 0.05 — invisible). Per visual-density vocabulary axis 4 (micro-lights every 8-15m, FAT, warm). Two-tone: dark post, bright warm sphere on top.",
+      "_comment": "FAT lamppost \u2014 0.3m radius lamp head (was 0.05 \u2014 invisible). Per visual-density vocabulary axis 4 (micro-lights every 8-15m, FAT, warm). Two-tone: dark post, bright warm sphere on top.",
       "primitives": [
-        {"op": "cylinder", "pos": [0, 1.5, 0], "radius": 0.07, "height": 3.0, "color": "$post"},
-        {"op": "box",      "pos": [0, 3.05, 0], "size": [0.4, 0.1, 0.4], "color": "$post"},
-        {"op": "sphere",   "pos": [0, 3.4, 0], "radius": 0.32, "color": "$lamp"},
-        {"op": "sphere",   "pos": [0, 3.4, 0], "radius": 0.42, "color": "$glow"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "radius": 0.07,
+          "height": 3.0,
+          "color": "$post"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            3.05,
+            0
+          ],
+          "size": [
+            0.4,
+            0.1,
+            0.4
+          ],
+          "color": "$post"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            3.4,
+            0
+          ],
+          "radius": 0.32,
+          "color": "$lamp"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            3.4,
+            0
+          ],
+          "radius": 0.42,
+          "color": "$glow"
+        }
       ],
-      "params": {"post": "#2a1a10", "lamp": "#ffe080", "glow": "#ffaa40"}
+      "params": {
+        "post": "#2a1a10",
+        "lamp": "#ffe080",
+        "glow": "#ffaa40"
+      }
     },
-
     "merchant_npc_hero_3d": {
-      "_comment": "Hero / player silhouette — capsule body + cape behind + helm. Distinct from generic townie at glance. Per visual-density axis 10 (silhouette readability).",
+      "_comment": "Hero / player silhouette \u2014 capsule body + cape behind + helm. Distinct from generic townie at glance. Per visual-density axis 10 (silhouette readability).",
       "primitives": [
-        {"op": "capsule",  "pos": [0, 0.9, 0],  "radius": 0.3, "height": 1.4, "color": "$body"},
-        {"op": "box",      "pos": [0, 1.35, -0.32], "size": [0.65, 1.0, 0.05], "color": "$cape"},
-        {"op": "sphere",   "pos": [0, 1.85, 0], "radius": 0.28, "color": "$skin"},
-        {"op": "box",      "pos": [0, 2.05, 0], "size": [0.55, 0.18, 0.55], "color": "$helm"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.9,
+            0
+          ],
+          "radius": 0.3,
+          "height": 1.4,
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.35,
+            -0.32
+          ],
+          "size": [
+            0.65,
+            1.0,
+            0.05
+          ],
+          "color": "$cape"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.85,
+            0
+          ],
+          "radius": 0.28,
+          "color": "$skin"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.05,
+            0
+          ],
+          "size": [
+            0.55,
+            0.18,
+            0.55
+          ],
+          "color": "$helm"
+        }
       ],
-      "params": {"body": "#3a4a6a", "cape": "#aa2828", "skin": "#dab098", "helm": "#888888"}
+      "params": {
+        "body": "#3a4a6a",
+        "cape": "#aa2828",
+        "skin": "#dab098",
+        "helm": "#888888"
+      }
     },
-
     "merchant_npc_shopkeeper_3d": {
-      "_comment": "Shopkeeper silhouette — capsule + apron front. Used for supplier stalls + Tomas/Mireille shop owner.",
+      "_comment": "Shopkeeper silhouette \u2014 capsule + apron front. Used for supplier stalls + Tomas/Mireille shop owner.",
       "primitives": [
-        {"op": "capsule",  "pos": [0, 0.9, 0],  "radius": 0.3, "height": 1.4, "color": "$body"},
-        {"op": "box",      "pos": [0, 0.6, 0.32], "size": [0.55, 0.7, 0.05], "color": "$apron"},
-        {"op": "sphere",   "pos": [0, 1.85, 0], "radius": 0.28, "color": "$skin"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.9,
+            0
+          ],
+          "radius": 0.3,
+          "height": 1.4,
+          "color": "$body"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.6,
+            0.32
+          ],
+          "size": [
+            0.55,
+            0.7,
+            0.05
+          ],
+          "color": "$apron"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.85,
+            0
+          ],
+          "radius": 0.28,
+          "color": "$skin"
+        }
       ],
-      "params": {"body": "#6a5040", "apron": "#a89860", "skin": "#dab098"}
+      "params": {
+        "body": "#6a5040",
+        "apron": "#a89860",
+        "skin": "#dab098"
+      }
     },
-
     "merchant_npc_child_3d": {
-      "_comment": "Child silhouette — smaller scale, no hat. For ambient cottage village kids.",
+      "_comment": "Child silhouette \u2014 smaller scale, no hat. For ambient cottage village kids.",
       "primitives": [
-        {"op": "capsule",  "pos": [0, 0.55, 0],  "radius": 0.22, "height": 0.85, "color": "$body"},
-        {"op": "sphere",   "pos": [0, 1.18, 0], "radius": 0.22, "color": "$skin"}
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            0.55,
+            0
+          ],
+          "radius": 0.22,
+          "height": 0.85,
+          "color": "$body"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.18,
+            0
+          ],
+          "radius": 0.22,
+          "color": "$skin"
+        }
       ],
-      "params": {"body": "#8a6a48", "skin": "#dab098"}
+      "params": {
+        "body": "#8a6a48",
+        "skin": "#dab098"
+      }
     },
-
     "merchant_cobblestone_tile_3d": {
-      "_comment": "Flat road tile, ~5m square × 5cm thick. Dark-grey cobblestone color. Place in lines for cardinal roads connecting plaza to districts. Use small Y offset so tiles sit on top of the dirt ground without z-fighting.",
+      "_comment": "Flat road tile, ~5m square \u00d7 5cm thick. Dark-grey cobblestone color. Place in lines for cardinal roads connecting plaza to districts. Use small Y offset so tiles sit on top of the dirt ground without z-fighting.",
       "primitives": [
-        {"op": "box", "pos": [0, 0.05, 0], "size": [5.0, 0.1, 5.0], "color": "$tile"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "size": [
+            5.0,
+            0.1,
+            5.0
+          ],
+          "color": "$tile"
+        }
       ],
-      "params": {"tile": "#5a5448"}
+      "params": {
+        "tile": "#5a5448"
+      }
     },
-
     "merchant_plaza_tile_3d": {
       "_comment": "Plaza paving stone, slightly lighter than road tile. Use in 3x3 grid around fountain.",
       "primitives": [
-        {"op": "box", "pos": [0, 0.06, 0], "size": [6.0, 0.1, 6.0], "color": "$tile"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.06,
+            0
+          ],
+          "size": [
+            6.0,
+            0.1,
+            6.0
+          ],
+          "color": "$tile"
+        }
       ],
-      "params": {"tile": "#7a7060"}
+      "params": {
+        "tile": "#7a7060"
+      }
     },
-
     "merchant_cottage_small_3d": {
-      "_comment": "Small townie cottage variant. 3m × 2.5m × 3m with steep red roof.",
+      "_comment": "Small townie cottage variant. 3m \u00d7 2.5m \u00d7 3m with steep red roof.",
       "primitives": [
-        {"op": "box",   "pos": [0, 1.25, 0], "size": [3.0, 2.5, 3.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 3.0, 0],  "size": [3.5, 1.2, 3.5], "color": "$roof"},
-        {"op": "box",   "pos": [0, 0.9, 1.55], "size": [0.6, 1.5, 0.1], "color": "$door"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.25,
+            0
+          ],
+          "size": [
+            3.0,
+            2.5,
+            3.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            3.0,
+            0
+          ],
+          "size": [
+            3.5,
+            1.2,
+            3.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.9,
+            1.55
+          ],
+          "size": [
+            0.6,
+            1.5,
+            0.1
+          ],
+          "color": "$door"
+        }
       ],
-      "params": {"wall": "#9a8868", "roof": "#6a3020", "door": "#3a2010"}
+      "params": {
+        "wall": "#9a8868",
+        "roof": "#6a3020",
+        "door": "#3a2010"
+      }
     },
-
     "merchant_cottage_large_3d": {
-      "_comment": "Larger cottage variant. 5m × 3.5m × 4m, brown roof, two windows.",
+      "_comment": "Larger cottage variant. 5m \u00d7 3.5m \u00d7 4m, brown roof, two windows.",
       "primitives": [
-        {"op": "box",   "pos": [0, 1.75, 0],  "size": [5.0, 3.5, 4.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 3.95, 0],  "size": [5.5, 1.4, 4.5], "color": "$roof"},
-        {"op": "box",   "pos": [0, 1.0, 2.05],"size": [0.8, 2.0, 0.1], "color": "$door"},
-        {"op": "box",   "pos": [-1.5, 2.2, 2.05], "size": [0.7, 0.7, 0.1], "color": "$window"},
-        {"op": "box",   "pos": [1.5, 2.2, 2.05],  "size": [0.7, 0.7, 0.1], "color": "$window"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.75,
+            0
+          ],
+          "size": [
+            5.0,
+            3.5,
+            4.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            3.95,
+            0
+          ],
+          "size": [
+            5.5,
+            1.4,
+            4.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.0,
+            2.05
+          ],
+          "size": [
+            0.8,
+            2.0,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.5,
+            2.2,
+            2.05
+          ],
+          "size": [
+            0.7,
+            0.7,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.5,
+            2.2,
+            2.05
+          ],
+          "size": [
+            0.7,
+            0.7,
+            0.1
+          ],
+          "color": "$window"
+        }
       ],
-      "params": {"wall": "#a89878", "roof": "#5a4030", "door": "#4a2818", "window": "#a8c8e0"}
+      "params": {
+        "wall": "#a89878",
+        "roof": "#5a4030",
+        "door": "#4a2818",
+        "window": "#a8c8e0"
+      }
     },
-
     "merchant_shop_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 1.5, 0], "size": [4.0, 3.0, 4.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 3.5, 0], "size": [4.5, 1.4, 4.5], "color": "$roof"},
-        {"op": "box", "pos": [0, 1.0, 2.05], "size": [0.8, 1.8, 0.1], "color": "$door"},
-        {"op": "box", "pos": [-1.2, 1.8, 2.05], "size": [0.6, 0.6, 0.1], "color": "$window"},
-        {"op": "box", "pos": [1.2, 1.8, 2.05], "size": [0.6, 0.6, 0.1], "color": "$window"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            4.0,
+            3.0,
+            4.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            3.5,
+            0
+          ],
+          "size": [
+            4.5,
+            1.4,
+            4.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.0,
+            2.05
+          ],
+          "size": [
+            0.8,
+            1.8,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.2,
+            1.8,
+            2.05
+          ],
+          "size": [
+            0.6,
+            0.6,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.2,
+            1.8,
+            2.05
+          ],
+          "size": [
+            0.6,
+            0.6,
+            0.1
+          ],
+          "color": "$window"
+        }
       ],
-      "params": {"wall": "#b89878", "roof": "#7a3a2a", "door": "#5a3820", "window": "#a8c8e0"}
+      "params": {
+        "wall": "#b89878",
+        "roof": "#7a3a2a",
+        "door": "#5a3820",
+        "window": "#a8c8e0"
+      }
     },
-
     "merchant_lamppost_3d": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 1.5, 0], "radius": 0.05, "height": 3.0, "color": "$post"},
-        {"op": "sphere",   "pos": [0, 3.1, 0], "radius": 0.18,                "color": "$lamp"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "radius": 0.05,
+          "height": 3.0,
+          "color": "$post"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            3.1,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$lamp"
+        }
       ],
-      "params": {"post": "#3a2818", "lamp": "#ffe080"}
+      "params": {
+        "post": "#3a2818",
+        "lamp": "#ffe080"
+      }
     },
-
     "merchant_pillar_3d": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 1.25, 0], "radius": 0.35, "height": 2.5, "color": "$stone"},
-        {"op": "cylinder", "pos": [0, 0.1, 0], "radius": 0.45, "height": 0.2, "color": "$base"},
-        {"op": "cylinder", "pos": [0, 2.4, 0], "radius": 0.45, "height": 0.2, "color": "$base"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.25,
+            0
+          ],
+          "radius": 0.35,
+          "height": 2.5,
+          "color": "$stone"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.1,
+            0
+          ],
+          "radius": 0.45,
+          "height": 0.2,
+          "color": "$base"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            2.4,
+            0
+          ],
+          "radius": 0.45,
+          "height": 0.2,
+          "color": "$base"
+        }
       ],
-      "params": {"stone": "#9a9a9a", "base": "#6a6a6a"}
+      "params": {
+        "stone": "#9a9a9a",
+        "base": "#6a6a6a"
+      }
     },
-
     "merchant_portal_3d": {
       "primitives": [
-        {"op": "torus", "pos": [0, 1.5, 0], "inner_radius": 0.6, "outer_radius": 0.9, "color": "$ring"},
-        {"op": "cylinder", "pos": [0, 1.5, 0], "radius": 0.55, "height": 0.05, "color": "$swirl"}
+        {
+          "op": "torus",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "inner_radius": 0.6,
+          "outer_radius": 0.9,
+          "color": "$ring"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "radius": 0.55,
+          "height": 0.05,
+          "color": "$swirl"
+        }
       ],
-      "params": {"ring": "#5040a0", "swirl": "#a070ff"}
+      "params": {
+        "ring": "#5040a0",
+        "swirl": "#a070ff"
+      }
     },
-
     "merchant_fountain_3d": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.2, 0], "radius": 1.0, "height": 0.4, "color": "$basin"},
-        {"op": "cylinder", "pos": [0, 0.5, 0], "radius": 0.15, "height": 0.6, "color": "$pillar"},
-        {"op": "sphere",   "pos": [0, 1.0, 0], "radius": 0.2,                "color": "$water"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.2,
+            0
+          ],
+          "radius": 1.0,
+          "height": 0.4,
+          "color": "$basin"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "radius": 0.15,
+          "height": 0.6,
+          "color": "$pillar"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.0,
+            0
+          ],
+          "radius": 0.2,
+          "color": "$water"
+        }
       ],
-      "params": {"basin": "#909090", "pillar": "#a08070", "water": "#5090c0"}
+      "params": {
+        "basin": "#909090",
+        "pillar": "#a08070",
+        "water": "#5090c0"
+      }
     },
-
     "merchant_signpost_3d": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.7, 0], "radius": 0.04, "height": 1.4, "color": "$post"},
-        {"op": "box",      "pos": [0, 1.3, 0], "size": [0.8, 0.4, 0.05],     "color": "$sign"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.7,
+            0
+          ],
+          "radius": 0.04,
+          "height": 1.4,
+          "color": "$post"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.3,
+            0
+          ],
+          "size": [
+            0.8,
+            0.4,
+            0.05
+          ],
+          "color": "$sign"
+        }
       ],
-      "params": {"post": "#5a3820", "sign": "#c8a878"}
+      "params": {
+        "post": "#5a3820",
+        "sign": "#c8a878"
+      }
     },
-
     "merchant_stall_3d": {
       "primitives": [
-        {"op": "box",      "pos": [0, 0.5, 0], "size": [2.0, 1.0, 1.2], "color": "$wood"},
-        {"op": "prism",    "pos": [0, 1.5, 0], "size": [2.4, 0.8, 1.6], "color": "$canopy"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "size": [
+            2.0,
+            1.0,
+            1.2
+          ],
+          "color": "$wood"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            2.4,
+            0.8,
+            1.6
+          ],
+          "color": "$canopy"
+        }
       ],
-      "params": {"wood": "#a07050", "canopy": "#c04040"}
+      "params": {
+        "wood": "#a07050",
+        "canopy": "#c04040"
+      }
     },
-
     "merchant_cottage_3d": {
       "primitives": [
-        {"op": "box",   "pos": [0, 1.2, 0], "size": [3.5, 2.4, 3.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 3.0, 0], "size": [4.0, 1.2, 3.5], "color": "$roof"},
-        {"op": "box",   "pos": [0, 0.8, 1.55], "size": [0.7, 1.6, 0.1], "color": "$door"},
-        {"op": "box",   "pos": [-1.0, 1.6, 1.55], "size": [0.5, 0.5, 0.1], "color": "$window"},
-        {"op": "box",   "pos": [1.0, 1.6, 1.55], "size": [0.5, 0.5, 0.1], "color": "$window"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.2,
+            0
+          ],
+          "size": [
+            3.5,
+            2.4,
+            3.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            3.0,
+            0
+          ],
+          "size": [
+            4.0,
+            1.2,
+            3.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.8,
+            1.55
+          ],
+          "size": [
+            0.7,
+            1.6,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.0,
+            1.6,
+            1.55
+          ],
+          "size": [
+            0.5,
+            0.5,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.0,
+            1.6,
+            1.55
+          ],
+          "size": [
+            0.5,
+            0.5,
+            0.1
+          ],
+          "color": "$window"
+        }
       ],
-      "params": {"wall": "#c8a878", "roof": "#7a4838", "door": "#5a3820", "window": "#a8c8e0"}
+      "params": {
+        "wall": "#c8a878",
+        "roof": "#7a4838",
+        "door": "#5a3820",
+        "window": "#a8c8e0"
+      }
     },
-
     "merchant_forge_3d": {
       "primitives": [
-        {"op": "box",      "pos": [0, 1.2, 0], "size": [4.0, 2.4, 3.5], "color": "$wall"},
-        {"op": "prism",    "pos": [0, 2.9, 0], "size": [4.5, 1.0, 4.0], "color": "$roof"},
-        {"op": "cylinder", "pos": [-1.4, 3.6, 0], "radius": 0.3, "height": 1.4, "color": "$chimney"},
-        {"op": "sphere",   "pos": [-1.4, 4.4, 0], "radius": 0.2, "color": "$smoke"},
-        {"op": "box",      "pos": [0, 0.8, 1.8], "size": [1.2, 1.6, 0.1], "color": "$door"},
-        {"op": "box",      "pos": [1.2, 1.4, 1.8], "size": [0.6, 0.4, 0.1], "color": "$forge_glow"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.2,
+            0
+          ],
+          "size": [
+            4.0,
+            2.4,
+            3.5
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            2.9,
+            0
+          ],
+          "size": [
+            4.5,
+            1.0,
+            4.0
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -1.4,
+            3.6,
+            0
+          ],
+          "radius": 0.3,
+          "height": 1.4,
+          "color": "$chimney"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -1.4,
+            4.4,
+            0
+          ],
+          "radius": 0.2,
+          "color": "$smoke"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.8,
+            1.8
+          ],
+          "size": [
+            1.2,
+            1.6,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.2,
+            1.4,
+            1.8
+          ],
+          "size": [
+            0.6,
+            0.4,
+            0.1
+          ],
+          "color": "$forge_glow"
+        }
       ],
-      "params": {"wall": "#6a5040", "roof": "#3a2818", "chimney": "#404040", "smoke": "#909090", "door": "#3a2010", "forge_glow": "#ff6020"}
+      "params": {
+        "wall": "#6a5040",
+        "roof": "#3a2818",
+        "chimney": "#404040",
+        "smoke": "#909090",
+        "door": "#3a2010",
+        "forge_glow": "#ff6020"
+      }
     },
-
     "merchant_tavern_3d": {
       "primitives": [
-        {"op": "box",   "pos": [0, 1.5, 0], "size": [5.0, 3.0, 4.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 3.6, 0], "size": [5.5, 1.4, 4.5], "color": "$roof"},
-        {"op": "box",   "pos": [0, 1.0, 2.05], "size": [1.0, 2.0, 0.1], "color": "$door"},
-        {"op": "box",   "pos": [-1.5, 2.0, 2.05], "size": [0.7, 0.7, 0.1], "color": "$window"},
-        {"op": "box",   "pos": [1.5, 2.0, 2.05], "size": [0.7, 0.7, 0.1], "color": "$window"},
-        {"op": "box",   "pos": [0, 3.2, 2.1], "size": [1.6, 0.5, 0.05], "color": "$sign"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            5.0,
+            3.0,
+            4.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            3.6,
+            0
+          ],
+          "size": [
+            5.5,
+            1.4,
+            4.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.0,
+            2.05
+          ],
+          "size": [
+            1.0,
+            2.0,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.5,
+            2.0,
+            2.05
+          ],
+          "size": [
+            0.7,
+            0.7,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.5,
+            2.0,
+            2.05
+          ],
+          "size": [
+            0.7,
+            0.7,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            3.2,
+            2.1
+          ],
+          "size": [
+            1.6,
+            0.5,
+            0.05
+          ],
+          "color": "$sign"
+        }
       ],
-      "params": {"wall": "#9a7050", "roof": "#5a2820", "door": "#4a2810", "window": "#ffe080", "sign": "#c89060"}
+      "params": {
+        "wall": "#9a7050",
+        "roof": "#5a2820",
+        "door": "#4a2810",
+        "window": "#ffe080",
+        "sign": "#c89060"
+      }
     },
-
     "merchant_guild_3d": {
       "primitives": [
-        {"op": "box",   "pos": [0, 2.0, 0], "size": [4.5, 4.0, 4.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 4.6, 0], "size": [5.0, 1.4, 4.5], "color": "$roof"},
-        {"op": "cylinder", "pos": [-1.8, 2.0, -1.8], "radius": 0.4, "height": 4.0, "color": "$column"},
-        {"op": "cylinder", "pos": [1.8, 2.0, -1.8], "radius": 0.4, "height": 4.0, "color": "$column"},
-        {"op": "box",   "pos": [0, 1.5, 2.05], "size": [1.4, 3.0, 0.1], "color": "$door"},
-        {"op": "box",   "pos": [-1.5, 3.0, 2.05], "size": [0.6, 1.2, 0.1], "color": "$window"},
-        {"op": "box",   "pos": [1.5, 3.0, 2.05], "size": [0.6, 1.2, 0.1], "color": "$window"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.0,
+            0
+          ],
+          "size": [
+            4.5,
+            4.0,
+            4.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            4.6,
+            0
+          ],
+          "size": [
+            5.0,
+            1.4,
+            4.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -1.8,
+            2.0,
+            -1.8
+          ],
+          "radius": 0.4,
+          "height": 4.0,
+          "color": "$column"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            1.8,
+            2.0,
+            -1.8
+          ],
+          "radius": 0.4,
+          "height": 4.0,
+          "color": "$column"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            2.05
+          ],
+          "size": [
+            1.4,
+            3.0,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.5,
+            3.0,
+            2.05
+          ],
+          "size": [
+            0.6,
+            1.2,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.5,
+            3.0,
+            2.05
+          ],
+          "size": [
+            0.6,
+            1.2,
+            0.1
+          ],
+          "color": "$window"
+        }
       ],
-      "params": {"wall": "#a89878", "roof": "#404040", "column": "#dcd0b0", "door": "#5a3a2a", "window": "#406090"}
+      "params": {
+        "wall": "#a89878",
+        "roof": "#404040",
+        "column": "#dcd0b0",
+        "door": "#5a3a2a",
+        "window": "#406090"
+      }
     },
-
     "merchant_chapel_3d": {
       "primitives": [
-        {"op": "box",   "pos": [0, 1.5, 0], "size": [3.5, 3.0, 5.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 3.7, 0], "size": [4.0, 1.4, 5.5], "color": "$roof"},
-        {"op": "cylinder", "pos": [0, 5.5, -2.0], "radius": 0.5, "height": 3.0, "color": "$steeple_base"},
-        {"op": "sphere", "pos": [0, 7.5, -2.0], "radius": 0.4, "color": "$steeple_top"},
-        {"op": "box",   "pos": [0, 1.4, 2.55], "size": [1.0, 2.4, 0.1], "color": "$door"},
-        {"op": "box",   "pos": [-1.0, 2.0, 2.55], "size": [0.4, 1.0, 0.1], "color": "$window"},
-        {"op": "box",   "pos": [1.0, 2.0, 2.55], "size": [0.4, 1.0, 0.1], "color": "$window"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.5,
+            0
+          ],
+          "size": [
+            3.5,
+            3.0,
+            5.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            3.7,
+            0
+          ],
+          "size": [
+            4.0,
+            1.4,
+            5.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            5.5,
+            -2.0
+          ],
+          "radius": 0.5,
+          "height": 3.0,
+          "color": "$steeple_base"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            7.5,
+            -2.0
+          ],
+          "radius": 0.4,
+          "color": "$steeple_top"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.4,
+            2.55
+          ],
+          "size": [
+            1.0,
+            2.4,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.0,
+            2.0,
+            2.55
+          ],
+          "size": [
+            0.4,
+            1.0,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.0,
+            2.0,
+            2.55
+          ],
+          "size": [
+            0.4,
+            1.0,
+            0.1
+          ],
+          "color": "$window"
+        }
       ],
-      "params": {"wall": "#d0c0a0", "roof": "#605040", "steeple_base": "#605040", "steeple_top": "#d4af37", "door": "#5a3a2a", "window": "#80a0c0"}
+      "params": {
+        "wall": "#d0c0a0",
+        "roof": "#605040",
+        "steeple_base": "#605040",
+        "steeple_top": "#d4af37",
+        "door": "#5a3a2a",
+        "window": "#80a0c0"
+      }
     },
-
     "merchant_watchtower_3d": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 3.0, 0], "radius": 1.2, "height": 6.0, "color": "$stone"},
-        {"op": "cylinder", "pos": [0, 6.4, 0], "radius": 1.5, "height": 0.4, "color": "$crown"},
-        {"op": "prism",    "pos": [0, 7.0, 0], "size": [2.6, 1.0, 2.6], "color": "$roof"},
-        {"op": "box",      "pos": [0, 4.5, 1.15], "size": [0.4, 0.8, 0.1], "color": "$window"},
-        {"op": "box",      "pos": [1.15, 4.5, 0], "size": [0.1, 0.8, 0.4], "color": "$window"},
-        {"op": "box",      "pos": [0, 4.5, -1.15], "size": [0.4, 0.8, 0.1], "color": "$window"},
-        {"op": "box",      "pos": [-1.15, 4.5, 0], "size": [0.1, 0.8, 0.4], "color": "$window"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            3.0,
+            0
+          ],
+          "radius": 1.2,
+          "height": 6.0,
+          "color": "$stone"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            6.4,
+            0
+          ],
+          "radius": 1.5,
+          "height": 0.4,
+          "color": "$crown"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            7.0,
+            0
+          ],
+          "size": [
+            2.6,
+            1.0,
+            2.6
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            4.5,
+            1.15
+          ],
+          "size": [
+            0.4,
+            0.8,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.15,
+            4.5,
+            0
+          ],
+          "size": [
+            0.1,
+            0.8,
+            0.4
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            4.5,
+            -1.15
+          ],
+          "size": [
+            0.4,
+            0.8,
+            0.1
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.15,
+            4.5,
+            0
+          ],
+          "size": [
+            0.1,
+            0.8,
+            0.4
+          ],
+          "color": "$window"
+        }
       ],
-      "params": {"stone": "#909090", "crown": "#707070", "roof": "#404040", "window": "#000000"}
+      "params": {
+        "stone": "#909090",
+        "crown": "#707070",
+        "roof": "#404040",
+        "window": "#000000"
+      }
     },
-
     "merchant_barracks_3d": {
       "primitives": [
-        {"op": "box",   "pos": [0, 1.0, 0], "size": [6.0, 2.0, 3.0], "color": "$wall"},
-        {"op": "prism", "pos": [0, 2.4, 0], "size": [6.5, 1.0, 3.5], "color": "$roof"},
-        {"op": "box",   "pos": [-1.5, 0.8, 1.55], "size": [0.7, 1.6, 0.1], "color": "$door"},
-        {"op": "box",   "pos": [1.5, 0.8, 1.55], "size": [0.7, 1.6, 0.1], "color": "$door"},
-        {"op": "box",   "pos": [0, 1.4, 1.55], "size": [0.5, 0.5, 0.1], "color": "$window"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.0,
+            0
+          ],
+          "size": [
+            6.0,
+            2.0,
+            3.0
+          ],
+          "color": "$wall"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            2.4,
+            0
+          ],
+          "size": [
+            6.5,
+            1.0,
+            3.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -1.5,
+            0.8,
+            1.55
+          ],
+          "size": [
+            0.7,
+            1.6,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            1.5,
+            0.8,
+            1.55
+          ],
+          "size": [
+            0.7,
+            1.6,
+            0.1
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            1.4,
+            1.55
+          ],
+          "size": [
+            0.5,
+            0.5,
+            0.1
+          ],
+          "color": "$window"
+        }
       ],
-      "params": {"wall": "#7a6050", "roof": "#403028", "door": "#3a2010", "window": "#404040"}
+      "params": {
+        "wall": "#7a6050",
+        "roof": "#403028",
+        "door": "#3a2010",
+        "window": "#404040"
+      }
     },
-
     "merchant_market_hall_3d": {
       "primitives": [
-        {"op": "box",      "pos": [0, 0.1, 0], "size": [6.0, 0.2, 4.0], "color": "$floor"},
-        {"op": "cylinder", "pos": [-2.5, 1.5, -1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
-        {"op": "cylinder", "pos": [2.5, 1.5, -1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
-        {"op": "cylinder", "pos": [-2.5, 1.5, 1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
-        {"op": "cylinder", "pos": [2.5, 1.5, 1.5], "radius": 0.25, "height": 3.0, "color": "$column"},
-        {"op": "prism",    "pos": [0, 3.4, 0], "size": [6.5, 0.8, 4.5], "color": "$roof"},
-        {"op": "box",      "pos": [0, 0.8, 0], "size": [3.0, 1.0, 1.5], "color": "$counter"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.1,
+            0
+          ],
+          "size": [
+            6.0,
+            0.2,
+            4.0
+          ],
+          "color": "$floor"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -2.5,
+            1.5,
+            -1.5
+          ],
+          "radius": 0.25,
+          "height": 3.0,
+          "color": "$column"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            2.5,
+            1.5,
+            -1.5
+          ],
+          "radius": 0.25,
+          "height": 3.0,
+          "color": "$column"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -2.5,
+            1.5,
+            1.5
+          ],
+          "radius": 0.25,
+          "height": 3.0,
+          "color": "$column"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            2.5,
+            1.5,
+            1.5
+          ],
+          "radius": 0.25,
+          "height": 3.0,
+          "color": "$column"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            3.4,
+            0
+          ],
+          "size": [
+            6.5,
+            0.8,
+            4.5
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.8,
+            0
+          ],
+          "size": [
+            3.0,
+            1.0,
+            1.5
+          ],
+          "color": "$counter"
+        }
       ],
-      "params": {"floor": "#a89070", "column": "#dcd0b0", "roof": "#705040", "counter": "#7a5030"}
+      "params": {
+        "floor": "#a89070",
+        "column": "#dcd0b0",
+        "roof": "#705040",
+        "counter": "#7a5030"
+      }
     },
-
     "merchant_field_3d": {
       "primitives": [
-        {"op": "box", "pos": [0, 0.05, 0], "size": [4.0, 0.1, 4.0], "color": "$soil"},
-        {"op": "cylinder", "pos": [-1.0, 0.4, -1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
-        {"op": "cylinder", "pos": [1.0, 0.4, -1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
-        {"op": "cylinder", "pos": [-1.0, 0.4, 1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
-        {"op": "cylinder", "pos": [1.0, 0.4, 1.0], "radius": 0.1, "height": 0.6, "color": "$crop"},
-        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.1, "height": 0.6, "color": "$crop"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.05,
+            0
+          ],
+          "size": [
+            4.0,
+            0.1,
+            4.0
+          ],
+          "color": "$soil"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -1.0,
+            0.4,
+            -1.0
+          ],
+          "radius": 0.1,
+          "height": 0.6,
+          "color": "$crop"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            1.0,
+            0.4,
+            -1.0
+          ],
+          "radius": 0.1,
+          "height": 0.6,
+          "color": "$crop"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -1.0,
+            0.4,
+            1.0
+          ],
+          "radius": 0.1,
+          "height": 0.6,
+          "color": "$crop"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            1.0,
+            0.4,
+            1.0
+          ],
+          "radius": 0.1,
+          "height": 0.6,
+          "color": "$crop"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "radius": 0.1,
+          "height": 0.6,
+          "color": "$crop"
+        }
       ],
-      "params": {"soil": "#5a3a20", "crop": "#80a050"}
+      "params": {
+        "soil": "#5a3a20",
+        "crop": "#80a050"
+      }
     },
-
     "merchant_well_3d": {
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.4, 0], "radius": 0.7, "height": 0.8, "color": "$stone"},
-        {"op": "cylinder", "pos": [0, 0.85, 0], "radius": 0.55, "height": 0.05, "color": "$water"},
-        {"op": "cylinder", "pos": [-0.7, 1.4, 0], "radius": 0.06, "height": 1.4, "color": "$post"},
-        {"op": "cylinder", "pos": [0.7, 1.4, 0], "radius": 0.06, "height": 1.4, "color": "$post"},
-        {"op": "box",      "pos": [0, 2.05, 0], "size": [1.6, 0.1, 0.6], "color": "$beam"},
-        {"op": "prism",    "pos": [0, 2.4, 0], "size": [1.8, 0.5, 0.8], "color": "$roof"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "radius": 0.7,
+          "height": 0.8,
+          "color": "$stone"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.85,
+            0
+          ],
+          "radius": 0.55,
+          "height": 0.05,
+          "color": "$water"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.7,
+            1.4,
+            0
+          ],
+          "radius": 0.06,
+          "height": 1.4,
+          "color": "$post"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.7,
+            1.4,
+            0
+          ],
+          "radius": 0.06,
+          "height": 1.4,
+          "color": "$post"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            2.05,
+            0
+          ],
+          "size": [
+            1.6,
+            0.1,
+            0.6
+          ],
+          "color": "$beam"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            2.4,
+            0
+          ],
+          "size": [
+            1.8,
+            0.5,
+            0.8
+          ],
+          "color": "$roof"
+        }
       ],
-      "params": {"stone": "#9a9a9a", "water": "#3070a0", "post": "#5a3820", "beam": "#5a3820", "roof": "#5a2820"}
+      "params": {
+        "stone": "#9a9a9a",
+        "water": "#3070a0",
+        "post": "#5a3820",
+        "beam": "#5a3820",
+        "roof": "#5a2820"
+      }
     },
-
     "merchant_statue_3d": {
       "primitives": [
-        {"op": "box",      "pos": [0, 0.3, 0], "size": [1.0, 0.6, 1.0], "color": "$base"},
-        {"op": "capsule",  "pos": [0, 1.4, 0], "radius": 0.25, "height": 1.4, "color": "$marble"},
-        {"op": "sphere",   "pos": [0, 2.3, 0], "radius": 0.22, "color": "$marble"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.3,
+            0
+          ],
+          "size": [
+            1.0,
+            0.6,
+            1.0
+          ],
+          "color": "$base"
+        },
+        {
+          "op": "capsule",
+          "pos": [
+            0,
+            1.4,
+            0
+          ],
+          "radius": 0.25,
+          "height": 1.4,
+          "color": "$marble"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            2.3,
+            0
+          ],
+          "radius": 0.22,
+          "color": "$marble"
+        }
       ],
-      "params": {"base": "#605040", "marble": "#dcd0c0"}
+      "params": {
+        "base": "#605040",
+        "marble": "#dcd0c0"
+      }
+    },
+    "prim_unit_box": {
+      "_comment": "Unit box (1x1x1) for compose_world.py. state.scale=[w, h, d] sizes per instance. color=$albedo to recolor.",
+      "primitives": [
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "size": [
+            1,
+            1,
+            1
+          ],
+          "color": "$albedo"
+        }
+      ],
+      "params": {
+        "albedo": "#a04020"
+      }
+    },
+    "prim_unit_cylinder": {
+      "_comment": "Unit cylinder (radius=0.5, height=1) for compose_world.py. Scale + recolor via state.scale + visual.params.",
+      "primitives": [
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "radius": 0.5,
+          "height": 1.0,
+          "color": "$albedo"
+        }
+      ],
+      "params": {
+        "albedo": "#707070"
+      }
+    },
+    "prim_unit_sphere": {
+      "_comment": "Unit sphere (radius=0.5) for compose_world.py. Scale + recolor via state.scale + visual.params.",
+      "primitives": [
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "radius": 0.5,
+          "color": "$albedo"
+        }
+      ],
+      "params": {
+        "albedo": "#e040a0"
+      }
     }
   }
 }

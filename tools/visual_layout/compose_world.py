@@ -1,0 +1,394 @@
+"""compose_world.py — stage 7 of the text-to-world pipeline.
+
+Reads the stage-5 extracted.json + stage-2 catalog and writes a
+runnable Yume demo using ONLY CODE-DRAWN PRIMITIVE SHAPES (boxes,
+cylinders, spheres). No asset gen — every object's visual is a
+primitive sized per its extracted bbox + colored per its catalog
+hex.
+
+This is a DEFERRED-asset version of stage 7. The point: prove the
+pipeline produces a coherent scene structurally BEFORE investing
+in stage-6 asset generation. If the box-only scene reads as
+"yes that's a medieval town from above", we know the pipeline
+works; if not, we know where the issue is.
+
+Usage:
+    python3 -m tools.visual_layout.compose_world demo_pipeline_v1 \\
+        --extracted /tmp/_extracted.json \\
+        --catalog   /tmp/_class_catalog.json \\
+        --semantic-map /path/to/semantic.png \\
+        --heightmap    /path/to/heightmap.png   (optional)
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import shutil
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+DATA_ROOT = ROOT / "godot" / "data"
+
+
+# ============================================================
+# CLASS → PRIMITIVE SHAPE HEURISTICS
+# ============================================================
+
+def pick_primitive(class_name: str, size_world: list[float]) -> dict:
+    """Map a catalog class name to a primitive shape spec.
+
+    Default = box at extracted size. Common class-name patterns
+    pick more specific primitives (cylinder for tower, sphere for
+    fountain orb, etc.). Color comes from the catalog hex applied
+    by the caller.
+    """
+    name = class_name.lower()
+    w_avg = (size_world[0] + size_world[1]) / 2.0
+    h = max(1.5, w_avg * 1.5)  # default height = 1.5x footprint for
+                                # a building-shaped silhouette
+
+    # Cylinders for round-ish things
+    if any(k in name for k in ("tower", "well", "silo", "spire", "pillar")):
+        radius = w_avg / 2.0
+        return {"_primitive": "cylinder", "radius": radius, "height": h}
+
+    # Spheres for orb-ish things
+    if any(k in name for k in ("orb", "egg", "fountain", "boulder", "ball")):
+        # Fountain = a small dome (sphere of half-extents)
+        return {"_primitive": "sphere", "radius": w_avg / 2.0}
+
+    # Trees as cone-topped cylinder (composite). Simpler: just a
+    # tall thin cylinder.
+    if any(k in name for k in ("tree", "trunk", "pine", "oak")):
+        return {"_primitive": "cylinder", "radius": w_avg * 0.4, "height": h * 1.5}
+
+    # Walls as thin tall boxes (sized per extracted bbox).
+    if any(k in name for k in ("wall", "fence", "barricade")):
+        # Keep the extracted footprint but make it tall.
+        return {"_primitive": "box",
+                "size": [size_world[0], 3.0, size_world[1]]}
+
+    # Bridges, paths-as-objects: flat thin slab
+    if any(k in name for k in ("bridge", "platform", "slab")):
+        return {"_primitive": "box",
+                "size": [size_world[0], 0.4, size_world[1]]}
+
+    # Default: building-shaped box (tall over footprint)
+    return {"_primitive": "box", "size": [size_world[0], h, size_world[1]]}
+
+
+def primitive_to_visual(prim: dict, hex_color: str) -> dict:
+    """Convert a primitive spec to a Yume visual block.
+
+    Uses data/meshes.json's prim_unit_box / prim_unit_cylinder /
+    prim_unit_sphere as the underlying library meshes. The primitive
+    is unit-sized (1x1x1 or radius 0.5); per-instance scale on the
+    entity instance gives the actual dimensions. The mesh's $albedo
+    parameter is recolored via visual.params.
+    """
+    p_type = prim["_primitive"]
+    if p_type == "box":
+        return {
+            "mesh": "prim_unit_box",
+            "params": {"albedo": hex_color},
+        }
+    if p_type == "cylinder":
+        return {
+            "mesh": "prim_unit_cylinder",
+            "params": {"albedo": hex_color},
+        }
+    if p_type == "sphere":
+        return {
+            "mesh": "prim_unit_sphere",
+            "params": {"albedo": hex_color},
+        }
+    return {"mesh": "prim_unit_box", "params": {"albedo": hex_color}}
+
+
+# ============================================================
+# Y-HEIGHT inference per primitive
+# ============================================================
+
+def y_offset_for(prim: dict) -> float:
+    """Where the primitive's center sits in y so the BASE is at y=0.
+    Match the engine's auto-lift convention (physics_body_builder)
+    so visual + collider align."""
+    if prim["_primitive"] == "box":
+        return prim["size"][1] / 2.0
+    if prim["_primitive"] == "cylinder":
+        return prim["height"] / 2.0
+    if prim["_primitive"] == "sphere":
+        return prim["radius"]
+    return 0.5
+
+
+# ============================================================
+# GENERATE YUME DEMO FILES
+# ============================================================
+
+def compose(
+    game_name: str,
+    extracted_path: Path,
+    catalog_path: Path,
+    semantic_map_path: Path | None,
+    heightmap_path: Path | None,
+) -> Path:
+    """Build a full data/demo_<name>/ folder. Returns the folder path."""
+    extracted = json.loads(extracted_path.read_text())
+    catalog = json.loads(catalog_path.read_text())
+
+    game_dir = DATA_ROOT / game_name
+    if game_dir.exists():
+        shutil.rmtree(game_dir)
+    game_dir.mkdir(parents=True)
+
+    # Subdirs
+    (game_dir / "entities").mkdir()
+    (game_dir / "world").mkdir()
+    (game_dir / "levels" / "level_default").mkdir(parents=True)
+    (game_dir / "game").mkdir()
+    (game_dir / "assets" / "layouts").mkdir(parents=True)
+    (game_dir / "assets" / "textures").mkdir(parents=True)
+
+    # Copy semantic map + heightmap into the game's assets dir
+    semantic_dest = None
+    heightmap_dest = None
+    if semantic_map_path and semantic_map_path.exists():
+        semantic_dest = game_dir / "assets" / "layouts" / "semantic_map.png"
+        shutil.copy(semantic_map_path, semantic_dest)
+    if heightmap_path and heightmap_path.exists():
+        heightmap_dest = game_dir / "assets" / "textures" / "heightmap.png"
+        shutil.copy(heightmap_path, heightmap_dest)
+
+    # ============ scene.json ============
+    world_w, world_h = extracted["world_size_meters"]
+    scene = {
+        "_comment": f"Auto-generated by compose_world.py for {game_name}. Code-primitive scene.",
+        "tick_seconds": 0.0167,
+        "renderer": {"position_scale": 1.0},
+        "ground": {
+            "mesh": {
+                "size": [world_w, world_h],
+                "color": "#a0d870",  # fallback if no biome shader
+                "subdivide": 64,
+            }
+        },
+        "camera": {
+            "$extends": "@lib.cameras.top_down_3d",
+            "follow_tag": "",  # no target — fixed
+            "fixed_eye_position": [0.0, 60.0, 0.0],
+            "fixed_look_target": [0.0, 0.0, 0.0],
+            "ortho_size": world_w,
+        },
+        "lighting": {
+            "directional_light": {
+                "direction": [0.4, -1.0, 0.3],
+                "color": "#fff0d0",
+                "energy": 1.2,
+            },
+            "ambient": {"color": "#a0b0c0", "energy": 0.4},
+            "sky": {"top_color": "#88aadd", "bottom_color": "#dde0e8"},
+        }
+    }
+    # If we have a semantic map, use it as the ground albedo directly
+    # (single-image biome-as-texture approach — no 5-biome shader yet)
+    if semantic_dest:
+        scene["ground"]["mesh"]["albedo_texture"] = (
+            f"res://data/{game_name}/assets/layouts/semantic_map.png"
+        )
+    if heightmap_dest:
+        scene["ground"]["mesh"]["height_texture"] = (
+            f"res://data/{game_name}/assets/textures/heightmap.png"
+        )
+        scene["ground"]["mesh"]["height_scale"] = 2.0  # max displacement in m
+    (game_dir / "scene.json").write_text(json.dumps(scene, indent=2))
+
+    # ============ world/state.json ============
+    state = {
+        "_comment": "Initial world state for auto-generated demo.",
+        "definitions": [
+            {
+                "id": "world_clock",
+                "tags": ["world_clock", "persistent"],
+                "properties": {},
+                "state_init": {
+                    "camera_mode": "top_down_3d",
+                    "current_level": "level_default",
+                },
+                "visual": {"hidden": True}
+            }
+        ],
+        "initial_instances": [
+            {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]}
+        ]
+    }
+    (game_dir / "world" / "state.json").write_text(json.dumps(state, indent=2))
+
+    # ============ world/rules.json ============
+    (game_dir / "world" / "rules.json").write_text(
+        json.dumps({"rules": []}, indent=2)
+    )
+
+    # ============ game/flow.json ============
+    flow = {
+        "levels": [{"id": "level_default", "name": "Auto-generated scene"}],
+        "starting_level": "level_default",
+    }
+    (game_dir / "game" / "flow.json").write_text(json.dumps(flow, indent=2))
+
+    # ============ entities/<class>.json — one def per class ============
+    # ALL object_placement classes get a def using primitive shapes.
+    object_classes = [
+        c for c in catalog["classes"]
+        if c["intent_type"] == "object_placement"
+    ]
+
+    # Reference primitive per class — use median size across the
+    # class's instances for the SHAPE; per-instance scale handled
+    # via state.scale.
+    extracted_by_name = {c["name"]: c for c in extracted["classes"]}
+
+    defs_doc = {"_comment": f"Auto-gen primitives for {game_name}.", "definitions": []}
+    for cls in object_classes:
+        name = cls["name"]
+        ext_cls = extracted_by_name.get(name, {})
+        instances = ext_cls.get("instances", [])
+        if not instances:
+            continue
+        # Median size_world across all instances of this class
+        sizes = [i["size_world"] for i in instances]
+        sizes.sort(key=lambda s: s[0] * s[1])
+        med = sizes[len(sizes) // 2]
+        primitive = pick_primitive(name, med)
+        visual = primitive_to_visual(primitive, cls["hex"])
+        defs_doc["definitions"].append({
+            "id": name,
+            "tags": [name, "compose_world_gen"],
+            "properties": {},
+            "state_init": {"scale": [1, 1, 1]},
+            "visual": visual,
+            "_primitive_spec": primitive,
+            "_color": cls["hex"],
+        })
+    (game_dir / "entities" / "auto_gen.json").write_text(
+        json.dumps(defs_doc, indent=2)
+    )
+
+    # ============ levels/level_default/entities.json ============
+    initial_instances = []
+    for ext_cls in extracted["classes"]:
+        if ext_cls["intent_type"] != "object_placement":
+            continue
+        name = ext_cls["name"]
+        defs_match = next((d for d in defs_doc["definitions"]
+                           if d["id"] == name), None)
+        if defs_match is None:
+            continue
+        prim_spec = defs_match["_primitive_spec"]
+        prim_type = prim_spec["_primitive"]
+        # Reference height for the chosen primitive shape
+        # (median across class instances was used in pick_primitive)
+        if prim_type == "box":
+            ref_y = prim_spec["size"][1]   # used for instance y_off + scale_y
+        else:
+            ref_y = prim_spec.get("height", prim_spec.get("radius", 0.5) * 2)
+        for inst in ext_cls.get("instances", []):
+            wx, wz = inst["position_world"]
+            ext_size = inst["size_world"]   # [width_m, depth_m]
+            # state.scale = [width, height, depth] in METERS because each
+            # mesh primitive is unit-sized. The primitive's base sits at
+            # y=0; with scale_y=H, the box / cylinder / sphere stands H
+            # meters tall, base on the ground.
+            scale_x = max(0.2, ext_size[0])
+            scale_z = max(0.2, ext_size[1])
+            scale_y = max(0.5, ref_y)   # use the class's chosen height
+            # Position the entity AT THE GROUND. The primitive's pivot
+            # is at y=0.5 (top of unit box) BUT the renderer applies
+            # mesh translation in its own frame; entity position +
+            # state.scale = base on ground when the primitive pos = 0.5
+            # and entity y = 0.
+            pos = [wx, 0.0, wz]
+            facing = math.radians(inst.get("rotation_deg", 0.0))
+            initial_instances.append({
+                "def": name,
+                "id": inst["id"],
+                "position": pos,
+                "state": {
+                    "scale": [scale_x, scale_y, scale_z],
+                    "facing": round(facing, 4),
+                }
+            })
+
+    level_doc = {
+        "_comment": f"Auto-generated initial_instances from {extracted_path.name}",
+        "initial_instances": initial_instances
+    }
+    (game_dir / "levels" / "level_default" / "entities.json").write_text(
+        json.dumps(level_doc, indent=2)
+    )
+
+    # ============ levels/level_default/rules.json ============
+    (game_dir / "levels" / "level_default" / "rules.json").write_text(
+        json.dumps({"rules": []}, indent=2)
+    )
+
+    # ============ tests.json ============
+    (game_dir / "tests.json").write_text(json.dumps({"scenarios": []}, indent=2))
+
+    # ============ per-game .tscn (3D launcher) ============
+    # The universal play.tscn defaults to the 2D renderer — we need
+    # entity_mesh_3d.gd. Mirror aldenmere_3d.tscn's minimal stub.
+    tscn_path = ROOT / "godot" / "scenes" / f"{game_name}_3d.tscn"
+    tscn_path.write_text(
+        f"""[gd_scene load_steps=2 format=3]
+
+; Auto-generated by compose_world.py — 3D top-down scene from extracted.json.
+; All directors auto-mount via WorldBoot. Ground + lighting per scene.json.
+
+[ext_resource type="Script" path="res://scripts/engine/core/world.gd" id="1"]
+
+[node name="World" type="Node"]
+script = ExtResource("1")
+data_root = "res://data/{game_name}"
+auto_start = true
+verbose = true
+renderer_script = "res://scripts/renderer_3d/entity_mesh_3d.gd"
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 60, 0)
+rotation = Vector3(-1.5708, 0, 0)
+projection = 1
+size = {int(world_w)}
+"""
+    )
+
+    return game_dir
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+def main():
+    ap = argparse.ArgumentParser(prog="compose_world")
+    ap.add_argument("game_name", help="folder name (will go under godot/data/<name>)")
+    ap.add_argument("--extracted", required=True, help="stage-5 extracted.json")
+    ap.add_argument("--catalog",   required=True, help="stage-2 class_catalog.json")
+    ap.add_argument("--semantic-map", default=None, help="optional stage-3 semantic map PNG")
+    ap.add_argument("--heightmap",    default=None, help="optional stage-4 heightmap PNG")
+    args = ap.parse_args()
+
+    game_dir = compose(
+        game_name=args.game_name,
+        extracted_path=Path(args.extracted),
+        catalog_path=Path(args.catalog),
+        semantic_map_path=Path(args.semantic_map) if args.semantic_map else None,
+        heightmap_path=Path(args.heightmap) if args.heightmap else None,
+    )
+    print(f"wrote demo at: {game_dir}")
+    print(f"run with: ./scripts/play.sh {args.game_name.removeprefix('demo_')}")
+
+
+if __name__ == "__main__":
+    main()
