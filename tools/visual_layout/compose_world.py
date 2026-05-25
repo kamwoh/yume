@@ -205,22 +205,52 @@ def compose(
     (game_dir / "scene.json").write_text(json.dumps(scene, indent=2))
 
     # ============ world/state.json ============
+    # Scene starts in FREE_CAM mode so the user can immediately fly
+    # around with WASD + mouse + Space/Ctrl. C toggles back to top_down_3d
+    # (the default camera_mode lib). Tab cycles between pre-positioned
+    # free_camera anchors.
     state = {
-        "_comment": "Initial world state for auto-generated demo.",
+        "_comment": "Initial world state for auto-generated demo. Starts in free_cam.",
         "definitions": [
             {
                 "id": "world_clock",
                 "tags": ["world_clock", "persistent"],
                 "properties": {},
                 "state_init": {
-                    "camera_mode": "top_down_3d",
+                    "camera_mode": "free_cam",
+                    "active_camera_id": "camera_oblique",
                     "current_level": "level_default",
+                },
+                "visual": {"hidden": True}
+            },
+            {
+                "_comment": "Cinematic camera anchor. Logical entity — no mesh. State tracks the camera's pose.",
+                "id": "free_camera",
+                "tags": ["free_camera", "persistent"],
+                "properties": {"display_name": "Camera"},
+                "state_init": {
+                    "position": [0, 30, 30],
+                    "yaw": 0.0,
+                    "pitch": -0.6
                 },
                 "visual": {"hidden": True}
             }
         ],
         "initial_instances": [
-            {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]}
+            {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
+            # Three pre-positioned cameras — Tab cycles between them
+            {"def": "free_camera", "id": "camera_overhead",
+             "position": [0, 0, 0],
+             "state": {"position": [0, max(40.0, world_w * 0.7), 0.1],
+                       "yaw": 0.0, "pitch": -1.55}},   # straight down
+            {"def": "free_camera", "id": "camera_oblique",
+             "position": [0, 0, 0],
+             "state": {"position": [world_w * 0.5, world_w * 0.4, world_h * 0.5],
+                       "yaw": -2.36, "pitch": -0.5}},   # NE oblique
+            {"def": "free_camera", "id": "camera_ground",
+             "position": [0, 0, 0],
+             "state": {"position": [0, 3.0, 0],
+                       "yaw": 0.0, "pitch": -0.1}},   # ground-level, looking north
         ]
     }
     (game_dir / "world" / "state.json").write_text(json.dumps(state, indent=2))
@@ -332,6 +362,24 @@ def compose(
     (game_dir / "levels" / "level_default" / "rules.json").write_text(
         json.dumps({"rules": []}, indent=2)
     )
+
+    # ============ ui/input.json — free-cam controls ============
+    (game_dir / "ui").mkdir(exist_ok=True)
+    inputs = {
+        "_comment": "Free-cam-only input. WASD via universal lib. C toggles, "
+                    "Tab cycles cameras, Space ascends, Ctrl descends, "
+                    "Shift sprints, ESC releases mouse.",
+        "actions": [
+            {"$include": "@lib.input.universal.actions"},
+            {"name": "toggle_freecam",        "key": "C",        "edge": "press"},
+            {"name": "cam_up",                "key": "Space",    "edge": "hold"},
+            {"name": "cam_down",              "key": "Ctrl",     "edge": "hold"},
+            {"name": "cam_sprint",            "key": "Shift",    "edge": "hold"},
+            {"name": "cycle_camera",          "key": "Tab",      "edge": "press"},
+            {"name": "toggle_mouse_capture",  "key": "Escape",   "edge": "press"},
+        ]
+    }
+    (game_dir / "ui" / "input.json").write_text(json.dumps(inputs, indent=2))
 
     # ============ tests.json ============
     (game_dir / "tests.json").write_text(json.dumps({"scenarios": []}, indent=2))
