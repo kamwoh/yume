@@ -22,19 +22,24 @@ from .base import Backend
 from .imagen import ImagenBackend
 from .mock import MockBackend
 from .nanobanana import NanobananaBackend
+from .openai_images import OpenAIImagesBackend
 from .tripo3d import Tripo3DBackend
 
 # Backend registry — name (string in asset_gen.json) → class.
-# Real backends require API keys in env (GEMINI_API_KEY / TRIPO_API_KEY);
-# `--backend mock` overrides config for offline iteration.
-# `nanobanana` + `imagen` both use GEMINI_API_KEY but different models:
-#   nanobanana = gemini-2.5-flash-image — 1024×1024 only, multimodal (refs)
-#   imagen     = imagen-3.0-generate-002 — supports 16:9 + other aspects
+# Real backends require API keys in env (GEMINI_API_KEY / OPENAI_API_KEY /
+# TRIPO_API_KEY); `--backend mock` overrides config for offline iteration.
+#   nanobanana     = gemini-2.5-flash-image — 1024×1024, multimodal (refs)
+#   imagen         = imagen-4.0-generate-001 — supports 16:9 + other aspects
+#   openai_images  = gpt-image-2-2026-04-21 — OpenAI's image gen,
+#                    supports 1024x1024 / 1024x1536 / 1536x1024
+#   tripo3d        = image + text → .glb mesh
 REGISTRY = {
     "mock": MockBackend,
     "nanobanana": NanobananaBackend,
-    "gemini_image": NanobananaBackend,  # alias — same underlying API
+    "gemini_image": NanobananaBackend,    # alias — same underlying API
     "imagen": ImagenBackend,
+    "openai_images": OpenAIImagesBackend,
+    "gpt_image": OpenAIImagesBackend,     # alias — short form
     "tripo3d": Tripo3DBackend,
 }
 
