@@ -175,11 +175,10 @@ def compose(
             }
         },
         "camera": {
-            "$extends": "@lib.cameras.top_down_3d",
-            "follow_tag": "",  # no target — fixed
-            "fixed_eye_position": [0.0, 60.0, 0.0],
-            "fixed_look_target": [0.0, 0.0, 0.0],
-            "ortho_size": world_w,
+            "$extends": "@lib.cameras.isometric_3d",
+            "follow_tag": "world_clock",   # follows the singleton at origin
+            "distance": world_w * 0.55,    # frame the whole town
+            "ortho_size": world_w * 0.7,   # 56m visible — fits an 80m world
         },
         "lighting": {
             "directional_light": {
@@ -205,28 +204,46 @@ def compose(
     (game_dir / "scene.json").write_text(json.dumps(scene, indent=2))
 
     # ============ world/state.json ============
-    # Scene starts in FREE_CAM mode so the user can immediately fly
-    # around with WASD + mouse + Space/Ctrl. C toggles back to top_down_3d
-    # (the default camera_mode lib). Tab cycles between pre-positioned
-    # free_camera anchors.
-    state = {
-        "_comment": "Initial world state for auto-generated demo. Starts in free_cam.",
+    # Per data-demo.md convention: world/state.json is for env-level
+    # global non-entity state (usually empty — env.world_state).
+    # Singleton entities (world_clock) + free_camera defs go in
+    # entities/ as proper entity definition files.
+    (game_dir / "world" / "state.json").write_text(json.dumps({
+        "_comment": "Empty placeholder. Singletons (world_clock, free_camera) live in entities/."
+    }, indent=2))
+
+    # ============ entities/world_clock.json ============
+    # Scene starts in isometric_3d for an obliquely-angled view. Press
+    # C in-game to toggle into free_cam — pre-positioned anchors are
+    # spawned below and Tab cycles between them.
+    world_clock_def = {
+        "_comment": "Auto-generated singleton. Starts in isometric_3d (good 3D framing). C → free_cam.",
         "definitions": [
             {
                 "id": "world_clock",
                 "tags": ["world_clock", "persistent"],
                 "properties": {},
                 "state_init": {
-                    "camera_mode": "free_cam",
+                    "camera_mode": "isometric_3d",
                     "active_camera_id": "camera_oblique",
                     "current_level": "level_default",
                 },
                 "visual": {"hidden": True}
-            },
+            }
+        ]
+    }
+    (game_dir / "entities" / "world_clock.json").write_text(
+        json.dumps(world_clock_def, indent=2)
+    )
+
+    # ============ entities/cameras.json ============
+    # The free_camera def + 3 pre-positioned anchors.
+    cameras_def = {
+        "_comment": "Cinematic camera anchors. Logical entities — no mesh, hidden. Tab cycles between them in free_cam.",
+        "definitions": [
             {
-                "_comment": "Cinematic camera anchor. Logical entity — no mesh. State tracks the camera's pose.",
                 "id": "free_camera",
-                "tags": ["free_camera", "persistent"],
+                "tags": ["free_camera", "persistent", "decorative"],
                 "properties": {"display_name": "Camera"},
                 "state_init": {
                     "position": [0, 30, 30],
@@ -235,25 +252,11 @@ def compose(
                 },
                 "visual": {"hidden": True}
             }
-        ],
-        "initial_instances": [
-            {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
-            # Three pre-positioned cameras — Tab cycles between them
-            {"def": "free_camera", "id": "camera_overhead",
-             "position": [0, 0, 0],
-             "state": {"position": [0, max(40.0, world_w * 0.7), 0.1],
-                       "yaw": 0.0, "pitch": -1.55}},   # straight down
-            {"def": "free_camera", "id": "camera_oblique",
-             "position": [0, 0, 0],
-             "state": {"position": [world_w * 0.5, world_w * 0.4, world_h * 0.5],
-                       "yaw": -2.36, "pitch": -0.5}},   # NE oblique
-            {"def": "free_camera", "id": "camera_ground",
-             "position": [0, 0, 0],
-             "state": {"position": [0, 3.0, 0],
-                       "yaw": 0.0, "pitch": -0.1}},   # ground-level, looking north
         ]
     }
-    (game_dir / "world" / "state.json").write_text(json.dumps(state, indent=2))
+    (game_dir / "entities" / "cameras.json").write_text(
+        json.dumps(cameras_def, indent=2)
+    )
 
     # ============ world/rules.json ============
     (game_dir / "world" / "rules.json").write_text(
@@ -350,9 +353,33 @@ def compose(
                 }
             })
 
+    # Prepend the world_clock + camera instances so they spawn first
+    singleton_instances = [
+        {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
+        # Three pre-positioned cameras — Tab cycles between them
+        {"def": "free_camera", "id": "camera_overhead",
+         "position": [0, 0, 0],
+         "state": {"position": [0, max(40.0, world_w * 0.7), 0.1],
+                   "yaw": 0.0, "pitch": -1.55}},   # straight down
+        # Yume's Camera3D uses Godot's YXZ-Euler convention:
+        # yaw 0 = looking -Z. So a camera positioned SOUTH of origin
+        # (positive Z) with yaw 0 looks NORTH toward origin. Pitch
+        # negative = tilting nose down. Camera position MUST stay
+        # inside the ground-plane footprint (±world/2 in x,z) or
+        # rays angled down miss the world entirely and we see only
+        # sky+void.
+        {"def": "free_camera", "id": "camera_oblique",
+         "position": [0, 0, 0],
+         "state": {"position": [0, world_w * 0.35, world_w * 0.40],
+                   "yaw": 0.0, "pitch": -0.72}},   # 30m up, 32m south, 41° down
+        {"def": "free_camera", "id": "camera_ground",
+         "position": [0, 0, 0],
+         "state": {"position": [0, 3.0, world_w * 0.40],
+                   "yaw": 0.0, "pitch": -0.1}},   # eye-level looking north
+    ]
     level_doc = {
         "_comment": f"Auto-generated initial_instances from {extracted_path.name}",
-        "initial_instances": initial_instances
+        "initial_instances": singleton_instances + initial_instances
     }
     (game_dir / "levels" / "level_default" / "entities.json").write_text(
         json.dumps(level_doc, indent=2)
@@ -364,6 +391,9 @@ def compose(
     )
 
     # ============ ui/input.json — free-cam controls ============
+    # Action names must match what camera_director.gd reads via
+    # Input.is_action_pressed (sprint / cam_up / cam_down — not
+    # cam_sprint etc).
     (game_dir / "ui").mkdir(exist_ok=True)
     inputs = {
         "_comment": "Free-cam-only input. WASD via universal lib. C toggles, "
@@ -374,7 +404,7 @@ def compose(
             {"name": "toggle_freecam",        "key": "C",        "edge": "press"},
             {"name": "cam_up",                "key": "Space",    "edge": "hold"},
             {"name": "cam_down",              "key": "Ctrl",     "edge": "hold"},
-            {"name": "cam_sprint",            "key": "Shift",    "edge": "hold"},
+            {"name": "sprint",                "key": "Shift",    "edge": "hold"},
             {"name": "cycle_camera",          "key": "Tab",      "edge": "press"},
             {"name": "toggle_mouse_capture",  "key": "Escape",   "edge": "press"},
         ]
