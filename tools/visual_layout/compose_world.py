@@ -387,7 +387,11 @@ def compose(
     # ============ per-game .tscn (3D launcher) ============
     # The universal play.tscn defaults to the 2D renderer — we need
     # entity_mesh_3d.gd. Mirror aldenmere_3d.tscn's minimal stub.
-    tscn_path = ROOT / "godot" / "scenes" / f"{game_name}_3d.tscn"
+    # Convention: tscn name WITHOUT the "demo_" prefix (matches
+    # aldenmere_3d.tscn ↔ data/demo_aldenmere/) so play.sh's per-game
+    # scene-resolution pattern <slug>_3d.tscn finds it.
+    tscn_slug = game_name.removeprefix("demo_")
+    tscn_path = ROOT / "godot" / "scenes" / f"{tscn_slug}_3d.tscn"
     tscn_path.write_text(
         f"""[gd_scene load_steps=2 format=3]
 
