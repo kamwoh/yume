@@ -4089,5 +4089,113 @@ patterns already proven. Test:
 If yes → lock the rest of the design.
 If no → swap to depth-estimation model OR flat-default terrain.
 
+---
+
+## Text-to-world pipeline — implementation log (2026-05-25 → 2026-05-26)
+
+Status as of 2026-05-26:
+
+```
+Stage 1 ✓ /yume-topdown-prompt + openai_images.generations
+Stage 2 ✓ /yume-scene-class-catalog (v2 dynamic)
+Stage 3 ✓ openai_images.edits (image-conditioned semantic map)
+Stage 4 ✓ openai_images.edits (grayscale heightmap, terrain only)
+Stage 5 ✓ /yume-extract-author + lib_extract.py
+Stage 6 ⏸ DEFERRED — asset gen per class with style anchor
+Stage 7 ✓ MINIMAL — compose_world.py + 3 unit primitives
+              (proves structural pipeline; aesthetic via stage 6 later)
+```
+
+End-to-end milestone proven on medieval-town test scene
+(`godot/data/demo_pipeline_v1/`): prose brief → photoreal aerial
+→ catalog → semantic map → heightmap → 260 extracted instances
+→ runnable Yume scene with primitive boxes/cylinders/spheres.
+Layout fidelity preserved; aesthetic is crude but structurally
+correct. Total wall-clock ≈ 8 minutes API calls + seconds of CPU.
+
+### Stage 6 — DEFERRED (asset gen per class with style anchor)
+
+Skipped to prove the pipeline structurally first. When ready:
+
+- For each `object_placement` class in extracted.json, generate
+  a per-class asset (.glb mesh or photoreal billboard) sized per
+  the class's expected dimensions.
+- Pass the stage-1 photoreal aerial as a STYLE ANCHOR to every
+  asset gen call so all classes share visual language (medieval
+  town's wooden+stone vs sci-fi colony's chrome+neon).
+- Output: replace each class's prim_unit_* mesh in `entities/
+  auto_gen.json` with the generated .glb path; engine wiring is
+  identical to stage 7 minimal.
+- Probable backend: tripo3d for meshes (already shipped) OR
+  openai_images.edits + Yume's billboarding for low-cost iteration.
+- Style consistency choice: pass photoreal aerial via /edits to
+  every call (strong, expensive) vs extract a style-sheet text
+  once and inject (cheap, weaker). Likely hybrid: text sheet
+  for default; /edits for "hero" classes (townhall, focal anchor).
+
+### Stage 7 — open follow-ups (when we resume)
+
+Ranked by visual impact per effort:
+
+1. **Ground texture wiring** — semantic map's color regions
+   (blue river, dark green forest, tan cobblestone) aren't
+   currently variegating the ground; only the fallback flat
+   color shows. Fix: route the semantic map through
+   `ground.mesh.shader_params.biome_map` per ADR 0055 instead
+   of `albedo_texture`. ~30 lines of compose_world tweak.
+   Highest visual return per minute.
+
+2. **Extraction count drift** — 216 houses extracted vs 60
+   catalog-expected. The stage-3 semantic map painted dense
+   small rectangles where the catalog imagined fewer unified
+   blocks. Two fixes possible:
+   - Tighten stage-3 prompt to ask for fewer larger building
+     clusters (prompt-side fix)
+   - Add a `merge_within_meters` post-process at stage 5 that
+     collapses adjacent same-class instances (extraction-side
+     fix; the yume-extract-author skill mentions this in its
+     "multi-color family classes" section)
+
+3. **Stage 6 — asset gen** (see above)
+
+4. **Per-game .tscn auto-gen** — compose_world.py now generates a
+   per-game .tscn launcher (`<name>_3d.tscn`) so the universal
+   play.tscn's 2D-default renderer doesn't break 3D scenes.
+   Works but worth considering: should play.tscn auto-detect
+   2D vs 3D from scene.json's renderer block? Future cleanup.
+
+5. **River-edge bridge noise** — 6 bridges extracted vs 2 expected.
+   Color thresholding picked up river-bank brown pixels as
+   bridges. Fix: filter bridge instances by "adjacent to water"
+   check at extraction time. ~5 lines of per-scene script
+   tweak when re-running the medieval-town extraction.
+
+### Tasks completed this 2-session arc (2026-05-25 to 2026-05-26)
+
+Commits in order:
+
+- `e9f65d7` — openai_images backend (gpt-image-2-2026-04-21)
+- `92d0761` — /yume-topdown-prompt skill (stage 1)
+- `c11645b` — openai_images /edits route (multipart, multimodal)
+- `b564406` then `ef24d42` v2 — /yume-scene-class-catalog skill
+  (stage 2; v2 made it fully dynamic, 6-32 classes per scene)
+- `31129d5` — task_plan: 7-stage pipeline design
+- (heightmap-test, in-place commit) — verified gpt-image-2 emits
+  clean grayscale heightmap (stage 4 proven)
+- (stage-5 commit) — /yume-extract-author skill + lib_extract.py
+- `31c9e4c` — compose_world.py + 3 unit primitives (stage 7 minimal)
+
+End-to-end smoke test at
+`godot/data/demo_pipeline_v1/`. Run via:
+```
+./scripts/play.sh pipeline_v1 --capture
+# or
+godot --path . scenes/demo_pipeline_v1_3d.tscn -- --capture-after=3 --capture-output='user://test.png'
+```
+
+Pipeline next-step: ground texture wiring (#1 above) is the
+highest visual return per minute. Stage 6 asset gen is the
+biggest commit but unblocked.
+
 
 
