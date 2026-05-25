@@ -4197,5 +4197,122 @@ Pipeline next-step: ground texture wiring (#1 above) is the
 highest visual return per minute. Stage 6 asset gen is the
 biggest commit but unblocked.
 
+---
+
+## Stage 7 — 2026-05-26 iteration: 3D camera + free-cam wiring
+
+End-to-end milestone updated. Scene now starts in `isometric_3d`
+at 45° for an immediate 3D view (commit `152f168`). Open
+follow-ups added below.
+
+### Empirical bugs caught this session
+
+Three engine-convention surprises surfaced when running the
+generated demo end-to-end. None are compose_world bugs — they're
+existing engine conventions the auto-gen pipeline didn't know
+about. Worth codifying as gates:
+
+1. **`world/state.json` does NOT hold entity definitions.** That
+   file is for env-level non-entity state (per data-demo.md). Entity
+   defs (including singletons like `world_clock` + utility entities
+   like `free_camera`) MUST live in `entities/<name>.json`. Engine
+   silently skipped my defs in state.json — the symptom was "only
+   6 defs loaded" instead of the expected 8+.
+
+   **Gate**: compose_world's docstring + a static validator that
+   warns if a `definitions` block exists in `world/state.json`.
+   Future generators should never put defs there.
+
+2. **Input action names are engine-canonical.** camera_director.gd
+   reads `Input.is_action_pressed("sprint")` / `"cam_up"` /
+   `"cam_down"` — not `"cam_sprint"` etc. The engine errors at
+   runtime ("action sprint doesn't exist") if the names mismatch.
+
+   **Gate**: codify the canonical action name list somewhere
+   accessible — likely a static validator + a section in the
+   `data/lib/input/universal.json` docstring listing all
+   engine-expected action names.
+
+3. **`camera_mode: "free_cam"` as the boot-time default produces
+   blank frames.** Starting in iso/top_down/third_person works
+   fine; toggling into free_cam mid-session works fine; but BOOTING
+   directly in free_cam shows nothing (race in entity state load
+   vs camera_director's first tick? mouse-capture transition?
+   investigation needed).
+
+   **Workaround**: compose_world starts in isometric_3d, user
+   presses C to enter free_cam.
+
+   **Investigation TBD**: identify why free_cam-at-boot fails.
+   Likely the camera_director runs its handler BEFORE the
+   free_camera entity's initial_instances state is fully applied,
+   so `cam_ent.get_state("position", null)` returns null → cam_pos
+   falls back to the TSCN-pinned Camera3D position, which is
+   off-screen for the freshly-spawned town. Fix: defer free_cam
+   activation until after the first full spawn pass, OR set the
+   tscn Camera3D's default position to a sensible default ((0,
+   60, 0)) so the fallback path also looks at the town.
+
+### Open follow-ups (deferred, ranked by impact)
+
+1. **Investigate free_cam-as-boot-default** (small, optional) —
+   debug why starting in free_cam produces a blank frame. Once
+   fixed, compose_world could default to free_cam directly so
+   the user has full WASD/mouse control from frame 1 instead of
+   having to press C.
+
+2. **Stage 6 — asset gen per class with style anchor** (medium) —
+   replace the unit primitives (prim_unit_box / cylinder / sphere)
+   with actual generated .glb meshes per class, style-anchored to
+   the stage-1 photoreal aerial. Plan covered in the earlier
+   "Stage 6 DEFERRED" section above.
+
+3. **Ground texture wiring via shader_params.biome_map** (small,
+   high impact) — semantic map currently shows as the ground albedo
+   but in a flat way. Route it through ADR 0055's 5-biome shader
+   for proper biome variation + heightmap displacement combined.
+   ~30 lines of compose_world tweak.
+
+4. **Try the pipeline on a non-medieval scene end-to-end** (medium)
+   — run a full text→world pass on a sci-fi colony or alien
+   world brief, verify the pipeline really IS scene-agnostic at
+   every stage (catalog adapts, semantic map renders, extraction
+   handles different palettes, compose_world produces correct
+   primitive scene).
+
+5. **House clustering / extraction count drift** (small) —
+   medieval town extraction got 216 houses vs 60 catalog-expected
+   because the semantic map painted dense fine rectangles. Add
+   `merge_within_meters` post-process at stage 5 to collapse
+   adjacent same-class instances.
+
+6. **Per-game .tscn naming convention** (already fixed in
+   `50a6a87` but worth codifying) — the data folder uses
+   `demo_<name>/` prefix; the .tscn / play.sh arg drops the
+   prefix. Codify in a CLAUDE.md / data-demo.md note.
+
+7. **--import automation** — after compose_world generates a new
+   demo with new PNGs, the user must run `--headless --import`
+   before launching or textures fail to load. Bake into the
+   script (subprocess Godot --import call) so end-to-end runs
+   are one command.
+
+### Pipeline status after 2026-05-26
+
+```
+Stage 1 ✓ /yume-topdown-prompt + openai_images.generations
+Stage 2 ✓ /yume-scene-class-catalog (dynamic per genre, 6-32 classes)
+Stage 3 ✓ openai_images.edits (image-conditioned semantic map)
+Stage 4 ✓ openai_images.edits (grayscale heightmap, terrain only)
+Stage 5 ✓ /yume-extract-author + lib_extract.py
+Stage 6 ⏸ DEFERRED — asset gen per class with style anchor
+Stage 7 ✓ MINIMAL — compose_world.py + 3 unit primitives + iso/
+              free_cam wired
+```
+
+Test scene `godot/data/demo_pipeline_v1/` runnable via
+`./scripts/play.sh pipeline_v1`. Starts in isometric_3d showing
+the 3D medieval town; C toggles free_cam; Tab cycles 3 anchors.
+
 
 
