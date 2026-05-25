@@ -1,42 +1,139 @@
 {
   "_origin": "lib/semantic_palette.json",
-  "_comment": "Base palette for text-to-world semantic-map generation. Stage 2 (yume-scene-class-catalog) consults this so common terrain + structure classes use the SAME hex across every game — the engine's biome shader (ADR 0055) and extraction script (LLM-as-script-author) can rely on the convention. Per-scene additions (e.g. townhall, market, temple) get new hexes from the EXTENSION palette below, picked to be visually + spectrally distinct from the base. 2026-05-25.",
+  "_comment": "Conventions + cheat-sheets for the text-to-world semantic-map pipeline. NOT a fixed class list — the per-scene class catalog is fully dynamic. This file provides: (1) the intent_type taxonomy (the only TRULY fixed part), (2) a hex-picking algorithm so per-scene classes get distinct colors, (3) genre cheat-sheets as inspiration, (4) optional 'common conventions' for universal terrain (grass/water/dirt) that authors can adopt or override. Revised 2026-05-25 to remove the medieval-bias of v1.",
 
-  "_intent_types": {
-    "terrain_shader": "becomes a biome on the ground shader (ADR 0055). One big plane, not per-pixel objects. Examples: grass, dirt, sand, cobblestone, water surface.",
-    "terrain_displacement": "drives vertex displacement via heightmap (ADR 0052). Encoded SEPARATELY in the heightmap.png, not in the semantic map's color channel. Examples: hill, valley, river bed.",
-    "object_placement": "spawned as Yume entities at extracted positions. Examples: house, townhall, well, tree, statue, bridge."
+  "intent_types": {
+    "terrain_shader": {
+      "description": "Ground cover that becomes a biome on the ground shader (ADR 0055). One big plane, NOT per-pixel objects.",
+      "examples_across_genres": [
+        "grass, dirt, sand, snow, ice, mud, lava, void, water_surface (universal)",
+        "cobblestone, paved_road, dirt_path (medieval/modern)",
+        "regolith, lunar_dust, plasma_field (sci-fi)",
+        "bioluminescent_moss, spore_carpet (alien)",
+        "lava_flow, ash, scorched_earth (volcanic)"
+      ]
+    },
+    "terrain_displacement": {
+      "description": "Vertex displacement via heightmap.png (ADR 0052). NOT encoded as a color in the semantic map — listed instead in heightmap_hints.high_regions / low_regions.",
+      "examples_across_genres": [
+        "hill, valley, ridge, crater, river_bed, pond_bottom, cliff, plateau, terrace",
+        "crater (sci-fi lunar), trench (undersea), pit (dungeon)"
+      ]
+    },
+    "object_placement": {
+      "description": "Discrete entities spawned at extracted positions. The semantic map color marks WHERE; the catalog name + description tells the asset gen WHAT.",
+      "examples_across_genres": [
+        "house, wall, tower, bridge, statue, market_stall, well, fountain (medieval/town)",
+        "hab_module, solar_array, drone_dock, comms_tower, airlock (sci-fi)",
+        "skyscraper, bus_stop, traffic_light, billboard (modern)",
+        "altar, brazier, chest, pillar, throne, trap (dungeon)",
+        "crystal_spire, spore_pod, alien_egg_sac (alien)",
+        "wreckage, rusted_car, makeshift_shelter, sandbag (post-apoc)"
+      ]
+    }
   },
 
-  "base": {
-    "grass":            {"hex": "#a0d870", "intent_type": "terrain_shader",   "description": "Open grassland / meadow / fields (light green)"},
-    "forest":           {"hex": "#2a5a2a", "intent_type": "terrain_shader",   "description": "Dense tree-covered area (dark green). Use scatter pattern for individual tree entities if walkable forest is needed."},
-    "water_surface":    {"hex": "#3070c0", "intent_type": "terrain_shader",   "description": "Lake / pond / river / ocean surface (blue)"},
-    "cobblestone":      {"hex": "#c8a878", "intent_type": "terrain_shader",   "description": "Paved road / street / plaza ground (tan)"},
-    "dirt_path":        {"hex": "#8a6a40", "intent_type": "terrain_shader",   "description": "Unpaved trail / footpath (muddy brown)"},
-    "sand":             {"hex": "#e0c890", "intent_type": "terrain_shader",   "description": "Sand / beach / desert (pale tan)"},
-    "snow":             {"hex": "#e8e8f0", "intent_type": "terrain_shader",   "description": "Snow / ice cover (off-white)"},
-    "stone_floor":      {"hex": "#888080", "intent_type": "terrain_shader",   "description": "Bare rock / stone tile flooring (grey)"},
-    "house":            {"hex": "#a04020", "intent_type": "object_placement", "description": "Generic dwelling — small red-brown roof"},
-    "wall_segment":     {"hex": "#9a9080", "intent_type": "object_placement", "description": "Defensive stone wall section (pale grey-tan)"},
-    "tower":            {"hex": "#707070", "intent_type": "object_placement", "description": "Defensive tower / watchtower (dark grey circle)"},
-    "bridge":           {"hex": "#704020", "intent_type": "object_placement", "description": "Stone or wood bridge (dark brown)"},
-    "well":             {"hex": "#404048", "intent_type": "object_placement", "description": "Water well (very dark blue-grey circle)"},
-    "fountain":         {"hex": "#e040a0", "intent_type": "object_placement", "description": "Plaza fountain marker (pink)"},
-    "tree":             {"hex": "#206020", "intent_type": "object_placement", "description": "Individual tree (slightly darker than forest)"},
-    "rock":             {"hex": "#606060", "intent_type": "object_placement", "description": "Boulder / standing stone (mid-grey circle)"}
+  "hex_picking_algorithm": {
+    "principle": "Pick hexes that are visually + spectrally distinct so a downstream CV / LLM extractor can color-threshold them apart.",
+    "rules": [
+      "Each class gets ONE hex. No reuse.",
+      "Pairwise hue spacing: any two class hexes should be ≥25° apart in HSV hue, OR ≥0.25 apart in saturation/value if hues are close.",
+      "Prefer SATURATED colors (saturation ≥ 0.5) for object_placement so they stand out against terrain.",
+      "Prefer DESATURATED colors (saturation 0.3-0.6) for terrain_shader so they read as 'background' against the saturated objects.",
+      "Avoid pure black (0,0,0) and pure white (255,255,255) — they're often used as 'no data' or 'overflow' markers.",
+      "Avoid colors within 30 luminance units of each other if their hues are close — they'll quantize to the same bin under JPEG noise."
+    ],
+    "starting_hue_anchors": {
+      "_purpose": "Sensible defaults so common terrain types get conventional colors. NOT required — override when the scene aesthetic demands it (tundra grass might be #b0c8a0, lava lake might be #f04020).",
+      "grass":           "#a0d870",
+      "forest":          "#2a5a2a",
+      "water_surface":   "#3070c0",
+      "deep_water":      "#1a4080",
+      "dirt":            "#8a6a40",
+      "stone":           "#888080",
+      "sand":            "#e0c890",
+      "snow":            "#e8e8f0",
+      "ice":             "#a0c0e0",
+      "lava":            "#f04020",
+      "ash":             "#404040",
+      "void":            "#101020"
+    }
   },
 
-  "extension_palette": [
-    {"hex": "#f0c020", "description": "saturated yellow — for special anchors (fire pit, brazier, lantern)"},
-    {"hex": "#9060c0", "description": "saturated purple — for civic/magical structures (temple, shrine, mage tower, storage)"},
-    {"hex": "#e08040", "description": "saturated orange — for crafting/work (forge, drying rack, kiln, workshop)"},
-    {"hex": "#c02040", "description": "deep red — for important/sacred (townhall, palace, throne room, altar)"},
-    {"hex": "#20c0a0", "description": "teal — for unique features (alchemy, magic pool, healing spring)"},
-    {"hex": "#208040", "description": "mid-saturated green — for farm fields, gardens, orchards"},
-    {"hex": "#503020", "description": "deep brown — for ruined / abandoned structures"},
-    {"hex": "#f0e0a0", "description": "cream — for upper-class housing, marble, ceremonial"}
-  ],
+  "genre_cheat_sheets": {
+    "_purpose": "Per-genre common-class suggestions. Used by yume-scene-class-catalog to bias class selection when the scene brief + reference indicate a particular genre. NOT enforcement — Claude should ADD scene-specific classes beyond these.",
 
-  "_authoring_note": "Stage 2 of the text-to-world pipeline. The yume-scene-class-catalog skill picks which base classes are present in the scene, plus optionally adds extension-palette classes for scene-specific structures. The skill's OUTPUT format is class_catalog.json with each entry containing {name, hex, intent_type, description, expected_count_or_density}. That catalog drives stages 3 (semantic prompt), 4 (heightmap hints), and 5 (extraction script)."
+    "medieval_town": {
+      "common_classes": ["grass", "forest", "water_surface", "cobblestone", "dirt_path", "farm_field",
+                         "house", "wall_segment", "tower", "bridge", "fountain", "well", "tree",
+                         "market_stall", "townhall", "church", "shop", "inn", "stable"],
+      "typical_topography": "mostly_flat",
+      "palette_warmth": "warm (terracotta, ochre, deep green, slate grey)"
+    },
+
+    "sci_fi_colony": {
+      "common_classes": ["regolith", "rock_outcrop", "crater_rim", "ice_patch",
+                         "hab_module", "solar_array", "comms_tower", "drone_dock", "airlock",
+                         "service_corridor", "power_conduit", "rover", "antenna_field"],
+      "typical_topography": "rough, crater_pocked",
+      "palette_warmth": "cool (silver, white, ice blue, regolith grey, accent emergency orange)"
+    },
+
+    "modern_city": {
+      "common_classes": ["concrete", "asphalt", "park_grass", "water_surface", "highway", "sidewalk",
+                         "skyscraper", "low_rise_building", "house", "parking_lot", "bus_stop",
+                         "traffic_light", "billboard", "intersection", "fountain", "monument"],
+      "typical_topography": "mostly_flat with elevated highways possible",
+      "palette_warmth": "neutral (asphalt grey, glass blue, concrete white, accent yellow/red signage)"
+    },
+
+    "dungeon_interior": {
+      "common_classes": ["flagstone_floor", "rough_floor", "void_pit", "water_pool", "lava_pool",
+                         "wall_segment", "door", "chest", "altar", "pillar", "brazier",
+                         "throne", "stairs_down", "trap_pressure", "spike_floor"],
+      "typical_topography": "multi_level with pits + ledges",
+      "palette_warmth": "dark (charcoal, deep red, torch amber, mossy green)"
+    },
+
+    "alien_world": {
+      "common_classes": ["bioluminescent_moss", "spore_carpet", "crystal_field", "alien_water",
+                         "crystal_spire", "spore_pod", "alien_egg_sac", "biofilm_dome",
+                         "tentacled_tree", "fungal_growth", "energy_pillar"],
+      "typical_topography": "varied — depends on the world's geology",
+      "palette_warmth": "saturated unusual (teal, violet, magenta, electric green, bioluminescent cyan)"
+    },
+
+    "post_apocalyptic": {
+      "common_classes": ["scorched_earth", "rubble", "rusted_metal_ground", "stagnant_water",
+                         "ruined_house", "wreckage", "scavenged_shelter", "rusted_car",
+                         "sandbag_barricade", "campfire", "warning_sign", "billboard_ruin"],
+      "typical_topography": "broken_rubble with scattered craters",
+      "palette_warmth": "desaturated (rust orange, ash grey, dirt brown, accent radioactive green)"
+    },
+
+    "natural_wilderness": {
+      "common_classes": ["grass", "forest", "water_surface", "dirt_path", "rock_outcrop",
+                         "sand", "snow", "ice", "marsh", "meadow",
+                         "tree", "boulder", "fallen_log", "berry_bush", "campfire_marker"],
+      "typical_topography": "varied (depends on biome)",
+      "palette_warmth": "natural (greens, browns, sky blue, accent berry red)"
+    },
+
+    "underwater": {
+      "common_classes": ["sand", "seabed_rock", "kelp_forest", "coral_field", "deep_trench",
+                         "shipwreck", "anchor", "coral_outcrop", "shell_pile", "submersible"],
+      "typical_topography": "trenches + ridges",
+      "palette_warmth": "blue-green (deep blue base, accent yellow coral, red fish markers)"
+    }
+  },
+
+  "class_count_guidance": {
+    "minimum": 6,
+    "comfortable": "10-20",
+    "maximum_recommended": 32,
+    "why_a_max": "Past ~32 hexes, color separation in the semantic map becomes unreliable under JPEG noise + gpt-image-2's slight color jitter. If a scene genuinely needs more classes, group adjacent concepts ('small_house' + 'medium_house' → 'house' with size range) before adding more colors.",
+    "object_size_class_split": "Some games want to distinguish house sizes or building types. Solution: emit 2-3 hexes in the SAME hue family (e.g. small_house #c04020, large_house #a02020, civic_building #c02040) — close enough to extract as 'building' family, distinct enough to subclass."
+  },
+
+  "_authoring_note": "Stage 2 (yume-scene-class-catalog) reads this file as conventions, not enforcement. The skill picks classes per-scene driven by the brief + reference + genre cheat-sheet (when applicable) + the hex-picking algorithm. Common terrain gets conventional hexes (grass=#a0d870 etc) by default; specific aesthetic intent in the brief overrides them. Class count is dynamic 6-32, not capped at 14."
 }

@@ -1,6 +1,6 @@
 ---
 name: yume-scene-class-catalog
-description: Stage 2 of the text-to-world pipeline (2026-05-25 design). Reads a scene brief + a reference photoreal aerial, and produces three artifacts that drive the rest of the pipeline — class_catalog.json (per-scene labels with hex colors and intent types: terrain_shader / terrain_displacement / object_placement), semantic_map_prompt.txt (ready to feed into openai_images /edits at stage 3), and heightmap_prompt.txt (ready to feed at stage 4). Library + override: base classes (grass, forest, water, road, house, wall, etc.) come from data/lib/semantic_palette.json with FIXED hexes so engine wiring is deterministic; per-scene additions (townhall, market, temple, etc.) draw from an extension palette of distinct colors. Empirical case: 2026-05-25 medieval-town stage-1 photoreal + stage-2 catalog generation pairs cleanly.
+description: Stage 2 of the text-to-world pipeline (2026-05-25). Reads a scene brief + reference photoreal aerial and produces a fully-dynamic per-scene class catalog plus the stage-3/4/5 prompts. Class count is dynamic 6-32; classes named freely per genre (medieval town vs sci-fi colony vs dungeon vs alien world all get entirely different catalogs). data/lib/semantic_palette.json provides conventions (intent_type taxonomy, hex-picking algorithm, genre cheat-sheets) — NOT a fixed class list. Outputs class_catalog.json, semantic_map_prompt.txt, heightmap_prompt.txt, and scene_biome_mapping.json (for ADR 0055 engine wiring). Pairs with /yume-topdown-prompt (stage 1) and feeds compose_semantic_extract (stage 3+4) + yume-extract-author (stage 5, TBD).
 ---
 
 # /yume-scene-class-catalog
@@ -8,12 +8,17 @@ description: Stage 2 of the text-to-world pipeline (2026-05-25 design). Reads a 
 You are the **stage-2 author** for Yume's text-to-world pipeline.
 You read a SCENE BRIEF (prose) and a REFERENCE PHOTOREAL AERIAL
 (stage 1 output) and you produce the structured catalog + prompts
-that drive stages 3, 4, and 5.
+that drive stages 3-7.
+
+**Every scene gets its own catalog.** A medieval town's classes
+look nothing like a sci-fi colony's, which look nothing like a
+dungeon's. The lib gives you conventions + a genre cheat-sheet —
+NOT a fixed class list to copy. Each catalog is dynamic.
 
 ## When to invoke
 
 - After stage 1 has produced a photoreal top-down reference
-- Before stage 3 (semantic map gen) or stage 4 (heightmap gen)
+- Before stages 3 (semantic map gen) / 4 (heightmap gen) / 5 (extraction)
 - Whenever a new scene is being prepped for the pipeline
 
 ## When NOT to invoke
@@ -25,297 +30,349 @@ that drive stages 3, 4, and 5.
 ## Inputs
 
 1. **Scene brief** — one or two sentences describing the world
-   (e.g. "a fortified medieval town beside a river with farmland",
-   "post-apocalyptic raider settlement around a crashed cargo plane")
 2. **Reference photoreal aerial** — PNG path from stage 1
-3. **Optional** — game id (for context) or required-class hints
-   from the GDD
+3. **Optional** — game id, genre hint, required-class list from GDD
 
-## Outputs (three files)
+## Outputs (FOUR files)
 
-### A. `/tmp/_class_catalog.json`
-
-The structured class catalog. Schema:
-
-```json
-{
-  "scene_brief": "<echoed from input>",
-  "reference_image": "<path>",
-  "image_size": [1024, 1024],
-  "classes": [
-    {
-      "name": "grass",
-      "hex": "#a0d870",
-      "intent_type": "terrain_shader",
-      "description": "Base ground vegetation outside the walls",
-      "expected_coverage_pct": 40.0,
-      "lib_origin": "base"
-    },
-    {
-      "name": "townhall",
-      "hex": "#c02040",
-      "intent_type": "object_placement",
-      "description": "Large central civic building, deep red roof",
-      "expected_count": 1,
-      "expected_size_pct": 4.0,
-      "lib_origin": "extension"
-    }
-  ],
-  "heightmap_hints": {
-    "expected_topography": "mostly_flat | hilly | mountainous | coastal | crater | terraced",
-    "low_regions": ["river_bed", "pond_bottom"],
-    "high_regions": [],
-    "elevation_range_estimate_meters": [0, 5]
-  },
-  "composition_notes": "octagonal wall, radial streets, river on east edge"
-}
-```
-
-Field details:
-- **`name`**: lowercase_snake_case. Matches an entry in
-  `data/lib/semantic_palette.json` if `lib_origin == "base"`.
-- **`hex`**: 6-digit hex with leading `#`. From the base lib for
-  common classes; from extension_palette for per-scene classes.
-- **`intent_type`**: one of:
-  - `terrain_shader` — biome on the ground plane (one big mesh)
-  - `terrain_displacement` — vertex displacement via heightmap (no
-    color slot in semantic map — encoded in heightmap.png instead)
-  - `object_placement` — spawned as Yume entities
-- **`expected_coverage_pct`** (terrain_shader only): rough %
-  of the image this class should cover. Helps the LLM-as-parser
-  at stage 5 validate coverage.
-- **`expected_count`** (object_placement only): rough count of
-  instances of this class. Helps the script writer at stage 5.
-- **`lib_origin`**: `"base"` (defined in semantic_palette.json) or
-  `"extension"` (extension palette pick).
-
-### B. `/tmp/_semantic_map_prompt.txt`
-
-A ready-to-feed prompt for stage 3 (openai_images /edits with the
-photoreal reference). Format:
-
-```
-TECHNICAL DIAGRAM — solid color regions only — like MS Paint with the
-bucket fill tool. ZERO decoration. ZERO texture. ZERO shadows. ZERO
-outlines. ZERO text. ZERO labels. ZERO icons. ZERO illustrated trees
-as separate shapes. ZERO illustrations of any kind. ZERO photoreal style.
-
-This is a CSS color palette test, NOT an illustration. Top-down 2D
-layout. Each region is a perfectly FLAT solid block of ONE hex color.
-
-The attached reference image is for LAYOUT ONLY. PRESERVE THE EXACT
-SPATIAL LAYOUT (positions of every feature) but REPLACE all painted
-detail with FLAT solid color blocks.
-
-PALETTE — use ONLY these {N} hex colors, NO others:
-- {hex1} {name1} — {description1}
-- {hex2} {name2} — {description2}
-...
-
-ABSOLUTE RULES:
-- Use ONLY these {N} hex colors. Any other color = failure.
-- ZERO text, ZERO icons, ZERO trees illustrated.
-- ZERO shadows, ZERO gradients, ZERO antialiasing beyond 1-2px edges.
-- {W}x{H} square output.
-- Output looks like a child's MS Paint sketch with the bucket fill tool.
-```
-
-(Compose by injecting the catalog's classes into the palette list.)
-
-### C. `/tmp/_heightmap_prompt.txt`
-
-A ready-to-feed prompt for stage 4. Format:
-
-```
-Convert the attached reference into a TERRAIN HEIGHTMAP — a grayscale
-image where pixel brightness encodes GROUND ELEVATION (not building
-or object height).
-
-PIXEL CONVENTION:
-- pure white (255) = highest terrain
-- pure black (0) = lowest terrain (water surface, pond/river bed)
-- mid grey (128) = average ground level
-
-EXPECTED TOPOGRAPHY for this scene: {expected_topography}
-{topography-specific guidance per the heightmap_hints}
-
-WHAT TO IGNORE:
-- ALL building roofs, walls, towers, columns, statues → set their
-  FOOTPRINT to the SAME grey as the surrounding ground.
-- ALL roads, paths, plazas → same ground grey.
-- ALL surface textures → flat regions only.
-
-WHAT TO PRESERVE:
-- {low_regions} → encode as dark grey to near-black
-- {high_regions} → encode as brighter grey to white
-- Smooth gradients ONLY along elevation transitions
-
-ABSOLUTE RULES:
-- NO color (grayscale only, R=G=B per pixel).
-- NO building bumps, NO walls as ridges, NO roads as different grey.
-- {W}x{H} grayscale output.
-- Looks like a topographic data file you'd feed to a vertex shader.
-```
+| File | Purpose |
+|---|---|
+| `/tmp/_class_catalog.json` | Per-scene catalog: classes + hex + intent_type + descriptions + counts |
+| `/tmp/_semantic_map_prompt.txt` | Ready-to-feed at stage 3 (`openai_images.edits` with reference) |
+| `/tmp/_heightmap_prompt.txt` | Ready-to-feed at stage 4 (`openai_images.edits` with reference) |
+| `/tmp/_scene_biome_mapping.json` | For ADR 0055 engine wiring — maps each `terrain_shader` class to a biome shader slot |
 
 ## The procedure
 
-### Step 1 — Read the base palette
+### Step 1 — Read the conventions lib
 
 ```bash
 cat godot/data/lib/semantic_palette.json
 ```
 
-Memorize the BASE classes (grass, forest, water_surface, cobblestone,
-dirt_path, sand, snow, stone_floor, house, wall_segment, tower,
-bridge, well, fountain, tree, rock) + their fixed hex codes.
-Memorize the EXTENSION palette (8 distinct hexes for scene-specific
-classes).
+Note the THREE things this file gives you:
+- **`intent_types`** — the only TRULY fixed part. Three types:
+  `terrain_shader` / `terrain_displacement` / `object_placement`.
+- **`hex_picking_algorithm`** — rules for picking distinct hexes
+  (hue spacing ≥25°, sat/val rules per intent type, avoid 0/255
+  extremes, etc.) + `starting_hue_anchors` for common terrain
+  (grass / water / sand / snow / lava / etc.) as conventional
+  defaults.
+- **`genre_cheat_sheets`** — common-class suggestions per genre
+  (medieval_town, sci_fi_colony, modern_city, dungeon_interior,
+  alien_world, post_apocalyptic, natural_wilderness, underwater).
+  Use as INSPIRATION, not a list to copy.
 
-### Step 2 — Look at the reference image + read the scene brief
+### Step 2 — Detect genre + scene scope
 
-Identify which features are present:
-- **Terrain** — what ground covers most of the image? (grass +
-  forest + water are most common). What's the texture variation?
-- **Topography** — flat? hills? valleys? river beds?
-- **Structures** — what buildings / walls / objects are visible?
-  Count them roughly.
-- **Special features** — anything that needs a scene-specific class
-  not in the base palette (e.g. "this game has a temple", "this
-  scene has a crashed plane")
+Read the brief + look at the reference image. Infer:
+- **Genre** — which cheat-sheet (if any) is relevant?
+  ("fortified medieval town" → medieval_town,
+   "abandoned mars colony" → sci_fi_colony,
+   "lush alien rainforest with bioluminescent flora" → alien_world)
+- **Scope** — how many classes does this scene genuinely need?
+  - Tiny scene (single room, small camp): 6-10 classes
+  - Standard scene (town, dungeon, biome): 10-20 classes
+  - Rich scene (city, complex landscape, multi-region): 20-32 classes
+- **Topography** — flat, hilly, mountainous, multi-level, etc.
+  Drives the heightmap_hints.
 
-### Step 3 — Pick the class catalog
+### Step 3 — Pick the class list (FULLY DYNAMIC)
 
-For each visible feature:
+For each feature visible in the reference:
 
-- If it matches a BASE class, use the base entry's hex + intent_type.
-- If it's scene-specific, pick a hex from the EXTENSION palette:
-  - `townhall` / `palace` → `#c02040` (deep red)
-  - `temple` / `shrine` → `#9060c0` (purple)
-  - `forge` / `workshop` → `#e08040` (orange)
-  - `magical_feature` → `#20c0a0` (teal)
-  - `farm` / `garden` → `#208040` (mid-green)
-  - `ruin` → `#503020` (deep brown)
-  - `noble_house` → `#f0e0a0` (cream)
-  - `lamp` / `fire_pit` → `#f0c020` (yellow)
+1. Name it in lowercase_snake_case ("solar_panel", "crystal_spire",
+   "townhall", "kelp_forest"). The name describes the SPECIFIC
+   thing in THIS scene, not a generic placeholder.
 
-Per-scene addition rule: don't add more than ~5 extension classes.
-The 8 base palette colors + 5-6 extensions cap the catalog at ~14
-classes — past that, color separation in the semantic map gets
-unreliable.
+2. Pick a hex per the algorithm in `hex_picking_algorithm`:
+   - Conventional terrain (grass, water, sand, etc.) → use the
+     `starting_hue_anchors` default UNLESS the scene's aesthetic
+     demands a variant ("autumn forest" might want #4a6020 instead
+     of #2a5a2a; "blood lake" might want #802020 instead of
+     #3070c0). Override conventions when intent demands.
+   - Per-scene classes (genre-specific buildings, alien flora,
+     etc.) → pick a hex that satisfies pairwise distinctness
+     (hue ≥25° apart from every existing class, or sat/val
+     differentiation if hue overlaps).
 
-### Step 4 — Assign intent_type per class
+3. Pick an intent_type:
+   - `terrain_shader` — ground cover, one big plane biome
+   - `terrain_displacement` — elevation feature (no hex; lives in
+     heightmap_hints)
+   - `object_placement` — discrete entity (specific count expected)
 
-Use the convention from semantic_palette.json's `_intent_types`:
+4. Add a `description` — what does this class represent? Stage 6
+   asset gen will read it.
 
-- `terrain_shader`: anything that's GROUND COVER, not a discrete
-  object. Includes grass, forest (when you want the FLOOR to read
-  as forested but don't need individual tree entities), water,
-  paths, plazas, cobblestone.
-- `terrain_displacement`: hills, valleys, elevation features. Often
-  ZERO entries — only used if the scene has real topography.
-  Encoded in heightmap.png, not in semantic map color.
-- `object_placement`: discrete entities — houses, walls, towers,
-  bridges, statues, market stalls, fountains.
+5. Add count/coverage estimate:
+   - `terrain_shader` → `expected_coverage_pct` (rough %)
+   - `object_placement` → `expected_count` (rough integer)
 
-If a class could be EITHER (e.g., forest could be a green ground
-biome OR individual tree entities), pick based on scene needs:
-- Want player to walk between specific trees → `object_placement`
-- Want a "forest texture" that the player walks on top of →
-  `terrain_shader`
+6. Repeat until every feature has a class. Don't over-collapse
+   ("trees" vs "trees + flowers + bushes" — distinguish if the
+   scene genuinely has them; don't pad if it doesn't).
 
-### Step 5 — Add heightmap hints
+### Step 4 — Sanity-check the catalog
 
-Look at the reference image's apparent topography:
-- Mostly flat town → `mostly_flat`
-- Has hills or terraces → `hilly` with bright high_regions
-- River / lake / pond → set those as low_regions
-- Coastal → `coastal` with the water side as low
+Before writing files, verify:
 
-### Step 6 — Write the three output files
+- **Count**: 6 ≤ N ≤ 32 classes. If outside, adjust (combine close
+  classes or split too-broad ones).
+- **Hex distinctness**: pairwise hue ≥25° OR sat/val differentiation
+  ≥0.25 for similar-hue pairs. The downstream extractor will
+  color-threshold; ambiguous hexes break it.
+- **Intent balance**: most scenes have 30-60% `terrain_shader`,
+  40-60% `object_placement`, 0-10% `terrain_displacement`. If your
+  catalog is 90% `object_placement`, the ground will look bare —
+  reconsider what terrain biomes are present.
+- **Coverage adds up**: terrain_shader percentages should sum to
+  ≥80% (the rest is occluded by `object_placement` items + their
+  shadows). If your percentages sum to 40%, you're missing
+  background terrain.
 
-`_class_catalog.json` — the structured catalog from steps 3-5.
-`_semantic_map_prompt.txt` — compose the prompt by injecting the
-catalog's classes into the palette list of the base template.
-`_heightmap_prompt.txt` — compose the prompt by injecting the
-heightmap_hints into the base template.
-
-## Strict rules
-
-1. **No invented base classes.** If you call a class "grass," its
-   hex MUST be `#a0d870`. Authors who scan the catalog should be
-   able to depend on the convention. Add a SCENE-SPECIFIC name
-   (e.g. "tundra_grass") with an extension hex if you need a
-   different shade.
-
-2. **No invented hexes outside the lib.** Every hex you use is
-   either a base hex or an extension hex from
-   `semantic_palette.json`. NO making up colors.
-
-3. **Limit total classes to ~14.** Past that, color separation in
-   the semantic map gets unreliable. Combine adjacent concepts
-   (e.g. "small_house" + "medium_house" → just "house" with a
-   range of expected sizes).
-
-4. **`terrain_displacement` classes have NO hex.** They're encoded
-   in heightmap.png, not the semantic map. Mention them in
-   `heightmap_hints.low_regions` or `high_regions` instead.
-
-5. **Intent types are NOT subjective.** A wall is `object_placement`
-   even if it's a long thin strip — players need it as collision
-   geometry. A cobblestone road is `terrain_shader` even if you
-   could imagine it as a chain of tile entities — the engine's
-   biome shader handles it more efficiently.
-
-## Worked example (medieval town)
-
-Input:
-- scene_brief: "fortified medieval town beside a river with farmland"
-- reference_image: `openai_test_town_orthographic.png` (1024×1024)
-
-Expected `_class_catalog.json`:
+### Step 5 — Add heightmap_hints
 
 ```json
 {
-  "scene_brief": "fortified medieval town beside a river with farmland",
-  "reference_image": "openai_test_town_orthographic.png",
-  "image_size": [1024, 1024],
-  "classes": [
-    {"name": "grass", "hex": "#a0d870", "intent_type": "terrain_shader", "description": "Open meadow outside the walls", "expected_coverage_pct": 35.0, "lib_origin": "base"},
-    {"name": "forest", "hex": "#2a5a2a", "intent_type": "terrain_shader", "description": "Wooded perimeter around the town", "expected_coverage_pct": 15.0, "lib_origin": "base"},
-    {"name": "water_surface", "hex": "#3070c0", "intent_type": "terrain_shader", "description": "River along the east edge", "expected_coverage_pct": 10.0, "lib_origin": "base"},
-    {"name": "cobblestone", "hex": "#c8a878", "intent_type": "terrain_shader", "description": "Radial streets + central plaza", "expected_coverage_pct": 8.0, "lib_origin": "base"},
-    {"name": "farm_field", "hex": "#208040", "intent_type": "terrain_shader", "description": "Cultivated farmland patches outside the walls", "expected_coverage_pct": 5.0, "lib_origin": "extension"},
-    {"name": "house", "hex": "#a04020", "intent_type": "object_placement", "description": "Townspeople dwellings inside the walls", "expected_count": 60, "lib_origin": "base"},
-    {"name": "wall_segment", "hex": "#9a9080", "intent_type": "object_placement", "description": "Octagonal stone curtain wall", "expected_count": 8, "lib_origin": "base"},
-    {"name": "tower", "hex": "#707070", "intent_type": "object_placement", "description": "Round defensive tower at each wall vertex", "expected_count": 12, "lib_origin": "base"},
-    {"name": "bridge", "hex": "#704020", "intent_type": "object_placement", "description": "Stone bridge crossing the river", "expected_count": 2, "lib_origin": "base"},
-    {"name": "fountain", "hex": "#e040a0", "intent_type": "object_placement", "description": "Central plaza fountain", "expected_count": 1, "lib_origin": "base"},
-    {"name": "townhall", "hex": "#c02040", "intent_type": "object_placement", "description": "Large central civic building", "expected_count": 1, "lib_origin": "extension"}
-  ],
-  "heightmap_hints": {
-    "expected_topography": "mostly_flat",
-    "low_regions": ["river_bed"],
-    "high_regions": [],
-    "elevation_range_estimate_meters": [0, 2]
-  },
-  "composition_notes": "octagonal wall ~60% of image width, 12 radial cobblestone streets converging on a small central plaza with a fountain, river curves along the east edge with two bridges, forest patches in the four corners, light green grass/fields outside the wall"
+  "expected_topography": "mostly_flat | hilly | mountainous | coastal | crater | terraced | multi_level",
+  "low_regions": ["river_bed", "pond_bottom", "crater_floor"],
+  "high_regions": ["hilltop", "fortress_mound", "tower_peak"],
+  "elevation_range_estimate_meters": [low_m, high_m]
 }
 ```
 
+For dungeons / multi-level scenes, encode the lowest/highest floor
+heights here. For open-world, encode the lowest valley / highest
+peak.
+
+### Step 6 — Compose the four output files
+
+#### A. `_class_catalog.json`
+
+```json
+{
+  "scene_brief": "<echoed>",
+  "reference_image": "<path>",
+  "image_size": [W, H],
+  "genre_hint": "medieval_town | sci_fi_colony | ...",
+  "classes": [
+    {"name": "<lowercase_snake>", "hex": "#rrggbb",
+     "intent_type": "terrain_shader|terrain_displacement|object_placement",
+     "description": "<what is this>",
+     "expected_coverage_pct": <float>,    // for terrain_shader
+     "expected_count": <int>,             // for object_placement
+     "design_origin": "convention | per_scene_extension"}
+  ],
+  "heightmap_hints": { ... per step 5 ... },
+  "composition_notes": "<sentence describing layout / focal point / asymmetries>",
+  "_generation_meta": {
+    "skill": "yume-scene-class-catalog",
+    "version": "2026-05-25b",
+    "n_classes": <int>,
+    "intent_breakdown": {"terrain_shader": N, "object_placement": N, "terrain_displacement": N}
+  }
+}
+```
+
+#### B. `_semantic_map_prompt.txt`
+
+```
+TECHNICAL DIAGRAM — solid color regions only — like MS Paint with
+the bucket fill tool. ZERO decoration. ZERO texture. ZERO shadows.
+ZERO outlines. ZERO text. ZERO labels. ZERO icons. ZERO illustrated
+trees as separate shapes. ZERO illustrations. ZERO photoreal style.
+
+The attached reference is for LAYOUT ONLY. PRESERVE THE EXACT
+SPATIAL LAYOUT but REPLACE all painted detail with FLAT solid
+color blocks. THROW AWAY the reference's visual style; keep only
+its layout.
+
+SCENE CONTEXT (from catalog):
+<composition_notes>
+
+PALETTE — use ONLY these {N} hex colors, NO others:
+- {hex1} {name1} — {description1}
+- {hex2} {name2} — {description2}
+... (one line per class)
+
+ABSOLUTE RULES:
+- Use ONLY these {N} hex colors. Any other color = failure.
+- ZERO text, ZERO icons, ZERO trees illustrated.
+- ZERO shadows, ZERO gradients.
+- {W}x{H} square output.
+- Output: a child's MS Paint sketch, NOT a beautiful map.
+```
+
+#### C. `_heightmap_prompt.txt`
+
+```
+Convert the attached reference into a TERRAIN HEIGHTMAP — a
+grayscale image where pixel brightness encodes GROUND ELEVATION,
+not building or object height.
+
+PIXEL CONVENTION:
+- white (255) = highest terrain
+- black (0) = lowest terrain (water, pit, void)
+- mid grey (128) = average ground level
+
+EXPECTED TOPOGRAPHY: <expected_topography>
+<topography-specific guidance>
+
+LOW REGIONS (dark to near-black): <list from heightmap_hints>
+HIGH REGIONS (bright to white): <list from heightmap_hints>
+ELEVATION RANGE: <low>-<high> meters
+
+WHAT TO IGNORE:
+- ALL building roofs, walls, towers, columns, statues, vehicles,
+  machinery → set FOOTPRINT to SAME grey as surrounding ground.
+- ALL roads, paths, plazas, surface textures → ground grey.
+
+WHAT TO PRESERVE:
+- Water bodies → dark-to-near-black with smooth bank gradient.
+- Real terrain elevation → grey gradient.
+
+ABSOLUTE RULES:
+- NO color (grayscale only).
+- NO building bumps, NO walls as ridges.
+- {W}x{H} grayscale output.
+- Topographic data file, NOT a beautiful illustration.
+```
+
+#### D. `_scene_biome_mapping.json`
+
+Maps each `terrain_shader` class to a biome slot for ADR 0055
+engine wiring. The engine's ground shader reads the semantic map +
+this mapping at level load.
+
+```json
+{
+  "reference_semantic_map": "/path/to/semantic_map.png",
+  "reference_heightmap": "/path/to/heightmap.png",
+  "biome_slots": [
+    {"slot": 0, "name": "<terrain_class_name>", "hex": "#rrggbb",
+     "shader_uniform_prefix": "biome_<n>", "description": "..."},
+    ...
+  ],
+  "note": "Each biome slot maps to scene.json.ground.mesh.shader_params.biome_color_N. Stage 7 wires these into the per-game scene.json automatically."
+}
+```
+
+## Strict rules
+
+1. **No fixed class taxonomy.** A medieval town's classes are
+   entirely different from a sci-fi colony's. The cheat-sheet is
+   INSPIRATION, not a copy-paste list. Pick what THIS scene needs.
+
+2. **Convention before innovation.** When a generic terrain
+   (grass, water, sand, snow, lava) is in the scene, use the
+   convention from `starting_hue_anchors` unless the scene's
+   aesthetic demands a variant. Distinctness across games is
+   useful when the engine wiring can be shared.
+
+3. **Distinctness is enforced.** Pairwise hue ≥25° OR sat/val ≥0.25
+   for similar-hue pairs. This is required by the downstream
+   extractor's color-threshold step.
+
+4. **Class count = 6-32.** Past 32, distinctness erodes. Combine
+   adjacent concepts (small_house + medium_house → house) before
+   adding more colors.
+
+5. **terrain_displacement gets NO hex.** Encoded in heightmap.png,
+   not in the semantic map. Mention in heightmap_hints.
+
+6. **Intent type is objective.** A wall is `object_placement` even
+   if it's a long thin strip (collision geometry). A cobblestone
+   road is `terrain_shader` even if it could be thought of as
+   tiles (the shader handles it more efficiently).
+
+## Worked examples (three genres, three catalogs)
+
+### Example 1 — Medieval town (matches what we tested)
+
+```json
+{
+  "genre_hint": "medieval_town",
+  "classes": [
+    {"name": "grass", "hex": "#a0d870", "intent_type": "terrain_shader", "expected_coverage_pct": 30},
+    {"name": "forest", "hex": "#2a5a2a", "intent_type": "terrain_shader", "expected_coverage_pct": 15},
+    {"name": "water_surface", "hex": "#3070c0", "intent_type": "terrain_shader", "expected_coverage_pct": 8},
+    {"name": "cobblestone", "hex": "#c8a878", "intent_type": "terrain_shader", "expected_coverage_pct": 8},
+    {"name": "dirt_path", "hex": "#8a6a40", "intent_type": "terrain_shader", "expected_coverage_pct": 3},
+    {"name": "farm_field", "hex": "#208040", "intent_type": "terrain_shader", "expected_coverage_pct": 6},
+    {"name": "house", "hex": "#a04020", "intent_type": "object_placement", "expected_count": 60},
+    {"name": "townhall", "hex": "#c02040", "intent_type": "object_placement", "expected_count": 1},
+    {"name": "wall_segment", "hex": "#9a9080", "intent_type": "object_placement", "expected_count": 8},
+    {"name": "tower", "hex": "#707070", "intent_type": "object_placement", "expected_count": 12},
+    {"name": "bridge", "hex": "#704020", "intent_type": "object_placement", "expected_count": 2},
+    {"name": "fountain", "hex": "#e040a0", "intent_type": "object_placement", "expected_count": 1}
+  ]
+}
+```
+
+### Example 2 — Mars colony (sci-fi)
+
+```json
+{
+  "genre_hint": "sci_fi_colony",
+  "classes": [
+    {"name": "regolith", "hex": "#a08070", "intent_type": "terrain_shader", "expected_coverage_pct": 60},
+    {"name": "ice_patch", "hex": "#c0d8e8", "intent_type": "terrain_shader", "expected_coverage_pct": 5},
+    {"name": "lava_tube_floor", "hex": "#403038", "intent_type": "terrain_shader", "expected_coverage_pct": 4},
+    {"name": "hab_module", "hex": "#e8e8f0", "intent_type": "object_placement", "expected_count": 8},
+    {"name": "solar_array", "hex": "#202050", "intent_type": "object_placement", "expected_count": 12},
+    {"name": "comms_tower", "hex": "#d0d000", "intent_type": "object_placement", "expected_count": 2},
+    {"name": "drone_dock", "hex": "#20b0a0", "intent_type": "object_placement", "expected_count": 4},
+    {"name": "airlock", "hex": "#e04040", "intent_type": "object_placement", "expected_count": 3},
+    {"name": "rover", "hex": "#f08020", "intent_type": "object_placement", "expected_count": 2},
+    {"name": "crater_marker", "hex": "#000000", "intent_type": "terrain_displacement"}
+  ],
+  "heightmap_hints": {
+    "expected_topography": "crater_pocked",
+    "low_regions": ["crater_floor", "lava_tube_entrance"],
+    "high_regions": ["crater_rim"]
+  }
+}
+```
+
+(Note: completely different palette — silver/white hab modules,
+saturated comm/airlock colors, regolith tan terrain. NONE of the
+medieval-town classes apply.)
+
+### Example 3 — Alien biolab world
+
+```json
+{
+  "genre_hint": "alien_world",
+  "classes": [
+    {"name": "bioluminescent_moss", "hex": "#40e0c0", "intent_type": "terrain_shader", "expected_coverage_pct": 40},
+    {"name": "spore_carpet", "hex": "#c040e0", "intent_type": "terrain_shader", "expected_coverage_pct": 15},
+    {"name": "fungal_pool", "hex": "#a0e040", "intent_type": "terrain_shader", "expected_coverage_pct": 8},
+    {"name": "crystal_field_floor", "hex": "#8040c0", "intent_type": "terrain_shader", "expected_coverage_pct": 10},
+    {"name": "alien_water", "hex": "#206080", "intent_type": "terrain_shader", "expected_coverage_pct": 7},
+    {"name": "crystal_spire", "hex": "#e0e0ff", "intent_type": "object_placement", "expected_count": 25},
+    {"name": "spore_pod", "hex": "#ff8080", "intent_type": "object_placement", "expected_count": 40},
+    {"name": "tentacled_tree", "hex": "#605040", "intent_type": "object_placement", "expected_count": 12},
+    {"name": "egg_sac", "hex": "#f0e000", "intent_type": "object_placement", "expected_count": 8},
+    {"name": "biofilm_dome", "hex": "#80c020", "intent_type": "object_placement", "expected_count": 5}
+  ]
+}
+```
+
+(Highly saturated, otherworldly palette — teal moss, magenta
+spores, electric green pools. The whole color space differs from
+medieval-town's earth tones.)
+
 ## What this skill is NOT
 
-- NOT a generator of the semantic map itself — that's stage 3
-  (openai_images /edits) consumed by `compose_semantic_extract`.
-- NOT a generator of the photoreal reference — that's stage 1
-  (`/yume-topdown-prompt` + openai_images.generations).
-- NOT an extractor of entity positions — that's stage 5
-  (LLM-as-script-author).
-- NOT a member of the locked 2D pipelines (compose_hud / compose_
-  screen). This is the ACTIVE 3D pipeline category.
+- NOT a generator of the semantic map → stage 3 (`openai_images.edits`)
+- NOT the photoreal reference → stage 1 (`/yume-topdown-prompt`)
+- NOT the extractor → stage 5 (`/yume-extract-author`, TBD)
+- NOT a member of the locked 2D pipelines (HUD / screen)
 
 ## Reference files
 
-- `godot/data/lib/semantic_palette.json` — the base palette + intent type definitions
-- `tools/visual_layout/compose_map.py` — the existing semantic-map pipeline whose presets predate this skill
+- `godot/data/lib/semantic_palette.json` — conventions + cheat-sheets
 - `.claude/skills/yume-topdown-prompt/SKILL.md` — stage 1 sibling
-- `.claude/rules/pipeline-stability.md` — confirms this is in the ACTIVE 3D category, no ADR gate for changes
+- `.claude/rules/pipeline-stability.md` — confirms this is in
+  the ACTIVE 3D category, no ADR gate to change
