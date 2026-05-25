@@ -1,0 +1,42 @@
+{
+  "_origin": "lib/semantic_palette.json",
+  "_comment": "Base palette for text-to-world semantic-map generation. Stage 2 (yume-scene-class-catalog) consults this so common terrain + structure classes use the SAME hex across every game — the engine's biome shader (ADR 0055) and extraction script (LLM-as-script-author) can rely on the convention. Per-scene additions (e.g. townhall, market, temple) get new hexes from the EXTENSION palette below, picked to be visually + spectrally distinct from the base. 2026-05-25.",
+
+  "_intent_types": {
+    "terrain_shader": "becomes a biome on the ground shader (ADR 0055). One big plane, not per-pixel objects. Examples: grass, dirt, sand, cobblestone, water surface.",
+    "terrain_displacement": "drives vertex displacement via heightmap (ADR 0052). Encoded SEPARATELY in the heightmap.png, not in the semantic map's color channel. Examples: hill, valley, river bed.",
+    "object_placement": "spawned as Yume entities at extracted positions. Examples: house, townhall, well, tree, statue, bridge."
+  },
+
+  "base": {
+    "grass":            {"hex": "#a0d870", "intent_type": "terrain_shader",   "description": "Open grassland / meadow / fields (light green)"},
+    "forest":           {"hex": "#2a5a2a", "intent_type": "terrain_shader",   "description": "Dense tree-covered area (dark green). Use scatter pattern for individual tree entities if walkable forest is needed."},
+    "water_surface":    {"hex": "#3070c0", "intent_type": "terrain_shader",   "description": "Lake / pond / river / ocean surface (blue)"},
+    "cobblestone":      {"hex": "#c8a878", "intent_type": "terrain_shader",   "description": "Paved road / street / plaza ground (tan)"},
+    "dirt_path":        {"hex": "#8a6a40", "intent_type": "terrain_shader",   "description": "Unpaved trail / footpath (muddy brown)"},
+    "sand":             {"hex": "#e0c890", "intent_type": "terrain_shader",   "description": "Sand / beach / desert (pale tan)"},
+    "snow":             {"hex": "#e8e8f0", "intent_type": "terrain_shader",   "description": "Snow / ice cover (off-white)"},
+    "stone_floor":      {"hex": "#888080", "intent_type": "terrain_shader",   "description": "Bare rock / stone tile flooring (grey)"},
+    "house":            {"hex": "#a04020", "intent_type": "object_placement", "description": "Generic dwelling — small red-brown roof"},
+    "wall_segment":     {"hex": "#9a9080", "intent_type": "object_placement", "description": "Defensive stone wall section (pale grey-tan)"},
+    "tower":            {"hex": "#707070", "intent_type": "object_placement", "description": "Defensive tower / watchtower (dark grey circle)"},
+    "bridge":           {"hex": "#704020", "intent_type": "object_placement", "description": "Stone or wood bridge (dark brown)"},
+    "well":             {"hex": "#404048", "intent_type": "object_placement", "description": "Water well (very dark blue-grey circle)"},
+    "fountain":         {"hex": "#e040a0", "intent_type": "object_placement", "description": "Plaza fountain marker (pink)"},
+    "tree":             {"hex": "#206020", "intent_type": "object_placement", "description": "Individual tree (slightly darker than forest)"},
+    "rock":             {"hex": "#606060", "intent_type": "object_placement", "description": "Boulder / standing stone (mid-grey circle)"}
+  },
+
+  "extension_palette": [
+    {"hex": "#f0c020", "description": "saturated yellow — for special anchors (fire pit, brazier, lantern)"},
+    {"hex": "#9060c0", "description": "saturated purple — for civic/magical structures (temple, shrine, mage tower, storage)"},
+    {"hex": "#e08040", "description": "saturated orange — for crafting/work (forge, drying rack, kiln, workshop)"},
+    {"hex": "#c02040", "description": "deep red — for important/sacred (townhall, palace, throne room, altar)"},
+    {"hex": "#20c0a0", "description": "teal — for unique features (alchemy, magic pool, healing spring)"},
+    {"hex": "#208040", "description": "mid-saturated green — for farm fields, gardens, orchards"},
+    {"hex": "#503020", "description": "deep brown — for ruined / abandoned structures"},
+    {"hex": "#f0e0a0", "description": "cream — for upper-class housing, marble, ceremonial"}
+  ],
+
+  "_authoring_note": "Stage 2 of the text-to-world pipeline. The yume-scene-class-catalog skill picks which base classes are present in the scene, plus optionally adds extension-palette classes for scene-specific structures. The skill's OUTPUT format is class_catalog.json with each entry containing {name, hex, intent_type, description, expected_count_or_density}. That catalog drives stages 3 (semantic prompt), 4 (heightmap hints), and 5 (extraction script)."
+}
