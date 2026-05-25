@@ -1,49 +1,35 @@
 """
 openai_images.py — OpenAI gpt-image-2 backend.
 
-Sibling of nanobanana.py + imagen.py. Uses OpenAI's `/v1/images/
-generations` endpoint with the gpt-image-2 model. Same Backend
-contract as the other texture backends: text prompt → PNG.
+Two endpoints, dispatched by presence of reference_images:
+
+- `/v1/images/generations` (JSON body) — text-only generation.
+  Used when no reference_images are supplied. Returns base64 PNG.
+
+- `/v1/images/edits` (multipart/form-data) — image-conditioned
+  generation. Used when one or more reference_images are supplied.
+  gpt-image-2 processes input images at automatic high fidelity;
+  prompt directs the transformation. Returns base64 PNG.
+
+Per https://developers.openai.com/api/docs/models/gpt-image-2
+the model accepts text + image input on the edits endpoint.
 
 Used for:
-    - albedo textures (visual.albedo_texture_prompt)
-    - per-surface textures (material_overrides.<surface>.albedo_texture_prompt)
-    - concept reference images (visual.mesh_reference_prompt) that
-      can then feed Tripo3D's image-to-3D step
-
-API spec:
-    POST https://api.openai.com/v1/images/generations
-    Headers: Authorization: Bearer <OPENAI_API_KEY>
-    Body:
-      {
-        "model": "gpt-image-2-2026-04-21",
-        "prompt": "<prompt>",
-        "n": 1,
-        "size": "1024x1024",          // 1024x1024 / 1024x1536 / 1536x1024
-        "quality": "high",            // low / medium / high / auto
-        "output_format": "png"
-      }
-    Response:
-      {
-        "data": [
-          {"b64_json": "<base64 PNG bytes>"}
-        ]
-      }
-
-The gpt-image family returns base64-encoded bytes by default (no
-URL fetch round-trip), which makes the single-roundtrip pattern
-the same as nanobanana / imagen.
+    - albedo textures (text-only)
+    - per-surface textures (text-only)
+    - concept reference images
+    - flat-color semantic maps DERIVED from a photoreal reference
+      (image-conditioned) — preserves layout while changing style
 
 Config (backend_config.openai_images):
     api_key_env: env var name (default OPENAI_API_KEY)
     model: model id override (default gpt-image-2-2026-04-21)
     quality: low / medium / high / auto (default "high")
-    default_size: fallback "<W>x<H>" when caller doesn't pass size
-                  (default "1024x1024")
+    default_size: fallback "<W>x<H>" (default "1024x1024")
     timeout: request timeout in seconds (default 120)
 
-Pure stdlib via urllib.request — same approach as the sibling
-backends. No `openai` SDK dependency.
+Pure stdlib via urllib.request — no `openai` SDK dependency. Multipart
+upload built manually to keep the dep surface zero.
 """
 
 import base64
@@ -51,14 +37,14 @@ import json
 import os
 import urllib.error
 import urllib.request
+import uuid
 from pathlib import Path
 from typing import Iterable
 
 from .base import Backend
 
 
-# gpt-image-2 accepts these exact size strings. Match `size=(W, H)`
-# we get from the pipeline to the closest supported value.
+# gpt-image-2 accepts these exact size strings.
 SUPPORTED_SIZES = [
     (1024, 1024),
     (1024, 1536),
@@ -67,7 +53,7 @@ SUPPORTED_SIZES = [
 
 
 def _size_to_string(size: Iterable[int], default: str = "1024x1024") -> str:
-    """Map a (W, H) tuple to the nearest supported size string."""
+    """Map (W, H) to the nearest supported size string."""
     try:
         w, h = list(size)[:2]
         target = float(w) / max(float(h), 1.0)
@@ -84,11 +70,21 @@ def _size_to_string(size: Iterable[int], default: str = "1024x1024") -> str:
     return f"{best[0]}x{best[1]}"
 
 
+def _mime_for(path: Path) -> str:
+    return {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }.get(path.suffix.lower(), "application/octet-stream")
+
+
 class OpenAIImagesBackend(Backend):
-    """OpenAI gpt-image-2 text-to-image."""
+    """OpenAI gpt-image-2 text-to-image (+ image-to-image via /edits)."""
 
     DEFAULT_MODEL = "gpt-image-2-2026-04-21"
-    API_URL = "https://api.openai.com/v1/images/generations"
+    GENERATIONS_URL = "https://api.openai.com/v1/images/generations"
+    EDITS_URL = "https://api.openai.com/v1/images/edits"
 
     def name(self) -> str:
         return "openai_images"
@@ -97,7 +93,6 @@ class OpenAIImagesBackend(Backend):
         return True
 
     def supports_mesh(self) -> bool:
-        # 2D image gen only — meshes go through Tripo3D.
         return False
 
     # ------------------------------------------------------------
@@ -113,43 +108,40 @@ class OpenAIImagesBackend(Backend):
     ) -> Path:
         """Generate a PNG from the prompt.
 
-        `reference_images` is accepted for interface parity with
-        nanobanana but IGNORED — the /v1/images/generations endpoint
-        is text-only. Use OpenAI's separate /v1/images/edits endpoint
-        if you ever need multimodal input (not wired here).
+        Dispatch:
+          - reference_images NOT given → /v1/images/generations (text-only)
+          - reference_images given     → /v1/images/edits (image-conditioned)
 
-        `size` is mapped to the nearest supported size string
+        `size` is mapped to the nearest supported value
         (1024x1024 / 1024x1536 / 1536x1024).
         """
-        if reference_images:
-            print(
-                "[openai_images] WARNING: reference_images given but the "
-                "generations endpoint is text-only — refs ignored. "
-                "Use nanobanana for multimodal style transfer."
-            )
-
         api_key = self._get_api_key()
         model = self.config.get("model", self.DEFAULT_MODEL)
         quality = self.config.get("quality", "high")
         size_str = _size_to_string(
             size, default=self.config.get("default_size", "1024x1024")
         )
-
-        body = {
-            "model": model,
-            "prompt": prompt,
-            "n": 1,
-            "size": size_str,
-            "quality": quality,
-            "output_format": "png",
-        }
         timeout = float(self.config.get("timeout", 120))
-        data = _post_json(
-            self.API_URL,
-            body,
-            api_key=api_key,
-            timeout=timeout,
-        )
+
+        if reference_images:
+            data = self._call_edits(
+                prompt=prompt,
+                refs=[Path(r) for r in reference_images if Path(r).exists()],
+                api_key=api_key,
+                model=model,
+                quality=quality,
+                size_str=size_str,
+                timeout=timeout,
+            )
+        else:
+            data = self._call_generations(
+                prompt=prompt,
+                api_key=api_key,
+                model=model,
+                quality=quality,
+                size_str=size_str,
+                timeout=timeout,
+            )
 
         items = data.get("data", [])
         if not items:
@@ -158,15 +150,12 @@ class OpenAIImagesBackend(Backend):
             )
         b64 = items[0].get("b64_json", "")
         if not b64:
-            # Defensive: if the API ever returns a URL instead of b64
-            # (older `dall-e-*` models did), surface a clear error so
-            # the caller knows to fetch separately.
             url = items[0].get("url", "")
             if url:
                 raise RuntimeError(
                     f"openai_images: got URL response (model returned "
-                    f"`url` not `b64_json`). Either configure the model "
-                    f"to return b64 or fetch the URL manually: {url}"
+                    f"`url` not `b64_json`). Configure the model to "
+                    f"return b64 or fetch the URL manually: {url}"
                 )
             raise RuntimeError(
                 f"openai_images: no b64_json in first data item: {items[0]}"
@@ -178,7 +167,88 @@ class OpenAIImagesBackend(Backend):
         return out_path
 
     # ------------------------------------------------------------
-    # Internal helpers
+    # Endpoint dispatchers
+    # ------------------------------------------------------------
+
+    def _call_generations(
+        self, *, prompt, api_key, model, quality, size_str, timeout
+    ) -> dict:
+        """Text-only via /v1/images/generations."""
+        body = {
+            "model": model,
+            "prompt": prompt,
+            "n": 1,
+            "size": size_str,
+            "quality": quality,
+            "output_format": "png",
+        }
+        return _post_json(
+            self.GENERATIONS_URL,
+            body,
+            api_key=api_key,
+            timeout=timeout,
+        )
+
+    def _call_edits(
+        self,
+        *,
+        prompt,
+        refs: list[Path],
+        api_key,
+        model,
+        quality,
+        size_str,
+        timeout,
+    ) -> dict:
+        """Image-conditioned via /v1/images/edits (multipart upload).
+
+        Per the gpt-image-2 docs, the model processes input images at
+        automatic high fidelity; the prompt directs the transformation.
+        Multiple `image` fields are accepted — repeat the form name.
+
+        `input_fidelity` is intentionally NOT sent: the docs state
+        gpt-image-2 ignores it (uses high fidelity automatically).
+        """
+        if not refs:
+            raise RuntimeError("openai_images: edits called with no refs")
+
+        fields = {
+            "model": model,
+            "prompt": prompt,
+            "n": "1",
+            "size": size_str,
+            "quality": quality,
+            "output_format": "png",
+        }
+        files = [
+            ("image", r.name, _mime_for(r), r.read_bytes())
+            for r in refs
+        ]
+        body, content_type = _build_multipart(fields, files)
+
+        req = urllib.request.Request(
+            self.EDITS_URL,
+            data=body,
+            headers={
+                "Content-Type": content_type,
+                "Authorization": f"Bearer {api_key}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.load(resp)
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                pass
+            raise RuntimeError(
+                f"openai_images: HTTP {e.code} {e.reason} on /edits — {err_body[:500]}"
+            ) from e
+
+    # ------------------------------------------------------------
+    # Helpers
     # ------------------------------------------------------------
 
     def _get_api_key(self) -> str:
@@ -200,9 +270,7 @@ def _post_json(
     api_key: str,
     timeout: float = 120,
 ) -> dict:
-    """POST a JSON body with Bearer auth, return parsed JSON.
-    Surfaces error body text on non-2xx so authors can read why
-    the call failed."""
+    """POST a JSON body with Bearer auth, return parsed JSON."""
     req = urllib.request.Request(
         url,
         data=json.dumps(body).encode("utf-8"),
@@ -223,3 +291,37 @@ def _post_json(
         raise RuntimeError(
             f"openai_images: HTTP {e.code} {e.reason} — {err_body[:500]}"
         ) from e
+
+
+def _build_multipart(
+    fields: dict[str, str],
+    files: list[tuple[str, str, str, bytes]],
+) -> tuple[bytes, str]:
+    """Build a multipart/form-data body. Pure stdlib, no `requests`.
+
+    fields: dict of {name: value} for plain string parts.
+    files:  list of (form_name, filename, mime, bytes). Repeating
+            `form_name` (e.g. "image") sends multiple files under
+            the same field, which is how OpenAI accepts multiple
+            reference images.
+
+    Returns (body_bytes, content_type_with_boundary).
+    """
+    boundary = f"----yume{uuid.uuid4().hex}"
+    bnd = boundary.encode("ascii")
+    chunks: list[bytes] = []
+    for k, v in fields.items():
+        chunks.append(b"--" + bnd + b"\r\n")
+        chunks.append(f'Content-Disposition: form-data; name="{k}"\r\n\r\n'.encode())
+        chunks.append(str(v).encode("utf-8"))
+        chunks.append(b"\r\n")
+    for name, filename, mime, data in files:
+        chunks.append(b"--" + bnd + b"\r\n")
+        chunks.append(
+            f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
+            f"Content-Type: {mime}\r\n\r\n".encode()
+        )
+        chunks.append(data)
+        chunks.append(b"\r\n")
+    chunks.append(b"--" + bnd + b"--\r\n")
+    return b"".join(chunks), f"multipart/form-data; boundary={boundary}"
