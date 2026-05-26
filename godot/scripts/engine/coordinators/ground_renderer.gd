@@ -209,6 +209,8 @@ func build() -> void:
 					var loaded = load(v)
 					if loaded is Texture2D:
 						v = loaded
+				else:
+					v = _coerce_shader_value(v)
 				sm.set_shader_parameter(str(k), v)
 			# Plane size uniform — derived from cfg.size, not authored
 			# separately. Lets the shader compute world-scale UVs.
@@ -340,6 +342,44 @@ func build_water() -> void:
 	# Transparent surface: don't cast shadows onto the riverbed.
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_world.add_child(node)
+
+
+## Coerce a JSON-decoded shader-param value into the type Godot's
+## set_shader_parameter expects for array/vector uniforms.
+##
+## JSON gives plain Arrays. A `vec3[]` uniform needs a
+## PackedVector3Array; a `vec3` uniform accepts an Array of 3 numbers
+## but a PackedVector3Array of [r,g,b] sub-arrays does NOT auto-convert.
+## So: an Array whose elements are themselves length-3 numeric arrays
+## → PackedVector3Array (the biome_key / biome_albedo case). A flat
+## numeric Array → PackedFloat32Array (biome_roughness[]). Everything
+## else passes through (scalars, single vecN arrays, strings).
+static func _coerce_shader_value(v):
+	if not (v is Array):
+		return v
+	var arr: Array = v
+	if arr.is_empty():
+		return v
+	# Array of length-3 numeric arrays → PackedVector3Array
+	var first = arr[0]
+	if first is Array and (first as Array).size() == 3:
+		var out := PackedVector3Array()
+		for el in arr:
+			if el is Array and (el as Array).size() == 3:
+				out.append(Vector3(
+					float(el[0]), float(el[1]), float(el[2])
+				))
+		return out
+	# Flat numeric array of length >= 1 where every element is a number
+	# AND the array is longer than 4 → treat as a float[] uniform
+	# (biome_roughness). Short numeric arrays (<=4) are left alone so
+	# single vec2/3/4 uniforms still work.
+	if (first is float or first is int) and arr.size() > 4:
+		var fout := PackedFloat32Array()
+		for el in arr:
+			fout.append(float(el))
+		return fout
+	return v
 
 
 ## Read the full scene.json root dict (not just ground.mesh). Used by

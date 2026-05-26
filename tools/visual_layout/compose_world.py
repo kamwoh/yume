@@ -32,6 +32,75 @@ DATA_ROOT = ROOT / "godot" / "data"
 
 
 # ============================================================
+# BIOME PALETTE — tuned display colors per terrain class
+# ============================================================
+
+# Maps a terrain_shader class name → (tuned_albedo_hex, roughness).
+# The semantic map's raw hex is only a CLASSIFICATION key; these are
+# the colors actually shown on the ground. Picked to read as real
+# matte terrain, not flat paint. Unknown classes fall back to their
+# own semantic hex (so nothing breaks) at default roughness.
+BIOME_PALETTE = {
+    "grass":          ("#6f9a4e", 0.95),
+    "forest":         ("#3c5a2e", 0.96),
+    "farm_field":     ("#7a8240", 0.92),
+    "cobblestone":    ("#9a8f7a", 0.80),
+    "dirt_path":      ("#7c5a38", 0.92),
+    "stone_floor":    ("#8c8478", 0.82),
+    "sand":           ("#c8b487", 0.90),
+    "snow":           ("#e8eef2", 0.85),
+    # Water is rendered by the ADR 0059 transparent plane; this is the
+    # riverbed FLOOR seen at the shoreline / under the water surface.
+    "water_surface":  ("#3a4a48", 0.55),
+    "water":          ("#3a4a48", 0.55),
+}
+
+
+def _srgb_to_linear(c: float) -> float:
+    """Per-channel sRGB (0..1) → linear (0..1). ALBEDO expects linear."""
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _hex_to_rgb01(h: str) -> list[float]:
+    h = h.lstrip("#")
+    return [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
+
+
+def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
+    """Build (keys, albedos, roughnesses) for the biome ground shader.
+
+    keys[i]   — splatmap key color (sRGB 0..1) = the class's semantic hex
+    albedos[i]— tuned display color, sRGB→linear (ALBEDO is linear)
+    roughs[i] — per-biome roughness
+
+    Only terrain_shader classes are biomes. Capped at max_biomes (the
+    shader's MAX_BIOMES). object_placement classes are entities, not
+    ground.
+    """
+    keys: list[list[float]] = []
+    albedos: list[list[float]] = []
+    roughs: list[float] = []
+    for c in catalog.get("classes", []):
+        if c.get("intent_type") != "terrain_shader":
+            continue
+        if len(keys) >= max_biomes:
+            break
+        name = str(c.get("name", ""))
+        sem_hex = str(c.get("hex", "#808080"))
+        tuned_hex, rough = BIOME_PALETTE.get(name, (sem_hex, 0.90))
+        keys.append(_hex_to_rgb01(sem_hex))                 # sRGB key
+        albedos.append([_srgb_to_linear(v) for v in _hex_to_rgb01(tuned_hex)])
+        roughs.append(float(rough))
+    if not keys:
+        # No terrain classes — give the shader one neutral biome so it
+        # doesn't divide by zero.
+        keys = [[0.5, 0.5, 0.5]]
+        albedos = [[_srgb_to_linear(0.5)] * 3]
+        roughs = [0.9]
+    return keys, albedos, roughs
+
+
+# ============================================================
 # WATER LEVEL — derived from the heightmap over the water mask
 # ============================================================
 
@@ -330,25 +399,25 @@ def compose(
             "sky": {"top_color": "#88aadd", "bottom_color": "#dde0e8"},
         }
     }
-    # Wire heightmap + semantic map through the lib's simple-displace
-    # ground shader (data/lib/shaders/ground_simple_displace.gdshader).
-    # That shader does vertex displacement from heightmap + samples
-    # semantic_map as albedo. Reusable across any auto-gen game.
+    # Wire the multi-biome ground shader (ADR-style splatmap). The
+    # semantic map is a CLASSIFICATION splatmap, NOT a texture — the
+    # shader classifies each pixel to a biome and renders that biome's
+    # TUNED color (blended + noise), then displaces by the heightmap.
+    # 2026-05-26: replaced ground_simple_displace (which painted the
+    # raw semantic hex directly — "blueprint" look).
     if semantic_dest or heightmap_dest:
         scene["ground"]["mesh"]["shader"] = (
-            "res://data/lib/shaders/ground_simple_displace.gdshader"
+            "res://data/lib/shaders/ground_biome_displace.gdshader"
         )
         scene["ground"]["mesh"]["plane_size"] = float(world_w)
-        # CRITICAL: ground_renderer.gd only forwards `shader_params` to
-        # the ShaderMaterial (plus auto-sets plane_size). Uniforms placed
-        # at mesh-level (ground.mesh.height_scale) are NEVER read — the
-        # shader silently falls back to its own default. So height_scale
-        # + height_offset MUST live inside shader_params to take effect.
-        # (post-mortem 2026-05-26: they were at mesh-level; shader ran
-        # at its default height_scale=2.0 regardless of the authored 8.0.)
+        # ground_renderer.gd only forwards `shader_params` (+ auto-sets
+        # plane_size); mesh-level uniforms are silently ignored. So all
+        # uniforms live in shader_params (post-mortem 2026-05-26).
         shader_params: dict = {
             "height_scale": float(height_scale),
             "height_offset": float(height_offset),
+            "blend_softness": 0.12,
+            "noise_amount": 0.07,
         }
         if semantic_dest:
             shader_params["biome_map"] = (
@@ -358,6 +427,15 @@ def compose(
             shader_params["heightmap"] = (
                 f"res://data/{game_name}/assets/textures/{heightmap_dest.name}"
             )
+        # Build the biome arrays from terrain_shader classes. biome_key
+        # is the splatmap color (sRGB 0..1, matches the raw-sampled map);
+        # biome_albedo is the TUNED display color converted sRGB→linear
+        # (ALBEDO expects linear); biome_roughness per biome.
+        keys, albedos, roughs = _build_biome_arrays(catalog)
+        shader_params["biome_count"] = len(keys)
+        shader_params["biome_key"] = keys
+        shader_params["biome_albedo"] = albedos
+        shader_params["biome_roughness"] = roughs
         scene["ground"]["mesh"]["shader_params"] = shader_params
 
     # ADR 0059 — real water surface. Emit a `water` block when the
