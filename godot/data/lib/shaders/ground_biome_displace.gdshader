@@ -70,9 +70,12 @@ float vnoise(vec2 p) {
 }
 
 void vertex() {
+    // UV must MATCH the extraction's pixel_to_world (image_y → world_z,
+    // NO flip): wz = (cy/H - 0.5)*plane → v = (wz+plane/2)/plane. A
+    // 1.0-v flip here mirrors the ground vs the entities (2026-05-26).
     vec2 hm_uv = vec2(
         (VERTEX.x + plane_size * 0.5) / plane_size,
-        1.0 - (VERTEX.z + plane_size * 0.5) / plane_size
+        (VERTEX.z + plane_size * 0.5) / plane_size
     );
     float h = texture(heightmap, hm_uv).r + height_offset;
     VERTEX.y += h * height_scale;
@@ -91,9 +94,10 @@ void vertex() {
 }
 
 void fragment() {
+    // No V flip — matches pixel_to_world (see vertex()).
     vec2 uv = vec2(
         (v_world_pos.x + plane_size * 0.5) / plane_size,
-        1.0 - (v_world_pos.z + plane_size * 0.5) / plane_size
+        (v_world_pos.z + plane_size * 0.5) / plane_size
     );
     vec3 splat = texture(biome_map, uv).rgb;
 

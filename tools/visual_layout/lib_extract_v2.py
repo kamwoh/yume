@@ -66,9 +66,14 @@ class HeightmapSampler:
         self.offset = float(height_offset)
 
     def y_at(self, wx: float, wz: float) -> float:
-        """Bilinear sample at world (x, z). Returns y in meters."""
+        """Bilinear sample at world (x, z). Returns y in meters.
+
+        UV MUST match pixel_to_world (image_y → world_z, NO flip) AND
+        the ground shader, else entity Y is sampled from the mirrored
+        row and buildings sit on the wrong terrain height (2026-05-26).
+        """
         u = (wx + self.plane * 0.5) / self.plane
-        v = 1.0 - (wz + self.plane * 0.5) / self.plane
+        v = (wz + self.plane * 0.5) / self.plane
         u = max(0.0, min(1.0 - 1e-6, u))
         v = max(0.0, min(1.0 - 1e-6, v))
         # Convert to pixel coords

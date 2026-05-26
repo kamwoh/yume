@@ -67,9 +67,11 @@ void fragment() {
     // that would flood low city terrain. Same world→UV math as the
     // ground shader (image_y → world_z, no flip).
     if (use_water_mask) {
+        // No V flip — matches pixel_to_world + the ground shader
+        // (image_y → world_z, no flip). 2026-05-26.
         vec2 muv = vec2(
             (v_world_pos.x + plane_size * 0.5) / plane_size,
-            1.0 - (v_world_pos.z + plane_size * 0.5) / plane_size
+            (v_world_pos.z + plane_size * 0.5) / plane_size
         );
         if (texture(water_mask, muv).r < 0.5) {
             discard;

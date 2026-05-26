@@ -358,6 +358,49 @@ def _class_specs(catalog: dict) -> dict:
     return specs
 
 
+def _check_extraction_alignment(instances, label_map, palette, image_size,
+                                world_size_m, catalog) -> None:
+    """Gate: each object instance, mapped world→pixel via the CANONICAL
+    no-flip convention (matching pixel_to_world + the shaders), should
+    land on its own class's pixel in the semantic map. If the shaders/
+    sampler ever reintroduce a V flip, the ground/water/height samples
+    drift off the entities and this drops well below 100%. Warns loudly.
+    """
+    W, H = image_size
+    wx_m, wz_m = world_size_m
+    names = [n for n, _h in palette]
+    # bucket def → parent class, so small_house counts as 'house'
+    parent: dict[str, str] = {}
+    for c in catalog.get("classes", []):
+        for b in (c.get("strategy", {}).get("variant_buckets") or []):
+            parent[b["def"]] = c["name"]
+    hits = tot = 0
+    for inst in instances:
+        cls = inst.get("class", "")
+        if cls == "path_segment":
+            continue
+        want = parent.get(cls, cls)
+        if want not in names:
+            continue
+        x, _y, z = inst["position"]
+        u = (x + wx_m * 0.5) / wx_m
+        v = (z + wz_m * 0.5) / wz_m       # NO flip — canonical convention
+        px = int(min(W - 1, max(0, u * W)))
+        py = int(min(H - 1, max(0, v * H)))
+        tot += 1
+        if names[label_map[py, px]] == want:
+            hits += 1
+    if tot:
+        pct = 100.0 * hits / tot
+        tag = "OK" if pct >= 90.0 else "MISALIGNED"
+        print(f"[compose_world] extraction↔render alignment: "
+              f"{hits}/{tot} ({pct:.0f}%) [{tag}]")
+        if pct < 90.0:
+            print("  ⚠ entities don't land on their semantic pixels — a "
+                  "coordinate-convention (V-flip?) mismatch between "
+                  "pixel_to_world and the shaders/HeightmapSampler.")
+
+
 def _group_by_class(instances: list[dict]) -> dict[str, list[dict]]:
     grouped: dict[str, list[dict]] = {}
     for inst in instances:
@@ -427,6 +470,16 @@ def compose(
         extracted={"instances": instances, "world_size_meters": list(world_size_m)},
         catalog=catalog)
     print(val.format_report(report))
+
+    # Extraction↔rendering alignment gate (post-mortem 2026-05-26).
+    # The shaders + HeightmapSampler must sample the splatmap at the
+    # SAME pixel pixel_to_world read each entity from — i.e. NO V flip.
+    # Map each object instance's world pos back to a pixel via the
+    # canonical no-flip convention; it should land on its own class's
+    # (or parent class's) pixel. A flip anywhere drops this far below
+    # 100% (empirically 99/216 with the old flip vs 216/216 fixed).
+    _check_extraction_alignment(instances, label_all, palette_all,
+                                (W, H), world_size_m, catalog)
 
     specs = _class_specs(catalog)
     grouped = _group_by_class(instances)
