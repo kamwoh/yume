@@ -458,17 +458,32 @@ def compose(
         instances = ext_cls.get("instances", [])
         if not instances:
             continue
-        # Median size_world across all instances of this class
-        sizes = [i["size_world"] for i in instances]
-        sizes.sort(key=lambda s: s[0] * s[1])
-        med = sizes[len(sizes) // 2]
-        primitive = pick_primitive(name, med)
+        # If the strategy declares use_canonical_scale, every instance
+        # of this class shares one canonical size — bake it into the
+        # def's state_init.scale and don't store per-instance scale.
+        canonical_scale = ext_cls.get("_canonical_scale", None)
+        if canonical_scale is not None:
+            primitive = pick_primitive(name, [canonical_scale[0], canonical_scale[2]])
+            state_init = {"scale": [
+                float(canonical_scale[0]),
+                float(canonical_scale[1]),
+                float(canonical_scale[2]),
+            ]}
+        else:
+            # Per-instance scale path: pick primitive from median tile size.
+            sizes = [i["size_world"] for i in instances if "size_world" in i]
+            if not sizes:
+                continue
+            sizes.sort(key=lambda s: s[0] * s[1])
+            med = sizes[len(sizes) // 2]
+            primitive = pick_primitive(name, med)
+            state_init = {"scale": [1, 1, 1]}
         visual = primitive_to_visual(primitive, cls["hex"])
         defs_doc["definitions"].append({
             "id": name,
             "tags": [name, "compose_world_gen"],
             "properties": {},
-            "state_init": {"scale": [1, 1, 1]},
+            "state_init": state_init,
             "visual": visual,
             "_primitive_spec": primitive,
             "_color": cls["hex"],
@@ -507,24 +522,23 @@ def compose(
             ref_y = prim_spec.get("height", prim_spec.get("radius", 0.5) * 2)
         for inst in ext_cls.get("instances", []):
             wx, wz = inst["position_world"]
-            ext_size = inst["size_world"]   # [width_m, depth_m]
-            scale_x = max(0.2, ext_size[0])
-            scale_z = max(0.2, ext_size[1])
-            scale_y = max(0.5, ref_y)   # use the class's chosen height
-            # Y-anchor (phase E): sample heightmap at (wx, wz) so the
-            # primitive's base sits on the displaced ground surface.
-            # No heightmap = flat ground = y=0 (original behavior).
             ground_y = hm_sampler.y_at(wx, wz)
             pos = [wx, round(ground_y, 3), wz]
             facing = math.radians(inst.get("rotation_deg", 0.0))
+            state: dict = {"facing": round(facing, 4)}
+            if not inst.get("_v2_use_canonical_scale", False):
+                # Per-instance scale path: fitted from the tile's bbox.
+                ext_size = inst["size_world"]
+                scale_x = max(0.2, ext_size[0])
+                scale_z = max(0.2, ext_size[1])
+                scale_y = max(0.5, ref_y)
+                state["scale"] = [scale_x, scale_y, scale_z]
+            # else: def's state_init.scale = canonical_size carries it.
             initial_instances.append({
                 "def": name,
                 "id": inst["id"],
                 "position": pos,
-                "state": {
-                    "scale": [scale_x, scale_y, scale_z],
-                    "facing": round(facing, 4),
-                }
+                "state": state,
             })
 
     # Prepend the world_clock + camera instances so they spawn first

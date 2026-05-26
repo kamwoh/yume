@@ -258,6 +258,13 @@ def extract_class(
             image_size=image_size, world_size_m=world_size_m,
             sampler=sampler, anchors=anchors, rng=rng,
         )
+    if method == "instance_per_component":
+        return _extract_instance_per_component(
+            name=name, mask=mask, class_entry=class_entry,
+            label_map=label_map, palette=palette,
+            image_size=image_size, world_size_m=world_size_m,
+            sampler=sampler, anchors=anchors, rng=rng,
+        )
     if method == "snap_to_anchor":
         return _extract_snap_to_anchor(
             name=name, class_entry=class_entry,
@@ -523,15 +530,156 @@ def _extract_require_adjacent(*, name, mask, class_entry, label_map, palette,
         if touches:
             keepers.append(c)
 
+    pca_oriented = bool(strategy.get("pca_oriented", False))
+    min_elong = float(strategy.get("min_elongation_for_pca", 1.5))
     instances = []
     for n, c in enumerate(keepers, start=1):
-        instances.append(_emit_instance(
-            name=name, idx=n, centroid_px=c["centroid"],
-            class_entry=class_entry, label_map=label_map, palette=palette,
-            image_size=image_size, world_size_m=world_size_m,
-            sampler=sampler, anchors=anchors, rng=rng,
-        ))
+        if pca_oriented:
+            instances.append(_emit_pca_oriented(
+                name=name, idx=n, comp=c, class_entry=class_entry,
+                image_size=image_size, world_size_m=world_size_m,
+                sampler=sampler, min_elongation=min_elong,
+            ))
+        else:
+            instances.append(_emit_instance(
+                name=name, idx=n, centroid_px=c["centroid"],
+                class_entry=class_entry, label_map=label_map, palette=palette,
+                image_size=image_size, world_size_m=world_size_m,
+                sampler=sampler, anchors=anchors, rng=rng,
+            ))
     return instances
+
+
+# ============================================================
+# INSTANCE-PER-COMPONENT — the 1:1 extraction primitive
+# ============================================================
+
+def _extract_instance_per_component(
+    *, name, mask, class_entry, label_map, palette,
+    image_size, world_size_m, sampler, anchors, rng,
+):
+    """Emit ONE instance per connected component meeting min_area_px.
+    The right tool when the semantic-map class is authored as discrete
+    tiles (one tile = one entity) — houses, towers, individual walls.
+
+    Strategy fields:
+      min_area_px:   reject components below this area (default 20)
+      pca_oriented:  if true, facing = PCA major-axis angle AND
+                     scale[0]/scale[2] are fitted to the component's
+                     oriented bbox along that axis (length × thickness).
+                     If false, canonical_size_meters drives scale and
+                     rotation_rule drives facing (per resolve_facing).
+      min_elongation_for_pca: when pca_oriented is true, require this
+                     minimum elongation ratio to apply PCA rotation
+                     (default 1.5 — below that, the shape is roughly
+                     square and rotation is meaningless, so use
+                     rotation_rule).
+    """
+    strategy = class_entry["strategy"]
+    min_area = int(strategy.get("min_area_px", 20))
+    pca_oriented = bool(strategy.get("pca_oriented", False))
+    min_elong = float(strategy.get("min_elongation_for_pca", 1.5))
+
+    comps = cv.connected_components(mask, min_area=min_area)
+    if not comps:
+        return []
+
+    instances = []
+    for n, comp in enumerate(comps, start=1):
+        cx_px, cy_px = comp["centroid"]
+        if pca_oriented:
+            # PCA gives orientation + fitted dimensions
+            inst = _emit_pca_oriented(
+                name=name, idx=n, comp=comp, class_entry=class_entry,
+                image_size=image_size, world_size_m=world_size_m,
+                sampler=sampler, min_elongation=min_elong,
+            )
+        else:
+            inst = _emit_instance(
+                name=name, idx=n, centroid_px=(cx_px, cy_px),
+                class_entry=class_entry, label_map=label_map, palette=palette,
+                image_size=image_size, world_size_m=world_size_m,
+                sampler=sampler, anchors=anchors, rng=rng,
+            )
+        instances.append(inst)
+    return instances
+
+
+def _emit_pca_oriented(
+    *, name, idx, comp, class_entry, image_size, world_size_m,
+    sampler, min_elongation,
+):
+    """Emit a box whose facing + length + thickness come from PCA on
+    the component's pixels. Wall segments authored as oriented tiles
+    end up correctly aligned along their long axis."""
+    strategy = class_entry["strategy"]
+    canonical = strategy.get("canonical_size_meters", [1.0, 3.0, 0.4])
+    height_m = float(canonical[1])
+
+    px = comp["pixels"].astype(float)
+    ys = px[:, 0]; xs = px[:, 1]
+    cy = ys.mean(); cx = xs.mean()
+    cov = np.cov(np.stack([ys - cy, xs - cx]))
+    eigvals, eigvecs = np.linalg.eigh(cov)
+    eigval_min = max(eigvals[0], 1e-9)
+    eigval_max = max(eigvals[1], 1e-9)
+    elongation = math.sqrt(eigval_max / eigval_min)
+
+    # Principal axis (major)
+    vy_maj, vx_maj = eigvecs[:, 1]
+    # Project pixels onto major axis to get LENGTH extent
+    proj_maj = (ys - cy) * vy_maj + (xs - cx) * vx_maj
+    length_px = float(proj_maj.max() - proj_maj.min())
+    # Minor axis
+    vy_min, vx_min = eigvecs[:, 0]
+    proj_min = (ys - cy) * vy_min + (xs - cx) * vx_min
+    thickness_px = float(proj_min.max() - proj_min.min())
+
+    # Pixel → world length scale (use isotropic; semantic maps are square)
+    iw, ih = image_size
+    wx_m, wz_m = world_size_m
+    px_per_m = 0.5 * (iw / wx_m + ih / wz_m)
+    length_m = max(0.3, length_px / px_per_m)
+    thickness_m = max(0.15, thickness_px / px_per_m)
+
+    # Position from centroid
+    wx, wz = cv.pixel_to_world(cx, cy, image_size, world_size_m)
+    wy = sampler.y_at(wx, wz) if sampler is not None else 0.0
+
+    # SIZE always comes from the fitted PCA extents — that's the whole
+    # point of 1:1 extraction. Only ROTATION gates on elongation
+    # (rotating a near-square tile by its noise-jitter PCA angle looks
+    # wrong; keep facing=0 for those).
+    if elongation < min_elongation:
+        facing = 0.0
+    else:
+        # Major-axis direction in (x_world, z_world).
+        # eigvec is in (y, x) image-pixel space. Image y→world -z,
+        # image x→world +x. So world dx = vx_maj, world dz = -vy_maj.
+        dx_world = vx_maj
+        dz_world = -vy_maj
+        # Godot Y-rotation that aligns local +X (canonical wall front)
+        # with (dx_world, dz_world): rotating (1,0,0) by f gives
+        # (cos f, 0, -sin f), so cos f = dx, -sin f = dz → f = atan2(-dz, dx).
+        facing = math.atan2(-dz_world, dx_world)
+
+    out = {
+        "class": name,
+        "id": f"{name}_{idx:03d}",
+        "position": [round(wx, 3), wy, round(wz, 3)],
+        "facing": round(facing, 4),
+        "primitive": strategy.get("primitive", "prim_unit_box"),
+        "canonical_front_axis": strategy.get("canonical_front_axis", "+X"),
+    }
+    if strategy.get("use_canonical_scale", False):
+        # Shared canonical size — DON'T emit per-instance scale. The
+        # entity def's state_init.scale = canonical_size_meters carries
+        # it. Every instance of this class is identical in size; only
+        # position + facing vary.
+        out["_use_canonical_scale"] = True
+    else:
+        out["scale"] = [round(length_m, 3), height_m, round(thickness_m, 3)]
+    return out
 
 
 # ============================================================

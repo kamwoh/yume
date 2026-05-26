@@ -169,20 +169,22 @@ def v2_to_v1_extracted(
     by_class: dict[str, list[dict]] = {}
     for inst in instances:
         cn = inst["class"]
-        # v2 stores position [x, y, z] and scale [W, H, D] and facing radians
+        # v2 stores position [x, y, z]; scale present only when the
+        # strategy emits per-instance size (else use_canonical_scale).
         wx, _wy, wz = inst["position"]
-        sx, _sh, sz = inst["scale"]
+        has_scale = "scale" in inst
         v1_inst = {
             "id": inst["id"],
             "position_world": [round(wx, 3), round(wz, 3)],
-            "size_world": [round(sx, 3), round(sz, 3)],
             "rotation_deg": round(math.degrees(inst["facing"]), 2),
-            # Preserve the strategy-resolved primitive so the monkey-
-            # patched pick_primitive can read it.
             "_v2_primitive": inst["primitive"],
-            "_v2_scale_y": float(inst["scale"][1]),
             "_v2_canonical_front_axis": inst.get("canonical_front_axis", "-Z"),
+            "_v2_use_canonical_scale": inst.get("_use_canonical_scale", False),
         }
+        if has_scale:
+            sx, sh, sz = inst["scale"]
+            v1_inst["size_world"] = [round(sx, 3), round(sz, 3)]
+            v1_inst["_v2_scale_y"] = float(sh)
         by_class.setdefault(cn, []).append(v1_inst)
 
     out_classes = []
@@ -194,6 +196,12 @@ def v2_to_v1_extracted(
         }
         if c["intent_type"] == "object_placement":
             entry["instances"] = by_class.get(c["name"], [])
+            # Smuggle strategy fields the compose_world side needs:
+            strategy = c.get("strategy", {})
+            if strategy.get("use_canonical_scale", False):
+                entry["_canonical_scale"] = strategy.get(
+                    "canonical_size_meters", [1.0, 1.0, 1.0]
+                )
         out_classes.append(entry)
 
     return {
