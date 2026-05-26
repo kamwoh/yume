@@ -122,6 +122,33 @@ func _apply_overrides(overrides: Dictionary) -> void:
 			else:
 				visual[k] = v
 	if overrides.has("position"):
+		# Conflict-detection warning (post-mortem 2026-05-26): top-level
+		# `position` SILENTLY CLOBBERS any state.position set in the same
+		# override dict. Authors who write
+		#   {"def": "X", "position": [0,0,0], "state": {"position": [1,2,3]}}
+		# expect state.position to be [1,2,3] but the engine resolves to
+		# [0,0,0] because top-level position is applied last. Surface a
+		# warning when the two disagree so the author can decide:
+		# delete the top-level (keep state.position) or sync them.
+		# Static gate: tools/validators/validate_position_consistency.py.
+		# Empirical case: compose_world.py auto-gen'd free_cameras with
+		# top-level=[0,0,0] + state.position=<camera_pose>; cameras spawned
+		# at world origin → free_cam render showed inside-of-building.
+		if (
+			overrides.has("state")
+			and overrides["state"] is Dictionary
+			and (overrides["state"] as Dictionary).has("position")
+		):
+			var top_norm = _normalize_position(overrides["position"])
+			var state_norm = _normalize_position(
+				(overrides["state"] as Dictionary)["position"]
+			)
+			if top_norm != state_norm:
+				push_warning(
+					"[entity.position_clobber] inst '%s' has BOTH top-level position %s AND state.position %s — top-level WINS. If state.position is the intent, set top-level to the same value or omit it. See .claude/rules/data-demo.md § position-field clobber."
+					% [instance_id, str(overrides["position"]),
+					   str((overrides["state"] as Dictionary)["position"])]
+				)
 		state["position"] = _normalize_position(overrides["position"])
 
 

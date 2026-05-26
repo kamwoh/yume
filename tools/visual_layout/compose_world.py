@@ -282,12 +282,14 @@ def compose(
         json.dumps(player_def, indent=2)
     )
 
-    # ============ world/rules.json ============
-    # Two rules wire the C key (toggle_freecam input) for camera-mode
-    # toggling — without these, the input fires but nothing changes.
-    # Generic version: handles any starting mode (iso/top_down/fp/3rd)
-    # via a formula that saves the CURRENT camera_mode before
-    # switching to free_cam, then restores it on exit.
+    # ============ world/rules/<NN>_*.json ============
+    # Matching aldenmere's convention: numbered files per feature
+    # module under world/rules/ instead of a single rules.json. The
+    # engine loads either (load_rules_files_for handles both paths)
+    # but the directory pattern lets future modules add rules without
+    # editing one monolithic file. Naming: NN_<feature>.json,
+    # alphabetic load order is deterministic.
+    (game_dir / "world" / "rules").mkdir(exist_ok=True)
     rules_doc = {
         "_comment": "Auto-generated rules. C key toggles free_cam ↔ "
                     "previous camera mode.",
@@ -330,7 +332,9 @@ def compose(
             }
         ]
     }
-    (game_dir / "world" / "rules.json").write_text(json.dumps(rules_doc, indent=2))
+    (game_dir / "world" / "rules" / "01_freecam_toggle.json").write_text(
+        json.dumps(rules_doc, indent=2)
+    )
 
     # ============ game/flow.json ============
     flow = {
@@ -463,10 +467,9 @@ def compose(
         json.dumps(level_doc, indent=2)
     )
 
-    # ============ levels/level_default/rules.json ============
-    (game_dir / "levels" / "level_default" / "rules.json").write_text(
-        json.dumps({"rules": []}, indent=2)
-    )
+    # NOTE: NO levels/<name>/rules.json — aldenmere doesn't ship this
+    # file either. The engine handles its absence. Per-level rules are
+    # optional; the only required level-file is entities.json above.
 
     # ============ ui/input.json — free-cam controls ============
     # Action names must match what camera_director.gd reads via

@@ -8,6 +8,98 @@ globs: godot/data/**
 Demos live as JSON folders under `data/`. They are **content**, not code —
 no GDScript files belong here.
 
+## ⚠ CRITICAL: top-level `position` clobbers `state.position` in initial_instances
+
+**Resolution order in `entity._apply_overrides` (entity.gd:90):**
+
+1. `state` block — sets fields including `state.position` if listed
+2. `properties` block
+3. `tags` block
+4. `visual` block
+5. `position` top-level — **OVERWRITES `state.position` unconditionally**
+
+So writing this:
+
+```json
+{
+  "def": "free_camera",
+  "id": "camera_oblique",
+  "position": [0, 0, 0],
+  "state": {"position": [0, 28, 32], "yaw": 0.0, "pitch": -0.66}
+}
+```
+
+...does NOT set state.position to [0, 28, 32]. It sets state.position
+to [0, 0, 0] (the top-level value, applied LAST). state.yaw and
+state.pitch stick fine; only position gets clobbered.
+
+This is a silent footgun. The author thinks "I'm overriding state
+with my state block." The engine resolves "top-level position wins."
+
+### Convention (aldenmere's pattern)
+
+For entities where `state.position` IS the spawn position (logical
+entities, free_cameras, anything where the renderer reads state.
+position for positioning), set BOTH fields to the SAME value:
+
+```json
+{
+  "def": "free_camera",
+  "id": "camera_oblique",
+  "position": [0, 28, 32],
+  "state": {"position": [0, 28, 32], "yaw": 0.0, "pitch": -0.66}
+}
+```
+
+Or omit top-level position if state.position covers it:
+
+```json
+{
+  "def": "free_camera",
+  "id": "camera_oblique",
+  "state": {"position": [0, 28, 32], "yaw": 0.0, "pitch": -0.66}
+}
+```
+
+(But the engine will then fall back to state.position = Vector2.ZERO
+during entity creation, then your state override sets [0,28,32]. This
+also works.)
+
+### Gates
+
+1. **Engine-side warning** (entity.gd:124+): emits
+   `[entity.position_clobber]` push_warning when the two values
+   disagree at spawn time. Defense in depth.
+2. **Static validator**: `tools/validators/validate_position_consistency.py`
+   scans every initial_instances entry, flags conflicts. Wired into
+   the validator bank — runs from play.sh / sync.
+3. **This doc section**: the convention authors should follow.
+
+### Empirical case (2026-05-26)
+
+`compose_world.py` (auto-gen text-to-world pipeline) emitted
+free_camera initial_instances with `position: [0, 0, 0]` (thinking
+"the entity has no physical position") AND `state.position: [0, 28,
+32]` (the actual camera pose). Result: every free_camera spawned at
+world origin. Camera_director's _camera_free_cam read state.position
+= [0, 0, 0], moved Camera3D to origin, rendered solid dark brown
+(inside-of-building view from inside the densely-packed town).
+
+Symptoms tried before finding root cause (~2 hours of debugging):
+- Toggle rules not firing → fixed with rule update (still failed)
+- `_neq` operator unsupported → fixed with `_in` (still failed)
+- Input routing failed → added player_input_anchor entity (still failed)
+- Lighting too minimal → copied aldenmere's rich lighting (STILL failed)
+- Compared to aldenmere's working initial_instances → found the
+  position-field convention difference.
+
+The user's question "this is just same as aldenmere right?" turned
+out to be the right framing every time. The bug was always "I'm not
+following aldenmere's exact convention." Lesson: when auto-gen
+produces something that should work like a known-good demo,
+DIFF the JSON structures field-by-field BEFORE iterating on
+engine code or other theories.
+
 ## ⚠ INVARIANT: no per-def escape hatches from automated derivation
 
 Anything the engine can derive from the world model, the engine
