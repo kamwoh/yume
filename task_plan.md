@@ -4401,5 +4401,45 @@ silent footgun for auto-gen pipelines.
 
 Cumulative engine-convention surprises caught this session: 6.
 
+### Engine surprise #7 — top-level `position` clobbers state.position
+
+Resolved 2026-05-26 with full post-mortem + 3 gates (commit 44311de):
+- Static validator `tools/validators/validate_position_consistency.py`
+- Engine push_warning in `entity.gd::_apply_overrides`
+- Docs section at top of `.claude/rules/data-demo.md`
+
+Empirical case: free_camera entities in compose_world were silently
+spawning at world origin instead of their camera-pose state.position
+because the top-level `position: [0, 0, 0]` field overwrites
+state.position regardless of dict order in JSON. Aldenmere's
+convention is to set BOTH fields to the same value.
+
+The user's framing question "this is just same as aldenmere right?"
+was decisive — every wrong theory I chased (rules, _neq operator,
+input routing, lighting) was actually "I'm not matching aldenmere's
+exact convention." Lesson worth keeping: when an auto-gen pipeline
+produces something that should work like a known-good demo, DIFF
+the JSON field-by-field against the working demo BEFORE iterating
+on engine theories.
+
+Cumulative engine-convention surprises this two-day arc: 7.
+
+### Deferred follow-ups added in this iteration
+
+1. **world/state.json drop-test** (small, low priority) —
+   compose_world currently emits a comment-only placeholder
+   matching aldenmere's pattern. Test whether
+   `world_loader::load_world_file` actually no-ops when the
+   file is missing. If yes, compose_world could drop the
+   placeholder entirely (one less file to scaffold). If no,
+   the file IS required and the placeholder is correct.
+   Revisit when convenient; not a blocker.
+
+2. **File-layout consistency now matches aldenmere** (done,
+   commit 44311de): world/rules/<NN>_*.json directory pattern
+   instead of single world/rules.json; no per-level rules.json
+   placeholder. Validates the established convention from
+   aldenmere's 17-rule split.
+
 
 
