@@ -6,6 +6,29 @@ post-mortem ritual. Skipping this means the same bug class
 re-surfaces in a future session, in a future game, in a future
 design pipeline.
 
+## Self-enforcement: TaskCreate ritual (added 2026-05-26)
+
+**The moment the user surfaces a bug, BEFORE writing the fix:**
+create ONE TaskCreate that bundles the fix + the gate. Use a
+subject like `"Post-mortem: <bug short name>"` and a description
+that includes BOTH the symptom and the gate to add. Set the task
+in_progress immediately.
+
+The task stays open until BOTH the fix is committed AND the gate
+is hardened. Closing it without the gate hardening is forbidden.
+
+Why this works as a forcing function: TaskList stays visible
+across the conversation. A post-mortem task hanging open is more
+embarrassing to ignore than a paragraph in a rule file. The
+user can also see it, which is the second layer of accountability.
+
+Empirical case: 2026-05-26 — I skipped post-mortem on the
+shutil.rmtree(game_dir) data-destruction bug, then again on the
+state.facing/state.yaw rename. Both times the user had to ask
+"do the post-mortem." The TaskCreate ritual prevents this by
+binding the post-mortem to the same task list step where I'm
+already tracking the fix.
+
 ## The ritual (4 steps, no skipping)
 
 ### Step 1 — Fix the bug
