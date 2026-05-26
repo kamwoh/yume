@@ -176,7 +176,7 @@ def v2_to_v1_extracted(
         v1_inst = {
             "id": inst["id"],
             "position_world": [round(wx, 3), round(wz, 3)],
-            "rotation_deg": round(math.degrees(inst["facing"]), 2),
+            "rotation_deg": round(math.degrees(inst["yaw"]), 2),
             "_v2_primitive": inst["primitive"],
             "_v2_canonical_front_axis": inst.get("canonical_front_axis", "-Z"),
             "_v2_use_canonical_scale": inst.get("_use_canonical_scale", False),

@@ -230,7 +230,7 @@ def extract_class(
         "class": "<class_name>",
         "id": "<class>_<n>",
         "position": [wx, wy, wz],
-        "facing": <radians>,
+        "yaw": <radians>,        # Godot Y-rotation, read by renderer
         "scale": [W, H, D],
         "primitive": "prim_unit_box|cylinder|sphere",
       }
@@ -654,20 +654,21 @@ def _emit_pca_oriented(
         facing = 0.0
     else:
         # Major-axis direction in (x_world, z_world).
-        # eigvec is in (y, x) image-pixel space. Image y→world -z,
-        # image x→world +x. So world dx = vx_maj, world dz = -vy_maj.
+        # eigvec is in (y, x) image-pixel space. pixel_to_world maps
+        # image_y → world_z DIRECTLY (no flip): both increase southward.
+        # image_x → world_x DIRECTLY (both increase eastward). So:
         dx_world = vx_maj
-        dz_world = -vy_maj
-        # Godot Y-rotation that aligns local +X (canonical wall front)
-        # with (dx_world, dz_world): rotating (1,0,0) by f gives
-        # (cos f, 0, -sin f), so cos f = dx, -sin f = dz → f = atan2(-dz, dx).
+        dz_world = vy_maj
+        # Godot Y-rotation that aligns local +X with (dx_world, dz_world):
+        # rotating (1, 0, 0) by yaw gives (cos yaw, 0, -sin yaw), so
+        # cos yaw = dx, -sin yaw = dz → yaw = atan2(-dz, dx).
         facing = math.atan2(-dz_world, dx_world)
 
     out = {
         "class": name,
         "id": f"{name}_{idx:03d}",
         "position": [round(wx, 3), wy, round(wz, 3)],
-        "facing": round(facing, 4),
+        "yaw": round(facing, 4),
         "primitive": strategy.get("primitive", "prim_unit_box"),
         "canonical_front_axis": strategy.get("canonical_front_axis", "+X"),
     }
@@ -801,7 +802,7 @@ def _emit_edge_box(
         "class": name,
         "id": f"{name}_{idx:03d}",
         "position": [round(wx, 3), wy, round(wz, 3)],
-        "facing": round(facing, 4),
+        "yaw": round(facing, 4),
         "scale": [round(length_m, 3), height_m, thickness_m],
         "primitive": strategy.get("primitive", "prim_unit_box"),
         "canonical_front_axis": strategy.get("canonical_front_axis", "+X"),
@@ -919,7 +920,7 @@ def _emit_instance(*, name, idx, centroid_px, class_entry, label_map,
         "class": name,
         "id": f"{name}_{idx:03d}",
         "position": [wx, wy, wz],
-        "facing": facing,
+        "yaw": facing,
         "scale": [float(canonical[0]), float(canonical[1]), float(canonical[2])],
         "primitive": strategy.get("primitive", "prim_unit_box"),
         "canonical_front_axis": strategy.get("canonical_front_axis", "-Z"),

@@ -240,7 +240,7 @@ def gestalt_extract(
             "class": name,
             "id": f"{name}_{i:03d}",
             "position": [round(wx, 3), wy, round(wz, 3)],
-            "facing": facing,
+            "yaw": facing,
             "scale": [float(canonical[0]), float(canonical[1]),
                       float(canonical[2])],
             "primitive": strategy.get("primitive", "prim_unit_box"),

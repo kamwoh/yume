@@ -525,7 +525,7 @@ def compose(
             ground_y = hm_sampler.y_at(wx, wz)
             pos = [wx, round(ground_y, 3), wz]
             facing = math.radians(inst.get("rotation_deg", 0.0))
-            state: dict = {"facing": round(facing, 4)}
+            state: dict = {"yaw": round(facing, 4)}
             if not inst.get("_v2_use_canonical_scale", False):
                 # Per-instance scale path: fitted from the tile's bbox.
                 ext_size = inst["size_world"]
