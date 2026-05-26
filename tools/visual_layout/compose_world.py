@@ -66,6 +66,14 @@ def _hex_to_rgb01(h: str) -> list[float]:
     return [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
 
 
+# Path classes are now EXTRACTED as road-network entities (flat path
+# segments), not painted as ground biomes. Exclude them from the biome
+# splatmap so the ground under a road reads as its surrounding terrain.
+ROAD_CLASSES = {
+    "cobblestone", "dirt_path", "road", "stone_road", "path", "gravel",
+}
+
+
 def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
     """Build (keys, albedos, roughnesses) for the biome ground shader.
 
@@ -83,9 +91,11 @@ def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
     for c in catalog.get("classes", []):
         if c.get("intent_type") != "terrain_shader":
             continue
+        name = str(c.get("name", ""))
+        if name in ROAD_CLASSES:
+            continue  # extracted as path-segment entities, not a biome
         if len(keys) >= max_biomes:
             break
-        name = str(c.get("name", ""))
         sem_hex = str(c.get("hex", "#808080"))
         tuned_hex, rough = BIOME_PALETTE.get(name, (sem_hex, 0.90))
         keys.append(_hex_to_rgb01(sem_hex))                 # sRGB key
@@ -705,7 +715,7 @@ def compose(
         for inst in ext_cls.get("instances", []):
             wx, wz = inst["position_world"]
             ground_y = hm_sampler.y_at(wx, wz)
-            pos = [wx, round(ground_y, 3), wz]
+            pos = [wx, round(ground_y + inst.get("_v2_y_offset", 0.0), 3), wz]
             facing = math.radians(inst.get("rotation_deg", 0.0))
             state: dict = {"yaw": round(facing, 4)}
             if not inst.get("_v2_use_canonical_scale", False):
@@ -713,7 +723,12 @@ def compose(
                 ext_size = inst["size_world"]
                 scale_x = max(0.2, ext_size[0])
                 scale_z = max(0.2, ext_size[1])
-                scale_y = max(0.5, ref_y)
+                # Explicit per-instance height (flat path segments need a
+                # thin Y); else fall back to the def's reference height.
+                if "_v2_scale_y" in inst:
+                    scale_y = float(inst["_v2_scale_y"])
+                else:
+                    scale_y = max(0.5, ref_y)
                 state["scale"] = [scale_x, scale_y, scale_z]
             # else: def's state_init.scale = canonical_size carries it.
             initial_instances.append({

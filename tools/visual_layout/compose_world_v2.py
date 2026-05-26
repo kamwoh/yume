@@ -40,10 +40,56 @@ import numpy as np
 from tools.visual_layout import lib_extract as cv
 from tools.visual_layout import lib_extract_v2 as v2
 from tools.visual_layout import lib_extract_validate as val
+from tools.visual_layout import lib_extract_roads as roads_mod
 from tools.visual_layout import compose_world
 
 
 LIB_STRATEGIES = Path("godot/data/lib/extraction_strategies.json")
+
+# Path classes extracted as the road NETWORK (non-object), not biomes.
+ROAD_CLASS_NAMES = ["cobblestone", "dirt_path", "road", "stone_road", "gravel"]
+PATH_WIDTH_M = 3.0
+PATH_HEIGHT_M = 0.12
+PATH_ALBEDO = "#9a8560"   # warm trodden-earth / cobble tone
+
+
+def roads_to_instances(polylines_world, sampler) -> list[dict]:
+    """Convert extracted road polylines → flat path-segment instances.
+
+    Each segment becomes a thin box (length × PATH_HEIGHT × PATH_WIDTH)
+    at the segment midpoint, yaw-aligned along the segment, Y-anchored
+    just above the displaced ground. Reuses the entity render path —
+    no new engine code. The non_objects road graph is also kept in
+    extracted.json for the record / future NPC pathing.
+    """
+    out: list[dict] = []
+    n = 0
+    for poly in polylines_world:
+        for i in range(len(poly) - 1):
+            ax, az = poly[i]
+            bx, bz = poly[i + 1]
+            dx, dz = bx - ax, bz - az
+            length = math.hypot(dx, dz)
+            if length < 0.5:
+                continue
+            mx, mz = (ax + bx) * 0.5, (az + bz) * 0.5
+            wy = sampler.y_at(mx, mz) if sampler is not None else 0.0
+            # Align local +X with the segment (same convention as walls):
+            # yaw = atan2(-dz, dx).
+            yaw = math.atan2(-dz, dx)
+            n += 1
+            out.append({
+                "class": "path_segment",
+                "id": f"path_segment_{n:03d}",
+                "position": [round(mx, 3), wy, round(mz, 3)],
+                "yaw": round(yaw, 4),
+                # +0.4 length overlap closes seams at segment joins.
+                "scale": [round(length + 0.4, 3), PATH_HEIGHT_M, PATH_WIDTH_M],
+                "primitive": "prim_unit_box",
+                "canonical_front_axis": "+X",
+                "_y_offset": 0.07,   # sit just above the ground plane
+            })
+    return out
 
 
 # ============================================================
@@ -185,6 +231,8 @@ def v2_to_v1_extracted(
             sx, sh, sz = inst["scale"]
             v1_inst["size_world"] = [round(sx, 3), round(sz, 3)]
             v1_inst["_v2_scale_y"] = float(sh)
+        if "_y_offset" in inst:
+            v1_inst["_v2_y_offset"] = float(inst["_y_offset"])
         by_class.setdefault(cn, []).append(v1_inst)
 
     out_classes = []
@@ -222,6 +270,17 @@ def v2_to_v1_extracted(
                         "canonical_size_meters", [1.0, 1.0, 1.0]
                     )
             out_classes.append(entry)
+
+    # Synthetic class for extracted road segments (non-object → flat
+    # path-segment entities). Not in the catalog; per-instance scale.
+    if by_class.get("path_segment"):
+        out_classes.append({
+            "name": "path_segment",
+            "hex": PATH_ALBEDO,
+            "intent_type": "object_placement",
+            "instances": by_class["path_segment"],
+            "_synthetic_non_object": True,
+        })
 
     return {
         "source_semantic_map": str(semantic_map_path),
@@ -327,12 +386,37 @@ def main() -> None:
         anchors=anchors,
         rng_seed=args.rng_seed,
     )
-    print(f"[compose_world_v2] extracted {len(instances)} instances")
+    print(f"[compose_world_v2] extracted {len(instances)} object instances")
 
-    # 5. Validate
+    # 4b. Extract the road NETWORK (non-object) and emit flat path
+    # segments. Roads are skeletonized from the path classes, traced to
+    # polylines, and rendered as thin ground-following boxes. The path
+    # classes are dropped from the ground biomes (compose_world
+    # ROAD_CLASSES) so the terrain under a road is its surrounding biome.
     img = cv.load_rgb(semantic_map_path)
     H, W = img.shape[:2]
     image_size = (W, H)
+    palette_all = [(c["name"], c["hex"]) for c in catalog["classes"]
+                   if c.get("intent_type") in ("terrain_shader", "object_placement")]
+    label_all = cv.threshold_nearest_palette(img, palette_all)
+    road_sampler = None
+    if heightmap_path is not None:
+        road_sampler = v2.HeightmapSampler(
+            heightmap_path, plane_size_m=float(world_size_m[0]),
+            height_scale=args.height_scale, height_offset=args.height_offset,
+        )
+    road_result = roads_mod.extract_roads(
+        label_map=label_all, palette=palette_all,
+        path_class_names=ROAD_CLASS_NAMES,
+        image_size=image_size, world_size_m=world_size_m,
+        simplify_tolerance_meters=0.8, min_world_length_m=4.0,
+    )
+    road_instances = roads_to_instances(road_result["polylines_world"], road_sampler)
+    print(f"[compose_world_v2] roads: {road_result['n_polylines']} polylines "
+          f"→ {len(road_instances)} path segments")
+    instances.extend(road_instances)
+
+    # 5. Validate (objects only — path segments aren't in the catalog)
     extracted_for_val = {
         "instances": instances,
         "world_size_meters": list(world_size_m),
