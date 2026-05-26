@@ -32,6 +32,51 @@ DATA_ROOT = ROOT / "godot" / "data"
 
 
 # ============================================================
+# WATER LEVEL — derived from the heightmap over the water mask
+# ============================================================
+
+def derive_water_level(
+    semantic_path: Path,
+    heightmap_path: Path,
+    water_hex: str,
+    height_scale: float,
+    height_offset: float,
+    percentile: float = 85.0,
+    color_tol: int = 48,
+) -> float:
+    """Derive the water surface Y (ADR 0059) from the terrain itself.
+
+    Samples the heightmap at every pixel the semantic map marks as
+    water, converts to world-Y via the same (h+offset)*scale transform
+    the shader uses, and returns a high percentile of those Ys. That
+    percentile is the waterline: high enough to fill the river channel,
+    low enough that the surrounding terrain (banks, town) stays above
+    it. The 85th-percentile default trims the few water pixels that
+    bleed onto high banks without flooding the town.
+
+    Yume principle: derive, don't hand-tune. A hardcoded water_level
+    floods or drains depending on the map; this reads the actual map.
+    """
+    import numpy as np
+    from PIL import Image
+
+    sm = np.array(Image.open(semantic_path).convert("RGB")).astype(int)
+    hm_img = Image.open(heightmap_path).convert("L")
+    if hm_img.size != (sm.shape[1], sm.shape[0]):
+        hm_img = hm_img.resize((sm.shape[1], sm.shape[0]))
+    hm = np.array(hm_img).astype(float) / 255.0
+
+    h = water_hex.lstrip("#")
+    ref = np.array([int(h[i:i + 2], 16) for i in (0, 2, 4)])
+    dist = np.sqrt(((sm - ref) ** 2).sum(axis=2))
+    mask = dist < color_tol
+    if not mask.any():
+        return 0.0
+    y = (hm[mask] + height_offset) * height_scale
+    return float(round(float(np.percentile(y, percentile)), 3))
+
+
+# ============================================================
 # HEIGHTMAP SAMPLER — anchors entities to displaced terrain
 # ============================================================
 
@@ -193,7 +238,7 @@ def compose(
     heightmap_path: Path | None,
     height_scale: float = 3.0,
     height_offset: float = -0.5,
-    water_level: float = 0.0,
+    water_level: float | None = None,
 ) -> Path:
     """Build a full data/demo_<name>/ folder. Returns the folder path.
 
@@ -319,18 +364,32 @@ def compose(
     # catalog has a water class (terrain_shader named water*). A flat
     # transparent plane at water_level; the heightmap-carved riverbed
     # fills with water, depth-test handles the shoreline.
-    has_water = any(
-        str(c.get("name", "")).startswith("water")
-        and c.get("intent_type") == "terrain_shader"
-        for c in catalog.get("classes", [])
+    water_class = next(
+        (c for c in catalog.get("classes", [])
+         if str(c.get("name", "")).startswith("water")
+         and c.get("intent_type") == "terrain_shader"),
+        None,
     )
-    if has_water and heightmap_dest:
+    if water_class is not None and heightmap_dest:
+        # Derive the waterline from the heightmap over the water mask
+        # unless the caller passed an explicit override. Default
+        # behavior = derive (no flooding-the-town guesswork).
+        if water_level is None and semantic_dest is not None:
+            level = derive_water_level(
+                semantic_dest, heightmap_dest,
+                str(water_class.get("hex", "#3070c0")),
+                height_scale, height_offset,
+            )
+            print(f"[compose_world] derived water_level={level} "
+                  f"(85th pct of heightmap-Y over water mask)")
+        else:
+            level = water_level if water_level is not None else 0.0
         scene["water"] = {
             "_comment": "ADR 0059 water surface. level = world Y of the "
                         "water surface; terrain below it (riverbed) fills.",
             "mesh": {
                 "size": [world_w, world_h],
-                "level": float(water_level),
+                "level": float(level),
                 "shader": "res://data/lib/shaders/water_stylized.gdshader",
                 "shader_params": {
                     "base_color": [0.10, 0.30, 0.45, 0.80],

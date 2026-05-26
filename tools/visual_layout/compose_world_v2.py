@@ -287,10 +287,11 @@ def main() -> None:
     ap.add_argument("--height-offset", type=float, default=-0.5,
                     help="signed offset before scaling; -0.5 = grey128 is "
                          "ground level")
-    ap.add_argument("--water-level", type=float, default=0.0,
-                    help="world Y of the water surface (ADR 0059). Terrain "
-                         "below this fills with water. Default 0 = town "
-                         "plain level, so only the carved riverbed floods.")
+    ap.add_argument("--water-level", type=float, default=None,
+                    help="world Y of the water surface (ADR 0059). Omit to "
+                         "DERIVE it from the heightmap over the water mask "
+                         "(85th pct — fills the river channel, town stays "
+                         "dry). Pass a value to override.")
     ap.add_argument("--rng-seed", type=int, default=42)
     ap.add_argument("--validation-report", default=None,
                     help="optional path to write the validator's JSON report")
