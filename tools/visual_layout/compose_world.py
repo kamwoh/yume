@@ -259,6 +259,29 @@ def compose(
         json.dumps(cameras_def, indent=2)
     )
 
+    # ============ entities/player.json ============
+    # Minimal hidden actor — required for InputRegistrar to route
+    # input. The default actor_manager resolves the "active actor" by
+    # the `player` tag; with no player entity, _find_actor_id returns
+    # "" and InputRegistrar.poll early-returns → input actions are
+    # never queued onto the scheduler → rules with input triggers
+    # never fire.
+    player_def = {
+        "_comment": "Hidden actor anchor. Exists ONLY so InputRegistrar has someone to route input to. No mesh, no physics, no movement rules — just an input target.",
+        "definitions": [
+            {
+                "id": "player_input_anchor",
+                "tags": ["player", "actor", "persistent"],
+                "properties": {"display_name": "Input Anchor"},
+                "state_init": {},
+                "visual": {"hidden": True}
+            }
+        ]
+    }
+    (game_dir / "entities" / "player.json").write_text(
+        json.dumps(player_def, indent=2)
+    )
+
     # ============ world/rules.json ============
     # Two rules wire the C key (toggle_freecam input) for camera-mode
     # toggling — without these, the input fires but nothing changes.
@@ -402,6 +425,8 @@ def compose(
     # Prepend the world_clock + camera instances so they spawn first
     singleton_instances = [
         {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
+        {"def": "player_input_anchor", "id": "player_input_anchor",
+         "position": [0, 0, 0]},
         # Three pre-positioned cameras — Tab cycles between them
         {"def": "free_camera", "id": "camera_overhead",
          "position": [0, 0, 0],
