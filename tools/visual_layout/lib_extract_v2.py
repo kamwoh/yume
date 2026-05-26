@@ -272,12 +272,12 @@ def extract_class(
             sampler=sampler, anchors=anchors, rng=rng,
         )
     if method == "polygon_decompose":
-        # Task #137 will populate this. Return empty for now so callers
-        # don't crash, but log to stderr.
-        import sys
-        print(f"[lib_extract_v2] polygon_decompose not yet implemented "
-              f"(task #137) — skipping class '{name}'", file=sys.stderr)
-        return []
+        return _extract_polygon_decompose(
+            name=name, mask=mask, class_entry=class_entry,
+            label_map=label_map, palette=palette,
+            image_size=image_size, world_size_m=world_size_m,
+            sampler=sampler, anchors=anchors, rng=rng,
+        )
     if method == "llm_gestalt":
         # Task #138 will populate this. Same fallthrough as polygon_decompose.
         import sys
@@ -518,6 +518,213 @@ def _extract_require_adjacent(*, name, mask, class_entry, label_map, palette,
             image_size=image_size, world_size_m=world_size_m,
             sampler=sampler, anchors=anchors, rng=rng,
         ))
+    return instances
+
+
+# ============================================================
+# POLYGON DECOMPOSE — walls, fences, palisades, retaining walls
+# ============================================================
+
+def _trace_outline(mask: np.ndarray, component: dict) -> list[tuple[int, int]]:
+    """Naive outline trace: collect every mask pixel with a non-mask
+    4-neighbor (the boundary), then walk greedily from topmost-leftmost
+    picking the nearest unvisited boundary pixel each step.
+
+    Works well for convex / mildly-concave polygons (octagon walls,
+    house compounds, simple fence rings). Topologically thin features
+    or self-intersecting boundaries may produce odd orderings; for
+    those cases use a higher elongation threshold so the PCA-single-
+    segment branch takes over.
+    """
+    H, W = mask.shape
+    edges: list[tuple[int, int]] = []
+    for y, x in component["pixels"].tolist():
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if ny < 0 or ny >= H or nx < 0 or nx >= W or not mask[ny, nx]:
+                edges.append((int(x), int(y)))
+                break
+    if not edges:
+        return []
+    edges_set: set[tuple[int, int]] = set(edges)
+    start = min(edges, key=lambda p: (p[1], p[0]))
+    ordered = [start]
+    edges_set.discard(start)
+    current = start
+    # Greedy nearest-neighbor walk
+    while edges_set:
+        best = None
+        best_d2 = 10 ** 9
+        for p in edges_set:
+            d2 = (p[0] - current[0]) ** 2 + (p[1] - current[1]) ** 2
+            if d2 < best_d2:
+                best_d2 = d2
+                best = p
+        # If the nearest is too far, the rest is disconnected noise — bail
+        if best is None or best_d2 > 16:
+            break
+        ordered.append(best)
+        edges_set.discard(best)
+        current = best
+    return ordered
+
+
+def _perp_dist(p: tuple[int, int], a: tuple[int, int], b: tuple[int, int]) -> float:
+    if a == b:
+        return math.hypot(p[0] - a[0], p[1] - a[1])
+    dx = b[0] - a[0]
+    dy = b[1] - a[1]
+    norm = math.hypot(dx, dy)
+    return abs(dy * p[0] - dx * p[1] + b[0] * a[1] - b[1] * a[0]) / norm
+
+
+def _rdp(points: list[tuple[int, int]], eps_px: float) -> list[tuple[int, int]]:
+    """Ramer-Douglas-Peucker polyline simplification. Iterative
+    stack-based to avoid Python recursion limits on long boundaries."""
+    if len(points) < 3:
+        return list(points)
+    keep = [False] * len(points)
+    keep[0] = True
+    keep[-1] = True
+    stack = [(0, len(points) - 1)]
+    while stack:
+        i, j = stack.pop()
+        if j - i < 2:
+            continue
+        max_d = 0.0
+        max_k = -1
+        for k in range(i + 1, j):
+            d = _perp_dist(points[k], points[i], points[j])
+            if d > max_d:
+                max_d = d
+                max_k = k
+        if max_d > eps_px and max_k > 0:
+            keep[max_k] = True
+            stack.append((i, max_k))
+            stack.append((max_k, j))
+    return [points[i] for i, k in enumerate(keep) if k]
+
+
+def _emit_edge_box(
+    *,
+    name: str,
+    idx: int,
+    a_px: tuple[float, float],
+    b_px: tuple[float, float],
+    class_entry: dict,
+    image_size: tuple[int, int],
+    world_size_m: tuple[float, float],
+    sampler: HeightmapSampler | None,
+) -> dict:
+    """Emit a single rotated/scaled prim_unit_box that spans pixel
+    endpoints a_px → b_px. The box's length lies along its
+    canonical_front_axis (+X by lib convention)."""
+    strategy = class_entry["strategy"]
+    canonical = strategy.get("canonical_size_meters", [1.0, 3.0, 0.4])
+    height_m = float(canonical[1])
+    thickness_m = float(canonical[2])
+
+    wax, waz = cv.pixel_to_world(a_px[0], a_px[1], image_size, world_size_m)
+    wbx, wbz = cv.pixel_to_world(b_px[0], b_px[1], image_size, world_size_m)
+    wx = (wax + wbx) * 0.5
+    wz = (waz + wbz) * 0.5
+    length_m = math.hypot(wbx - wax, wbz - waz)
+    # facing = Godot Y-rotation that points local +X along (wbx-wax, wbz-waz).
+    # Convention matches resolve_facing() (atan2(dx, -dz)) so wirer logic
+    # is uniform across rotation rules.
+    facing = math.atan2(wbx - wax, -(wbz - waz))
+
+    wy = sampler.y_at(wx, wz) if sampler is not None else 0.0
+
+    return {
+        "class": name,
+        "id": f"{name}_{idx:03d}",
+        "position": [round(wx, 3), wy, round(wz, 3)],
+        "facing": round(facing, 4),
+        "scale": [round(length_m, 3), height_m, thickness_m],
+        "primitive": strategy.get("primitive", "prim_unit_box"),
+        "canonical_front_axis": strategy.get("canonical_front_axis", "+X"),
+    }
+
+
+def _extract_polygon_decompose(*, name, mask, class_entry, label_map, palette,
+                               image_size, world_size_m, sampler, anchors, rng):
+    """Decompose each connected component into rotated unit_boxes:
+
+      1. Highly elongated component (PCA elongation > 2.5): emit ONE
+         box along the PCA major axis. (Single-strip walls, isolated
+         fence segments.)
+      2. Otherwise: trace outline → R-D-P simplify → emit ONE box per
+         polygon edge. (Town walls, polygonal fences, compound
+         perimeters.)
+
+    Yume reuse principle: walls are NOT a new primitive — they're
+    rotated/scaled instances of the same prim_unit_box used by houses,
+    townhalls, etc. New genres get walls/fences for free by writing
+    a strategy entry pointing here.
+    """
+    strategy = class_entry["strategy"]
+    min_area = int(strategy.get("min_area_px", 20))
+    tol_m = float(strategy.get("simplify_tolerance_meters", 0.6))
+    iw, ih = image_size
+    wx_m, wz_m = world_size_m
+    px_per_m = 0.5 * (iw / wx_m + ih / wz_m)
+    tol_px = tol_m * px_per_m
+
+    comps = cv.connected_components(mask, min_area=min_area)
+    if not comps:
+        return []
+
+    instances: list[dict] = []
+    idx = 0
+    for comp in comps:
+        _angle_deg, elongation = cv.infer_rotation_deg(comp)
+        if elongation > 2.5:
+            # Single-segment branch: emit one box along major axis.
+            # Compute endpoint pixels by projecting comp pixels onto
+            # the principal eigenvector and taking min/max.
+            px = comp["pixels"].astype(float)
+            ys = px[:, 0]; xs = px[:, 1]
+            cy = ys.mean(); cx = xs.mean()
+            cov = np.cov(np.stack([ys - cy, xs - cx]))
+            _eigvals, eigvecs = np.linalg.eigh(cov)
+            vy, vx = eigvecs[:, 1]
+            proj = (ys - cy) * vy + (xs - cx) * vx
+            i_min = int(np.argmin(proj)); i_max = int(np.argmax(proj))
+            a_px = (float(xs[i_min]), float(ys[i_min]))
+            b_px = (float(xs[i_max]), float(ys[i_max]))
+            idx += 1
+            instances.append(_emit_edge_box(
+                name=name, idx=idx, a_px=a_px, b_px=b_px,
+                class_entry=class_entry, image_size=image_size,
+                world_size_m=world_size_m, sampler=sampler,
+            ))
+            continue
+
+        # Polygon branch: trace outline + R-D-P + per-edge boxes.
+        outline = _trace_outline(mask, comp)
+        if len(outline) < 3:
+            continue
+        simplified = _rdp(outline, tol_px)
+        # Close the polygon by appending the start
+        if len(simplified) >= 3 and simplified[0] != simplified[-1]:
+            simplified = simplified + [simplified[0]]
+        if len(simplified) < 3:
+            continue
+        for i in range(len(simplified) - 1):
+            a = simplified[i]
+            b = simplified[i + 1]
+            # Skip degenerate edges
+            wax, waz = cv.pixel_to_world(a[0], a[1], image_size, world_size_m)
+            wbx, wbz = cv.pixel_to_world(b[0], b[1], image_size, world_size_m)
+            if math.hypot(wbx - wax, wbz - waz) < 0.3:
+                continue
+            idx += 1
+            instances.append(_emit_edge_box(
+                name=name, idx=idx, a_px=(a[0], a[1]), b_px=(b[0], b[1]),
+                class_entry=class_entry, image_size=image_size,
+                world_size_m=world_size_m, sampler=sampler,
+            ))
     return instances
 
 
