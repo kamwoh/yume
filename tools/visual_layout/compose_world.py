@@ -190,17 +190,27 @@ def compose(
             "sky": {"top_color": "#88aadd", "bottom_color": "#dde0e8"},
         }
     }
-    # If we have a semantic map, use it as the ground albedo directly
-    # (single-image biome-as-texture approach — no 5-biome shader yet)
-    if semantic_dest:
-        scene["ground"]["mesh"]["albedo_texture"] = (
-            f"res://data/{game_name}/assets/layouts/semantic_map.png"
+    # Wire heightmap + semantic map through the lib's simple-displace
+    # ground shader (data/lib/shaders/ground_simple_displace.gdshader).
+    # That shader does vertex displacement from heightmap + samples
+    # semantic_map as albedo. Reusable across any auto-gen game.
+    if semantic_dest or heightmap_dest:
+        scene["ground"]["mesh"]["shader"] = (
+            "res://data/lib/shaders/ground_simple_displace.gdshader"
         )
-    if heightmap_dest:
-        scene["ground"]["mesh"]["height_texture"] = (
-            f"res://data/{game_name}/assets/textures/heightmap.png"
-        )
-        scene["ground"]["mesh"]["height_scale"] = 2.0  # max displacement in m
+        scene["ground"]["mesh"]["plane_size"] = float(world_w)
+        scene["ground"]["mesh"]["height_scale"] = 3.0   # max displacement (m)
+        scene["ground"]["mesh"]["height_offset"] = -0.5  # 128 = ground, brighter=up
+        shader_params: dict = {}
+        if semantic_dest:
+            shader_params["biome_map"] = (
+                f"res://data/{game_name}/assets/layouts/semantic_map.png"
+            )
+        if heightmap_dest:
+            shader_params["heightmap"] = (
+                f"res://data/{game_name}/assets/textures/heightmap.png"
+            )
+        scene["ground"]["mesh"]["shader_params"] = shader_params
     (game_dir / "scene.json").write_text(json.dumps(scene, indent=2))
 
     # ============ world/state.json ============
