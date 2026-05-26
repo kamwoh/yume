@@ -1,23 +1,33 @@
-"""compose_world.py — stage 7 of the text-to-world pipeline.
+"""compose_world.py — stages 5-7 of the text-to-world pipeline.
 
-Reads the stage-5 extracted.json + stage-2 catalog and writes a
-runnable Yume demo using ONLY CODE-DRAWN PRIMITIVE SHAPES (boxes,
-cylinders, spheres). No asset gen — every object's visual is a
-primitive sized per its extracted bbox + colored per its catalog
-hex.
+ONE entry point: prose-derived semantic map + heightmap → a runnable
+Yume demo. Reads the stage-2 catalog, runs the strategy-driven
+extraction (objects + non-objects), and writes the demo using
+CODE-DRAWN PRIMITIVE SHAPES (boxes, cylinders, spheres). No asset
+gen yet — every object's visual is a primitive sized + colored per
+its strategy.
 
-This is a DEFERRED-asset version of stage 7. The point: prove the
-pipeline produces a coherent scene structurally BEFORE investing
-in stage-6 asset generation. If the box-only scene reads as
-"yes that's a medieval town from above", we know the pipeline
-works; if not, we know where the issue is.
+The flow (merged 2026-05-26 — was compose_world + compose_world_v2):
+  1. inject strategies from data/lib/extraction_strategies.json
+  2. detect anchors (plaza centroid, wall-ring corners)
+  3. dispatch extraction (lib_extract_v2) → object instances
+  4. extract road network (lib_extract_roads) → path-segment instances
+  5. validate (lib_extract_validate)
+  6. group instances by class/bucket → entity defs
+  7. write scene.json (biome ground shader + water plane), entity
+     defs, level instances, cameras, rules, input, flow, .tscn
+
+OBJECTS (houses, walls, towers, bridges, fountain) become entities.
+NON-OBJECTS become: biomes (ground splatmap shader), water (ADR 0059
+plane), roads (extracted path-segment entities). The semantic map is
+consumed ONCE here as a classification input.
 
 Usage:
     python3 -m tools.visual_layout.compose_world demo_pipeline_v1 \\
-        --extracted /tmp/_extracted.json \\
         --catalog   /tmp/_class_catalog.json \\
         --semantic-map /path/to/semantic.png \\
-        --heightmap    /path/to/heightmap.png   (optional)
+        --heightmap    /path/to/heightmap.png \\
+        --height-scale 8.0
 """
 from __future__ import annotations
 
@@ -25,10 +35,27 @@ import argparse
 import json
 import math
 import shutil
+import sys
 from pathlib import Path
+
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = ROOT / "godot" / "data"
+sys.path.insert(0, str(ROOT))
+
+from tools.visual_layout import lib_extract as cv            # noqa: E402
+from tools.visual_layout import lib_extract_v2 as v2         # noqa: E402
+from tools.visual_layout import lib_extract_roads as roads_mod  # noqa: E402
+from tools.visual_layout import lib_extract_validate as val  # noqa: E402
+
+LIB_STRATEGIES = DATA_ROOT / "lib" / "extraction_strategies.json"
+
+# Path classes extracted as the road NETWORK (non-object), not biomes.
+ROAD_CLASS_NAMES = ["cobblestone", "dirt_path", "road", "stone_road", "gravel"]
+PATH_WIDTH_M = 3.0
+PATH_HEIGHT_M = 0.12
+PATH_ALBEDO = "#9a8560"   # warm trodden-earth / cobble tone
 
 
 # ============================================================
@@ -155,154 +182,169 @@ def derive_water_level(
     return float(round(float(np.percentile(y, percentile)), 3))
 
 
+# Heightmap sampling lives in lib_extract_v2.HeightmapSampler — used
+# by dispatch_extraction (entity Y) + roads_to_instances (path Y). The
+# old local copy was removed in the 2026-05-26 merge; there is one
+# sampler implementation now.
+
+
 # ============================================================
-# HEIGHTMAP SAMPLER — anchors entities to displaced terrain
+# PRIMITIVE → VISUAL
 # ============================================================
 
-class HeightmapSampler:
-    """Samples a heightmap PNG at world (x, z) → world y.
+_PRIM_MESH = {
+    "prim_unit_box": "prim_unit_box",
+    "prim_unit_cylinder": "prim_unit_cylinder",
+    "prim_unit_sphere": "prim_unit_sphere",
+}
 
-    Mirrors the shader math in
-    `data/lib/shaders/ground_simple_displace.gdshader`:
-        hm_uv = ((x + plane/2) / plane, 1.0 - (z + plane/2) / plane)
-        y = (heightmap.r + offset) * scale
 
-    So building bases land EXACTLY on the displaced ground surface
-    (no z-fighting, no floaters).
+def primitive_visual(primitive: str, hex_color: str) -> dict:
+    """Yume visual block for a unit-primitive mesh + albedo. Per-instance
+    state.scale (or the def's state_init.scale) gives real dimensions."""
+    mesh = _PRIM_MESH.get(primitive, "prim_unit_box")
+    return {"mesh": mesh, "params": {"albedo": hex_color}}
+
+
+# ============================================================
+# EXTRACTION ORCHESTRATION (merged from compose_world_v2)
+# ============================================================
+
+def inject_strategies(catalog: dict, lib: dict) -> None:
+    """Give every object_placement class a `strategy` block via exact
+    name → alias → default resolution (yume-scene-class-catalog Step 4b,
+    done programmatically)."""
+    for c in catalog.get("classes", []):
+        if c.get("intent_type") != "object_placement":
+            continue
+        name = c["name"]
+        if name in lib["classes"]:
+            s = dict(lib["classes"][name])
+            s["strategy_origin"] = "lib_exact_match"
+        elif name in lib["class_aliases"]:
+            canonical = lib["class_aliases"][name]
+            s = dict(lib["classes"][canonical])
+            s["strategy_origin"] = f"lib_alias_match:{canonical}"
+        else:
+            s = dict(lib["default_strategy"])
+            s["strategy_origin"] = "default_with_override"
+        s.pop("_comment", None)
+        c["strategy"] = s
+
+
+def detect_anchors(catalog: dict, semantic_map_path: Path,
+                   world_size_m: tuple[float, float]) -> dict:
+    """Build the anchors dict for face_anchor / snap_to_anchor strategies.
+    focal_anchor = centroid of the plaza/cobblestone mass; wall_ring_
+    corners = polygon vertices of the wall_segment outline."""
+    img = cv.load_rgb(semantic_map_path)
+    H, W = img.shape[:2]
+    image_size = (W, H)
+    palette = [(c["name"], c["hex"]) for c in catalog["classes"]
+               if c.get("intent_type") in ("terrain_shader", "object_placement")]
+    label_map = cv.threshold_nearest_palette(img, palette)
+    anchors: dict = {"focal_anchor": (0.0, 0.0), "wall_ring_corners": []}
+
+    for plaza in ("plaza", "cobblestone", "stone_floor", "dirt_path"):
+        idx = next((i for i, (n, _h) in enumerate(palette) if n == plaza), None)
+        if idx is None:
+            continue
+        comps = cv.connected_components(label_map == idx, min_area=50)
+        if not comps:
+            continue
+        comp = max(comps, key=lambda c: c["area_px"])
+        anchors["focal_anchor"] = tuple(
+            cv.pixel_to_world(*comp["centroid"], image_size, world_size_m))
+        break
+
+    wall_idx = next((i for i, (n, _h) in enumerate(palette)
+                     if n == "wall_segment"), None)
+    if wall_idx is not None:
+        comps = cv.connected_components(label_map == wall_idx, min_area=20)
+        if comps:
+            all_px = np.concatenate([c["pixels"] for c in comps], axis=0)
+            outline = v2._trace_outline(label_map == wall_idx, {"pixels": all_px})
+            if len(outline) >= 3:
+                tol = 1.0 * (0.5 * (W / world_size_m[0] + H / world_size_m[1]))
+                for cx, cy in v2._rdp(outline, tol):
+                    anchors["wall_ring_corners"].append(
+                        tuple(cv.pixel_to_world(cx, cy, image_size, world_size_m)))
+    return anchors
+
+
+def roads_to_instances(polylines_world, sampler) -> list[dict]:
+    """Road polylines → flat path-segment instances (thin ground-following
+    boxes, one per segment, yaw along the segment)."""
+    out: list[dict] = []
+    n = 0
+    for poly in polylines_world:
+        for i in range(len(poly) - 1):
+            ax, az = poly[i]
+            bx, bz = poly[i + 1]
+            dx, dz = bx - ax, bz - az
+            length = math.hypot(dx, dz)
+            if length < 0.5:
+                continue
+            mx, mz = (ax + bx) * 0.5, (az + bz) * 0.5
+            wy = sampler.y_at(mx, mz) if sampler is not None else 0.0
+            n += 1
+            out.append({
+                "class": "path_segment",
+                "id": f"path_segment_{n:03d}",
+                "position": [round(mx, 3), wy, round(mz, 3)],
+                "yaw": round(math.atan2(-dz, dx), 4),
+                "scale": [round(length + 0.4, 3), PATH_HEIGHT_M, PATH_WIDTH_M],
+                "primitive": "prim_unit_box",
+                "_y_offset": 0.07,
+            })
+    return out
+
+
+def _class_specs(catalog: dict) -> dict:
+    """class/bucket name → {primitive, canonical_scale|None, albedo}.
+
+    Drives the def-builder directly (replaces the old pick_primitive
+    monkey-patch). Buckets each get their own spec; path_segment is
+    synthetic.
     """
-
-    def __init__(
-        self,
-        heightmap_path: Path | None,
-        plane_size_m: float,
-        height_scale: float = 3.0,
-        height_offset: float = -0.5,
-    ):
-        self.plane = float(plane_size_m)
-        self.scale = float(height_scale)
-        self.offset = float(height_offset)
-        self._pixels = None
-        self._w = self._h = 0
-        if heightmap_path is not None and heightmap_path.exists():
-            try:
-                from PIL import Image
-                import numpy as np
-                img = Image.open(heightmap_path).convert("L")
-                self._pixels = np.asarray(img, dtype="float32") / 255.0
-                self._h, self._w = self._pixels.shape
-            except Exception as e:
-                print(f"[heightmap] failed to load {heightmap_path}: {e}")
-
-    def y_at(self, wx: float, wz: float) -> float:
-        """Return world Y of the ground surface at (wx, wz)."""
-        if self._pixels is None:
-            return 0.0
-        # World → UV (matches shader vertex())
-        u = (wx + self.plane * 0.5) / self.plane
-        v = 1.0 - (wz + self.plane * 0.5) / self.plane
-        # Bilinear sample
-        x = max(0.0, min(self._w - 1.0001, u * (self._w - 1)))
-        y = max(0.0, min(self._h - 1.0001, v * (self._h - 1)))
-        x0, y0 = int(x), int(y)
-        fx, fy = x - x0, y - y0
-        p = self._pixels
-        h = (p[y0,   x0]   * (1-fx) * (1-fy) +
-             p[y0,   x0+1] * fx     * (1-fy) +
-             p[y0+1, x0]   * (1-fx) * fy     +
-             p[y0+1, x0+1] * fx     * fy)
-        return (float(h) + self.offset) * self.scale
+    specs: dict = {}
+    for c in catalog.get("classes", []):
+        if c.get("intent_type") != "object_placement":
+            continue
+        strat = c.get("strategy", {})
+        prim = strat.get("primitive", "prim_unit_box")
+        buckets = strat.get("variant_buckets")
+        if buckets:
+            for b in buckets:
+                specs[b["def"]] = {
+                    "primitive": prim,
+                    "canonical_scale": list(b.get(
+                        "canonical_size_meters",
+                        strat.get("canonical_size_meters", [1, 1, 1]))),
+                    "albedo": b.get("albedo", c["hex"]),
+                }
+        else:
+            canon = (list(strat["canonical_size_meters"])
+                     if strat.get("use_canonical_scale")
+                     and "canonical_size_meters" in strat else None)
+            specs[c["name"]] = {
+                "primitive": prim,
+                "canonical_scale": canon,
+                "albedo": c["hex"],
+            }
+    specs["path_segment"] = {
+        "primitive": "prim_unit_box",
+        "canonical_scale": None,
+        "albedo": PATH_ALBEDO,
+    }
+    return specs
 
 
-# ============================================================
-# CLASS → PRIMITIVE SHAPE HEURISTICS
-# ============================================================
-
-def pick_primitive(class_name: str, size_world: list[float]) -> dict:
-    """Map a catalog class name to a primitive shape spec.
-
-    Default = box at extracted size. Common class-name patterns
-    pick more specific primitives (cylinder for tower, sphere for
-    fountain orb, etc.). Color comes from the catalog hex applied
-    by the caller.
-    """
-    name = class_name.lower()
-    w_avg = (size_world[0] + size_world[1]) / 2.0
-    h = max(1.5, w_avg * 1.5)  # default height = 1.5x footprint for
-                                # a building-shaped silhouette
-
-    # Cylinders for round-ish things
-    if any(k in name for k in ("tower", "well", "silo", "spire", "pillar")):
-        radius = w_avg / 2.0
-        return {"_primitive": "cylinder", "radius": radius, "height": h}
-
-    # Spheres for orb-ish things
-    if any(k in name for k in ("orb", "egg", "fountain", "boulder", "ball")):
-        # Fountain = a small dome (sphere of half-extents)
-        return {"_primitive": "sphere", "radius": w_avg / 2.0}
-
-    # Trees as cone-topped cylinder (composite). Simpler: just a
-    # tall thin cylinder.
-    if any(k in name for k in ("tree", "trunk", "pine", "oak")):
-        return {"_primitive": "cylinder", "radius": w_avg * 0.4, "height": h * 1.5}
-
-    # Walls as thin tall boxes (sized per extracted bbox).
-    if any(k in name for k in ("wall", "fence", "barricade")):
-        # Keep the extracted footprint but make it tall.
-        return {"_primitive": "box",
-                "size": [size_world[0], 3.0, size_world[1]]}
-
-    # Bridges, paths-as-objects: flat thin slab
-    if any(k in name for k in ("bridge", "platform", "slab")):
-        return {"_primitive": "box",
-                "size": [size_world[0], 0.4, size_world[1]]}
-
-    # Default: building-shaped box (tall over footprint)
-    return {"_primitive": "box", "size": [size_world[0], h, size_world[1]]}
-
-
-def primitive_to_visual(prim: dict, hex_color: str) -> dict:
-    """Convert a primitive spec to a Yume visual block.
-
-    Uses data/meshes.json's prim_unit_box / prim_unit_cylinder /
-    prim_unit_sphere as the underlying library meshes. The primitive
-    is unit-sized (1x1x1 or radius 0.5); per-instance scale on the
-    entity instance gives the actual dimensions. The mesh's $albedo
-    parameter is recolored via visual.params.
-    """
-    p_type = prim["_primitive"]
-    if p_type == "box":
-        return {
-            "mesh": "prim_unit_box",
-            "params": {"albedo": hex_color},
-        }
-    if p_type == "cylinder":
-        return {
-            "mesh": "prim_unit_cylinder",
-            "params": {"albedo": hex_color},
-        }
-    if p_type == "sphere":
-        return {
-            "mesh": "prim_unit_sphere",
-            "params": {"albedo": hex_color},
-        }
-    return {"mesh": "prim_unit_box", "params": {"albedo": hex_color}}
-
-
-# ============================================================
-# Y-HEIGHT inference per primitive
-# ============================================================
-
-def y_offset_for(prim: dict) -> float:
-    """Where the primitive's center sits in y so the BASE is at y=0.
-    Match the engine's auto-lift convention (physics_body_builder)
-    so visual + collider align."""
-    if prim["_primitive"] == "box":
-        return prim["size"][1] / 2.0
-    if prim["_primitive"] == "cylinder":
-        return prim["height"] / 2.0
-    if prim["_primitive"] == "sphere":
-        return prim["radius"]
-    return 0.5
+def _group_by_class(instances: list[dict]) -> dict[str, list[dict]]:
+    grouped: dict[str, list[dict]] = {}
+    for inst in instances:
+        grouped.setdefault(inst["class"], []).append(inst)
+    return grouped
 
 
 # ============================================================
@@ -311,24 +353,66 @@ def y_offset_for(prim: dict) -> float:
 
 def compose(
     game_name: str,
-    extracted_path: Path,
     catalog_path: Path,
-    semantic_map_path: Path | None,
+    semantic_map_path: Path,
     heightmap_path: Path | None,
+    world_size_m: tuple[float, float] = (80.0, 80.0),
     height_scale: float = 3.0,
     height_offset: float = -0.5,
     water_level: float | None = None,
+    rng_seed: int = 42,
 ) -> Path:
-    """Build a full data/demo_<name>/ folder. Returns the folder path.
+    """Run extraction (objects + non-objects) and write a full
+    data/demo_<name>/ folder. Returns the folder path.
 
     height_scale: max terrain displacement in meters (shader + entity
-        Y sampler both use it). 3.0 for mostly_flat maps; bump to
-        ~8.0 for hilly maps that use the full grey range.
-    height_offset: signed offset applied to the [0,1] heightmap sample
-        before scaling. -0.5 makes grey-128 = ground level.
+        Y sampler both use it). 3.0 for mostly_flat maps; ~8.0 hilly.
+    height_offset: -0.5 makes grey-128 = ground level.
+    water_level: None → derive from heightmap over the water mask.
     """
-    extracted = json.loads(extracted_path.read_text())
     catalog = json.loads(catalog_path.read_text())
+
+    # ---- Extraction (the one place that reads semantic + heightmap) ----
+    lib = json.loads(Path(LIB_STRATEGIES).read_text())
+    inject_strategies(catalog, lib)
+    anchors = detect_anchors(catalog, semantic_map_path, world_size_m)
+    print(f"[compose_world] anchors: focal={anchors['focal_anchor']} "
+          f"wall_ring_corners={len(anchors['wall_ring_corners'])}")
+
+    instances = v2.dispatch_extraction(
+        catalog=catalog, semantic_map_path=semantic_map_path,
+        heightmap_path=heightmap_path, world_size_m=world_size_m,
+        height_scale=height_scale, height_offset=height_offset,
+        anchors=anchors, rng_seed=rng_seed,
+    )
+    print(f"[compose_world] extracted {len(instances)} object instances")
+
+    # Road network (non-object) → flat path-segment entities.
+    img = cv.load_rgb(semantic_map_path)
+    H, W = img.shape[:2]
+    palette_all = [(c["name"], c["hex"]) for c in catalog["classes"]
+                   if c.get("intent_type") in ("terrain_shader", "object_placement")]
+    label_all = cv.threshold_nearest_palette(img, palette_all)
+    road_sampler = (v2.HeightmapSampler(
+        heightmap_path, plane_size_m=float(world_size_m[0]),
+        height_scale=height_scale, height_offset=height_offset)
+        if heightmap_path else None)
+    road_result = roads_mod.extract_roads(
+        label_map=label_all, palette=palette_all,
+        path_class_names=ROAD_CLASS_NAMES, image_size=(W, H),
+        world_size_m=world_size_m, simplify_tolerance_meters=0.8,
+        min_world_length_m=4.0)
+    instances.extend(roads_to_instances(road_result["polylines_world"], road_sampler))
+    print(f"[compose_world] roads: {road_result['n_polylines']} polylines "
+          f"→ {len([i for i in instances if i['class'] == 'path_segment'])} segments")
+
+    report = val.validate(
+        extracted={"instances": instances, "world_size_meters": list(world_size_m)},
+        catalog=catalog)
+    print(val.format_report(report))
+
+    specs = _class_specs(catalog)
+    grouped = _group_by_class(instances)
 
     game_dir = (DATA_ROOT / game_name).resolve()
 
@@ -381,7 +465,7 @@ def compose(
             shutil.copy(heightmap_path, heightmap_dest)
 
     # ============ scene.json ============
-    world_w, world_h = extracted["world_size_meters"]
+    world_w, world_h = world_size_m
     scene = {
         "_comment": f"Auto-generated by compose_world.py for {game_name}. Code-primitive scene.",
         "tick_seconds": 0.0167,
@@ -630,107 +714,48 @@ def compose(
     }
     (game_dir / "game" / "flow.json").write_text(json.dumps(flow, indent=2))
 
-    # ============ entities/<class>.json — one def per class ============
-    # Sources the def list from EXTRACTED (not catalog) so variant
-    # buckets (small_house / medium_house / large_house) each become
-    # their own def. The catalog only contributes the parent class +
-    # heightmap/terrain metadata; the extraction step (compose_world_v2
-    # v2_to_v1_extracted) is responsible for splitting parents into
-    # per-bucket entries.
-    object_classes = [
-        c for c in extracted["classes"]
-        if c["intent_type"] == "object_placement"
-    ]
-    extracted_by_name = {c["name"]: c for c in extracted["classes"]}
-
+    # ============ entities/auto_gen.json — one def per class/bucket ====
+    # Driven by _class_specs (strategy primitive + canonical scale +
+    # albedo). Each variant bucket (small/medium/large_house) + the
+    # synthetic path_segment get their own def. No pick_primitive
+    # heuristic, no monkey-patch (merged 2026-05-26).
     defs_doc = {"_comment": f"Auto-gen primitives for {game_name}.", "definitions": []}
-    for cls in object_classes:
-        name = cls["name"]
-        ext_cls = extracted_by_name.get(name, {})
-        instances = ext_cls.get("instances", [])
-        if not instances:
+    for name in sorted(grouped.keys()):
+        if not grouped[name]:
             continue
-        # If the strategy declares use_canonical_scale, every instance
-        # of this class shares one canonical size — bake it into the
-        # def's state_init.scale and don't store per-instance scale.
-        canonical_scale = ext_cls.get("_canonical_scale", None)
-        if canonical_scale is not None:
-            primitive = pick_primitive(name, [canonical_scale[0], canonical_scale[2]])
-            state_init = {"scale": [
-                float(canonical_scale[0]),
-                float(canonical_scale[1]),
-                float(canonical_scale[2]),
-            ]}
-        else:
-            # Per-instance scale path: pick primitive from median tile size.
-            sizes = [i["size_world"] for i in instances if "size_world" in i]
-            if not sizes:
-                continue
-            sizes.sort(key=lambda s: s[0] * s[1])
-            med = sizes[len(sizes) // 2]
-            primitive = pick_primitive(name, med)
-            state_init = {"scale": [1, 1, 1]}
-        visual = primitive_to_visual(primitive, cls["hex"])
+        spec = specs.get(name, {"primitive": "prim_unit_box",
+                                "canonical_scale": None, "albedo": "#808080"})
+        canonical = spec["canonical_scale"]
+        state_init = {"scale": [float(canonical[0]), float(canonical[1]),
+                                float(canonical[2])]} if canonical else {"scale": [1, 1, 1]}
         defs_doc["definitions"].append({
             "id": name,
             "tags": [name, "compose_world_gen"],
             "properties": {},
             "state_init": state_init,
-            "visual": visual,
-            "_primitive_spec": primitive,
-            "_color": cls["hex"],
+            "visual": primitive_visual(spec["primitive"], spec["albedo"]),
         })
     (game_dir / "entities" / "auto_gen.json").write_text(
         json.dumps(defs_doc, indent=2)
     )
 
     # ============ levels/level_default/entities.json ============
-    # Heightmap sampler (phase E task #133). Anchors every entity's Y to
-    # the displaced ground surface so buildings sit flush with terrain
-    # instead of all floating at y=0.
-    hm_sampler = HeightmapSampler(
-        heightmap_dest if heightmap_dest else None,
-        plane_size_m=world_w,
-        height_scale=height_scale,
-        height_offset=height_offset,
-    )
-
+    # Instances consume the extraction output directly: position Y is
+    # ALREADY heightmap-sampled at extraction time (no re-sampling);
+    # canonical-scale classes carry size in their def's state_init.scale
+    # (instances are position + yaw only); others carry per-instance
+    # scale. _y_offset lifts a flat feature (path segment) above ground.
     initial_instances = []
-    for ext_cls in extracted["classes"]:
-        if ext_cls["intent_type"] != "object_placement":
-            continue
-        name = ext_cls["name"]
-        defs_match = next((d for d in defs_doc["definitions"]
-                           if d["id"] == name), None)
-        if defs_match is None:
-            continue
-        prim_spec = defs_match["_primitive_spec"]
-        prim_type = prim_spec["_primitive"]
-        # Reference height for the chosen primitive shape
-        # (median across class instances was used in pick_primitive)
-        if prim_type == "box":
-            ref_y = prim_spec["size"][1]   # used for instance y_off + scale_y
-        else:
-            ref_y = prim_spec.get("height", prim_spec.get("radius", 0.5) * 2)
-        for inst in ext_cls.get("instances", []):
-            wx, wz = inst["position_world"]
-            ground_y = hm_sampler.y_at(wx, wz)
-            pos = [wx, round(ground_y + inst.get("_v2_y_offset", 0.0), 3), wz]
-            facing = math.radians(inst.get("rotation_deg", 0.0))
-            state: dict = {"yaw": round(facing, 4)}
-            if not inst.get("_v2_use_canonical_scale", False):
-                # Per-instance scale path: fitted from the tile's bbox.
-                ext_size = inst["size_world"]
-                scale_x = max(0.2, ext_size[0])
-                scale_z = max(0.2, ext_size[1])
-                # Explicit per-instance height (flat path segments need a
-                # thin Y); else fall back to the def's reference height.
-                if "_v2_scale_y" in inst:
-                    scale_y = float(inst["_v2_scale_y"])
-                else:
-                    scale_y = max(0.5, ref_y)
-                state["scale"] = [scale_x, scale_y, scale_z]
-            # else: def's state_init.scale = canonical_size carries it.
+    for name in sorted(grouped.keys()):
+        canonical = specs.get(name, {}).get("canonical_scale")
+        for inst in grouped[name]:
+            x, y, z = inst["position"]
+            pos = [round(x, 3), round(y + inst.get("_y_offset", 0.0), 3), round(z, 3)]
+            state: dict = {"yaw": round(inst["yaw"], 4)}
+            if canonical is None and "scale" in inst:
+                s = inst["scale"]
+                state["scale"] = [max(0.2, float(s[0])), float(s[1]),
+                                  max(0.2, float(s[2]))]
             initial_instances.append({
                 "def": name,
                 "id": inst["id"],
@@ -772,7 +797,7 @@ def compose(
                    "yaw": 0.0, "pitch": -0.1}},   # eye-level looking north
     ]
     level_doc = {
-        "_comment": f"Auto-generated initial_instances from {extracted_path.name}",
+        "_comment": f"Auto-generated by compose_world.py for {game_name}.",
         "initial_instances": singleton_instances + initial_instances
     }
     (game_dir / "levels" / "level_default" / "entities.json").write_text(
@@ -847,19 +872,31 @@ size = {int(world_w)}
 
 def main():
     ap = argparse.ArgumentParser(prog="compose_world")
-    ap.add_argument("game_name", help="folder name (will go under godot/data/<name>)")
-    ap.add_argument("--extracted", required=True, help="stage-5 extracted.json")
-    ap.add_argument("--catalog",   required=True, help="stage-2 class_catalog.json")
-    ap.add_argument("--semantic-map", default=None, help="optional stage-3 semantic map PNG")
-    ap.add_argument("--heightmap",    default=None, help="optional stage-4 heightmap PNG")
+    ap.add_argument("game_name", help="folder name (under godot/data/<name>)")
+    ap.add_argument("--catalog", required=True, help="stage-2 class_catalog.json")
+    ap.add_argument("--semantic-map", required=True, help="stage-3 semantic map PNG")
+    ap.add_argument("--heightmap", default=None, help="stage-4 heightmap PNG")
+    ap.add_argument("--world-x", type=float, default=80.0)
+    ap.add_argument("--world-z", type=float, default=80.0)
+    ap.add_argument("--height-scale", type=float, default=3.0,
+                    help="max terrain displacement (m). 3.0 flat, ~8.0 hilly.")
+    ap.add_argument("--height-offset", type=float, default=-0.5)
+    ap.add_argument("--water-level", type=float, default=None,
+                    help="water surface Y (ADR 0059). Omit to derive from "
+                         "the heightmap over the water mask.")
+    ap.add_argument("--rng-seed", type=int, default=42)
     args = ap.parse_args()
 
     game_dir = compose(
         game_name=args.game_name,
-        extracted_path=Path(args.extracted),
         catalog_path=Path(args.catalog),
-        semantic_map_path=Path(args.semantic_map) if args.semantic_map else None,
+        semantic_map_path=Path(args.semantic_map),
         heightmap_path=Path(args.heightmap) if args.heightmap else None,
+        world_size_m=(args.world_x, args.world_z),
+        height_scale=args.height_scale,
+        height_offset=args.height_offset,
+        water_level=args.water_level,
+        rng_seed=args.rng_seed,
     )
     print(f"wrote demo at: {game_dir}")
     print(f"run with: ./scripts/play.sh {args.game_name.removeprefix('demo_')}")
