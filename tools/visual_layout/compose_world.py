@@ -423,29 +423,36 @@ def compose(
             })
 
     # Prepend the world_clock + camera instances so they spawn first
+    # Engine quirk (entity.gd line 124): the top-level `position` field
+    # on an initial_instance OVERWRITES `state.position` after the state
+    # block is applied. So the two MUST agree for free_cameras. Aldenmere's
+    # convention is to set both to the same coords. We compute the camera
+    # poses once and stamp both fields.
+    cam_overhead_pos = [0.0, max(40.0, world_w * 0.7), 0.1]
+    cam_oblique_pos  = [0.0, world_w * 0.35, world_w * 0.40]
+    cam_ground_pos   = [0.0, 3.0, world_w * 0.40]
+
     singleton_instances = [
         {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
         {"def": "player_input_anchor", "id": "player_input_anchor",
          "position": [0, 0, 0]},
-        # Three pre-positioned cameras — Tab cycles between them
+        # Three pre-positioned cameras — Tab cycles between them.
+        # Both top-level position and state.position MUST match.
         {"def": "free_camera", "id": "camera_overhead",
-         "position": [0, 0, 0],
-         "state": {"position": [0, max(40.0, world_w * 0.7), 0.1],
+         "position": cam_overhead_pos,
+         "state": {"position": cam_overhead_pos,
                    "yaw": 0.0, "pitch": -1.55}},   # straight down
         # Yume's Camera3D uses Godot's YXZ-Euler convention:
         # yaw 0 = looking -Z. So a camera positioned SOUTH of origin
         # (positive Z) with yaw 0 looks NORTH toward origin. Pitch
-        # negative = tilting nose down. Camera position MUST stay
-        # inside the ground-plane footprint (±world/2 in x,z) or
-        # rays angled down miss the world entirely and we see only
-        # sky+void.
+        # negative = tilting nose down.
         {"def": "free_camera", "id": "camera_oblique",
-         "position": [0, 0, 0],
-         "state": {"position": [0, world_w * 0.35, world_w * 0.40],
-                   "yaw": 0.0, "pitch": -0.72}},   # 30m up, 32m south, 41° down
+         "position": cam_oblique_pos,
+         "state": {"position": cam_oblique_pos,
+                   "yaw": 0.0, "pitch": -0.72}},   # 28m up, 32m south, 41° down
         {"def": "free_camera", "id": "camera_ground",
-         "position": [0, 0, 0],
-         "state": {"position": [0, 3.0, world_w * 0.40],
+         "position": cam_ground_pos,
+         "state": {"position": cam_ground_pos,
                    "yaw": 0.0, "pitch": -0.1}},   # eye-level looking north
     ]
     level_doc = {
