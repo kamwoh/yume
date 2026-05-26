@@ -1,0 +1,168 @@
+{
+  "_origin": "lib/extraction_strategies.json",
+  "_comment": "Stage-5 extraction strategies, keyed by class name. Each class plugs into the SAME small set of strategy methods (the only engine-level vocabulary). New classes = new JSON entries pointing at existing methods. New strategy methods = engine-level ADR. 2026-05-26.",
+  "_yume_principle": "Everything reusable. Polygons decompose to rotated/scaled prim_unit_box. No new engine primitives. New genres add classes by JSON, not code.",
+
+  "vocabulary": {
+    "extraction_method": {
+      "single_instance":   "One instance at the connected-component centroid. For unique focal objects.",
+      "cluster_extract":   "Merge connected components within `cluster_within_meters`. Drops noise + collapses dense roof textures.",
+      "snap_to_anchor":    "Snap to a named structural anchor (focal_anchor, wall_ring_corners, road_intersections). Single or N instances.",
+      "scatter_in_mask":   "Distribute N=density*area instances within a region mask. RNG-seeded.",
+      "polygon_decompose": "Trace the connected-component contour → Ramer-Douglas-Peucker simplify → emit one rotated prim_unit_box per polygon edge. Walls + fences.",
+      "llm_gestalt":       "Single OpenAI vision call enumerates instances with gestalt grouping. For classes where dense semantic-map texture should collapse to fewer larger structures."
+    },
+    "rotation_rule": {
+      "no_rotation":              "facing = 0",
+      "face_nearest_road":        "CV: vector from instance to nearest cobblestone pixel → facing = atan2 of that vector. House front toward road.",
+      "face_anchor":              "CV: vector from instance to focal_anchor (plaza centroid) → facing. Townhall faces plaza.",
+      "along_tangent":            "CV: tangent of the containing polygon at instance position. Wall segments along the wall ring.",
+      "perpendicular_to_water":   "CV: normal of the water polygon's nearest edge at instance position. Bridge across river.",
+      "random_seeded":            "RNG with scene seed. Trees, rocks, organic scatter."
+    },
+    "y_anchor": {
+      "heightmap_sample": "Sample heightmap.png at (x, z) via the existing HeightmapSampler. Default for ground-anchored objects.",
+      "water_level":      "y = 0 (water surface). Bridges, docks, boats.",
+      "anchor_floor":     "Match Y of a named anchor entity (e.g., plaza floor). Statues, fountains.",
+      "constant":         "Explicit y value (must specify `y_value_meters` in the class entry)."
+    },
+    "primitive": {
+      "prim_unit_box":      "1×1×1 unit box. state.scale = [W, H, D] in meters.",
+      "prim_unit_cylinder": "radius 0.5, height 1.0. state.scale = [W, H, D] (X×Z scale both diameters).",
+      "prim_unit_sphere":   "radius 0.5. state.scale = [W, H, D]."
+    }
+  },
+
+  "classes": {
+    "house": {
+      "extraction_method": "cluster_extract",
+      "cluster_within_meters": 2.0,
+      "min_area_px": 50,
+      "rotation_rule": "face_nearest_road",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_box",
+      "canonical_size_meters": [3.0, 4.0, 3.0],
+      "canonical_front_axis": "-Z"
+    },
+    "townhall": {
+      "extraction_method": "cluster_extract",
+      "cluster_within_meters": 3.0,
+      "min_area_px": 200,
+      "rotation_rule": "face_anchor",
+      "anchor_source": "focal_anchor",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_box",
+      "canonical_size_meters": [6.0, 7.0, 6.0],
+      "canonical_front_axis": "-Z"
+    },
+    "wall_segment": {
+      "extraction_method": "polygon_decompose",
+      "simplify_tolerance_meters": 0.6,
+      "rotation_rule": "along_tangent",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_box",
+      "canonical_size_meters": [1.0, 3.0, 0.4],
+      "canonical_front_axis": "+X",
+      "_comment": "Edge X-scale = edge length at spawn. Height + width are fixed per class."
+    },
+    "tower": {
+      "extraction_method": "snap_to_anchor",
+      "anchor_source": "wall_ring_corners",
+      "rotation_rule": "no_rotation",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_cylinder",
+      "canonical_size_meters": [1.5, 5.0, 1.5]
+    },
+    "bridge": {
+      "extraction_method": "require_adjacent",
+      "must_touch_class": "water_surface",
+      "min_overlap_meters": 1.5,
+      "rotation_rule": "perpendicular_to_water",
+      "y_anchor": "water_level",
+      "primitive": "prim_unit_box",
+      "canonical_size_meters": [3.0, 0.4, 6.0],
+      "canonical_front_axis": "+Z"
+    },
+    "fountain": {
+      "extraction_method": "snap_to_anchor",
+      "anchor_source": "focal_anchor",
+      "rotation_rule": "no_rotation",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_sphere",
+      "canonical_size_meters": [2.0, 1.5, 2.0]
+    },
+    "tree": {
+      "extraction_method": "scatter_in_mask",
+      "mask_source_class": "forest",
+      "scatter_density_per_m2": 0.025,
+      "min_distance_between_meters": 1.5,
+      "rotation_rule": "random_seeded",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_cylinder",
+      "canonical_size_meters": [1.2, 4.0, 1.2]
+    },
+    "rock": {
+      "extraction_method": "scatter_in_mask",
+      "mask_source_class": "stone_floor",
+      "scatter_density_per_m2": 0.01,
+      "min_distance_between_meters": 2.0,
+      "rotation_rule": "random_seeded",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_sphere",
+      "canonical_size_meters": [1.0, 0.8, 1.0]
+    },
+    "crystal_spire": {
+      "extraction_method": "cluster_extract",
+      "cluster_within_meters": 1.0,
+      "min_area_px": 100,
+      "rotation_rule": "random_seeded",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_cylinder",
+      "canonical_size_meters": [0.8, 5.0, 0.8]
+    },
+    "well": {
+      "extraction_method": "single_instance",
+      "rotation_rule": "no_rotation",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_cylinder",
+      "canonical_size_meters": [1.2, 1.0, 1.2]
+    },
+    "statue": {
+      "extraction_method": "single_instance",
+      "rotation_rule": "face_anchor",
+      "anchor_source": "focal_anchor",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_box",
+      "canonical_size_meters": [0.8, 2.5, 0.8],
+      "canonical_front_axis": "-Z"
+    }
+  },
+
+  "class_aliases": {
+    "_comment": "Map per-scene class names to canonical strategy entries. Lets the catalog skill recognize 'small_house', 'noble_house', 'tower_round' etc and route to the right strategy.",
+    "small_house":   "house",
+    "medium_house":  "house",
+    "noble_house":   "townhall",
+    "palace":        "townhall",
+    "wall":          "wall_segment",
+    "stone_wall":    "wall_segment",
+    "watchtower":    "tower",
+    "round_tower":   "tower",
+    "stone_bridge":  "bridge",
+    "wooden_bridge": "bridge",
+    "well_stone":    "well"
+  },
+
+  "default_strategy": {
+    "_comment": "Used when a class name doesn't match any entry or alias. Conservative default: one instance per blob, no rotation, box primitive sized to the bbox.",
+    "extraction_method": "cluster_extract",
+    "cluster_within_meters": 1.0,
+    "min_area_px": 20,
+    "rotation_rule": "no_rotation",
+    "y_anchor": "heightmap_sample",
+    "primitive": "prim_unit_box",
+    "canonical_size_meters": [2.0, 2.0, 2.0]
+  },
+
+  "_authoring_note": "Stage 5 v2's strategy dispatcher (lib_extract_v2.py) looks up classes here by name. yume-scene-class-catalog injects the matched strategy block into the per-scene catalog. New genres: add classes here (or via alias) — NO engine code change."
+}
