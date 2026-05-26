@@ -4368,5 +4368,38 @@ C again to return to iso.
 
 Investigation queued; not blocking the rest of the pipeline.
 
+### Engine surprise #6 (2026-05-26 late night)
+
+**Input routing requires an actor entity, even for "look at the
+world" scenes.**
+
+After fixing the toggle rules (#4) and the _neq operator (#5),
+the C key STILL did nothing. Real cause: world.gd::_poll_input
+→ InputRegistrar.poll(actor_id, ...) → actor_manager.
+resolve_active_entity() returns "" when no entity is tagged
+`player`. InputRegistrar.poll then EARLY-RETURNS on
+`if actor_id == "":`. NO input actions ever get queued onto
+the scheduler.
+
+So input rules silently never fire when the scene has no
+player.
+
+Fix (commit `5c70f2c`): compose_world now emits a minimal
+hidden `player_input_anchor` entity (tags: [player, actor,
+persistent], visual.hidden: true, no physics, no movement
+rules). Just an input target.
+
+After this: C-key toggle WORKS — confirmed by capture showing
+the camera_mode flip to free_cam (which then renders the
+separately-deferred dark-brown blank bug). Pressing C again
+fires the freecam_exit rule, restoring isometric_3d.
+
+**Gate**: a static validator should warn when a generated
+game has input rules + no entity tagged `player` (or
+whatever the configured actor tag is). The combination is a
+silent footgun for auto-gen pipelines.
+
+Cumulative engine-convention surprises caught this session: 6.
+
 
 
