@@ -175,7 +175,7 @@ def compose(
             }
         },
         "camera": {
-            "$extends": "@lib.cameras.isometric_3d",
+            "$extends": "@lib.cameras.iso_top_down",
             "follow_tag": "world_clock",   # follows the singleton at origin
             "distance": world_w * 0.55,    # frame the whole town
             "ortho_size": world_w * 0.7,   # 56m visible — fits an 80m world
@@ -225,6 +225,7 @@ def compose(
                 "properties": {},
                 "state_init": {
                     "camera_mode": "isometric_3d",
+                    "previous_camera_mode": "isometric_3d",
                     "active_camera_id": "camera_oblique",
                     "current_level": "level_default",
                 },
@@ -259,9 +260,54 @@ def compose(
     )
 
     # ============ world/rules.json ============
-    (game_dir / "world" / "rules.json").write_text(
-        json.dumps({"rules": []}, indent=2)
-    )
+    # Two rules wire the C key (toggle_freecam input) for camera-mode
+    # toggling — without these, the input fires but nothing changes.
+    # Generic version: handles any starting mode (iso/top_down/fp/3rd)
+    # via a formula that saves the CURRENT camera_mode before
+    # switching to free_cam, then restores it on exit.
+    rules_doc = {
+        "_comment": "Auto-generated rules. C key toggles free_cam ↔ "
+                    "previous camera mode.",
+        "rules": [
+            {
+                "id": "freecam_enter",
+                "_comment": "C → save current camera_mode + enter free_cam. "
+                            "Engine has no _neq operator (only _eq / _in / _gt / "
+                            "_lt / _gte / _lte / _has) — list the allowed source "
+                            "modes via _in instead.",
+                "trigger": {"type": "input", "action": "toggle_freecam"},
+                "query": {
+                    "tags_all": ["world_clock"],
+                    "state": {"camera_mode_in": [
+                        "isometric_3d", "top_down_3d",
+                        "third_person_3d", "first_person_3d", "top_down_2d"
+                    ]}
+                },
+                "effect": [
+                    {"type": "state_set", "target": "self",
+                     "field": "previous_camera_mode",
+                     "value": "self.state.camera_mode"},
+                    {"type": "state_set", "target": "self",
+                     "field": "camera_mode", "value": "free_cam"}
+                ]
+            },
+            {
+                "id": "freecam_exit",
+                "_comment": "C while in free_cam → restore saved camera_mode.",
+                "trigger": {"type": "input", "action": "toggle_freecam"},
+                "query": {
+                    "tags_all": ["world_clock"],
+                    "state": {"camera_mode_eq": "free_cam"}
+                },
+                "effect": [
+                    {"type": "state_set", "target": "self",
+                     "field": "camera_mode",
+                     "value": "self.state.previous_camera_mode"}
+                ]
+            }
+        ]
+    }
+    (game_dir / "world" / "rules.json").write_text(json.dumps(rules_doc, indent=2))
 
     # ============ game/flow.json ============
     flow = {
