@@ -82,6 +82,54 @@ def skeletonize(mask: np.ndarray) -> np.ndarray:
 
 
 # ============================================================
+# SPUR PRUNING — remove short dead-end branches
+# ============================================================
+
+def prune_spurs(skel: np.ndarray, min_branch_px: int = 10) -> np.ndarray:
+    """Remove dead-end branches shorter than `min_branch_px` from the
+    skeleton. A spur is a path from an endpoint (degree-1 pixel) to the
+    first junction (degree-≥3) whose length is below the threshold —
+    typically the dotted inter-house-gap noise + tiny stubs off the
+    real streets. Pruning these BEFORE tracing yields a cleaner road
+    graph (fewer noise polylines, less fragmentation) so the
+    length-filter can be looser without re-admitting noise.
+
+    Iterates until stable (pruning can expose new short spurs).
+    """
+    skel = skel.copy()
+    while True:
+        removed_any = False
+        ys, xs = np.where(skel)
+        endpoints = [(y, x) for y, x in zip(ys.tolist(), xs.tolist())
+                     if len(_neighbour_coords(skel, y, x)) == 1]
+        for ep in endpoints:
+            if not skel[ep[0], ep[1]]:
+                continue
+            # Walk from the endpoint until a junction or dead stop.
+            branch = [ep]
+            prev = None
+            cur = ep
+            while True:
+                nbrs = [p for p in _neighbour_coords(skel, cur[0], cur[1])
+                        if p != prev]
+                if len(nbrs) != 1:
+                    # 0 = isolated stub end; ≥2 = reached a junction
+                    break
+                prev, cur = cur, nbrs[0]
+                # Stop the branch AT the junction (don't include it).
+                if len(_neighbour_coords(skel, cur[0], cur[1])) >= 3:
+                    break
+                branch.append(cur)
+            if len(branch) < min_branch_px:
+                for (by, bx) in branch:
+                    skel[by, bx] = False
+                removed_any = True
+        if not removed_any:
+            break
+    return skel
+
+
+# ============================================================
 # SKELETON → POLYLINES
 # ============================================================
 
@@ -216,7 +264,8 @@ def extract_roads(
     image_size: tuple[int, int],
     world_size_m: tuple[float, float],
     simplify_tolerance_meters: float = 0.8,
-    min_world_length_m: float = 4.0,
+    min_world_length_m: float = 2.5,
+    prune_branch_meters: float = 1.5,
 ) -> dict:
     """Extract the road network.
 
@@ -245,6 +294,8 @@ def extract_roads(
                 "n_polylines": 0, "skeleton_px": 0}
 
     skel = skeletonize(mask)
+    prune_px = max(2, int(round(prune_branch_meters * px_per_m)))
+    skel = prune_spurs(skel, min_branch_px=prune_px)
     polys_px = trace_polylines(skel)
 
     import math

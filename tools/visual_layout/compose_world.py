@@ -53,8 +53,9 @@ LIB_STRATEGIES = DATA_ROOT / "lib" / "extraction_strategies.json"
 
 # Path classes extracted as the road NETWORK (non-object), not biomes.
 ROAD_CLASS_NAMES = ["cobblestone", "dirt_path", "road", "stone_road", "gravel"]
-PATH_WIDTH_M = 3.0
+PATH_WIDTH_M = 4.0
 PATH_HEIGHT_M = 0.12
+PATH_OVERLAP_M = 1.2      # extend each segment so joins close (no gaps)
 PATH_ALBEDO = "#9a8560"   # warm trodden-earth / cobble tone
 
 
@@ -293,7 +294,8 @@ def roads_to_instances(polylines_world, sampler) -> list[dict]:
                 "id": f"path_segment_{n:03d}",
                 "position": [round(mx, 3), wy, round(mz, 3)],
                 "yaw": round(math.atan2(-dz, dx), 4),
-                "scale": [round(length + 0.4, 3), PATH_HEIGHT_M, PATH_WIDTH_M],
+                "scale": [round(length + PATH_OVERLAP_M, 3),
+                          PATH_HEIGHT_M, PATH_WIDTH_M],
                 "primitive": "prim_unit_box",
                 "_y_offset": 0.07,
             })
@@ -401,7 +403,7 @@ def compose(
         label_map=label_all, palette=palette_all,
         path_class_names=ROAD_CLASS_NAMES, image_size=(W, H),
         world_size_m=world_size_m, simplify_tolerance_meters=0.8,
-        min_world_length_m=4.0)
+        min_world_length_m=2.5, prune_branch_meters=1.5)
     instances.extend(roads_to_instances(road_result["polylines_world"], road_sampler))
     print(f"[compose_world] roads: {road_result['n_polylines']} polylines "
           f"→ {len([i for i in instances if i['class'] == 'path_segment'])} segments")
