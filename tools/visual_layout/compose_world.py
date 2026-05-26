@@ -193,6 +193,7 @@ def compose(
     heightmap_path: Path | None,
     height_scale: float = 3.0,
     height_offset: float = -0.5,
+    water_level: float = 0.0,
 ) -> Path:
     """Build a full data/demo_<name>/ folder. Returns the folder path.
 
@@ -313,6 +314,33 @@ def compose(
                 f"res://data/{game_name}/assets/textures/{heightmap_dest.name}"
             )
         scene["ground"]["mesh"]["shader_params"] = shader_params
+
+    # ADR 0059 — real water surface. Emit a `water` block when the
+    # catalog has a water class (terrain_shader named water*). A flat
+    # transparent plane at water_level; the heightmap-carved riverbed
+    # fills with water, depth-test handles the shoreline.
+    has_water = any(
+        str(c.get("name", "")).startswith("water")
+        and c.get("intent_type") == "terrain_shader"
+        for c in catalog.get("classes", [])
+    )
+    if has_water and heightmap_dest:
+        scene["water"] = {
+            "_comment": "ADR 0059 water surface. level = world Y of the "
+                        "water surface; terrain below it (riverbed) fills.",
+            "mesh": {
+                "size": [world_w, world_h],
+                "level": float(water_level),
+                "shader": "res://data/lib/shaders/water_stylized.gdshader",
+                "shader_params": {
+                    "base_color": [0.10, 0.30, 0.45, 0.80],
+                    "highlight_color": [0.62, 0.80, 0.92, 0.85],
+                    "wave_speed": 0.22,
+                    "ripple_density": 10.0,
+                    "metallic_uniform": 0.30,
+                },
+            },
+        }
     (game_dir / "scene.json").write_text(json.dumps(scene, indent=2))
 
     # ============ world/state.json ============

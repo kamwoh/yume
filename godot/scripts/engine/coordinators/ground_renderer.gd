@@ -277,6 +277,87 @@ func build() -> void:
 	_world.add_child(body)
 
 
+## ADR 0059 — build the water surface from scene.json's `water.mesh`
+## block. A flat transparent PlaneMesh at `water.level`, backed by a
+## custom shader (water_stylized.gdshader). NO collider — water isn't
+## a walkable surface; actors pass through.
+##
+## Depth-test handles the shoreline for free: the opaque terrain (built
+## by build()) writes depth first, so the transparent water plane only
+## shows where the terrain dips BELOW water.level (the heightmap-carved
+## riverbed). No semantic-map alpha mask needed.
+##
+## Called from WorldBoot after build(). Idempotent: skips if a Water
+## node already exists.
+func build_water() -> void:
+	for child in _world.get_children():
+		if child is MeshInstance3D and (child as Node).name == "Water":
+			return
+
+	var scene_cfg := _read_scene_root()
+	var water := scene_cfg.get("water", {}) as Dictionary
+	if water.is_empty():
+		return
+	var cfg := water.get("mesh", {}) as Dictionary
+	if cfg.is_empty():
+		return
+
+	var size_arr: Array = cfg.get("size", [80, 80])
+	var w := float(size_arr[0]) if size_arr.size() >= 1 else 80.0
+	var d := float(size_arr[1]) if size_arr.size() >= 2 else w
+	var level := float(cfg.get("level", 0.0))
+
+	var mesh := PlaneMesh.new()
+	mesh.size = Vector2(w, d)
+	# Flat — ripples are a fragment-shader effect (UV + TIME), no
+	# vertex displacement, so no subdivision needed.
+
+	var shader_path: String = str(cfg.get("shader", "")).strip_edges()
+	if shader_path == "":
+		push_warning("ground_renderer: water.mesh has no `shader` — skipping")
+		return
+	var shader_res = load(shader_path)
+	if not (shader_res is Shader):
+		push_warning("ground_renderer: water shader failed to load: " + shader_path)
+		return
+
+	var sm := ShaderMaterial.new()
+	sm.shader = shader_res
+	var params: Dictionary = cfg.get("shader_params", {})
+	for k in params:
+		var v = params[k]
+		if v is String and (v as String).begins_with("res://"):
+			var loaded = load(v)
+			if loaded is Texture2D:
+				v = loaded
+		sm.set_shader_parameter(str(k), v)
+
+	var node := MeshInstance3D.new()
+	node.name = "Water"
+	node.mesh = mesh
+	node.material_override = sm
+	node.position = Vector3(0, level, 0)
+	# Transparent surface: don't cast shadows onto the riverbed.
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_world.add_child(node)
+
+
+## Read the full scene.json root dict (not just ground.mesh). Used by
+## build_water(); returns {} if absent/unparseable.
+func _read_scene_root() -> Dictionary:
+	var root := str(_world.get("data_root")).rstrip("/")
+	if root == "":
+		return {}
+	var path := root + "/scene.json"
+	if not FileAccess.file_exists(path):
+		return {}
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return {}
+	var data = JSON.parse_string(f.get_as_text())
+	return data if data is Dictionary else {}
+
+
 ## Rebind ground shader parameters when a level transition has loaded
 ## a new level. Reads `data/<game>/levels/<level_id>/scene.json` if
 ## it exists, deep-merges its `ground.mesh.shader_params` over the

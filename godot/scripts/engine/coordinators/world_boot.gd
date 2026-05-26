@@ -315,7 +315,9 @@ func _load_factions() -> void:
 ## mounts a Ground MeshInstance3D (adopt-and-skip), or when the block
 ## is absent (abstract / overlay-only games).
 func _build_ground_mesh() -> void:
-	GroundRenderer.new(_world).build()
+	var gr := GroundRenderer.new(_world)
+	gr.build()
+	gr.build_water()  # ADR 0059 — water surface from scene.json `water` block
 
 
 func _log_summary() -> void:
