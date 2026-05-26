@@ -4509,5 +4509,105 @@ Locked design decisions:
 - Polygons → rotated/scaled prim_unit_box (no new engine primitive,
   Yume reuse principle) ✓
 
+## Kit-of-parts procedural variants (long-term, 2026-05-26)
+
+Origin: user-stated vision after Option-A variant_buckets shipped
+(commit 08482eb). For visual variety without per-tile Tripo3D
+spending, generate a SMALL set of base PARTS once, then compose
+each variant procedurally at runtime.
+
+Today's variant_buckets pattern is the stepping stone: each bucket
+(small_house / medium_house / large_house) has ONE entity def with
+ONE primitive-box mesh + albedo. The bucket CONTRACT (def name,
+canonical_size, albedo) is stable across the kit upgrade — only
+the visual backing changes.
+
+### Roadmap
+
+1. **Base part catalog** in `data/lib/meshes.json`:
+   - `wall_panel` (1m × 3m × 0.3m exterior)
+   - `gable_roof` (triangular profile, 4m × 2m)
+   - `hip_roof` (pyramidal, 4m × 4m)
+   - `door_v1`, `door_v2` (timber, stone)
+   - `window_v1`, `window_v2` (shuttered, leaded)
+   - `chimney`, `balcony`, `porch`
+   Tripo3D cost: 1 call per part = ~10-15 total for any genre.
+
+2. **Composite-mesh recipe schema** (extension of meshes.json
+   support for composite definitions):
+   ```json
+   {
+     "id": "small_house_mesh",
+     "compose": [
+       {"part": "wall_panel", "count": 4, "arrangement": "box_perimeter"},
+       {"part": "gable_roof", "rotate_y_deg": 0,    "y_offset": 2.0},
+       {"part": "door_v1",    "wall_index": 0, "x_offset": 0.0},
+       {"part": "window_v1",  "wall_index": 1, "count": 2}
+     ]
+   }
+   ```
+   Engine composes the primitive children at spawn time (similar
+   to existing meshes.json composite path).
+
+3. **Bucket → recipe mapping** in `extraction_strategies.json`:
+   ```json
+   "variant_buckets": [
+     {"def": "small_house",
+      "max_area_px": 1500,
+      "canonical_size_meters": [2.4, 3.0, 2.4],
+      "mesh_recipe": "small_house_mesh"},  // ← new field
+     ...
+   ]
+   ```
+   When `mesh_recipe` is present, compose_world writes
+   `visual.mesh = <recipe id>` instead of `prim_unit_box`.
+
+4. **Stochastic recipe variants per bucket** (later): each bucket
+   can have N recipes; per-instance hash picks one. Gives true
+   variety from the same kit:
+   - `small_house_mesh_a` = gable roof + 1 chimney
+   - `small_house_mesh_b` = hip roof + porch
+   - `small_house_mesh_c` = gable + balcony + 2 chimneys
+   Tripo3D cost stays at the 10-15 base parts; variants come from
+   composition.
+
+### Generalization
+
+Applies to ANY object_placement class with multiple visually-
+distinct instances:
+- tower → base_part: round_tower_section, conical_roof, crenellation
+- bridge → base_part: arch_span, railing, support_pillar
+- wall_segment (already canonical) → could gain crenellation parts,
+  banner parts, watch_step parts as compositions
+
+### Engine support needed
+
+- `meshes.json` composite recipes (mostly exists per ADR 0046
+  composite-mesh path; needs param-driven count + arrangement
+  primitives like "box_perimeter")
+- compose_world.py: when bucket carries `mesh_recipe`, emit
+  `visual.mesh = <recipe id>` (NOT prim_unit_box) — one-line change
+- yume-asset-designer skill: extends to author recipe variants per
+  bucket from the same base-part library
+
+### Tasks (deferred, ranked)
+
+1. ADR: composite-mesh recipe schema extension (count + arrangement
+   primitives). Tier 2.9.
+2. Base-part catalog content: author the first 10 parts for a
+   medieval theme (gen via Tripo3D, ledger them).
+3. Bucket.mesh_recipe field plumbed through compose_world.
+4. Stochastic per-instance recipe picker (hash-deterministic).
+5. yume-asset-designer skill recipe-authoring section.
+
+### Why this matters
+
+The variant_buckets pattern locks in TODAY without a single Tripo3D
+call (primitive boxes only). When the kit lands, the entities.json
+output doesn't change — only the entity def's visual.mesh field.
+Every existing demo upgrades to the kit by re-authoring the def's
+mesh, not the level's instances. That's the Yume reuse principle
+applied to art: instances are data; meshes are reusable parts;
+parts are the only thing AI-generated.
 
 
