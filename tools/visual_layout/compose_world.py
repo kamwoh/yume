@@ -32,6 +32,64 @@ DATA_ROOT = ROOT / "godot" / "data"
 
 
 # ============================================================
+# HEIGHTMAP SAMPLER — anchors entities to displaced terrain
+# ============================================================
+
+class HeightmapSampler:
+    """Samples a heightmap PNG at world (x, z) → world y.
+
+    Mirrors the shader math in
+    `data/lib/shaders/ground_simple_displace.gdshader`:
+        hm_uv = ((x + plane/2) / plane, 1.0 - (z + plane/2) / plane)
+        y = (heightmap.r + offset) * scale
+
+    So building bases land EXACTLY on the displaced ground surface
+    (no z-fighting, no floaters).
+    """
+
+    def __init__(
+        self,
+        heightmap_path: Path | None,
+        plane_size_m: float,
+        height_scale: float = 3.0,
+        height_offset: float = -0.5,
+    ):
+        self.plane = float(plane_size_m)
+        self.scale = float(height_scale)
+        self.offset = float(height_offset)
+        self._pixels = None
+        self._w = self._h = 0
+        if heightmap_path is not None and heightmap_path.exists():
+            try:
+                from PIL import Image
+                import numpy as np
+                img = Image.open(heightmap_path).convert("L")
+                self._pixels = np.asarray(img, dtype="float32") / 255.0
+                self._h, self._w = self._pixels.shape
+            except Exception as e:
+                print(f"[heightmap] failed to load {heightmap_path}: {e}")
+
+    def y_at(self, wx: float, wz: float) -> float:
+        """Return world Y of the ground surface at (wx, wz)."""
+        if self._pixels is None:
+            return 0.0
+        # World → UV (matches shader vertex())
+        u = (wx + self.plane * 0.5) / self.plane
+        v = 1.0 - (wz + self.plane * 0.5) / self.plane
+        # Bilinear sample
+        x = max(0.0, min(self._w - 1.0001, u * (self._w - 1)))
+        y = max(0.0, min(self._h - 1.0001, v * (self._h - 1)))
+        x0, y0 = int(x), int(y)
+        fx, fy = x - x0, y - y0
+        p = self._pixels
+        h = (p[y0,   x0]   * (1-fx) * (1-fy) +
+             p[y0,   x0+1] * fx     * (1-fy) +
+             p[y0+1, x0]   * (1-fx) * fy     +
+             p[y0+1, x0+1] * fx     * fy)
+        return (float(h) + self.offset) * self.scale
+
+
+# ============================================================
 # CLASS → PRIMITIVE SHAPE HEURISTICS
 # ============================================================
 
@@ -392,6 +450,16 @@ def compose(
     )
 
     # ============ levels/level_default/entities.json ============
+    # Heightmap sampler (phase E task #133). Anchors every entity's Y to
+    # the displaced ground surface so buildings sit flush with terrain
+    # instead of all floating at y=0.
+    hm_sampler = HeightmapSampler(
+        heightmap_dest if heightmap_dest else None,
+        plane_size_m=world_w,
+        height_scale=3.0,
+        height_offset=-0.5,
+    )
+
     initial_instances = []
     for ext_cls in extracted["classes"]:
         if ext_cls["intent_type"] != "object_placement":
@@ -412,19 +480,14 @@ def compose(
         for inst in ext_cls.get("instances", []):
             wx, wz = inst["position_world"]
             ext_size = inst["size_world"]   # [width_m, depth_m]
-            # state.scale = [width, height, depth] in METERS because each
-            # mesh primitive is unit-sized. The primitive's base sits at
-            # y=0; with scale_y=H, the box / cylinder / sphere stands H
-            # meters tall, base on the ground.
             scale_x = max(0.2, ext_size[0])
             scale_z = max(0.2, ext_size[1])
             scale_y = max(0.5, ref_y)   # use the class's chosen height
-            # Position the entity AT THE GROUND. The primitive's pivot
-            # is at y=0.5 (top of unit box) BUT the renderer applies
-            # mesh translation in its own frame; entity position +
-            # state.scale = base on ground when the primitive pos = 0.5
-            # and entity y = 0.
-            pos = [wx, 0.0, wz]
+            # Y-anchor (phase E): sample heightmap at (wx, wz) so the
+            # primitive's base sits on the displaced ground surface.
+            # No heightmap = flat ground = y=0 (original behavior).
+            ground_y = hm_sampler.y_at(wx, wz)
+            pos = [wx, round(ground_y, 3), wz]
             facing = math.radians(inst.get("rotation_deg", 0.0))
             initial_instances.append({
                 "def": name,
