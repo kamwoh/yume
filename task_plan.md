@@ -4314,5 +4314,59 @@ Test scene `godot/data/demo_pipeline_v1/` runnable via
 `./scripts/play.sh pipeline_v1`. Starts in isometric_3d showing
 the 3D medieval town; C toggles free_cam; Tab cycles 3 anchors.
 
+### Two more engine-convention surprises (added 2026-05-26 evening)
+
+**4. Camera-mode toggling requires JSON RULES, not just input.**
+The engine reads `world_clock.state.camera_mode` but doesn't
+toggle it on input — that's per-game rules' job. compose_world's
+initial output shipped with empty rules. C key fired the input
+but nothing matched it, mode never changed.
+
+Fixed in commit `9ba3db4`: compose_world now generates
+`freecam_enter` + `freecam_exit` rules. Pattern mirrors
+aldenmere's `world/rules/17_freecam_toggle.json` but generalized
+(not hardcoded to fp/tp source modes).
+
+**5. The engine query language does NOT support `_neq`.**
+Supported operators: `_eq`, `_gt`, `_lt`, `_gte`, `_lte`,
+`_has`, `_in`. Trying `camera_mode_neq: "free_cam"` silently
+never matches — the rule loads, the query just always returns
+false, the effect never fires.
+
+Use `camera_mode_in: ["isometric_3d", "top_down_3d", ...]`
+listing all allowed source modes. Future engine work could
+add `_neq` as a first-class operator.
+
+**Gate** (for both 4 and 5): a validator could detect rules
+that use unsupported operators OR rules that depend on
+state-changes (like camera_mode) without complementary
+toggle/exit logic. yume-systems-designer skill should also
+codify the canonical operator list.
+
+### Free_cam rendering bug (separately deferred)
+
+Even WITH the toggle rules working — and even with
+`camera_mode = "free_cam"` set directly at boot — the camera
+renders a solid dark-brown frame instead of the expected 3D
+view. iso/top_down/third-person all work fine.
+
+Possible causes (investigation needed):
+- Camera position/rotation Euler math in
+  `_camera_free_cam` produces an orientation that points away
+  from the scene
+- Mouse-capture transition fails in headless mode
+- Active free_camera entity's state.position is being read but
+  the result isn't being applied to Camera3D
+- Sky/lighting setup in scene.json is too minimal for
+  perspective rendering (works for iso ortho, fails for
+  perspective)
+
+Workaround: keep iso as the boot mode. The C-toggle rules are
+in place; user can press C in-game (real keypresses may work
+better than scripted capture-input). If free_cam blanks, press
+C again to return to iso.
+
+Investigation queued; not blocking the rest of the pipeline.
+
 
 
