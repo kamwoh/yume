@@ -96,6 +96,49 @@ def _hex_to_rgb01(h: str) -> list[float]:
     return [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
 
 
+def build_terrain_splatmap(img: np.ndarray, palette: list[tuple[str, str]],
+                           terrain_names: set[str]) -> np.ndarray:
+    """Derive a TERRAIN-ONLY splatmap from the semantic map.
+
+    Object_placement pixels (house / wall / tower / bridge / fountain /
+    townhall) carry no ground info — they just say "object here". If the
+    ground shader sampled them, it would classify each to the nearest
+    TERRAIN biome and paint the object's footprint into the ground (a
+    house-red tile → a brown dirt patch under the house). Wrong.
+
+    So: flood-fill every non-terrain pixel with its nearest terrain
+    pixel's semantic color (iterative 4-neighbour dilation of the
+    terrain regions inward). The result is a clean terrain map the
+    ground shader can sample — objects sit ON it as entities; the
+    ground beneath them reads as the surrounding terrain.
+
+    Returns an RGB uint8 array (the derived splatmap).
+    """
+    H, W = img.shape[:2]
+    label = cv.threshold_nearest_palette(img, palette)
+    terrain_idx = {i for i, (n, _h) in enumerate(palette) if n in terrain_names}
+    filled = np.isin(label, list(terrain_idx))
+    out = img.copy()
+    # Multi-source inward fill: each loop pushes terrain colors one ring
+    # into the object regions. Converges in ~(max object radius in px)
+    # iterations. Cap to avoid pathological non-termination.
+    for _ in range(256):
+        if filled.all():
+            break
+        progressed = False
+        for axis, shift in ((0, 1), (0, -1), (1, 1), (1, -1)):
+            nbr_filled = np.roll(filled, shift, axis=axis)
+            nbr_out = np.roll(out, shift, axis=axis)
+            take = (~filled) & nbr_filled
+            if take.any():
+                out[take] = nbr_out[take]
+                filled[take] = True
+                progressed = True
+        if not progressed:
+            break
+    return out
+
+
 def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
     """Build (keys, albedos, roughnesses) for the biome ground shader.
 
@@ -423,6 +466,27 @@ def compose(
         if not heightmap_dest.exists():
             shutil.copy(heightmap_path, heightmap_dest)
 
+    # Derive the TERRAIN-ONLY splatmap (object footprints filled with
+    # surrounding terrain). The ground shader samples THIS, not the raw
+    # semantic map — so house/wall/etc. footprints don't bleed into the
+    # ground, and the plane's render-time texture is a derived terrain
+    # layer, not the classification input. Regenerated each run
+    # (deterministic from the semantic map; cheap, not a paid asset).
+    terrain_splat_dest = None
+    if semantic_dest is not None:
+        from PIL import Image as _PILImage
+        terrain_names = {c["name"] for c in catalog.get("classes", [])
+                         if c.get("intent_type") == "terrain_shader"}
+        palette_t = [(c["name"], c["hex"]) for c in catalog["classes"]
+                     if c.get("intent_type") in ("terrain_shader", "object_placement")]
+        splat = build_terrain_splatmap(cv.load_rgb(semantic_dest),
+                                       palette_t, terrain_names)
+        terrain_splat_dest = (game_dir / "assets" / "layouts"
+                              / "terrain_splatmap.png")
+        _PILImage.fromarray(splat, "RGB").save(terrain_splat_dest)
+        print(f"[compose_world] wrote terrain splatmap "
+              f"(object footprints inpainted) → {terrain_splat_dest.name}")
+
     # ============ scene.json ============
     world_w, world_h = world_size_m
     scene = {
@@ -472,7 +536,14 @@ def compose(
             "blend_softness": 0.12,
             "noise_amount": 0.07,
         }
-        if semantic_dest:
+        # Sample the DERIVED terrain splatmap (object footprints filled
+        # with surrounding terrain), NOT the raw semantic map — so house/
+        # wall/etc. footprints don't bleed into the ground.
+        if terrain_splat_dest is not None:
+            shader_params["biome_map"] = (
+                f"res://data/{game_name}/assets/layouts/{terrain_splat_dest.name}"
+            )
+        elif semantic_dest:
             shader_params["biome_map"] = (
                 f"res://data/{game_name}/assets/layouts/{semantic_dest.name}"
             )
