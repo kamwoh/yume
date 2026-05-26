@@ -323,12 +323,20 @@ def _class_specs(catalog: dict) -> dict:
         prim = strat.get("primitive", "prim_unit_box")
         buckets = strat.get("variant_buckets")
         if buckets:
+            # Bucket canonical_scale only when the class uses canonical
+            # sizing. With use_canonical_scale:false (fit-to-mask), the
+            # def's state_init.scale stays [1,1,1] and each instance
+            # carries its fitted scale; the bucket then only provides
+            # ALBEDO tier (+ height via canonical_size_meters[1] in the
+            # emit). 2026-05-26.
+            use_canon = strat.get("use_canonical_scale", False)
             for b in buckets:
+                bcanon = list(b.get(
+                    "canonical_size_meters",
+                    strat.get("canonical_size_meters", [1, 1, 1])))
                 specs[b["def"]] = {
                     "primitive": prim,
-                    "canonical_scale": list(b.get(
-                        "canonical_size_meters",
-                        strat.get("canonical_size_meters", [1, 1, 1]))),
+                    "canonical_scale": bcanon if use_canon else None,
                     "albedo": b.get("albedo", c["hex"]),
                 }
         else:
