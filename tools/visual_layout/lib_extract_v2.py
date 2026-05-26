@@ -221,6 +221,7 @@ def extract_class(
     sampler: HeightmapSampler | None = None,
     anchors: dict[str, Any] | None = None,
     rng_seed: int = 0,
+    semantic_map_path: str | Path | None = None,
 ) -> list[dict]:
     """Dispatch on class_entry['strategy']['extraction_method'] and return
     a list of instance dicts of the form:
@@ -279,11 +280,23 @@ def extract_class(
             sampler=sampler, anchors=anchors, rng=rng,
         )
     if method == "llm_gestalt":
-        # Task #138 will populate this. Same fallthrough as polygon_decompose.
-        import sys
-        print(f"[lib_extract_v2] llm_gestalt not yet implemented "
-              f"(task #138) — skipping class '{name}'", file=sys.stderr)
-        return []
+        from tools.visual_layout.lib_extract_llm import gestalt_extract
+        if semantic_map_path is None:
+            import sys
+            print(
+                f"[lib_extract_v2] llm_gestalt needs semantic_map_path; "
+                f"passing through dispatch_extraction. Skipping '{name}'.",
+                file=sys.stderr,
+            )
+            return []
+        return gestalt_extract(
+            class_entry=class_entry,
+            semantic_map_path=semantic_map_path,
+            image_size=image_size,
+            world_size_m=world_size_m,
+            sampler=sampler,
+            anchors=anchors,
+        )
     if method == "require_adjacent":
         # Bridge-style strategy: only extract instances of THIS class
         # whose connected component touches `must_touch_class`. Light
@@ -821,6 +834,7 @@ def dispatch_extraction(
             sampler=sampler,
             anchors=anchors,
             rng_seed=rng_seed,
+            semantic_map_path=semantic_map_path,
         )
         out.extend(instances)
     return out
