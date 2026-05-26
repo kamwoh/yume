@@ -1,6 +1,6 @@
 ---
 name: yume-scene-class-catalog
-description: Stage 2 of the text-to-world pipeline (2026-05-25). Reads a scene brief + reference photoreal aerial and produces a fully-dynamic per-scene class catalog plus the stage-3/4/5 prompts. Class count is dynamic 6-32; classes named freely per genre (medieval town vs sci-fi colony vs dungeon vs alien world all get entirely different catalogs). data/lib/semantic_palette.json provides conventions (intent_type taxonomy, hex-picking algorithm, genre cheat-sheets) — NOT a fixed class list. Outputs class_catalog.json, semantic_map_prompt.txt, heightmap_prompt.txt, and scene_biome_mapping.json (for ADR 0055 engine wiring). Pairs with /yume-topdown-prompt (stage 1) and feeds compose_semantic_extract (stage 3+4) + yume-extract-author (stage 5, TBD).
+description: Stage 2 of the text-to-world pipeline (2026-05-25). Reads a scene brief + reference photoreal aerial and produces a fully-dynamic per-scene class catalog plus the stage-3/4/5 prompts. Class count is dynamic 6-32; classes named freely per genre (medieval town vs sci-fi colony vs dungeon vs alien world all get entirely different catalogs). data/lib/semantic_palette.json provides palette conventions; data/lib/extraction_strategies.json provides per-class extraction strategies (extraction_method + rotation_rule + y_anchor + primitive + canonical size) that the catalog injects into each object_placement entry so stage-5 lib_extract can dispatch by name lookup. Outputs class_catalog.json, semantic_map_prompt.txt, heightmap_prompt.txt, and scene_biome_mapping.json (for ADR 0055 engine wiring).
 ---
 
 # /yume-scene-class-catalog
@@ -131,6 +131,74 @@ Before writing files, verify:
   shadows). If your percentages sum to 40%, you're missing
   background terrain.
 
+### Step 4b — Look up extraction strategy per class
+
+```bash
+cat godot/data/lib/extraction_strategies.json
+```
+
+For each `object_placement` class in your catalog, look up its
+extraction strategy. The strategy library is keyed by class name.
+Three resolution paths:
+
+1. **Exact class-name match** — `house`, `tower`, `bridge`,
+   `fountain`, `wall_segment`, `tree`, `rock`, `well`, `statue`,
+   `townhall`, `crystal_spire`. Use the matched entry verbatim.
+2. **Alias match** — `class_aliases` maps synonyms to canonical
+   entries (e.g. `small_house` → `house`, `palace` → `townhall`,
+   `watchtower` → `tower`, `wooden_bridge` → `bridge`). Use the
+   resolved canonical entry.
+3. **No match** — for a novel class (`solar_panel`, `crystal_spire`,
+   `spore_pod`, `tentacled_tree`), pick the best fit from the
+   `default_strategy` block, BUT override the dimensions to match
+   the class's intent. Common patterns:
+   - Tall thin object (antenna, spire, lamp): override
+     `primitive: prim_unit_cylinder`, `canonical_size_meters:
+     [W, H, W]` with H >> W.
+   - Wide flat object (panel, deck, mat): override
+     `primitive: prim_unit_box`, `canonical_size_meters: [W, 0.3, D]`.
+   - Round blob (boulder, pod, dome): override
+     `primitive: prim_unit_sphere`.
+   - Building-like: keep box primitive; pick size proportional to
+     `expected_count` (rarer = larger).
+   Document this as `"strategy_origin": "default_with_override"` in
+   the class entry so downstream reviewers know it wasn't a clean
+   lookup.
+
+Inject the resolved strategy block INTO each class entry. The
+catalog entry now looks like:
+
+```json
+{
+  "name": "house",
+  "hex": "#a04020",
+  "intent_type": "object_placement",
+  "description": "Townspeople dwellings",
+  "expected_count": 60,
+  "design_origin": "convention",
+  "strategy": {
+    "strategy_origin": "lib_exact_match",
+    "extraction_method": "cluster_extract",
+    "cluster_within_meters": 2.0,
+    "min_area_px": 50,
+    "rotation_rule": "face_nearest_road",
+    "y_anchor": "heightmap_sample",
+    "primitive": "prim_unit_box",
+    "canonical_size_meters": [3.0, 4.0, 3.0],
+    "canonical_front_axis": "-Z"
+  }
+}
+```
+
+`strategy_origin` values:
+- `"lib_exact_match"` — class name found in `classes`
+- `"lib_alias_match:<canonical>"` — found via `class_aliases`
+- `"default_with_override"` — used `default_strategy` + overrides
+
+`terrain_shader` and `terrain_displacement` classes get no
+`strategy` block — they're rendered by the ground shader, not
+spawned as discrete entities.
+
 ### Step 5 — Add heightmap_hints
 
 ```json
@@ -162,7 +230,9 @@ peak.
      "description": "<what is this>",
      "expected_coverage_pct": <float>,    // for terrain_shader
      "expected_count": <int>,             // for object_placement
-     "design_origin": "convention | per_scene_extension"}
+     "design_origin": "convention | per_scene_extension",
+     "strategy": { ... per Step 4b — REQUIRED for object_placement, OMITTED for others ... }
+    }
   ],
   "heightmap_hints": { ... per step 5 ... },
   "composition_notes": "<sentence describing layout / focal point / asymmetries>",
@@ -286,6 +356,13 @@ this mapping at level load.
    road is `terrain_shader` even if it could be thought of as
    tiles (the shader handles it more efficiently).
 
+7. **Every object_placement class gets a `strategy` block.** Look
+   up via `extraction_strategies.json` (exact name → alias →
+   default-with-override). Stage-5 `lib_extract` dispatches off
+   the strategy block — without it, the class can't be extracted.
+   `terrain_shader` + `terrain_displacement` classes get NO
+   strategy.
+
 ## Worked examples (three genres, three catalogs)
 
 ### Example 1 — Medieval town (matches what we tested)
@@ -372,7 +449,12 @@ medieval-town's earth tones.)
 
 ## Reference files
 
-- `godot/data/lib/semantic_palette.json` — conventions + cheat-sheets
+- `godot/data/lib/semantic_palette.json` — palette conventions + cheat-sheets
+- `godot/data/lib/extraction_strategies.json` — per-class strategy
+  library (extraction_method + rotation_rule + y_anchor + primitive
+  + canonical size) used in Step 4b
 - `.claude/skills/yume-topdown-prompt/SKILL.md` — stage 1 sibling
+- `.claude/skills/yume-extract-author/SKILL.md` — stage 5 consumer
+  of the strategy blocks injected here
 - `.claude/rules/pipeline-stability.md` — confirms this is in
   the ACTIVE 3D category, no ADR gate to change
