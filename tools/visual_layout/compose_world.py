@@ -11,7 +11,8 @@ The flow (merged 2026-05-26 — was compose_world + compose_world_v2):
   1. inject strategies from data/lib/extraction_strategies.json
   2. detect anchors (plaza centroid, wall-ring corners)
   3. dispatch extraction (lib_extract_v2) → object instances
-  4. extract road network (lib_extract_roads) → path-segment instances
+  4. extract road graph (lib_extract_roads) → world/road_graph.json
+     metadata (roads RENDER as ground biomes, mask coverage)
   5. validate (lib_extract_validate)
   6. group instances by class/bucket → entity defs
   7. write scene.json (biome ground shader + water plane), entity
@@ -52,11 +53,12 @@ from tools.visual_layout import lib_extract_validate as val  # noqa: E402
 LIB_STRATEGIES = DATA_ROOT / "lib" / "extraction_strategies.json"
 
 # Path classes extracted as the road NETWORK (non-object), not biomes.
+# Road/path classes. Rendered as ground BIOMES (mask coverage matches
+# the semantic map). lib_extract_roads still skeletonizes them into a
+# polyline graph, but that's written as metadata (world/road_graph.json)
+# for future NPC pathing — NOT rendered. (Centerlines were the wrong
+# VISUAL representation; the mask is the truth — 2026-05-26.)
 ROAD_CLASS_NAMES = ["cobblestone", "dirt_path", "road", "stone_road", "gravel"]
-PATH_WIDTH_M = 4.0
-PATH_HEIGHT_M = 0.12
-PATH_OVERLAP_M = 1.2      # extend each segment so joins close (no gaps)
-PATH_ALBEDO = "#9a8560"   # warm trodden-earth / cobble tone
 
 
 # ============================================================
@@ -94,14 +96,6 @@ def _hex_to_rgb01(h: str) -> list[float]:
     return [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
 
 
-# Path classes are now EXTRACTED as road-network entities (flat path
-# segments), not painted as ground biomes. Exclude them from the biome
-# splatmap so the ground under a road reads as its surrounding terrain.
-ROAD_CLASSES = {
-    "cobblestone", "dirt_path", "road", "stone_road", "path", "gravel",
-}
-
-
 def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
     """Build (keys, albedos, roughnesses) for the biome ground shader.
 
@@ -109,9 +103,10 @@ def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
     albedos[i]— tuned display color, sRGB→linear (ALBEDO is linear)
     roughs[i] — per-biome roughness
 
-    Only terrain_shader classes are biomes. Capped at max_biomes (the
-    shader's MAX_BIOMES). object_placement classes are entities, not
-    ground.
+    Every terrain_shader class is a biome — INCLUDING roads (cobblestone
+    / dirt_path), which render at exact mask coverage with a tuned road
+    color (their BIOME_PALETTE entry). Capped at max_biomes (the
+    shader's MAX_BIOMES). object_placement classes are entities.
     """
     keys: list[list[float]] = []
     albedos: list[list[float]] = []
@@ -119,11 +114,9 @@ def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
     for c in catalog.get("classes", []):
         if c.get("intent_type") != "terrain_shader":
             continue
-        name = str(c.get("name", ""))
-        if name in ROAD_CLASSES:
-            continue  # extracted as path-segment entities, not a biome
         if len(keys) >= max_biomes:
             break
+        name = str(c.get("name", ""))
         sem_hex = str(c.get("hex", "#808080"))
         tuned_hex, rough = BIOME_PALETTE.get(name, (sem_hex, 0.90))
         keys.append(_hex_to_rgb01(sem_hex))                 # sRGB key
@@ -273,41 +266,11 @@ def detect_anchors(catalog: dict, semantic_map_path: Path,
     return anchors
 
 
-def roads_to_instances(polylines_world, sampler) -> list[dict]:
-    """Road polylines → flat path-segment instances (thin ground-following
-    boxes, one per segment, yaw along the segment)."""
-    out: list[dict] = []
-    n = 0
-    for poly in polylines_world:
-        for i in range(len(poly) - 1):
-            ax, az = poly[i]
-            bx, bz = poly[i + 1]
-            dx, dz = bx - ax, bz - az
-            length = math.hypot(dx, dz)
-            if length < 0.5:
-                continue
-            mx, mz = (ax + bx) * 0.5, (az + bz) * 0.5
-            wy = sampler.y_at(mx, mz) if sampler is not None else 0.0
-            n += 1
-            out.append({
-                "class": "path_segment",
-                "id": f"path_segment_{n:03d}",
-                "position": [round(mx, 3), wy, round(mz, 3)],
-                "yaw": round(math.atan2(-dz, dx), 4),
-                "scale": [round(length + PATH_OVERLAP_M, 3),
-                          PATH_HEIGHT_M, PATH_WIDTH_M],
-                "primitive": "prim_unit_box",
-                "_y_offset": 0.07,
-            })
-    return out
-
-
 def _class_specs(catalog: dict) -> dict:
     """class/bucket name → {primitive, canonical_scale|None, albedo}.
 
     Drives the def-builder directly (replaces the old pick_primitive
-    monkey-patch). Buckets each get their own spec; path_segment is
-    synthetic.
+    monkey-patch). Each variant bucket gets its own spec.
     """
     specs: dict = {}
     for c in catalog.get("classes", []):
@@ -334,11 +297,6 @@ def _class_specs(catalog: dict) -> dict:
                 "canonical_scale": canon,
                 "albedo": c["hex"],
             }
-    specs["path_segment"] = {
-        "primitive": "prim_unit_box",
-        "canonical_scale": None,
-        "albedo": PATH_ALBEDO,
-    }
     return specs
 
 
@@ -389,24 +347,23 @@ def compose(
     )
     print(f"[compose_world] extracted {len(instances)} object instances")
 
-    # Road network (non-object) → flat path-segment entities.
+    # Road network (non-object). Roads render as ground BIOMES (mask
+    # coverage = the semantic map). Here we ALSO skeletonize them into
+    # a polyline GRAPH, written as metadata (world/road_graph.json) for
+    # future NPC pathing — NOT rendered. The mask is the visual; the
+    # graph is data.
     img = cv.load_rgb(semantic_map_path)
     H, W = img.shape[:2]
     palette_all = [(c["name"], c["hex"]) for c in catalog["classes"]
                    if c.get("intent_type") in ("terrain_shader", "object_placement")]
     label_all = cv.threshold_nearest_palette(img, palette_all)
-    road_sampler = (v2.HeightmapSampler(
-        heightmap_path, plane_size_m=float(world_size_m[0]),
-        height_scale=height_scale, height_offset=height_offset)
-        if heightmap_path else None)
     road_result = roads_mod.extract_roads(
         label_map=label_all, palette=palette_all,
         path_class_names=ROAD_CLASS_NAMES, image_size=(W, H),
         world_size_m=world_size_m, simplify_tolerance_meters=0.8,
         min_world_length_m=2.5, prune_branch_meters=1.5)
-    instances.extend(roads_to_instances(road_result["polylines_world"], road_sampler))
-    print(f"[compose_world] roads: {road_result['n_polylines']} polylines "
-          f"→ {len([i for i in instances if i['class'] == 'path_segment'])} segments")
+    print(f"[compose_world] road graph (metadata): "
+          f"{road_result['n_polylines']} polylines")
 
     report = val.validate(
         extracted={"instances": instances, "world_size_meters": list(world_size_m)},
@@ -583,6 +540,18 @@ def compose(
     # entities/ as proper entity definition files.
     (game_dir / "world" / "state.json").write_text(json.dumps({
         "_comment": "Empty placeholder. Singletons (world_clock, free_camera) live in entities/."
+    }, indent=2))
+
+    # ============ world/road_graph.json (metadata, not rendered) ====
+    # Skeleton-derived road polylines. Roads render as ground biomes
+    # (mask coverage); this graph is for future NPC pathing / "walk
+    # the streets" gameplay. World-space polylines [[x, z], ...].
+    (game_dir / "world" / "road_graph.json").write_text(json.dumps({
+        "_comment": "Road centerline graph (metadata for pathing). "
+                    "Roads are RENDERED as ground biomes, not from this. "
+                    "Each polyline is a list of [world_x, world_z] points.",
+        "n_polylines": road_result["n_polylines"],
+        "polylines": road_result["polylines_world"],
     }, indent=2))
 
     # ============ entities/world_clock.json ============
