@@ -4441,5 +4441,73 @@ Cumulative engine-convention surprises this two-day arc: 7.
    placeholder. Validates the established convention from
    aldenmere's 17-rule split.
 
+---
+
+## Stage 5 v2 — class-semantic extraction (started 2026-05-26)
+
+User insight: each class has a CANONICAL POSE + CONTEXT-RELATIVE
+ROTATION RULE. "House in canonical space is front-facing cube,
+rotate face against road path." Stage 5 needs class-semantic
+awareness, not just blob detection. AND Yume principle:
+everything reusable — no new engine primitives, all polygons
+decompose to rotated/scaled prim_unit_box / cylinder / sphere.
+
+### Architecture
+
+Strategy library at `data/lib/extraction_strategies.json` —
+keyed by class name. Fixed vocabulary (the only engine-level
+surface):
+
+- 6 extraction_methods: single_instance / cluster_extract /
+  snap_to_anchor / scatter_in_mask / polygon_decompose /
+  llm_gestalt
+- 6 rotation_rules: no_rotation / face_nearest_road / face_anchor
+  / along_tangent / perpendicular_to_water / random_seeded
+- 4 y_anchors: heightmap_sample / water_level / anchor_floor /
+  constant
+- 3 primitives: prim_unit_box / prim_unit_cylinder / prim_unit_sphere
+
+New class = JSON entry pointing at existing strategy methods.
+New strategy method = engine ADR (rare).
+
+### Pipeline
+
+```
+5a CV pass (deterministic):
+  - terrain biome masks (existing)
+  - structural polygons: wall_ring, road_mask, water_polygon, focal_anchor
+5b strategy dispatch (per class):
+  - per extraction_method
+  - per rotation_rule (CV-side road extraction; radial heuristic first,
+    Zhang-Suen skeleton fallback for non-radial)
+5c heightmap-aware Y (phase E):
+  - sample heightmap.png at instance (x,z), set position.y
+5d polygon decompose for walls (phase F):
+  - contour → Ramer-Douglas-Peucker → series of rotated unit_boxes
+5e LLM-gestalt for dense classes (e.g. house):
+  - single OpenAI vision call, returns instances with gestalt grouping
+5f validation pass:
+  - count vs expected, spatial plausibility, anomaly flags
+```
+
+### Tasks
+
+Tracked in TaskCreate list:
+- #132 Wire heightmap through shader_params.heightmap
+- #133 Entity Y-anchor from heightmap sample (E)
+- #134 Strategy library schema
+- #135 yume-scene-class-catalog learns strategy assignment
+- #136 lib_extract v2 — dispatcher + structural polygons
+- #137 F — polygon_decompose for walls
+- #138 LLM-gestalt single OpenAI call
+- #139 Validation pass
+
+Locked design decisions:
+- Strategy library in `data/lib/`, shared by class name ✓
+- Single LLM call for all object_placement classes ✓
+- CV for road extraction (LLM not reliable yet) ✓
+- Polygons → rotated/scaled prim_unit_box (no new engine primitive,
+  Yume reuse principle) ✓
+
 
 
