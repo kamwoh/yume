@@ -196,28 +196,56 @@ def compose(
     extracted = json.loads(extracted_path.read_text())
     catalog = json.loads(catalog_path.read_text())
 
-    game_dir = DATA_ROOT / game_name
-    if game_dir.exists():
-        shutil.rmtree(game_dir)
-    game_dir.mkdir(parents=True)
+    game_dir = (DATA_ROOT / game_name).resolve()
 
-    # Subdirs
-    (game_dir / "entities").mkdir()
-    (game_dir / "world").mkdir()
-    (game_dir / "levels" / "level_default").mkdir(parents=True)
-    (game_dir / "game").mkdir()
-    (game_dir / "assets" / "layouts").mkdir(parents=True)
-    (game_dir / "assets" / "textures").mkdir(parents=True)
+    # NEVER DELETE — Yume convention (memory feedback_never_delete_
+    # generated_assets, 2026-05-26 reinforcement): generated assets
+    # are paid artifacts. Iterate by overwriting JSON config files
+    # (cheap, text, git-diffable) but NEVER rmtree the game dir.
+    # Aldenmere's pattern: every PNG/GLB carries a hash suffix and
+    # coexists with prior versions; the engine reads from the latest
+    # config which references the chosen variant by path.
+    #
+    # Empirical case 2026-05-26: an earlier version of this function
+    # did shutil.rmtree(game_dir) here. compose_world_v2 was called
+    # with --semantic-map + --heightmap pointing at files inside
+    # the same game_dir; rmtree wiped them BEFORE the copy step
+    # could read them. Lost the user's stage-3+4 outputs (re-
+    # generated from Downloads/ backup).
+    game_dir.mkdir(parents=True, exist_ok=True)
+    (game_dir / "entities").mkdir(exist_ok=True)
+    (game_dir / "world").mkdir(exist_ok=True)
+    (game_dir / "levels" / "level_default").mkdir(parents=True, exist_ok=True)
+    (game_dir / "game").mkdir(exist_ok=True)
+    (game_dir / "assets" / "layouts").mkdir(parents=True, exist_ok=True)
+    (game_dir / "assets" / "textures").mkdir(parents=True, exist_ok=True)
 
-    # Copy semantic map + heightmap into the game's assets dir
+    # Copy semantic map + heightmap into the game's assets dir.
+    # NEVER OVERWRITE — if the dest exists, leave it alone (treat as
+    # the authoritative version). Caller can pass a different
+    # destination name to keep multiple variants side-by-side.
     semantic_dest = None
     heightmap_dest = None
     if semantic_map_path and semantic_map_path.exists():
         semantic_dest = game_dir / "assets" / "layouts" / "semantic_map.png"
-        shutil.copy(semantic_map_path, semantic_dest)
+        if not semantic_dest.exists():
+            shutil.copy(semantic_map_path, semantic_dest)
+        elif semantic_map_path.resolve() != semantic_dest.resolve():
+            print(
+                f"[compose_world] semantic_map already at {semantic_dest} — "
+                f"keeping existing (passed-in path differs but NOT "
+                f"overwriting; rename if you want to compare variants)"
+            )
     if heightmap_path and heightmap_path.exists():
         heightmap_dest = game_dir / "assets" / "textures" / "heightmap.png"
-        shutil.copy(heightmap_path, heightmap_dest)
+        if not heightmap_dest.exists():
+            shutil.copy(heightmap_path, heightmap_dest)
+        elif heightmap_path.resolve() != heightmap_dest.resolve():
+            print(
+                f"[compose_world] heightmap already at {heightmap_dest} — "
+                f"keeping existing (passed-in path differs but NOT "
+                f"overwriting; rename if you want to compare variants)"
+            )
 
     # ============ scene.json ============
     world_w, world_h = extracted["world_size_meters"]
