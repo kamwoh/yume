@@ -191,8 +191,17 @@ def compose(
     catalog_path: Path,
     semantic_map_path: Path | None,
     heightmap_path: Path | None,
+    height_scale: float = 3.0,
+    height_offset: float = -0.5,
 ) -> Path:
-    """Build a full data/demo_<name>/ folder. Returns the folder path."""
+    """Build a full data/demo_<name>/ folder. Returns the folder path.
+
+    height_scale: max terrain displacement in meters (shader + entity
+        Y sampler both use it). 3.0 for mostly_flat maps; bump to
+        ~8.0 for hilly maps that use the full grey range.
+    height_offset: signed offset applied to the [0,1] heightmap sample
+        before scaling. -0.5 makes grey-128 = ground level.
+    """
     extracted = json.loads(extracted_path.read_text())
     catalog = json.loads(catalog_path.read_text())
 
@@ -237,15 +246,14 @@ def compose(
                 f"overwriting; rename if you want to compare variants)"
             )
     if heightmap_path and heightmap_path.exists():
-        heightmap_dest = game_dir / "assets" / "textures" / "heightmap.png"
+        # Preserve the source basename so variants (heightmap.png,
+        # heightmap_hilly.png, ...) coexist. scene.json + the entity
+        # Y sampler both reference whichever file was passed.
+        heightmap_dest = (
+            game_dir / "assets" / "textures" / Path(heightmap_path).name
+        )
         if not heightmap_dest.exists():
             shutil.copy(heightmap_path, heightmap_dest)
-        elif heightmap_path.resolve() != heightmap_dest.resolve():
-            print(
-                f"[compose_world] heightmap already at {heightmap_dest} — "
-                f"keeping existing (passed-in path differs but NOT "
-                f"overwriting; rename if you want to compare variants)"
-            )
 
     # ============ scene.json ============
     world_w, world_h = extracted["world_size_meters"]
@@ -285,16 +293,24 @@ def compose(
             "res://data/lib/shaders/ground_simple_displace.gdshader"
         )
         scene["ground"]["mesh"]["plane_size"] = float(world_w)
-        scene["ground"]["mesh"]["height_scale"] = 3.0   # max displacement (m)
-        scene["ground"]["mesh"]["height_offset"] = -0.5  # 128 = ground, brighter=up
-        shader_params: dict = {}
+        # CRITICAL: ground_renderer.gd only forwards `shader_params` to
+        # the ShaderMaterial (plus auto-sets plane_size). Uniforms placed
+        # at mesh-level (ground.mesh.height_scale) are NEVER read — the
+        # shader silently falls back to its own default. So height_scale
+        # + height_offset MUST live inside shader_params to take effect.
+        # (post-mortem 2026-05-26: they were at mesh-level; shader ran
+        # at its default height_scale=2.0 regardless of the authored 8.0.)
+        shader_params: dict = {
+            "height_scale": float(height_scale),
+            "height_offset": float(height_offset),
+        }
         if semantic_dest:
             shader_params["biome_map"] = (
-                f"res://data/{game_name}/assets/layouts/semantic_map.png"
+                f"res://data/{game_name}/assets/layouts/{semantic_dest.name}"
             )
         if heightmap_dest:
             shader_params["heightmap"] = (
-                f"res://data/{game_name}/assets/textures/heightmap.png"
+                f"res://data/{game_name}/assets/textures/{heightmap_dest.name}"
             )
         scene["ground"]["mesh"]["shader_params"] = shader_params
     (game_dir / "scene.json").write_text(json.dumps(scene, indent=2))
@@ -500,8 +516,8 @@ def compose(
     hm_sampler = HeightmapSampler(
         heightmap_dest if heightmap_dest else None,
         plane_size_m=world_w,
-        height_scale=3.0,
-        height_offset=-0.5,
+        height_scale=height_scale,
+        height_offset=height_offset,
     )
 
     initial_instances = []

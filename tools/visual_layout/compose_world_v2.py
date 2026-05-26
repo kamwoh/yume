@@ -280,6 +280,13 @@ def main() -> None:
     ap.add_argument("--heightmap", default=None)
     ap.add_argument("--world-x", type=float, default=80.0)
     ap.add_argument("--world-z", type=float, default=80.0)
+    ap.add_argument("--height-scale", type=float, default=3.0,
+                    help="max terrain displacement in meters (3.0 flat, "
+                         "~8.0 hilly). Used by both the ground shader and "
+                         "the entity Y sampler.")
+    ap.add_argument("--height-offset", type=float, default=-0.5,
+                    help="signed offset before scaling; -0.5 = grey128 is "
+                         "ground level")
     ap.add_argument("--rng-seed", type=int, default=42)
     ap.add_argument("--validation-report", default=None,
                     help="optional path to write the validator's JSON report")
@@ -310,6 +317,8 @@ def main() -> None:
         semantic_map_path=semantic_map_path,
         heightmap_path=heightmap_path,
         world_size_m=world_size_m,
+        height_scale=args.height_scale,
+        height_offset=args.height_offset,
         anchors=anchors,
         rng_seed=args.rng_seed,
     )
@@ -358,6 +367,8 @@ def main() -> None:
         catalog_path=Path("/tmp/_class_catalog_strategized.json"),
         semantic_map_path=semantic_map_path,
         heightmap_path=heightmap_path,
+        height_scale=args.height_scale,
+        height_offset=args.height_offset,
     )
     print(f"[compose_world_v2] wrote demo at: {game_dir}")
     print(f"[compose_world_v2] run with: "
