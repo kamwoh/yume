@@ -440,15 +440,16 @@ def compose(
     (game_dir / "game" / "flow.json").write_text(json.dumps(flow, indent=2))
 
     # ============ entities/<class>.json — one def per class ============
-    # ALL object_placement classes get a def using primitive shapes.
+    # Sources the def list from EXTRACTED (not catalog) so variant
+    # buckets (small_house / medium_house / large_house) each become
+    # their own def. The catalog only contributes the parent class +
+    # heightmap/terrain metadata; the extraction step (compose_world_v2
+    # v2_to_v1_extracted) is responsible for splitting parents into
+    # per-bucket entries.
     object_classes = [
-        c for c in catalog["classes"]
+        c for c in extracted["classes"]
         if c["intent_type"] == "object_placement"
     ]
-
-    # Reference primitive per class — use median size across the
-    # class's instances for the SHAPE; per-instance scale handled
-    # via state.scale.
     extracted_by_name = {c["name"]: c for c in extracted["classes"]}
 
     defs_doc = {"_comment": f"Auto-gen primitives for {game_name}.", "definitions": []}

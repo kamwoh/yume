@@ -579,41 +579,75 @@ def _extract_instance_per_component(
     min_area = int(strategy.get("min_area_px", 20))
     pca_oriented = bool(strategy.get("pca_oriented", False))
     min_elong = float(strategy.get("min_elongation_for_pca", 1.5))
+    buckets = strategy.get("variant_buckets")
 
     comps = cv.connected_components(mask, min_area=min_area)
     if not comps:
         return []
 
+    # Per-bucket id counter so each bucket numbers from 001.
+    bucket_counters: dict[str, int] = {}
+
     instances = []
-    for n, comp in enumerate(comps, start=1):
+    for comp in comps:
+        # If variant_buckets is set, classify by area and use the
+        # matched bucket's def name + canonical_size + albedo.
+        bucket = _pick_bucket(buckets, comp["area_px"]) if buckets else None
+        if bucket is not None:
+            emit_name = bucket["def"]
+        else:
+            emit_name = name
+        bucket_counters[emit_name] = bucket_counters.get(emit_name, 0) + 1
+        idx = bucket_counters[emit_name]
+
         cx_px, cy_px = comp["centroid"]
         if pca_oriented:
-            # PCA gives orientation + fitted dimensions
             inst = _emit_pca_oriented(
-                name=name, idx=n, comp=comp, class_entry=class_entry,
+                name=emit_name, idx=idx, comp=comp, class_entry=class_entry,
                 image_size=image_size, world_size_m=world_size_m,
                 sampler=sampler, min_elongation=min_elong,
+                bucket=bucket,
             )
         else:
             inst = _emit_instance(
-                name=name, idx=n, centroid_px=(cx_px, cy_px),
+                name=emit_name, idx=idx, centroid_px=(cx_px, cy_px),
                 class_entry=class_entry, label_map=label_map, palette=palette,
                 image_size=image_size, world_size_m=world_size_m,
                 sampler=sampler, anchors=anchors, rng=rng,
+                bucket=bucket,
             )
         instances.append(inst)
     return instances
 
 
+def _pick_bucket(buckets: list[dict] | None, area_px: int) -> dict | None:
+    """Return the first bucket whose max_area_px >= area_px, or None
+    if no buckets are defined. The last bucket should have a very
+    large max_area_px to act as catch-all."""
+    if not buckets:
+        return None
+    for b in buckets:
+        if area_px <= int(b.get("max_area_px", 999999)):
+            return b
+    return buckets[-1]
+
+
 def _emit_pca_oriented(
     *, name, idx, comp, class_entry, image_size, world_size_m,
-    sampler, min_elongation,
+    sampler, min_elongation, bucket=None,
 ):
     """Emit a box whose facing + length + thickness come from PCA on
     the component's pixels. Wall segments authored as oriented tiles
-    end up correctly aligned along their long axis."""
+    end up correctly aligned along their long axis.
+
+    When `bucket` is provided, its canonical_size_meters override the
+    strategy's default (variant-bucket dispatch path)."""
     strategy = class_entry["strategy"]
-    canonical = strategy.get("canonical_size_meters", [1.0, 3.0, 0.4])
+    canonical = (bucket or strategy).get(
+        "canonical_size_meters", strategy.get(
+            "canonical_size_meters", [1.0, 3.0, 0.4]
+        )
+    )
     height_m = float(canonical[1])
 
     px = comp["pixels"].astype(float)
@@ -895,9 +929,12 @@ def _extract_polygon_decompose(*, name, mask, class_entry, label_map, palette,
 # ============================================================
 
 def _emit_instance(*, name, idx, centroid_px, class_entry, label_map,
-                   palette, image_size, world_size_m, sampler, anchors, rng):
+                   palette, image_size, world_size_m, sampler, anchors, rng,
+                   bucket=None):
     """Common emit logic: pixel → world coords, resolve facing + Y,
-    set scale from canonical_size."""
+    set scale from canonical_size. When `bucket` is provided, its
+    canonical_size_meters override the strategy default (variant-bucket
+    dispatch path)."""
     strategy = class_entry["strategy"]
     cx_px, cy_px = centroid_px
     wx, wz = cv.pixel_to_world(cx_px, cy_px, image_size, world_size_m)
@@ -915,16 +952,26 @@ def _emit_instance(*, name, idx, centroid_px, class_entry, label_map,
         anchors=anchors, rng=rng,
     )
 
-    canonical = strategy.get("canonical_size_meters", [1.0, 1.0, 1.0])
-    return {
+    canonical = (bucket or strategy).get(
+        "canonical_size_meters",
+        strategy.get("canonical_size_meters", [1.0, 1.0, 1.0]),
+    )
+    out = {
         "class": name,
         "id": f"{name}_{idx:03d}",
         "position": [wx, wy, wz],
         "yaw": facing,
-        "scale": [float(canonical[0]), float(canonical[1]), float(canonical[2])],
         "primitive": strategy.get("primitive", "prim_unit_box"),
         "canonical_front_axis": strategy.get("canonical_front_axis", "-Z"),
     }
+    if strategy.get("use_canonical_scale", False) or bucket is not None:
+        # Shared canonical size — DON'T emit per-instance scale.
+        out["_use_canonical_scale"] = True
+    else:
+        out["scale"] = [
+            float(canonical[0]), float(canonical[1]), float(canonical[2]),
+        ]
+    return out
 
 
 # ============================================================

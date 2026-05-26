@@ -41,12 +41,18 @@
       "min_area_px": 50,
       "pca_oriented": true,
       "min_elongation_for_pca": 1.4,
+      "use_canonical_scale": true,
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_box",
       "canonical_size_meters": [3.0, 4.0, 3.0],
       "canonical_front_axis": "+X",
-      "_comment": "Footprint width + depth fit the authored tile; height from canonical. Elongated houses rotate per PCA; square ones stay axis-aligned."
+      "variant_buckets": [
+        {"def": "small_house",  "max_area_px": 1500,  "canonical_size_meters": [2.4, 3.0, 2.4], "albedo": "#a04020"},
+        {"def": "medium_house", "max_area_px": 3000,  "canonical_size_meters": [3.4, 4.0, 3.4], "albedo": "#b85030"},
+        {"def": "large_house",  "max_area_px": 999999,"canonical_size_meters": [4.6, 5.0, 4.6], "albedo": "#c86040"}
+      ],
+      "_comment": "Each detected house tile is classified by area into one of 3 variant buckets. Each bucket becomes its own entity def with its own state_init.scale + albedo. Long-term: each bucket's visual.mesh swaps from prim_unit_box to a kit-composed recipe (wall_panel + roof + door + window + chimney), keeping the same bucket contract."
     },
     "townhall": {
       "extraction_method": "cluster_extract",

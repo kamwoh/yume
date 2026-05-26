@@ -189,20 +189,39 @@ def v2_to_v1_extracted(
 
     out_classes = []
     for c in catalog["classes"]:
-        entry = {
-            "name": c["name"],
-            "hex": c["hex"],
-            "intent_type": c["intent_type"],
-        }
-        if c["intent_type"] == "object_placement":
-            entry["instances"] = by_class.get(c["name"], [])
-            # Smuggle strategy fields the compose_world side needs:
-            strategy = c.get("strategy", {})
-            if strategy.get("use_canonical_scale", False):
-                entry["_canonical_scale"] = strategy.get(
-                    "canonical_size_meters", [1.0, 1.0, 1.0]
+        strategy = c.get("strategy", {})
+        buckets = strategy.get("variant_buckets")
+        if c["intent_type"] == "object_placement" and buckets:
+            # Split the parent class into one v1-shaped entry PER bucket.
+            # Each becomes its own entity def in compose_world.
+            for b in buckets:
+                bname = b["def"]
+                bcanonical = b.get(
+                    "canonical_size_meters",
+                    strategy.get("canonical_size_meters", [1.0, 1.0, 1.0]),
                 )
-        out_classes.append(entry)
+                bhex = b.get("albedo", c["hex"])
+                out_classes.append({
+                    "name": bname,
+                    "hex": bhex,
+                    "intent_type": "object_placement",
+                    "instances": by_class.get(bname, []),
+                    "_canonical_scale": list(bcanonical),
+                    "_parent_class": c["name"],
+                })
+        else:
+            entry = {
+                "name": c["name"],
+                "hex": c["hex"],
+                "intent_type": c["intent_type"],
+            }
+            if c["intent_type"] == "object_placement":
+                entry["instances"] = by_class.get(c["name"], [])
+                if strategy.get("use_canonical_scale", False):
+                    entry["_canonical_scale"] = strategy.get(
+                        "canonical_size_meters", [1.0, 1.0, 1.0]
+                    )
+            out_classes.append(entry)
 
     return {
         "source_semantic_map": str(semantic_map_path),
