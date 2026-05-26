@@ -586,9 +586,26 @@ def compose(
                   f"(85th pct of heightmap-Y over water mask)")
         else:
             level = water_level if water_level is not None else 0.0
+
+        # Derive a WATER MASK (white = river/pond region) so the water
+        # surface renders ONLY there — not as a full plane that floods
+        # low city terrain. Dilated a few px so water meets the banks.
+        from PIL import Image as _PILImg
+        sm = cv.load_rgb(semantic_dest)
+        wmask = cv.threshold_by_hex(sm, str(water_class.get("hex", "#3070c0")), 40)
+        # small dilation (~4px) via 4-neighbour rolls
+        m = wmask.copy()
+        for _ in range(4):
+            m = (m | np.roll(m, 1, 0) | np.roll(m, -1, 0)
+                 | np.roll(m, 1, 1) | np.roll(m, -1, 1))
+        water_mask_dest = game_dir / "assets" / "layouts" / "water_mask.png"
+        _PILImg.fromarray((m * 255).astype("uint8"), "L").save(water_mask_dest)
+
         scene["water"] = {
-            "_comment": "ADR 0059 water surface. level = world Y of the "
-                        "water surface; terrain below it (riverbed) fills.",
+            "_comment": "ADR 0059 water surface. Confined to the river "
+                        "region by water_mask (not a full plane). level = "
+                        "world Y of the surface; the masked region's "
+                        "riverbed (below level) fills.",
             "mesh": {
                 "size": [world_w, world_h],
                 "level": float(level),
@@ -599,6 +616,12 @@ def compose(
                     "wave_speed": 0.22,
                     "ripple_density": 10.0,
                     "metallic_uniform": 0.30,
+                    "use_water_mask": True,
+                    "plane_size": float(world_w),
+                    "water_mask": (
+                        f"res://data/{game_name}/assets/layouts/"
+                        f"{water_mask_dest.name}"
+                    ),
                 },
             },
         }

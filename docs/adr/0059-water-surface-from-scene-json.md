@@ -79,10 +79,30 @@ depth buffer, so:
 
 So the water plane only appears in the heightmap depressions. The
 shoreline is exactly where terrain crosses `water.level` — handled
-for free by depth testing, no semantic-map alpha mask required.
+for free by depth testing.
 
 This composes directly with ADR 0052 (heightmap displacement): the
 heightmap carves the riverbed, the water plane fills it.
+
+### Refinement (2026-05-26): region mask is required after all
+
+Depth-test confinement alone was insufficient. With a HILLY heightmap,
+the city itself has low-spots **below** `water.level`, so the full
+plane showed water there too — the river appeared to "flood the city."
+Depth-test confines vertically but not horizontally.
+
+Fix: a **region mask**. compose_world derives `water_mask.png` (white =
+`water_surface` semantic pixels, dilated ~4px to reach the banks) and
+the water shader (`water_stylized.gdshader`) samples it via the same
+world→UV math as the ground shader, `discard`-ing fragments outside
+the mask (`use_water_mask` uniform). Water then exists ONLY in the
+river/pond region — city terrain height is irrelevant, no flooding.
+
+The two mechanisms now cooperate: the **mask** confines water
+horizontally to the river region; the **water_level + depth-test**
+set the surface height + shoreline within that region. `water_level`
+is derived from the 85th-percentile heightmap-Y over the water mask
+(see compose_world.derive_water_level).
 
 ## Consequences
 
