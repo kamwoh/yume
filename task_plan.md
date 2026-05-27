@@ -4611,3 +4611,45 @@ applied to art: instances are data; meshes are reusable parts;
 parts are the only thing AI-generated.
 
 
+## Pipeline layering: static / dynamic / presentation (2026-05-27)
+
+The text-to-world output is generated in three CLEANLY SEPARATED
+layers. This is the framework's guiding model — keep them apart so
+adding gameplay never touches the map, and re-skinning never touches
+gameplay.
+
+| Layer | What | Lifetime | Producer |
+|---|---|---|---|
+| **Static** | map geometry — buildings, walls, towers, bridges, fountain, terrain (biomes/water/roads) | placed at level load, never mutated | `compose_world.py` |
+| **Dynamic** | player, NPCs, random/ambient props, mission objects | created/destroyed at RUNTIME | `spawn` / `despawn` rules (engine primitive) + the player instance |
+| **Presentation** | camera, input, lighting, .tscn | the wrapper; not content | `compose_shell.py` |
+
+Key points:
+
+- **The dynamic layer needs NO new engine code.** Yume already
+  spawns runtime entities generically via the `spawn` effect keyed
+  on tick (random/ambient), signal (mission/event), or zone
+  (area) triggers, and removes them via `despawn`. A game adds
+  dynamic content by adding spawn rules — the static map is
+  untouched.
+
+- **Static = level `initial_instances`.** Whatever a game places at
+  load that never moves/despawns. The map generator owns only this.
+
+- **Don't bake game-specific entities into the map generator.** The
+  compose_world (static) / compose_shell (presentation) split already
+  enforces this. A future `compose_dynamic` (player + spawn-point
+  markers + spawn rules) can split the player out of the shell when a
+  real game needs dynamic content — NOT before (avoid churn).
+
+- **Loose coupling by tag.** The presentation camera references the
+  player via `follow_tag: "player"`; it doesn't care which layer
+  spawned it. Spawn rules reference spawn-point markers by tag. No
+  layer hard-codes another's entity ids.
+
+Current state (2026-05-27): we are still validating MAP GENERATION
+(the static layer). The player lives in the presentation shell for
+now (it's the only dynamic entity and it works); it moves to a
+dedicated dynamic layer only when a game introduces real dynamic
+content (NPCs/missions/spawns). Until then: no speculative dynamic
+code.
