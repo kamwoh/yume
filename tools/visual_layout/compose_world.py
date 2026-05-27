@@ -302,7 +302,8 @@ _PRIM_MESH = {
 
 def primitive_visual(primitive: str, hex_color: str,
                      mesh_override: str | None = None,
-                     mesh_prompt: str | None = None) -> dict:
+                     mesh_prompt: str | None = None,
+                     mesh_reference_prompt: str | None = None) -> dict:
     """Yume visual block for a mesh + albedo. `mesh_override` (a kit
     mesh like 'house_kit') wins; else the unit primitive. The kit's
     body color param is named $albedo so the per-bucket color applies
@@ -318,6 +319,11 @@ def primitive_visual(primitive: str, hex_color: str,
     visual = {"mesh": mesh, "params": {"albedo": hex_color}}
     if mesh_prompt:
         visual["mesh_prompt"] = mesh_prompt
+    # When set, assetgen generates a style-aligned CONCEPT image first
+    # (hero-conditioned) and Tripo image_to_model's from it — far closer
+    # to the scene style than text-to-3D from mesh_prompt alone.
+    if mesh_reference_prompt:
+        visual["mesh_reference_prompt"] = mesh_reference_prompt
     return visual
 
 
@@ -445,6 +451,7 @@ def _class_specs(catalog: dict) -> dict:
                     "albedo": b.get("albedo", c["hex"]),
                     "asset_source": _resolve_asset_source(strat, b),
                     "mesh_prompt": b.get("mesh_prompt", strat.get("mesh_prompt")),
+                    "mesh_reference_prompt": b.get("mesh_reference_prompt", strat.get("mesh_reference_prompt")),
                 }
         else:
             canon = (list(strat["canonical_size_meters"])
@@ -460,6 +467,7 @@ def _class_specs(catalog: dict) -> dict:
                 "albedo": strat.get("albedo", c["hex"]),
                 "asset_source": _resolve_asset_source(strat, None),
                 "mesh_prompt": strat.get("mesh_prompt"),
+                "mesh_reference_prompt": strat.get("mesh_reference_prompt"),
             }
     return specs
 
@@ -900,6 +908,7 @@ def compose(
         # .glb (the kit mesh is the fallback until then). 2026-05-27.
         source = spec.get("asset_source", "kit")
         emit_prompt = spec.get("mesh_prompt") if source == "tripo" else None
+        emit_ref_prompt = spec.get("mesh_reference_prompt") if source == "tripo" else None
         if source == "tripo":
             # (2) kit-reuse check — don't pay for a Tripo gen when a fitting
             # kit already exists. Flag <class>_kit / the spec's own kit.
@@ -916,7 +925,8 @@ def compose(
             "state_init": state_init,
             "visual": primitive_visual(spec["primitive"], spec["albedo"],
                                        mesh_override=spec.get("mesh"),
-                                       mesh_prompt=emit_prompt),
+                                       mesh_prompt=emit_prompt,
+                                       mesh_reference_prompt=emit_ref_prompt),
         })
     (game_dir / "entities" / "auto_gen.json").write_text(
         json.dumps(defs_doc, indent=2)

@@ -79,6 +79,10 @@ class PromptItem:
     # When True, this prompt's output is an intermediate (concept ref)
     # — pipeline doesn't patch the entity def with its path.
     intermediate: bool = False
+    # Optional STYLE reference image (the scene's hero ref) fed to a
+    # concept gen so the concept — and the Tripo mesh derived from it —
+    # match the scene's art direction (image-to-image conditioning).
+    style_reference_path: Path | None = None
 
 
 def scan_prompts(
@@ -164,6 +168,7 @@ def scan_prompts(
                     source_file=f,
                     visual_key="",
                     intermediate=True,
+                    style_reference_path=cfg.style_reference_abs(game_dir),
                 ))
 
             if (only in (None, "mesh")) and visual.get("mesh_prompt"):
@@ -358,10 +363,17 @@ def run_pipeline(
                             f"(backend can't gen textures)"
                         )
                     continue
+                # Concept gen conditions on the scene's STYLE reference (the
+                # hero image) when present, so the concept — and the Tripo
+                # mesh derived from it — match the scene's art direction.
+                tex_kwargs = {"size": cfg.outputs.get("image_size", (512, 512))}
+                if (item.kind == "concept" and item.style_reference_path is not None
+                        and item.style_reference_path.exists()):
+                    tex_kwargs["reference_images"] = [item.style_reference_path]
                 backend.generate_texture(
                     item.assembled_prompt,
                     item.out_path,
-                    size=cfg.outputs.get("image_size", (512, 512)),
+                    **tex_kwargs,
                 )
             else:  # mesh
                 if not backend.supports_mesh():

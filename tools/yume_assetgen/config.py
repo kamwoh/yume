@@ -76,6 +76,16 @@ class AssetGenConfig:
     })
     patch_entities: bool = True
     skip_existing: bool = True
+    # Optional path (relative to the game dir) to a STYLE reference image
+    # fed to the concept step so generated concepts — and thus the Tripo
+    # meshes derived from them — match the scene's art direction. Defaults
+    # to the hero reference if present.
+    style_reference: str = ""
+
+    def style_reference_abs(self, game_dir: Path) -> Path | None:
+        rel = self.style_reference or "assets/reference/hero_reference.png"
+        p = game_dir / rel
+        return p if p.exists() else None
 
     def texture_dir_abs(self, game_dir: Path) -> Path:
         return game_dir / self.outputs.get("texture_dir", "assets/textures")
