@@ -310,6 +310,14 @@ def run_pipeline(
         if cfg.skip_existing and item.out_path.exists():
             rec["status"] = "skipped_existing"
             summary["skipped_existing"] += 1
+            # Re-patch the def to the existing output even though we skip the
+            # gen. An upstream re-run (e.g. compose_world re-emitting the kit
+            # FALLBACK + mesh_prompt for an asset_source:tripo class) resets
+            # visual.mesh — re-patching keeps it pointing at the generated
+            # .glb, so the asset pipeline is idempotent. 2026-05-27.
+            if cfg.patch_entities and not item.intermediate and _patch_entity_file(item):
+                rec["patched"] = True
+                summary["patched"] += 1
             summary["items"].append(rec)
             if verbose:
                 print(f"  [skip] {item.kind:7s} {item.entity_id:20s} (exists)")
@@ -324,6 +332,12 @@ def run_pipeline(
                 rec["status"] = "skipped_ledger"
                 rec["ledger_timestamp"] = hit.get("timestamp", "")
                 summary["skipped_ledger"] += 1
+                # Re-patch to the existing output if present (idempotent —
+                # same rationale as the skip_existing branch above).
+                if (cfg.patch_entities and not item.intermediate
+                        and item.out_path.exists() and _patch_entity_file(item)):
+                    rec["patched"] = True
+                    summary["patched"] += 1
                 summary["items"].append(rec)
                 if verbose:
                     ts = hit.get("timestamp", "?")

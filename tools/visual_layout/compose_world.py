@@ -301,15 +301,50 @@ _PRIM_MESH = {
 
 
 def primitive_visual(primitive: str, hex_color: str,
-                     mesh_override: str | None = None) -> dict:
+                     mesh_override: str | None = None,
+                     mesh_prompt: str | None = None) -> dict:
     """Yume visual block for a mesh + albedo. `mesh_override` (a kit
     mesh like 'house_kit') wins; else the unit primitive. The kit's
     body color param is named $albedo so the per-bucket color applies
     uniformly; the kit's other params (roof/door/window) keep defaults
     via visual.params deep-merge. Per-instance state.scale (or the
-    def's state_init.scale) gives real dimensions."""
+    def's state_init.scale) gives real dimensions.
+
+    `mesh_prompt` (asset_source:tripo) is emitted alongside so the
+    assetgen pipeline generates a .glb and patches `mesh` → its path;
+    until then the kit/primitive `mesh` here is the fallback. The engine
+    auto-normalizes the resulting static .glb into the fitted placement."""
     mesh = mesh_override or _PRIM_MESH.get(primitive, "prim_unit_box")
-    return {"mesh": mesh, "params": {"albedo": hex_color}}
+    visual = {"mesh": mesh, "params": {"albedo": hex_color}}
+    if mesh_prompt:
+        visual["mesh_prompt"] = mesh_prompt
+    return visual
+
+
+# --- asset-resolution tier policy (2026-05-27) ---------------------------
+
+def _kit_registry() -> set[str]:
+    """Set of kit names available in the shared meshes.json — the
+    'do we already have a kit?' registry for the reuse check (tier 0)."""
+    try:
+        meshes = json.loads((DATA_ROOT / "meshes.json").read_text())
+        return set(meshes.get("meshes", {}).keys())
+    except (OSError, json.JSONDecodeError):
+        return set()
+
+
+def _resolve_asset_source(strat: dict, bucket: dict | None) -> str:
+    """Tier decision for a class/bucket: 'kit' | 'procedural' | 'tripo'.
+    Explicit `asset_source` wins; else AUTO — 'tripo' if a mesh_prompt is
+    declared (no kit chosen), otherwise 'kit'."""
+    src = (bucket or {}).get("asset_source") or strat.get("asset_source")
+    if src in ("kit", "procedural", "tripo"):
+        return src
+    has_prompt = bool((bucket or {}).get("mesh_prompt") or strat.get("mesh_prompt"))
+    has_kit = bool((bucket or {}).get("mesh") or strat.get("mesh"))
+    if has_prompt and not has_kit:
+        return "tripo"
+    return "kit"
 
 
 # ============================================================
@@ -408,6 +443,8 @@ def _class_specs(catalog: dict) -> dict:
                     "mesh": b.get("mesh", strat.get("mesh")),
                     "canonical_scale": bcanon if use_canon else None,
                     "albedo": b.get("albedo", c["hex"]),
+                    "asset_source": _resolve_asset_source(strat, b),
+                    "mesh_prompt": b.get("mesh_prompt", strat.get("mesh_prompt")),
                 }
         else:
             canon = (list(strat["canonical_size_meters"])
@@ -421,6 +458,8 @@ def _class_specs(catalog: dict) -> dict:
                 "mesh": strat.get("mesh"),
                 "canonical_scale": canon,
                 "albedo": strat.get("albedo", c["hex"]),
+                "asset_source": _resolve_asset_source(strat, None),
+                "mesh_prompt": strat.get("mesh_prompt"),
             }
     return specs
 
@@ -847,6 +886,7 @@ def compose(
     # synthetic path_segment get their own def. No pick_primitive
     # heuristic, no monkey-patch (merged 2026-05-26).
     defs_doc = {"_comment": f"Auto-gen primitives for {game_name}.", "definitions": []}
+    kit_registry = _kit_registry()
     for name in sorted(grouped.keys()):
         if not grouped[name]:
             continue
@@ -855,13 +895,28 @@ def compose(
         canonical = spec["canonical_scale"]
         state_init = {"scale": [float(canonical[0]), float(canonical[1]),
                                 float(canonical[2])]} if canonical else {"scale": [1, 1, 1]}
+        # Asset-resolution tier: kit/procedural use the kit mesh as-is;
+        # tripo also emits mesh_prompt so the assetgen pipeline generates a
+        # .glb (the kit mesh is the fallback until then). 2026-05-27.
+        source = spec.get("asset_source", "kit")
+        emit_prompt = spec.get("mesh_prompt") if source == "tripo" else None
+        if source == "tripo":
+            # (2) kit-reuse check — don't pay for a Tripo gen when a fitting
+            # kit already exists. Flag <class>_kit / the spec's own kit.
+            candidates = [f"{name}_kit", spec.get("mesh") or ""]
+            existing = [k for k in candidates if k and k in kit_registry]
+            if existing:
+                print(f"[compose_world] [kit-reuse] class '{name}' is asset_source"
+                      f":tripo but kit(s) {existing} exist — set asset_source:kit "
+                      f"to reuse and skip the paid Tripo gen.")
         defs_doc["definitions"].append({
             "id": name,
             "tags": [name, "compose_world_gen"],
             "properties": {},
             "state_init": state_init,
             "visual": primitive_visual(spec["primitive"], spec["albedo"],
-                                       mesh_override=spec.get("mesh")),
+                                       mesh_override=spec.get("mesh"),
+                                       mesh_prompt=emit_prompt),
         })
     (game_dir / "entities" / "auto_gen.json").write_text(
         json.dumps(defs_doc, indent=2)

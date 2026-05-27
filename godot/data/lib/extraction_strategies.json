@@ -171,7 +171,9 @@
       ],
       "mesh": "bird_totem_kit",
       "albedo": "#8a8278",
-      "_comment": "Giant ancient stone bird totem — a focal landmark. FIT-TO-MASK footprint (X/Z fitted to the blob) with a GIANT fixed height (canonical[1]=16m) so it towers over the player + trees. min_elongation 2.0 keeps the roughly-round totem footprints unrotated. albedo override = weathered stone (#8a8278), NOT the magenta classification hex. 2026-05-27."
+      "asset_source": "tripo",
+      "mesh_prompt": "a giant ancient carved stone bird totem, a tall vertical monolith pillar with a stylized eagle head and a curved hooked beak carved at the very top, ancient tribal carved patterns and glyphs down the shaft, weathered mossy grey granite, a wide square stone base, one solid standing statue",
+      "_comment": "Giant ancient stone bird totem — a focal landmark. asset_source:tripo (complex hero asset → image-to-3D); bird_totem_kit is the code-drawn FALLBACK until the .glb is generated + the engine auto-normalizes it into the fitted placement. FIT-TO-MASK footprint with a GIANT fixed height (canonical[1]=16m). 2026-05-27."
     },
     "ruins": {
       "extraction_method": "instance_per_component",
@@ -189,7 +191,9 @@
       ],
       "mesh": "ruin_kit",
       "albedo": "#b8a888",
-      "_comment": "Broken ancient ruins (toppled columns, low walls) scattered across the hills. FIT-TO-MASK length/thickness via PCA, fixed low height (3m). albedo override = sandstone (#b8a888), NOT the amber classification hex. 2026-05-27."
+      "asset_source": "tripo",
+      "mesh_prompt": "ancient ruined stone monument, a cluster of broken weathered sandstone columns of varying heights with a crumbling low wall fragment and a fallen carved block at the base, moss and cracks, resting flat on the ground",
+      "_comment": "Broken ancient ruins. asset_source:tripo (complex → image-to-3D); ruin_kit is the FALLBACK until the .glb is generated. FIT-TO-MASK length/thickness via PCA, fixed low height (3m). albedo override = sandstone. 2026-05-27."
     },
     "fountain": {
       "extraction_method": "snap_to_anchor",
