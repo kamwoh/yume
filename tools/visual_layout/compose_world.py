@@ -10,7 +10,7 @@ map generator never decides you walk around in third person.
 The flow:
   1. inject strategies from data/lib/extraction_strategies.json
   2. detect anchors (plaza centroid, wall-ring corners)
-  3. dispatch extraction (lib_extract_v2) → object instances
+  3. dispatch extraction (lib_extract_dispatch) → object instances
   4. extract road graph (lib_extract_roads) → world/road_graph.json
      (roads RENDER as ground biomes / mask coverage; graph is metadata)
   5. validate + extraction↔render alignment check
@@ -44,7 +44,7 @@ DATA_ROOT = ROOT / "godot" / "data"
 sys.path.insert(0, str(ROOT))
 
 from tools.visual_layout import lib_extract as cv            # noqa: E402
-from tools.visual_layout import lib_extract_v2 as v2         # noqa: E402
+from tools.visual_layout import lib_extract_dispatch as dispatch  # noqa: E402
 from tools.visual_layout import lib_extract_roads as roads_mod  # noqa: E402
 from tools.visual_layout import lib_extract_validate as val  # noqa: E402
 from tools.visual_layout import scene_config as scfg          # noqa: E402
@@ -283,7 +283,7 @@ def derive_water_level(
     return float(round(float(np.percentile(y, percentile)), 3))
 
 
-# Heightmap sampling lives in lib_extract_v2.HeightmapSampler — used
+# Heightmap sampling lives in lib_extract_dispatch.HeightmapSampler — used
 # by dispatch_extraction (entity Y) + roads_to_instances (path Y). The
 # old local copy was removed in the 2026-05-26 merge; there is one
 # sampler implementation now.
@@ -369,10 +369,10 @@ def detect_anchors(catalog: dict, semantic_map_path: Path,
         comps = cv.connected_components(label_map == wall_idx, min_area=20)
         if comps:
             all_px = np.concatenate([c["pixels"] for c in comps], axis=0)
-            outline = v2._trace_outline(label_map == wall_idx, {"pixels": all_px})
+            outline = dispatch._trace_outline(label_map == wall_idx, {"pixels": all_px})
             if len(outline) >= 3:
                 tol = 1.0 * (0.5 * (W / world_size_m[0] + H / world_size_m[1]))
-                for cx, cy in v2._rdp(outline, tol):
+                for cx, cy in dispatch._rdp(outline, tol):
                     anchors["wall_ring_corners"].append(
                         tuple(cv.pixel_to_world(cx, cy, image_size, world_size_m)))
     return anchors
@@ -524,7 +524,7 @@ def compose(
     print(f"[compose_world] anchors: focal={anchors['focal_anchor']} "
           f"wall_ring_corners={len(anchors['wall_ring_corners'])}")
 
-    instances = v2.dispatch_extraction(
+    instances = dispatch.dispatch_extraction(
         catalog=catalog, semantic_map_path=semantic_map_path,
         heightmap_path=heightmap_path, world_size_m=world_size_m,
         height_scale=height_scale, height_offset=height_offset,

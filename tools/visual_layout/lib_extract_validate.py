@@ -1,7 +1,7 @@
 """lib_extract_validate.py — Post-extraction validation pass for
 stage-5 of the text-to-world pipeline (task #139).
 
-Reads the extracted.json output of lib_extract_v2.dispatch_extraction
+Reads the extracted.json output of lib_extract_dispatch.dispatch_extraction
 + the original class_catalog.json (with expected_count + intent_type
 per class) and produces a verdict:
 

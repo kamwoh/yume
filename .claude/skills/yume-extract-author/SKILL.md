@@ -17,7 +17,7 @@ the final `extracted.json` that drives the rest of the pipeline.
 > `tools/visual_layout/compose_world.py` reads
 > `data/lib/extraction_strategies.json` (per-class strategy: extraction
 > method, rotation rule, fit-to-mask, variant buckets, kit mesh, albedo
-> override) and dispatches via `lib_extract_v2.dispatch_extraction` —
+> override) and dispatches via `lib_extract_dispatch.dispatch_extraction` —
 > no per-scene script needed. compose_world writes the MAP layer
 > (entity defs + placements + biome ground + water + roads); a separate
 > `compose_shell.py` adds the presentation layer (camera/player/input/

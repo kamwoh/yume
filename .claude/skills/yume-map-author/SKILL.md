@@ -21,7 +21,7 @@ viewport. Deterministic surface lives at
 > SUPERSEDED for FULL-WORLD generation by
 > `tools/visual_layout/compose_world.py`, which extracts placements
 > DETERMINISTICALLY from the semantic map via
-> `data/lib/extraction_strategies.json` + `lib_extract_v2` (connected
+> `data/lib/extraction_strategies.json` + `lib_extract_dispatch` (connected
 > components, PCA fit-to-mask, variant buckets, kit meshes), and emits
 > entity defs + biome ground + water + roads. A separate
 > `compose_shell.py` adds camera/player/input/lighting. This skill

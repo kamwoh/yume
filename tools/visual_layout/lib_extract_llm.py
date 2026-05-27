@@ -15,7 +15,7 @@ Endpoint: OpenAI chat/completions with vision. Pure stdlib via
 urllib.request — no `openai` SDK dependency (mirrors the
 openai_images backend convention).
 
-Usage from lib_extract_v2.py's dispatcher:
+Usage from lib_extract_dispatch.py's dispatcher:
 
     from tools.visual_layout.lib_extract_llm import gestalt_extract
     instances = gestalt_extract(

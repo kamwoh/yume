@@ -1,4 +1,4 @@
-"""lib_extract_v2.py — Strategy-dispatched extraction for stage-5 of the
+"""lib_extract_dispatch.py — Strategy-dispatched extraction for stage-5 of the
 text-to-world pipeline. Sits on top of lib_extract.py's image-processing
 helpers.
 
@@ -296,7 +296,7 @@ def extract_class(
         if semantic_map_path is None:
             import sys
             print(
-                f"[lib_extract_v2] llm_gestalt needs semantic_map_path; "
+                f"[lib_extract_dispatch] llm_gestalt needs semantic_map_path; "
                 f"passing through dispatch_extraction. Skipping '{name}'.",
                 file=sys.stderr,
             )
