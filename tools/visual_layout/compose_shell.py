@@ -45,7 +45,7 @@ def _camera_block() -> dict:
         "distance_max": 18.0,
         "height": 3.0,
         "fov": 60.0,
-        "lerp": 0.12,
+        "lerp": 1.0,   # instant follow — snap to target each frame, no delay
     }
 
 
