@@ -280,6 +280,45 @@ def check_empty_effects(rule, errors):
         ))
 
 
+def check_effect_read_after_write(rule, errors):
+    """(2026-05-27) Order hazard: an effect whose `value` formula reads
+    `self.state.X` while ANOTHER state_set in the SAME effect list writes
+    field X. Effect-resolution order can evaluate the formula AFTER the
+    write, so it reads the just-written value, not the prior one.
+
+    Empirical: the free-cam toggle saved
+      previous_camera_mode = "self.state.camera_mode"
+    in the same list that set camera_mode = "free_cam". previous got
+    saved as "free_cam" → exit restored free_cam → stuck in free-cam.
+    Fix: save a LITERAL value, not a formula reading a co-written field.
+    """
+    rule_id = rule.get("id", "<unnamed>")
+    eff = rule.get("effect", None)
+    effects = eff if isinstance(eff, list) else ([eff] if isinstance(eff, dict) else [])
+    written = {str(e.get("field")) for e in effects
+              if isinstance(e, dict) and e.get("type") in (
+                  "state_set", "state_add", "state_mul") and "field" in e}
+    if not written:
+        return
+    for e in effects:
+        if not isinstance(e, dict):
+            continue
+        val = e.get("value")
+        if not (isinstance(val, str) and is_formula_str(val)):
+            continue
+        for f in written:
+            # match `<binding>.state.<f>` (self.state.f, actor.state.f, …)
+            if re.search(r"\.state\." + re.escape(f) + r"\b", val):
+                errors.append((
+                    rule_id, e.get("field", "?"),
+                    f"value formula '{val}' reads .state.{f} while another "
+                    f"effect in the same list writes '{f}' — order-dependent. "
+                    f"Use a literal value (the just-written value may be read "
+                    f"instead of the prior one). See free-cam toggle "
+                    f"post-mortem 2026-05-27.",
+                ))
+
+
 def check_require_bindings(rule, errors):
     """(7b — 2026-05-20) `require:` keys MUST match a binding the engine
     actually populates for this trigger type, OR a named sub-binding in
@@ -513,6 +552,7 @@ def validate_game(game_dir):
             check_require_bindings(rule, r_errors)
             check_2binding_non_contact(rule, r_errors)
             check_schema_field_landmines(rule, r_errors)
+            check_effect_read_after_write(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

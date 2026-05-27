@@ -176,45 +176,49 @@ def _cameras_def() -> dict:
 
 
 def _camera_rules() -> dict:
-    return {
-        "_comment": "Shell camera control. C toggles free_cam ↔ previous mode.",
-        "rules": [
-            {
-                "id": "freecam_enter",
-                "_comment": "C → save current camera_mode + enter free_cam. "
-                            "Engine has no _neq — list allowed source modes via _in.",
-                "trigger": {"type": "input", "action": "toggle_freecam"},
-                "query": {
-                    "tags_all": ["world_clock"],
-                    "state": {"camera_mode_in": [
-                        "isometric_3d", "top_down_3d",
-                        "third_person_3d", "first_person_3d", "top_down_2d"
-                    ]}
-                },
-                "effect": [
-                    {"type": "state_set", "target": "self",
-                     "field": "previous_camera_mode",
-                     "value": "self.state.camera_mode"},
-                    {"type": "state_set", "target": "self",
-                     "field": "camera_mode", "value": "free_cam"}
-                ]
-            },
-            {
-                "id": "freecam_exit",
-                "_comment": "C while in free_cam → restore saved camera_mode.",
-                "trigger": {"type": "input", "action": "toggle_freecam"},
-                "query": {
-                    "tags_all": ["world_clock"],
-                    "state": {"camera_mode_eq": "free_cam"}
-                },
-                "effect": [
-                    {"type": "state_set", "target": "self",
-                     "field": "camera_mode",
-                     "value": "self.state.previous_camera_mode"}
-                ]
-            }
+    # One ENTER rule per source camera_mode, each saving a LITERAL
+    # previous_camera_mode. Critical: do NOT use a formula
+    # `value: "self.state.camera_mode"` in the same effect list that
+    # also writes camera_mode=free_cam — effect-resolution order can
+    # evaluate the formula AFTER the camera_mode write, saving
+    # "free_cam" as previous → exit restores free_cam and you're stuck.
+    # (Empirical 2026-05-27. Aldenmere's working pattern = literals.)
+    enter_modes = ["third_person_3d", "first_person_3d",
+                   "isometric_3d", "top_down_3d"]
+    rules = []
+    for mode in enter_modes:
+        rules.append({
+            "id": f"freecam_enter_from_{mode}",
+            "trigger": {"type": "input", "action": "toggle_freecam"},
+            "query": {"tags_all": ["world_clock"],
+                      "state": {"camera_mode_eq": mode}},
+            "effect": [
+                {"type": "state_set", "target": "self",
+                 "field": "previous_camera_mode", "value": mode},
+                {"type": "state_set", "target": "self",
+                 "field": "camera_mode", "value": "free_cam"},
+                # Zero the player velocity on entry — the WASD rules'
+                # camera_mode filter excludes free_cam so they stop
+                # firing, but last frame's velocity would persist and
+                # drift the player while the camera flies.
+                {"type": "velocity_set", "target": "actor", "x": 0, "y": 0},
+            ]
+        })
+    rules.append({
+        "id": "freecam_exit",
+        "_comment": "C while in free_cam → restore saved camera_mode "
+                    "(formula reads the literal saved earlier).",
+        "trigger": {"type": "input", "action": "toggle_freecam"},
+        "query": {"tags_all": ["world_clock"],
+                  "state": {"camera_mode_eq": "free_cam"}},
+        "effect": [
+            {"type": "state_set", "target": "self",
+             "field": "camera_mode",
+             "value": "self.state.previous_camera_mode"}
         ]
-    }
+    })
+    return {"_comment": "Shell camera control. C toggles free_cam ↔ "
+                        "previous mode.", "rules": rules}
 
 
 def _movement_rules() -> dict:
