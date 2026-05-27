@@ -717,12 +717,14 @@ def compose(
             shader_params["grass_detail"] = "res://data/lib/textures/grass_detail.png"
         scene["ground"]["mesh"]["shader_params"] = shader_params
 
-        # Real grass blades (MultiMesh, GrassRenderer) — opt-in, only when a
-        # grass biome exists. Scattered on the grass region + heightmap, one
-        # draw call, vertex-sway wind. count/radius are the perf knobs.
+        # Real grass blades (MultiMesh, GrassRenderer) — OPT-IN, default OFF.
+        # The painterly pass (slope/height shading + SSAO) carries the
+        # hero-reference look without blades, so the field stays smooth.
+        # Flip enabled:true (here or in scene_config) to add protruding
+        # blades back. count/radius are the perf knobs when enabled.
         if shader_params["grass_biome_index"] >= 0:
             scene["ground"]["grass_blades"] = {
-                "enabled": True,
+                "enabled": False,
                 "count": 60000,
                 "radius": round(world_w * 0.45, 1),
                 "blade_w": 0.085,
