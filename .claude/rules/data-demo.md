@@ -5,6 +5,41 @@ globs: godot/data/**
 
 # Demo data — schema discipline
 
+## ⚠ CRITICAL: backups belong in `<game>/_snapshots/`, NEVER in engine-globbed dirs
+
+`world_loader.gd` loads entity defs by GLOBBING `<root>/entities/*.json`
+(plus `<root>/entities.json`) and MERGING every definition into one
+dict. Same trap applies to `world/rules/*.json`. If a def id (or rule
+id) appears in two globbed files, the alphabetically-LAST file SILENTLY
+WINS — no error, just the wrong mesh/color/behavior.
+
+So a backup snapshot saved next to the live file inside a globbed dir
+gets loaded and clobbers the live def. The "always rename, never
+delete" principle is right — but the renamed copy must live OUTSIDE
+the globbed path. Put it in `<game>/_snapshots/` (the engine never
+scans it).
+
+❌ **WRONG**: `entities/auto_gen.preBuckets.json` — globbed, shadows
+the live `auto_gen.json`.
+✅ **RIGHT**: `_snapshots/auto_gen.preBuckets.json` — preserved, not
+loaded.
+
+Note `scene.json` and level `entities.json` are read by EXACT NAME,
+so `scene.preHilly.json` / `entities.preRoads.json` siblings aren't
+loaded — but keep them in `_snapshots/` too for consistency + to keep
+the loaded dir clean.
+
+**Empirical case 2026-05-27**: a manual `entities/auto_gen.preBuckets.json`
+backup re-declared `fountain`/`townhall`/`wall_segment`/`bridge` with
+the OLD `prim_unit_*` meshes + raw semantic-classification hex
+(#e040a0). Sorted after `auto_gen.json`, it won the merge → the
+fountain rendered as a bare magenta sphere instead of fountain_kit.
+Fix: relocated all snapshots to `_snapshots/`.
+
+**Gate**: `tools/validators/validate_duplicate_defs.py` (wired into the
+validator bank) flags any def id declared in 2+ files within a globbed
+entities set. Catches this bug class at sync time.
+
 Demos live as JSON folders under `data/`. They are **content**, not code —
 no GDScript files belong here.
 

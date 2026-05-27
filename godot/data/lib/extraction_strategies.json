@@ -56,36 +56,36 @@
           "max_area_px": 1500,
           "canonical_size_meters": [
             2.4,
-            6.0,
+            3.5,
             2.4
           ],
           "albedo": "#a04020",
-          "mesh": "house_kit"
+          "mesh": "house_1f"
         },
         {
           "def": "medium_house",
           "max_area_px": 3000,
           "canonical_size_meters": [
             3.4,
-            8.0,
+            6.5,
             3.4
           ],
           "albedo": "#b85030",
-          "mesh": "house_kit"
+          "mesh": "house_2f"
         },
         {
           "def": "large_house",
           "max_area_px": 999999,
           "canonical_size_meters": [
             4.6,
-            11.0,
+            9.5,
             4.6
           ],
           "albedo": "#c86040",
-          "mesh": "house_kit"
+          "mesh": "house_3f"
         }
       ],
-      "_comment": "FIT-TO-MASK: each house box's footprint (X x Z) + yaw are fitted to its detected tile's PCA bbox, so houses match the semantic-map shapes (no canonical over/undersizing). The bucket (by area) still picks the ALBEDO tier + the HEIGHT (canonical_size_meters[1] = 3/4/5m). use_canonical_scale:false \u2192 per-instance fitted scale. Long-term: each bucket's visual.mesh swaps to a kit-composed recipe, footprint still fitted."
+      "_comment": "FIT-TO-MASK + FLOOR TIERS (2026-05-27): each house box's footprint (X x Z) + yaw are fitted to its detected tile's PCA bbox; the bucket (by area) picks the ALBEDO tier, the HEIGHT, AND the floor-tiered kit. small=1 floor (house_1f, ~3.5m), medium=2 floors (house_2f, ~6.5m), large=3 floors (house_3f, ~9.5m). Heights were cut from 6/8/11 to 3.5/6.5/9.5 so a fitted ~2m footprint no longer reads as a thin tower; each kit shows 1/2/3 window rows + floor-divider trim so the storey count is legible. use_canonical_scale:false \u2192 per-instance fitted footprint, bucket height."
     },
     "townhall": {
       "extraction_method": "cluster_extract",
@@ -97,10 +97,12 @@
       "primitive": "prim_unit_box",
       "canonical_size_meters": [
         6.0,
-        7.0,
+        9.5,
         6.0
       ],
-      "canonical_front_axis": "-Z"
+      "canonical_front_axis": "-Z",
+      "mesh": "townhall_kit",
+      "albedo": "#b03828"
     },
     "wall_segment": {
       "extraction_method": "instance_per_component",
@@ -116,7 +118,8 @@
         1.5
       ],
       "canonical_front_axis": "+X",
-      "_comment": "FIT-TO-MASK: each wall segment's LENGTH + thickness are fitted to its detected tile (PCA), height from canonical_size_meters[1]=3m. Canonical (fixed-length) walls broke the ring once the world size derived larger than the tuned 11m \u2014 fitted length spans the tile at ANY world scale, so the ring always closes. 2026-05-27."
+      "mesh": "wall_kit",
+      "_comment": "FIT-TO-MASK: each wall segment's LENGTH + thickness are fitted to its detected tile (PCA), height from canonical_size_meters[1]=3m. Canonical (fixed-length) walls broke the ring once the world size derived larger than the tuned 11m \u2014 fitted length spans the tile at ANY world scale, so the ring always closes. wall_kit adds a cap + crenellation merlons. 2026-05-27."
     },
     "tower": {
       "extraction_method": "instance_per_component",
@@ -149,7 +152,8 @@
         6.0
       ],
       "canonical_front_axis": "+X",
-      "_comment": "PCA-oriented across the river. Each bridge component is one bridge; require_adjacent filters out same-color components not touching water."
+      "mesh": "bridge_kit",
+      "_comment": "PCA-oriented across the river. Each bridge component is one bridge; require_adjacent filters out same-color components not touching water. bridge_kit adds side railings + end abutments to the deck."
     },
     "fountain": {
       "extraction_method": "snap_to_anchor",

@@ -1,16 +1,56 @@
 {
   "_comment": "3D mesh library (W5.0b). Composes engine MESH PRIMITIVES (box, sphere, cylinder, capsule, plane, prism, torus, quad \u2014 Godot's PrimitiveMesh classes). Each entry is a list of primitives with positions + sizes + $param substitution. Same authoring shape as shapes.json.",
   "meshes": {
-    "house_kit": {
-      "_comment": "Kit-of-parts house (2026-05-27): box body + prism roof + door + 2 windows. UNIT space (y 0..1); state.scale=[W,H,D] sizes per instance. $albedo = body/wall color (set per instance by compose_world); roof/door/window keep their defaults. Later: swap these primitive parts for Tripo3D part-meshes, same recipe.",
+    "house_1f": {
+      "_comment": "Kit-of-parts 1-floor cottage (2026-05-27): box body + gable roof + door + 1 window row (front + sides) + chimney. UNIT space (y 0..1); state.scale=[W,H,D]. Paired with the small_house bucket (height ~3.5m) so a fitted ~2m footprint reads as a cottage, NOT a thin tower. $albedo set per instance; roof/door/window/chimney keep defaults.",
       "primitives": [
-        {"op": "box",   "pos": [0, 0.35, 0],     "size": [1.0, 0.7, 1.0],   "color": "$albedo"},
-        {"op": "prism", "pos": [0, 0.84, 0],     "size": [1.08, 0.32, 1.08], "color": "$roof"},
-        {"op": "box",   "pos": [0, 0.13, -0.5],  "size": [0.24, 0.26, 0.06], "color": "$door"},
-        {"op": "box",   "pos": [-0.26, 0.40, -0.5], "size": [0.12, 0.13, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [0.26, 0.40, -0.5],  "size": [0.12, 0.13, 0.04], "color": "$window"}
+        {"op": "box",   "pos": [0, 0.37, 0],      "size": [1.0, 0.74, 1.0],   "color": "$albedo"},
+        {"op": "prism", "pos": [0, 0.86, 0],      "size": [1.12, 0.30, 1.12], "color": "$roof"},
+        {"op": "box",   "pos": [0, 0.14, -0.5],   "size": [0.22, 0.28, 0.05], "color": "$door"},
+        {"op": "box",   "pos": [-0.27, 0.45, -0.5], "size": [0.13, 0.15, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [0.27, 0.45, -0.5],  "size": [0.13, 0.15, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [-0.5, 0.45, 0.0],   "size": [0.04, 0.15, 0.13], "color": "$window"},
+        {"op": "box",   "pos": [0.5, 0.45, 0.0],    "size": [0.04, 0.15, 0.13], "color": "$window"},
+        {"op": "box",   "pos": [0.3, 0.98, 0.18],   "size": [0.1, 0.26, 0.1],   "color": "$chimney"}
       ],
-      "params": {"albedo": "#a04020", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0"}
+      "params": {"albedo": "#a04020", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0", "chimney": "#4a4038"}
+    },
+    "house_2f": {
+      "_comment": "Kit-of-parts 2-floor house: body + gable roof + door + 2 window ROWS + mid trim band (floor divider) + chimney. The two window rows + the divider band make it READ as two storeys at any fitted footprint. Paired with the medium_house bucket (height ~6.5m).",
+      "primitives": [
+        {"op": "box",   "pos": [0, 0.40, 0],      "size": [1.0, 0.80, 1.0],    "color": "$albedo"},
+        {"op": "prism", "pos": [0, 0.88, 0],      "size": [1.12, 0.26, 1.12],  "color": "$roof"},
+        {"op": "box",   "pos": [0, 0.10, -0.5],   "size": [0.20, 0.20, 0.05],  "color": "$door"},
+        {"op": "box",   "pos": [0, 0.45, 0],      "size": [1.03, 0.035, 1.03], "color": "$trim"},
+        {"op": "box",   "pos": [-0.27, 0.25, -0.5], "size": [0.12, 0.13, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [0.27, 0.25, -0.5],  "size": [0.12, 0.13, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [-0.27, 0.62, -0.5], "size": [0.12, 0.13, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [0.27, 0.62, -0.5],  "size": [0.12, 0.13, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [-0.5, 0.25, 0.0],   "size": [0.04, 0.13, 0.12], "color": "$window"},
+        {"op": "box",   "pos": [0.5, 0.62, 0.0],    "size": [0.04, 0.13, 0.12], "color": "$window"},
+        {"op": "box",   "pos": [0.3, 1.0, 0.18],    "size": [0.1, 0.24, 0.1],   "color": "$chimney"}
+      ],
+      "params": {"albedo": "#b85030", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0", "trim": "#5a4836", "chimney": "#4a4038"}
+    },
+    "house_3f": {
+      "_comment": "Kit-of-parts 3-floor townhouse: body + gable roof + door + 3 window ROWS + 2 trim bands + chimney. Paired with the large_house bucket (height ~9.5m) — the tallest tier still reads as a 3-storey building, not a featureless tower, because of the three window rows + two floor dividers.",
+      "primitives": [
+        {"op": "box",   "pos": [0, 0.42, 0],      "size": [1.0, 0.84, 1.0],   "color": "$albedo"},
+        {"op": "prism", "pos": [0, 0.90, 0],      "size": [1.12, 0.22, 1.12], "color": "$roof"},
+        {"op": "box",   "pos": [0, 0.08, -0.5],   "size": [0.18, 0.16, 0.05], "color": "$door"},
+        {"op": "box",   "pos": [0, 0.34, 0],      "size": [1.03, 0.03, 1.03], "color": "$trim"},
+        {"op": "box",   "pos": [0, 0.62, 0],      "size": [1.03, 0.03, 1.03], "color": "$trim"},
+        {"op": "box",   "pos": [-0.26, 0.20, -0.5], "size": [0.11, 0.11, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [0.26, 0.20, -0.5],  "size": [0.11, 0.11, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [-0.26, 0.48, -0.5], "size": [0.11, 0.11, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [0.26, 0.48, -0.5],  "size": [0.11, 0.11, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [-0.26, 0.74, -0.5], "size": [0.11, 0.11, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [0.26, 0.74, -0.5],  "size": [0.11, 0.11, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [-0.5, 0.48, 0.0],   "size": [0.04, 0.11, 0.11], "color": "$window"},
+        {"op": "box",   "pos": [0.5, 0.48, 0.0],    "size": [0.04, 0.11, 0.11], "color": "$window"},
+        {"op": "box",   "pos": [0.3, 1.0, 0.18],    "size": [0.1, 0.22, 0.1],   "color": "$chimney"}
+      ],
+      "params": {"albedo": "#c86040", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0", "trim": "#5a4836", "chimney": "#4a4038"}
     },
     "tower_kit": {
       "_comment": "Kit-of-parts tower: cylinder shaft + prism (peaked) roof. UNIT space; state.scale=[D,H,D]. $albedo = stone shaft.",
@@ -28,6 +68,48 @@
         {"op": "sphere",   "pos": [0, 0.72, 0], "radius": 0.18,                "color": "$water"}
       ],
       "params": {"albedo": "#9aa0a8", "water": "#5ba0d0"}
+    },
+    "townhall_kit": {
+      "_comment": "Kit-of-parts civic hall (2026-05-27): wide base + set-back upper storey + gable roof + 4 front columns + grand door + upper window row + roof finial. UNIT space; state.scale=[W,H,D]. Grander silhouette than houses (two-tier + columns + finial) so it reads as the town's focal building.",
+      "primitives": [
+        {"op": "box",      "pos": [0, 0.22, 0],     "size": [1.0, 0.44, 1.0],   "color": "$albedo"},
+        {"op": "box",      "pos": [0, 0.55, 0],     "size": [0.82, 0.30, 0.82], "color": "$albedo"},
+        {"op": "prism",    "pos": [0, 0.80, 0],     "size": [0.94, 0.26, 0.94], "color": "$roof"},
+        {"op": "box",      "pos": [0, 0.13, -0.5],  "size": [0.28, 0.26, 0.05], "color": "$door"},
+        {"op": "cylinder", "pos": [-0.36, 0.22, -0.5], "radius": 0.05, "height": 0.44, "color": "$trim"},
+        {"op": "cylinder", "pos": [-0.12, 0.22, -0.5], "radius": 0.05, "height": 0.44, "color": "$trim"},
+        {"op": "cylinder", "pos": [0.12, 0.22, -0.5],  "radius": 0.05, "height": 0.44, "color": "$trim"},
+        {"op": "cylinder", "pos": [0.36, 0.22, -0.5],  "radius": 0.05, "height": 0.44, "color": "$trim"},
+        {"op": "box",      "pos": [-0.25, 0.55, -0.41], "size": [0.12, 0.14, 0.04], "color": "$window"},
+        {"op": "box",      "pos": [0.25, 0.55, -0.41],  "size": [0.12, 0.14, 0.04], "color": "$window"},
+        {"op": "cylinder", "pos": [0, 0.96, 0],     "radius": 0.05, "height": 0.16, "color": "$trim"},
+        {"op": "sphere",   "pos": [0, 1.07, 0],     "radius": 0.06,                "color": "$window"}
+      ],
+      "params": {"albedo": "#b03828", "roof": "#5a2e26", "door": "#2a1810", "window": "#d8c060", "trim": "#d8d2c4"}
+    },
+    "bridge_kit": {
+      "_comment": "Kit-of-parts bridge: flat deck + two side railings running the span + two end abutments. UNIT space; state.scale=[W,H,D] where D is the span across the river (the longest axis from PCA). $albedo = timber deck.",
+      "primitives": [
+        {"op": "box", "pos": [0, 0.55, 0],     "size": [1.0, 0.18, 1.0],  "color": "$albedo"},
+        {"op": "box", "pos": [-0.46, 0.72, 0], "size": [0.06, 0.22, 1.0], "color": "$trim"},
+        {"op": "box", "pos": [0.46, 0.72, 0],  "size": [0.06, 0.22, 1.0], "color": "$trim"},
+        {"op": "box", "pos": [0, 0.25, -0.42], "size": [0.9, 0.5, 0.12],  "color": "$albedo"},
+        {"op": "box", "pos": [0, 0.25, 0.42],  "size": [0.9, 0.5, 0.12],  "color": "$albedo"}
+      ],
+      "params": {"albedo": "#8a7048", "trim": "#6a5436"}
+    },
+    "wall_kit": {
+      "_comment": "Kit-of-parts curtain wall: stone body + slightly-overhanging cap + 5 crenellation merlons along the top. UNIT space; state.scale=[length,H,thickness] (length fitted per segment). Merlons run along unit-X so they stretch with the fitted length (wider merlons on longer walls — acceptable). $albedo = stone.",
+      "primitives": [
+        {"op": "box", "pos": [0, 0.4, 0],    "size": [1.0, 0.80, 1.0],  "color": "$albedo"},
+        {"op": "box", "pos": [0, 0.82, 0],   "size": [1.02, 0.06, 1.12], "color": "$trim"},
+        {"op": "box", "pos": [-0.4, 0.92, 0], "size": [0.09, 0.16, 1.04], "color": "$albedo"},
+        {"op": "box", "pos": [-0.2, 0.92, 0], "size": [0.09, 0.16, 1.04], "color": "$albedo"},
+        {"op": "box", "pos": [0.0, 0.92, 0],  "size": [0.09, 0.16, 1.04], "color": "$albedo"},
+        {"op": "box", "pos": [0.2, 0.92, 0],  "size": [0.09, 0.16, 1.04], "color": "$albedo"},
+        {"op": "box", "pos": [0.4, 0.92, 0],  "size": [0.09, 0.16, 1.04], "color": "$albedo"}
+      ],
+      "params": {"albedo": "#9a9080", "trim": "#7a7166"}
     },
     "tree": {
       "primitives": [
