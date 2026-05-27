@@ -644,13 +644,53 @@ def compose(
             "ortho_size": world_w * 0.7,   # 56m visible — fits an 80m world
         },
         "lighting": {
+            # Sun is DAY/NIGHT-cycle driven (LightingDirector). Bound to
+            # world_clock.current_hour, which we pin to mid-afternoon
+            # (15h) for a low, angled sun → long readable shadows. Noon
+            # (no bind) would be straight overhead = flat/shadowless.
             "directional_light": {
-                "direction": [0.4, -1.0, 0.3],
-                "color": "#fff0d0",
-                "energy": 1.2,
+                "enabled": True,
+                "shadow_enabled": True,
+                "binds_to": "world_clock.current_hour",
+                "color_at_noon": "#fff2d8",
+                "color_at_dawn_dusk": "#ffb070",
+                "color_at_night": "#2a3260",
+                "energy_noon": 1.15,
+                "energy_horizon": 0.85,
+                "energy_night": 0.05,
             },
-            "ambient": {"color": "#a0b0c0", "energy": 0.4},
-            "sky": {"top_color": "#88aadd", "bottom_color": "#dde0e8"},
+            "ambient": {"color": "#aebccf", "energy": 0.35},
+            # Procedural cloudy sky (lib shader) for depth + a real horizon.
+            "sky": {
+                "shader": "res://data/lib/shaders/sky_clouds.gdshader",
+                "shader_params": {
+                    "sky_top_color": [0.30, 0.52, 0.82],
+                    "sky_horizon_color": [0.72, 0.82, 0.90],
+                    "cloud_color": [0.96, 0.96, 0.93],
+                    "cloud_coverage": 0.40,
+                    "cloud_softness": 0.45,
+                    "cloud_speed": 0.008,
+                    "cloud_scale": 6.0,
+                },
+            },
+            # Atmospheric distance fade + aerial perspective so the far
+            # side of a big town reads as depth, not a hard edge.
+            "fog": {
+                "enabled": True,
+                "light_color": "#cdd8e2",
+                "light_energy": 1.0,
+                "density": 0.0035,
+                "sun_scatter": 0.2,
+                "aerial_perspective": 0.5,
+            },
+            # Gentle color grade — lift contrast + saturation so the
+            # tuned biome palette pops instead of reading muddy.
+            "adjustments": {
+                "enabled": True,
+                "contrast": 1.14,
+                "saturation": 1.22,
+                "brightness": 0.98,
+            },
         }
     }
     # Wire the multi-biome ground shader (ADR-style splatmap). The
@@ -801,6 +841,10 @@ def compose(
                     "previous_camera_mode": "isometric_3d",
                     "active_camera_id": "camera_oblique",
                     "current_level": "level_default",
+                    # Mid-afternoon: the sun (bound to this in scene.json
+                    # lighting) sits low → long angled shadows. Static
+                    # (no day/night rule increments it).
+                    "current_hour": 15.0,
                 },
                 "visual": {"hidden": True}
             }
@@ -822,7 +866,11 @@ def compose(
                 "state_init": {
                     "position": [0, 30, 30],
                     "yaw": 0.0,
-                    "pitch": -0.6
+                    "pitch": -0.6,
+                    # Narrower than Godot's default 75° — ~60° reads as a
+                    # more natural human perspective (less wide-angle
+                    # "everything looks small/far" distortion).
+                    "fov": 60.0
                 },
                 "visual": {"hidden": True}
             }

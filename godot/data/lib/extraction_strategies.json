@@ -71,12 +71,12 @@
       "min_area_px": 100,
       "pca_oriented": true,
       "min_elongation_for_pca": 1.4,
-      "use_canonical_scale": true,
+      "use_canonical_scale": false,
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_box",
       "canonical_size_meters": [11.0, 3.0, 1.5],
       "canonical_front_axis": "+X",
-      "_comment": "ONE shared canonical wall. The def carries state_init.scale = canonical_size_meters; each instance only overrides position + facing. CV still detects components + PCA rotation, but does NOT emit per-instance scale (use_canonical_scale: true). Result: every wall_segment is the same length/height/thickness, rotated to align with its detected tile."
+      "_comment": "FIT-TO-MASK: each wall segment's LENGTH + thickness are fitted to its detected tile (PCA), height from canonical_size_meters[1]=3m. Canonical (fixed-length) walls broke the ring once the world size derived larger than the tuned 11m — fitted length spans the tile at ANY world scale, so the ring always closes. 2026-05-27."
     },
     "tower": {
       "extraction_method": "instance_per_component",
