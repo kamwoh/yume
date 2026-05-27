@@ -71,3 +71,11 @@ tools/visual_qa/plans/
 
 # ADR 0058: compiled shaders from tools/yume_shadergen — regenerate from scene.json shader_template + template
 godot/data/demo_*/assets/shaders/
+
+# Generated/AI assets — NEVER commit (binary bloat + paid Tripo/gen artifacts).
+# Regenerate via the asset pipeline (tools/yume_assetgen + compose_*).
+# Per-game demo_*/ is already ignored above; these cover the shared lib +
+# any other generated texture/mesh/concept output.
+godot/data/lib/textures/
+godot/data/**/assets/concepts/
+*.glb.import
