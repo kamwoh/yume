@@ -726,7 +726,7 @@ def compose(
                 "count": 60000,
                 "radius": round(world_w * 0.45, 1),
                 "blade_w": 0.085,
-                "blade_h": 0.32,
+                "blade_h": 0.24,
                 "scale_jitter": 0.35,
                 "seed": 7,
             }

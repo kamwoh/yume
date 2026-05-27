@@ -69,7 +69,15 @@ uniform float wind_gust_freq = 0.08;                       // gust-band spacing
 uniform float wind_gust_strength : hint_range(0.0, 0.3) = 0.11;
 uniform float wind_flow = 0.035;                           // detail-UV drift
 
+// Painterly grass shading — sunlit crowns brighter + warmer, dips/creases
+// darker + cooler (the hero-reference "velvet lawn" look comes from this
+// form-shading, not from blades).
+uniform float crown_lift : hint_range(0.0, 0.4) = 0.16;    // hilltop brighten
+uniform float crease_darken : hint_range(0.0, 0.5) = 0.22; // slope/dip darken
+uniform vec3 crown_warm : source_color = vec3(1.08, 1.04, 0.84);
+
 varying vec3 v_world_pos;
+varying vec3 v_world_normal;
 
 float hash21(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -108,6 +116,10 @@ void vertex() {
     NORMAL = normalize(cross(sz, sx));
 
     v_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+    // The ground plane is axis-aligned + unrotated, so the analytic NORMAL
+    // is already world-space. Pass it for slope-based fragment shading
+    // (fragment NORMAL is VIEW-space and can't tell us world-up).
+    v_world_normal = NORMAL;
 }
 
 void fragment() {
@@ -149,6 +161,20 @@ void fragment() {
     // Subtle per-position variation so flat biomes don't read as paint.
     float n = vnoise(v_world_pos.xz * 1.5);
     albedo *= (1.0 - noise_amount * 0.5 + noise_amount * n);
+
+    // Painterly form-shading on grass: sunlit crowns lift + warm, dips and
+    // slopes darken. This (not blades) is where the hero reference's lush
+    // 3D grass feel comes from. height01 ≈ where this point sits in the
+    // terrain's displacement range; up01 = how flat/up-facing it is.
+    if (grass_biome_index >= 0 && grass_w > 0.001) {
+        float height01 = clamp(0.5 + v_world_pos.y / (height_scale + 0.001), 0.0, 1.0);
+        float up01 = clamp(v_world_normal.y, 0.0, 1.0);
+        // Crowns (high + flat) brighten toward warm; dips/steep darken.
+        albedo *= mix(1.0, 1.0 + crown_lift, height01 * up01 * grass_w);
+        albedo = mix(albedo, albedo * crown_warm, height01 * up01 * grass_w);
+        albedo *= mix(1.0, 1.0 - crease_darken, (1.0 - height01) * grass_w);
+        albedo *= mix(1.0, 1.0 - crease_darken * 0.7, (1.0 - up01) * grass_w);
+    }
 
     // Grass detail + wind — only where grass is weighted (free elsewhere).
     if (grass_biome_index >= 0 && grass_w > 0.001) {

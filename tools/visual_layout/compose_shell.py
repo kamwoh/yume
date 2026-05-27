@@ -101,6 +101,14 @@ def _lighting_block() -> dict:
             "saturation": 1.34,
             "brightness": 1.0,
         },
+        # SSAO — soft contact shadows in terrain creases + where objects
+        # meet the ground. This is most of the hero reference's "velvet
+        # lawn" 3D form (the grass looks sculpted because of AO, not blades).
+        "ssao": {
+            "enabled": True,
+            "radius": 2.5,
+            "intensity": 2.5,
+        },
     }
 
 
