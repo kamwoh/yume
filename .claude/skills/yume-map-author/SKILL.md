@@ -15,6 +15,21 @@ pattern; the surface this time is a 2D spatial world, not a 16:9
 viewport. Deterministic surface lives at
 `tools/visual_layout/wireframe_to_map.py`.
 
+> **⚠ CURRENT PIPELINE (2026-05-27).** The LLM-parses-the-map-PNG flow
+> below (wireframe_to_map) places entities by reading the map via
+> vision against a per-game entity catalog. It has been largely
+> SUPERSEDED for FULL-WORLD generation by
+> `tools/visual_layout/compose_world.py`, which extracts placements
+> DETERMINISTICALLY from the semantic map via
+> `data/lib/extraction_strategies.json` + `lib_extract_v2` (connected
+> components, PCA fit-to-mask, variant buckets, kit meshes), and emits
+> entity defs + biome ground + water + roads. A separate
+> `compose_shell.py` adds camera/player/input/lighting. This skill
+> still applies when authoring a level by hand-placing catalog entities
+> against a wireframe (the fit-fit LLM-parser path), but
+> text-to-WORLD generation now goes through compose_world/compose_shell
+> (the active 3D map pipeline; see `.claude/rules/pipeline-stability.md`).
+
 ## Why this skill exists
 
 The earlier `compose_map.py` chain used opencv k-means + skimage

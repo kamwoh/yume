@@ -614,6 +614,71 @@ Required for fish, characters, vehicles — anything that visually has
 "front" and "back". Renderer mirrors `scale.x` based on velocity.x sign.
 Convention: art is drawn facing right; flip happens when moving west.
 
+### Strategy C2: Kit-of-parts composite meshes (3D buildings, 2026-05-27)
+
+A `data/meshes.json` entry can compose MANY primitives into one
+recognizable object — a "kit". Each primitive is
+`{op, pos, size|radius|height, color}` in UNIT space (y 0..1);
+`state.scale = [W, H, D]` sizes the whole kit per instance. `color`
+may be a literal hex OR a `$param` token resolved from the entry's
+`params` block (or overridden per-instance by `visual.params`).
+
+```jsonc
+"house_2f": {
+  "primitives": [
+    {"op": "box",   "pos": [0, 0.40, 0],  "size": [1.0, 0.80, 1.0],  "color": "$albedo"},
+    {"op": "prism", "pos": [0, 0.88, 0],  "size": [1.12, 0.26, 1.12], "color": "$roof"},
+    {"op": "box",   "pos": [0, 0.45, 0],  "size": [1.03, 0.035, 1.03], "color": "$trim"},
+    {"op": "box",   "pos": [-0.27, 0.25, -0.5], "size": [0.12, 0.13, 0.04], "color": "$window"}
+    // ...door, more window rows, chimney
+  ],
+  "params": {"albedo": "#b85030", "roof": "#6e3b2e", "door": "#2c1c12",
+             "window": "#7da8c0", "trim": "#5a4836", "chimney": "#4a4038"}
+}
+```
+
+ops available: `box`, `sphere`, `cylinder`, `prism`, `capsule`,
+`plane`, `quad`, `torus`. The map pipeline (compose_world) routes a
+class/bucket to a kit via the strategy's `mesh` field.
+
+**Buildings must READ as buildings, not extruded boxes. Two rules:**
+
+1. **Proportional height — never ship thin towers.** A fitted
+   footprint of ~2m with a 6-11m height reads as a tower, not a
+   house. Tie height to floor count: 1 floor ≈ 3.5m, 2 ≈ 6.5m,
+   3 ≈ 9.5m. For map-extracted buildings, the area-bucket picks the
+   floor tier (small=1f, medium=2f, large=3f) AND the matching kit.
+
+2. **Make the storey count legible.** A 3-floor box with one window
+   doesn't read as 3 floors. Give each kit a window ROW per storey
+   plus a floor-divider trim band between rows (see `house_1f` /
+   `house_2f` / `house_3f` in meshes.json). The rows + dividers make
+   the floor count obvious at any fitted footprint.
+
+**`$albedo` is the per-instance body color; everything else is a kit
+default.** `primitive_visual` in compose_world overrides ONLY the
+`albedo` param with the instance's color. Roof/door/window/trim keep
+the kit's authored defaults — so author those to look good as a
+family.
+
+**Building color comes from a DESIGNED albedo, NOT the semantic-map
+classification hex.** The catalog hex (e.g. townhall `#c02040`) is a
+MAP CLASSIFICATION color picked for color-separation in the semantic
+map — it is not a display color and often reads wrong (that crimson
+renders as pink). Set the strategy's `albedo` field to a designed
+building color (`#b03828` brick-red) so the kit body uses it instead
+of the raw classification hex. See [[feedback-prompt-game-perspective]]
+and `extraction_strategies.json` — fountain/townhall both override
+`albedo` this way. Empirical case 2026-05-27: townhall shipped pink
+because compose_world used the `#c02040` classification hex as the
+body color until a strategy `albedo` override was added.
+
+Current kits: `house_1f`/`house_2f`/`house_3f` (floor-tiered),
+`tower_kit`, `townhall_kit` (two-tier + columns + finial),
+`bridge_kit` (deck + railings + abutments), `wall_kit` (body + cap +
+crenellation merlons), `fountain_kit`. Long-term these primitive
+parts can be swapped for Tripo3D part-meshes on the same recipe.
+
 ## How to do your job
 
 1. **Read the GDD aesthetics target.** Pixel art? Low-poly 3D? ASCII?

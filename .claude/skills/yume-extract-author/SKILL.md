@@ -11,6 +11,26 @@ then you write a **custom Python script** that extracts entity
 positions / biome masks / rotations from the semantic map and emits
 the final `extracted.json` that drives the rest of the pipeline.
 
+> **⚠ CURRENT PIPELINE (2026-05-27).** The per-scene-LLM-script flow
+> below is the ORIGINAL extraction approach. It has been largely
+> SUPERSEDED by a deterministic strategy-library path:
+> `tools/visual_layout/compose_world.py` reads
+> `data/lib/extraction_strategies.json` (per-class strategy: extraction
+> method, rotation rule, fit-to-mask, variant buckets, kit mesh, albedo
+> override) and dispatches via `lib_extract_v2.dispatch_extraction` —
+> no per-scene script needed. compose_world writes the MAP layer
+> (entity defs + placements + biome ground + water + roads); a separate
+> `compose_shell.py` adds the presentation layer (camera/player/input/
+> lighting/.tscn) so a map generator never decides how you view or
+> control the world. Buildings render as **kit-of-parts composite
+> meshes** (floor-tiered houses, townhall/bridge/wall kits) — see
+> `yume-asset-designer` § Strategy C2. New classes = new JSON entries
+> in `extraction_strategies.json` (no code). Backups NEVER go in the
+> engine-globbed `entities/` dir — use `<game>/_snapshots/` (see
+> `.claude/rules/data-demo.md`). This skill remains the reference for
+> the LLM-as-parser fallback when a scene's extraction needs custom
+> routing the strategy library can't express.
+
 ## When to invoke
 
 - After stage 2 (catalog) and stage 3 (semantic map) and stage 4

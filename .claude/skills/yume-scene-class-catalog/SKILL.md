@@ -363,6 +363,22 @@ this mapping at level load.
    `terrain_shader` + `terrain_displacement` classes get NO
    strategy.
 
+8. **The `hex` is a CLASSIFICATION color, NOT a display color.**
+   You pick hexes for maximum color-separation in the semantic map
+   (rule 3) — they exist so the extractor can threshold one class
+   from another. They are NOT the color the object should RENDER.
+   A townhall classified as `#c02040` (a crimson chosen for
+   separation) renders as garish pink if used as the building's
+   albedo. Downstream rendering must use a DESIGNED color, set via
+   the strategy's `albedo` field (or the kit mesh's `params`), not
+   the classification hex. So: don't agonize over making the hex
+   "look like" the object — pick it for separation, and let the
+   strategy/kit own the display color. Empirical case 2026-05-27:
+   townhall shipped pink because compose_world used the
+   classification hex as the body color until a strategy `albedo`
+   override (`#b03828`) was added. See
+   `yume-asset-designer` § Strategy C2.
+
 ## Worked examples (three genres, three catalogs)
 
 ### Example 1 — Medieval town (matches what we tested)
