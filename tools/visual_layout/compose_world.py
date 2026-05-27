@@ -732,6 +732,17 @@ def compose(
                 "scale_jitter": 0.35,
                 "seed": 7,
             }
+            # Flower specks — the hero reference's scattered yellow/white
+            # dots. Sparse, per-instance colour, one draw call. ON by
+            # default (cheap); the painterly grass it sits on is smooth.
+            scene["ground"]["flowers"] = {
+                "enabled": True,
+                "count": 2200,
+                "radius": round(world_w * 0.45, 1),
+                "size": 0.14,
+                "colors": ["#f2e25c", "#f6f4ec", "#f0a8c4"],
+                "seed": 13,
+            }
 
     # ADR 0059 — real water surface. Emit a `water` block when the
     # catalog has a water class (terrain_shader named water*). A flat
