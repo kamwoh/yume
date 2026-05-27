@@ -19,8 +19,12 @@ class_name EntityMesh3D
 ## With position_scale=0.05, 200 pixels → 10 world units.
 @export var position_scale: float = 0.05
 
-# Render mode: "model", "mesh", or "bare"
+# Render mode: "model", "mesh", "glb", or "bare"
 var _mode: String = "bare"
+# True when a STATIC .glb was normalized to unit-height/base-on-ground so
+# fitted state.scale places it like a kit (see _normalize_glb). Animated
+# .glb (player) are left at their authored scale, so this stays false.
+var _glb_normalized: bool = false
 
 # Mesh-mode state
 var _mesh_primitives: Array = []
@@ -192,7 +196,12 @@ func _load_glb_mesh(path: String, visual: Dictionary, ent: Entity) -> void:
 		_build_bare_box(visual)
 		return
 	var imported: Node = (packed as PackedScene).instantiate()
-	add_child(imported)
+	# Wrap in a normalizer so a static .glb can be fit to unit-height /
+	# base-on-ground without disturbing the imported scene's own transform.
+	var norm := Node3D.new()
+	norm.name = "GlbNormalizer"
+	add_child(norm)
+	norm.add_child(imported)
 	_mode = "glb"
 
 	# Apply material overrides — `visual.material_overrides` is a dict
@@ -237,6 +246,14 @@ func _load_glb_mesh(path: String, visual: Dictionary, ent: Entity) -> void:
 			_animation_director.attach_player(ap)
 			_animation_director.set_clip_aliases(_build_clip_alias_map(rules))
 
+	# Static .glb (no embedded AnimationPlayer): normalize so the SAME
+	# fitted state.scale that places code-kits also places this mesh.
+	# Tripo/most exporters center the mesh in an arbitrary bbox (e.g.
+	# 2×2×2 at origin); without this it'd render mis-sized + half-buried.
+	# Animated meshes (player) are authored to their scale + pivot — skip.
+	if ap == null:
+		_normalize_glb(norm, imported)
+
 	_apply_shadow_only_if_set(visual)
 	_sync_position()
 
@@ -255,6 +272,50 @@ func _find_imported_animation_player(node: Node) -> AnimationPlayer:
 		if found != null:
 			return found
 	return null
+
+
+## Normalize a static .glb (held under `norm`) so its bbox becomes
+## unit-HEIGHT, base at y=0, centred in X/Z — in this entity's local
+## space. After this, applying state.scale as a UNIFORM height multiplier
+## (see _sync_scale) sizes the mesh to the fitted height with its native
+## proportions preserved and its base on the ground. Derived entirely
+## from the mesh bbox — no per-def scale/offset authoring (no escape hatch).
+func _normalize_glb(norm: Node3D, imported: Node) -> void:
+	if not (imported is Node3D):
+		return
+	var aabb: AABB = (imported as Node3D).transform * _local_aabb(imported as Node3D)
+	if aabb.size.y <= 0.0001:
+		return
+	var s: float = 1.0 / aabb.size.y
+	norm.scale = Vector3(s, s, s)
+	# Map current bbox → base at y=0, centred in X/Z (offsets are in the
+	# pre-scale frame, so multiply by s to land in norm's scaled output).
+	norm.position = Vector3(
+		-(aabb.position.x + aabb.size.x * 0.5) * s,
+		-aabb.position.y * s,
+		-(aabb.position.z + aabb.size.z * 0.5) * s)
+	_glb_normalized = true
+
+
+## Combined AABB of every MeshInstance3D under `node`, in `node`'s OWN
+## local space (accumulating child transforms). Pure read; no scene mutation.
+func _local_aabb(node: Node3D) -> AABB:
+	var out := AABB()
+	var seeded := false
+	if node is MeshInstance3D:
+		out = (node as MeshInstance3D).get_aabb()
+		seeded = true
+	for c in node.get_children():
+		if c is Node3D:
+			var child_aabb: AABB = (c as Node3D).transform * _local_aabb(c as Node3D)
+			if child_aabb.size == Vector3.ZERO:
+				continue
+			if seeded:
+				out = out.merge(child_aabb)
+			else:
+				out = child_aabb
+				seeded = true
+	return out
 
 
 ## Walk every MeshInstance3D under the imported scene. For each
@@ -498,6 +559,19 @@ func _sync_scale() -> void:
 		return
 	var s = _entity_ref.get_state("scale", null)
 	if s == null:
+		return
+	# A normalized static .glb is unit-height with native proportions, so
+	# size it UNIFORMLY by the fitted HEIGHT (state.scale's Y) — anisotropic
+	# [W,H,D] would distort a real mesh. Kits keep the anisotropic tile-fit.
+	if _glb_normalized:
+		var h := 1.0
+		if s is float or s is int:
+			h = float(s)
+		elif s is Vector3:
+			h = (s as Vector3).y
+		elif s is Array and (s as Array).size() >= 2:
+			h = float((s as Array)[1])
+		scale = Vector3(h, h, h)
 		return
 	if s is float or s is int:
 		var f := float(s)
