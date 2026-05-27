@@ -52,6 +52,23 @@ uniform float biome_roughness[MAX_BIOMES];
 uniform float blend_softness : hint_range(0.01, 0.6) = 0.12;
 uniform float noise_amount : hint_range(0.0, 0.5) = 0.06;
 
+// --- Grass detail texture + cheap wind (fragment-only, no geometry) ---
+// Applied ONLY where the grass biome is weighted (grass_biome_index), so
+// non-grass scenes / non-grass ground is untouched. The "wind" is a
+// TIME-driven gust band drifting across the field + a slow detail-UV
+// flow — a handful of ALU ops per pixel, scales with screen pixels not
+// blade count. NO per-blade simulation. grass_detail is a tiling
+// grayscale breakup map multiplied into the grass albedo.
+uniform sampler2D grass_detail : filter_linear, repeat_enable, hint_default_white;
+uniform int grass_biome_index = -1;                       // -1 = no grass
+uniform float detail_tile = 24.0;                          // tiles across plane
+uniform float detail_strength : hint_range(0.0, 1.0) = 0.35;
+uniform vec2 wind_dir = vec2(0.7, 0.7);
+uniform float wind_speed = 0.9;
+uniform float wind_gust_freq = 0.08;                       // gust-band spacing
+uniform float wind_gust_strength : hint_range(0.0, 0.3) = 0.11;
+uniform float wind_flow = 0.035;                           // detail-UV drift
+
 varying vec3 v_world_pos;
 
 float hash21(vec2 p) {
@@ -106,6 +123,7 @@ void fragment() {
     float total = 0.0;
     float best_d = 1e9;
     int best_i = 0;
+    float grass_w = 0.0;   // accumulated weight of the grass biome slot
 
     for (int i = 0; i < biome_count; i++) {
         float d = distance(splat, biome_key[i]);
@@ -114,20 +132,38 @@ void fragment() {
         albedo += biome_albedo[i] * w;
         rough += biome_roughness[i] * w;
         total += w;
+        if (i == grass_biome_index) { grass_w = w; }
     }
 
     if (total < 0.001) {
         // No biome within blend range — hard-assign the nearest.
         albedo = biome_albedo[best_i];
         rough = biome_roughness[best_i];
+        grass_w = (best_i == grass_biome_index) ? 1.0 : 0.0;
     } else {
         albedo /= total;
         rough /= total;
+        grass_w /= total;
     }
 
     // Subtle per-position variation so flat biomes don't read as paint.
     float n = vnoise(v_world_pos.xz * 1.5);
     albedo *= (1.0 - noise_amount * 0.5 + noise_amount * n);
+
+    // Grass detail + wind — only where grass is weighted (free elsewhere).
+    if (grass_biome_index >= 0 && grass_w > 0.001) {
+        // Tiling detail map, slowly drifting (shimmer).
+        vec2 duv = v_world_pos.xz / plane_size * detail_tile
+                   + wind_flow * vec2(sin(TIME * 0.3), cos(TIME * 0.23));
+        float detail = texture(grass_detail, duv).r;
+        albedo *= mix(1.0, 0.7 + 0.6 * detail, detail_strength * grass_w);
+
+        // Gust band: a sinusoidal brightness wave sweeping along wind_dir.
+        // This drifting light/dark band is the main "wind over grass" cue.
+        float gust = sin(dot(v_world_pos.xz, normalize(wind_dir)) * wind_gust_freq
+                         - TIME * wind_speed);
+        albedo *= 1.0 + gust * wind_gust_strength * grass_w;
+    }
 
     ALBEDO = albedo;
     ROUGHNESS = clamp(rough, 0.0, 1.0);

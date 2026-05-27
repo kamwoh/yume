@@ -702,6 +702,19 @@ def compose(
         shader_params["biome_key"] = keys
         shader_params["biome_albedo"] = albedos
         shader_params["biome_roughness"] = roughs
+
+        # Grass detail texture + wind (shared shader feature). The shader
+        # applies detail + the gust-band wind ONLY to the grass biome slot,
+        # so we tell it which slot that is (same order as _build_biome_arrays;
+        # -1 = no grass → feature inert). The detail map is a shared lib asset;
+        # wind params use the shader's defaults (tunable per scene later).
+        terrain_ordered = [c["name"] for c in catalog.get("classes", [])
+                           if c.get("intent_type") == "terrain_shader"][:8]
+        shader_params["grass_biome_index"] = (
+            terrain_ordered.index("grass") if "grass" in terrain_ordered else -1)
+        grass_tex = DATA_ROOT / "lib" / "textures" / "grass_detail.png"
+        if shader_params["grass_biome_index"] >= 0 and grass_tex.exists():
+            shader_params["grass_detail"] = "res://data/lib/textures/grass_detail.png"
         scene["ground"]["mesh"]["shader_params"] = shader_params
 
     # ADR 0059 — real water surface. Emit a `water` block when the
