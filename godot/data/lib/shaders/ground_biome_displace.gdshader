@@ -62,7 +62,7 @@ uniform float noise_amount : hint_range(0.0, 0.5) = 0.06;
 uniform sampler2D grass_detail : filter_linear, repeat_enable, hint_default_white;
 uniform int grass_biome_index = -1;                       // -1 = no grass
 uniform float detail_tile = 24.0;                          // tiles across plane
-uniform float detail_strength : hint_range(0.0, 1.0) = 0.35;
+uniform float detail_strength : hint_range(0.0, 1.0) = 0.30;
 uniform vec2 wind_dir = vec2(0.7, 0.7);
 uniform float wind_speed = 0.9;
 uniform float wind_gust_freq = 0.08;                       // gust-band spacing
@@ -152,11 +152,18 @@ void fragment() {
 
     // Grass detail + wind — only where grass is weighted (free elsewhere).
     if (grass_biome_index >= 0 && grass_w > 0.001) {
-        // Tiling detail map, slowly drifting (shimmer).
-        vec2 duv = v_world_pos.xz / plane_size * detail_tile
-                   + wind_flow * vec2(sin(TIME * 0.3), cos(TIME * 0.23));
-        float detail = texture(grass_detail, duv).r;
-        albedo *= mix(1.0, 0.7 + 0.6 * detail, detail_strength * grass_w);
+        vec2 flow = wind_flow * vec2(sin(TIME * 0.3), cos(TIME * 0.23));
+        vec2 duv = v_world_pos.xz / plane_size * detail_tile + flow;
+        // TWO octaves (second scaled + rotated) so the detail map's single
+        // repeat doesn't show as a tiling grid of squares across the field.
+        mat2 rot = mat2(vec2(0.80, 0.60), vec2(-0.60, 0.80));
+        float d1 = texture(grass_detail, duv).r;
+        float d2 = texture(grass_detail, rot * duv * 2.37).r;
+        float detail = d1 * 0.6 + d2 * 0.4;                 // 0..1, no grid
+        // The detail map is low-contrast grey, so amplify around its mid
+        // before applying — otherwise the grass reads as flat paint.
+        float dv = clamp((detail - 0.5) * 4.0, -1.0, 1.0);
+        albedo *= 1.0 + dv * detail_strength * grass_w;
 
         // Gust band: a sinusoidal brightness wave sweeping along wind_dir.
         // This drifting light/dark band is the main "wind over grass" cue.

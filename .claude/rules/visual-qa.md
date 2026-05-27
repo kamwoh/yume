@@ -278,6 +278,22 @@ regardless of what the change-prompt says.
    test existed. Gate: any HUD change that touches a
    direction-indicator widget must include 4-frame capture (face
    N/E/S/W) and visual verification.
+10. **Tiled ground textures — LOW-ANGLE CLOSE-UP for the repeat grid
+    (added 2026-05-27)**: any change that adds or tiles a texture on
+    the ground (grass detail map, terrain albedo, decals) MUST be
+    verified with a low-angle close-up capture where the ground
+    surface FILLS the lower frame — NOT just an overview or mid-shot.
+    A tiling texture shows a regular grid of squares at the repeat
+    period, and that grid is invisible from a high/overview angle (the
+    repeats are tiny) but glaring from ground level. Look for any
+    repeating square/blotch pattern at a fixed spacing. Empirical case
+    2026-05-27: the grass detail map shipped (commit 592f2db) tiling
+    24× across the field; overview + mid captures looked fine, but a
+    ground-level close-up showed an obvious ~5.8m square grid. Fix was
+    a second rotated octave in the shader to break the repeat. Gate:
+    tiled-texture changes verify a ground-fill close-up AND, if the
+    texture is low-contrast, confirm it's actually visible (not washed
+    out to flat).
 
 ### For 2D scenes — required baseline criteria
 
