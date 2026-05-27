@@ -81,6 +81,7 @@ func _ready() -> void:
 	test_array_primitives()
 	test_animation_translator()
 	test_ground_renderer_rebind()
+	test_ground_heightmap_collider()
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -9529,3 +9530,55 @@ func test_ground_renderer_rebind() -> void:
 	GroundRenderer._shader_material = null
 	GroundRenderer._game_shader_params = {}
 	GroundRenderer._cached_data_root = ""
+
+
+# Pins GroundRenderer.sample_y to ground_biome_displace.gdshader's EXACT
+# vertex displacement formula, and verifies the HeightMapShape3D collider
+# is built from that same formula. Gate for the 2026-05-27 "player floats
+# over displaced terrain" bug: the collider was a flat box while the hills
+# were GPU-displaced, and sample_y was keyed to dead `bump_strength` params
+# no shader emits. If a future shader edit changes the displacement formula
+# without updating sample_y, this test fails (physics floor would drift
+# from the visible ground again).
+func test_ground_heightmap_collider() -> void:
+	_section("ground_renderer heightmap collider — sample_y matches shader")
+
+	# 2x2 known heightmap: corners (0,0)+(1,1)=0.0, (1,0)+(0,1)=1.0
+	var img := Image.create(2, 2, false, Image.FORMAT_RGBF)
+	img.set_pixel(0, 0, Color(0, 0, 0))
+	img.set_pixel(1, 0, Color(1, 1, 1))
+	img.set_pixel(0, 1, Color(1, 1, 1))
+	img.set_pixel(1, 1, Color(0, 0, 0))
+	GroundRenderer._heightmap_img = img
+	GroundRenderer._heightmap_strength = 10.0   # height_scale
+	GroundRenderer._heightmap_offset = -0.5      # height_offset
+	GroundRenderer._heightmap_plane_size = 10.0
+	GroundRenderer._heightmap_enabled = true
+
+	# Formula: y = (sample + offset) * scale. NO V-flip, NO tiling.
+	# world (-5,-5) → uv (0,0) → pixel(0,0)=0 → (0-0.5)*10 = -5
+	# world ( 5,-5) → uv (1,0) → pixel(1,0)=1 → (1-0.5)*10 = +5
+	expect(absf(GroundRenderer.sample_y(-5.0, -5.0) - (-5.0)) < 0.01,
+		"sample_y(-5,-5) = (0-0.5)*10 = -5")
+	expect(absf(GroundRenderer.sample_y(5.0, -5.0) - 5.0) < 0.01,
+		"sample_y(5,-5) = (1-0.5)*10 = +5")
+
+	# Collider build: grid heights must equal sample_y at the same coords.
+	var gr := GroundRenderer.new(self)
+	var shape := gr._build_heightmap_shape(10.0, 10.0)
+	expect(shape is HeightMapShape3D, "collider is a HeightMapShape3D")
+	expect_eq(shape.map_width, shape.map_depth, "collider grid is square")
+	expect_eq(shape.map_data.size(), shape.map_width * shape.map_depth,
+		"collider map_data length = width*depth")
+	# data[0] is grid corner (ix=0, iz=0) = world (-half, -half) = (-5,-5)
+	expect(absf(shape.map_data[0] - (-5.0)) < 0.01,
+		"collider corner height = sample_y(-5,-5) = -5")
+
+	# Disabled → flat (sample_y returns 0).
+	GroundRenderer._heightmap_enabled = false
+	expect_eq(GroundRenderer.sample_y(3.0, 3.0), 0.0,
+		"sample_y returns 0 when displacement disabled")
+
+	# Cleanup
+	GroundRenderer._heightmap_img = null
+	GroundRenderer._heightmap_enabled = false

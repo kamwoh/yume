@@ -17,9 +17,9 @@ class_name GroundRenderer
 # Used by entity_mesh_3d._sync_position.
 
 static var _heightmap_img: Image = null
-static var _heightmap_strength: float = 0.0
+static var _heightmap_strength: float = 0.0   # = height_scale (biome shader)
+static var _heightmap_offset: float = -0.5     # = height_offset (biome shader)
 static var _heightmap_plane_size: float = 80.0
-static var _heightmap_uv_tile: float = 60.0
 static var _heightmap_enabled: bool = false
 
 # === Per-level shader_params rebind (ADR 0055, 2026-05-20) ===
@@ -54,30 +54,30 @@ static func cleanup() -> void:
 
 
 ## Sample the displaced ground Y at world coordinates (x, z).
-## Matches the shader's vertex displacement exactly:
-##   VERTEX.y += (heightmap_sample - 0.5) * bump_strength
-## Returns 0.0 when bump displacement is disabled.
+## Matches ground_biome_displace.gdshader's vertex() displacement EXACTLY:
+##   hm_uv = ((x + ps/2)/ps, (z + ps/2)/ps)   # no V-flip, no tiling
+##   y = (heightmap_sample(hm_uv) + height_offset) * height_scale
+## Returns 0.0 when displacement is disabled. This is the authority the
+## HeightMapShape3D collider is built from, so physics floor == visual.
 static func sample_y(x: float, z: float) -> float:
 	if not _heightmap_enabled or _heightmap_img == null:
 		return 0.0
-	# World (x, z) → PlaneMesh UV [0..1]
-	var u: float = (x + _heightmap_plane_size * 0.5) / _heightmap_plane_size
-	var v: float = 1.0 - (z + _heightmap_plane_size * 0.5) / _heightmap_plane_size
-	# Tile by uv_tile (matches shader's `vec2 tiled_uv = UV * uv_tile`)
-	var tu: float = fposmod(u * _heightmap_uv_tile, 1.0)
-	var tv: float = fposmod(v * _heightmap_uv_tile, 1.0)
-	# Bilinear sample
+	# World (x, z) → PlaneMesh UV [0..1]. NO V-flip (matches the shader +
+	# pixel_to_world: image_y → world_z directly). NO uv tiling (the biome
+	# shader samples the heightmap once across the whole plane).
+	var ps: float = _heightmap_plane_size
+	var u: float = clampf((x + ps * 0.5) / ps, 0.0, 1.0)
+	var v: float = clampf((z + ps * 0.5) / ps, 0.0, 1.0)
 	var W: int = _heightmap_img.get_width()
 	var H: int = _heightmap_img.get_height()
-	var px: float = tu * float(W - 1)
-	var py: float = tv * float(H - 1)
+	var px: float = u * float(W - 1)
+	var py: float = v * float(H - 1)
 	var x0: int = int(px)
 	var y0: int = int(py)
 	var x1: int = mini(x0 + 1, W - 1)
 	var y1: int = mini(y0 + 1, H - 1)
 	var fx: float = px - float(x0)
 	var fy: float = py - float(y0)
-	# Image.get_pixel returns Color; .r is the R channel float
 	var c00: float = _heightmap_img.get_pixel(x0, y0).r
 	var c10: float = _heightmap_img.get_pixel(x1, y0).r
 	var c01: float = _heightmap_img.get_pixel(x0, y1).r
@@ -88,7 +88,7 @@ static func sample_y(x: float, z: float) -> float:
 		+ c01 * (1.0 - fx) * fy
 		+ c11 * fx * fy
 	)
-	return (sample - 0.5) * _heightmap_strength
+	return (sample + _heightmap_offset) * _heightmap_strength
 
 ## Builds the floor mesh — MeshInstance3D + PlaneMesh + StandardMaterial3D —
 ## from scene.json's `ground.mesh` block. Lets a 3D game declare its ground
@@ -217,23 +217,24 @@ func build() -> void:
 			sm.set_shader_parameter("plane_size", max(w, d))
 			mat = sm  # Override the StandardMaterial3D
 
-			# Cache heightmap as CPU-side Image for entity ground-snap.
-			# Reads `heightmap` shader_param (the same texture passed
-			# to the vertex displacement). Entities with
-			# `visual.snap_to_ground: true` query this via
-			# GroundRenderer.sample_y(x, z) in their _sync_position.
-			var hm_enabled := float(params.get("heightmap_enabled", 0.0)) > 0.5
+			# Cache heightmap as CPU-side Image so the physics floor
+			# (HeightMapShape3D collider, built below) and any
+			# ground-snap follow the SAME displacement the vertex
+			# shader applies. Reads the biome-displace shader's actual
+			# uniforms: `heightmap` texture + `height_scale` +
+			# `height_offset` (see ground_biome_displace.gdshader).
 			var hm_val = params.get("heightmap", null)
-			if hm_enabled and hm_val is String:
+			var h_scale := float(params.get("height_scale", 0.0))
+			if hm_val is String and h_scale != 0.0:
 				var hm_path: String = hm_val as String
 				if ResourceLoader.exists(hm_path):
 					var hm_tex = load(hm_path)
 					if hm_tex is Texture2D:
 						_heightmap_img = (hm_tex as Texture2D).get_image()
-						_heightmap_strength = float(params.get("bump_strength", 0.0))
+						_heightmap_strength = h_scale
+						_heightmap_offset = float(params.get("height_offset", -0.5))
 						_heightmap_plane_size = max(w, d)
-						_heightmap_uv_tile = float(params.get("uv_tile", 60.0))
-						_heightmap_enabled = (_heightmap_strength > 0.0)
+						_heightmap_enabled = true
 			# Cache for per-level rebind (ADR 0055, 2026-05-20).
 			# The game-level params dict is the baseline; per-level
 			# overrides merge over it on transition.
@@ -250,18 +251,16 @@ func build() -> void:
 	_world.add_child(node)
 
 	# Real ground collider — replaces the soft y_floor convention in
-	# character_body_runner. Walk off the visible plane, you fall (no
-	# collider outside the bounds). Inside, is_on_floor() works
-	# natively (no soft clamp needed). Per Yume's "expose Godot, don't
-	# reimplement" — use a StaticBody3D + BoxShape3D instead of a
-	# magic constant in GDScript. 2026-05-24.
+	# character_body_runner. Per Yume's "expose Godot, don't reimplement"
+	# — a StaticBody3D + shape, not a magic constant in GDScript.
 	#
-	# Collider is a thin box (0.2m tall) centered slightly below y=0
-	# so its TOP sits at y=0 — matching the visible plane surface.
-	# Heightmap displacement is purely visual; the collider stays flat.
-	# When/if displacement amplitude grows large enough to matter for
-	# collision, a HeightMapShape3D-based collider becomes the next
-	# step (rebuilt from the heightmap texture at boot).
+	# When the biome shader displaces vertices by a heightmap (cached
+	# above), the collider is a HeightMapShape3D rebuilt from that SAME
+	# heightmap via sample_y — so the physics floor follows the visible
+	# hills and the player no longer floats over valleys / sinks into
+	# hills. Otherwise (flat ground) a thin BoxShape3D with its top at
+	# y=0 matches the flat plane. 2026-05-27 (was flat-only until the
+	# totem-hills float bug at height_scale=10 forced the displaced case).
 	var body := StaticBody3D.new()
 	body.name = "GroundCollider"
 	# Collision layer: "floor" (bit 3 per data/lib/physics/layers.json).
@@ -271,12 +270,55 @@ func build() -> void:
 	body.collision_layer = 1 << 2  # bit 3 = "floor"
 	body.collision_mask = 0  # ground itself doesn't need to react to anything
 	var shape_node := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(w, 0.2, d)
-	shape_node.shape = box
-	shape_node.position = Vector3(0, -0.1, 0)  # top at y=0
+	if _heightmap_enabled and _heightmap_img != null:
+		# 1-metre cells (N-1 == plane), so the shape spans the plane at
+		# scale 1.0 — NO node scaling. Godot physics is unreliable with
+		# non-uniformly-scaled collision shapes, so we size the grid to
+		# avoid scaling entirely.
+		shape_node.shape = _build_heightmap_shape(w, d)
+		var _hm_n: int = _hm_collider_n(maxf(w, d))
+		push_warning("[ground_renderer] heightmap collider built: %dx%d cells, plane=%.0fm, y-range=%.2f..%.2f" % [
+			_hm_n, _hm_n, maxf(w, d),
+			_heightmap_offset * _heightmap_strength,
+			(1.0 + _heightmap_offset) * _heightmap_strength])
+	else:
+		var box := BoxShape3D.new()
+		box.size = Vector3(w, 0.2, d)
+		shape_node.shape = box
+		shape_node.position = Vector3(0, -0.1, 0)  # top at y=0
 	body.add_child(shape_node)
 	_world.add_child(body)
+
+
+## Grid resolution (points per axis) for the heightmap collider. Sized
+## to 1-metre cells (N-1 == plane) so the shape needs NO scaling. Capped
+## so very large worlds don't build an enormous shape.
+static func _hm_collider_n(plane: float) -> int:
+	return clampi(int(round(plane)) + 1, 33, 401)
+
+
+## Build a HeightMapShape3D whose per-cell heights are sampled from the
+## SAME displacement formula the shader uses (via sample_y), so the
+## physics floor matches the visible terrain. Grid is N×N centered at
+## origin in local units; the caller scales x/z to span the plane.
+func _build_heightmap_shape(w: float, d: float) -> HeightMapShape3D:
+	var plane: float = maxf(w, d)
+	var n: int = _hm_collider_n(plane)
+	var data := PackedFloat32Array()
+	data.resize(n * n)
+	var half: float = plane * 0.5
+	var step: float = plane / float(n - 1)
+	for iz in range(n):
+		var wz: float = -half + float(iz) * step
+		for ix in range(n):
+			var wx: float = -half + float(ix) * step
+			# map_data is row-major: [depth_row * width + width_col].
+			data[iz * n + ix] = sample_y(wx, wz)
+	var shape := HeightMapShape3D.new()
+	shape.map_width = n
+	shape.map_depth = n
+	shape.map_data = data
+	return shape
 
 
 ## ADR 0059 — build the water surface from scene.json's `water.mesh`

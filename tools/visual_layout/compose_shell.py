@@ -263,11 +263,14 @@ def _singleton_instances(world_w: float) -> list[dict]:
     cam_ground   = [0.0, 3.0, world_w * 0.40]
     return [
         {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
-        # Player spawns in the plaza just off centre, raised so gravity
-        # drops it onto the ground collider.
+        # Player spawns above the terrain so gravity drops it cleanly onto
+        # the HeightMapShape3D ground collider (spawning below the displaced
+        # surface would embed it in a hill). y=12 clears height_scale up to
+        # ~24; the per-scene config will compute exact clearance from
+        # height_scale. (Was y=2 — too low once terrain displacement matters.)
         {"def": "player_input_anchor", "id": "player_input_anchor",
-         "position": [0, 2, 10],
-         "state": {"position": [0, 2, 10], "facing": 0.0}},
+         "position": [0, 12, 10],
+         "state": {"position": [0, 12, 10], "facing": 0.0}},
         {"def": "free_camera", "id": "camera_overhead",
          "position": cam_overhead,
          "state": {"position": cam_overhead, "yaw": 0.0, "pitch": -1.55}},
