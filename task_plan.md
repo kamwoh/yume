@@ -4692,3 +4692,21 @@ visual-qa.
   registry (meshes.json keys) for a fitting kit; reuse if present.
 - (later) procedural materials; a single `compose_scene` orchestrator
   chaining gen → compose_world → compose_shell.
+
+## DEFERRED (2026-05-27): procedural-material asset tier (tier-1 "stone + PBR")
+
+The asset-resolution vision's **simple → procedural/code + PBR** tier (a
+Blender-node-style generator that makes e.g. random stones WITH procedural
+PBR materials) is **deferred** — it's a separate, ADR-worthy subsystem
+(procedural geometry + procedural material graphs), not needed until a
+scene actually calls for it. User decision: don't build speculatively;
+revisit when a real scene needs cheap procedural props.
+
+The other two tiers cover current needs:
+- tier 0/1 → existing kit-of-parts (code-composite meshes), `asset_source: kit`
+- tier 2 → Tripo via hero-conditioned concept → image_to_model, `asset_source: tripo`
+
+Still open (NOT deferred, just not yet built): package the front half
+(hero→ortho→semantic→heightmap) into a tool/skill; real Tripo-PARTS kits
+(vs debug primitives); a systematic composition/aesthetic pass; a single
+compose_scene orchestrator; visual-qa wired into the loop.
