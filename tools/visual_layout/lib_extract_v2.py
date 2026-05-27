@@ -454,6 +454,13 @@ def _extract_scatter(*, name, class_entry, label_map, palette,
     src_class = strategy.get("mask_source_class", "grass")
     src_idx = _find_class_idx(palette, [src_class])
     if src_idx is None:
+        # The named source class isn't present in THIS scene. Fall back
+        # to the class's OWN mask — e.g. a "tree" object class drawn as
+        # blobs (no separate "forest" terrain biome) scatters trees
+        # within its own painted regions. Keeps scatter_in_mask generic
+        # across scenes that don't share the medieval-town's class set.
+        src_idx = _find_class_idx(palette, [name])
+    if src_idx is None:
         return []
     mask = label_map == src_idx
     if not mask.any():

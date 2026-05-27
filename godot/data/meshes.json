@@ -111,6 +111,43 @@
       ],
       "params": {"albedo": "#9a9080", "trim": "#7a7166"}
     },
+    "bird_totem_kit": {
+      "_comment": "Kit-of-parts giant ancient stone bird totem (2026-05-27): wide base + stepped pillar shaft + carved band + a stylized bird head (head box + beak wedge + eyes + crest) on top. UNIT space; state.scale=[W,H,D] with a GIANT H so it reads as a landmark. $albedo = weathered stone.",
+      "primitives": [
+        {"op": "box",   "pos": [0, 0.04, 0],    "size": [1.0, 0.08, 1.0],  "color": "$albedo"},
+        {"op": "box",   "pos": [0, 0.30, 0],    "size": [0.72, 0.46, 0.72], "color": "$albedo"},
+        {"op": "box",   "pos": [0, 0.54, 0],    "size": [0.07, 0.04, 0.74], "color": "$trim"},
+        {"op": "box",   "pos": [0, 0.62, 0],    "size": [0.58, 0.20, 0.58], "color": "$albedo"},
+        {"op": "box",   "pos": [0, 0.82, 0],    "size": [0.52, 0.22, 0.46], "color": "$albedo"},
+        {"op": "prism", "pos": [0, 0.83, -0.32], "size": [0.18, 0.13, 0.28], "color": "$beak"},
+        {"op": "box",   "pos": [-0.13, 0.87, -0.20], "size": [0.06, 0.06, 0.04], "color": "$eye"},
+        {"op": "box",   "pos": [0.13, 0.87, -0.20],  "size": [0.06, 0.06, 0.04], "color": "$eye"},
+        {"op": "prism", "pos": [0, 0.97, 0.05], "size": [0.1, 0.14, 0.34], "color": "$albedo"}
+      ],
+      "params": {"albedo": "#8a8278", "trim": "#6e655c", "beak": "#c89858", "eye": "#241f1a"}
+    },
+    "ruin_kit": {
+      "_comment": "Kit-of-parts ancient ruin: a low broken wall + two stub columns of different heights + a toppled block + a fallen capstone. UNIT space; state.scale=[length,H,thickness] (length fitted per component via PCA). $albedo = weathered sandstone.",
+      "primitives": [
+        {"op": "box",      "pos": [0, 0.28, 0],     "size": [1.0, 0.56, 0.5],  "color": "$albedo"},
+        {"op": "box",      "pos": [0.32, 0.66, 0],  "size": [0.36, 0.2, 0.5],  "color": "$albedo"},
+        {"op": "cylinder", "pos": [-0.38, 0.45, 0.1], "radius": 0.11, "height": 0.9, "color": "$albedo"},
+        {"op": "cylinder", "pos": [0.28, 0.3, -0.2],  "radius": 0.09, "height": 0.6, "color": "$albedo"},
+        {"op": "box",      "pos": [-0.38, 0.92, 0.1], "size": [0.18, 0.1, 0.18], "color": "$trim"},
+        {"op": "box",      "pos": [0.05, 0.09, -0.32], "size": [0.3, 0.18, 0.22], "color": "$trim"}
+      ],
+      "params": {"albedo": "#b8a888", "trim": "#9a8a72"}
+    },
+    "tree_round": {
+      "_comment": "Kit-of-parts whimsical rounded tree (2026-05-27): short trunk + two stacked rounded foliage puffs. UNIT space; state.scale=[W,H,D]. $albedo = foliage color (set per instance); $trunk fixed brown. Replaces the bare-cylinder fallback so scattered trees read as stylized trees, not green poles.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.18, 0], "radius": 0.11, "height": 0.4, "color": "$trunk"},
+        {"op": "sphere",   "pos": [0, 0.52, 0], "radius": 0.42,                "color": "$albedo"},
+        {"op": "sphere",   "pos": [0.16, 0.74, 0.06], "radius": 0.28,          "color": "$albedo"},
+        {"op": "sphere",   "pos": [-0.14, 0.72, -0.05], "radius": 0.26,        "color": "$albedo"}
+      ],
+      "params": {"albedo": "#3a8f44", "trunk": "#6b4a2e"}
+    },
     "tree": {
       "primitives": [
         {
