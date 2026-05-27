@@ -318,6 +318,7 @@ func _build_ground_mesh() -> void:
 	var gr := GroundRenderer.new(_world)
 	gr.build()
 	gr.build_water()  # ADR 0059 — water surface from scene.json `water` block
+	GrassRenderer.new(_world).build()  # grass-blade MultiMesh (opt-in via scene.json)
 
 
 func _log_summary() -> void:

@@ -717,6 +717,20 @@ def compose(
             shader_params["grass_detail"] = "res://data/lib/textures/grass_detail.png"
         scene["ground"]["mesh"]["shader_params"] = shader_params
 
+        # Real grass blades (MultiMesh, GrassRenderer) — opt-in, only when a
+        # grass biome exists. Scattered on the grass region + heightmap, one
+        # draw call, vertex-sway wind. count/radius are the perf knobs.
+        if shader_params["grass_biome_index"] >= 0:
+            scene["ground"]["grass_blades"] = {
+                "enabled": True,
+                "count": 60000,
+                "radius": round(world_w * 0.45, 1),
+                "blade_w": 0.085,
+                "blade_h": 0.32,
+                "scale_jitter": 0.35,
+                "seed": 7,
+            }
+
     # ADR 0059 — real water surface. Emit a `water` block when the
     # catalog has a water class (terrain_shader named water*). A flat
     # transparent plane at water_level; the heightmap-carved riverbed
