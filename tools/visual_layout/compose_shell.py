@@ -1,0 +1,380 @@
+"""compose_shell.py — the PLAYABLE WRAPPER for a generated map.
+
+compose_world.py produces the MAP (content): entity defs, object
+placements, terrain assets, scene.json's ground+water. It says nothing
+about how you VIEW or CONTROL the world.
+
+compose_shell.py adds that "shell" on top of an existing map dir:
+  - scene.json camera + lighting (merged into the map's scene.json)
+  - a player entity + the camera anchors (world_clock, free cameras)
+  - camera/movement rules (free-cam toggle + WASD)
+  - input map + a per-game .tscn launcher
+  - the world_clock / player / camera singleton instances spliced into
+    the level's entities.json
+
+The shell is GAME-TYPE specific — a third-person explorer, a top-down
+strategy view, and an FPS want different camera + player + input. This
+file ships one preset today (`third_person_explorer`); add more as
+dict-returning builders. Swap the shell, keep the same map.
+
+Run AFTER compose_world:
+    python3 -m tools.visual_layout.compose_world demo_x --catalog ...
+    python3 -m tools.visual_layout.compose_shell demo_x
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+DATA_ROOT = ROOT / "godot" / "data"
+
+
+# ============================================================
+# SHELL PRESET: third_person_explorer
+# ============================================================
+
+def _camera_block() -> dict:
+    return {
+        # Third-person, follows the player. Press C to toggle free-cam.
+        "$extends": "@lib.cameras.third_person_default",
+        "follow_tag": "player",
+        "distance": 8.0,
+        "distance_min": 3.0,
+        "distance_max": 18.0,
+        "height": 3.0,
+        "fov": 60.0,
+        "lerp": 0.12,
+    }
+
+
+def _lighting_block() -> dict:
+    return {
+        # Sun is DAY/NIGHT-cycle driven (LightingDirector), bound to
+        # world_clock.current_hour (pinned to 15h → low angled sun =
+        # long readable shadows; noon would be flat overhead).
+        "directional_light": {
+            "enabled": True,
+            "shadow_enabled": True,
+            "binds_to": "world_clock.current_hour",
+            "color_at_noon": "#fff2d8",
+            "color_at_dawn_dusk": "#ffb070",
+            "color_at_night": "#2a3260",
+            "energy_noon": 1.15,
+            "energy_horizon": 0.85,
+            "energy_night": 0.05,
+        },
+        "ambient": {"color": "#aebccf", "energy": 0.35},
+        "sky": {
+            "shader": "res://data/lib/shaders/sky_clouds.gdshader",
+            "shader_params": {
+                "sky_top_color": [0.30, 0.52, 0.82],
+                "sky_horizon_color": [0.72, 0.82, 0.90],
+                "cloud_color": [0.96, 0.96, 0.93],
+                "cloud_coverage": 0.40,
+                "cloud_softness": 0.45,
+                "cloud_speed": 0.008,
+                "cloud_scale": 6.0,
+            },
+        },
+        "fog": {
+            "enabled": True,
+            "light_color": "#cdd8e2",
+            "light_energy": 1.0,
+            "density": 0.0035,
+            "sun_scatter": 0.2,
+            "aerial_perspective": 0.5,
+        },
+        "adjustments": {
+            "enabled": True,
+            "contrast": 1.14,
+            "saturation": 1.22,
+            "brightness": 0.98,
+        },
+    }
+
+
+def _player_def() -> dict:
+    # Walkable third-person player. Vector2 velocity [x,y]→world(x,0,y)
+    # per data-demo.md; drag=0 for snappy feel; mesh_yaw_offset π/2
+    # because Tripo character meshes face +Z. NOTE: borrows aldenmere's
+    # player .glb as a stand-in avatar (per-game player mesh is future
+    # work) — a cross-demo asset reference, fine for the shell layer.
+    return {
+        "_comment": "Walkable player. Third-person camera follows tag 'player'.",
+        "definitions": [
+            {
+                "id": "player_input_anchor",
+                "tags": ["player", "actor", "persistent"],
+                "properties": {
+                    "display_name": "Player",
+                    "speed_base": 7.0,
+                    "mesh_yaw_offset": 1.5708,
+                },
+                "state_init": {
+                    "velocity": [0, 0],
+                    "drag": 0.0,
+                    "max_speed": 7.0,
+                    "speed_multiplier": 1.0,
+                    "facing": 0.0,
+                    "pitch": 0.0,
+                    "y_velocity": 0.0,
+                    "on_floor": 1,
+                    "gravity": 18.0,
+                    "camera_distance": 8.0,
+                    "scale": 1.7,
+                },
+                "physics": {"$extends": "@lib.physics.bodies.standard_character_player"},
+                "visual": {
+                    "mesh": "res://data/demo_aldenmere/assets/meshes/player_marken_animated_cc1c2175.glb"
+                }
+            }
+        ]
+    }
+
+
+def _world_clock_def() -> dict:
+    return {
+        "_comment": "Shell singleton. Starts third_person_3d (camera follows player). C → free_cam.",
+        "definitions": [
+            {
+                "id": "world_clock",
+                "tags": ["world_clock", "persistent"],
+                "properties": {},
+                "state_init": {
+                    "camera_mode": "third_person_3d",
+                    "previous_camera_mode": "third_person_3d",
+                    "active_camera_id": "camera_oblique",
+                    "current_level": "level_default",
+                    "current_hour": 15.0,
+                },
+                "visual": {"hidden": True}
+            }
+        ]
+    }
+
+
+def _cameras_def() -> dict:
+    return {
+        "_comment": "Free-cam anchors. Logical entities — hidden. Tab cycles in free_cam.",
+        "definitions": [
+            {
+                "id": "free_camera",
+                "tags": ["free_camera", "persistent", "decorative"],
+                "properties": {"display_name": "Camera"},
+                "state_init": {
+                    "position": [0, 30, 30],
+                    "yaw": 0.0,
+                    "pitch": -0.6,
+                    "fov": 60.0
+                },
+                "visual": {"hidden": True}
+            }
+        ]
+    }
+
+
+def _camera_rules() -> dict:
+    return {
+        "_comment": "Shell camera control. C toggles free_cam ↔ previous mode.",
+        "rules": [
+            {
+                "id": "freecam_enter",
+                "_comment": "C → save current camera_mode + enter free_cam. "
+                            "Engine has no _neq — list allowed source modes via _in.",
+                "trigger": {"type": "input", "action": "toggle_freecam"},
+                "query": {
+                    "tags_all": ["world_clock"],
+                    "state": {"camera_mode_in": [
+                        "isometric_3d", "top_down_3d",
+                        "third_person_3d", "first_person_3d", "top_down_2d"
+                    ]}
+                },
+                "effect": [
+                    {"type": "state_set", "target": "self",
+                     "field": "previous_camera_mode",
+                     "value": "self.state.camera_mode"},
+                    {"type": "state_set", "target": "self",
+                     "field": "camera_mode", "value": "free_cam"}
+                ]
+            },
+            {
+                "id": "freecam_exit",
+                "_comment": "C while in free_cam → restore saved camera_mode.",
+                "trigger": {"type": "input", "action": "toggle_freecam"},
+                "query": {
+                    "tags_all": ["world_clock"],
+                    "state": {"camera_mode_eq": "free_cam"}
+                },
+                "effect": [
+                    {"type": "state_set", "target": "self",
+                     "field": "camera_mode",
+                     "value": "self.state.previous_camera_mode"}
+                ]
+            }
+        ]
+    }
+
+
+def _movement_rules() -> dict:
+    return {
+        "_comment": "Player movement. Camera-relative WASD via @lib bundle "
+                    "(fp variant fires for third_person_3d) + face_motion.",
+        "rules": [
+            {"$include": "@lib.input_bundles.wasd_with_fp_variant.rules"},
+            {"$include": "@lib.motion.face_motion.rules"},
+        ]
+    }
+
+
+def _input_map() -> dict:
+    return {
+        "_comment": "WASD via universal lib. C toggles free-cam, Tab cycles "
+                    "cameras, Space/Ctrl ascend/descend (free-cam), Shift "
+                    "sprints, ESC releases mouse.",
+        "actions": [
+            {"$include": "@lib.input.universal.actions"},
+            {"name": "toggle_freecam",        "key": "C",        "edge": "press"},
+            {"name": "cam_up",                "key": "Space",    "edge": "hold"},
+            {"name": "cam_down",              "key": "Ctrl",     "edge": "hold"},
+            {"name": "sprint",                "key": "Shift",    "edge": "hold"},
+            {"name": "cycle_camera",          "key": "Tab",      "edge": "press"},
+            {"name": "toggle_mouse_capture",  "key": "Escape",   "edge": "press"},
+        ]
+    }
+
+
+def _singleton_instances(world_w: float) -> list[dict]:
+    # Camera anchors: positions scale with the world. Top-level position
+    # MUST equal state.position for free_cameras (entity.gd clobber).
+    cam_overhead = [0.0, max(40.0, world_w * 0.7), 0.1]
+    cam_oblique  = [0.0, world_w * 0.35, world_w * 0.40]
+    cam_ground   = [0.0, 3.0, world_w * 0.40]
+    return [
+        {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
+        # Player spawns in the plaza just off centre, raised so gravity
+        # drops it onto the ground collider.
+        {"def": "player_input_anchor", "id": "player_input_anchor",
+         "position": [0, 2, 10],
+         "state": {"position": [0, 2, 10], "facing": 0.0}},
+        {"def": "free_camera", "id": "camera_overhead",
+         "position": cam_overhead,
+         "state": {"position": cam_overhead, "yaw": 0.0, "pitch": -1.55}},
+        {"def": "free_camera", "id": "camera_oblique",
+         "position": cam_oblique,
+         "state": {"position": cam_oblique, "yaw": 0.0, "pitch": -0.72}},
+        {"def": "free_camera", "id": "camera_ground",
+         "position": cam_ground,
+         "state": {"position": cam_ground, "yaw": 0.0, "pitch": -0.1}},
+    ]
+
+
+def _tscn(game_name: str, world_w: float) -> str:
+    return f"""[gd_scene load_steps=2 format=3]
+
+; Auto-generated by compose_shell.py — 3D scene launcher.
+; All directors auto-mount via WorldBoot. Ground+lighting per scene.json.
+
+[ext_resource type="Script" path="res://scripts/engine/core/world.gd" id="1"]
+
+[node name="World" type="Node"]
+script = ExtResource("1")
+data_root = "res://data/{game_name}"
+auto_start = true
+verbose = true
+renderer_script = "res://scripts/renderer_3d/entity_mesh_3d.gd"
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 60, 0)
+rotation = Vector3(-1.5708, 0, 0)
+projection = 1
+size = {int(world_w)}
+"""
+
+
+# ============================================================
+# COMPOSE SHELL
+# ============================================================
+
+def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
+                  level_id: str = "level_default") -> Path:
+    """Add the playable wrapper to an existing map dir (compose_world
+    output). Returns the game dir."""
+    if shell_type != "third_person_explorer":
+        raise ValueError(f"unknown shell_type: {shell_type} "
+                         f"(only 'third_person_explorer' today)")
+    game_dir = (DATA_ROOT / game_name).resolve()
+    scene_path = game_dir / "scene.json"
+    if not scene_path.exists():
+        raise FileNotFoundError(
+            f"{scene_path} not found — run compose_world (map) first")
+
+    # 1. Merge camera + lighting into the map's scene.json.
+    scene = json.loads(scene_path.read_text())
+    world_w = float(scene.get("ground", {}).get("mesh", {})
+                    .get("size", [80.0])[0])
+    scene["camera"] = _camera_block()
+    scene["lighting"] = _lighting_block()
+    scene_path.write_text(json.dumps(scene, indent=2))
+
+    # 2. Shell entity defs.
+    (game_dir / "entities").mkdir(exist_ok=True)
+    (game_dir / "entities" / "player.json").write_text(
+        json.dumps(_player_def(), indent=2))
+    (game_dir / "entities" / "world_clock.json").write_text(
+        json.dumps(_world_clock_def(), indent=2))
+    (game_dir / "entities" / "cameras.json").write_text(
+        json.dumps(_cameras_def(), indent=2))
+
+    # 3. Shell rules (camera control + movement). Rule JSON is cheap
+    # config (not a paid asset), so clean legacy shell-rule files —
+    # including the pre-split compose_world names — to avoid duplicate
+    # rule ids when re-running over an older map dir.
+    rules_dir = game_dir / "world" / "rules"
+    rules_dir.mkdir(parents=True, exist_ok=True)
+    for legacy in ("01_freecam_toggle.json", "02_movement.json",
+                   "10_shell_camera.json", "11_shell_movement.json"):
+        (rules_dir / legacy).unlink(missing_ok=True)
+    (rules_dir / "10_shell_camera.json").write_text(
+        json.dumps(_camera_rules(), indent=2))
+    (rules_dir / "11_shell_movement.json").write_text(
+        json.dumps(_movement_rules(), indent=2))
+
+    # 4. Input + tests.
+    (game_dir / "ui").mkdir(exist_ok=True)
+    (game_dir / "ui" / "input.json").write_text(
+        json.dumps(_input_map(), indent=2))
+    (game_dir / "tests.json").write_text(
+        json.dumps({"scenarios": []}, indent=2))
+
+    # 5. Splice the shell singletons into the level's entities.json.
+    level_path = game_dir / "levels" / level_id / "entities.json"
+    level = json.loads(level_path.read_text())
+    objects = [i for i in level.get("initial_instances", [])
+               if i.get("def") not in (
+                   "world_clock", "player_input_anchor", "free_camera")]
+    level["initial_instances"] = _singleton_instances(world_w) + objects
+    level_path.write_text(json.dumps(level, indent=2))
+
+    # 6. The .tscn launcher.
+    tscn_slug = game_name.removeprefix("demo_")
+    (ROOT / "godot" / "scenes" / f"{tscn_slug}_3d.tscn").write_text(
+        _tscn(game_name, world_w))
+
+    return game_dir
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(prog="compose_shell")
+    ap.add_argument("game_name", help="map dir under godot/data/<name>")
+    ap.add_argument("--shell-type", default="third_person_explorer")
+    ap.add_argument("--level-id", default="level_default")
+    args = ap.parse_args()
+    game_dir = compose_shell(args.game_name, args.shell_type, args.level_id)
+    print(f"[compose_shell] wrote {args.shell_type} shell into {game_dir}")
+    print(f"run with: ./scripts/play.sh {args.game_name.removeprefix('demo_')}")
+
+
+if __name__ == "__main__":
+    main()
