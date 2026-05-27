@@ -81,12 +81,14 @@
     "tower": {
       "extraction_method": "instance_per_component",
       "min_area_px": 100,
-      "pca_oriented": false,
+      "pca_oriented": true,
+      "min_elongation_for_pca": 1.6,
+      "use_canonical_scale": false,
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_cylinder",
       "canonical_size_meters": [1.5, 5.0, 1.5],
-      "_comment": "Each tower is a discrete grey blob in the semantic map. One component = one tower."
+      "_comment": "FIT-TO-MASK: tower DIAMETER fits its detected blob so it bridges the gap between adjacent wall segments at any world scale; height from canonical_size_meters[1]=5m (towers rise above the 3m walls). min_elongation 1.6 keeps round blobs unrotated. Fixed 1.5m towers left gaps once the world derived larger. 2026-05-27."
     },
     "bridge": {
       "extraction_method": "require_adjacent",
