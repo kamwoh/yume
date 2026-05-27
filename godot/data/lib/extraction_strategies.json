@@ -2,39 +2,37 @@
   "_origin": "lib/extraction_strategies.json",
   "_comment": "Stage-5 extraction strategies, keyed by class name. Each class plugs into the SAME small set of strategy methods (the only engine-level vocabulary). New classes = new JSON entries pointing at existing methods. New strategy methods = engine-level ADR. 2026-05-26.",
   "_yume_principle": "Everything reusable. Polygons decompose to rotated/scaled prim_unit_box. No new engine primitives. New genres add classes by JSON, not code.",
-
   "vocabulary": {
     "extraction_method": {
-      "single_instance":           "One instance at the LARGEST connected-component's centroid. For unique focal objects.",
-      "instance_per_component":    "ONE instance per connected component meeting min_area_px — the 1:1 primitive. With pca_oriented:true, facing + length + thickness come from PCA; else canonical_size + rotation_rule. Use when the semantic map authors each entity as a discrete tile (houses, towers, individually-tiled walls).",
-      "cluster_extract":           "Merge connected components within `cluster_within_meters`. Drops noise + collapses dense roof textures.",
-      "snap_to_anchor":            "Snap to a named structural anchor (focal_anchor, wall_ring_corners, road_intersections). Single or N instances.",
-      "scatter_in_mask":           "Distribute N=density*area instances within a region mask. RNG-seeded.",
-      "polygon_decompose":         "Trace the connected-component contour → Ramer-Douglas-Peucker simplify → emit one rotated prim_unit_box per polygon edge. For continuous walls without per-segment authoring; if walls are pre-tiled, prefer instance_per_component with pca_oriented.",
-      "require_adjacent":          "Like instance_per_component, but only keep components that touch a `must_touch_class` (e.g., bridge must touch water_surface).",
-      "llm_gestalt":               "Single OpenAI vision call enumerates instances with gestalt grouping. For classes where dense semantic-map texture should collapse to fewer larger structures."
+      "single_instance": "One instance at the LARGEST connected-component's centroid. For unique focal objects.",
+      "instance_per_component": "ONE instance per connected component meeting min_area_px \u2014 the 1:1 primitive. With pca_oriented:true, facing + length + thickness come from PCA; else canonical_size + rotation_rule. Use when the semantic map authors each entity as a discrete tile (houses, towers, individually-tiled walls).",
+      "cluster_extract": "Merge connected components within `cluster_within_meters`. Drops noise + collapses dense roof textures.",
+      "snap_to_anchor": "Snap to a named structural anchor (focal_anchor, wall_ring_corners, road_intersections). Single or N instances.",
+      "scatter_in_mask": "Distribute N=density*area instances within a region mask. RNG-seeded.",
+      "polygon_decompose": "Trace the connected-component contour \u2192 Ramer-Douglas-Peucker simplify \u2192 emit one rotated prim_unit_box per polygon edge. For continuous walls without per-segment authoring; if walls are pre-tiled, prefer instance_per_component with pca_oriented.",
+      "require_adjacent": "Like instance_per_component, but only keep components that touch a `must_touch_class` (e.g., bridge must touch water_surface).",
+      "llm_gestalt": "Single OpenAI vision call enumerates instances with gestalt grouping. For classes where dense semantic-map texture should collapse to fewer larger structures."
     },
     "rotation_rule": {
-      "no_rotation":              "facing = 0",
-      "face_nearest_road":        "CV: vector from instance to nearest cobblestone pixel → facing = atan2 of that vector. House front toward road.",
-      "face_anchor":              "CV: vector from instance to focal_anchor (plaza centroid) → facing. Townhall faces plaza.",
-      "along_tangent":            "CV: tangent of the containing polygon at instance position. Wall segments along the wall ring.",
-      "perpendicular_to_water":   "CV: normal of the water polygon's nearest edge at instance position. Bridge across river.",
-      "random_seeded":            "RNG with scene seed. Trees, rocks, organic scatter."
+      "no_rotation": "facing = 0",
+      "face_nearest_road": "CV: vector from instance to nearest cobblestone pixel \u2192 facing = atan2 of that vector. House front toward road.",
+      "face_anchor": "CV: vector from instance to focal_anchor (plaza centroid) \u2192 facing. Townhall faces plaza.",
+      "along_tangent": "CV: tangent of the containing polygon at instance position. Wall segments along the wall ring.",
+      "perpendicular_to_water": "CV: normal of the water polygon's nearest edge at instance position. Bridge across river.",
+      "random_seeded": "RNG with scene seed. Trees, rocks, organic scatter."
     },
     "y_anchor": {
       "heightmap_sample": "Sample heightmap.png at (x, z) via the existing HeightmapSampler. Default for ground-anchored objects.",
-      "water_level":      "y = 0 (water surface). Bridges, docks, boats.",
-      "anchor_floor":     "Match Y of a named anchor entity (e.g., plaza floor). Statues, fountains.",
-      "constant":         "Explicit y value (must specify `y_value_meters` in the class entry)."
+      "water_level": "y = 0 (water surface). Bridges, docks, boats.",
+      "anchor_floor": "Match Y of a named anchor entity (e.g., plaza floor). Statues, fountains.",
+      "constant": "Explicit y value (must specify `y_value_meters` in the class entry)."
     },
     "primitive": {
-      "prim_unit_box":      "1×1×1 unit box. state.scale = [W, H, D] in meters.",
-      "prim_unit_cylinder": "radius 0.5, height 1.0. state.scale = [W, H, D] (X×Z scale both diameters).",
-      "prim_unit_sphere":   "radius 0.5. state.scale = [W, H, D]."
+      "prim_unit_box": "1\u00d71\u00d71 unit box. state.scale = [W, H, D] in meters.",
+      "prim_unit_cylinder": "radius 0.5, height 1.0. state.scale = [W, H, D] (X\u00d7Z scale both diameters).",
+      "prim_unit_sphere": "radius 0.5. state.scale = [W, H, D]."
     }
   },
-
   "classes": {
     "house": {
       "extraction_method": "instance_per_component",
@@ -46,14 +44,48 @@
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_box",
-      "canonical_size_meters": [3.0, 4.0, 3.0],
+      "canonical_size_meters": [
+        3.0,
+        4.0,
+        3.0
+      ],
       "canonical_front_axis": "+X",
       "variant_buckets": [
-        {"def": "small_house",  "max_area_px": 1500,  "canonical_size_meters": [2.4, 6.0, 2.4], "albedo": "#a04020"},
-        {"def": "medium_house", "max_area_px": 3000,  "canonical_size_meters": [3.4, 8.0, 3.4], "albedo": "#b85030"},
-        {"def": "large_house",  "max_area_px": 999999,"canonical_size_meters": [4.6, 11.0,4.6], "albedo": "#c86040"}
+        {
+          "def": "small_house",
+          "max_area_px": 1500,
+          "canonical_size_meters": [
+            2.4,
+            6.0,
+            2.4
+          ],
+          "albedo": "#a04020",
+          "mesh": "house_kit"
+        },
+        {
+          "def": "medium_house",
+          "max_area_px": 3000,
+          "canonical_size_meters": [
+            3.4,
+            8.0,
+            3.4
+          ],
+          "albedo": "#b85030",
+          "mesh": "house_kit"
+        },
+        {
+          "def": "large_house",
+          "max_area_px": 999999,
+          "canonical_size_meters": [
+            4.6,
+            11.0,
+            4.6
+          ],
+          "albedo": "#c86040",
+          "mesh": "house_kit"
+        }
       ],
-      "_comment": "FIT-TO-MASK: each house box's footprint (X x Z) + yaw are fitted to its detected tile's PCA bbox, so houses match the semantic-map shapes (no canonical over/undersizing). The bucket (by area) still picks the ALBEDO tier + the HEIGHT (canonical_size_meters[1] = 3/4/5m). use_canonical_scale:false → per-instance fitted scale. Long-term: each bucket's visual.mesh swaps to a kit-composed recipe, footprint still fitted."
+      "_comment": "FIT-TO-MASK: each house box's footprint (X x Z) + yaw are fitted to its detected tile's PCA bbox, so houses match the semantic-map shapes (no canonical over/undersizing). The bucket (by area) still picks the ALBEDO tier + the HEIGHT (canonical_size_meters[1] = 3/4/5m). use_canonical_scale:false \u2192 per-instance fitted scale. Long-term: each bucket's visual.mesh swaps to a kit-composed recipe, footprint still fitted."
     },
     "townhall": {
       "extraction_method": "cluster_extract",
@@ -63,7 +95,11 @@
       "anchor_source": "focal_anchor",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_box",
-      "canonical_size_meters": [6.0, 7.0, 6.0],
+      "canonical_size_meters": [
+        6.0,
+        7.0,
+        6.0
+      ],
       "canonical_front_axis": "-Z"
     },
     "wall_segment": {
@@ -74,9 +110,13 @@
       "use_canonical_scale": false,
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_box",
-      "canonical_size_meters": [11.0, 3.0, 1.5],
+      "canonical_size_meters": [
+        11.0,
+        3.0,
+        1.5
+      ],
       "canonical_front_axis": "+X",
-      "_comment": "FIT-TO-MASK: each wall segment's LENGTH + thickness are fitted to its detected tile (PCA), height from canonical_size_meters[1]=3m. Canonical (fixed-length) walls broke the ring once the world size derived larger than the tuned 11m — fitted length spans the tile at ANY world scale, so the ring always closes. 2026-05-27."
+      "_comment": "FIT-TO-MASK: each wall segment's LENGTH + thickness are fitted to its detected tile (PCA), height from canonical_size_meters[1]=3m. Canonical (fixed-length) walls broke the ring once the world size derived larger than the tuned 11m \u2014 fitted length spans the tile at ANY world scale, so the ring always closes. 2026-05-27."
     },
     "tower": {
       "extraction_method": "instance_per_component",
@@ -87,8 +127,13 @@
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_cylinder",
-      "canonical_size_meters": [1.5, 5.0, 1.5],
-      "_comment": "FIT-TO-MASK: tower DIAMETER fits its detected blob so it bridges the gap between adjacent wall segments at any world scale; height from canonical_size_meters[1]=5m (towers rise above the 3m walls). min_elongation 1.6 keeps round blobs unrotated. Fixed 1.5m towers left gaps once the world derived larger. 2026-05-27."
+      "canonical_size_meters": [
+        1.5,
+        5.0,
+        1.5
+      ],
+      "_comment": "FIT-TO-MASK: tower DIAMETER fits its detected blob so it bridges the gap between adjacent wall segments at any world scale; height from canonical_size_meters[1]=5m (towers rise above the 3m walls). min_elongation 1.6 keeps round blobs unrotated. Fixed 1.5m towers left gaps once the world derived larger. 2026-05-27.",
+      "mesh": "tower_kit"
     },
     "bridge": {
       "extraction_method": "require_adjacent",
@@ -98,7 +143,11 @@
       "min_elongation_for_pca": 1.3,
       "y_anchor": "water_level",
       "primitive": "prim_unit_box",
-      "canonical_size_meters": [3.0, 0.4, 6.0],
+      "canonical_size_meters": [
+        3.0,
+        0.4,
+        6.0
+      ],
       "canonical_front_axis": "+X",
       "_comment": "PCA-oriented across the river. Each bridge component is one bridge; require_adjacent filters out same-color components not touching water."
     },
@@ -108,7 +157,13 @@
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_sphere",
-      "canonical_size_meters": [2.0, 1.5, 2.0]
+      "canonical_size_meters": [
+        2.0,
+        1.5,
+        2.0
+      ],
+      "mesh": "fountain_kit",
+      "albedo": "#9aa0a8"
     },
     "tree": {
       "extraction_method": "scatter_in_mask",
@@ -118,7 +173,11 @@
       "rotation_rule": "random_seeded",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_cylinder",
-      "canonical_size_meters": [1.2, 4.0, 1.2]
+      "canonical_size_meters": [
+        1.2,
+        4.0,
+        1.2
+      ]
     },
     "rock": {
       "extraction_method": "scatter_in_mask",
@@ -128,7 +187,11 @@
       "rotation_rule": "random_seeded",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_sphere",
-      "canonical_size_meters": [1.0, 0.8, 1.0]
+      "canonical_size_meters": [
+        1.0,
+        0.8,
+        1.0
+      ]
     },
     "crystal_spire": {
       "extraction_method": "cluster_extract",
@@ -137,14 +200,22 @@
       "rotation_rule": "random_seeded",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_cylinder",
-      "canonical_size_meters": [0.8, 5.0, 0.8]
+      "canonical_size_meters": [
+        0.8,
+        5.0,
+        0.8
+      ]
     },
     "well": {
       "extraction_method": "single_instance",
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_cylinder",
-      "canonical_size_meters": [1.2, 1.0, 1.2]
+      "canonical_size_meters": [
+        1.2,
+        1.0,
+        1.2
+      ]
     },
     "statue": {
       "extraction_method": "single_instance",
@@ -152,26 +223,28 @@
       "anchor_source": "focal_anchor",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_box",
-      "canonical_size_meters": [0.8, 2.5, 0.8],
+      "canonical_size_meters": [
+        0.8,
+        2.5,
+        0.8
+      ],
       "canonical_front_axis": "-Z"
     }
   },
-
   "class_aliases": {
     "_comment": "Map per-scene class names to canonical strategy entries. Lets the catalog skill recognize 'small_house', 'noble_house', 'tower_round' etc and route to the right strategy.",
-    "small_house":   "house",
-    "medium_house":  "house",
-    "noble_house":   "townhall",
-    "palace":        "townhall",
-    "wall":          "wall_segment",
-    "stone_wall":    "wall_segment",
-    "watchtower":    "tower",
-    "round_tower":   "tower",
-    "stone_bridge":  "bridge",
+    "small_house": "house",
+    "medium_house": "house",
+    "noble_house": "townhall",
+    "palace": "townhall",
+    "wall": "wall_segment",
+    "stone_wall": "wall_segment",
+    "watchtower": "tower",
+    "round_tower": "tower",
+    "stone_bridge": "bridge",
     "wooden_bridge": "bridge",
-    "well_stone":    "well"
+    "well_stone": "well"
   },
-
   "default_strategy": {
     "_comment": "Used when a class name doesn't match any entry or alias. Conservative default: one instance per blob, no rotation, box primitive sized to the bbox.",
     "extraction_method": "cluster_extract",
@@ -180,8 +253,11 @@
     "rotation_rule": "no_rotation",
     "y_anchor": "heightmap_sample",
     "primitive": "prim_unit_box",
-    "canonical_size_meters": [2.0, 2.0, 2.0]
+    "canonical_size_meters": [
+      2.0,
+      2.0,
+      2.0
+    ]
   },
-
-  "_authoring_note": "Stage 5 v2's strategy dispatcher (lib_extract_v2.py) looks up classes here by name. yume-scene-class-catalog injects the matched strategy block into the per-scene catalog. New genres: add classes here (or via alias) — NO engine code change."
+  "_authoring_note": "Stage 5 v2's strategy dispatcher (lib_extract_v2.py) looks up classes here by name. yume-scene-class-catalog injects the matched strategy block into the per-scene catalog. New genres: add classes here (or via alias) \u2014 NO engine code change."
 }

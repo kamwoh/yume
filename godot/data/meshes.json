@@ -1,6 +1,34 @@
 {
   "_comment": "3D mesh library (W5.0b). Composes engine MESH PRIMITIVES (box, sphere, cylinder, capsule, plane, prism, torus, quad \u2014 Godot's PrimitiveMesh classes). Each entry is a list of primitives with positions + sizes + $param substitution. Same authoring shape as shapes.json.",
   "meshes": {
+    "house_kit": {
+      "_comment": "Kit-of-parts house (2026-05-27): box body + prism roof + door + 2 windows. UNIT space (y 0..1); state.scale=[W,H,D] sizes per instance. $albedo = body/wall color (set per instance by compose_world); roof/door/window keep their defaults. Later: swap these primitive parts for Tripo3D part-meshes, same recipe.",
+      "primitives": [
+        {"op": "box",   "pos": [0, 0.35, 0],     "size": [1.0, 0.7, 1.0],   "color": "$albedo"},
+        {"op": "prism", "pos": [0, 0.84, 0],     "size": [1.08, 0.32, 1.08], "color": "$roof"},
+        {"op": "box",   "pos": [0, 0.13, -0.5],  "size": [0.24, 0.26, 0.06], "color": "$door"},
+        {"op": "box",   "pos": [-0.26, 0.40, -0.5], "size": [0.12, 0.13, 0.04], "color": "$window"},
+        {"op": "box",   "pos": [0.26, 0.40, -0.5],  "size": [0.12, 0.13, 0.04], "color": "$window"}
+      ],
+      "params": {"albedo": "#a04020", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0"}
+    },
+    "tower_kit": {
+      "_comment": "Kit-of-parts tower: cylinder shaft + prism (peaked) roof. UNIT space; state.scale=[D,H,D]. $albedo = stone shaft.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.42, 0], "radius": 0.5, "height": 0.84, "color": "$albedo"},
+        {"op": "prism",    "pos": [0, 0.92, 0], "size": [1.05, 0.32, 1.05],     "color": "$roof"}
+      ],
+      "params": {"albedo": "#8a8278", "roof": "#5a3a4a"}
+    },
+    "fountain_kit": {
+      "_comment": "Kit-of-parts fountain: stone basin + central column + water jet. UNIT space. $albedo = stone.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.15, 0], "radius": 0.5,  "height": 0.3, "color": "$albedo"},
+        {"op": "cylinder", "pos": [0, 0.42, 0], "radius": 0.12, "height": 0.5, "color": "$albedo"},
+        {"op": "sphere",   "pos": [0, 0.72, 0], "radius": 0.18,                "color": "$water"}
+      ],
+      "params": {"albedo": "#9aa0a8", "water": "#5ba0d0"}
+    },
     "tree": {
       "primitives": [
         {

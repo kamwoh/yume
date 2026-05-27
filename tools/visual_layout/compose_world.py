@@ -295,10 +295,15 @@ _PRIM_MESH = {
 }
 
 
-def primitive_visual(primitive: str, hex_color: str) -> dict:
-    """Yume visual block for a unit-primitive mesh + albedo. Per-instance
-    state.scale (or the def's state_init.scale) gives real dimensions."""
-    mesh = _PRIM_MESH.get(primitive, "prim_unit_box")
+def primitive_visual(primitive: str, hex_color: str,
+                     mesh_override: str | None = None) -> dict:
+    """Yume visual block for a mesh + albedo. `mesh_override` (a kit
+    mesh like 'house_kit') wins; else the unit primitive. The kit's
+    body color param is named $albedo so the per-bucket color applies
+    uniformly; the kit's other params (roof/door/window) keep defaults
+    via visual.params deep-merge. Per-instance state.scale (or the
+    def's state_init.scale) gives real dimensions."""
+    mesh = mesh_override or _PRIM_MESH.get(primitive, "prim_unit_box")
     return {"mesh": mesh, "params": {"albedo": hex_color}}
 
 
@@ -395,6 +400,7 @@ def _class_specs(catalog: dict) -> dict:
                     strat.get("canonical_size_meters", [1, 1, 1])))
                 specs[b["def"]] = {
                     "primitive": prim,
+                    "mesh": b.get("mesh", strat.get("mesh")),
                     "canonical_scale": bcanon if use_canon else None,
                     "albedo": b.get("albedo", c["hex"]),
                 }
@@ -402,10 +408,14 @@ def _class_specs(catalog: dict) -> dict:
             canon = (list(strat["canonical_size_meters"])
                      if strat.get("use_canonical_scale")
                      and "canonical_size_meters" in strat else None)
+            # albedo: a kit may want a material color unrelated to the
+            # semantic classification hex (e.g. a fountain's stone basin
+            # vs its pink semantic key). strategy.albedo overrides.
             specs[c["name"]] = {
                 "primitive": prim,
+                "mesh": strat.get("mesh"),
                 "canonical_scale": canon,
-                "albedo": c["hex"],
+                "albedo": strat.get("albedo", c["hex"]),
             }
     return specs
 
@@ -802,7 +812,8 @@ def compose(
             "tags": [name, "compose_world_gen"],
             "properties": {},
             "state_init": state_init,
-            "visual": primitive_visual(spec["primitive"], spec["albedo"]),
+            "visual": primitive_visual(spec["primitive"], spec["albedo"],
+                                       mesh_override=spec.get("mesh")),
         })
     (game_dir / "entities" / "auto_gen.json").write_text(
         json.dumps(defs_doc, indent=2)
