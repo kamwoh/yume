@@ -4710,3 +4710,20 @@ Still open (NOT deferred, just not yet built): package the front half
 (hero→ortho→semantic→heightmap) into a tool/skill; real Tripo-PARTS kits
 (vs debug primitives); a systematic composition/aesthetic pass; a single
 compose_scene orchestrator; visual-qa wired into the loop.
+
+## BUILT (2026-05-27): one-button orchestrator + /yume-create-scene skill
+
+The "no one-button pipeline" gap is closed:
+- `tools/visual_layout/compose_scene.py` — from catalog + prose, builds the
+  4 image prompts (hero / hero-conditioned ortho / ortho-conditioned
+  semantic / heightmap), generates them via openai (idempotent), then
+  chains compose_world → compose_shell (+ optional --assets) by subprocess.
+- `.claude/skills/yume-create-scene/SKILL.md` — the skill: author catalog
+  (the one LLM step) → run compose_scene → visual-qa loop.
+
+Remaining "make it perfect" items (from the asset-resolution vision):
+- real Tripo-PARTS kits (vs debug primitives) — combine generated part
+  meshes procedurally + visual-qa the combination.
+- systematic composition/aesthetic pass (focal point, paths, fg/mg/bg).
+- visual-qa wired INTO the orchestrator loop (currently manual).
+- (deferred) procedural-material tier.
