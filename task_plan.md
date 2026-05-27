@@ -4653,3 +4653,42 @@ now (it's the only dynamic entity and it works); it moves to a
 dedicated dynamic layer only when a game introduces real dynamic
 content (NPCs/missions/spawns). Until then: no speculative dynamic
 code.
+
+## Text-to-world 3D pipeline — state + asset-resolution tiers (2026-05-27)
+
+The 3D map/world pipeline (compose_world + compose_shell, distinct from
+the GDScript-game /yume-design pipeline) is now end-to-end for the
+deterministic half + tier-2 assets. Session landed:
+
+- Extraction + kits: floor-tiered houses, townhall/bridge/wall, bird-
+  totem/ruin/tree/fountain kits; fit-to-mask; generalize-tested on a
+  fantasy totem-hills scene (new classes = pure JSON).
+- compose_world (map) / compose_shell (presentation) split; per-scene
+  `scene_config.json` (dataclasses); `lib_extract_dispatch` rename.
+- Engine fixes (all gated): free-cam toggle, HeightMapShape3D collider
+  (player no longer floats on displaced terrain), duplicate-def guard.
+- Cinematic defaults + painterly grass (slope/height shading + SSAO +
+  flower specks + detail texture + wind; blades opt-in toggle).
+- Asset-gen tier 2: Tripo3D `.glb` via concept image, AND engine
+  **auto-normalize** of static `.glb` (unit-height, base-on-ground) so
+  AI meshes drop into the fitted placement with no per-def tuning.
+
+### Asset-resolution tiers (the target workflow)
+text → hero ref → orthographic → semantic+heightmap → extract →
+**resolve each class to an asset by complexity** → place → aesthetic →
+visual-qa.
+
+| Tier | Mechanism | Status |
+|---|---|---|
+| 0 reuse kit | look up existing `meshes.json` kit | kits exist; **no auto "do we have one?" check** |
+| 1 procedural/code | param-driven kit-of-parts | exists; **randomized geometry + procedural PBR (Blender-node) = future** |
+| 2 Tripo via concept image | bg-stripped concept → image_to_model → auto-normalized | **done** |
+
+### Next (in progress)
+- **(1) `asset_source` tier policy** — each class declares kit /
+  procedural / tripo (in strategy or catalog); compose_world resolves
+  accordingly instead of the implicit `strategy.mesh` vs `mesh_prompt`.
+- **(2) kit-reuse check** — before queuing a tripo gen, check the kit
+  registry (meshes.json keys) for a fitting kit; reuse if present.
+- (later) procedural materials; a single `compose_scene` orchestrator
+  chaining gen → compose_world → compose_shell.
