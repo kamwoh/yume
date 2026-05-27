@@ -331,7 +331,7 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
         raise FileNotFoundError(
             f"{scene_path} not found — run compose_world (map) first")
 
-    cfg = scfg.load_scene_config(game_dir)
+    cfg = scfg.SceneConfig.load(game_dir)
 
     # 1. Merge camera + lighting into the map's scene.json. The scene's
     # lighting is the built-in cinematic default deep-merged with any
@@ -340,7 +340,7 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     world_w = float(scene.get("ground", {}).get("mesh", {})
                     .get("size", [80.0])[0])
     scene["camera"] = _camera_block()
-    scene["lighting"] = scfg.deep_merge(_lighting_block(), cfg.get("lighting", {}))
+    scene["lighting"] = scfg.deep_merge(_lighting_block(), cfg.lighting)
     scene_path.write_text(json.dumps(scene, indent=2))
 
     # Player spawn clearance: just above the max terrain displacement so
@@ -388,9 +388,8 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     objects = [i for i in level.get("initial_instances", [])
                if i.get("def") not in (
                    "world_clock", "player_input_anchor", "free_camera")]
-    spawn = (cfg.get("player", {}) or {}).get("spawn")
     level["initial_instances"] = _singleton_instances(
-        world_w, spawn=spawn, spawn_clear_y=spawn_clear_y) + objects
+        world_w, spawn=cfg.player.spawn, spawn_clear_y=spawn_clear_y) + objects
     level_path.write_text(json.dumps(level, indent=2))
 
     # 6. The .tscn launcher.

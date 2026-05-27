@@ -900,15 +900,14 @@ def main():
                     help="(config: world.rng_seed)")
     args = ap.parse_args()
 
-    cfg = scfg.load_scene_config(DATA_ROOT / args.game_name)
+    cfg = scfg.SceneConfig.load(DATA_ROOT / args.game_name)
 
     # World size: CLI --world-x/z > config world.size_m > derive (None).
-    cfg_size = scfg.resolve(None, cfg, "world", "size_m")
     forced_world = None
     if args.world_x is not None and args.world_z is not None:
         forced_world = (args.world_x, args.world_z)
-    elif isinstance(cfg_size, list) and len(cfg_size) == 2:
-        forced_world = (float(cfg_size[0]), float(cfg_size[1]))
+    elif cfg.world.size_m and len(cfg.world.size_m) == 2:
+        forced_world = (float(cfg.world.size_m[0]), float(cfg.world.size_m[1]))
 
     game_dir = compose(
         game_name=args.game_name,
@@ -916,14 +915,14 @@ def main():
         semantic_map_path=Path(args.semantic_map),
         heightmap_path=Path(args.heightmap) if args.heightmap else None,
         world_size_m=forced_world,
-        target_footprint_m=scfg.resolve(args.target_house_m, cfg, "world", "target_house_m", default=5.0),
-        height_scale=scfg.resolve(args.height_scale, cfg, "terrain", "height_scale", default=3.0),
-        height_offset=scfg.resolve(args.height_offset, cfg, "terrain", "height_offset", default=-0.5),
-        water_level=scfg.resolve(args.water_level, cfg, "water", "level", default=None),
-        rng_seed=scfg.resolve(args.rng_seed, cfg, "world", "rng_seed", default=42),
-        biome_overrides=cfg.get("biomes", {}),
-        noise_amount=scfg.resolve(None, cfg, "terrain", "noise_amount", default=0.12),
-        blend_softness=scfg.resolve(None, cfg, "terrain", "blend_softness", default=0.12),
+        target_footprint_m=scfg.pick(args.target_house_m, cfg.world.target_house_m),
+        height_scale=scfg.pick(args.height_scale, cfg.terrain.height_scale),
+        height_offset=scfg.pick(args.height_offset, cfg.terrain.height_offset),
+        water_level=scfg.pick(args.water_level, cfg.water.level),
+        rng_seed=scfg.pick(args.rng_seed, cfg.world.rng_seed),
+        biome_overrides=cfg.biomes,
+        noise_amount=cfg.terrain.noise_amount,
+        blend_softness=cfg.terrain.blend_softness,
     )
     print(f"[compose_world] wrote MAP at: {game_dir}")
     print(f"[compose_world] next: python3 -m tools.visual_layout.compose_shell "
