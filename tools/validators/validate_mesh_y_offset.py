@@ -127,12 +127,25 @@ def check_game(game_dir: Path, strict: bool) -> int:
             min_y = glb_bbox_min_y(disk)
             if min_y is None or min_y >= -0.05:
                 continue  # mesh doesn't extend below origin meaningfully
-            scale = float(d.get("state_init", {}).get("scale", 1.0))
+            # Defs that author NO y_offset / y_offset_mesh rely on the engine
+            # auto-normalizing static .glb (entity_mesh_3d._normalize_glb,
+            # 2026-05-27 / f5d9f06): the mesh is fit to unit-height with its
+            # base on the ground at load, so no per-def offset is needed.
+            # Only legacy defs that DID author an offset are still validated.
+            if "y_offset" not in visual and "y_offset_mesh" not in visual:
+                continue
             # Authors can opt out per-entity when the mesh has artifacts
             # below the visible base (e.g. Tripo3D debris) that need to
             # stay buried. Set `visual.y_offset_intentional: true`.
             if bool(visual.get("y_offset_intentional", False)):
                 continue
+            # state_init.scale may be a scalar OR a per-axis list [x,y,z];
+            # the legacy world-units y_offset scales with the Y (height) axis.
+            _sc = d.get("state_init", {}).get("scale", 1.0)
+            if isinstance(_sc, list):
+                scale = float(_sc[1]) if len(_sc) >= 2 else (float(_sc[0]) if _sc else 1.0)
+            else:
+                scale = float(_sc)
             did = d.get("id", "?")
             # Two field variants. Preferred is y_offset_mesh (engine
             # multiplies by state.scale per-instance — pattern-safe).
