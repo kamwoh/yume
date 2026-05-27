@@ -42,6 +42,7 @@
       "pca_oriented": true,
       "min_elongation_for_pca": 1.4,
       "use_canonical_scale": false,
+      "footprint_scale": 0.7,
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_box",

@@ -182,6 +182,60 @@ def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
 
 
 # ============================================================
+# WORLD SIZE — derived so buildings land at human scale
+# ============================================================
+
+def derive_world_size(
+    semantic_path: Path,
+    palette: list[tuple[str, str]],
+    catalog: dict,
+    target_footprint_m: float = 5.0,
+    fallback_m: float = 80.0,
+) -> float:
+    """Derive the world plane size (meters) so the DOMINANT building
+    type lands at ~target_footprint_m across.
+
+    The semantic map is unitless pixels; converting to meters needs ONE
+    physical anchor. We use "the typical building should be ~5m". The
+    dominant object_placement class (most connected components — houses
+    in a town, huts in a camp, etc.) supplies the reference footprint
+    in pixels; world_size scales so that median footprint = target.
+
+      world_m = image_px * target_footprint_m / median_building_px
+
+    A dense map of tiny tiles → a larger world (each tile becomes a
+    5m house, spread out); a sparse map of big tiles → a smaller world.
+    Buildings stay human-scale regardless of map density. Street width
+    then follows from footprint_scale + the tiles' spacing.
+
+    Returns a single (square) size; falls back if no buildings found.
+    """
+    img = cv.load_rgb(semantic_path)
+    H, W = img.shape[:2]
+    label = cv.threshold_nearest_palette(img, palette)
+    obj_names = {c["name"] for c in catalog.get("classes", [])
+                 if c.get("intent_type") == "object_placement"}
+    # Dominant object class = most connected components.
+    best_name, best_foots = None, []
+    for i, (name, _h) in enumerate(palette):
+        if name not in obj_names:
+            continue
+        comps = cv.connected_components(label == i, min_area=20)
+        foots = [math.sqrt(c["area_px"]) for c in comps]
+        if len(foots) > len(best_foots):
+            best_name, best_foots = name, foots
+    if not best_foots:
+        return fallback_m
+    best_foots.sort()
+    med_px = best_foots[len(best_foots) // 2]
+    world_m = W * (target_footprint_m / med_px)
+    print(f"[compose_world] derived world_size={world_m:.0f}m "
+          f"(ref class '{best_name}': {len(best_foots)} tiles, "
+          f"median {med_px:.0f}px → {target_footprint_m}m)")
+    return round(world_m, 1)
+
+
+# ============================================================
 # WATER LEVEL — derived from the heightmap over the water mask
 # ============================================================
 
@@ -417,7 +471,8 @@ def compose(
     catalog_path: Path,
     semantic_map_path: Path,
     heightmap_path: Path | None,
-    world_size_m: tuple[float, float] = (80.0, 80.0),
+    world_size_m: tuple[float, float] | None = None,
+    target_footprint_m: float = 5.0,
     height_scale: float = 3.0,
     height_offset: float = -0.5,
     water_level: float | None = None,
@@ -426,6 +481,10 @@ def compose(
     """Run extraction (objects + non-objects) and write a full
     data/demo_<name>/ folder. Returns the folder path.
 
+    world_size_m: None → DERIVE so the dominant building lands at
+        ~target_footprint_m across (human scale). Pass a tuple to force.
+    target_footprint_m: the physical-scale anchor (a typical building's
+        footprint, meters). The one unitless→metric calibration.
     height_scale: max terrain displacement in meters (shader + entity
         Y sampler both use it). 3.0 for mostly_flat maps; ~8.0 hilly.
     height_offset: -0.5 makes grey-128 = ground level.
@@ -436,6 +495,15 @@ def compose(
     # ---- Extraction (the one place that reads semantic + heightmap) ----
     lib = json.loads(Path(LIB_STRATEGIES).read_text())
     inject_strategies(catalog, lib)
+
+    # Derive world size from building footprint unless forced. No
+    # hardcoded scale — the world sizes itself to the content.
+    if world_size_m is None:
+        palette_w = [(c["name"], c["hex"]) for c in catalog["classes"]
+                     if c.get("intent_type") in ("terrain_shader", "object_placement")]
+        wsz = derive_world_size(semantic_map_path, palette_w, catalog,
+                                target_footprint_m=target_footprint_m)
+        world_size_m = (wsz, wsz)
     anchors = detect_anchors(catalog, semantic_map_path, world_size_m)
     print(f"[compose_world] anchors: focal={anchors['focal_anchor']} "
           f"wall_ring_corners={len(anchors['wall_ring_corners'])}")
@@ -1010,8 +1078,15 @@ def main():
     ap.add_argument("--catalog", required=True, help="stage-2 class_catalog.json")
     ap.add_argument("--semantic-map", required=True, help="stage-3 semantic map PNG")
     ap.add_argument("--heightmap", default=None, help="stage-4 heightmap PNG")
-    ap.add_argument("--world-x", type=float, default=80.0)
-    ap.add_argument("--world-z", type=float, default=80.0)
+    ap.add_argument("--world-x", type=float, default=None,
+                    help="force world X size (m). Omit to DERIVE from "
+                         "building footprint (human scale).")
+    ap.add_argument("--world-z", type=float, default=None,
+                    help="force world Z size (m). Omit to derive.")
+    ap.add_argument("--target-house-m", type=float, default=5.0,
+                    help="physical anchor: typical building footprint (m). "
+                         "World size derives so the dominant building lands "
+                         "at this size.")
     ap.add_argument("--height-scale", type=float, default=3.0,
                     help="max terrain displacement (m). 3.0 flat, ~8.0 hilly.")
     ap.add_argument("--height-offset", type=float, default=-0.5)
@@ -1021,12 +1096,17 @@ def main():
     ap.add_argument("--rng-seed", type=int, default=42)
     args = ap.parse_args()
 
+    forced_world = None
+    if args.world_x is not None and args.world_z is not None:
+        forced_world = (args.world_x, args.world_z)
+
     game_dir = compose(
         game_name=args.game_name,
         catalog_path=Path(args.catalog),
         semantic_map_path=Path(args.semantic_map),
         heightmap_path=Path(args.heightmap) if args.heightmap else None,
-        world_size_m=(args.world_x, args.world_z),
+        world_size_m=forced_world,
+        target_footprint_m=args.target_house_m,
         height_scale=args.height_scale,
         height_offset=args.height_offset,
         water_level=args.water_level,

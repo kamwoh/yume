@@ -678,8 +678,12 @@ def _emit_pca_oriented(
     iw, ih = image_size
     wx_m, wz_m = world_size_m
     px_per_m = 0.5 * (iw / wx_m + ih / wz_m)
-    length_m = max(0.3, length_px / px_per_m)
-    thickness_m = max(0.15, thickness_px / px_per_m)
+    # footprint_scale shrinks the fitted footprint (X/Z only, not
+    # height) so packed tiles leave walkable gaps between them. 1.0 =
+    # exact fit. Used to open up streets in over-dense towns.
+    fscale = float(strategy.get("footprint_scale", 1.0))
+    length_m = max(0.3, length_px / px_per_m) * fscale
+    thickness_m = max(0.15, thickness_px / px_per_m) * fscale
 
     # Position from centroid
     wx, wz = cv.pixel_to_world(cx, cy, image_size, world_size_m)
