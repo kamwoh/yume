@@ -47,6 +47,7 @@ from tools.visual_layout import lib_extract as cv            # noqa: E402
 from tools.visual_layout import lib_extract_v2 as v2         # noqa: E402
 from tools.visual_layout import lib_extract_roads as roads_mod  # noqa: E402
 from tools.visual_layout import lib_extract_validate as val  # noqa: E402
+from tools.visual_layout import scene_config as scfg          # noqa: E402
 
 LIB_STRATEGIES = DATA_ROOT / "lib" / "extraction_strategies.json"
 
@@ -144,7 +145,8 @@ def build_terrain_splatmap(img: np.ndarray, palette: list[tuple[str, str]],
     return out
 
 
-def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
+def _build_biome_arrays(catalog: dict, max_biomes: int = 8,
+                        overrides: dict | None = None):
     """Build (keys, albedos, roughnesses) for the biome ground shader.
 
     keys[i]   — splatmap key color (sRGB 0..1) = the class's semantic hex
@@ -167,6 +169,9 @@ def _build_biome_arrays(catalog: dict, max_biomes: int = 8):
         name = str(c.get("name", ""))
         sem_hex = str(c.get("hex", "#808080"))
         tuned_hex, rough = BIOME_PALETTE.get(name, (sem_hex, 0.90))
+        # Per-scene display-colour override (scene_config.json "biomes").
+        if overrides and name in overrides:
+            tuned_hex = str(overrides[name])
         keys.append(_hex_to_rgb01(sem_hex))                 # sRGB key
         albedos.append([_srgb_to_linear(v) for v in _hex_to_rgb01(tuned_hex)])
         roughs.append(float(rough))
@@ -485,6 +490,9 @@ def compose(
     height_offset: float = -0.5,
     water_level: float | None = None,
     rng_seed: int = 42,
+    biome_overrides: dict | None = None,
+    noise_amount: float = 0.12,
+    blend_softness: float = 0.12,
 ) -> Path:
     """Run extraction (objects + non-objects) and write a full
     data/demo_<name>/ folder. Returns the folder path.
@@ -667,8 +675,8 @@ def compose(
         shader_params: dict = {
             "height_scale": float(height_scale),
             "height_offset": float(height_offset),
-            "blend_softness": 0.12,
-            "noise_amount": 0.12,
+            "blend_softness": float(blend_softness),
+            "noise_amount": float(noise_amount),
         }
         # Sample the DERIVED terrain splatmap (object footprints filled
         # with surrounding terrain), NOT the raw semantic map — so house/
@@ -689,7 +697,7 @@ def compose(
         # is the splatmap color (sRGB 0..1, matches the raw-sampled map);
         # biome_albedo is the TUNED display color converted sRGB→linear
         # (ALBEDO expects linear); biome_roughness per biome.
-        keys, albedos, roughs = _build_biome_arrays(catalog)
+        keys, albedos, roughs = _build_biome_arrays(catalog, overrides=biome_overrides)
         shader_params["biome_count"] = len(keys)
         shader_params["biome_key"] = keys
         shader_params["biome_albedo"] = albedos
@@ -874,22 +882,33 @@ def main():
                          "building footprint (human scale).")
     ap.add_argument("--world-z", type=float, default=None,
                     help="force world Z size (m). Omit to derive.")
-    ap.add_argument("--target-house-m", type=float, default=5.0,
+    # Defaults are None so we can tell "flag supplied" from "use config /
+    # built-in". Precedence: CLI flag > scene_config.json > built-in.
+    ap.add_argument("--target-house-m", type=float, default=None,
                     help="physical anchor: typical building footprint (m). "
                          "World size derives so the dominant building lands "
-                         "at this size.")
-    ap.add_argument("--height-scale", type=float, default=3.0,
-                    help="max terrain displacement (m). 3.0 flat, ~8.0 hilly.")
-    ap.add_argument("--height-offset", type=float, default=-0.5)
+                         "at this size. (config: world.target_house_m)")
+    ap.add_argument("--height-scale", type=float, default=None,
+                    help="max terrain displacement (m). 3.0 flat, ~8.0 hilly. "
+                         "(config: terrain.height_scale)")
+    ap.add_argument("--height-offset", type=float, default=None,
+                    help="(config: terrain.height_offset)")
     ap.add_argument("--water-level", type=float, default=None,
                     help="water surface Y (ADR 0059). Omit to derive from "
-                         "the heightmap over the water mask.")
-    ap.add_argument("--rng-seed", type=int, default=42)
+                         "the heightmap over the water mask. (config: water.level)")
+    ap.add_argument("--rng-seed", type=int, default=None,
+                    help="(config: world.rng_seed)")
     args = ap.parse_args()
 
+    cfg = scfg.load_scene_config(DATA_ROOT / args.game_name)
+
+    # World size: CLI --world-x/z > config world.size_m > derive (None).
+    cfg_size = scfg.resolve(None, cfg, "world", "size_m")
     forced_world = None
     if args.world_x is not None and args.world_z is not None:
         forced_world = (args.world_x, args.world_z)
+    elif isinstance(cfg_size, list) and len(cfg_size) == 2:
+        forced_world = (float(cfg_size[0]), float(cfg_size[1]))
 
     game_dir = compose(
         game_name=args.game_name,
@@ -897,11 +916,14 @@ def main():
         semantic_map_path=Path(args.semantic_map),
         heightmap_path=Path(args.heightmap) if args.heightmap else None,
         world_size_m=forced_world,
-        target_footprint_m=args.target_house_m,
-        height_scale=args.height_scale,
-        height_offset=args.height_offset,
-        water_level=args.water_level,
-        rng_seed=args.rng_seed,
+        target_footprint_m=scfg.resolve(args.target_house_m, cfg, "world", "target_house_m", default=5.0),
+        height_scale=scfg.resolve(args.height_scale, cfg, "terrain", "height_scale", default=3.0),
+        height_offset=scfg.resolve(args.height_offset, cfg, "terrain", "height_offset", default=-0.5),
+        water_level=scfg.resolve(args.water_level, cfg, "water", "level", default=None),
+        rng_seed=scfg.resolve(args.rng_seed, cfg, "world", "rng_seed", default=42),
+        biome_overrides=cfg.get("biomes", {}),
+        noise_amount=scfg.resolve(None, cfg, "terrain", "noise_amount", default=0.12),
+        blend_softness=scfg.resolve(None, cfg, "terrain", "blend_softness", default=0.12),
     )
     print(f"[compose_world] wrote MAP at: {game_dir}")
     print(f"[compose_world] next: python3 -m tools.visual_layout.compose_shell "

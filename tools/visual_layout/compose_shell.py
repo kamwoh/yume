@@ -25,10 +25,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = ROOT / "godot" / "data"
+sys.path.insert(0, str(ROOT))
+from tools.visual_layout import scene_config as scfg  # noqa: E402
 
 
 # ============================================================
@@ -255,22 +258,27 @@ def _input_map() -> dict:
     }
 
 
-def _singleton_instances(world_w: float) -> list[dict]:
+def _singleton_instances(world_w: float, spawn: list | None = None,
+                         spawn_clear_y: float = 12.0) -> list[dict]:
     # Camera anchors: positions scale with the world. Top-level position
     # MUST equal state.position for free_cameras (entity.gd clobber).
     cam_overhead = [0.0, max(40.0, world_w * 0.7), 0.1]
     cam_oblique  = [0.0, world_w * 0.35, world_w * 0.40]
     cam_ground   = [0.0, 3.0, world_w * 0.40]
+    # Player spawn (config player.spawn, else default). A null/missing Y
+    # uses spawn_clear_y — computed by the caller to sit just above the
+    # displaced terrain so gravity drops the player cleanly onto the
+    # HeightMapShape3D collider (spawning below the surface embeds it in a
+    # hill; spawning far above causes a long visible drop).
+    sx, sy, sz = (spawn or [0.0, None, 10.0])
+    if sy is None:
+        sy = spawn_clear_y
+    player_pos = [float(sx), float(sy), float(sz)]
     return [
         {"def": "world_clock", "id": "world_clock", "position": [0, 0, 0]},
-        # Player spawns above the terrain so gravity drops it cleanly onto
-        # the HeightMapShape3D ground collider (spawning below the displaced
-        # surface would embed it in a hill). y=12 clears height_scale up to
-        # ~24; the per-scene config will compute exact clearance from
-        # height_scale. (Was y=2 — too low once terrain displacement matters.)
         {"def": "player_input_anchor", "id": "player_input_anchor",
-         "position": [0, 12, 10],
-         "state": {"position": [0, 12, 10], "facing": 0.0}},
+         "position": player_pos,
+         "state": {"position": player_pos, "facing": 0.0}},
         {"def": "free_camera", "id": "camera_overhead",
          "position": cam_overhead,
          "state": {"position": cam_overhead, "yaw": 0.0, "pitch": -1.55}},
@@ -323,13 +331,26 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
         raise FileNotFoundError(
             f"{scene_path} not found — run compose_world (map) first")
 
-    # 1. Merge camera + lighting into the map's scene.json.
+    cfg = scfg.load_scene_config(game_dir)
+
+    # 1. Merge camera + lighting into the map's scene.json. The scene's
+    # lighting is the built-in cinematic default deep-merged with any
+    # scene_config.json "lighting" override (per-scene mood).
     scene = json.loads(scene_path.read_text())
     world_w = float(scene.get("ground", {}).get("mesh", {})
                     .get("size", [80.0])[0])
     scene["camera"] = _camera_block()
-    scene["lighting"] = _lighting_block()
+    scene["lighting"] = scfg.deep_merge(_lighting_block(), cfg.get("lighting", {}))
     scene_path.write_text(json.dumps(scene, indent=2))
+
+    # Player spawn clearance: just above the max terrain displacement so
+    # gravity drops it onto the HeightMapShape3D collider. Max displaced Y =
+    # (1 + height_offset) * height_scale (read from the ground shader the
+    # map layer wrote). +2m margin.
+    sp = scene.get("ground", {}).get("mesh", {}).get("shader_params", {})
+    h_scale = float(sp.get("height_scale", 0.0))
+    h_off = float(sp.get("height_offset", -0.5))
+    spawn_clear_y = (1.0 + h_off) * h_scale + 2.0 if h_scale > 0.0 else 2.0
 
     # 2. Shell entity defs.
     (game_dir / "entities").mkdir(exist_ok=True)
@@ -367,7 +388,9 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     objects = [i for i in level.get("initial_instances", [])
                if i.get("def") not in (
                    "world_clock", "player_input_anchor", "free_camera")]
-    level["initial_instances"] = _singleton_instances(world_w) + objects
+    spawn = (cfg.get("player", {}) or {}).get("spawn")
+    level["initial_instances"] = _singleton_instances(
+        world_w, spawn=spawn, spawn_clear_y=spawn_clear_y) + objects
     level_path.write_text(json.dumps(level, indent=2))
 
     # 6. The .tscn launcher.
