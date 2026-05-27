@@ -69,28 +69,34 @@ def _lighting_block() -> dict:
         "sky": {
             "shader": "res://data/lib/shaders/sky_clouds.gdshader",
             "shader_params": {
-                "sky_top_color": [0.30, 0.52, 0.82],
-                "sky_horizon_color": [0.72, 0.82, 0.90],
-                "cloud_color": [0.96, 0.96, 0.93],
-                "cloud_coverage": 0.40,
-                "cloud_softness": 0.45,
+                "sky_top_color": [0.22, 0.45, 0.82],
+                "sky_horizon_color": [0.80, 0.87, 0.93],
+                "cloud_color": [0.99, 0.98, 0.96],
+                "cloud_coverage": 0.48,
+                "cloud_softness": 0.58,
                 "cloud_speed": 0.008,
-                "cloud_scale": 6.0,
+                "cloud_scale": 5.0,
             },
         },
+        # Atmospheric depth — the dreamy distance fade. Higher density +
+        # aerial_perspective make far hills/totems recede into haze, which
+        # is most of the "cinematic / painterly" feel. Warm-neutral fog so
+        # the warm sun reads through it.
         "fog": {
             "enabled": True,
-            "light_color": "#cdd8e2",
+            "light_color": "#d6dce0",
             "light_energy": 1.0,
-            "density": 0.0035,
-            "sun_scatter": 0.2,
-            "aerial_perspective": 0.5,
+            "density": 0.0075,
+            "sun_scatter": 0.35,
+            "aerial_perspective": 0.8,
         },
+        # Painterly pop — pushed saturation + contrast so the stylized
+        # palette reads vivid (Journey / Kena / Tiny-Glade direction).
         "adjustments": {
             "enabled": True,
-            "contrast": 1.14,
-            "saturation": 1.22,
-            "brightness": 0.98,
+            "contrast": 1.18,
+            "saturation": 1.34,
+            "brightness": 1.0,
         },
     }
 

@@ -69,7 +69,7 @@ ROAD_CLASS_NAMES = ["cobblestone", "dirt_path", "road", "stone_road", "gravel"]
 # matte terrain, not flat paint. Unknown classes fall back to their
 # own semantic hex (so nothing breaks) at default roughness.
 BIOME_PALETTE = {
-    "grass":          ("#6f9a4e", 0.95),
+    "grass":          ("#79b048", 0.95),
     "forest":         ("#3c5a2e", 0.96),
     "farm_field":     ("#7a8240", 0.92),
     "cobblestone":    ("#9a8f7a", 0.80),
@@ -668,7 +668,7 @@ def compose(
             "height_scale": float(height_scale),
             "height_offset": float(height_offset),
             "blend_softness": 0.12,
-            "noise_amount": 0.07,
+            "noise_amount": 0.12,
         }
         # Sample the DERIVED terrain splatmap (object footprints filled
         # with surrounding terrain), NOT the raw semantic map — so house/
