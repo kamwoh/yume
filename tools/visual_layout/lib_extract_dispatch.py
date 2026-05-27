@@ -644,6 +644,42 @@ def _pick_bucket(buckets: list[dict] | None, area_px: int) -> dict | None:
     return buckets[-1]
 
 
+# Rounding precision for emitted positions/scales (world metres → mm) and
+# yaw (radians). Fixed across all emit paths so output is uniform.
+_POS_DECIMALS = 3
+_YAW_DECIMALS = 4
+
+
+def _instance(name: str, idx: int, *, pos, yaw: float,
+              primitive: str, front_axis: str,
+              scale: list | None) -> dict:
+    """THE single definition of an extracted-instance dict. Every _emit_*
+    path goes through here so the schema (and its rounding) is defined
+    once — no more three near-identical dict literals drifting apart.
+
+    `scale=None` → the instance shares its class's canonical size (emits
+    `_use_canonical_scale: true`, no per-instance scale). A [w, h, d] list
+    → a fitted per-instance scale.
+    """
+    out = {
+        "class": name,
+        "id": f"{name}_{idx:03d}",
+        "position": [round(float(pos[0]), _POS_DECIMALS),
+                     round(float(pos[1]), _POS_DECIMALS),
+                     round(float(pos[2]), _POS_DECIMALS)],
+        "yaw": round(float(yaw), _YAW_DECIMALS),
+        "primitive": primitive,
+        "canonical_front_axis": front_axis,
+    }
+    if scale is None:
+        out["_use_canonical_scale"] = True
+    else:
+        out["scale"] = [round(float(scale[0]), _POS_DECIMALS),
+                        round(float(scale[1]), _POS_DECIMALS),
+                        round(float(scale[2]), _POS_DECIMALS)]
+    return out
+
+
 def _emit_pca_oriented(
     *, name, idx, comp, class_entry, image_size, world_size_m,
     sampler, min_elongation, bucket=None,
@@ -714,23 +750,15 @@ def _emit_pca_oriented(
         # cos yaw = dx, -sin yaw = dz → yaw = atan2(-dz, dx).
         facing = math.atan2(-dz_world, dx_world)
 
-    out = {
-        "class": name,
-        "id": f"{name}_{idx:03d}",
-        "position": [round(wx, 3), wy, round(wz, 3)],
-        "yaw": round(facing, 4),
-        "primitive": strategy.get("primitive", "prim_unit_box"),
-        "canonical_front_axis": strategy.get("canonical_front_axis", "+X"),
-    }
-    if strategy.get("use_canonical_scale", False):
-        # Shared canonical size — DON'T emit per-instance scale. The
-        # entity def's state_init.scale = canonical_size_meters carries
-        # it. Every instance of this class is identical in size; only
-        # position + facing vary.
-        out["_use_canonical_scale"] = True
-    else:
-        out["scale"] = [round(length_m, 3), height_m, round(thickness_m, 3)]
-    return out
+    # Shared canonical size (scale=None) vs per-instance fitted PCA extents.
+    scale = None if strategy.get("use_canonical_scale", False) \
+        else [length_m, height_m, thickness_m]
+    return _instance(
+        name, idx, pos=(wx, wy, wz), yaw=facing,
+        primitive=strategy.get("primitive", "prim_unit_box"),
+        front_axis=strategy.get("canonical_front_axis", "+X"),
+        scale=scale,
+    )
 
 
 # ============================================================
@@ -848,15 +876,12 @@ def _emit_edge_box(
 
     wy = sampler.y_at(wx, wz) if sampler is not None else 0.0
 
-    return {
-        "class": name,
-        "id": f"{name}_{idx:03d}",
-        "position": [round(wx, 3), wy, round(wz, 3)],
-        "yaw": round(facing, 4),
-        "scale": [round(length_m, 3), height_m, thickness_m],
-        "primitive": strategy.get("primitive", "prim_unit_box"),
-        "canonical_front_axis": strategy.get("canonical_front_axis", "+X"),
-    }
+    return _instance(
+        name, idx, pos=(wx, wy, wz), yaw=facing,
+        primitive=strategy.get("primitive", "prim_unit_box"),
+        front_axis=strategy.get("canonical_front_axis", "+X"),
+        scale=[length_m, height_m, thickness_m],
+    )
 
 
 def _extract_polygon_decompose(*, name, mask, class_entry, label_map, palette,
@@ -972,22 +997,15 @@ def _emit_instance(*, name, idx, centroid_px, class_entry, label_map,
         "canonical_size_meters",
         strategy.get("canonical_size_meters", [1.0, 1.0, 1.0]),
     )
-    out = {
-        "class": name,
-        "id": f"{name}_{idx:03d}",
-        "position": [wx, wy, wz],
-        "yaw": facing,
-        "primitive": strategy.get("primitive", "prim_unit_box"),
-        "canonical_front_axis": strategy.get("canonical_front_axis", "-Z"),
-    }
-    if strategy.get("use_canonical_scale", False) or bucket is not None:
-        # Shared canonical size — DON'T emit per-instance scale.
-        out["_use_canonical_scale"] = True
-    else:
-        out["scale"] = [
-            float(canonical[0]), float(canonical[1]), float(canonical[2]),
-        ]
-    return out
+    # Bucketed defs + use_canonical_scale share a canonical size (scale=None).
+    use_canonical = strategy.get("use_canonical_scale", False) or bucket is not None
+    scale = None if use_canonical else [canonical[0], canonical[1], canonical[2]]
+    return _instance(
+        name, idx, pos=(wx, wy, wz), yaw=facing,
+        primitive=strategy.get("primitive", "prim_unit_box"),
+        front_axis=strategy.get("canonical_front_axis", "-Z"),
+        scale=scale,
+    )
 
 
 # ============================================================
