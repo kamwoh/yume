@@ -363,7 +363,20 @@ this mapping at level load.
    `terrain_shader` + `terrain_displacement` classes get NO
    strategy.
 
-8. **The `hex` is a CLASSIFICATION color, NOT a display color.**
+8. **Water classes are DEFERRED — skip `water_surface` and friends
+   unless the prose explicitly says "river", "lake", "stream",
+   "ocean", "pond", or similar.** The water shader / underwater
+   experience is currently considered "deferred polish" (2026-05-28
+   commit `0448f55` — task_plan §"Water system — DEFERRED"). The
+   box-mesh + FastNoiseLite + FRONT_FACING underwater branch are
+   committed and work, but the visual quality isn't hero-grade yet,
+   so new scenes should avoid generating water until the polish
+   resumes. Heightmap stream-channel hints can still be authored as
+   "dry streambed" terrain. If a scene genuinely needs water and
+   the user asks, include it AND set `scene_config.water.enabled:
+   true` (default) — but mention to the user the visual gap.
+
+9. **The `hex` is a CLASSIFICATION color, NOT a display color.**
    You pick hexes for maximum color-separation in the semantic map
    (rule 3) — they exist so the extractor can threshold one class
    from another. They are NOT the color the object should RENDER.

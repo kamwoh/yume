@@ -621,6 +621,7 @@ def compose(
     blend_softness: float = 0.12,
     single_biome: bool = False,
     albedo_image: str | None = None,
+    water_enabled: bool = True,
 ) -> Path:
     """Run extraction (objects + non-objects) and write a full
     data/demo_<name>/ folder. Returns the folder path.
@@ -760,10 +761,13 @@ def compose(
         # (deep enough that the whole water_mask region sits below
         # water_level regardless of the LLM's per-pixel channel depth).
         hs = max(height_scale, 0.001)
+        # Skip water-mask carving when water is disabled — leaves the
+        # water_mask regions as regular ground, no trench.
+        water_carve_norm = (1.5 / hs) if water_enabled else 0.0
         applied = carve_paths_into_heightmap(
             heightmap_dest, semantic_dest, catalog, carved_dest,
             path_depth_m=0.25 / hs, path_sigma_px=6.0,
-            water_depth_m=1.5 / hs, water_sigma_px=14.0,
+            water_depth_m=water_carve_norm, water_sigma_px=14.0,
         )
         if applied:
             print(f"[compose_world] carved path+water depressions into "
@@ -937,7 +941,7 @@ def compose(
          and c.get("intent_type") == "terrain_shader"),
         None,
     )
-    if water_class is not None and heightmap_dest:
+    if water_class is not None and heightmap_dest and water_enabled:
         # Derive the waterline from the heightmap over the water mask
         # unless the caller passed an explicit override. Default
         # behavior = derive (no flooding-the-town guesswork).
@@ -1187,6 +1191,7 @@ def main():
         blend_softness=cfg.terrain.blend_softness,
         single_biome=cfg.terrain.single_biome,
         albedo_image=cfg.terrain.albedo_image,
+        water_enabled=cfg.water.enabled,
     )
     print(f"[compose_world] wrote MAP at: {game_dir}")
     print(f"[compose_world] next: python3 -m tools.visual_layout.compose_shell "

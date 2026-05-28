@@ -19,7 +19,7 @@ JSON shape (every key optional; unknown keys like "_comment" ignored):
               "noise_amount": 0.12, "blend_softness": 0.12,
               "single_biome": false},  // true → clean grass-only ground
                                        //   (no multi-biome splatmap paints)
-  "water":   {"level": null},
+  "water":   {"enabled": true, "level": null},  // enabled:false → no water plane/carving
   "biomes":  {"grass": "#79b048"},
   "lighting": { ...partial/full override of compose_shell._lighting_block... },
   "player":  {"spawn": [0, null, 10]}   // null Y → auto terrain clearance
@@ -63,6 +63,13 @@ class TerrainConfig:
 
 @dataclass
 class WaterConfig:
+    # Master switch for the whole water system. When false, compose_world
+    # skips water-plane emission AND the heightmap water-carving step.
+    # Use it to avoid generating scenes with water while the water shader
+    # work is deferred. Catalog can still have water_surface classes —
+    # they just won't render as surface water; their semantic regions
+    # become regular terrain.
+    enabled: bool = True
     level: float | None = None             # None → derive from heightmap
 
 
