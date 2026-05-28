@@ -38,6 +38,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from PIL import Image as _PILImage
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = ROOT / "godot" / "data"
@@ -93,6 +94,52 @@ def _srgb_to_linear(c: float) -> float:
 def _hex_to_rgb01(h: str) -> list[float]:
     h = h.lstrip("#")
     return [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
+
+
+def carve_paths_into_heightmap(heightmap_src: Path, semantic_path: Path,
+                               catalog: dict, output: Path,
+                               depth_m: float = 0.3, sigma_px: float = 6.0) -> bool:
+    """Deterministic post-process: carve depressions for path-like terrain
+    classes into the heightmap, sourced from the semantic map's exact
+    pixel positions. Returns True if any carving was applied.
+
+    LLM produces the broad terrain shape (hills + stream channels), but
+    doesn't reliably encode subtle footpath ruts when asked. We add them
+    deterministically — exactly where the semantic says paths are. The
+    LLM heightmap stays as the canonical paid artifact; we write the
+    carved version as a sibling and point the engine at that.
+
+    Mask: each path-class hex sampled with a soft RGB-distance falloff
+    (sigma 30 in 0..255 space), combined via max, then Gaussian-blurred
+    for smooth depression edges. Depression depth is set in METERS and
+    converted to normalized heightmap units via height_scale (so the
+    carved depth feels the same regardless of map elevation range).
+    """
+    path_classes = [c for c in catalog.get("classes", [])
+                    if c.get("intent_type") == "terrain_shader"
+                    and ("path" in str(c.get("name", "")).lower()
+                         or "road" in str(c.get("name", "")).lower())]
+    if not path_classes:
+        return False
+    import cv2 as _cv
+    hm = np.array(_PILImage.open(heightmap_src).convert("L"), dtype=np.float32) / 255.0
+    sem = np.array(_PILImage.open(semantic_path).convert("RGB"), dtype=np.float32)
+    H, W = hm.shape
+    if sem.shape[:2] != (H, W):
+        sem = _cv.resize(sem, (W, H), interpolation=_cv.INTER_NEAREST)
+    mask = np.zeros((H, W), dtype=np.float32)
+    for cls in path_classes:
+        hx = str(cls["hex"]).lstrip("#")
+        ref = np.array([int(hx[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float32)
+        diff = np.linalg.norm(sem - ref, axis=-1)
+        cls_mask = np.exp(-(diff * diff) / (2.0 * 30.0 * 30.0))
+        mask = np.maximum(mask, cls_mask)
+    mask = _cv.GaussianBlur(mask, (0, 0), sigma_px)
+    # depth_m is divided by height_scale at the caller's level; here we
+    # take a 0..1 normalized depth directly.
+    carved = np.clip(hm - depth_m * mask, 0.0, 1.0)
+    _PILImage.fromarray((carved * 255.0).astype(np.uint8)).save(output)
+    return True
 
 
 def build_terrain_splatmap(img: np.ndarray, palette: list[tuple[str, str]],
@@ -682,6 +729,26 @@ def compose(
         if not heightmap_dest.exists():
             shutil.copy(heightmap_path, heightmap_dest)
 
+    # Deterministic path-carving: take the LLM's heightmap + the semantic
+    # map's path-class pixels, gaussian-blur into a soft mask, subtract
+    # a depression. Writes <textures>/heightmap_carved.png. Downstream
+    # (scene.json shader_params + dispatch_extraction y_anchor) uses
+    # this carved version. The pristine LLM heightmap stays in place.
+    # Deterministic = no LLM drift = paths sink exactly where semantic
+    # says they are, aligning with the 3D extraction.
+    if (heightmap_dest is not None and semantic_dest is not None):
+        carved_dest = (game_dir / "assets" / "textures" / "heightmap_carved.png")
+        # depth_m / height_scale → normalized; default ~0.25m at h_scale=10
+        depth_norm = 0.25 / max(height_scale, 0.001)
+        applied = carve_paths_into_heightmap(
+            heightmap_dest, semantic_dest, catalog, carved_dest,
+            depth_m=depth_norm, sigma_px=6.0,
+        )
+        if applied:
+            print(f"[compose_world] carved path depressions into "
+                  f"{carved_dest.name} (deterministic, semantic-aligned)")
+            heightmap_dest = carved_dest
+
     # Derive the TERRAIN-ONLY splatmap (object footprints filled with
     # surrounding terrain). The ground shader samples THIS, not the raw
     # semantic map — so house/wall/etc. footprints don't bleed into the
@@ -689,7 +756,9 @@ def compose(
     # layer, not the classification input. Regenerated each run
     # (deterministic from the semantic map; cheap, not a paid asset).
     terrain_splat_dest = None
-    if semantic_dest is not None:
+    # In ortho-albedo mode the ground samples the orthographic painting
+    # directly — the multi-biome splatmap is unused, so skip writing it.
+    if semantic_dest is not None and albedo_image is None:
         from PIL import Image as _PILImage
         terrain_names = {c["name"] for c in catalog.get("classes", [])
                          if c.get("intent_type") == "terrain_shader"}

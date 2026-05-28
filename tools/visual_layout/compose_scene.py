@@ -28,6 +28,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
@@ -96,6 +97,46 @@ def _semantic_prompt(catalog: dict) -> str:
         "bucket-fill diagram. Keep every feature at its original position.")
 
 
+def _ground_paint_prompt(catalog: dict) -> str:
+    """Prompt: ground-only sibling of the ortho.
+
+    The full ortho has all object_placement classes (totems, trees,
+    rocks, ruins, houses, walls, ... whatever this scene has) painted
+    INTO it — using it as ground albedo paints those landmarks onto the
+    floor UNDERNEATH the 3D meshes (visible from above + conflicting
+    shadows). This prompt removes them, keeping just the painterly
+    terrain_shader classes (grass, paths, water, sand, ... whatever
+    this scene has). DERIVED from the catalog — works for any scene.
+    """
+    brief = catalog.get("scene_brief", "")
+    objects = [c for c in catalog.get("classes", [])
+               if c.get("intent_type") == "object_placement"]
+    terrains = [c for c in catalog.get("classes", [])
+                if c.get("intent_type") == "terrain_shader"]
+    obj_phrase = ", ".join(
+        f"{c['name']} ({c.get('description', '')[:50]})" for c in objects
+    ) or "(none — nothing to remove)"
+    terrain_phrase = ", ".join(
+        f"{c['name']} ({c.get('description', '')[:50]})" for c in terrains
+    ) or "(none — image has no terrain to preserve)"
+    return (
+        "Edit the attached top-down painted map. REMOVE every instance "
+        "of these DISCRETE OBJECT types: "
+        f"{obj_phrase}. "
+        "KEEP only the painterly TERRAIN classes: "
+        f"{terrain_phrase}. "
+        "Preserve the EXACT terrain layout — path positions, water "
+        "channel positions, biome boundaries — pixel-aligned with the "
+        "source. Where removed objects USED TO BE, paint clean "
+        "continuous terrain that seamlessly matches whatever surrounds "
+        "those spots — NOT smudge, NOT blur. PRESERVE: same palette, "
+        "same art direction, same painterly brushwork, same warm "
+        "sunlight (but DROP the object cast shadows since the objects "
+        "are gone). The result is a clean playable GROUND for the 3D "
+        "scene to put real 3D objects on top of. "
+        f"Scene context: {brief}. 1024x1024.")
+
+
 def _heightmap_prompt(catalog: dict) -> str:
     h = catalog.get("heightmap_hints", {})
     topo = h.get("expected_topography", "mostly_flat")
@@ -113,12 +154,56 @@ def _heightmap_prompt(catalog: dict) -> str:
 
 # --- gen + orchestration ------------------------------------------------
 
+def _next_version(out: Path) -> Path:
+    """Pick the next versioned filename so iterations live side-by-side.
+
+    `orthographic.png` → `orthographic_v1.png` → `orthographic_v2.png` ...
+    Skips numbers already taken (so re-runs don't collide).
+    """
+    n = 1
+    while True:
+        cand = out.parent / f"{out.stem}_v{n}{out.suffix}"
+        if not cand.exists():
+            return cand
+        n += 1
+
+
 def _gen(backend, prompt: str, out: Path, refs: list[Path] | None,
          regen: bool) -> None:
+    """Generate to a UNIQUE versioned filename, then mirror to `out`
+    (canonical). Iterations live side-by-side as `<stem>_v1.png`,
+    `_v2.png`, ... — paid artifacts are NEVER overwritten or deleted.
+
+    Behavior:
+      - `out` exists, no --regen → skip.
+      - `out` exists, --regen → if canonical content isn't already a
+        `_vN` sibling (content-hash match), archive it as the next
+        free `_vN` first. Then generate to the next-next `_vN` and
+        mirror to canonical.
+      - `out` doesn't exist → generate into `_v1`, mirror to canonical.
+    """
     out.parent.mkdir(parents=True, exist_ok=True)
     if out.exists() and not regen:
         print(f"  [skip] {out.name} (exists; --regen to force)")
         return
+    # Preserve current canonical as a _vN sibling if it isn't already
+    # represented (content-hash check to avoid duplicate copies of the
+    # same paid artifact).
+    if out.exists():
+        cur_hash = hashlib.md5(out.read_bytes()).hexdigest()
+        already = False
+        for v in sorted(out.parent.glob(f"{out.stem}_v*{out.suffix}")):
+            try:
+                if hashlib.md5(v.read_bytes()).hexdigest() == cur_hash:
+                    already = True
+                    break
+            except OSError:
+                continue
+        if not already:
+            archived = _next_version(out)
+            archived.write_bytes(out.read_bytes())
+            print(f"  [keep] previous canonical → {archived.name}")
+    versioned = _next_version(out)
     refs = [r for r in (refs or []) if r.exists()]
     last = None
     for attempt in range(3):
@@ -126,8 +211,11 @@ def _gen(backend, prompt: str, out: Path, refs: list[Path] | None,
             kw = {"size": (1024, 1024)}
             if refs:
                 kw["reference_images"] = refs
-            backend.generate_texture(prompt, out, **kw)
-            print(f"  [gen]  {out.name}"
+            backend.generate_texture(prompt, versioned, **kw)
+            # Mirror the new version to the canonical path so downstream
+            # (compose_world, the engine) keeps working without changes.
+            out.write_bytes(versioned.read_bytes())
+            print(f"  [gen]  {versioned.name} → {out.name}"
                   + (f" (conditioned on {refs[0].name})" if refs else ""))
             return
         except Exception as e:  # noqa: BLE001
@@ -158,16 +246,21 @@ def main() -> int:
     ref_dir = game_dir / "assets" / "reference"
     hero = ref_dir / "hero_reference.png"
     ortho = ref_dir / "orthographic.png"
+    ground = ref_dir / "ground_paint.png"
     sem = game_dir / "assets" / "layouts" / "semantic_map.png"
     hm = game_dir / "assets" / "textures" / "heightmap.png"
 
     if not args.skip_gen:
         backend = OpenAIImagesBackend(_OPENAI)
-        print("[compose_scene] 1-4: image generation (openai, hero-anchored)")
+        print("[compose_scene] 1-5: image generation (openai, hero-anchored)")
         _gen(backend, _hero_prompt(catalog, args.prose), hero, None, args.regen)
         _gen(backend, _ortho_prompt(catalog), ortho, [hero], args.regen)   # hero-conditioned
         _gen(backend, _semantic_prompt(catalog), sem, [ortho], args.regen)  # ortho-conditioned
         _gen(backend, _heightmap_prompt(catalog), hm, [ortho], args.regen)
+        # Ground-paint: ortho with all landmarks (totems/trees/rocks/ruins)
+        # removed — used as the ground albedo so the 3D meshes aren't
+        # stood on top of painted copies of themselves.
+        _gen(backend, _ground_paint_prompt(catalog), ground, [ortho], args.regen)
 
     print("[compose_scene] 5: compose_world (extract → map)")
     _run(["tools.visual_layout.compose_world", args.game,

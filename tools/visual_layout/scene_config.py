@@ -71,6 +71,9 @@ class PlayerConfig:
     # [x, y, z]; a null/None Y means "auto terrain clearance" (compose_shell
     # drops the player just above the displaced ground).
     spawn: list = field(default_factory=lambda: [0.0, None, 10.0])
+    # Initial camera mode. One of: "third_person_3d", "first_person_3d",
+    # "isometric_3d", "top_down_3d". (free_cam is always toggleable via C.)
+    camera_mode: str = "third_person_3d"
 
 
 @dataclass

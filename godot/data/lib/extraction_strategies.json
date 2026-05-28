@@ -226,7 +226,10 @@
       ],
       "mesh": "tree_round",
       "albedo": "#3a8f44",
-      "_comment": "Scatters within the 'forest' biome mask, OR (when no forest class exists in the scene) within its OWN 'tree' mask \u2014 see lib_extract_v2._extract_scatter own-mask fallback (2026-05-27). Renders as tree_round kit (trunk + foliage puffs), foliage = albedo #3a8f44; canonical footprint widened to 2.5m so the rounded canopy reads as a tree, not a pole."
+      "_comment": "Stylized whimsical fantasy tree. asset_source:tripo (kit was tree_round \u2014 a cylinder+spheres primitive, reads as a green pole). Hero-style-conditioned concept \u2192 image_to_model gives a real painterly tree. tree_round remains the FALLBACK until the .glb generates; the engine auto-normalizes the .glb to the canonical 2.5x4.5x2.5 box per instance. 2026-05-28.",
+      "asset_source": "tripo",
+      "mesh_reference_prompt": "a single whimsical stylized fantasy tree \u2014 short trunk with full rounded lush layered foliage on top, soft cel-shaded painterly style, mossy green canopy, one tree centered on flat ground viewable from any angle, no background",
+      "mesh_prompt": "stylized whimsical fantasy tree, rounded lush foliage, painterly soft-shaded"
     },
     "rock": {
       "extraction_method": "scatter_in_mask",
@@ -246,8 +249,10 @@
       "scale_max": 1.6,
       "mesh": "rock_cluster_kit",
       "albedo": "#8a8278",
-      "asset_source": "kit",
-      "_comment": "Rock clusters scattered within the rock semantic mask, own-mask fallback when no rock class is upstream (2026-05-28). Kit-of-parts (5-sphere boulder pile), per-instance scale jitter for silhouette variety. Tripo upgrade (single rock_cluster glb) is a future option but the kit covers many instances cheaply."
+      "asset_source": "tripo",
+      "_comment": "Mossy rock cluster. asset_source:tripo upgraded from rock_cluster_kit (5-sphere primitive \u2014 reads as bumpy pile). Hero-style-conditioned concept \u2192 image_to_model. rock_cluster_kit remains the FALLBACK. 2026-05-28.",
+      "mesh_reference_prompt": "a single mossy stone boulder cluster \u2014 a small pile of 3-5 grouped weathered grey stones with green moss between them, soft cel-shaded painterly style, sitting on flat ground viewable from any angle, no background, centered",
+      "mesh_prompt": "stylized mossy stone boulder cluster, weathered grey stones with green moss, painterly"
     },
     "crystal_spire": {
       "extraction_method": "cluster_extract",

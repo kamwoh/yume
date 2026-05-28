@@ -4842,3 +4842,84 @@ Yume-principle note: the ortho-albedo path is OPT-IN per scene
 (albedo_image config). Town/dungeon scenes that want multi-biome
 splatmap or single-grass biome are unaffected. The new shader is a
 sibling to the biome shader, not a replacement.
+
+## Pipeline polish: versioning + FPS + dynamic prompts + path carving (2026-05-28)
+
+Several quality-of-life and correctness wins on the text-to-world
+pipeline.
+
+### Auto-versioning of paid artifacts
+
+User flagged: "the original reference is being replaced" — the
+canonical files were getting overwritten on each gen even though
+prior snapshots were stashed in `_snapshots/`. Fixed in
+`compose_scene._gen`: before each new gen, the existing canonical
+content is content-hashed; if no `_vN` sibling already represents
+it, archive canonical → next available `_vN` slot. Then gen → next
+`_vN` (different slot), mirror to canonical. Paid artifacts now
+live side-by-side as `<stem>_v1.png`, `_v2.png`, ... in the same
+dir. Downstream tools unchanged (they keep reading the canonical
+name). Historical iterations of orthographic / semantic_map /
+heightmap restored to `_vN` siblings.
+
+### FPS mode (per-scene camera config)
+
+`scene_config.player.camera_mode` (default "third_person_3d");
+compose_shell threads it into world_clock's `state_init`. Other
+modes (first_person_3d, isometric_3d, top_down_3d) are already
+supported by the engine; this just exposes the knob.
+
+### Dynamic ground-paint prompt
+
+`_ground_paint_prompt` was hardcoded to mention "totem, ruin, tree,
+rock" — specific to one scene. Now reads `catalog.classes` filtered
+by `intent_type`: REMOVE = object_placement, KEEP =
+terrain_shader. Works for ANY scene's class list. A town scene's
+prompt would say "remove house/wall/tower/fountain, keep
+cobblestone/grass/water"; an alien scene gets its own list.
+
+### Deterministic path carving
+
+User wanted dirt paths to be slightly depressed in the heightmap
+("worn footpath ruts"). Tried LLM-driven (catalog hint
+"footpaths SLIGHTLY depressed") — produced subtle but unreliable
+depressions that depended on LLM mood. Switched to deterministic
+post-process: `carve_paths_into_heightmap` reads the semantic
+map's path-class pixels, soft-matches each by hex with RGB
+distance, Gaussian-blurs the combined mask, subtracts a
+configurable depth (default ~0.25m). Writes
+`<textures>/heightmap_carved.png`; downstream (shader_params,
+water_level derivation, sample_y) uses this carved version. The
+raw LLM heightmap stays in place.
+
+Pipeline pattern this codifies: **LLM for hero-style terrain shape
++ deterministic post-process for layout-precise carving**. No drift
+between heightmap path positions and semantic path positions (the
+3D extraction's source of truth). Generalizes to other class-driven
+modifications (e.g., add `carve_*` for "objects sink slightly into
+soil", "stairs cut steps", etc.).
+
+### Splatmap skip in ortho-albedo mode
+
+`compose_world` no longer writes `terrain_splatmap.png` when the
+scene is in ortho-albedo mode — the file is unused and was just
+sitting on disk.
+
+### Tree + rock → Tripo hero-conditioned
+
+Both class strategies upgraded from `asset_source: kit` to
+`asset_source: tripo` with `mesh_reference_prompt` (for the
+hero-conditioned concept) + `mesh_prompt` (for image_to_model).
+Single Tripo `.glb` per class, shared across all instances via
+Godot 4 Forward+ auto-instancing — the "perf wall at 49 instances"
+concern didn't materialize (steady ~48-54 FPS).
+
+### Open papercuts (not blockers)
+
+- `compose_world` resets Tripo `.glb` paths to kit fallback every
+  run; need to call `yume_assetgen` (or `compose_scene --assets`)
+  after every recompose to re-patch. Should probably default
+  `--assets` on or add a "re-patch only" mode.
+- `/tmp/_fantasy_catalog.json` lives in /tmp; should probably
+  graduate to `godot/data/<game>/catalog.json` as the canonical
+  per-game recipe.

@@ -151,17 +151,17 @@ def _player_def() -> dict:
     }
 
 
-def _world_clock_def() -> dict:
+def _world_clock_def(camera_mode: str = "third_person_3d") -> dict:
     return {
-        "_comment": "Shell singleton. Starts third_person_3d (camera follows player). C → free_cam.",
+        "_comment": f"Shell singleton. Starts {camera_mode}. C → free_cam.",
         "definitions": [
             {
                 "id": "world_clock",
                 "tags": ["world_clock", "persistent"],
                 "properties": {},
                 "state_init": {
-                    "camera_mode": "third_person_3d",
-                    "previous_camera_mode": "third_person_3d",
+                    "camera_mode": camera_mode,
+                    "previous_camera_mode": camera_mode,
                     "active_camera_id": "camera_oblique",
                     "current_level": "level_default",
                     "current_hour": 15.0,
@@ -365,7 +365,7 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     (game_dir / "entities" / "player.json").write_text(
         json.dumps(_player_def(), indent=2))
     (game_dir / "entities" / "world_clock.json").write_text(
-        json.dumps(_world_clock_def(), indent=2))
+        json.dumps(_world_clock_def(cfg.player.camera_mode), indent=2))
     (game_dir / "entities" / "cameras.json").write_text(
         json.dumps(_cameras_def(), indent=2))
 
