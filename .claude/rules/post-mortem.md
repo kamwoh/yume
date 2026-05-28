@@ -1,121 +1,105 @@
 # Post-mortem ritual — mandatory after every user-found bug
 
 When the user surfaces a bug (anything from "this doesn't work" to a
-specific stack trace), **do not just fix the bug**. Run the
-post-mortem ritual. Skipping this means the same bug class
-re-surfaces in a future session, in a future game, in a future
-design pipeline.
+stack trace), **don't just fix it**. Run the ritual. Skipping means
+the same bug class re-surfaces in a future session, future game,
+future pipeline.
 
-## Self-enforcement: TaskCreate ritual (added 2026-05-26)
+## Self-enforcement: TaskCreate ritual
 
-**The moment the user surfaces a bug, BEFORE writing the fix:**
-create ONE TaskCreate that bundles the fix + the gate. Use a
-subject like `"Post-mortem: <bug short name>"` and a description
-that includes BOTH the symptom and the gate to add. Set the task
-in_progress immediately.
+The moment a bug surfaces, **BEFORE writing the fix**, create ONE
+TaskCreate bundling fix + gate. Subject: `"Post-mortem: <bug
+name>"`; description includes both the symptom and the gate to add.
+Set `in_progress` immediately. The task stays open until BOTH are
+committed; closing without the gate is forbidden.
 
-The task stays open until BOTH the fix is committed AND the gate
-is hardened. Closing it without the gate hardening is forbidden.
+Forcing function: TaskList stays visible across the conversation.
+A hanging post-mortem task is more embarrassing to ignore than a
+paragraph in a rule file. The user can also see it.
 
-Why this works as a forcing function: TaskList stays visible
-across the conversation. A post-mortem task hanging open is more
-embarrassing to ignore than a paragraph in a rule file. The
-user can also see it, which is the second layer of accountability.
-
-Empirical case: 2026-05-26 — I skipped post-mortem on the
-shutil.rmtree(game_dir) data-destruction bug, then again on the
-state.facing/state.yaw rename. Both times the user had to ask
-"do the post-mortem." The TaskCreate ritual prevents this by
-binding the post-mortem to the same task list step where I'm
-already tracking the fix.
+**Empirical 2026-05-26**: skipped post-mortem on the
+`shutil.rmtree(game_dir)` data-destruction bug, then again on the
+`state.facing`/`state.yaw` rename. Both times the user had to ask
+"do the post-mortem." This ritual binds it to the task list.
 
 ## The ritual (4 steps, no skipping)
 
 ### Step 1 — Fix the bug
 
-Diagnose, fix, verify. Standard work. Output: a commit with the
-fix.
+Diagnose, fix, verify. Output: commit with the fix.
 
-### Step 2 — Identify who is responsible (which gate should have caught it)
+### Step 2 — Identify WHO is responsible
 
-Ask the user's question explicitly: **"who is responsible?"**
+Ask explicitly: **"who is responsible?"** — i.e. which existing
+skill / rule / validator / test should have prevented this. Name
+the file, not "QA should be more careful." Every bug has an owner;
+if it slipped through, the owner was missing a check.
 
-Translate it: *which existing skill / rule / validator / test
-should have prevented this?* Be specific. Not "QA should be more
-careful" — **name the file**. Every bug has an owner; if it slipped
-through, the owner's skill was missing a check.
-
-Examples of accountability:
-
+Examples:
 - `yume-tech-director` Invariant #N — engine review missed it
 - `yume-playtest` Gate M — playability harness didn't probe it
 - `yume-game-reviewer` Axis K — design review didn't catch it
 - `validate_screens.py` — static validator could have caught it
-- `.claude/rules/data-demo.md` — schema discipline rule didn't list it
+- `.claude/rules/data-demo.md` — schema rule didn't list it
 - `visual-qa.md` — VQA prompt didn't ask the right question
-- (none — this is a NEW bug class without a current gate; flag it
-  and propose a new gate)
+- (NEW bug class without current gate — flag + propose new gate)
 
 ### Step 3 — Harden the gate
 
-Update the skill / rule / validator / test so the SAME bug class
-cannot slip through again. The update must be:
+Update the skill / rule / validator / test so the bug class can't
+slip through again. Required attributes:
 
-- **Concrete and falsifiable** — a checklist item, a grep command,
-  a heuristic minimum, an axis with measurable failure criteria.
-  Not "be careful about X" — "every PR touching X must run Y."
-- **Documented with the empirical case** — cite the bug that
-  motivated the gate so future readers understand the intent.
-- **Version-anchored** — date the change so future ripple-
-  analysis can cross-reference.
+- **Concrete + falsifiable** — checklist item, grep command,
+  heuristic, axis with measurable failure criteria. NOT "be careful
+  about X" — "every PR touching X must run Y."
+- **Documented with empirical case** — cite the bug; future readers
+  need the intent.
+- **Version-anchored** — date the change.
 
-If no gate exists for this bug class, CREATE one. New invariant in
-the relevant skill, new axis in the relevant reviewer, new test in
-the suite, new rule in `.claude/rules/`, new validator in `tools/`.
+No existing gate → CREATE one (new invariant in the skill, new axis
+in the reviewer, new test in the suite, new rule under
+`.claude/rules/`, new validator under `tools/validators/`).
 
-#### Step 3a — Bug-class generalization check (REQUIRED before declaring step 3 done)
+#### Step 3a — Bug-class generalization (REQUIRED before declaring step 3 done)
 
-Before committing the gate update, ask:
+Ask: *"Does this fix address the SYMPTOM site, or the underlying
+primitive / heuristic / pattern?"*
 
-> *"Does this fix address the SYMPTOM site, or the underlying
-> primitive / heuristic / pattern?"*
+Symptom-site = patches the one rule/file/button where the bug
+surfaced. Primitive = repairs the underlying mechanism so the bug
+class can't reach any consumer.
 
-A symptom-site fix patches the one rule / file / button where the
-bug surfaced. A primitive fix repairs the underlying mechanism so
-the bug class can't reach any consumer.
+**Litmus**: name two other call sites that could trigger the same
+bug under similar input. If either could, the fix is symptom-level
+— return to the primitive layer.
 
-Empirical case (2026-05-08): `state_set value="Find your shop..."`
+**Empirical 2026-05-08**: `state_set value="Find your shop..."`
 crashed `Formula.evaluate` because `looks_like_formula` was too
 permissive. The SAME bug class hit show_toast weeks earlier (commit
-`caabe39`). The fix back then was localized — a `_value_text()`
-helper for show_toast only. State_set still used the broken
-heuristic. Fixing show_toast and not generalizing left the trap
-loaded for state_set, future effects, and any new caller of
-`_value()`. Today's fix tightened `looks_like_formula` itself,
-eliminating the bug everywhere.
+`caabe39`); that fix was localized to a `_value_text()` helper for
+show_toast only. State_set still used the broken heuristic. Fixing
+show_toast but not generalizing left the trap loaded for state_set,
+future effects, anything else calling `_value()`. The recent fix
+tightened `looks_like_formula` itself, eliminating the bug
+everywhere.
 
-**Litmus test**: name two other call sites that could trigger the
-same bug under similar input. If either could, the fix is
-symptom-level — return to the primitive layer.
-
-**Common patterns where this matters**:
-- A wrong heuristic in shared code → fix the heuristic, not just
-  the one caller that exposed it.
-- A missing engine carve-out (e.g. freeze-policy) → audit ALL
-  pending pipelines, not just the one that hit the bug.
-- A schema-discipline gap (e.g. effect-chain ordering) → add a
+**Common patterns this matters for**:
+- Wrong heuristic in shared code → fix the heuristic, not the
+  caller that exposed it.
+- Missing engine carve-out (freeze-policy, etc.) → audit ALL
+  pending pipelines, not just the one hit.
+- Schema-discipline gap (effect-chain ordering, etc.) → add a
   validator, don't fix one rule's chain by hand.
-- A reviewer-axis miss → if axis N missed bug X, ask "would axis
-  N also miss bugs Y, Z, W?" and broaden the axis.
+- Reviewer-axis miss → if axis N missed bug X, ask "would axis N
+  also miss Y, Z, W?" and broaden.
 
-If the bug-class generalization step would take 5x longer than the
-symptom-site fix, document the gap and ship the symptom fix WITH a
-TODO referencing this rule. Don't skip silently.
+If generalization would take 5x longer than the symptom fix,
+document the gap + ship the symptom fix WITH a TODO referencing
+this rule. Don't skip silently.
 
-### Step 4 — Commit the gate update + cite the bug
+### Step 4 — Commit the gate + cite the bug
 
-Commit message must mention BOTH the bug fix AND the gate change.
-Pattern:
+Commit message mentions BOTH the fix AND the gate:
 
 ```
 <one-line bug fix summary>
@@ -123,98 +107,52 @@ Pattern:
 <paragraph explaining the bug>
 
 Gate hardening:
-- <skill/rule>: <what was added>. Catches this bug class
-  going forward.
+- <skill/rule>: <what was added>. Catches this bug class going
+  forward.
 
 Empirical case: <one-line description with date>.
 ```
 
-This commit log is the institutional memory. Future sessions read
-git log + skill files; both should reflect the lesson.
+The commit log IS the institutional memory.
 
 ## Why this matters
 
-Every bug is information. A bug that gets fixed but not gated will
-re-occur. A bug that gets gated cannot re-occur in that exact
-form — and the gate often catches related bugs too.
+Every bug is information. Fix-without-gate → bug re-occurs.
+Fix-with-gate → bug class blocked, and the gate often catches
+related bugs too. The ratchet only goes one way.
 
-The ratchet only goes one way: each bug makes the system stronger,
-not just the specific code patched.
+## Empirical precedents (each followed this ritual)
 
-## Empirical precedents (each one followed this ritual)
+| Date | Bug | Gate added |
+|---|---|---|
+| 2026-05-08 | boot-flow `transition_level` dropped under freeze | yume-tech-director Invariant #10 (freeze-policy audit) |
+| 2026-05-08 | first-frame game-flash before title | yume-playtest Gate 5b (two-frame boot comparison) |
+| 2026-05-08 | modal stack covered Brookhaven after Travel | yume-playtest Gate 5c (`@root` for multi-modal commit) |
+| 2026-05-08 | 11 broken `_close` buttons in merchant | `validate_screens.py` + visual-qa.md screen-flow gate |
+| 2026-05-07 | game shipped feature-complete but soulless | yume-game-reviewer Axis 14 (voice & texture) + yume-flavor-writer |
+| 2026-05-07 | contact-as-sale instant-despawn | yume-systems-designer multi-tick spec rule |
+| 2026-05-18 | pattern-spawned bushes floated above ground | new `visual.y_offset_mesh` (scales with `state.scale`); `validate_mesh_y_offset.py` patterns iteration; level-designer + asset-designer SKILL notes. Generalization: numeric visual fields authored against a def's reference scale MUST scale with per-instance `state.scale`, OR be flagged pattern-incompatible. |
+| 2026-05-18 | animated npc_morwen floated 0.85m | cleared stale `y_offset` after pivot-convention swap (static center-pivot → rigged foot-pivot). Gate: `animate_smoke.py` MUST pop legacy `y_offset`/`y_offset_mesh` before re-deriving, regardless of new bbox. Generalization: when pivot semantics change, the WHOLE pivot-dependent field family resets, not selective updates. |
 
-- **2026-05-08 boot-flow `transition_level` dropped under freeze**
-  → Bug fix in `world.gd`. Gate: yume-tech-director Invariant #10
-  (freeze-policy audit on every pending-state pipeline).
-- **2026-05-08 first-frame game-flash before title**
-  → Bug fix in `screen_flow.gd` (sync push). Gate: yume-playtest
-  Gate 5b (two-frame boot capture comparison).
-- **2026-05-08 modal stack covered Brookhaven after Travel button**
-  → Bug fix: added `@root` engine sentinel + button update.
-  Gate: yume-playtest Gate 5c (multi-modal commit-button must
-  use `@root`).
-- **2026-05-08 11 broken `_close` buttons across merchant**
-  → Bug fix in screens.json. Gate: `tools/validators/validate_screens.py`
-  static validator + `.claude/rules/visual-qa.md` screen-flow gate.
-- **2026-05-07 game shipped feature-complete but soulless**
-  → Bug fix: flavor-design.md. Gate: yume-game-reviewer Axis 14
-  (voice & texture density) + new yume-flavor-writer skill.
-- **2026-05-07 contact-as-sale instant-despawn**
-  → Gate: yume-systems-designer core-verb multi-tick spec rule.
-- **2026-05-18 pattern-spawned dwarf bushes floated above ground**
-  → Bug fix in `entity_mesh_3d.gd` (new `visual.y_offset_mesh` that
-  multiplies by `state.scale` at sync time, replacing the constant
-  world-units `y_offset` for pattern-safe defs). Gate: hardened
-  `tools/validators/validate_mesh_y_offset.py` to iterate level
-  patterns + flag scale mismatches between def's `state_init.scale`
-  and pattern's `scale_min/scale_max` when the def uses legacy
-  `y_offset`. Gate: `yume-level-designer` SKILL §Pattern + AI-gen
-  mesh interaction (reject patterns spawning non-mesh-space defs at
-  off-spec scale). Gate: `yume-asset-designer` SKILL §A2 extras
-  (recommend `y_offset_mesh` for any pattern-spawned def).
-  Generalization: a numeric visual field authored against a def's
-  reference scale must scale with per-instance `state.scale`, OR the
-  field must be flagged as pattern-incompatible.
-- **2026-05-18 animated npc_morwen floated 0.85m above ground**
-  → Bug fix in `villagers.json` (cleared stale `y_offset: 0.85`
-  inherited from the OLD static morwen mesh). Animated rigged GLBs
-  from Tripo have pivot at the foot (root bone), unlike static
-  Tripo image_to_model output whose pivot is at the geometric
-  center. So min.y is ~0 for animated meshes; the legacy world-units
-  y_offset value baked for the static center-pivot stays stale on
-  re-roll. Gate hardening: `animate_smoke.py` (and future
-  pipeline-side integration) MUST always pop legacy `y_offset` and
-  `y_offset_mesh` fields before re-deriving from the new animated
-  mesh's bbox, regardless of whether the new mesh's bbox warrants
-  a non-zero offset. Generalization: when replacing a mesh's pivot
-  semantics (static center-pivot → rigged foot-pivot, etc.), the
-  WHOLE pivot-dependent field family must be reset, not selectively
-  updated based on the new mesh's bbox. Selective updates leak
-  stale state from prior pivot conventions.
-
-Each gate now blocks that bug class at design time, not playtest
-time.
+Each gate now blocks that bug class at design time, not playtest.
 
 ## What this rule is NOT
 
-- Not "be more careful." That's not actionable.
-- Not "add a comment in the code." Comments rot.
-- Not "remember for next time." Memory rots faster.
-- Not "log it in task_plan.md." That's a TODO list, not a gate.
+- Not "be more careful" (not actionable)
+- Not "add a comment" (comments rot)
+- Not "remember for next time" (memory rots faster)
+- Not "log it in task_plan.md" (that's a TODO list, not a gate)
 
 The gate must be ENFORCING — a checklist a future skill MUST run, a
-test that runs in CI, a validator that fails sync, a reviewer axis
-that blocks acceptance. Enforcement, not suggestion.
+test in CI, a validator that fails sync, a reviewer axis that
+blocks acceptance.
 
-## When to skip this ritual
+## When to skip
 
-Almost never. Even minor bugs reveal a class. The exceptions:
-
-- **One-character typos in the user's prose** (truly accidental,
-  not a process gap)
-- **Bugs in third-party code** outside Yume (Godot, OS) — file
-  upstream and document a workaround, but the gate should still
-  catch the workaround being correctly applied
-- **The user explicitly says "just fix it, don't post-mortem"** —
-  respect that and move on, but flag the gap before the
-  conversation ends
+Almost never. Even minor bugs reveal a class. Exceptions:
+- **Typos in user's prose** (truly accidental, not a process gap)
+- **Third-party bugs** (Godot, OS) — file upstream + document
+  workaround; the gate should still catch the workaround being
+  correctly applied
+- **User explicitly says "just fix it, don't post-mortem"** —
+  respect, but flag the gap before the conversation ends

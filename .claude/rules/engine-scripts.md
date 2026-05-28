@@ -6,296 +6,223 @@ globs: godot/scripts/engine/**
 # Engine scripts — invariants
 
 The engine is **primitives + interpreter**. Adding a vocabulary item
-(effect type, draw op, query operator) requires engine code; adding a
-**composition** (specific rule, specific shape, specific binding)
-requires only JSON.
+(effect type, draw op, query operator) requires engine code; adding
+a **composition** (rule, shape, binding) requires only JSON.
 
 Contract: `docs/30_framework_primitives.md` invariants #1–#8.
 
 ## DON'T
 
-- ❌ **Add semantic effect types.** No `damage`, `need_decay`, `heal`,
-  `gain_xp`, `attack`, `advance_stage` as effect `type` strings. Express
-  them as `state_add` / `state_set` with semantic field names in JSON
-  content.
-- ❌ **Add entity subclasses.** No `Agent`, `Item`, `Projectile`,
-  `Building` as `extends Entity`. Distinctions emerge from tags +
-  properties + relations.
-- ❌ **Hardcode entity ids in engine code.** No `entities.get("player_1")`,
-  `if ent.def_id == "wheat":`. Engine sees IDs as opaque strings.
-- ❌ **Hardcode field names in engine code beyond reserved set.** Reserved:
-  `position`, `velocity`, `age`. Everything else (hp/hunger/xp/mana/...)
-  is content vocabulary; engine never reads them by name.
-- ❌ **Genre-specific functions.** No `damage_apply()`, `level_up()`,
-  `harvest_crop()`. Engine is generic; semantics live in JSON rules.
-- ❌ **Renderer code in engine modules.** Engine doesn't import Sprite2D,
-  MeshInstance3D, or anything visual. Renderer modules read engine state.
+- ❌ **Add semantic effect types** (`damage`, `need_decay`, `heal`,
+  `gain_xp`, `attack`, `advance_stage`). Express as `state_add` /
+  `state_set` with field names in JSON.
+- ❌ **Add entity subclasses** (`Agent`/`Item`/`Projectile`/`Building`
+  as `extends Entity`). Distinctions emerge from tags + properties
+  + relations.
+- ❌ **Hardcode entity ids** in engine code (`entities.get("player_1")`,
+  `if ent.def_id == "wheat"`). Engine sees IDs as opaque strings.
+- ❌ **Hardcode field names** beyond the reserved set (`position`,
+  `velocity`, `age`). Everything else is content vocabulary.
+- ❌ **Genre-specific functions** (`damage_apply`, `level_up`,
+  `harvest_crop`). Engine is generic; semantics live in JSON rules.
+- ❌ **Renderer code in engine modules**. Engine doesn't import
+  Sprite2D / MeshInstance3D / anything visual; renderer modules
+  read engine state.
 
 ## DO
 
-- ✅ **Treat new vocabulary as a primitive expansion.** If you genuinely
-  need a new effect/operator/binding, it joins the verb set for ALL games.
-  Document the addition in `docs/30_framework_primitives.md`.
-- ✅ **Pass `env: Dictionary` for cross-module state.** Modules access
-  entities/relations/spatial_index through env, not via singleton or
-  direct script reference.
-- ✅ **Use Variant return types** for context-resolution helpers.
-  `_value`, `_position`, `_resolve_id` return whatever shape JSON gives.
-- ✅ **Strict missing-field semantics in queries.** A missing field =
-  no match. No permissive fallback (matches `_match_fields` convention).
-- ✅ **Ship tests with the phase.** Every primitive addition lands with
-  unit tests in `tests/test_runner.gd`.
+- ✅ **Treat new vocabulary as a primitive expansion** — it joins
+  the verb set for ALL games. Document in
+  `docs/30_framework_primitives.md`.
+- ✅ **Pass `env: Dictionary`** for cross-module state — entities,
+  relations, spatial_index. No singletons / direct script refs.
+- ✅ **Variant return types** for context resolvers (`_value`,
+  `_position`, `_resolve_id`) — return whatever shape JSON gives.
+- ✅ **Strict missing-field semantics** in queries (missing = no
+  match; no permissive fallback).
+- ✅ **Ship tests with the phase** — every primitive addition lands
+  with unit tests in `tests/test_runner.gd`.
 
 ## Test invariants
 
-The engine has a **no-genre-leak invariant** (W5.7). Run this grep
-before merging — anything matching is a regression:
+No-genre-leak invariant (W5.7). Before merging:
 
 ```bash
 grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|advance_stage)' \
   godot/scripts/engine/
 ```
 
-Should return zero matches.
+Zero matches required.
 
 ## Camera-stability anti-patterns
 
-When writing Camera2D / Camera3D follow code, never combine
-**position-lerp + per-frame look_at**. The orientation re-aims each
-tick using the LERPING (mid-flight) camera position, so during the
-lerp the camera visibly rotates as the target translates. Symptom:
-"when I walk in iso3d, I feel like the camera is trying to rotate."
+When writing Camera2D / Camera3D follow code, **never combine
+position-lerp + per-frame `look_at`**. Orientation re-aims using
+the LERPING mid-flight position → camera visibly rotates as target
+translates. User feels "camera trying to rotate when I walk."
 
-✅ **Correct pattern**: compute a FIXED orientation (basis from
-target-direction relative to FINAL desired position, not current
-lerping position), then only the camera POSITION lerps:
+Correct: compute a FIXED orientation against the FINAL desired
+position; only the camera POSITION lerps.
 
 ```gdscript
 var desired := target + offset
 _camera3d.global_position = _camera3d.global_position.lerp(desired, t)
-# Orient against the desired (final) position so basis is steady
-# even while position is mid-lerp. Camera3D forward is -Z, so
-# use_model_front MUST be false (the default) — true flips +Z toward
-# target and makes the camera look AWAY from the world.
+# Basis oriented against desired (final), not lerping current.
+# Camera3D forward is -Z → use_model_front MUST be false (default).
 _camera3d.global_transform.basis = Basis.looking_at(
     target - desired, Vector3.UP, false
 )
 ```
 
-**Camera3D `use_model_front` trap (added 2026-05-08)**: `Basis.looking_at`
-takes `(target_direction, up, use_model_front=false)`. With `false`
-(default), -Z is aimed at the target — the Camera3D convention.
-With `true`, +Z is aimed at the target — used for *meshes* whose
-front-face is +Z, NOT for cameras. Setting `true` on a Camera3D
-makes it face exactly the wrong way; the world ends up empty
-(camera looks at the void behind it). Empirical case: 2026-05-08
-merchant iso-3d. Initial fix for "camera rotation while walking"
-used `true` and shipped a regression where pendrel + brookhaven
-both rendered as empty sky/ground. Caught by user playtest, not
-by visual gate (the regression capture LOOKED like the existing
-"empty world during transition" symptom we'd already been chasing).
+**`Basis.looking_at` `use_model_front` trap**: third arg `false` aims
+-Z at target (Camera3D convention); `true` aims +Z at target (for
+*meshes* with +Z front-face, NOT cameras). Setting `true` on a
+Camera3D makes the camera face exactly the wrong way → empty
+world capture. Empirical 2026-05-08: merchant iso-3d initial fix
+shipped `true`, pendrel + brookhaven rendered as empty sky/ground.
+Caught by user playtest — visual gate couldn't distinguish from
+prior "empty world during transition" symptom.
 
-❌ **Wrong**:
-```gdscript
-_camera3d.global_position = _camera3d.global_position.lerp(desired, t)
-_camera3d.look_at(target, Vector3.UP)   # ← uses lerping position
-```
-
-Empirical case: 2026-05-08 merchant iso-3d. Subtle "drift" on every
-walk step that the user noticed but couldn't articulate. Fixed in
-`game_shell.gd::_camera_isometric_3d`.
-
-## HUD panel anchor preset — centered anchors need CENTER presets, NOT WIDE
+## HUD panel anchor preset — CENTER presets, not WIDE
 
 `game_shell.gd::_build_panel` maps panel `anchor` strings to Godot
-Control anchor presets. For anchors that should be *centered* on
-their axis (`top-center`, `bottom-center`, `center`):
+Control presets. For `top-center` / `bottom-center` / `center`:
 
-- ✅ Use `PRESET_CENTER_TOP` / `PRESET_CENTER_BOTTOM` / `PRESET_CENTER` —
-  these set the anchor x to 0.5 (single point), so authored offsets
-  (`offset_left = -w*0.5`, `offset_right = +w*0.5`) yield a vbox of
-  width `w` centered on screen.
-- ❌ Do NOT use `PRESET_TOP_WIDE` / `PRESET_BOTTOM_WIDE` for these
-  anchors. WIDE presets set anchor_left=0, anchor_right=1 (the
-  vbox stretches the full viewport regardless of offsets) — the
-  vbox ends up at `x ∈ [-w*0.5, viewport_w + w*0.5]`, e.g.
-  `[-380, 1660]` for w=760 on a 1280px viewport. Children labels
-  default to `HORIZONTAL_ALIGNMENT_LEFT` and render at the *left*
-  edge of that off-screen-extending box — invisibly.
+- ✅ `PRESET_CENTER_TOP` / `PRESET_CENTER_BOTTOM` / `PRESET_CENTER`
+  — anchor x=0.5 single point. Authored offsets (`offset_left =
+  -w*0.5`) yield a w-wide vbox centered on screen.
+- ❌ `PRESET_TOP_WIDE` / `PRESET_BOTTOM_WIDE` — anchor_left=0,
+  anchor_right=1. Vbox stretches viewport-wide regardless of
+  offsets → vbox spans `[-w*0.5, viewport_w + w*0.5]`. Default
+  HORIZONTAL_ALIGNMENT_LEFT renders text at the *left* edge of
+  that off-screen box, invisibly.
 
-**Second-layer rule**: Labels inside centered panels must apply
+**Second-layer rule**: labels inside centered panels need
 `horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER` AND
-`size_flags_horizontal = SIZE_EXPAND_FILL` so the text actually
-centers within the vbox. `_build_element` detects the panel anchor
-via a `center_h` arg from `_build_panel` and sets both. Authors can
-override per-label with `align: "center" | "left" | "right"`.
+`size_flags_horizontal = SIZE_EXPAND_FILL`. `_build_element`
+detects centered anchors and sets both; authors override per-label
+with `align: "center" | "left" | "right"`.
 
-**Empirical case 2026-05-10**: Aldenmere FP shard's crosshair-target
-HUD label (`anchor: top-center`, `y_offset: 60`, `binds:
-world.crosshair_target`) reported `node_pos=(-380, 62)` and never
-appeared on screen. Adding `+ Find food before nightfall.` objective
-banner at default `top-center` had the same fate (off-screen-left
-text was never visible in any prior demo because no one had ever
-authored a *short, isolated* centered label — the long bottom-center
-controls hint masked the bug by stretching past the visible area).
-The label text was generated correctly (`'→ Fire Pit'`); the bug
-was in the geometry of the vbox. Fixed in `_build_panel` +
-`_build_element`.
+**Empirical 2026-05-10**: aldenmere's crosshair-target HUD label
+(`anchor: top-center, y_offset: 60`) reported `node_pos=(-380,
+62)` — never appeared on screen. No prior demo had authored a
+*short* centered label; long bottom-center hints masked the bug
+by stretching past visible area.
 
-**The check before approving any change to `_build_panel` or
-`_build_element`**: write a quick HUD scenario with a *short*
-label (≤ 20 chars) under each centered anchor (`top-center`,
-`bottom-center`, `center`), capture, and verify the text appears
-**centered horizontally** in the visible viewport. Diagnostic
-template:
+**Check before approving `_build_panel` / `_build_element` changes**:
+short label (≤20 chars) under each centered anchor; capture +
+verify text appears centered horizontally. Diagnostic print:
 
 ```gdscript
-# Temporary print to verify panel + child geometry
-push_warning("[LBL-DBG] panel=%s vbox_pos=%s vbox_size=%s label_pos=%s label_size=%s text='%s'" %
-    [anchor, vbox.global_position, vbox.size, lbl.global_position, lbl.size, lbl.text])
+push_warning("[LBL-DBG] panel=%s vbox_pos=%s vbox_size=%s label_pos=%s text='%s'" %
+    [anchor, vbox.global_position, vbox.size, lbl.global_position, lbl.text])
 ```
 
-For a 1280×720 viewport with w=760, expected: `vbox_pos.x ≈ 100`
-(viewport_center - w*0.5), `vbox_size.x ≈ 760`, `label_pos.x ≈
-vbox_pos.x`, label text visibly centered.
+For 1280×720 w=760: expect `vbox_pos.x ≈ 100`, `vbox_size.x ≈ 760`.
 
 ## Visual validation gate (rendering primitives)
 
-**When modifying any of these files**, capture + invoke
+When modifying any of these files, capture + invoke
 `yume-visual-designer` BEFORE committing:
 
-- `control_factory.gd`
-- `screen_flow.gd`
-- `entity_sprite_2d.gd` (or any `renderer_2d/*` / `renderer_3d/*`)
-- `game_shell.gd` (HUD construction, camera, viewmodel sections)
-- Any new module that instantiates Godot Control / CanvasItem / Mesh
-  nodes from JSON
+- `control_factory.gd`, `screen_flow.gd`
+- `entity_sprite_2d.gd`, `renderer_2d/*`, `renderer_3d/*`
+- `game_shell.gd` HUD construction / camera / viewmodel sections
+- Any new module instantiating Godot Control / CanvasItem / Mesh
+  from JSON
 
-Phase A is not done until visual-designer accepts. Empirical
-precedent: ADR 0011 Phase A (commit `6f6a8d4`) shipped with a
-miscentered Sokoban title screen because the implementer noticed the
-anchor offset, self-deferred to "Phase B," and committed Phase A
-anyway. User caught it on the next message — pipeline failure.
+Phase A is not done until visual-designer accepts.
 
-**The check**: run a relevant demo with `--capture`, read the PNG,
-and either fix the visual issue OR run `yume-visual-designer` on it
-and apply its revisions. If you don't have a render to capture
-(e.g. pure refactor), skip this gate; if you DO, it's mandatory.
+**Empirical**: ADR 0011 Phase A (commit `6f6a8d4`) shipped with a
+miscentered Sokoban title screen because the implementer self-
+deferred to "Phase B" and committed Phase A anyway. User caught
+on next message.
 
-Tech-director enforces this on merge: see
-`.claude/skills/yume-tech-director/SKILL.md` §visual gate.
+If there's no render to capture (pure refactor), skip this gate;
+if there IS, it's mandatory. Tech-director enforces on merge
+(`.claude/skills/yume-tech-director/SKILL.md` §visual gate).
 
 ## Effect-chain validation gate (interaction primitives)
 
-The visual gate above catches static rendering. It does NOT catch
-broken effect chains (button click → nothing happens). When adding
-or modifying an effect type that interacts with screen flow, save
-state, or scene lifecycle:
+Visual gate catches static rendering; effect-chain catches broken
+chains (button click → nothing). When adding/modifying effects
+that touch screen / scene / save lifecycle:
 
-- `transition_screen`, `transition_level`, `reload_scene`, `scene_change`
+- `transition_screen`, `transition_level`, `reload_scene`,
+  `scene_change`
 - `save_state`, `load_state`
 - `quit_app`
-- Any effect that reloads, destroys, or replaces the active scene
+- Anything that reloads, destroys, or replaces the active scene
 
-`screen_fade` is **non-destructive** — it tweens an overlay's alpha and
-can safely be queued anywhere in a chain (e.g. a fade-flash before a
-transition is fine). `transition_level` with `fade_duration > 0` is
-still destructive at the swap midpoint: the level swap happens between
-ticks once the fade-out completes, so any effect queued after it that
-references the OLD level's entities will be silently dropped, same as
-ordinary `transition_level`.
+`screen_fade` is non-destructive (tweens an overlay alpha) — safe
+anywhere in a chain. `transition_level` with `fade_duration > 0`
+is STILL destructive at the swap midpoint: any effect queued
+after, referencing the OLD level's entities, is silently dropped.
 
-**Rule**: trace every `on_click` (and `on_submit`, `on_change`,
-`on_press`) chain end-to-end before shipping. If any effect in the
-chain destroys state, replaces the scene, or reloads data, it must
-be the **LAST** effect. Anything queued after a destructive effect is
-silently dropped when the destruction lands at end-of-frame.
+**Rule**: trace every `on_click` / `on_press` / `on_submit` /
+`on_change` chain end-to-end. Destructive effects must be **LAST**.
+Anything queued after is silently dropped at end-of-frame.
 
-Empirical precedent: ADR 0010 reference content (commit `13d2910`)
-wired sokoban "New Game" as `[load_data, transition_screen]` (the
-effect was later renamed to `reload_scene` for clarity). The button
-rendered fine and the visual gate passed. But clicking it did
-nothing — the scene reload queued by that effect destroyed the
-following `transition_screen`. User caught it on the next message
-(commit `b109324`). Visual gate didn't help because nothing was
-visually wrong; the bug was in interaction.
+**Empirical**: ADR 0010 reference content wired sokoban "New Game"
+as `[reload_scene, transition_screen]` — the screen transition
+dropped silently. Visual gate passed (nothing visually wrong);
+user clicked, nothing happened.
 
-**The check**: for each new screens.json / hud.json / overlay.json /
-tutorial.json file (or rule that fires `transition_*` / `*_state`):
+### Check for each new screens.json / hud.json / rule firing transitions
 
-1. List every effect chain (on_click, on_press, on_submit, etc.).
-2. For each chain, identify any destructive effects (above list).
-3. Confirm destructive effects are LAST in the chain.
-4. If a chain needs sequencing (e.g. "reset world then transition"),
-   either combine into a single effect (preferred) OR queue the
-   follow-up via a one-shot rule that fires after the destruction
-   completes.
-5. **Modal-pop reveals world (added 2026-05-08)**: any chain that
-   pops a modal (`transition_screen @previous` or `@root`) reveals
-   the world underneath. The world is visible until the NEXT thing
-   covers it. Two flavors:
+1. List every effect chain (on_click, on_press, on_submit,
+   on_change).
+2. Identify destructive effects per the list above.
+3. Confirm destructive effects are LAST.
+4. If sequencing needed: combine into a single effect (preferred)
+   OR queue follow-up via a one-shot rule firing after destruction.
 
-   a) **Pop → transition_level**: pop reveals OLD level for ~2
-      frames before transition_level's fade-out kicks in.
-      Empirical: merchant Travel-to-Brookhaven (user: "first load
-      level_town_pendrel map then only load the hud conversation").
+### Modal-pop reveals world (2026-05-08)
 
-   b) **Pop → wait-for-signal-rule → next modal**: pop reveals
-      world for ~1 tick (~0.1s) until the rule listening for the
-      button's emitted signal fires `transition_screen` to push
-      the next modal. Empirical: merchant funeral_splash "Goodbye,
-      Uncle" → emits funeral_dismissed → @previous pops, leaving
-      brookhaven world visible for 1 tick before
-      brookhaven_debt_papers_trigger rule opens debt_papers_arrive
-      (user: "between the funeral canvas and the next button, I
-      see the default sky and grey ground").
+Any chain that pops a modal (`transition_screen @previous` /
+`@root`) reveals the world underneath until the next thing covers
+it.
 
-   **Mitigation (both flavors)**: prepend a `screen_fade {alpha:
-   1.0, duration: 0.15-0.2}` to the on_click chain. The opaque
-   overlay covers the world BEFORE the modal pops; the next modal
-   (or transition_level fade) takes over before the overlay
-   releases. screen_fade is non-destructive so it stays intact
-   through the whole chain.
+- **Pop → `transition_level`**: world visible ~2 frames before
+  fade-out. Empirical: merchant Travel-to-Brookhaven (user: "first
+  load level_town_pendrel map then only load the hud").
+- **Pop → wait-for-signal-rule → next modal**: world visible ~1
+  tick (~0.1s). Empirical: merchant funeral_splash → emits
+  funeral_dismissed → @previous pops, brookhaven visible 1 tick
+  before debt_papers_trigger fires.
 
-   **PAIRING (added 2026-05-08)**: every `screen_fade alpha=1.0`
-   raised by a modal-close MUST be paired with a `screen_fade
-   alpha=0.0` somewhere downstream — typically in the LAST
-   modal's close-button chain — so the persistent black overlay
-   fades back to transparent when the modal sequence ends.
-   Without it, after the final modal closes the player is left
-   staring at a solid black screen (the fade overlay is on
-   CanvasLayer 20, modals at 20+stack_size; modals cover the
-   overlay while open, but reveal it when they pop).
+**Mitigation**: prepend `screen_fade {alpha: 1.0, duration:
+0.15-0.2}` to the on_click chain. Overlay covers the world BEFORE
+the modal pops; the next modal (or transition_level fade) takes
+over before the overlay releases.
 
-   - First modal close in a sequence: `[screen_fade 1.0, ..., @previous]`
-   - Middle modal closes: just `[..., @previous]` (overlay still up)
-   - LAST modal close: `[..., @previous, screen_fade 0.0]`
+**screen_fade pairing**: every `alpha=1.0` from a modal-close MUST
+have a downstream `alpha=0.0` — typically the LAST modal's
+close-chain — or the player is left staring at solid black after
+the sequence ends.
 
-   For the Travel-to-Brookhaven case, `transition_level`'s own
-   fade state machine handles the fade-back, so no explicit
-   alpha=0 needed there. But for SIGNAL-RULE chains (no
-   transition_level), every alpha=1 needs a matching alpha=0.
+- First modal close in sequence: `[screen_fade 1.0, ..., @previous]`
+- Middle closes: just `[..., @previous]` (overlay still up)
+- LAST close: `[..., @previous, screen_fade 0.0]`
 
-   **The check**: trace every chain that raises alpha to 1.0; trace
-   downstream until the modal sequence ends; verify a screen_fade
-   alpha=0 exists. Visual gate misses it (flash too brief to
-   capture); effect-chain gate only checks ordering not pairing.
+`transition_level`'s own fade state machine handles the fade-back;
+signal-rule chains without transition_level need the explicit
+alpha=0.
 
-   Empirical case: 2026-05-08 funeral_splash → debt_papers_arrive →
-   "just dark." Funeral close raised alpha=1; debt_papers Continue
-   only popped, left overlay black. Fix: added alpha=0 to Continue.
+**Empirical 2026-05-08**: funeral_splash → debt_papers_arrive →
+"just dark." Funeral close raised alpha=1; debt_papers Continue
+only popped, left overlay black.
 
-Effect documentation must spell out destructive-vs-additive semantics.
-See `docs/engine-reference/api-manifest.json` (auto-generated).
+Effect docs must spell out destructive-vs-additive semantics. See
+`docs/engine-reference/api-manifest.json` (auto-generated).
 
 ## When in doubt
 
 Ask: "could a different game (chess, shooter, ecology) want this
 behavior?"
-- If yes — it's a primitive (engine code).
-- If no — it's content (JSON).
+- Yes → primitive (engine code).
+- No → content (JSON).
 
 If a genre-specific behavior keeps "wanting" engine code, the
-primitive vocabulary is missing something. Surface that gap, propose
-the new verb, get an ADR (`docs/adr/`) — don't add the genre-specific
-shortcut.
+primitive vocabulary is missing something. Surface the gap, propose
+the new verb, get an ADR — DON'T add the genre-specific shortcut.
