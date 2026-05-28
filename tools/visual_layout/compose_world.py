@@ -96,49 +96,66 @@ def _hex_to_rgb01(h: str) -> list[float]:
     return [int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
 
 
+def _carve_class_mask(semantic_rgb: np.ndarray, classes: list[dict],
+                      sigma_px: float) -> np.ndarray:
+    """Soft mask: union of class hexes via RGB-distance, then Gaussian-blur."""
+    import cv2 as _cv
+    H, W = semantic_rgb.shape[:2]
+    mask = np.zeros((H, W), dtype=np.float32)
+    for cls in classes:
+        hx = str(cls["hex"]).lstrip("#")
+        ref = np.array([int(hx[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float32)
+        diff = np.linalg.norm(semantic_rgb - ref, axis=-1)
+        cls_mask = np.exp(-(diff * diff) / (2.0 * 30.0 * 30.0))
+        mask = np.maximum(mask, cls_mask)
+    return _cv.GaussianBlur(mask, (0, 0), sigma_px)
+
+
 def carve_paths_into_heightmap(heightmap_src: Path, semantic_path: Path,
                                catalog: dict, output: Path,
-                               depth_m: float = 0.3, sigma_px: float = 6.0) -> bool:
-    """Deterministic post-process: carve depressions for path-like terrain
-    classes into the heightmap, sourced from the semantic map's exact
-    pixel positions. Returns True if any carving was applied.
+                               path_depth_m: float = 0.25,
+                               path_sigma_px: float = 6.0,
+                               water_depth_m: float = 1.5,
+                               water_sigma_px: float = 14.0) -> bool:
+    """Deterministic post-process: carve depressions for path-like AND
+    water-like terrain classes into the heightmap. Returns True if any
+    carving was applied. Source: semantic_map's exact pixel positions.
 
-    LLM produces the broad terrain shape (hills + stream channels), but
-    doesn't reliably encode subtle footpath ruts when asked. We add them
-    deterministically — exactly where the semantic says paths are. The
-    LLM heightmap stays as the canonical paid artifact; we write the
-    carved version as a sibling and point the engine at that.
+    Two passes:
+      - PATHS: subtle ruts (~0.25m, soft sigma) for dirt_path/road class
+      - WATER: deeper trench (~1.5m, smoother sigma) under water_surface
+        class so the terrain reliably sits BELOW water_level across the
+        whole mask region. Without this, the LLM-carved channels miss
+        spots and the water plane "floats" above unflattened terrain.
 
-    Mask: each path-class hex sampled with a soft RGB-distance falloff
-    (sigma 30 in 0..255 space), combined via max, then Gaussian-blurred
-    for smooth depression edges. Depression depth is set in METERS and
-    converted to normalized heightmap units via height_scale (so the
-    carved depth feels the same regardless of map elevation range).
+    Inputs depth in METERS — caller divides by height_scale to map into
+    normalized heightmap units before passing.
     """
+    import cv2 as _cv
     path_classes = [c for c in catalog.get("classes", [])
                     if c.get("intent_type") == "terrain_shader"
                     and ("path" in str(c.get("name", "")).lower()
                          or "road" in str(c.get("name", "")).lower())]
-    if not path_classes:
+    water_classes = [c for c in catalog.get("classes", [])
+                     if c.get("intent_type") == "terrain_shader"
+                     and ("water" in str(c.get("name", "")).lower()
+                          or "river" in str(c.get("name", "")).lower()
+                          or "pond" in str(c.get("name", "")).lower()
+                          or "lake" in str(c.get("name", "")).lower())]
+    if not path_classes and not water_classes:
         return False
-    import cv2 as _cv
     hm = np.array(_PILImage.open(heightmap_src).convert("L"), dtype=np.float32) / 255.0
     sem = np.array(_PILImage.open(semantic_path).convert("RGB"), dtype=np.float32)
     H, W = hm.shape
     if sem.shape[:2] != (H, W):
         sem = _cv.resize(sem, (W, H), interpolation=_cv.INTER_NEAREST)
-    mask = np.zeros((H, W), dtype=np.float32)
-    for cls in path_classes:
-        hx = str(cls["hex"]).lstrip("#")
-        ref = np.array([int(hx[i:i + 2], 16) for i in (0, 2, 4)], dtype=np.float32)
-        diff = np.linalg.norm(sem - ref, axis=-1)
-        cls_mask = np.exp(-(diff * diff) / (2.0 * 30.0 * 30.0))
-        mask = np.maximum(mask, cls_mask)
-    mask = _cv.GaussianBlur(mask, (0, 0), sigma_px)
-    # depth_m is divided by height_scale at the caller's level; here we
-    # take a 0..1 normalized depth directly.
-    carved = np.clip(hm - depth_m * mask, 0.0, 1.0)
-    _PILImage.fromarray((carved * 255.0).astype(np.uint8)).save(output)
+    if path_classes:
+        path_mask = _carve_class_mask(sem, path_classes, path_sigma_px)
+        hm = np.clip(hm - path_depth_m * path_mask, 0.0, 1.0)
+    if water_classes:
+        water_mask = _carve_class_mask(sem, water_classes, water_sigma_px)
+        hm = np.clip(hm - water_depth_m * water_mask, 0.0, 1.0)
+    _PILImage.fromarray((hm * 255.0).astype(np.uint8)).save(output)
     return True
 
 
@@ -738,14 +755,18 @@ def compose(
     # says they are, aligning with the 3D extraction.
     if (heightmap_dest is not None and semantic_dest is not None):
         carved_dest = (game_dir / "assets" / "textures" / "heightmap_carved.png")
-        # depth_m / height_scale → normalized; default ~0.25m at h_scale=10
-        depth_norm = 0.25 / max(height_scale, 0.001)
+        # Convert METERS to normalized heightmap units via height_scale.
+        # Path depth = ~0.25m (subtle footpath rut). Water depth = ~1.5m
+        # (deep enough that the whole water_mask region sits below
+        # water_level regardless of the LLM's per-pixel channel depth).
+        hs = max(height_scale, 0.001)
         applied = carve_paths_into_heightmap(
             heightmap_dest, semantic_dest, catalog, carved_dest,
-            depth_m=depth_norm, sigma_px=6.0,
+            path_depth_m=0.25 / hs, path_sigma_px=6.0,
+            water_depth_m=1.5 / hs, water_sigma_px=14.0,
         )
         if applied:
-            print(f"[compose_world] carved path depressions into "
+            print(f"[compose_world] carved path+water depressions into "
                   f"{carved_dest.name} (deterministic, semantic-aligned)")
             heightmap_dest = carved_dest
 
@@ -945,21 +966,42 @@ def compose(
         water_mask_dest = game_dir / "assets" / "layouts" / "water_mask.png"
         _PILImg.fromarray((m * 255).astype("uint8"), "L").save(water_mask_dest)
 
+        # Box-mesh water volume (2026-05-28): the mesh is now a 3D BOX
+        # with the top face at water_level and the bottom face buried
+        # well below the deepest carved channel. The engine's water
+        # renderer reads box_depth to build a BoxMesh; if box_depth is
+        # absent it falls back to the legacy flat PlaneMesh (for older
+        # demos). With a box + cull_disabled shader, the player descending
+        # below water_level renders the box's interior — refraction +
+        # depth-tint produces the underwater look for FREE, no
+        # post-process needed.
         scene["water"] = {
-            "_comment": "ADR 0059 water surface. Confined to the river "
-                        "region by water_mask (not a full plane). level = "
-                        "world Y of the surface; the masked region's "
-                        "riverbed (below level) fills.",
+            "_comment": "ADR 0059 water volume (box mesh). Confined to the "
+                        "river region by water_mask (top face discards "
+                        "outside mask). box_depth: thickness BELOW the "
+                        "water surface (so terrain hides the box bottom).",
             "mesh": {
                 "size": [world_w, world_h],
                 "level": float(level),
+                "box_depth": 8.0,
                 "shader": "res://data/lib/shaders/water_stylized.gdshader",
                 "shader_params": {
-                    "base_color": [0.10, 0.30, 0.45, 0.80],
-                    "highlight_color": [0.62, 0.80, 0.92, 0.85],
-                    "wave_speed": 0.22,
-                    "ripple_density": 10.0,
-                    "metallic_uniform": 0.30,
+                    # Stylized water — box-mesh aware. Uniform names match
+                    # water_stylized.gdshader (2026-05-28).
+                    "deep_color": [0.03, 0.10, 0.20, 1.0],
+                    "shallow_color": [0.30, 0.62, 0.74, 0.85],
+                    "foam_color": [0.97, 0.99, 1.0, 1.0],
+                    "water_normal_tex": "res://data/lib/textures/water_normal.tres",
+                    "normal_tile_m": 6.0,
+                    "ripple_strength": 0.85,
+                    "flow_dir": [0.72, 0.32],
+                    "flow_speed": 0.045,
+                    "depth_fade_m": 0.45,
+                    "refraction_strength": 0.05,
+                    "fresnel_power": 3.5,
+                    "foam_distance_m": 0.65,
+                    "foam_softness": 0.40,
+                    "foam_animation": 1.8,
                     "use_water_mask": True,
                     "plane_size": float(world_w),
                     "water_mask": (

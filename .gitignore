@@ -76,6 +76,10 @@ godot/data/demo_*/assets/shaders/
 # Regenerate via the asset pipeline (tools/yume_assetgen + compose_*).
 # Per-game demo_*/ is already ignored above; these cover the shared lib +
 # any other generated texture/mesh/concept output.
-godot/data/lib/textures/
+godot/data/lib/textures/*
+# .tres files in lib/textures are source-controlled Godot resources
+# (e.g. NoiseTexture2D resource definitions), NOT generated assets.
+# (Must use `dir/*` instead of `dir/` so negation re-includes work.)
+!godot/data/lib/textures/*.tres
 godot/data/**/assets/concepts/
 *.glb.import

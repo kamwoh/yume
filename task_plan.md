@@ -4923,3 +4923,58 @@ concern didn't materialize (steady ~48-54 FPS).
 - `/tmp/_fantasy_catalog.json` lives in /tmp; should probably
   graduate to `godot/data/<game>/catalog.json` as the canonical
   per-game recipe.
+
+## Water system — DEFERRED (2026-05-28)
+
+Took a long detour iterating on water visual quality. Landed real
+framework gains then user called time on further water polish.
+
+What landed (preserved in framework):
+- **Deterministic water-mask carving** in `carve_paths_into_heightmap`:
+  the heightmap is post-processed to dig a soft trench under the
+  semantic water_mask region. Combined with the existing path-carving
+  pass it ensures all terrain inside the mask sits below water_level —
+  water plane no longer "floats" above unflattened terrain.
+- **Box-mesh water volume** (replaces flat PlaneMesh). compose_world
+  emits `water.mesh.box_depth`; engine `ground_renderer.build_water`
+  creates a `BoxMesh` (top face at water_level, bottom buried below
+  the deepest carve). Older demos without `box_depth` keep the legacy
+  flat plane.
+- **FRONT_FACING underwater split** in the shader. With
+  `render_mode cull_disabled`, the box's interior faces render when
+  the camera descends below water_level. Inside the shader,
+  `if (FRONT_FACING)` runs the surface look (foam, ripples, refraction);
+  `else` runs an underwater look (deep_color via EMISSION so PBR
+  lighting doesn't wash it). **The underwater effect comes for free
+  from being inside the box** — no overlay, no post-process needed.
+- **FastNoiseLite normal-map texture** (`godot/data/lib/textures/
+  water_normal.tres`): NoiseTexture2D resource with 5 fractal
+  octaves, seamless, as_normal_map, bump_strength 8.0. Same setup
+  as the YouTube stylized-water tutorial. Shader samples it at two
+  scales scrolled in different directions → no visible tiling.
+- Refraction `0.012 → 0.05` + depth_fade `1.0 → 0.45` for stronger
+  3D look (you see refracted scene more through the water; depth
+  gradient is more pronounced).
+- gitignore now allows `*.tres` under `lib/textures/` (source-
+  controlled Godot resources, not generated binaries).
+
+Bug-gates discovered (would-be-good-to-add):
+- Godot 4 fragment shaders cannot use `return;` — must restructure
+  via `if/else` at the bottom. (Worth a Yume rule entry.)
+- `entity.position_clobber`: top-level `position` always wins over
+  `state.position`. Already documented in `data-demo.md`; the
+  warning fired during this work confirms the gate is doing its
+  job (just easy to ignore in iteration).
+
+Open items for when water comes back:
+- The water surface still doesn't look fully painterly-cinematic
+  (it reads as "Godot-tutorial stylized" not "hero painting").
+  Would need a hand-painted normal texture or a more aggressive
+  stylized shader (cel-shaded crests, painted highlights).
+- Walking into water still bisects the player view at the moment
+  their head crosses water_level. The FRONT_FACING branch hides
+  this AFTER they're submerged; the transition itself is abrupt.
+  Could add a smooth "wading" / partial-submerge effect later.
+- Water region in totem_hills is a winding river — the box-mesh
+  approach is over-broad (we have a big box clipped to a thin
+  river). A pond/lake scene would fit a box more naturally.

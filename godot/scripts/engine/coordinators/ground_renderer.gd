@@ -350,11 +350,28 @@ func build_water() -> void:
 	var w := float(size_arr[0]) if size_arr.size() >= 1 else 80.0
 	var d := float(size_arr[1]) if size_arr.size() >= 2 else w
 	var level := float(cfg.get("level", 0.0))
+	var box_depth := float(cfg.get("box_depth", 0.0))
 
-	var mesh := PlaneMesh.new()
-	mesh.size = Vector2(w, d)
-	# Flat — ripples are a fragment-shader effect (UV + TIME), no
-	# vertex displacement, so no subdivision needed.
+	# Box volume (2026-05-28): when box_depth > 0, the mesh is a 3D BOX
+	# with the top face at water_level and the bottom face buried at
+	# water_level - box_depth. The shader's `cull_disabled` lets the
+	# box's interior render when the camera is below water_level — that
+	# gives the natural underwater effect (refraction + depth-tint of
+	# the world as seen through water). Legacy flat-plane mode (no
+	# box_depth, or box_depth==0) is preserved for older demos.
+	var mesh: Mesh
+	var node_y := level
+	if box_depth > 0.0:
+		var bm := BoxMesh.new()
+		bm.size = Vector3(w, box_depth, d)
+		mesh = bm
+		# Box pivot is the centre; offset down so the TOP face sits
+		# exactly at water_level.
+		node_y = level - box_depth * 0.5
+	else:
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(w, d)
+		mesh = pm
 
 	var shader_path: String = str(cfg.get("shader", "")).strip_edges()
 	if shader_path == "":
@@ -380,7 +397,7 @@ func build_water() -> void:
 	node.name = "Water"
 	node.mesh = mesh
 	node.material_override = sm
-	node.position = Vector3(0, level, 0)
+	node.position = Vector3(0, node_y, 0)
 	# Transparent surface: don't cast shadows onto the riverbed.
 	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_world.add_child(node)
