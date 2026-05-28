@@ -5696,6 +5696,17 @@
       "params": {
         "albedo": "#e040a0"
       }
+    },
+    "rock_cluster_kit": {
+      "_comment": "Boulder-cluster rock kit (2026-05-28): 5 spheres at varying size/position so a single scattered instance reads as a mossy stone pile, not one ball. Mesh-unit space; per-instance state.scale + scale_jitter add silhouette variety. $albedo = stone color set per scene; $dark = inner shadow stones.",
+      "primitives": [
+        {"op": "sphere", "pos": [0.00, 0.42,  0.00], "radius": 0.55, "color": "$albedo"},
+        {"op": "sphere", "pos": [0.55, 0.22,  0.28], "radius": 0.36, "color": "$dark"},
+        {"op": "sphere", "pos": [-0.38, 0.28, -0.42], "radius": 0.40, "color": "$albedo"},
+        {"op": "sphere", "pos": [0.18, 0.58, -0.48], "radius": 0.26, "color": "$dark"},
+        {"op": "sphere", "pos": [-0.55, 0.18, 0.30], "radius": 0.28, "color": "$albedo"}
+      ],
+      "params": {"albedo": "#8a8278", "dark": "#5e564e"}
     }
   }
 }

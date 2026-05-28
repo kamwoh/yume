@@ -146,7 +146,8 @@ def build_terrain_splatmap(img: np.ndarray, palette: list[tuple[str, str]],
 
 
 def _build_biome_arrays(catalog: dict, max_biomes: int = 8,
-                        overrides: dict | None = None):
+                        overrides: dict | None = None,
+                        single_biome: bool = False):
     """Build (keys, albedos, roughnesses) for the biome ground shader.
 
     keys[i]   — splatmap key color (sRGB 0..1) = the class's semantic hex
@@ -161,8 +162,22 @@ def _build_biome_arrays(catalog: dict, max_biomes: int = 8,
     keys: list[list[float]] = []
     albedos: list[list[float]] = []
     roughs: list[float] = []
+    # single_biome: clean uniform ground (one grass biome) — pick the
+    # dominant terrain class (prefer "grass", else highest coverage) and
+    # render ONLY it; the multi-biome splatmap (paths/regions) is dropped.
+    # The water plane is emitted separately, so water is unaffected.
+    chosen: str | None = None
+    if single_biome:
+        terrains = [c for c in catalog.get("classes", [])
+                    if c.get("intent_type") == "terrain_shader"]
+        if terrains:
+            grass = next((c for c in terrains if c.get("name") == "grass"), None)
+            chosen = (grass or max(
+                terrains, key=lambda c: c.get("expected_coverage_pct", 0)))["name"]
     for c in catalog.get("classes", []):
         if c.get("intent_type") != "terrain_shader":
+            continue
+        if single_biome and c.get("name") != chosen:
             continue
         if len(keys) >= max_biomes:
             break
@@ -540,6 +555,8 @@ def compose(
     biome_overrides: dict | None = None,
     noise_amount: float = 0.12,
     blend_softness: float = 0.12,
+    single_biome: bool = False,
+    albedo_image: str | None = None,
 ) -> Path:
     """Run extraction (objects + non-objects) and write a full
     data/demo_<name>/ folder. Returns the folder path.
@@ -711,7 +728,35 @@ def compose(
     # TUNED color (blended + noise), then displaces by the heightmap.
     # 2026-05-26: replaced ground_simple_displace (which painted the
     # raw semantic hex directly — "blueprint" look).
-    if semantic_dest or heightmap_dest:
+    # Ortho-albedo mode (scene_config.terrain.albedo_image set) paints the
+    # ground with the hero-conditioned orthographic image itself — bakes
+    # the hero's painterly grass/rocks/paths/water onto the floor in one
+    # step. Bypasses biome classification entirely.
+    if albedo_image is not None and (semantic_dest or heightmap_dest):
+        scene["ground"]["mesh"]["shader"] = (
+            "res://data/lib/shaders/ground_ortho_displace.gdshader"
+        )
+        scene["ground"]["mesh"]["plane_size"] = float(world_w)
+        ortho_params: dict = {
+            "height_scale": float(height_scale),
+            "height_offset": float(height_offset),
+            "ortho_albedo": f"res://data/{game_name}/{albedo_image}",
+        }
+        if heightmap_dest:
+            ortho_params["heightmap"] = (
+                f"res://data/{game_name}/assets/textures/{heightmap_dest.name}"
+            )
+        scene["ground"]["mesh"]["shader_params"] = ortho_params
+        # Flowers still pretty on top of the painted floor.
+        scene["ground"]["flowers"] = {
+            "enabled": True,
+            "count": 2200,
+            "radius": round(world_w * 0.45, 1),
+            "size": 0.14,
+            "colors": ["#f2e25c", "#f6f4ec", "#f0a8c4"],
+            "seed": 13,
+        }
+    elif semantic_dest or heightmap_dest:
         scene["ground"]["mesh"]["shader"] = (
             "res://data/lib/shaders/ground_biome_displace.gdshader"
         )
@@ -744,7 +789,8 @@ def compose(
         # is the splatmap color (sRGB 0..1, matches the raw-sampled map);
         # biome_albedo is the TUNED display color converted sRGB→linear
         # (ALBEDO expects linear); biome_roughness per biome.
-        keys, albedos, roughs = _build_biome_arrays(catalog, overrides=biome_overrides)
+        keys, albedos, roughs = _build_biome_arrays(
+            catalog, overrides=biome_overrides, single_biome=single_biome)
         shader_params["biome_count"] = len(keys)
         shader_params["biome_key"] = keys
         shader_params["biome_albedo"] = albedos
@@ -1028,6 +1074,8 @@ def main():
         biome_overrides=cfg.biomes,
         noise_amount=cfg.terrain.noise_amount,
         blend_softness=cfg.terrain.blend_softness,
+        single_biome=cfg.terrain.single_biome,
+        albedo_image=cfg.terrain.albedo_image,
     )
     print(f"[compose_world] wrote MAP at: {game_dir}")
     print(f"[compose_world] next: python3 -m tools.visual_layout.compose_shell "

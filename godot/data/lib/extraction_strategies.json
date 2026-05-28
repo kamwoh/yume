@@ -172,9 +172,9 @@
       "mesh": "bird_totem_kit",
       "albedo": "#8a8278",
       "asset_source": "tripo",
-      "mesh_reference_prompt": "a single giant ancient carved stone bird totem — a tall vertical stone monolith pillar with a stylized eagle/owl head and a curved hooked beak at the very top, tribal glyphs carved down the shaft, mossy weathered grey granite, a wide square base, the whole statue centered and standing upright",
+      "mesh_reference_prompt": "a single giant ancient carved stone bird totem \u2014 a tall vertical stone monolith pillar with a stylized eagle/owl head and a curved hooked beak at the very top, tribal glyphs carved down the shaft, mossy weathered grey granite, a wide square base, the whole statue centered and standing upright",
       "mesh_prompt": "giant ancient carved stone bird totem statue, weathered mossy grey granite, upright on a wide stone base",
-      "_comment": "Giant ancient stone bird totem — a focal landmark. asset_source:tripo (complex hero → CONCEPT image (hero-style-conditioned) then image_to_model); bird_totem_kit is the code FALLBACK until the .glb is generated + the engine auto-normalizes it into the fitted placement. FIT-TO-MASK footprint, GIANT fixed height (canonical[1]=16m). 2026-05-27."
+      "_comment": "Giant ancient stone bird totem \u2014 a focal landmark. asset_source:tripo (complex hero \u2192 CONCEPT image (hero-style-conditioned) then image_to_model); bird_totem_kit is the code FALLBACK until the .glb is generated + the engine auto-normalizes it into the fitted placement. FIT-TO-MASK footprint, GIANT fixed height (canonical[1]=16m). 2026-05-27."
     },
     "ruins": {
       "extraction_method": "instance_per_component",
@@ -193,9 +193,9 @@
       "mesh": "ruin_kit",
       "albedo": "#b8a888",
       "asset_source": "tripo",
-      "mesh_reference_prompt": "a single cluster of ancient ruined stone — broken weathered sandstone columns of different heights, a crumbling low wall fragment, and a fallen carved block, moss and cracks, all grouped together resting on flat ground, centered",
+      "mesh_reference_prompt": "a single cluster of ancient ruined stone \u2014 broken weathered sandstone columns of different heights, a crumbling low wall fragment, and a fallen carved block, moss and cracks, all grouped together resting on flat ground, centered",
       "mesh_prompt": "ancient broken sandstone ruins cluster, toppled mossy columns and a crumbling wall fragment",
-      "_comment": "Broken ancient ruins. asset_source:tripo (complex → CONCEPT image (hero-style-conditioned) then image_to_model); ruin_kit is the FALLBACK until generated. FIT-TO-MASK length/thickness via PCA, fixed low height (3m). albedo = sandstone. 2026-05-27."
+      "_comment": "Broken ancient ruins. asset_source:tripo (complex \u2192 CONCEPT image (hero-style-conditioned) then image_to_model); ruin_kit is the FALLBACK until generated. FIT-TO-MASK length/thickness via PCA, fixed low height (3m). albedo = sandstone. 2026-05-27."
     },
     "fountain": {
       "extraction_method": "snap_to_anchor",
@@ -226,21 +226,28 @@
       ],
       "mesh": "tree_round",
       "albedo": "#3a8f44",
-      "_comment": "Scatters within the 'forest' biome mask, OR (when no forest class exists in the scene) within its OWN 'tree' mask — see lib_extract_v2._extract_scatter own-mask fallback (2026-05-27). Renders as tree_round kit (trunk + foliage puffs), foliage = albedo #3a8f44; canonical footprint widened to 2.5m so the rounded canopy reads as a tree, not a pole."
+      "_comment": "Scatters within the 'forest' biome mask, OR (when no forest class exists in the scene) within its OWN 'tree' mask \u2014 see lib_extract_v2._extract_scatter own-mask fallback (2026-05-27). Renders as tree_round kit (trunk + foliage puffs), foliage = albedo #3a8f44; canonical footprint widened to 2.5m so the rounded canopy reads as a tree, not a pole."
     },
     "rock": {
       "extraction_method": "scatter_in_mask",
-      "mask_source_class": "stone_floor",
-      "scatter_density_per_m2": 0.01,
-      "min_distance_between_meters": 2.0,
+      "mask_source_class": "rock",
+      "own_mask_fallback": true,
+      "scatter_density_per_m2": 0.02,
+      "min_distance_between_meters": 1.2,
       "rotation_rule": "random_seeded",
       "y_anchor": "heightmap_sample",
-      "primitive": "prim_unit_sphere",
+      "primitive": "prim_unit_box",
       "canonical_size_meters": [
-        1.0,
-        0.8,
-        1.0
-      ]
+        1.4,
+        0.9,
+        1.4
+      ],
+      "scale_min": 0.6,
+      "scale_max": 1.6,
+      "mesh": "rock_cluster_kit",
+      "albedo": "#8a8278",
+      "asset_source": "kit",
+      "_comment": "Rock clusters scattered within the rock semantic mask, own-mask fallback when no rock class is upstream (2026-05-28). Kit-of-parts (5-sphere boulder pile), per-instance scale jitter for silhouette variety. Tripo upgrade (single rock_cluster glb) is a future option but the kit covers many instances cheaply."
     },
     "crystal_spire": {
       "extraction_method": "cluster_extract",
@@ -292,7 +299,10 @@
     "round_tower": "tower",
     "stone_bridge": "bridge",
     "wooden_bridge": "bridge",
-    "well_stone": "well"
+    "well_stone": "well",
+    "stone": "rock",
+    "boulder": "rock",
+    "mossy_rock": "rock"
   },
   "default_strategy": {
     "_comment": "Used when a class name doesn't match any entry or alias. Conservative default: one instance per blob, no rotation, box primitive sized to the bbox.",

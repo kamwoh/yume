@@ -16,7 +16,9 @@ JSON shape (every key optional; unknown keys like "_comment" ignored):
 {
   "world":   {"size_m": [140, 140], "target_house_m": 8.5, "rng_seed": 42},
   "terrain": {"height_scale": 10.0, "height_offset": -0.5,
-              "noise_amount": 0.12, "blend_softness": 0.12},
+              "noise_amount": 0.12, "blend_softness": 0.12,
+              "single_biome": false},  // true → clean grass-only ground
+                                       //   (no multi-biome splatmap paints)
   "water":   {"level": null},
   "biomes":  {"grass": "#79b048"},
   "lighting": { ...partial/full override of compose_shell._lighting_block... },
@@ -45,6 +47,18 @@ class TerrainConfig:
     height_offset: float = -0.5
     noise_amount: float = 0.12
     blend_softness: float = 0.12
+    # When true, the ground renders as a SINGLE grass biome (clean uniform
+    # grass + the painterly slope-shading/detail/flowers) instead of the
+    # multi-biome splatmap — no path/region coloring on the ground. The
+    # water plane (a separate ADR-0059 surface) is unaffected.
+    single_biome: bool = False
+    # When set, the ground uses a SEPARATE shader that paints the floor
+    # with this image (sampled as planar-UV albedo) instead of the biome
+    # classifier. Intended for the hero-conditioned orthographic — it
+    # bakes the hero's painterly grass/rocks/paths/water onto the floor
+    # in one step. Path is relative to godot/data/<game>/ (e.g.
+    # "assets/reference/orthographic.png"). Overrides single_biome.
+    albedo_image: str | None = None
 
 
 @dataclass

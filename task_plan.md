@@ -4727,3 +4727,118 @@ Remaining "make it perfect" items (from the asset-resolution vision):
 - systematic composition/aesthetic pass (focal point, paths, fg/mg/bg).
 - visual-qa wired INTO the orchestrator loop (currently manual).
 - (deferred) procedural-material tier.
+
+## Ground: single-biome opt-out (2026-05-28)
+
+User reaction to the multi-biome splatmap on the stylized totem_hills
+scene: "dont use that splatmap, i dont like, it is very ugly." The
+dirt-path biome painted ugly brown lines on the grass. Decision (user
+picked): clean uniform grass ground, KEEP the water (water is a
+separate ADR-0059 plane, not the splatmap).
+
+Added `scene_config.terrain.single_biome` (default false). When true,
+compose_world `_build_biome_arrays` keeps ONLY the dominant grass biome
+(biome_count=1 → uniform grass + the painterly slope-shading/detail/
+flowers); the dirt_path / region splatmap painting is dropped. The
+water plane keys on the catalog `water*` class independently, so it
+survives. demo_totem_hills now sets `single_biome: true`. Town-style
+scenes (cobblestone/dirt districts) keep multi-biome by leaving it
+false. NOT a bug → no post-mortem gate (the splatmap worked as
+designed; this is an aesthetic per-scene choice). Verified: overview
+capture shows clean grass everywhere + blue water pools, no paths.
+
+## Hero-fidelity pass: ortho re-prompt + ortho-as-ground-albedo (2026-05-28)
+
+After the single-biome fix the user judged the scene "nothing similar
+to the hero reference" and asked: was the hero→ortho stage losing the
+hero's richness? Side-by-side compare showed the ortho was actually
+faithful (painterly grass, rocks, river) — the richness was being
+DISCARDED downstream: semantic → flat-color classification → primitive
+gray meshes + flat green ground + harsh lighting.
+
+Done in two phases.
+
+### Phase 1 — hero→ortho prompt tuning
+
+`compose_scene._ortho_prompt` was actively flattening hero atmosphere
+("minimal shadows / uniform illumination / flattened tops / clean
+readable map" — all anti-hero). Rewrote to "PRESERVE the painterly
+art direction, palette, warm sunlight, cast shadows, atmospheric
+depth" + "the attached image IS the visual contract; only the camera
+angle changes" + "one DOMINANT hero focal-anchor structure" +
+"painterly grass tonal variation, mossy rock clusters, dirt path
+brushwork, water reflections." Catalog `composition_notes` upgraded
+to encode the focal-anchor principle (ONE colossal central totem +
+5 peripheral) and `heightmap_hints.low_regions` got an explicit
+"streams MUST carve VISIBLE channels — these pixels are the darkest
+in the whole image" instruction.
+
+Result: regenned ortho + semantic + heightmap (3 paid OpenAI gens).
+The new ortho has cast shadows, one dominant hero totem (bird shape
+actually readable from the near-iso angle), 5 peripheral totems,
+warm sunlight, painterly grass. The new heightmap has VISIBLE DARK
+CHANNELS — the streams now sink into proper riverbeds.
+
+### Phase 2 — render-side improvements
+
+Four changes:
+
+**2.1 Ortho as ground albedo.** New `ground_ortho_displace.gdshader`
+samples the orthographic painting itself as the ground albedo (planar
+UV, sRGB→linear via `source_color` hint). Heightmap displacement
+preserved. `albedo_attenuate=0.55` uniform compensates for the baked
+GI in the ortho (otherwise engine lighting double-brightens to washed
+yellow). Selected via new `scene_config.terrain.albedo_image` field
+in TerrainConfig; compose_world emits the alternate shader + params
+when set. Replaces multi-biome classification with literally painting
+the hero's brushwork onto the floor — biggest single visual lever.
+
+**2.2 Rocks class.** The hero shows mossy rock clusters EVERYWHERE,
+but the catalog never had a rock class so none extracted. Added:
+new `rock_cluster_kit` mesh (4-sphere boulder pile, mesh-unit space,
+per-instance scale jitter); `rock` strategy in extraction_strategies
+(`scatter_in_mask` with own-mask fallback, `asset_source: kit`,
+canonical 1.4×0.9×1.4m, scale 0.6-1.6); aliases for `stone` /
+`boulder` / `mossy_rock`; `rock` class added to catalog (#888080,
+expected_count=35). One paid semantic regen (catalog → semantic
+needed the new class hex). 41 rock instances extracted across the
+scene.
+
+**2.3 Lighting tune** (per-scene `scene_config.lighting` override).
+The ortho carries its own warm GI + saturated colors, so the global
+defaults (aerial_perspective 0.8, saturation 1.34, contrast 1.18,
+fog density 0.0075) over-amplified everything to a washout from any
+distant angle. Per-scene override pulls back to aerial_perspective
+0.4, density 0.005, saturation 1.15, contrast 1.08 — the hero
+painting reads through cleanly.
+
+**2.4 Carved riverbeds** (came free from phase 1's heightmap regen).
+Water plane now sits IN the river channels instead of floating on
+grass. `derive_water_level` produced -1.314m → -1.627m as the
+heightmap got deeper channels.
+
+### Open gaps to fully match hero
+
+- **Trees still primitive cones.** 49 instances; Tripo `.glb` is a
+  perf wall at that count until the MultiMesh-for-`.glb` engine
+  feature lands.
+- **Grass slightly muted** vs the hero's lush version (the
+  `albedo_attenuate` brightness-trade-off).
+- **Lighting could go more dramatic** if a more cinematic look is
+  desired (more contrast, warmer sun).
+
+### Files / framework deltas
+
+- NEW `godot/data/lib/shaders/ground_ortho_displace.gdshader`
+- `godot/data/lib/extraction_strategies.json` — added `rock` strategy + 3 aliases
+- `godot/data/meshes.json` — added `rock_cluster_kit` (4-sphere)
+- `tools/visual_layout/scene_config.py` — added `terrain.albedo_image`
+  field (plus the single_biome from prior turn)
+- `tools/visual_layout/compose_world.py` — threaded `albedo_image` →
+  alternate shader emission
+- `tools/visual_layout/compose_scene.py` — re-prompted `_ortho_prompt`
+
+Yume-principle note: the ortho-albedo path is OPT-IN per scene
+(albedo_image config). Town/dungeon scenes that want multi-biome
+splatmap or single-grass biome are unaffected. The new shader is a
+sibling to the biome shader, not a replacement.

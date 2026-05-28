@@ -58,15 +58,25 @@ def _ortho_prompt(catalog: dict) -> str:
     brief = catalog.get("scene_brief", "")
     notes = catalog.get("composition_notes", "")
     return (
-        "Convert the attached concept into a perfectly ORTHOGRAPHIC TOP-DOWN "
-        "aerial map, 90-degree bird's-eye view, no horizon, no perspective "
-        "distortion, no cinematic angle. PRESERVE the same scene + art "
-        f"direction. Scene: {brief}. {notes}. "
-        "Camera: true orthographic, completely vertical top-down, flattened "
-        "tops, no side facades. Visual style: clean readable layout, high "
-        "geometric readability, the SAME palette + mood as the attached image. "
-        "Lighting: soft neutral daylight, minimal shadows, uniform "
-        "illumination. 1024x1024.")
+        "Convert the attached concept into an ORTHOGRAPHIC TOP-DOWN "
+        "painterly aerial view of the SAME world. 90-degree bird's-eye, "
+        "no horizon, no perspective vanishing point — but otherwise "
+        "PRESERVE the attached concept's full painterly richness, brush "
+        "texture, palette, warm sunlight, cast shadows, and atmospheric "
+        "depth. The attached image IS the visual contract; only the "
+        "camera angle changes (top-down instead of cinematic perspective). "
+        f"Scene: {brief}. {notes}. "
+        "COMPOSITION: one DOMINANT hero focal-anchor structure near the "
+        "image center, supporting landmarks scattered around it (NOT a "
+        "uniform field, NOT a grid). "
+        "LIGHTING: warm directional sunlight casting visible shadows on "
+        "the ground (shadows reveal 3D form even top-down). Atmospheric "
+        "tint shift from sunlit hills to shaded valleys. "
+        "DETAIL: visible painterly grass tonal variation, mossy rock "
+        "clusters, dirt path brushwork, water reflections — every "
+        "painted stroke from the concept should have a top-down "
+        "equivalent. NOT a flat technical game-map; a top-down "
+        "PAINTING of the concept's world. 1024x1024.")
 
 
 def _semantic_prompt(catalog: dict) -> str:
