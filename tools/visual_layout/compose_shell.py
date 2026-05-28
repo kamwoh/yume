@@ -38,9 +38,32 @@ from tools.visual_layout import scene_config as scfg  # noqa: E402
 # SHELL PRESET: third_person_explorer
 # ============================================================
 
-def _camera_block() -> dict:
+def _camera_block(camera_mode: str = "third_person_3d") -> dict:
+    """Choose the lib camera preset to match the scene's starting
+    camera_mode. The preset carries mode-specific tuning (eye_height,
+    use_pitch for FPS; distance/height for third-person; ortho_size for
+    iso/top-down). Without picking the right preset, FPS scenes lose
+    mouse-pitch (use_pitch defaults to false on non-FPS presets).
+    """
+    if camera_mode == "first_person_3d":
+        return {
+            # FPS — eye-height + mouse yaw AND pitch. Press C → free-cam.
+            "$extends": "@lib.cameras.fps_default",
+            "follow_tag": "player",
+            "fov": 70.0,
+        }
+    if camera_mode == "isometric_3d":
+        return {
+            "$extends": "@lib.cameras.iso_top_down",
+            "follow_tag": "player",
+        }
+    if camera_mode == "top_down_3d":
+        return {
+            "$extends": "@lib.cameras.top_down_3d",
+            "follow_tag": "player",
+        }
+    # Default: third-person, behind-shoulder follow.
     return {
-        # Third-person, follows the player. Press C to toggle free-cam.
         "$extends": "@lib.cameras.third_person_default",
         "follow_tag": "player",
         "distance": 8.0,
@@ -251,11 +274,15 @@ def _movement_rules() -> dict:
 
 def _input_map() -> dict:
     return {
-        "_comment": "WASD via universal lib. C toggles free-cam, Tab cycles "
-                    "cameras, Space/Ctrl ascend/descend (free-cam), Shift "
-                    "sprints, ESC releases mouse.",
+        "_comment": "WASD + camera/freecam controls. Space-as-jump fires "
+                    "outside free-cam (the engine's character_body_runner "
+                    "consumes it as a vertical impulse); Space-as-cam_up "
+                    "holds for the free-cam vertical ascent. Same key, "
+                    "different edge + gated by camera_mode — matches "
+                    "aldenmere convention. ESC releases mouse capture.",
         "actions": [
             {"$include": "@lib.input.universal.actions"},
+            {"name": "jump",                  "key": "Space",    "edge": "press"},
             {"name": "toggle_freecam",        "key": "C",        "edge": "press"},
             {"name": "cam_up",                "key": "Space",    "edge": "hold"},
             {"name": "cam_down",              "key": "Ctrl",     "edge": "hold"},
@@ -347,7 +374,7 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     scene = json.loads(scene_path.read_text())
     world_w = float(scene.get("ground", {}).get("mesh", {})
                     .get("size", [80.0])[0])
-    scene["camera"] = _camera_block()
+    scene["camera"] = _camera_block(cfg.player.camera_mode)
     scene["lighting"] = scfg.deep_merge(_lighting_block(), cfg.lighting)
     scene_path.write_text(json.dumps(scene, indent=2))
 

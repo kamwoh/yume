@@ -159,6 +159,97 @@ def carve_paths_into_heightmap(heightmap_src: Path, semantic_path: Path,
     return True
 
 
+def flatten_building_pads(heightmap_src: Path, instances: list[dict],
+                          classes_dict: dict,
+                          world_w: float, world_h: float,
+                          height_scale: float, height_offset: float,
+                          output: Path,
+                          sigma_px: float = 4.0,
+                          bbox_padding_factor: float = 1.3,
+                          extra_lift_norm: float = 0.005) -> bool:
+    """Raise heightmap to a soft flat pad under each building instance.
+    Mirror of carve_paths_into_heightmap, but instead of digging trenches
+    along terrain-shader classes, this LIFTS the terrain under
+    object_placement instances whose class has `_flatten_pad: true` in
+    the strategy.
+
+    For each opted-in instance: find the MAX heightmap-Y in its footprint
+    bbox, stamp that value into a per-instance pad layer, then combine
+    all pads via max + a gaussian blur for soft falloff at edges. Final
+    heightmap = max(carved heightmap, padded layer). Result: each
+    building sits on a flat foundation pad at the local terrain's high
+    point, with a small soft slope into the surrounding ground.
+
+    Also mutates each affected instance's `position[1]` to the raised
+    pad height (so the building's mesh sits flush on the pad rather
+    than the original sample-point of the un-raised terrain). Returns
+    True if any pad was applied.
+
+    Yume principle: the heightmap is THE single source of truth for
+    terrain shape, including the local flatness needed for buildings to
+    sit cleanly. We don't add per-building "foundation meshes" — we
+    deterministically modify the heightmap, like a world-builder height
+    brush would.
+    """
+    import cv2 as _cv
+    flat_classes = {c for c, e in classes_dict.items() if e.get("_flatten_pad")}
+    if not flat_classes:
+        return False
+    # The house strategy buckets a single semantic blob into one of
+    # {small_,medium_,large_}house. Instances carry the BUCKETED class
+    # name (e.g. "large_house"), not the catalog name ("house"). Treat
+    # the size-bucket prefixes as equivalent so the flatten flag on
+    # "house" covers all three buckets.
+    bucket_prefixes = ("large_", "medium_", "small_")
+    def _normalize(cls: str) -> str:
+        for p in bucket_prefixes:
+            if cls.startswith(p):
+                return cls[len(p):]
+        return cls
+    to_flatten = [i for i in instances
+                  if _normalize(str(i.get("class", ""))) in flat_classes]
+    if not to_flatten:
+        return False
+
+    hm = np.array(_PILImage.open(heightmap_src).convert("L"), dtype=np.float32) / 255.0
+    H, W = hm.shape
+    pad_layer = np.zeros((H, W), dtype=np.float32)
+
+    for inst in to_flatten:
+        pos = inst.get("position", [0.0, 0.0, 0.0])
+        scale = inst.get("scale", [1.0, 1.0, 1.0])
+        wx = float(pos[0])
+        wz = float(pos[2])
+        fp_w_m = float(scale[0]) * bbox_padding_factor
+        fp_d_m = float(scale[2]) * bbox_padding_factor
+        # World → pixel (no V flip — matches pixel_to_world convention)
+        cx = (wx + world_w * 0.5) / world_w * W
+        cy = (wz + world_h * 0.5) / world_h * H
+        fpx = max(2.0, fp_w_m / world_w * W)
+        fpy = max(2.0, fp_d_m / world_h * H)
+        x0 = int(max(0, cx - fpx * 0.5))
+        x1 = int(min(W, cx + fpx * 0.5))
+        y0 = int(max(0, cy - fpy * 0.5))
+        y1 = int(min(H, cy + fpy * 0.5))
+        if x1 <= x0 or y1 <= y0:
+            continue
+        max_y_norm = float(hm[y0:y1, x0:x1].max()) + extra_lift_norm
+        # Per-building pad: stamp max value into the bbox
+        bpad = np.zeros((H, W), dtype=np.float32)
+        bpad[y0:y1, x0:x1] = max_y_norm
+        pad_layer = np.maximum(pad_layer, bpad)
+        # Update instance Y to sit flush on the raised pad
+        raised_world_y = (max_y_norm + height_offset) * height_scale
+        pos[1] = raised_world_y
+
+    # Gaussian falloff at pad edges so surrounding terrain rises into
+    # the pad smoothly (no abrupt cliff at the footprint edge).
+    pad_layer = _cv.GaussianBlur(pad_layer, (0, 0), sigma_px)
+    raised = np.maximum(hm, pad_layer)
+    _PILImage.fromarray((raised * 255.0).astype(np.uint8)).save(output)
+    return True
+
+
 def build_terrain_splatmap(img: np.ndarray, palette: list[tuple[str, str]],
                            terrain_names: set[str],
                            road_names: set[str] | None = None) -> np.ndarray:
@@ -773,6 +864,32 @@ def compose(
             print(f"[compose_world] carved path+water depressions into "
                   f"{carved_dest.name} (deterministic, semantic-aligned)")
             heightmap_dest = carved_dest
+
+        # Flatten foundation pads under buildings (deterministic terrain
+        # raise — mirror of the carving pass). For each instance whose
+        # class has `_flatten_pad: true`, raise the heightmap under its
+        # footprint to a flat pad at the local max-Y; the building's
+        # state.position.y is updated to match. No floating houses, no
+        # need for separate "foundation" meshes.
+        catalog_classes = {c["name"]: c for c in catalog.get("classes", [])}
+        # Merge in the strategy dicts (which carry _flatten_pad) — the
+        # catalog's `strategy` block per class was injected by
+        # inject_strategies earlier; here we just need access to those
+        # strategy fields via class name.
+        classes_with_strategies = {
+            name: (c.get("strategy") or {}) for name, c in catalog_classes.items()
+        }
+        _ww, _wh = world_size_m
+        flat_applied = flatten_building_pads(
+            heightmap_dest, instances, classes_with_strategies,
+            float(_ww), float(_wh), height_scale, height_offset,
+            heightmap_dest,    # overwrite carved file in-place
+            sigma_px=4.0, bbox_padding_factor=1.3,
+        )
+        if flat_applied:
+            print(f"[compose_world] flattened foundation pads under "
+                  f"buildings into {heightmap_dest.name} (deterministic, "
+                  f"instance-aligned; building Y updated to pad)")
 
     # Derive the TERRAIN-ONLY splatmap (object footprints filled with
     # surrounding terrain). The ground shader samples THIS, not the raw

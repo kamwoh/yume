@@ -85,7 +85,11 @@
           "mesh": "house_3f"
         }
       ],
-      "_comment": "FIT-TO-MASK + FLOOR TIERS (2026-05-27): each house box's footprint (X x Z) + yaw are fitted to its detected tile's PCA bbox; the bucket (by area) picks the ALBEDO tier, the HEIGHT, AND the floor-tiered kit. small=1 floor (house_1f, ~3.5m), medium=2 floors (house_2f, ~6.5m), large=3 floors (house_3f, ~9.5m). Heights were cut from 6/8/11 to 3.5/6.5/9.5 so a fitted ~2m footprint no longer reads as a thin tower; each kit shows 1/2/3 window rows + floor-divider trim so the storey count is legible. use_canonical_scale:false \u2192 per-instance fitted footprint, bucket height."
+      "_comment": "house: asset_source upgraded from kit-only to tripo (single mesh shared across instances via Godot auto-instancing). Kit floor-tiers (house_1f/2f/3f) remain as FALLBACK until the .glb is generated. For SCENES WITH MANY HOUSES (towns), the kit variety may be preferable \u2014 flip back via a per-scene override mechanism (TODO). 2026-05-28.",
+      "asset_source": "tripo",
+      "mesh_reference_prompt": "a single small stylized fantasy cottage with rounded thatched roof, warm wooden walls, one front door, a couple of small windows, painterly Tiny Glade / Kena: Bridge of Spirits art direction, soft cel-shaded, single building centered on flat ground viewable from any angle, no background",
+      "mesh_prompt": "stylized small fantasy cottage with thatched roof and wooden walls, painterly soft cel-shaded",
+      "_flatten_pad": true
     },
     "townhall": {
       "extraction_method": "cluster_extract",
@@ -123,20 +127,24 @@
     },
     "tower": {
       "extraction_method": "instance_per_component",
-      "min_area_px": 100,
+      "min_area_px": 30,
       "pca_oriented": true,
       "min_elongation_for_pca": 1.6,
-      "use_canonical_scale": false,
+      "use_canonical_scale": true,
       "rotation_rule": "no_rotation",
       "y_anchor": "heightmap_sample",
       "primitive": "prim_unit_cylinder",
       "canonical_size_meters": [
-        1.5,
-        5.0,
-        1.5
+        2.5,
+        9.0,
+        2.5
       ],
-      "_comment": "FIT-TO-MASK: tower DIAMETER fits its detected blob so it bridges the gap between adjacent wall segments at any world scale; height from canonical_size_meters[1]=5m (towers rise above the 3m walls). min_elongation 1.6 keeps round blobs unrotated. Fixed 1.5m towers left gaps once the world derived larger. 2026-05-27.",
-      "mesh": "tower_kit"
+      "_comment": "tower: asset_source upgraded from kit-only to tripo (wooden-watchtower reading rather than stone). tower_kit remains as FALLBACK. 2026-05-28.",
+      "mesh": "tower_kit",
+      "asset_source": "tripo",
+      "mesh_reference_prompt": "a single tall wooden watchtower, rustic wooden lookout post on four legs with a small railed platform on top, narrow vertical structure, painterly Tiny Glade / Kena: Bridge of Spirits art direction, soft cel-shaded, single structure centered on flat ground viewable from any angle, no background",
+      "mesh_prompt": "stylized tall wooden watchtower with railed platform on top, painterly soft cel-shaded",
+      "_flatten_pad": true
     },
     "bridge": {
       "extraction_method": "require_adjacent",
@@ -290,6 +298,45 @@
         0.8
       ],
       "canonical_front_axis": "-Z"
+    },
+    "shed": {
+      "extraction_method": "instance_per_component",
+      "min_area_px": 30,
+      "use_canonical_scale": false,
+      "rotation_rule": "face_anchor",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_box",
+      "canonical_size_meters": [
+        2.5,
+        2.5,
+        2.5
+      ],
+      "mesh": "house_1f",
+      "albedo": "#a07050",
+      "asset_source": "tripo",
+      "mesh_reference_prompt": "a single small wooden shed or outhouse, weathered wood planks, simple sloped roof, small narrow front door, painterly Tiny Glade / Kena: Bridge of Spirits art direction, soft cel-shaded, single structure centered on flat ground viewable from any angle, no background",
+      "mesh_prompt": "stylized small wooden shed with sloped roof and weathered planks, painterly soft cel-shaded",
+      "_comment": "shed: previously fell through to default_strategy (plain box). New entry: small instance-per-component with house_1f as the kit fallback (visually closest to a small wooden shed) + tripo for the real mesh. 2026-05-28.",
+      "_flatten_pad": true
+    },
+    "wooden_fence": {
+      "extraction_method": "polygon_decompose",
+      "min_area_px": 20,
+      "simplify_tolerance_px": 4.0,
+      "rotation_rule": "edge_aligned",
+      "y_anchor": "heightmap_sample",
+      "primitive": "prim_unit_box",
+      "canonical_size_meters": [
+        1.6,
+        1.0,
+        0.15
+      ],
+      "mesh": "fence_section_kit",
+      "albedo": "#8a5a30",
+      "asset_source": "tripo",
+      "mesh_reference_prompt": "a single section of rustic wooden fence \u2014 two vertical weathered wood posts with one or two horizontal wooden rails between them, painterly Tiny Glade / Kena: Bridge of Spirits art direction, soft cel-shaded, single fence segment centered on flat ground viewable from any angle, no background",
+      "mesh_prompt": "stylized rustic wooden fence section, two posts with horizontal rails, painterly soft cel-shaded",
+      "_comment": "wooden_fence: per-segment Tripo mesh + polygon_decompose extraction (traces the fence-line polygon in semantic + emits one mesh per detected segment). canonical_size 1.6m x 1.0m x 0.15m matches the mesh authored as a single 2-post + 1-rail section. fence_section_kit is the FALLBACK until the .glb generates. 2026-05-28."
     }
   },
   "class_aliases": {
@@ -307,7 +354,10 @@
     "well_stone": "well",
     "stone": "rock",
     "boulder": "rock",
-    "mossy_rock": "rock"
+    "mossy_rock": "rock",
+    "fence": "wooden_fence",
+    "wood_fence": "wooden_fence",
+    "rail_fence": "wooden_fence"
   },
   "default_strategy": {
     "_comment": "Used when a class name doesn't match any entry or alias. Conservative default: one instance per blob, no rotation, box primitive sized to the bbox.",
