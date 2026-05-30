@@ -73,7 +73,7 @@ yume/
 │   └── timeline/                       (decision diary)
 ├── scripts/play.sh                     ← Run a demo (sync + launch)
 ├── tools/gen_api_manifest.py           ← Regenerate engine API manifest
-├── task_plan.md                        ← Durable backlog
+├── task_plan.md                        ← Index → .claude/plan/{backlog,archive}.md
 └── CLAUDE.md (this file)
 ```
 
@@ -100,55 +100,22 @@ is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
 
 ## Tick rate is the engine's heartbeat (2026-05-16)
 
-**The tick is the engine's clock. Don't change it as a balance knob.**
+**The tick is the engine's clock — never change it as a balance knob.**
+- Default `tick_seconds = 0.0167` (60Hz, matches Godot `physics_fps`).
+  Override only per-genre + deliberately (sokoban 10Hz, shooter 120Hz),
+  never per-bug.
+- Too fast/slow? Scale the rule's `interval`, NOT the tick. `interval`
+  is in ticks: "every second" at 60Hz = 60; "every in-game hour"
+  (1hr=40s) = 2400. Changing `tick_seconds` silently rescales what every
+  `interval` MEANS in real time.
 
-- **Default `tick_seconds = 0.0167` (60Hz).** Matches Godot's
-  `physics_fps`. Pick this unless you have a documented reason to
-  override.
-- A per-game override is legal but should be deliberate — a slow
-  turn-based game (sokoban) might pick 10Hz to save cycles; a
-  competitive shooter might pick 120Hz. The choice is per-genre, not
-  per-bug.
-- **Never reach for `tick_seconds` to "fix" pacing.** If something
-  feels too fast or too slow, the answer is almost always: scale
-  the relevant rule's `interval`, not the tick rate.
+**Press vs hold** = input INTENT, not genre (every game has both):
+`edge: "press"` fires once on key-down (menu, use, restart);
+`edge: "hold"` fires every tick held (move, sprint, aim).
 
-### Press vs hold is about purpose, not genre
-
-Every game has both. The distinction is the input's INTENT:
-
-- **`edge: "press"`** — discrete action. Fires once on key-down,
-  ignores held state. Open / close menu, use item, restart, sleep,
-  eat, talk. Holding the key longer doesn't fire again.
-- **`edge: "hold"`** — continuous action. Fires every tick while
-  held. Move forward, sprint, aim, drag, charge.
-
-Sokoban's restart = press. Aldenmere's WASD = hold. Both their
-inventories = press. The genre never enters the decision.
-
-### Game-time rules scale with the tick rate
-
-When a rule means "every N seconds of real-time" or "every in-game
-hour", express that through the `interval` field:
-
-- "Fire every second" at 60Hz = `interval: 60`.
-- "Fire every 4 real-seconds" (ambient wander) at 60Hz = `interval: 240`.
-- "Fire every in-game hour" (when 1 hour = 40 real-seconds) at 60Hz
-  = `interval: 2400`.
-
-If you change `tick_seconds`, you've also changed what every rule's
-`interval` MEANS in real time. Don't do this lightly.
-
-### `_process` vs `_physics_process`
-
-- **`_process(delta)`** — display-rate work: input sampling, camera
-  smoothing, HUD updates, sim-tick accumulator.
-- **`_physics_process(delta)`** — fixed-rate physics: CharacterBody3D
-  move_and_slide, collision queries. Aligns with `tick_seconds` when
-  both are 60Hz.
-
-Don't mix the two purposes. Put visual/UI work in `_process`,
-gameplay-state physics in `_physics_process`.
+**`_process` vs `_physics_process`**: display-rate work (input sampling,
+camera smoothing, HUD, tick accumulator) in `_process`; fixed-rate
+physics (move_and_slide, collision) in `_physics_process`. Don't mix.
 
 ## Key files for editing
 
@@ -171,6 +138,28 @@ Sky/Sun/WorldEnvironment come from `scene.json`'s lighting block via
 LightingDirector; floor plane comes from `scene.json`'s ground.mesh
 block via GroundRenderer. A .tscn just pins `data_root` + picks
 `renderer_script` + places a Camera.
+
+## Two generation pipelines (DON'T confuse or mix them)
+
+Yume has **two independent** prose→content pipelines. They share NO
+orchestration and write OVERLAPPING files — running both on the same
+`data/<game>/` folder makes them clobber each other.
+
+| | `/yume-design` | `/yume-create-scene` (compose_*) |
+|---|---|---|
+| **Makes** | a complete **game** | a 3D **scene/map** + a walkable shell |
+| **Input** | prose game pitch | prose scene pitch + a class catalog |
+| **Writes** | `entities/` (semantic defs), `world/rules/*` (all mechanics), `game/{goals,flow}`, `hud.json`, `audio/`, `screens.json` | map: `entities/auto_gen`, `levels/*/entities`, biome `scene.json`, heightmap; shell: camera/player/input + `world/rules/10-13_shell_*` (walk/jump/sprint/camera) |
+| **Gameplay?** | the real game's mechanics | only a hardcoded **third-person-explorer shell** (walk/look/jump/sprint) |
+
+So `compose_world` is map-only, but **`compose_shell` DOES emit gameplay
+rules** (the walk/jump/sprint/camera shell) — the scene pipeline produces a
+walkable diorama, not a passive map. It is NOT a game-logic authoring tool;
+for real mechanics use `/yume-design`. **Never run both pipelines on one
+folder** — they overwrite each other's `entities/`, `world/rules/`, and
+`game/flow.json`. (A scene CAN later be hand-extended with game rules, but
+re-running `compose_scene` will then wipe them — same papercut as the
+`.glb`-path reset; see `.claude/plan/backlog.md`.)
 
 ## Creating a new game
 
@@ -213,47 +202,41 @@ eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
 # 1. Sync framework to template (orchestrator-only per parallel-execution discipline)
 cp -r godot/. "$TEMPLATE_DST/"
 
-# 2. Rebuild class cache if a NEW `class_name X` GDScript was added (otherwise skip)
-"$GODOT_BIN" --path "$TEMPLATE_DST" --headless --import 2>&1 | tail -5
+# 2. cd INTO the template, then use `--path .`. The Windows Godot.exe CANNOT
+#    resolve a `/mnt/c/...` path passed to `--path` from a /home CWD — it
+#    aborts with "Invalid project path specified ... aborting" and prints NO
+#    test output. play.sh + tools/yume_env/oracle.py both cd + `--path .` for
+#    exactly this reason. NEVER use `--path "$TEMPLATE_DST"` (absolute).
+cd "$TEMPLATE_DST"
 
-# 3. Run tests / scenarios / captures (always tee; direct stdout from the
+# 3. Rebuild class cache if a NEW `class_name X` GDScript was added (otherwise skip)
+"$GODOT_BIN" --path . --headless --import 2>&1 | tail -5
+
+# 4. Run tests / scenarios / captures (always tee; direct stdout from the
 #    Windows .exe through WSL pipes is unreliable)
-"$GODOT_BIN" --path "$TEMPLATE_DST" --headless scenes/test_main.tscn 2>&1 | tee /tmp/test_out.log
-"$GODOT_BIN" --path "$TEMPLATE_DST" --headless scenes/scenario_test.tscn -- --game=demo_<name> 2>&1 | tee /tmp/scen_out.log
-"$GODOT_BIN" --path "$TEMPLATE_DST" --rendering-driver opengl3 scenes/<name>_3d.tscn -- --capture-after=4 --capture-output='user://x.png' 2>&1 | tee /tmp/cap.log
+"$GODOT_BIN" --path . --headless scenes/test_main.tscn 2>&1 | tee /tmp/test_out.log
+"$GODOT_BIN" --path . --headless scenes/scenario_test.tscn -- --game=demo_<name> 2>&1 | tee /tmp/scen_out.log
+"$GODOT_BIN" --path . --rendering-driver opengl3 scenes/<name>_3d.tscn -- --capture-after=4 --capture-output='user://x.png' 2>&1 | tee /tmp/cap.log
 ```
+
+> **Invalid-project-path trap (2026-05-30).** If a run prints
+> `Invalid project path specified: "/mnt/c/..." aborting` and **no
+> RESULTS line**, you used the absolute `--path` form — the run never
+> executed. "No output" is NOT a pass. A real run ALWAYS ends with
+> `passed: NN  failed: N  total: NN`. Re-run with `cd "$TEMPLATE_DST"`
+> + `--path .`. (Empirical: this silently masked an `instance_patterns`
+> parse error for an hour — every "verification" aborted, read as clean.)
 
 Unit tests should report `passed: NN  failed: 0  total: NN`. Test source:
-`godot/scripts/engine/tests/test_runner.gd`. Per-game scenarios are
-defined in `godot/data/demo_<name>/tests.json`.
+`godot/scripts/engine/tests/test_runner.gd`; per-game scenarios in
+`godot/data/demo_<name>/tests.json`. Gotchas:
 
-### Long-running runs
-
-Godot test_main.tscn often takes 60-120s and timeout 90 will SIGTERM
-it before it finishes. Either bump `timeout` to ≥240, or run via
-`run_in_background: true` + `Monitor` with the pattern:
-
-```
-until grep -qE "passed:|RESULTS|ERROR" /tmp/file; do sleep 2; done; tail -20 /tmp/file
-```
-
-### Class-cache rebuild — when `class_name X` is new
-
-Symptom: `Parse Error: Identifier "X" not declared in the current
-scope` even though the file exists. Run `--import` once before the
-test scene; verify the cache picked it up:
-
-```bash
-grep "class_name_X" "$TEMPLATE_DST/.godot/global_script_class_cache.cfg"
-```
-
-### Capture output path
-
-`--capture-output='user://X.png'` resolves to the platform's Godot
-user-data path. On WSL2+Windows it lands under
-`/mnt/c/Users/.../AppData/Roaming/Godot/app_userdata/<project_name>/X.png`.
-Find with `find /mnt/c -path "*/app_userdata/*" -name "X.png"`. Read
-with the Read tool — it's a regular PNG.
+- **Long runs**: test_main.tscn takes 60-120s — bump `timeout` to ≥240 or
+  run in background + Monitor (`until grep -qE "passed:|RESULTS|ERROR" /tmp/f; do sleep 2; done`).
+- **New `class_name X`**: run `--import` once before the test scene (else
+  `Identifier "X" not declared`); verify in `.godot/global_script_class_cache.cfg`.
+- **Capture path**: `user://X.png` → `/mnt/c/Users/.../AppData/Roaming/Godot/app_userdata/<project>/X.png`
+  (`find /mnt/c -path "*/app_userdata/*" -name "X.png"`); Read it as a normal PNG.
 
 ## Yume design principles
 
@@ -316,67 +299,42 @@ See `.claude/rules/README.md` for the index.
 
 ## Soul workflow (5-layer cross-skill check)
 
-If the GDD's aesthetic target includes Fellowship / Narrative /
-Submission / Discovery / Sensation, soul is REQUIRED. Soul = layered
-density across 5 channels. Skipping any layer = a soul-shaped hole
-the player will feel without being able to articulate.
+If the GDD targets Fellowship / Narrative / Submission / Discovery /
+Sensation, soul is REQUIRED — layered density across 5 channels; skip one
+= a soul-shaped hole. For each signature beat, verify ALL FIVE are wired
+AND pull the same emotional direction (gruff dialogue + celebratory flash
+= anti-soul).
 
-| Layer | Owner | Asks |
-|---|---|---|
-| 1. Writing | yume-flavor-writer | Per-NPC voice, item flavor, barker pools |
-| 2. Visual identity | yume-asset-designer + engine | Distinct silhouettes + nameplate widget |
-| 3. Audio | yume-audio-designer | BGM per location, ambience, stings |
-| 4. Kinetic juice | yume-juice-designer | Camera shake, flash, hit-pause, particles |
-| 5. Reactive density | yume-game-rules-designer + tutorial | Barker pools shift per tier, objectives update |
+| Layer | Owner |
+|---|---|
+| 1. Writing | yume-flavor-writer |
+| 2. Visual identity | yume-asset-designer + engine |
+| 3. Audio | yume-audio-designer |
+| 4. Kinetic juice | yume-juice-designer |
+| 5. Reactive density | yume-game-rules-designer + tutorial |
 
-For each signature beat in the GDD's "Voice & texture" section,
-verify all 5 layers are wired AND pull the same emotional direction.
-Mismatched layers (gruff dialogue + celebratory flash) = anti-soul.
-
-Read `.claude/rules/soul.md` for the full checklist + reinforcement-
-check workflow + the empirical merchant case (writing-only soul felt
-hollow → all 4 other layers added in parallel pass).
+Full checklist + reinforcement-check + empirical case: `.claude/rules/soul.md`.
 
 ## Post-mortem ritual (ALWAYS-ON — every bug must harden a skill)
 
-User invariant: **whenever a bug appears, find out who is
-responsible, and improve the skill so it can't recur.**
+User invariant: **whenever a bug appears, find WHO is responsible and
+improve the skill so it can't recur.** When the user surfaces ANY bug
+("doesn't work" / a trace / "why didn't this…"), don't just fix it — run
+the 4-step ritual (full version + empirical precedents:
+`.claude/rules/post-mortem.md`):
 
-When the user surfaces ANY bug — "this doesn't work" / "still
-nothing happens" / a stack trace / "why didn't this..." — do NOT
-just fix it. Run the 4-step ritual from `.claude/rules/post-mortem.md`:
+1. **Fix** the bug.
+2. **Identify the owner** — the specific skill/rule/validator/test that
+   should have caught it. No gate for this class → flag + create one.
+3. **Harden the gate** — an *enforceable* check (checklist item, grep,
+   validator, reviewer axis), not "be careful". Must make this exact bug
+   class impossible to recur. The gate update is **not optional**.
+4. **Commit both** (fix + gate) together, citing the empirical case + date.
 
-1. **Fix the bug.**
-2. **Identify WHO is responsible.** Name the specific skill / rule /
-   validator / test that should have caught it. Every bug has an
-   owner — if it slipped through, the owner's gate was missing a
-   check. If no gate exists for this bug class, flag the gap and
-   create one.
-3. **Harden the gate.** Concrete checklist item, grep command,
-   reviewer axis, new validator, or new skill section. Not "be
-   careful" — *enforceable*. The skill update must make this exact
-   bug class impossible to recur.
-4. **Commit both** — bug fix + gate hardening in the same commit,
-   citing the empirical case + date.
-
-The gate update is **not optional**. Skipping it means the same bug
-class re-surfaces in a future session, in a future game, in a
-future design pipeline. Read `.claude/rules/post-mortem.md` for
-the full ritual + empirical precedents (every bug since 2026-05-04
-followed this pattern).
-
-Step 3a (bug-class generalization): when fixing one site, ask "are
-there OTHER call sites that could trigger the same bug class?" If
-yes, fix the underlying primitive, not just the symptom site.
-
-Each gate hardening makes the system stronger. A bug that gets
-fixed but not gated will re-occur. A bug that gets gated cannot
-re-occur in that exact form.
-
-**When the user asks "who is responsible?" they are running the
-post-mortem ritual on you.** Answer specifically: name the skill,
-explain what its gate should have included, and harden it before
-moving on.
+**Step 3a**: ask "what OTHER call sites hit this class?" — fix the
+underlying primitive, not just the symptom site. When the user asks **"who
+is responsible?"** they're running this ritual on you — name the skill,
+explain the missing gate, harden it before moving on.
 
 **Visual validation gate** — when modifying rendering primitives
 (control_factory, screen_flow, overlay, renderer_2d/*, renderer_3d/*,
@@ -404,35 +362,22 @@ Common LLM-era pitfalls: `Reference` (gone — use `RefCounted`),
 `connect("foo", self, ...)` (gone — use `signal.connect(callable)`),
 `OS.get_ticks_msec()` (use `Time.*`).
 
-## Authoring-time Python emitters (ADR 0051, 2026-05-17)
+## Authoring-time Python emitters (ADR 0051)
 
-JSON remains canonical. Two Python packages under `tools/` offer
-**optional** emitters that produce that JSON + companion asset
-files. Authors mix codegen and hand-authoring freely.
+JSON stays canonical; two OPTIONAL `tools/` emitters produce it (mix with
+hand-authoring freely):
+- **`tools/yume_codegen/`** — typed rule/entity/screen/lib_ref builders;
+  catches recurring bug classes (brace-wrapped bindings, wrong binding
+  names, schema landmines) at author-time. `python3 -m tools.yume_codegen`
+  = smoke test.
+- **`tools/yume_assetgen/`** — AI texture+mesh pipeline; reads
+  `data/<game>/asset_gen.json`, scans `*_prompt` fields, dispatches to a
+  backend (openai_images / tripo3d / …), patches defs with `res://` paths.
+  `python3 -m tools.yume_assetgen <game> [--dry-run|--init]`.
 
-- **`tools/yume_codegen/`** — typed builders for rule / entity /
-  screen / lib_ref JSON. Catches recurring bug classes
-  (brace-wrapped bindings, wrong context-binding names, schema
-  landmines) at author-time via `TypeError`/`ValueError` from
-  keyword arguments. `python3 -m tools.yume_codegen` runs the
-  30-assertion smoke test. See `tools/yume_codegen/README.md`.
-
-- **`tools/yume_assetgen/`** — AI-assisted texture + mesh
-  pipeline. Reads `data/<game>/asset_gen.json` for backend +
-  style config, scans entity defs for `*_prompt` fields under
-  `visual:`, dispatches to a configured backend, writes output to
-  `assets/textures/`/`assets/meshes/`, then patches entity defs
-  with the resolved `res://` paths. Mock backend ships; real
-  ones (`openai_images`, `stable_diffusion_local`, `tripo3d`)
-  slot into `tools/yume_assetgen/backends/`. CLI:
-  `python3 -m tools.yume_assetgen <game> [--dry-run|--init|...]`.
-  See `tools/yume_assetgen/README.md`.
-
-Engine support for asset-gen output is in `entity_mesh_3d.gd`:
-`visual.albedo_texture` (code-drawn meshes) + dict-form
-`material_overrides` entries with `{albedo_color,
-albedo_texture, normal_texture, roughness, metallic}` (.glb
-meshes via ADR 0046 Phase B).
+Engine support: `entity_mesh_3d.gd` reads `visual.albedo_texture` +
+dict-form `material_overrides` ({albedo_color, albedo_texture,
+normal_texture, roughness, metallic}). See each package's README.
 
 ## Read More
 
@@ -444,4 +389,4 @@ meshes via ADR 0046 Phase B).
 - `docs/adr/0051-authoring-time-python-emitters.md` — codegen + assetgen rationale
 - `tools/yume_codegen/README.md` — rule/entity/screen JSON builders
 - `tools/yume_assetgen/README.md` — texture + mesh generation flow
-- `task_plan.md` — durable backlog (mirrors session TaskList)
+- `.claude/plan/backlog.md` — live actionable backlog (start here); `.claude/plan/archive.md` — full history + decision log (`task_plan.md` is now just an index pointing to both)
