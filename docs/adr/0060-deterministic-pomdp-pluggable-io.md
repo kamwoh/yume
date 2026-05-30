@@ -252,6 +252,53 @@ rewritten unit gate (`test_step_runner` §13: press queues once; release + one
 frame clears the edge → no re-fire). Flagged for re-check when a screen-toggle
 demo next exists.
 
+## Phase 2 — implementation notes (2026-05-31, transport contract amended)
+
+Phase 2 landed the **state channel** of the single-env stepping driver:
+`stdio_step_driver.gd` (new autoload, active only on `--stdio-step`) +
+`tools/yume_env/env.py` (gym-like `YumeEnv.step/reset/close`). Two material
+deviations from the original spec — both forced by verified runtime facts, so
+this section AMENDS the Part 3 transport contract:
+
+- **Transport: stdout, not inherited fds.** Godot's `FileAccess` WRITE mode
+  (`O_CREAT|O_TRUNC`) **cannot open a pipe / FIFO / `/dev/fd/N`** —
+  `ERR_FILE_CANT_OPEN` (err 12) on Linux, `ERR_FILE_NOT_FOUND` (err 7) on the
+  Windows build (no `/dev/fd`). Verified directly. So the ADR's
+  `--state-fd`/`--frame-fd` + `os.pipe`/`pass_fds` design is infeasible: Godot
+  can only `FileAccess`-write regular files. The **state** channel therefore
+  uses plain **stdout** (newline-framed, `@YUMESTEP@`-sentinel-prefixed JSON so
+  the harness ignores Godot's boot-log noise) and **stdin** for the action
+  batch. This is pure stdio — no networking (scope guard intact). The blocking
+  `OS.read_string_from_stdin()` IS the step barrier (verified to block + read
+  per line). `--state-fd` is dropped from the contract.
+- **Runtime: native LINUX Godot binary.** The project's Windows-Godot-via-WSL
+  build can't do reliable stdin/stdout piping (CLAUDE.md) nor open `/dev/fd`.
+  The env runs `/home/kamwoh/godot-linux/Godot_v4.6.1-stable_linux.x86_64`
+  (same build hash `14d19694e` as the Windows binary). The Windows binary stays
+  for interactive play/capture. `YUME_GODOT_LINUX_BIN` overrides.
+- **Frame (pixel) channel DEFERRED.** It is the ONLY part that genuinely needs
+  a non-stdout transport (binary RGBA can't go through `print`). Pending a
+  file-vs-localhost-TCP decision. `--headless` state-only is the documented
+  fast common case (determinism oracle + state-prediction) and is what shipped.
+  The state/frame "wall" (Part 3) is therefore not yet built — there is no frame
+  channel to wall off yet; it must be enforced when the frame channel lands.
+- **Sole-tick-driver discipline (Phase 1 carryover):** the driver calls
+  `world.set_process(false)` so wall-clock frames can't `_tick_due` an extra
+  tick; one stdin line = exactly one `advance_one_tick`. Input is injected
+  through the Phase 1 `InputRegistrar.poll` seam (one path). Actions are treated
+  as a per-tick held set (the gym/RL model).
+- **Env project excludes render assets.** `env.py::ensure_project` rsyncs the
+  source `godot/` to a dedicated Linux project (`/home/kamwoh/godot-linux/yume`,
+  separate `.godot` cache, keeps source clean) **excluding `data/*/assets/`** —
+  importing ~1.7GB of Tripo `.glb` took >5min and is pointless for state-only
+  (meshes are renderer-side; sim state is mesh-independent). 1.7GB → 19MB,
+  near-instant import.
+
+**CI gate (`tools/yume_env/test_env.py`):** sokoban deterministic across two
+separate env processes (6 ticks, identical hashes) + hashes change across steps
+(env truly advances the sim) + aldenmere (3D, meshes excluded) steps via the
+state channel. All pass.
+
 ## Consequences
 
 **Positive.**
