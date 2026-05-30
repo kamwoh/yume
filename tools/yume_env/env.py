@@ -68,7 +68,8 @@ def ensure_project(reimport: bool = False, import_timeout: int = 600) -> str:
     subprocess.run(
         [
             "rsync", "-a", "--delete",
-            "--exclude=data/*/assets/",   # heavy render assets — not needed for state
+            "--exclude=data/demo_*/assets/",  # heavy per-demo render assets only;
+            #                                   keep data/lib/assets (engine test fixtures)
             "--exclude=.godot/",          # keep the env's own import cache
             f"{SOURCE_GODOT}/", f"{proj}/",
         ],
