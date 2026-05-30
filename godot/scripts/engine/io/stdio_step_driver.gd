@@ -29,13 +29,28 @@ extends Node
 
 const SENTINEL := "@YUMESTEP@"
 
+## Optional frame (pixel) channel — ADR 0060 Part 3. When `--frame-file=<path>`
+## is present, each step ALSO writes the rendered viewport to that regular file
+## (overwritten per tick), and the emitted state line carries a "frame" block so
+## the reader knows a fresh frame is ready. Transport is a regular FILE, not an
+## inherited fd: Godot FileAccess can't write pipes/FIFOs (verified). The
+## state/frame "wall" (Part 3) is preserved by MECHANISM separation — state on
+## stdout (harness), frame on a file the agent is handed the path to — though
+## with no agent yet there is a single consumer. Frame emission needs a real
+## render context (launch with `--rendering-driver opengl3`); in pure --headless
+## the viewport has no pixels. File format: store_32(width) store_32(height)
+## then raw RGBA8 bytes (width*height*4) — no PNG encode (matches ADR intent).
+var _frame_file: String = ""
+
 
 func _ready() -> void:
 	var active := false
 	for arg in OS.get_cmdline_user_args():
-		if str(arg) == "--stdio-step":
+		var s := str(arg)
+		if s == "--stdio-step":
 			active = true
-			break
+		elif s.begins_with("--frame-file="):
+			_frame_file = s.substr(13)
 	if not active:
 		return
 	await _run()
@@ -72,9 +87,47 @@ func _run() -> void:
 		elif batch is Array:
 			actions = batch
 		_step(world, actions)
-		_emit({"tick": int(world._tick_count), "hash": _hash(world), "state": _state(world)})
+		var payload := {"tick": int(world._tick_count), "hash": _hash(world), "state": _state(world)}
+		if _frame_file != "":
+			var meta := await _write_frame()
+			if not meta.is_empty():
+				payload["frame"] = meta
+		_emit(payload)
 
 	get_tree().quit(0)
+
+
+## Render the current state to the viewport and write it to _frame_file as
+## store_32(w) store_32(h) + raw RGBA8. Returns {path,w,h} meta (empty on
+## failure). Awaits one frame so the renderer redraws the just-advanced state
+## before readback. The file is fully written + closed BEFORE the caller emits
+## the state line, so a reader that waits for the state line never sees a
+## partial frame.
+func _write_frame() -> Dictionary:
+	# Let the renderer redraw entity positions for the tick we just advanced.
+	await get_tree().process_frame
+	var vp := get_viewport()
+	if vp == null:
+		return {}
+	var tex := vp.get_texture()
+	if tex == null:
+		return {}
+	var img: Image = tex.get_image()  # synchronous GPU->CPU readback
+	if img == null:
+		return {}
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	var w := img.get_width()
+	var h := img.get_height()
+	var f := FileAccess.open(_frame_file, FileAccess.WRITE)
+	if f == null:
+		printerr("[stdio] cannot open frame file: ", _frame_file)
+		return {}
+	f.store_32(w)
+	f.store_32(h)
+	f.store_buffer(img.get_data())
+	f.close()  # close (not just flush) so the reader sees a complete file
+	return {"path": _frame_file, "w": w, "h": h, "bytes": w * h * 4}
 
 
 ## One env step: apply the action batch as the inputs held THIS tick, advance

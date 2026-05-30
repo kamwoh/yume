@@ -276,12 +276,22 @@ this section AMENDS the Part 3 transport contract:
   The env runs `/home/kamwoh/godot-linux/Godot_v4.6.1-stable_linux.x86_64`
   (same build hash `14d19694e` as the Windows binary). The Windows binary stays
   for interactive play/capture. `YUME_GODOT_LINUX_BIN` overrides.
-- **Frame (pixel) channel DEFERRED.** It is the ONLY part that genuinely needs
-  a non-stdout transport (binary RGBA can't go through `print`). Pending a
-  file-vs-localhost-TCP decision. `--headless` state-only is the documented
-  fast common case (determinism oracle + state-prediction) and is what shipped.
-  The state/frame "wall" (Part 3) is therefore not yet built — there is no frame
-  channel to wall off yet; it must be enforced when the frame channel lands.
+- **Frame (pixel) channel — BUILT (2026-05-31), regular-file transport.** It is
+  the only part needing a non-stdout transport (binary RGBA can't go through
+  `print`). Decision: a **regular file** (`--frame-file=<path>`), not localhost
+  TCP — `FileAccess`-compatible, no networking (scope guard intact). Each step
+  writes `store_32(w) store_32(h)` + raw RGBA8 to the file (overwritten per
+  tick), and the stdout state line carries a `frame` block; the file is closed
+  BEFORE the state line is emitted, so a reader that waits for the state line
+  never sees a partial frame. `env.py frames=True` launches with
+  `--rendering-driver opengl3` (NOT `--headless` — the viewport needs a GL
+  context; Mesa **llvmpipe** software GL works in WSL, no display required) and
+  returns the frame as a `(h,w,4)` numpy array. Pays a synchronous GPU→CPU
+  readback per step, so it's opt-in; state-only (`--headless`) stays the fast
+  default. The state/frame **wall** (Part 3): mechanism-separated (state→stdout,
+  frame→file) and ready to enforce by handing an agent only the frame path — but
+  with no agent consumer yet there is a single reader, so the hard process/fd
+  partition is not exercised. Enforce it when a pixel-agent lands.
 - **Sole-tick-driver discipline (Phase 1 carryover):** the driver calls
   `world.set_process(false)` so wall-clock frames can't `_tick_due` an extra
   tick; one stdin line = exactly one `advance_one_tick`. Input is injected
@@ -297,7 +307,8 @@ this section AMENDS the Part 3 transport contract:
 **CI gate (`tools/yume_env/test_env.py`):** sokoban deterministic across two
 separate env processes (6 ticks, identical hashes) + hashes change across steps
 (env truly advances the sim) + aldenmere (3D, meshes excluded) steps via the
-state channel. All pass.
+state channel + frame channel emits a non-black 960×540 RGBA frame per step
+(GL-tolerant: SKIPs rather than fails if no rasterizer). All pass.
 
 ## Consequences
 

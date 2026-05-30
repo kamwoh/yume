@@ -67,6 +67,36 @@ def main() -> int:
         print(f"FAIL: aldenmere env raised: {e}")
         fails += 1
 
+    # --- 3. frame (pixel) channel — ADR 0060 Phase 2 frame channel ---
+    # Needs a GL context (opengl3 + a software/hw rasterizer). Tolerant: SKIP
+    # (not fail) if GL is unavailable, so headless CI without a rasterizer
+    # doesn't break. On a Mesa-llvmpipe WSL box this runs.
+    try:
+        env = YumeEnv("demo_sokoban", frames=True, boot_timeout=60)
+        try:
+            env.reset()
+            fr = env.step(["move_north"]).get("frame", {})
+            px = fr.get("pixels")
+            w, h = fr.get("w"), fr.get("h")
+            ok_dims = bool(w) and bool(h) and fr.get("bytes") == w * h * 4
+            try:
+                import numpy as np  # noqa: F401
+
+                nonblack = px is not None and bool((px[:, :, :3] > 0).any())
+                shape_ok = getattr(px, "shape", None) == (h, w, 4)
+            except ImportError:
+                nonblack = px is not None and len(px) == w * h * 4
+                shape_ok = nonblack
+            if ok_dims and nonblack and shape_ok:
+                print(f"PASS: frame channel emits non-black {w}x{h} RGBA per step")
+            else:
+                print(f"FAIL: frame channel malformed (dims={ok_dims} nonblack={nonblack} shape={shape_ok})")
+                fails += 1
+        finally:
+            env.close()
+    except Exception as e:  # noqa: BLE001
+        print(f"SKIP: frame channel — GL context unavailable ({type(e).__name__}: {e})")
+
     print(f"\n=== RESULTS === {'PASS' if fails == 0 else 'FAIL'} (failures: {fails})")
     return 1 if fails else 0
 

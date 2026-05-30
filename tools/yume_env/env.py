@@ -96,20 +96,33 @@ class YumeEnv:
         project: str | None = None,
         bin_path: str | None = None,
         boot_timeout: float = 30.0,
+        frames: bool = False,
     ):
+        """frames=True enables the pixel channel: the engine renders each step
+        to a regular file (separate from the stdout state channel — the ADR 0060
+        "wall"), and step()'s obs gains a "frame" with raw RGBA8 bytes + dims.
+        Requires a GL context, so the process runs with --rendering-driver
+        opengl3 instead of --headless (Mesa llvmpipe software GL works in WSL).
+        Pays a synchronous GPU->CPU readback per step (slower than state-only).
+        """
         self.game = game
         self._bin = bin_path or GODOT_LINUX_BIN
         self._project = project or LINUX_PROJECT
-        cmd = [
-            self._bin,
-            "--path",
-            self._project,
-            "--headless",
-            scene,
-            "--",
-            f"--game={game}",
-            "--stdio-step",
-        ]
+        self._frames = frames
+        self._frame_path = None
+        cmd = [self._bin, "--path", self._project]
+        if frames:
+            import tempfile
+
+            self._frame_path = tempfile.NamedTemporaryFile(
+                prefix=f"yume_frame_{game}_", suffix=".rgba", delete=False
+            ).name
+            cmd += ["--rendering-driver", "opengl3"]
+        else:
+            cmd += ["--headless"]
+        cmd += [scene, "--", f"--game={game}", "--stdio-step"]
+        if frames:
+            cmd += [f"--frame-file={self._frame_path}"]
         self.proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -163,7 +176,28 @@ class YumeEnv:
         self.proc.stdin.write(json.dumps(batch) + "\n")
         self.proc.stdin.flush()
         self._last = self._read_step()
+        # The state line arrives AFTER the engine has fully written + closed the
+        # frame file, so reading it here never races a partial write.
+        if self._frames and "frame" in self._last:
+            self._last["frame"]["pixels"] = self._read_frame(self._last["frame"])
         return self._last
+
+    def _read_frame(self, meta: dict):
+        """Read the raw RGBA8 frame file: store_32(w) store_32(h) + w*h*4 bytes
+        (little-endian, Godot's store_32). Returns a (h, w, 4) numpy array if
+        numpy is available, else the raw bytes."""
+        import struct
+
+        with open(self._frame_path, "rb") as fh:
+            raw = fh.read()
+        w, h = struct.unpack("<II", raw[:8])
+        body = raw[8 : 8 + w * h * 4]
+        try:
+            import numpy as np
+
+            return np.frombuffer(body, dtype=np.uint8).reshape(h, w, 4)
+        except ImportError:
+            return body
 
     def close(self) -> None:
         if self._closed:
@@ -178,6 +212,11 @@ class YumeEnv:
             self.proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             self.proc.kill()
+        if self._frame_path:
+            try:
+                os.unlink(self._frame_path)
+            except OSError:
+                pass
 
     def __enter__(self):
         return self
