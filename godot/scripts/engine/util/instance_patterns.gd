@@ -34,15 +34,23 @@ class_name InstancePatterns
 ## where placement is forbidden. Useful for protecting player spawn,
 ## boss spawn frame, choke points.
 ##
-## Determinism: scene.json's `level_seed` value is applied to Godot's
-## global PRNG at world load. With a fixed seed, scatter/cluster
-## produce the same map every run; without one, each session randomizes.
+## Determinism (ADR 0060): scatter/cluster use a PER-PATTERN seeded
+## `RandomNumberGenerator` — NOT Godot's shared global PRNG. The seed is
+## derived from `base_seed` (scene.json `level_seed`, 0 if unset) XOR the
+## pattern's identity (id_prefix + def), so each pattern's layout is
+## reproducible INDEPENDENT of how many `randf()` calls anything else made
+## first. The old global-`seed()` approach was insufficient: the global
+## PRNG's consumption ORDER across boot/scatter/rule `randf()`s isn't
+## pinned, so seeded-but-shared still diverged run-to-run (empirical
+## 2026-05-30: aldenmere camp_berry scatter diverged at tick 1 despite
+## level_seed=4412). A per-stream RNG removes the order dependency entirely.
 
 
 ## Expand a single pattern dict into a list of instance dicts.
-## Each returned dict has the same shape as initial_instances entries:
+## `base_seed` (default 0) is the scene's level_seed; scatter/cluster derive
+## a per-pattern RNG from it. Deterministic-pattern callers (tests) can omit it.
 ##   {"def": ..., "id": ..., "position": [x, y, z]}
-static func expand(pattern: Dictionary) -> Array:
+static func expand(pattern: Dictionary, base_seed: int = 0) -> Array:
 	var t := str(pattern.get("pattern", ""))
 	match t:
 		"ring":
@@ -52,12 +60,22 @@ static func expand(pattern: Dictionary) -> Array:
 		"line":
 			return _line(pattern)
 		"scatter":
-			return _scatter(pattern)
+			return _scatter(pattern, base_seed)
 		"cluster":
-			return _cluster(pattern)
+			return _cluster(pattern, base_seed)
 		"mirror":
 			return _mirror(pattern)
 	return []
+
+
+## Per-pattern deterministic RNG. seed = base_seed XOR identity-hash, so the
+## same pattern always scatters identically regardless of call order or what
+## else consumed the global PRNG. ADR 0060.
+static func _pattern_rng(base_seed: int, p: Dictionary) -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	var ident := str(p.get("id_prefix", "")) + "|" + str(p.get("def", "")) + "|" + str(p.get("def_choices", []))
+	rng.seed = base_seed ^ (ident.hash() | 1)
+	return rng
 
 
 # ============================================================
@@ -147,7 +165,8 @@ static func _line(p: Dictionary) -> Array:
 # ============================================================
 
 
-static func _scatter(p: Dictionary) -> Array:
+static func _scatter(p: Dictionary, base_seed: int = 0) -> Array:
+	var rng := _pattern_rng(base_seed, p)  # ADR 0060 — per-pattern, not global
 	# `def` for a single def, OR `def_choices: [a, b, c]` for random mix.
 	var def_id := str(p.get("def", ""))
 	var def_choices: Array = p.get("def_choices", [])
@@ -195,9 +214,9 @@ static func _scatter(p: Dictionary) -> Array:
 		return out
 	var attempts: int = 0
 	while placed.size() < count and attempts < count * max_attempts:
-		var t: float = randf()
+		var t: float = rng.randf()
 		var r: float = lerp(min_r, max_r, sqrt(t))  # sqrt biases toward edge for uniform area
-		var angle: float = randf() * TAU
+		var angle: float = rng.randf() * TAU
 		var pos := Vector3(origin.x + cos(angle) * r, origin.y + y, origin.z + sin(angle) * r)
 		var ok: bool = true
 		if min_spacing > 0:
@@ -209,7 +228,7 @@ static func _scatter(p: Dictionary) -> Array:
 			ok = not _in_exclude_zone(pos, exclude_zones)
 		if ok:
 			placed.append(pos)
-			var picked_def := str(def_choices[randi() % def_choices.size()])
+			var picked_def := str(def_choices[rng.randi() % def_choices.size()])
 			var inst: Dictionary = {
 				"def": picked_def,
 				"id": "%s_%d" % [id_prefix, placed.size()],
@@ -218,9 +237,9 @@ static func _scatter(p: Dictionary) -> Array:
 			# Build state overrides if any randomized field varies.
 			var state_ov: Dictionary = {}
 			if scale_min != 1.0 or scale_max != 1.0:
-				state_ov["scale"] = lerp(scale_min, scale_max, randf())
+				state_ov["scale"] = lerp(scale_min, scale_max, rng.randf())
 			if yaw_jitter > 0.0:
-				state_ov["yaw"] = (randf() - 0.5) * 2.0 * yaw_jitter
+				state_ov["yaw"] = (rng.randf() - 0.5) * 2.0 * yaw_jitter
 			if not state_ov.is_empty():
 				inst["state"] = state_ov
 			out.append(inst)
@@ -242,7 +261,8 @@ static func _scatter(p: Dictionary) -> Array:
 # ============================================================
 
 
-static func _cluster(p: Dictionary) -> Array:
+static func _cluster(p: Dictionary, base_seed: int = 0) -> Array:
+	var rng := _pattern_rng(base_seed, p)  # ADR 0060 — per-pattern, not global
 	var def_id := str(p.get("def", ""))
 	var id_prefix := str(p.get("id_prefix", def_id))
 	var count := int(p.get("count", 1))
@@ -257,8 +277,8 @@ static func _cluster(p: Dictionary) -> Array:
 		return out
 	var attempts: int = 0
 	while placed.size() < count and attempts < count * max_attempts:
-		var dx: float = (randf() - 0.5) * 2.0 * spread
-		var dz: float = (randf() - 0.5) * 2.0 * spread
+		var dx: float = (rng.randf() - 0.5) * 2.0 * spread
+		var dz: float = (rng.randf() - 0.5) * 2.0 * spread
 		var pos := Vector3(origin.x + dx, origin.y, origin.z + dz)
 		var ok: bool = true
 		if min_spacing > 0:

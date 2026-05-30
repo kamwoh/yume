@@ -22,6 +22,7 @@ class_name WorldLoader
 ## owner. This module just provides the parsers it calls.
 
 var _world: World
+var _level_seed: int = 0  # ADR 0060 — scene.json level_seed for per-pattern RNGs
 
 # Cache flags — keep us from re-parsing scene.json. Ground values are
 # written to _world._ground_constraint; grid values to _world._grid_cfg.
@@ -92,7 +93,7 @@ func load_entities_path(root: String) -> void:
 	for d in dicts:
 		for p in d.get("patterns", []):
 			if p is Dictionary:
-				for inst in InstancePatterns.expand(p):
+				for inst in InstancePatterns.expand(p, _level_seed):
 					_world._spawn_manager.spawn(inst)
 	# Phase 2: process hand-coded initial instances + relations
 	for d in dicts:
@@ -134,7 +135,7 @@ func load_entities_file(path: String) -> void:
 	# Patterns
 	for p in d.get("patterns", []):
 		if p is Dictionary:
-			for inst in InstancePatterns.expand(p):
+			for inst in InstancePatterns.expand(p, _level_seed):
 				_world._spawn_manager.spawn(inst)
 	# Initial instances
 	for inst in d.get("initial_instances", []):
@@ -376,7 +377,8 @@ func apply_level_seed_if_set(root: String) -> void:
 	if not (json.data as Dictionary).has("level_seed"):
 		return
 	var s: int = int((json.data as Dictionary).get("level_seed", 0))
-	seed(s)
+	seed(s)  # still seed the global PRNG for non-pattern randf consumers
+	_level_seed = s  # ADR 0060 — threaded into per-pattern RNGs (the real gate)
 	if _world.verbose:
 		print("[World] level_seed=%d applied — patterns are deterministic" % s)
 

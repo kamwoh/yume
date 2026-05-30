@@ -79,6 +79,23 @@ static func matches(
 			if entity.has_tag(str(t)):
 				return false
 
+	# Select a specific entity by instance id (or one of a set). Optional;
+	# tests use it (the steps[] `expect` by-id case, ADR 0060 migration);
+	# rules generally shouldn't hardcode ids (data-demo.md) but the
+	# primitive is generic.
+	if spec.has("id"):
+		if str(entity.instance_id) != str(spec["id"]):
+			return false
+
+	if spec.has("ids"):
+		var id_ok := false
+		for x in spec["ids"]:
+			if str(x) == str(entity.instance_id):
+				id_ok = true
+				break
+		if not id_ok:
+			return false
+
 	if spec.has("properties"):
 		if not _match_fields(entity.properties, spec["properties"]):
 			return false

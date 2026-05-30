@@ -110,6 +110,12 @@ var _trajectory_file: FileAccess = null
 var _trajectory_path: String = ""
 var _trajectory_scenario: String = ""
 
+# ADR 0060 Part 1 — determinism oracle. When --hash-log=<path> is on the
+# cmdline, World appends {"tick", "hash", "ents"} per tick (after each
+# advance_one_tick) via DeterminismHash.canonical(). Hooked at the canonical
+# tick body so it works under ANY driver (scenario_runner, capture_runner).
+var _hash_log_file: FileAccess = null
+
 # ============================================================
 # STATE — multi-level progression (ADR 0006)
 # ============================================================
@@ -159,10 +165,43 @@ func _enter_tree() -> void:
 
 func _ready() -> void:
 	_apply_debug_flags()
+	_apply_hash_log_flag()
 	_init_stores()
 	_init_coordinators()
 	if auto_start:
 		start()
+
+
+## ADR 0060 — open the determinism hash log if --hash-log=<path> is present.
+## World-level (not capture_runner-level) so the hash sequence is logged under
+## whatever drives the canonical tick — scenario_runner (tick-locked, the
+## oracle's driver) OR capture_runner (real-time). One {tick,hash,ents} JSONL
+## row per advance_one_tick.
+## Tracks hash-log paths opened in THIS process so multiple Worlds (e.g. the
+## scenario_runner's fresh-World-per-scenario) ACCUMULATE into one log instead
+## of each truncating it. The oracle deletes the file before each process run,
+## so the first World creates it (WRITE) and later Worlds append.
+static var _hash_paths_opened: Dictionary = {}
+
+
+func _apply_hash_log_flag() -> void:
+	for arg in OS.get_cmdline_user_args():
+		var s := str(arg)
+		if s.begins_with("--hash-log="):
+			var path := s.substr(11)
+			if _hash_paths_opened.has(path) and FileAccess.file_exists(path):
+				_hash_log_file = FileAccess.open(path, FileAccess.READ_WRITE)
+				if _hash_log_file != null:
+					_hash_log_file.seek_end()  # append, don't truncate
+			else:
+				_hash_log_file = FileAccess.open(path, FileAccess.WRITE)
+			if _hash_log_file == null:
+				push_warning("[world] could not open hash-log: %s" % path)
+			else:
+				_hash_paths_opened[path] = true
+				if verbose:
+					print("[World] determinism hash-log → ", path)
+			return
 
 
 ## Read debug flags from cmdline + scene.json BEFORE physics bodies are
@@ -408,6 +447,24 @@ func advance_one_tick() -> void:
 	# for training an implicit world model from explicit rollouts.
 	if _trajectory_file != null:
 		_write_trajectory_row()
+	write_hash_log_row()  # ADR 0060 (no-op unless --hash-log)
+
+
+## ADR 0060 — append one {tick, hash, ents} row for the just-completed tick.
+## Public + no-op unless --hash-log is active, so the LEGACY scenario loop
+## (scenario_runner, which calls scheduler.tick() directly and bypasses
+## advance_one_tick) can trigger it manually — same pattern as
+## _write_trajectory_row. Hooked at both tick paths = every demo audited.
+func write_hash_log_row() -> void:
+	if _hash_log_file == null:
+		return
+	var d: Dictionary = DeterminismHash.canonical(self)
+	_hash_log_file.store_line(JSON.stringify({
+		"tick": _tick_count,
+		"hash": d["hash"],
+		"ents": d["ents"],
+	}))
+	_hash_log_file.flush()  # survive a killed process mid-run
 
 
 ## ADR 0036: advance entity ages + stage thresholds. dt=tick_seconds so
