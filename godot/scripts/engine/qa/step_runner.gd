@@ -43,9 +43,9 @@ static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
 		var verb := _detect_verb(step)
 		match verb:
 			"press":
-				_do_press(step, world, ctx)
+				await _do_press(step, world, ctx)
 			"hold":
-				_do_hold(step, world, ctx)
+				await _do_hold(step, world, ctx)
 			"release":
 				_do_release(step, world, ctx)
 			"click":
@@ -98,65 +98,45 @@ static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 			{"step": step}
 		)
 		return
-	# Single press-edge: queue + advance one tick + (no need to dequeue —
-	# the scheduler consumes per-tick). Input.action_press also fires for
-	# live captures so GameShell / renderer-side input handlers see the
-	# press. In headless tests, queue_input is what actually drives rules.
+	# ADR 0060 Phase 1 — ONE input path. Scripted input is now indistinct
+	# from a real keypress: we set Godot's Input state, then drive the SAME
+	# InputRegistrar.poll() the live `_process` loop uses (via _drive_poll).
+	# poll reads is_action_just_pressed / is_action_pressed and queues onto
+	# the scheduler — so press-vs-hold edge classification, per-axis stop
+	# injection, and per-tick dedup all match live play exactly. No more
+	# direct scheduler.queue_input bypass.
 	#
-	# Mirror live freeze gate: world.gd::_process skips _poll_input when
-	# screen_freeze_world=1 (modal up) or overlay_freeze_world=1, so the
-	# scheduler's input phase sees an empty queue. Without this mirror,
-	# scripted I-press while inventory is open would re-fire the
-	# ui_open_inventory rule and double-push inventory — divergent from
-	# live play where global_inputs handles the close-toggle instead.
-	# Empirical case 2026-05-17: i_press_toggle.json showed the second
-	# press leaving inventory still open because the rule fired again.
+	# Freeze gate mirror: world.gd::_process skips _poll_input when
+	# screen_freeze_world / overlay_freeze_world is set (modal/overlay up).
+	# Mirrored so a scripted press while a modal is open doesn't re-fire
+	# the open-rule (empirical 2026-05-17 I-toggle double-open).
 	Input.action_press(action)
 	if not _is_world_frozen(world):
-		_queue_input(world, action)
+		_drive_poll(world)
+		world.record_trajectory_action(action)
 	_advance(world)
 	# Mirror the live-frame screen_flow tick BEFORE releasing so any
 	# frame-driven observer (ScreenFlow._handle_global_inputs, GameShell
-	# HUD bindings) sees the "pressed" state. Required for screen-toggle
-	# tests (I-press inventory, M-press map) where the close-toggle path
-	# lives in screen_flow's _process, not the scheduler input phase.
-	# Empirical case 2026-05-17: i_press_toggle.json capture-script
-	# couldn't observe the close path because Input.action_release ran
-	# in the same synchronous frame as the press, leaving screen_flow's
-	# edge detector with both pressed=false and was_pressed=false. Now
-	# step_runner synchronously fires screen_flow's per-frame handlers
-	# while the action is still pressed, mirroring live play.
+	# HUD bindings) sees the "pressed" state — the close-toggle path lives
+	# in screen_flow's _process, not the scheduler input phase.
 	_tick_screen_flow(world)
 	Input.action_release(action)
-	# Second tick after release to let the edge-down detector update
-	# _last_action_state (so the NEXT press registers as a fresh edge).
 	_tick_screen_flow(world)
-	# Empirical case 2026-05-17 (second incident): even after the close-
-	# toggle pops the inventory and freeze flips to 0 in world_state,
-	# Godot's `Input.is_action_just_pressed(action)` still reports TRUE
-	# on the *next* main-loop frame because action_press / action_release
-	# both landed inside the previous frame's processing window without a
-	# yield. When the main loop subsequently runs world._process with
-	# freeze=0, InputRegistrar.poll sees that latched just_pressed and
-	# re-queues the action → ui_open_inventory rule fires → inventory
-	# re-pushes. Visible symptom: I-toggle second-press appears to do
-	# nothing because the second press's close is immediately reverted
-	# by the latched just_pressed.
-	#
-	# Mitigation: tell the scheduler to ignore the next-frame poll of
-	# this same action. We mark it on env so InputRegistrar can skip
-	# one detection per scripted press. Live play is unaffected (real
-	# key events properly span frame boundaries).
-	if world != null and world.scheduler != null:
-		var env: Dictionary = world.scheduler.env
-		var consumed = env.get("_scripted_action_consumed", null)
-		if not (consumed is Dictionary):
-			consumed = {}
-			env["_scripted_action_consumed"] = consumed
-		(consumed as Dictionary)[action] = true
+	# ADR 0060 Phase 1 — the frame boundary that REPLACES the old
+	# _scripted_action_consumed carve-out. Godot's is_action_just_pressed
+	# does NOT clear until a real process frame elapses; without this yield,
+	# EVERY action pressed earlier in the scenario stays "just_pressed" and
+	# poll re-queues all of them each step (rule-ordering then picks the
+	# winner — the slot_1/slot_2/slot_4 bug). Awaiting one frame (action
+	# already released) clears the edge so the next press is a distinct edge
+	# and the live capture poll can't re-fire. Scenario mode sets
+	# World._process=false so this frame can't auto-advance a tick, and the
+	# scenario loop awaits _run_one so result accounting stays correct.
+	if world != null and world.get_tree() != null:
+		await world.get_tree().process_frame
 
 
-static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary) -> void:
+static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary):
 	var spec = step["hold"]
 	var actions: Array = []
 	if spec is Array:
@@ -197,14 +177,15 @@ static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	# Round (per Condition C3) so sub-tick durations don't silently advance 0.
 	var ticks: int = max(1, int(round(seconds / world.tick_seconds)))
 	for i in range(ticks):
-		# Per-tick re-queue: hold semantics in scheduler.input_queue is
-		# "each tick the action is held, fire its rule once". The live
-		# poll_input does the same — re-queues every frame for hold-edge.
-		# Same freeze-mirror as _do_press: when frozen, world.gd skips
-		# _poll_input so the queue stays empty for the held action.
+		# ADR 0060 Phase 1 — drive the live poll each tick. With the actions
+		# held in Godot's Input state, poll's hold branch (is_action_pressed)
+		# re-queues them every tick, exactly as live play's per-frame poll
+		# does. Freeze-mirror: when a modal/overlay is up, world.gd skips
+		# _poll_input, so we skip too (queue stays empty for held actions).
 		if not _is_world_frozen(world):
+			_drive_poll(world)
 			for action in actions:
-				_queue_input(world, action)
+				world.record_trajectory_action(action)
 		_advance(world)
 	# Mirror live-frame screen_flow tick BEFORE release for screen-toggle
 	# observability (see _do_press). Live play always has ≥1 frame of
@@ -213,22 +194,38 @@ static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	for action in actions:
 		Input.action_release(action)
 	_tick_screen_flow(world)
+	# Clear the press-edge across a real frame (see _do_press). Held actions
+	# use is_action_pressed, but a trailing just_pressed can latch and re-fire
+	# on the next press/poll; one frame after release clears it.
+	if world != null and world.get_tree() != null:
+		await world.get_tree().process_frame
 
 
-# Queue an input into the scheduler's per-tick input queue. Mirrors the
-# legacy scenario_runner pattern: scheduler.queue_input(action, ctx). The
-# `actor` binding lets rules whose query targets the player resolve to
-# the right entity.
-static func _queue_input(world: World, action: String) -> void:
-	if world.scheduler == null:
+# ADR 0060 Phase 1 — the single scripted-input seam. Drives the SAME
+# InputRegistrar.poll() that world.gd::_process calls for live play, so
+# scripted input and real keypresses share one code path. Reads Godot's
+# Input state (set by the caller via Input.action_press) + the engine's
+# registered press/hold action lists, and queues onto the scheduler bound
+# to the resolved actor. Replaces the old direct scheduler.queue_input
+# bypass (which diverged from live and needed the _scripted_action_consumed
+# carve-out to suppress the resulting double-fire).
+static func _drive_poll(world: World) -> void:
+	if world == null or world.scheduler == null:
 		return
 	var actor_id := _find_actor_id(world)
-	var ctx_dict: Dictionary = {}
-	if actor_id != "":
-		ctx_dict["actor"] = actor_id
-	world.scheduler.queue_input(action, ctx_dict)
-	# Trajectory recording — opt-in, no-op if World has no recorder set
-	world.record_trajectory_action(action)
+	if actor_id == "":
+		return
+	var stop_idle := ""
+	if "stop_action_on_idle" in world:
+		stop_idle = str(world.get("stop_action_on_idle"))
+	InputRegistrar.poll(
+		world.scheduler,
+		actor_id,
+		world.input_actions_hold,
+		world.input_actions_press,
+		stop_idle,
+		world.entities,
+	)
 
 
 # One-tick advance helper. Mirrors legacy scenario_runner's per-tick block:

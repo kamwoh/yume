@@ -77,7 +77,12 @@ func _ready() -> void:
 			continue
 		if (sc as Dictionary).get("_skip", false):
 			continue
-		_run_one(sc, data_root)
+		# MUST await: _run_one is a coroutine (StepRunner yields a real frame
+		# per press to clear Godot's is_action_just_pressed edge — ADR 0060
+		# Phase 1). Without the await the loop fires-and-forgets, RESULTS
+		# tallies before deferred assertions resume, and presses re-fire stale
+		# edges. (Worked before only because StepRunner was synchronous.)
+		await _run_one(sc, data_root)
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [passed, failed, passed + failed])
 	if failed > 0:
@@ -105,14 +110,32 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	world.auto_start = false
 	world.verbose = false
 	world.renderer_script = ""  # headless: no renderer
-	world.input_actions_press = PackedStringArray()  # we inject manually
 	# ADR 0009 Phase 2d: per-scenario variant override (read BEFORE
 	# load_data, since variant detection happens there).
 	world.variant_override = str(sc.get("variant", ""))
 	add_child(world)
+	# ADR 0060 Phase 1: StepRunner is the SOLE tick driver in scenario
+	# mode. Disable World._process so the SceneTree's real frames (which
+	# StepRunner now awaits, to reset Godot's is_action_just_pressed edge)
+	# can't auto-advance ticks via _tick_due — that would inject
+	# uncontrolled ticks and break deterministic counts + the hash oracle.
+	world.set_process(false)
 	# Run lifecycle: _ready on World already fired during add_child; data
 	# isn't loaded because auto_start=false. Load explicitly.
 	world.load_data()
+	# ADR 0060 Phase 1: populate the engine's poll lists from ui/input.json
+	# (auto_start=false skips world_boot, which normally does this). The
+	# unified scripted-input path routes through InputRegistrar.poll, which
+	# classifies each action's edge (press vs hold) from these lists exactly
+	# as live play does — so a scenario's input behaves identically to a
+	# real keypress. Mirrors world_boot.gd's registration block.
+	var _reg: Dictionary = InputRegistrar.register_from_data_root(data_root)
+	for _n in _reg.get("press", []):
+		if not (world.input_actions_press as Array).has(str(_n)):
+			world.input_actions_press.append(str(_n))
+	for _n in _reg.get("hold", []):
+		if not (world.input_actions_hold as Array).has(str(_n)):
+			world.input_actions_hold.append(str(_n))
 	# Wire trajectory recording if --record-trajectory was set. World
 	# owns the recorder (covers both legacy actions[] and modern
 	# steps[] paths automatically).
@@ -185,8 +208,11 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 						world.record_trajectory_action(act)
 			world.scheduler.tick()
 			# Trajectory write (legacy actions[] path doesn't go through
-			# advance_one_tick — manually trigger).
+			# advance_one_tick — manually trigger). Same for the ADR 0060
+			# determinism hash-log (no-op unless --hash-log is active).
 			world.call("_write_trajectory_row")
+			if world.has_method("write_hash_log_row"):
+				world.write_hash_log_row()
 			if world.has_method("_decrement_lifetimes"):
 				world._decrement_lifetimes()
 			# ADR 0006: process any queued level transitions between ticks.

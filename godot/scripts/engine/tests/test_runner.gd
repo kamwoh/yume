@@ -75,7 +75,12 @@ func _ready() -> void:
 	test_faction_primitive()
 	test_tech_tree_primitive()
 	test_dynasty_primitive()
-	test_step_runner()
+	# MUST await — StepRunner.run yields a real frame per press (ADR 0060
+	# Phase 1, to clear Godot's is_action_just_pressed edge). Without the
+	# await, test_step_runner's assertions resume after RESULTS is tallied
+	# (total under-counts). Worked before only because StepRunner was
+	# synchronous. Tests below run after it completes.
+	await test_step_runner()
 	test_grid_snap()
 	test_multimesh_director()
 	test_array_primitives()
@@ -2000,6 +2005,33 @@ func test_instance_patterns() -> void:
 		var pb: Array = (batch_b[0] as Dictionary)["position"]
 		expect_eq(float(pa[0]), float(pb[0]), "deterministic: same seed → same x[0]")
 		expect_eq(float(pa[2]), float(pb[2]), "deterministic: same seed → same z[0]")
+
+	# ADR 0060 GATE — order-independence. Per-pattern seeded RNG must be
+	# IMMUNE to how much the global PRNG was consumed first. This is the
+	# exact bug class behind aldenmere's camp_berry tick-1 divergence
+	# (seeded-but-SHARED global PRNG diverged because consumption order
+	# wasn't pinned). Expand a scatter, consume the global PRNG, expand
+	# again — results MUST be identical.
+	var oi_pat := {
+		"def": "berry", "pattern": "scatter", "count": 10,
+		"min_r": 1, "max_r": 8, "id_prefix": "berry",
+		"scale_min": 0.8, "scale_max": 1.2, "yaw_jitter": 1.0,
+	}
+	var oi_a := InstancePatterns.expand(oi_pat, 4412)
+	for _i in range(37):
+		randf()  # simulate boot/rules consuming the shared global PRNG
+	var oi_b := InstancePatterns.expand(oi_pat, 4412)
+	expect_eq(oi_a.size(), oi_b.size(), "ADR0060: scatter count is order-independent")
+	var oi_same := oi_a.size() == oi_b.size()
+	if oi_same:
+		for i in range(oi_a.size()):
+			if (oi_a[i] as Dictionary)["position"] != (oi_b[i] as Dictionary)["position"]:
+				oi_same = false
+				break
+			if (oi_a[i] as Dictionary).get("state") != (oi_b[i] as Dictionary).get("state"):
+				oi_same = false
+				break
+	expect(oi_same, "ADR0060: scatter identical despite intervening global randf() (per-pattern seeded RNG)")
 
 	# Bounds-missing warning + under-spawn behavior (2026-05-20 post-mortem).
 	# A scatter with count=200 + defaulted min_r/max_r (0/5m disk) +
@@ -8514,6 +8546,17 @@ func test_step_runner() -> void:
 	world.verbose = false
 	world.tick_seconds = 0.1
 	add_child(world)
+	# ADR 0060 Phase 1: StepRunner is the sole tick driver; disable
+	# World._process so the frames StepRunner awaits (to clear the
+	# is_action_just_pressed edge) can't auto-advance a tick. Also register
+	# the test action in BOTH poll lists — the unified scripted-input path
+	# routes through InputRegistrar.poll, which only queues actions present
+	# in input_actions_press/hold (press uses is_action_just_pressed, hold
+	# uses is_action_pressed; per-tick dedup collapses the overlap to one
+	# fire per tick).
+	world.set_process(false)
+	world.input_actions_press = PackedStringArray([test_action])
+	world.input_actions_hold = PackedStringArray([test_action])
 	world.scheduler = PhaseScheduler.new({})
 	var player := Entity.create(defs["player"], "p1", {})
 	var entities: Dictionary = {"p1": player}
@@ -8577,6 +8620,11 @@ func test_step_runner() -> void:
 		InputMap.action_erase_events(test_action2)
 	else:
 		InputMap.add_action(test_action2)
+	# Register action2 in the poll lists too (unified path — see top of func).
+	if not (world.input_actions_press as Array).has(test_action2):
+		world.input_actions_press.append(test_action2)
+	if not (world.input_actions_hold as Array).has(test_action2):
+		world.input_actions_hold.append(test_action2)
 	var ctx3: Dictionary = {
 		"verbose": false, "passed": 0, "failed": 0, "failures": [], "screenshots": []
 	}
@@ -8717,42 +8765,36 @@ func test_step_runner() -> void:
 		int(player.get_state("counter", 0)) == 0, "advance_one_tick: no input held, no rule fires"
 	)
 
-	# ---------- 13. test_scripted_action_consumed (post-mortem gate, 2026-05-17) ----------
-	# Empirical case: step_runner._do_press synchronously calls Input.action_press
-	# + action_release within the same Godot frame. `Input.is_action_just_pressed`
-	# stays TRUE on the next main-loop frame even though the action was already
-	# processed via scheduler.queue_input. Without InputRegistrar's consume-map
-	# check, the action re-queues → ui_open_inventory rule re-fires → modal
-	# toggles (I-press, M-press) appear broken (second press closes then
-	# immediately re-opens).
+	# ---------- 13. scripted-press no-double-fire (ADR 0060 Phase 1 gate) ----------
+	# REPLACES the old _scripted_action_consumed carve-out (2026-05-17). That
+	# carve-out existed because step_runner used a SECOND input path (direct
+	# scheduler.queue_input alongside Input.action_press), leaving a latched
+	# is_action_just_pressed the live poll re-fired on the next frame → the
+	# I-toggle double-open (press closes inventory, re-opens it).
 	#
-	# This test asserts the consume mechanism: after _do_press marks an action
-	# as consumed in env, InputRegistrar.poll skips the just_pressed queue
-	# for that action exactly once. Without the consume map this test fails
-	# (queue_input fires twice for the action — once from step_runner's manual
-	# queue, once from InputRegistrar's just_pressed detection).
+	# Phase 1 unified scripted input onto InputRegistrar.poll (one path) and
+	# step_runner now awaits a real frame after each press to clear the edge.
+	# This test gates the new structural guarantee: a press queues exactly
+	# once, and after release + one real frame the edge is cleared so a
+	# subsequent poll does NOT re-fire. (Without the frame, Godot's
+	# is_action_just_pressed stays TRUE even after release in headless mode —
+	# that was the latent re-fire the carve-out used to mask.)
 	player.state["counter"] = 0
-	world.scheduler.env["_scripted_action_consumed"] = {test_action: true}
-	# Press the action via Godot Input so is_action_just_pressed returns true.
+	world.scheduler.input_queue.clear()
 	Input.action_press(test_action)
-	# Poll once; consume map should swallow the just_pressed.
-	InputRegistrar.poll(
-		world.scheduler, "p1", [], [test_action], "", entities
+	InputRegistrar.poll(world.scheduler, "p1", [], [test_action], "", entities)
+	expect_eq(
+		world.scheduler.input_queue.size(), 1, "scripted press: poll queues the action once"
 	)
+	world.scheduler.input_queue.clear()
 	Input.action_release(test_action)
-	# The action should NOT have been queued (consume swallowed it).
+	# The frame boundary step_runner._do_press awaits after release.
+	await get_tree().process_frame
+	InputRegistrar.poll(world.scheduler, "p1", [], [test_action], "", entities)
 	expect_eq(
 		world.scheduler.input_queue.size(),
 		0,
-		"scripted-press consume: just_pressed was swallowed (not re-queued)"
-	)
-	# After the consume, the entry should be erased so subsequent presses fire.
-	var consumed_map: Dictionary = world.scheduler.env.get(
-		"_scripted_action_consumed", {}
-	)
-	expect(
-		not consumed_map.has(test_action),
-		"scripted-press consume: one-shot erase (next real press fires normally)"
+		"scripted press: release + one frame clears the edge — no re-fire (was the I-toggle double-open)"
 	)
 
 	# Cleanup

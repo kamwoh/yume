@@ -260,31 +260,21 @@ static func poll(
 				elif act_s == "move_east" or act_s == "move_west":
 					ew_held = true
 
-	# PRESS actions — fire once on press-edge
+	# PRESS actions — fire once on press-edge.
 	#
-	# Scripted-press carve-out (2026-05-17): when step_runner._do_press
-	# calls Input.action_press / action_release in the same synchronous
-	# frame, Godot's `Input.is_action_just_pressed` returns TRUE on the
-	# subsequent main-loop frame even though the action was already
-	# processed via scheduler.queue_input. Without the consume map this
-	# re-queues the action → user-visible I-toggle bug (second press
-	# closes inventory, then immediately re-opens it).
-	#
-	# step_runner sets `env._scripted_action_consumed[action] = true`
-	# after each press completes. We honor that exactly once, then
-	# clear it so subsequent real presses fire normally.
-	var consumed = null
-	if scheduler != null:
-		var env_v = scheduler.env
-		if env_v is Dictionary:
-			consumed = (env_v as Dictionary).get("_scripted_action_consumed", null)
+	# ADR 0060 Phase 1 (2026-05-30): the old `_scripted_action_consumed`
+	# carve-out is GONE. It existed because step_runner used to BOTH set
+	# Input state AND directly scheduler.queue_input — a second path that
+	# diverged from live, leaving a latched is_action_just_pressed the live
+	# poll would re-fire (the I-toggle double-open). Now step_runner routes
+	# scripted input through THIS poll (one path) and awaits a real frame
+	# after each press to clear the edge, so there's no stale just_pressed
+	# to suppress. This loop is identical for live keypresses and scripted
+	# presses.
 	for action in input_actions_press:
 		if not InputMap.has_action(action):
 			continue
 		if Input.is_action_just_pressed(action):
-			if consumed is Dictionary and (consumed as Dictionary).get(action, false):
-				(consumed as Dictionary).erase(action)
-				continue
 			scheduler.queue_input(action, {"actor": actor_id})
 
 	# Per-axis stop: if no key on the axis is held AND the actor has
