@@ -148,6 +148,11 @@ func _start() -> void:
 		var e = _world.entities[id]
 		if e is Entity and (e as Entity).has_tag("world_clock"):
 			(e as Entity).state["camera_mode"] = "top_down_3d"
+			# Visual mode: force noon so day/night-bound lighting renders LIT
+			# (default boot hour is often night → dark/grey scene). Harmless if
+			# the game has no current_hour binding.
+			if _visual and (e as Entity).state.has("current_hour"):
+				(e as Entity).state["current_hour"] = 12.0
 	# Assign each peer a DISTINCT controllable character (peer i → i-th actor),
 	# so two peers drive two characters. Falls back to sharing if fewer actors.
 	var actors := _resolve_actors(_world)
