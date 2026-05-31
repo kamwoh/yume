@@ -107,10 +107,26 @@ func step(world) -> Dictionary:
 				ctx["actor"] = actor_id
 			world.scheduler.queue_input(str(action), ctx)
 	world.advance_one_tick()
+	_tick_character_bodies(world)
 	var h := str(DeterminismHash.canonical(world).get("hash", ""))
 	submit_hash(local_peer_id, tick, h)
 	current_tick += 1
 	return {"tick": tick, "hash": h}
+
+
+## Tick-locked character motion (velocity→position) — the SAME deterministic
+## headless integration StepRunner uses (ADR 0045). For lockstep, motion MUST
+## be tick-locked, not free-running in _physics_process, or peers at different
+## frame rates desync. Inlined (not a StepRunner call) to keep io/ off qa/.
+func _tick_character_bodies(world) -> void:
+	var dt: float = float(world.tick_seconds)
+	for id in world.entities:
+		var ent = world.entities[id]
+		if not (ent is Entity) or not (ent as Entity).has_meta("_physics_body"):
+			continue
+		var body = (ent as Entity).get_meta("_physics_body")
+		if body is CharacterBodyRunner:
+			(body as CharacterBodyRunner).tick_headless(dt)
 
 
 func has_desync() -> bool:

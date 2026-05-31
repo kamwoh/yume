@@ -76,13 +76,18 @@ def ensure_project(reimport: bool = False, import_timeout: int = 600) -> str:
         check=True,
     )
     if reimport or not (proj / ".godot").exists():
+        # NOT check=True: godot --headless --import often exits non-zero on
+        # benign "ObjectDB instances leaked at exit" warnings even when the
+        # import succeeded. Validate by the .godot cache existing instead.
         subprocess.run(
             [GODOT_LINUX_BIN, "--path", str(proj), "--headless", "--import"],
-            check=True,
+            check=False,
             timeout=import_timeout,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        if not (proj / ".godot").exists():
+            raise RuntimeError(f"godot --import produced no .godot cache at {proj}")
     return str(proj)
 
 

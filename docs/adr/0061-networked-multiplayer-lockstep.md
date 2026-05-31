@@ -157,12 +157,34 @@ Phased like 0060 — each phase CI-testable:
   state; (b) the barrier only clears once all peers submit; (c) a hidden
   state poke on peer B at tick K is caught by the hash exchange as a desync at
   exactly tick K. No networking. 967/0 unit.
-- **Phase 2 — ENet transport.** `lockstep_driver.gd` autoload (active on a
-  `--lockstep-*` flag): `ENetMultiplayerPeer` + `@rpc` broadcast of each tick's
-  input batch + hash; the driver feeds `LockstepCore.submit_input/submit_hash`
-  from RPC arrivals and calls `step` when the barrier clears (the stdio
-  blocking-read barrier of 0060 becomes "block until all peers' RPCs for tick
-  N"). 2-process loopback test on the Linux binary.
+- **Phase 2 — ENet transport. ✅ DONE (transport proven).**
+  `lockstep_driver.gd` autoload (active on `--lockstep-host` / `--lockstep-join`):
+  `ENetMultiplayerPeer` + `@rpc` broadcast of each tick's input batch + hash;
+  feeds `LockstepCore.submit_input/submit_hash` from RPC arrivals and `step`s
+  when the barrier clears (0060's stdio blocking-read → "block until all peers'
+  RPCs for tick N"). `LockstepCore.step` ticks character bodies (ADR 0045
+  headless integration) so motion is tick-locked, not free-running. World
+  auto-ticking is suppressed from boot via an `Engine` meta flag
+  (`yume_external_tick_driver`) honored by `World._process` — without it, peers
+  auto-advance differing tick counts while connecting and desync at tick 0.
+  **Verified — 2-process loopback on the Linux binary, `demo_sokoban`
+  (determinism-clean): two ENet peers, 20 ticks, BYTE-IDENTICAL canonical hashes,
+  zero desync.** The transport replicates inputs + stays in lockstep correctly.
+
+  *Open hardening (found via a two-walking-characters demo in tiny_village /
+  aldenmere, 2026-05-31):* full LIVE-SCENE boot (`play.tscn`, `auto_start`) mounts
+  per-frame **directors** (camera, schedule, …) that mutate sim state OUTSIDE the
+  lockstep tick — un-gated by the `_process` flag, which only covers
+  `World._process`. Two peers run different frame counts before/during lockstep,
+  so their world state drifts (~0.2m walk-position drift; aldenmere additionally
+  has ambient-NPC RNG with no deterministic seed). The desync detector flags it
+  correctly — this is exactly the "determinism becomes a HARD requirement"
+  consequence above, surfaced. **Bit-identical live-scene lockstep needs ALL
+  per-frame state mutation tick-locked**: gate every director's `_process` behind
+  `yume_external_tick_driver` (or boot lockstep in scenario-mode without
+  directors), and give ambient AI a deterministic per-entity seed (like the
+  Phase 0 instance_patterns fix). Determinism-clean games already work
+  (sokoban). → Phase 2.5.
 - **Phase 3 — game integration.** Per-peer actor assignment, join/leave
   lifecycle, lobby. The `LockstepCore.actor_of_peer` map is the seam.
 - **Phase 4 — rollback (per-game opt-in, deferred).** Client-side prediction +
