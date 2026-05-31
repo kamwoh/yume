@@ -16,6 +16,10 @@
 #   ./scripts/run_linux.sh scenario <game>      # scenario_test.tscn -- --game=<game>
 #   ./scripts/run_linux.sh envtest              # tools/yume_env/test_env.py (env CI gate)
 #   ./scripts/run_linux.sh run <scene> [-- ...] # raw: <bin> --path . --headless <scene> -- ...
+#   ./scripts/run_linux.sh lockstep [game] [ticks] [input]
+#                                               # ADR 0061: 2 ENet peers (host+client),
+#                                               # compare per-tick hashes → IN SYNC / DESYNC.
+#                                               # default: demo_tiny_village 30 move_north
 #
 # Flags:
 #   --reimport   force a Godot --import (needed after adding a NEW class_name
@@ -94,11 +98,50 @@ case "${CMD}" in
     sync_project
     "${BIN}" --path "${PROJECT}" --headless "${SCENE}" -- "$@" 2>&1 | tee /tmp/linux_run.log
     ;;
+  lockstep)
+    # ADR 0061: launch a host + a client (two ENet peers on loopback), each
+    # driving a walking character, and compare their per-tick canonical hashes.
+    # Identical hashes + no desync = the two instances ran in perfect lockstep.
+    GAME="${1:-demo_tiny_village}"
+    TICKS="${2:-30}"
+    INPUT="${3:-move_north}"
+    sync_project
+    pkill -f "$(basename "${BIN}")" 2>/dev/null || true  # no-match is fine (set -e)
+    sleep 1
+    rm -f /tmp/ls_host.json /tmp/ls_client.json
+    echo "[run_linux] lockstep ${GAME}: host + client × ${TICKS} ticks, input='${INPUT}'"
+    "${BIN}" --path "${PROJECT}" --headless scenes/play.tscn -- \
+      --game="${GAME}" --lockstep-host --lockstep-port=7799 \
+      --lockstep-ticks="${TICKS}" --lockstep-input="${INPUT}" \
+      --lockstep-out=/tmp/ls_host.json >/tmp/ls_host.log 2>&1 &
+    HOST=$!
+    sleep 2.5
+    "${BIN}" --path "${PROJECT}" --headless scenes/play.tscn -- \
+      --game="${GAME}" --lockstep-join=127.0.0.1:7799 --lockstep-port=7799 \
+      --lockstep-ticks="${TICKS}" --lockstep-input="${INPUT}" \
+      --lockstep-out=/tmp/ls_client.json >/tmp/ls_client.log 2>&1 &
+    CLIENT=$!
+    wait "${HOST}" "${CLIENT}" 2>/dev/null
+    venv/bin/python - <<'PY'
+import json, sys
+try:
+    h = json.load(open("/tmp/ls_host.json")); c = json.load(open("/tmp/ls_client.json"))
+except Exception as e:
+    print("FAIL: no result (see /tmp/ls_host.log /tmp/ls_client.log) —", e); sys.exit(1)
+print("host  :", json.dumps(h))
+print("client:", json.dumps(c))
+ok = bool(h.get("final_hash")) and h["final_hash"] == c["final_hash"] \
+     and h["desync_tick"] == -1 and c["desync_tick"] == -1
+print("\nLOCKSTEP:", "IN SYNC ✓ — identical hashes, no desync" if ok
+      else "DESYNC ✗ — hashes differ / desync_tick set")
+sys.exit(0 if ok else 1)
+PY
+    ;;
   ""|help|-h|--help)
-    sed -n '2,30p' "${BASH_SOURCE[0]}"
+    sed -n '2,33p' "${BASH_SOURCE[0]}"
     ;;
   *)
-    echo "Unknown command: ${CMD} (try: sync | test | scenario <game> | envtest | run <scene>)" >&2
+    echo "Unknown command: ${CMD} (try: sync | test | scenario <game> | envtest | run <scene> | lockstep <game>)" >&2
     exit 2
     ;;
 esac
