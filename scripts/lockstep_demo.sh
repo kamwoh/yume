@@ -36,14 +36,41 @@ echo "[lockstep_demo] importing (new resources)..."
 ( cd "${TEMPLATE_DST}" && "${GODOT_BIN}" --path . --headless --import >/dev/null 2>&1 )
 
 cd "${TEMPLATE_DST}"
-COMMON=( --path . --rendering-driver opengl3 scenes/play.tscn --
-         --game="${GAME}" --lockstep-visual --lockstep-port="${PORT}"
+
+# Pick the per-game scene the SAME way play.sh does — the universal
+# scenes/play.tscn is the 2D launcher (Camera2D + entity_sprite_2d renderer);
+# launching a 3D game through it renders grey (3D meshes fall back, no Camera3D).
+# The per-game <short>_3d.tscn bakes in data_root + the 3D renderer + a Camera3D,
+# so it needs NO --game= arg. Fall back to play.tscn + --game only if no per-game
+# scene exists. (Empirical 2026-05-31: the demo hardcoded play.tscn → grey.)
+SHORT="${GAME#demo_}"
+SCENE=""
+SCENE_ARGS=()
+for variant in "${SHORT}_3d.tscn" "${SHORT}_2d.tscn" "${SHORT}.tscn"; do
+  if [ -f "${TEMPLATE_DST}/scenes/${variant}" ]; then
+    SCENE="scenes/${variant}"
+    break
+  fi
+done
+if [ -z "${SCENE}" ]; then
+  SCENE="scenes/play.tscn"
+  SCENE_ARGS=( --game="${GAME}" )
+  echo "[lockstep_demo] WARNING: no per-game scene for '${GAME}' — using play.tscn (2D)."
+fi
+echo "[lockstep_demo] scene: ${SCENE}"
+
+COMMON=( --path . --rendering-driver opengl3 "${SCENE}" --
+         "${SCENE_ARGS[@]}" --lockstep-visual --lockstep-port="${PORT}"
          --lockstep-ticks="${TICKS}" --lockstep-input="${INPUT}" )
 
 echo "[lockstep_demo] launching HOST window..."
 "${GODOT_BIN}" "${COMMON[@]}" --lockstep-host &
 HOST=$!
-sleep 3
+# The HOST must finish loading the 3D scene (meshes, ground, lighting) before the
+# CLIENT connects — while the main loop is blocked loading, ENet isn't pumped, so
+# a too-early client times out (CONNECT_TIMEOUT_SEC=10). 6s clears a warm load.
+# Empirical 2026-05-31: a 3s gap → client "connect timeout (no peer)"; 6s connects.
+sleep 6
 echo "[lockstep_demo] launching CLIENT window..."
 "${GODOT_BIN}" "${COMMON[@]}" --lockstep-join=127.0.0.1:"${PORT}" &
 CLIENT=$!
