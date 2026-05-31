@@ -140,18 +140,20 @@ func _start() -> void:
 	# StepRunner-style sole-driver: disable World._process so wall-clock frames
 	# can't auto-advance a tick; the lockstep loop here is the only driver.
 	_world.set_process(false)
-	# Harness movement-enable: drive the WORLD-FRAME WASD rules (velocity_set
-	# target=actor, gated on camera_mode top_down_3d) — clean deterministic
-	# headless motion, no camera-relative facing. (Test setup, like a scenario's
-	# world_state override; only when a world_clock singleton exists.)
-	for id in _world.entities:
-		var e = _world.entities[id]
-		if e is Entity and (e as Entity).has_tag("world_clock"):
-			(e as Entity).state["camera_mode"] = "top_down_3d"
-			# Visual mode: force noon so day/night-bound lighting renders LIT
-			# (default boot hour is often night → dark/grey scene). Harmless if
-			# the game has no current_hour binding.
-			if _visual and (e as Entity).state.has("current_hour"):
+	# Keep the scene's OWN camera_mode (do not force top_down — it renders grey
+	# for some scenes, e.g. tiny_village). Movement uses whatever WASD rule the
+	# scene's camera_mode gates; with NO mouse input (lockstep sends only the
+	# walk action) facing stays constant, so even camera-relative movement is
+	# deterministic. Visual mode just nudges noon so day/night-bound lighting is
+	# lit (harmless if the game has no current_hour).
+	if _visual:
+		for id in _world.entities:
+			var e = _world.entities[id]
+			if (
+				e is Entity
+				and (e as Entity).has_tag("world_clock")
+				and (e as Entity).state.has("current_hour")
+			):
 				(e as Entity).state["current_hour"] = 12.0
 	# Assign each peer a DISTINCT controllable character (peer i → i-th actor),
 	# so two peers drive two characters. Falls back to sharing if fewer actors.
