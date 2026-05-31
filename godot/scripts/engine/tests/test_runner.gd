@@ -474,6 +474,18 @@ func test_query() -> void:
 	expect(QueryLib.matches(t1, {"tags_all": ["plant"]}, env), "matches positive")
 	expect(not QueryLib.matches(f1, {"tags_all": ["plant"]}, env), "matches negative")
 
+	# id / ids identity clauses (ADR 0060) — select a specific instance by id.
+	var r_id := QueryLib.run({"id": "t1"}, env)
+	expect_eq(r_id.size(), 1, "id clause matches exactly one instance")
+	expect_eq((r_id[0] as Entity).instance_id, "t1", "id clause picks the named instance")
+	expect(QueryLib.matches(t1, {"id": "t1"}, env), "id matches positive")
+	expect(not QueryLib.matches(t2, {"id": "t1"}, env), "id matches negative (wrong id)")
+	var r_ids := QueryLib.run({"ids": ["t1", "f1"]}, env)
+	expect_eq(r_ids.size(), 2, "ids clause matches the id set (t1 + f1)")
+	expect(not QueryLib.matches(t2, {"ids": ["t1", "f1"]}, env), "ids excludes non-members")
+	# id clause composes with tag clauses (intersection).
+	expect(not QueryLib.matches(f1, {"id": "f1", "tags_all": ["plant"]}, env), "id + tag is AND")
+
 	for e in [t1, t2, f1]:
 		e.queue_free()
 

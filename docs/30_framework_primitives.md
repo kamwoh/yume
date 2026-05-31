@@ -385,6 +385,11 @@ Supported operators: `_eq`, `_ne`, `_gt`, `_lt`, `_gte`, `_lte`, `_atleast`,
 Tag clauses: `tags_all` (must have all), `tags_any` (must have at least one),
 `tags_none` (must have none).
 
+Identity clauses (ADR 0060): `id` (match one specific instance id) and `ids`
+(match any id in a set). Generic — rules should prefer tags over hardcoded ids
+(see `.claude/rules/data-demo.md`), but the primitive is needed for by-id test
+assertions and id-addressed effect targets.
+
 Queries can also filter by **relations** (see §7): `{relations: {held_by:
 self}}` matches entities currently `held_by` the caller; `{relations: {part_of:
 {tag: "house"}}}` matches entities `part_of` any entity tagged `house`.

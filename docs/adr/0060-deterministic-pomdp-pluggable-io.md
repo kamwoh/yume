@@ -187,6 +187,12 @@ is Phase 1). Decisions made that this ADR should ratify or correct:
   the trajectory recorder uses). So the hash logs under scenario_runner
   (tick-locked, the oracle's driver) and capture_runner alike — broader than
   "on capture_runner.gd". Multiple Worlds in one process append (scenario suite).
+- **New query operator `id` / `ids`** (`query.gd::matches`): match a specific
+  instance id, or any id in a set. Added for by-id `expect` assertions (the
+  scenario de-legacy) and id-addressed effect targets. This is new game-facing
+  query vocabulary (Invariant #8) — documented in `30_framework_primitives.md`
+  §6 and unit-tested in `test_runner.gd::test_query`. Rules should still prefer
+  tags over hardcoded ids (`data-demo.md`); the primitive is generic.
 
 **Audit result (Phase 0 deliverable — found, NOT fixed):**
 - `demo_sokoban` ✓ deterministic (133 ticks, identical).
