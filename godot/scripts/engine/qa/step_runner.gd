@@ -240,6 +240,18 @@ static func _advance(world: World) -> void:
 	# manually via tick_headless. Non-character entities don't move
 	# (use body_type:"character" to opt in).
 	_tick_character_bodies(world)
+	# ADR 0060 de-legacy (2026-05-31): drain the pending pipelines GameShell
+	# drives per-frame in live play (game_shell.gd:208-213) — level transitions,
+	# save/load, world reset. The scenario path doesn't mount GameShell, so
+	# without this a steps[] scenario can't process a level transition (the old
+	# actions[] loop drained _level_transitions by hand). Makes the canonical
+	# path equivalent. Idempotent: process_pending no-ops when nothing is queued.
+	if world._level_transitions != null:
+		world._level_transitions.process_pending(world.scheduler.env)
+	if world._save_load != null:
+		world._save_load.process_pending(world.scheduler.env)
+	if world._world_reset != null:
+		world._world_reset.process_pending(world.scheduler.env)
 
 
 # Mirror what live-play frames do for ScreenFlow:
@@ -293,6 +305,18 @@ static func _find_screen_flow(world: World) -> Node:
 # double-push the screen. Empirical case 2026-05-17.
 static func _is_world_frozen(world: World) -> bool:
 	if world == null:
+		return false
+	# ADR 0060 de-legacy (2026-05-31): the freeze-mirror exists to match live
+	# screen behavior (don't re-fire an open-rule while a modal is up — the
+	# I-toggle double-open). That applies on the LIVE capture path, where
+	# World._process drives the real game/screen loop. In SCENARIO mode
+	# StepRunner is the sole tick driver (World._process is disabled,
+	# is_processing()==false) and there is no GameShell driving input/screen
+	# dismissal — so screen_freeze_world (set by screens.json's starting_screen,
+	# e.g. a title screen ScreenFlow pushes at boot) is a phantom that scripted
+	# gameplay input must NOT be gated by (the legacy actions[] loop
+	# direct-queued past it). Discriminator: _process disabled == scenario mode.
+	if not world.is_processing():
 		return false
 	var ws: Dictionary = world.world_state
 	return (

@@ -163,73 +163,32 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	var setup: Dictionary = sc.get("setup", {})
 	_apply_setup(world, setup)
 
-	# ADR 0039: dual-path execution. New format uses `steps[]` and runs
-	# through StepRunner. Legacy format uses `actions[]` + `ticks` +
-	# `assertions[]` and runs the original tick-stepped path. Per-scenario
-	# auto-detection lets a single tests.json mix formats during migration.
-	if sc.has("steps"):
-		var step_ctx: Dictionary = {
-			"data_root": data_root,
-			"scenario": name,
-			"verbose": verbose,
-			"passed": 0,
-			"failed": 0,
-			"failures": [],
-		}
-		var result = await StepRunner.run(sc["steps"], world, step_ctx)
-		passed += int(result.get("passed", 0))
-		failed += int(result.get("failed", 0))
-		for f in result.get("failures", []):
-			failures.append(str(f))
-	else:
-		# ADR 0039 Condition C5: deprecate legacy actions[] schema. Removal
-		# at ADR 0050 or last-demo-migration whichever first.
-		if sc.has("actions"):
-			push_warning(
-				(
-					"[scenario] '%s' uses legacy actions[] schema — migrate to steps[] (deprecated as of ADR 0039, removal at ADR 0050 or last-demo-migration)"
-					% name
-				)
-			)
-		# Run ticks; inject scripted inputs at scheduled tick numbers.
-		# Resolve actor id each iteration — multi-level playthroughs destroy and
-		# recreate the player entity across transitions, invalidating any cached id.
-		var actions: Array = sc.get("actions", [])
-		var n_ticks := int(sc.get("ticks", 30))
-		for t in range(1, n_ticks + 1):
-			var actor_id := _find_actor_id(world)
-			for a in actions:
-				if not (a is Dictionary):
-					continue
-				if int((a as Dictionary).get("tick", -1)) == t:
-					var act := str((a as Dictionary).get("input", ""))
-					if act != "" and actor_id != "":
-						world.scheduler.queue_input(act, {"actor": actor_id})
-						world.record_trajectory_action(act)
-			world.scheduler.tick()
-			# Trajectory write (legacy actions[] path doesn't go through
-			# advance_one_tick — manually trigger). Same for the ADR 0060
-			# determinism hash-log (no-op unless --hash-log is active).
-			world.call("_write_trajectory_row")
-			if world.has_method("write_hash_log_row"):
-				world.write_hash_log_row()
-			if world.has_method("_decrement_lifetimes"):
-				world._decrement_lifetimes()
-			# ADR 0006: process any queued level transitions between ticks.
-			# Routes through LevelTransitionCoordinator (extracted from
-			# world.gd 2026-05-12).
-			if world._level_transitions != null:
-				world._level_transitions.process_pending(world.scheduler.env)
-			# ADR 0045: motion runs per-character-body via _physics_process
-			# in live play; headless tests have no physics server, so walk
-			# them manually via tick_headless. Non-character entities don't
-			# move (use body_type:"character" to opt in).
-			_tick_character_bodies_headless(world)
-
-		# Assertions (legacy schema)
-		var assertions: Array = sc.get("assertions", [])
-		for a in assertions:
-			_check_assertion(world, a, name)
+	# ADR 0039 / ADR 0060 de-legacy (2026-05-31): single execution path. All
+	# scenarios use `steps[]` (Playwright-style verbs) through StepRunner — the
+	# canonical tick path that mirrors live play (Condition C4). The legacy
+	# `actions[] + ticks + assertions[]` loop (raw scheduler.tick + ad-hoc
+	# pending drains) was DELETED once sokoban + doomarena3d were migrated; it
+	# diverged from live (ignored screen-freeze, stale _tick, no
+	# lifecycle/chunk subsystems). See task #175 + the converter for the
+	# migration. A scenario without `steps` is now an authoring error.
+	if not sc.has("steps"):
+		_record_fail(name, "scenario has no 'steps' (legacy actions[] schema removed — ADR 0060 de-legacy)")
+		world.queue_free()
+		await get_tree().process_frame
+		return
+	var step_ctx: Dictionary = {
+		"data_root": data_root,
+		"scenario": name,
+		"verbose": verbose,
+		"passed": 0,
+		"failed": 0,
+		"failures": [],
+	}
+	var result = await StepRunner.run(sc["steps"], world, step_ctx)
+	passed += int(result.get("passed", 0))
+	failed += int(result.get("failed", 0))
+	for f in result.get("failures", []):
+		failures.append(str(f))
 
 	# Cleanup
 	world.queue_free()
