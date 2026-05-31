@@ -144,7 +144,14 @@ func _mount_default_directors() -> void:
 		# GameShell's camera). Movement etc. still works: it's tick-locked rules
 		# in advance_one_tick, not director _process. Generic seam (not lockstep-
 		# specific) — any external-tick model gets a deterministic live scene.
-		if Engine.has_meta("yume_external_tick_driver"):
+		# EXCEPTION — visual mode (yume_lockstep_visual): keep directors running so
+		# the camera + renderer show the scene (for watching two windowed peers).
+		# Motion is still tick-locked (physics-body gate + tick_headless), so the
+		# characters' positions stay deterministic; here directors are presentation.
+		if (
+			Engine.has_meta("yume_external_tick_driver")
+			and not Engine.has_meta("yume_lockstep_visual")
+		):
 			node.process_mode = Node.PROCESS_MODE_DISABLED
 
 

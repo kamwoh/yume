@@ -36,6 +36,7 @@ var _port := DEFAULT_PORT
 var _ticks_target := 20
 var _input_action := ""
 var _out_path := ""
+var _visual := false
 
 var _core: LockstepCore = null
 var _world = null
@@ -71,8 +72,17 @@ func _ready() -> void:
 			_input_action = s.substr(17)
 		elif s.begins_with("--lockstep-out="):
 			_out_path = s.substr(15)
+		elif s == "--lockstep-visual":
+			_visual = true
 	if not _active:
 		return
+	# Visual mode: keep the camera + renderer (directors) running so you can WATCH
+	# two windowed instances. Motion stays tick-locked (the physics-body gate +
+	# LockstepCore's tick_headless still apply), so the characters' POSITIONS are
+	# deterministic; presentation directors just render them. world_boot reads
+	# this flag to skip the director-gating (but NOT the physics/World gating).
+	if _visual:
+		Engine.set_meta("yume_lockstep_visual", true)
 	# CRITICAL for cross-peer determinism: stop World._process from auto-ticking
 	# from BOOT. Autoloads _ready before the scene's World, so this flag is set
 	# before World ever ticks. Without it, each peer auto-advances a different
