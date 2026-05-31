@@ -140,6 +140,35 @@ re-sim cost per tick. Scoped only when a twitch game actually needs it; not now.
   deterministic engine debugs desyncs that are really determinism bugs. 0060 +
   its audit must land first; this ADR waits behind it.
 
+## Implementation — phasing (started 2026-05-31)
+
+Now scheduled (0060's determinism audit passed same-arch: sokoban / doomarena3d
+/ aldenmere deterministic; cross-arch float remains the open hazard above).
+Phased like 0060 — each phase CI-testable:
+
+- **Phase 1 — transport-agnostic lockstep core. ✅ DONE.**
+  `lockstep_core.gd` (`class_name LockstepCore`): the engine side that is NOT
+  the transport — the per-tick input barrier (`all_inputs_ready`), per-peer
+  input injection to each peer's actor (via `scheduler.queue_input`, the ADR
+  0060 poll/queue seam), one canonical tick per `step`, and the hash-ledger
+  desync detector (`submit_hash` → first divergent tick). Verified in-process
+  (`test_runner.gd::test_lockstep`, two minimal worlds + an in-memory relay):
+  (a) identical input log ⇒ identical per-tick hash on both peers + identical
+  state; (b) the barrier only clears once all peers submit; (c) a hidden
+  state poke on peer B at tick K is caught by the hash exchange as a desync at
+  exactly tick K. No networking. 967/0 unit.
+- **Phase 2 — ENet transport.** `lockstep_driver.gd` autoload (active on a
+  `--lockstep-*` flag): `ENetMultiplayerPeer` + `@rpc` broadcast of each tick's
+  input batch + hash; the driver feeds `LockstepCore.submit_input/submit_hash`
+  from RPC arrivals and calls `step` when the barrier clears (the stdio
+  blocking-read barrier of 0060 becomes "block until all peers' RPCs for tick
+  N"). 2-process loopback test on the Linux binary.
+- **Phase 3 — game integration.** Per-peer actor assignment, join/leave
+  lifecycle, lobby. The `LockstepCore.actor_of_peer` map is the seam.
+- **Phase 4 — rollback (per-game opt-in, deferred).** Client-side prediction +
+  snapshot/restore (ADR 0010 basis) + bounded re-sim, built on the same
+  input-replication transport. Scoped only when a twitch game needs it.
+
 ## References
 
 - Depends on: **ADR 0060** (deterministic I/O contract — input path, state hash,

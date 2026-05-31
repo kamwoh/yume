@@ -81,6 +81,7 @@ func _ready() -> void:
 	# (total under-counts). Worked before only because StepRunner was
 	# synchronous. Tests below run after it completes.
 	await test_step_runner()
+	test_lockstep()
 	test_grid_snap()
 	test_multimesh_director()
 	test_array_primitives()
@@ -8811,6 +8812,170 @@ func test_step_runner() -> void:
 
 	# Cleanup
 	world.queue_free()
+
+
+# ============================================================
+# ADR 0061 Phase 1 — transport-agnostic lockstep core
+# ============================================================
+
+
+## Build a minimal World with one player + two input rules (ping→counter,
+## ping2→counter2). No renderer, no _process — a fixture for lockstep tests.
+func _build_lockstep_world() -> World:
+	var defs: Dictionary = {
+		"player":
+		{
+			"id": "player",
+			"tags": ["player", "actor"],
+			"state_init": {"counter": 0, "counter2": 0, "position": Vector3.ZERO},
+		},
+	}
+	var world := World.new()
+	world.auto_start = false
+	world.verbose = false
+	world.tick_seconds = 0.1
+	add_child(world)
+	world.set_process(false)
+	world.scheduler = PhaseScheduler.new({})
+	var player := Entity.create(defs["player"], "p1", {})
+	var entities: Dictionary = {"p1": player}
+	var rels := RelationStore.new()
+	world.scheduler.env = {
+		"entities": entities,
+		"defs": defs,
+		"relations": rels,
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": world,
+		"next_id": {"_": 0},
+		"error_buffer": [],
+	}
+	world.world_state = world.scheduler.env["world"]
+	# DeterminismHash.canonical reads world.entities + world.relations directly
+	# (not scheduler.env), so point them at the same objects — else the hash is
+	# over an empty world and desync is invisible.
+	world.entities = entities
+	world.relations = rels
+	world.scheduler.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "ls_ping",
+					"trigger": {"type": "input", "action": "ping"},
+					"query": {"tags_all": ["player"]},
+					"effect":
+					{
+						"type": "state_set",
+						"target": "self",
+						"field": "counter",
+						"value": "self.state.counter + 1"
+					},
+				}
+			),
+			Rule.from_dict(
+				{
+					"id": "ls_ping2",
+					"trigger": {"type": "input", "action": "ping2"},
+					"query": {"tags_all": ["player"]},
+					"effect":
+					{
+						"type": "state_set",
+						"target": "self",
+						"field": "counter2",
+						"value": "self.state.counter2 + 1"
+					},
+				}
+			),
+		]
+	)
+	return world
+
+
+func test_lockstep() -> void:
+	_section("lockstep core (ADR 0061 Phase 1)")
+
+	# Two "peers": peer 0 drives action "ping", peer 1 drives "ping2". Both
+	# worlds receive BOTH peers' inputs each tick (input replication), so both
+	# must reach identical state ⇒ identical canonical hashes (lockstep).
+	var peers: Array = [0, 1]
+
+	# ---------- 1. lockstep determinism + barrier + hash agreement ----------
+	var world_a := _build_lockstep_world()
+	var world_b := _build_lockstep_world()
+	var core_a := LockstepCore.new()
+	var core_b := LockstepCore.new()
+	core_a.configure(0, peers, {"0": "p1", "1": "p1"})
+	core_b.configure(1, peers, {"0": "p1", "1": "p1"})
+
+	var n := 5
+	var lockstep_ok := true
+	var barrier_ok := true
+	for t in range(n):
+		# Each peer's local input batch.
+		var batch0: Array = ["ping"]
+		var batch1: Array = ["ping2"]
+		# Replicate: BOTH cores learn BOTH peers' batches (the in-memory "relay"
+		# stands in for the ENet RPC broadcast of Phase 2).
+		core_a.submit_input(0, t, batch0)
+		core_a.submit_input(1, t, batch1)
+		core_b.submit_input(0, t, batch0)
+		core_b.submit_input(1, t, batch1)
+		# Barrier: a peer may not advance until it has ALL peers' inputs.
+		if not (core_a.all_inputs_ready(t) and core_b.all_inputs_ready(t)):
+			barrier_ok = false
+		var ra: Dictionary = core_a.step(world_a)
+		var rb: Dictionary = core_b.step(world_b)
+		# Exchange hashes (the desync detector's input).
+		core_a.submit_hash(1, t, rb["hash"])
+		core_b.submit_hash(0, t, ra["hash"])
+		if str(ra["hash"]) != str(rb["hash"]):
+			lockstep_ok = false
+
+	expect(barrier_ok, "lockstep: barrier ready only after all peers submit each tick")
+	expect(lockstep_ok, "lockstep: identical input log ⇒ identical per-tick hash on both peers")
+	expect(not core_a.has_desync(), "lockstep: no desync when peers agree (core A)")
+	expect(not core_b.has_desync(), "lockstep: no desync when peers agree (core B)")
+	# State actually advanced + matches.
+	var pa: Entity = world_a.scheduler.env["entities"]["p1"]
+	var pb: Entity = world_b.scheduler.env["entities"]["p1"]
+	expect_eq(int(pa.get_state("counter", 0)), n, "lockstep: peer-0 input applied n times")
+	expect_eq(int(pa.get_state("counter2", 0)), n, "lockstep: peer-1 input applied n times")
+	expect_eq(
+		int(pb.get_state("counter", 0)),
+		int(pa.get_state("counter", 0)),
+		"lockstep: both worlds reached identical state"
+	)
+	world_a.queue_free()
+	world_b.queue_free()
+
+	# ---------- 2. desync DETECTED at the exact divergent tick ----------
+	# Same inputs on both peers, but inject hidden nondeterminism into world B
+	# at tick 2 (a state poke the input log doesn't explain). The per-tick hash
+	# exchange must name tick 2 as the first divergent tick.
+	var w_a := _build_lockstep_world()
+	var w_b := _build_lockstep_world()
+	var c_a := LockstepCore.new()
+	var c_b := LockstepCore.new()
+	c_a.configure(0, peers, {"0": "p1", "1": "p1"})
+	c_b.configure(1, peers, {"0": "p1", "1": "p1"})
+	var poke_tick := 2
+	for t in range(n):
+		for c in [c_a, c_b]:
+			c.submit_input(0, t, ["ping"])
+			c.submit_input(1, t, ["ping2"])
+		if t == poke_tick:
+			# Hidden divergence on B only — the class of bug lockstep hashes catch.
+			(w_b.scheduler.env["entities"]["p1"] as Entity).state["counter"] = 999
+		var rra: Dictionary = c_a.step(w_a)
+		var rrb: Dictionary = c_b.step(w_b)
+		c_a.submit_hash(1, t, rrb["hash"])
+		c_b.submit_hash(0, t, rra["hash"])
+
+	expect(c_a.has_desync(), "lockstep: desync detected when a peer diverges")
+	expect_eq(c_a.desync_tick, poke_tick, "lockstep: desync named the FIRST divergent tick")
+	expect_eq(c_b.desync_tick, poke_tick, "lockstep: both peers agree on the divergent tick")
+	w_a.queue_free()
+	w_b.queue_free()
 
 
 # ============================================================
