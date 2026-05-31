@@ -78,6 +78,17 @@ peers buffer 2-4 ticks of input delay (~32-64ms). Invisible for Yume's paced
 genres (turn-based, sim, merchant, farming). The genres where it is NOT
 acceptable (twitch FPS, fighting) take rollback.
 
+**Implemented (2026-05-31):** `lockstep_driver` runs `INPUT_DELAY = 3`. A peer
+broadcasts its input for tick `current + INPUT_DELAY` and advances tick T only
+once it already holds every peer's input for T — which, sent 3 ticks earlier,
+has normally arrived, so the peer never stalls on the wire. The driver advances
+on a fixed-rate accumulator (sim runs at `tick_seconds` regardless of render
+FPS, capped at `MAX_CATCHUP_TICKS` per frame to avoid a spiral), so motion stays
+smooth even when the GPU is slow. The earlier zero-delay loop blocked on a
+reliable-RPC round-trip EVERY tick → visible stutter; this is the standard
+lockstep latency-hider. Determinism is unaffected (each tick injects identical
+per-peer inputs on both sides) — verified IN SYNC, byte-identical, 300 ticks.
+
 ### Rollback (deferred, per-game opt-in)
 
 Rollback netcode = strict lockstep + client-side prediction + state rollback &

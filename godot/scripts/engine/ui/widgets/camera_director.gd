@@ -775,7 +775,7 @@ func _follow_target_3d(cam_cfg: Dictionary):
 	var tag := str(cam_cfg.get("follow_tag", ""))
 	if tag == "":
 		return null
-	var ent := _find_entity_by_tag(tag)
+	var ent := _resolve_follow_entity(tag)
 	if ent == null:
 		return null
 	if not ent.has_method("get_position"):
@@ -803,7 +803,7 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 	var tag := str(cam_cfg.get("follow_tag", ""))
 	if tag == "":
 		return null
-	var actor := _find_entity_by_tag(tag)
+	var actor := _resolve_follow_entity(tag)
 	if actor == null:
 		return null
 	var sched = _world.get("scheduler")
@@ -1013,6 +1013,21 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 
 func _find_entity_by_tag(tag: String) -> Object:
 	return _shell.call("_find_entity_by_tag", tag)
+
+
+## Resolve the camera's follow target. PRESENTATION-ONLY per-peer override
+## (ADR 0061 visual lockstep): when `yume_local_follow_id` is set, each window
+## follows ITS OWN local character instead of the first `follow_tag` match — so
+## with two `player`-tagged characters, peer A's camera follows A's actor and
+## peer B's follows B's. The meta is set by lockstep_driver; it never touches sim
+## state, so it can't affect the canonical hash. Falls back to follow_tag.
+func _resolve_follow_entity(tag: String) -> Object:
+	if Engine.has_meta("yume_local_follow_id") and _world != null:
+		var fid := str(Engine.get_meta("yume_local_follow_id"))
+		var ents = _world.get("entities")
+		if ents is Dictionary and (ents as Dictionary).has(fid):
+			return (ents as Dictionary)[fid]
+	return _find_entity_by_tag(tag)
 
 
 static func _to_vec2(v) -> Vector2:

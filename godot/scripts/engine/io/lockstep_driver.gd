@@ -27,7 +27,23 @@ extends Node
 ## piping is unreliable). 2-peer loopback test: tools/yume_env/test_lockstep_net.py.
 
 const DEFAULT_PORT := 7777
-const CONNECT_TIMEOUT_SEC := 10.0
+## Generous: a peer's main thread is BLOCKED while loading a heavy 3D scene
+## (meshes, ground, 100s of entities) and can't pump ENet to accept/establish a
+## connection until load finishes. A short timeout makes the demo flaky (one side
+## gives up before the other is ready). 30s tolerates a heavy load + a human
+## launching the second window by hand. Empirical 2026-05-31: 10s timed out
+## intermittently with the two-character tiny_village scene (~2GB resident).
+const CONNECT_TIMEOUT_SEC := 30.0
+## Input-delay lockstep: a peer sends its input for tick (current + INPUT_DELAY)
+## and advances tick T only once it already holds every peer's input for T —
+## which (since they were sent INPUT_DELAY ticks earlier) has normally arrived,
+## so the peer NEVER stalls on the wire. Trade: your own input takes effect
+## INPUT_DELAY ticks later (~50ms at 60Hz) — imperceptible, and the standard
+## lockstep latency-hider (vs the naive zero-delay loop that stuttered every tick).
+const INPUT_DELAY := 3
+## Spiral-of-death cap: never advance more than this many sim ticks in one frame
+## (a long frame would otherwise try to catch up an unbounded number of ticks).
+const MAX_CATCHUP_TICKS := 6
 
 var _active := false
 var _is_host := false
@@ -44,9 +60,11 @@ var _local_id := 0
 var _peer_set: Array = []
 var _started := false
 var _done := false
-var _sent_input: Dictionary = {}  # tick -> true once local input broadcast
 var _last_hash := ""
 var _elapsed := 0.0
+var _ts := 0.0167  # sim tick_seconds (set in _start from the world)
+var _acc := 0.0  # delta accumulator for fixed-rate tick advancement
+var _next_send_tick := 0  # next tick index to broadcast local input for (monotonic)
 
 
 func _ready() -> void:
@@ -164,6 +182,22 @@ func _start() -> void:
 			amap[_peer_set[i]] = actors[i % actors.size()]
 	_core = LockstepCore.new()
 	_core.configure(_local_id, _peer_set, amap)
+	# Per-window camera: each peer's camera follows ITS OWN character (presentation
+	# override read by camera_director._resolve_follow_entity; never touches sim
+	# state, so the canonical hash is unaffected). With two `player`-tagged actors
+	# this is what tells you which window controls which character.
+	var local_actor := str(amap.get(_local_id, ""))
+	if _visual and local_actor != "":
+		Engine.set_meta("yume_local_follow_id", local_actor)
+	# Tick accumulator (input-delay smoothing): advance the sim at the world's
+	# fixed tick rate regardless of render FPS, so motion is smooth even when the
+	# GPU is slow. Inputs are sent INPUT_DELAY ticks ahead so a peer never stalls
+	# waiting on the wire (it already has the inputs for the tick it's advancing).
+	_ts = float(_world.get("tick_seconds")) if _world.get("tick_seconds") != null else 0.0167
+	if _ts <= 0.0:
+		_ts = 0.0167
+	_acc = 0.0
+	_next_send_tick = 0
 	_started = true
 	print(
 		(
@@ -222,21 +256,45 @@ func _process(delta: float) -> void:
 			_fail("connect timeout (no peer)")
 		return
 
-	var t := int(_core.current_tick)
-	# 1. Broadcast local input for the current tick exactly once.
-	if not _sent_input.has(t) and t < _ticks_target:
-		var batch: Array = [_input_action] if _input_action != "" else []
-		_core.submit_input(_local_id, t, batch)
-		_recv_input.rpc(t, batch)
-		_sent_input[t] = true
-	# 2. Advance one tick once all peers' inputs for it have arrived (barrier).
-	if t < _ticks_target and _core.all_inputs_ready(t):
+	# 1. Pre-send local input up to the INPUT_DELAY horizon (current + DELAY), once
+	#    per tick. Sending ahead is what lets step 3 advance without stalling.
+	_send_pending_input()
+	# 2. Advance the sim at the FIXED tick rate (accumulator), as far as the
+	#    barrier allows — catching up across slow frames, capped to avoid a spiral.
+	_acc += delta
+	var steps := 0
+	while (
+		_acc >= _ts
+		and int(_core.current_tick) < _ticks_target
+		and _core.all_inputs_ready(int(_core.current_tick))
+		and steps < MAX_CATCHUP_TICKS
+	):
 		var r: Dictionary = _core.step(_world)
 		_last_hash = str(r["hash"])
 		_recv_hash.rpc(int(r["tick"]), _last_hash)
+		_acc -= _ts
+		steps += 1
+		# current_tick advanced → push the input horizon forward immediately so a
+		# multi-tick catch-up frame doesn't starve itself of inputs mid-loop.
+		_send_pending_input()
+	# Don't let the accumulator bank unbounded time while blocked on the barrier.
+	if _acc > _ts * float(MAX_CATCHUP_TICKS):
+		_acc = _ts * float(MAX_CATCHUP_TICKS)
 	# 3. Finish after the target tick count.
 	if int(_core.current_tick) >= _ticks_target:
 		_finish()
+
+
+## Broadcast local input for every tick from _next_send_tick up to the
+## INPUT_DELAY horizon (current_tick + INPUT_DELAY), once each. Reliable RPC —
+## a dropped input would desync, so delivery must be guaranteed.
+func _send_pending_input() -> void:
+	var horizon: int = int(_core.current_tick) + INPUT_DELAY
+	while _next_send_tick <= horizon and _next_send_tick < _ticks_target:
+		var batch: Array = [_input_action] if _input_action != "" else []
+		_core.submit_input(_local_id, _next_send_tick, batch)
+		_recv_input.rpc(_next_send_tick, batch)
+		_next_send_tick += 1
 
 
 # ============================================================
