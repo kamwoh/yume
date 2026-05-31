@@ -519,11 +519,12 @@ func _stream_chunks_if_active() -> void:
 func _process(delta: float) -> void:
 	if scheduler == null:
 		return
-	# ADR 0061: an external tick driver (LockstepDriver) owns ALL ticking +
-	# input — World must not auto-advance, or peers desync from differing
-	# pre-lockstep tick counts. The flag is set by the driver's autoload _ready,
-	# before this node's first _process. (StdioStepDriver uses set_process(false)
-	# directly; this covers the autoload-can't-intercept-boot case.)
+	# GENERIC external-tick-driver seam (NOT lockstep-specific): when something
+	# outside World owns ticking, World must not auto-advance. Today that's the
+	# lockstep netcode (ADR 0061); the same flag serves any future model (rollback,
+	# server-sync, replay) or tooling — the engine core stays model-agnostic, each
+	# driver is a sibling in io/. Set by the driver's autoload _ready, before this
+	# node's first _process (StdioStepDriver uses set_process(false) directly).
 	if Engine.has_meta("yume_external_tick_driver"):
 		return
 	var frozen := (

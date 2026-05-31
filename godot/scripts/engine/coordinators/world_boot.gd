@@ -137,6 +137,15 @@ func _mount_default_directors() -> void:
 		node.name = node_name
 		node.set_script(script)
 		_world.add_child(node)
+		# ADR 0061 Phase 2.5: under an external tick driver (lockstep), NO node
+		# may mutate sim state per-frame — only the driver's tick advances the
+		# world, else peers desync from differing frame counts. Disabling the
+		# director's process_mode from boot cascades to its children (e.g.
+		# GameShell's camera). Movement etc. still works: it's tick-locked rules
+		# in advance_one_tick, not director _process. Generic seam (not lockstep-
+		# specific) — any external-tick model gets a deterministic live scene.
+		if Engine.has_meta("yume_external_tick_driver"):
+			node.process_mode = Node.PROCESS_MODE_DISABLED
 
 
 ## ADR 0027 — populate the lib resolver cache from data/lib/**.json

@@ -207,6 +207,19 @@ static func build_character_3d(
 	body.collision_layer = _layer_mask(phys_cfg.get("collision_layer", []), layer_map)
 	body.collision_mask = _layer_mask(phys_cfg.get("collision_mask", []), layer_map)
 
+	# Floor-detection tuning (2026-05-30). Godot's CharacterBody3D defaults
+	# break on stairs/uneven world meshes (ADR 0062):
+	#   - floor_block_on_wall=true → touching a step's vertical riser (a
+	#     "wall") cancels is_on_floor() → on_floor sticks at 0 → the
+	#     jump-anim (gated on on_floor==0) loops + the body wedges.
+	#   - floor_snap_length=0 → the body floats off / bounces down steps
+	#     instead of sticking to the surface.
+	# Sensible walkable defaults, all overridable per-entity via phys_cfg:
+	body.floor_block_on_wall = bool(phys_cfg.get("floor_block_on_wall", false))
+	body.floor_snap_length = float(phys_cfg.get("floor_snap_length", 0.5))
+	body.floor_constant_speed = bool(phys_cfg.get("floor_constant_speed", true))
+	body.floor_max_angle = deg_to_rad(float(phys_cfg.get("floor_max_angle_deg", 50.0)))
+
 	# Initial transform from entity.state.position
 	var pos = entity.get_position() if entity.has_method("get_position") else null
 	if pos is Vector3:
@@ -225,6 +238,13 @@ static func build_character_3d(
 	# Attach to the Entity Node so the body lives in the scene tree.
 	entity.add_child(body)
 	entity.set_meta("_physics_body", body)
+	# ADR 0061 Phase 2.5: under an external tick driver (lockstep), motion must
+	# be TICK-LOCKED, not free-running. Disable the body's _physics_process
+	# (60Hz move_and_slide) so only the driver's per-tick tick_headless integrates
+	# it — else peers drift by their differing physics-frame counts (and
+	# move_and_slide collision is physics-server-nondeterministic). Generic seam.
+	if Engine.has_meta("yume_external_tick_driver"):
+		body.process_mode = Node.PROCESS_MODE_DISABLED
 	return body
 
 
@@ -511,9 +531,57 @@ static func _create_shape_3d(shape_cfg: Dictionary) -> RID:
 					}
 				)
 			)
+		"trimesh":
+			# Concave (triangle-mesh) collision built from a .glb's faces —
+			# for STATIC pre-authored world meshes (imported city/terrain)
+			# where box/capsule can't approximate the geometry. Faces are in
+			# the glb's NATIVE local space, so the entity must render the same
+			# .glb with `visual.normalize: false` + scale 1 to align 1:1.
+			# Concave shapes are static/kinematic-only (never rigid). ADR 0062.
+			var mesh_path := str(shape_cfg.get("mesh", ""))
+			var tris := _glb_trimesh_faces(mesh_path)
+			if tris.size() >= 3:
+				shape = PhysicsServer3D.concave_polygon_shape_create()
+				PhysicsServer3D.shape_set_data(shape, {"faces": tris})
+			else:
+				push_warning(
+					"[PhysicsBodyBuilder] trimesh: no faces extracted from '%s'"
+					% mesh_path
+				)
 		_:
 			push_warning("[PhysicsBodyBuilder] unsupported 3D shape type '%s'" % stype)
 	return shape
+
+
+## Extract ALL triangle vertices from a .glb's MeshInstance3D nodes, in
+## the glb's native local space (each instance's transform relative to the
+## scene root is applied). Returns a flat PackedVector3Array (3 verts per
+## triangle) suitable for ConcavePolygonShape3D's `faces`. ADR 0062.
+static func _glb_trimesh_faces(res_path: String) -> PackedVector3Array:
+	var faces := PackedVector3Array()
+	if res_path == "" or not ResourceLoader.exists(res_path):
+		push_warning("[PhysicsBodyBuilder] trimesh mesh not found: '%s'" % res_path)
+		return faces
+	var packed = ResourceLoader.load(res_path)
+	if not (packed is PackedScene):
+		push_warning("[PhysicsBodyBuilder] trimesh source not a PackedScene: '%s'" % res_path)
+		return faces
+	var root := (packed as PackedScene).instantiate()
+	_collect_trimesh_faces(root, Transform3D.IDENTITY, faces)
+	root.free()
+	return faces
+
+
+static func _collect_trimesh_faces(node: Node, xform: Transform3D, faces: PackedVector3Array) -> void:
+	var t := xform
+	if node is Node3D:
+		t = xform * (node as Node3D).transform
+	if node is MeshInstance3D and (node as MeshInstance3D).mesh != null:
+		var mesh_faces := (node as MeshInstance3D).mesh.get_faces()
+		for v in mesh_faces:
+			faces.push_back(t * v)
+	for child in node.get_children():
+		_collect_trimesh_faces(child, t, faces)
 
 
 ## Resolve collision_layer / collision_mask to a 32-bit mask.

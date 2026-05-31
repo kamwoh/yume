@@ -140,6 +140,30 @@ re-sim cost per tick. Scoped only when a twitch game actually needs it; not now.
   deterministic engine debugs desyncs that are really determinism bugs. 0060 +
   its audit must land first; this ADR waits behind it.
 
+## Pluggability — lockstep is ONE model, not THE model (2026-05-31)
+
+The framework must NOT be hard-wired to lockstep. Lockstep is the first netcode
+*strategy* built on ADR 0060's model-agnostic foundation; it is not the
+multiplayer architecture. Enforced by layering:
+
+- **Foundation (ADR 0060, engine core):** `canonical_state_hash`, the one input
+  path (`queue_input`), `advance_one_tick`, and a GENERICALLY-named seam
+  `Engine` meta flag `yume_external_tick_driver` that `World._process` honors.
+  The engine core has ZERO code dependency on lockstep (verified: only a comment
+  mentions it).
+- **Strategy (this ADR, isolated in `io/`):** `LockstepCore` + `lockstep_driver`.
+  Referenced only by each other + the test. Swappable.
+- **Future models plug in as SIBLINGS, not core edits:** rollback (lockstep +
+  prediction + rewind), server-authoritative state replication, deterministic
+  replay playback — each a new driver/core in `io/` reusing the same foundation.
+  Adding one must not require touching the engine core. If a future model can't
+  be expressed without core changes, that's a signal the foundation seam (not
+  the model) needs an ADR.
+
+So: implement lockstep first (it's the cleanest fit for a deterministic engine +
+unblocks the explicit-world-model goals), but keep every model behind the
+foundation seam so the framework is never lockstep-limited.
+
 ## Implementation — phasing (started 2026-05-31)
 
 Now scheduled (0060's determinism audit passed same-arch: sokoban / doomarena3d
@@ -171,20 +195,22 @@ Phased like 0060 — each phase CI-testable:
   (determinism-clean): two ENet peers, 20 ticks, BYTE-IDENTICAL canonical hashes,
   zero desync.** The transport replicates inputs + stays in lockstep correctly.
 
-  *Open hardening (found via a two-walking-characters demo in tiny_village /
-  aldenmere, 2026-05-31):* full LIVE-SCENE boot (`play.tscn`, `auto_start`) mounts
-  per-frame **directors** (camera, schedule, …) that mutate sim state OUTSIDE the
-  lockstep tick — un-gated by the `_process` flag, which only covers
-  `World._process`. Two peers run different frame counts before/during lockstep,
-  so their world state drifts (~0.2m walk-position drift; aldenmere additionally
-  has ambient-NPC RNG with no deterministic seed). The desync detector flags it
-  correctly — this is exactly the "determinism becomes a HARD requirement"
-  consequence above, surfaced. **Bit-identical live-scene lockstep needs ALL
-  per-frame state mutation tick-locked**: gate every director's `_process` behind
-  `yume_external_tick_driver` (or boot lockstep in scenario-mode without
-  directors), and give ambient AI a deterministic per-entity seed (like the
-  Phase 0 instance_patterns fix). Determinism-clean games already work
-  (sokoban). → Phase 2.5.
+- **Phase 2.5 — tick-lock the live scene. ✅ DONE (bit-identical live-scene
+  lockstep).** Full LIVE-SCENE boot (`play.tscn`, `auto_start`) had per-frame
+  state mutation OUTSIDE the lockstep tick — found via a two-walking-characters
+  demo in tiny_village (~0.2m cross-peer walk drift; desync flagged correctly).
+  Two sources, both fixed behind the generic `yume_external_tick_driver` flag:
+  (1) **directors** (`world_boot._mount_default_directors` sets each director's
+  `process_mode = DISABLED` from boot — cascades to GameShell's camera etc.);
+  (2) **character bodies** (`physics_body_builder.build_character_3d` disables the
+  `CharacterBodyRunner`'s 60Hz `_physics_process`/`move_and_slide`, so motion is
+  driven ONLY by the tick-locked `tick_headless` in `LockstepCore.step`). With
+  both gated, two ENet peers running **two walking characters** in tiny_village
+  produced BYTE-IDENTICAL canonical hashes over 30 ticks, zero desync. All gates
+  are flag-only → normal play unchanged (unit 967/0, scenarios green). Remaining:
+  ambient-NPC RNG needs a deterministic per-entity seed for AI-heavy scenes like
+  aldenmere (Phase 0 instance_patterns pattern); and tick-locked `move_and_slide`
+  collision (vs pure integration) is future work for collision-heavy lockstep.
 - **Phase 3 — game integration.** Per-peer actor assignment, join/leave
   lifecycle, lobby. The `LockstepCore.actor_of_peer` map is the seam.
 - **Phase 4 — rollback (per-game opt-in, deferred).** Client-side prediction +
