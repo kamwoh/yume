@@ -291,6 +291,7 @@ func _recv_assign(eid: String) -> void:
 	_local_actor = eid
 	if _visual:
 		Engine.set_meta("yume_local_follow_id", eid)
+	print("[net] this window (peer %d) controls + follows %s" % [_local_id, eid])
 
 
 ## SERVER → CLIENTS: a player left — remove it locally.

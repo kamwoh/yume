@@ -31,6 +31,14 @@ if [ ! -x "${GODOT_BIN}" ]; then
   echo "Error: Windows Godot not found at ${GODOT_BIN}" >&2; exit 1
 fi
 
+# Kill any leftover Godot instances FIRST — a lingering headless server from a
+# previous run holds the ENet port (invisible: no window), so a new server fails
+# with "Couldn't create an ENet host" and the clients silently fall back to the
+# scene's pre-placed players (both showed marken). Empirical 2026-06-01.
+echo "[net_demo] clearing any leftover Godot processes (frees the ENet port)..."
+powershell.exe -Command "Get-Process Godot* -ErrorAction SilentlyContinue | Stop-Process -Force" >/dev/null 2>&1 || true
+sleep 1
+
 echo "[net_demo] syncing framework -> template..."
 cp -r "${YUME_ROOT}/godot/." "${TEMPLATE_DST}/"
 echo "[net_demo] importing (new resources)..."
@@ -79,6 +87,17 @@ SERVER=$!
 # Server must finish loading before clients connect (its main thread can't pump
 # ENet while loading). Headless loads faster than a window, but give it margin.
 sleep 6
+
+# Loud failure if the server didn't come up — otherwise the clients connect to
+# nothing and silently fall back to the scene's pre-placed players (the confusing
+# "both windows show marken" symptom). Empirical 2026-06-01.
+if grep -q "net\] FAIL" /tmp/net_demo_server.log 2>/dev/null; then
+  echo "[net_demo] ERROR: dedicated server failed to start — see /tmp/net_demo_server.log" >&2
+  echo "[net_demo]   Most likely the ENet port ${PORT} is held by a leftover process." >&2
+  echo "[net_demo]   This run already killed leftovers; if it persists, set PORT=<other>." >&2
+  kill ${SERVER} 2>/dev/null || true
+  exit 1
+fi
 
 echo "[net_demo] launching CLIENT 1 window — left..."
 "${GODOT_BIN}" --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" \

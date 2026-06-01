@@ -30,6 +30,11 @@ if [ ! -x "${GODOT_BIN}" ]; then
   echo "Error: Windows Godot not found at ${GODOT_BIN}" >&2; exit 1
 fi
 
+# Kill leftover Godot first — a lingering instance holds the ENet port so the new
+# host can't bind. (Same fix as net_demo.sh; empirical 2026-06-01.)
+powershell.exe -Command "Get-Process Godot* -ErrorAction SilentlyContinue | Stop-Process -Force" >/dev/null 2>&1 || true
+sleep 1
+
 echo "[lockstep_demo] syncing framework -> template..."
 cp -r "${YUME_ROOT}/godot/." "${TEMPLATE_DST}/"
 echo "[lockstep_demo] importing (new resources)..."
