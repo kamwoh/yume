@@ -52,8 +52,9 @@ var _snapshot_hz := DEFAULT_SNAPSHOT_HZ
 
 var _world = null
 var _local_id := 0
-var _peer_set: Array = []
-var _actor_of_peer: Dictionary = {}  # peer_id -> controlled actor entity id
+var _actor_of_peer: Dictionary = {}  # peer_id -> controlled actor entity id (server)
+var _player_def_of: Dictionary = {}  # entity id -> def id (server roster)
+var _player_pos_of: Dictionary = {}  # entity id -> spawn pos (server roster)
 var _local_actor := ""
 var _started := false
 var _done := false
@@ -132,74 +133,127 @@ func _setup_transport() -> void:
 # ============================================================
 
 
+## DEDICATED server: the host has NO player of its own. It spawns one player per
+## client on join and despawns on leave. Players are NOT pre-placed — at start the
+## world is cleared of any authored player/actor instances so the only players are
+## server-spawned (single-player play keeps its pre-placed actor; net mode clears).
 func _on_peer_connected(id: int) -> void:
-	if _is_host and not _started:
-		_local_id = 1
-		_peer_set = [1, id]
-		_start()
+	if not _is_host:
+		return
+	if not _started:
+		_server_start()
+	if _started:
+		_spawn_player_for_peer(id)
+
+
+func _on_peer_disconnected(id: int) -> void:
+	if _is_host and _started:
+		_despawn_player_for_peer(id)
 
 
 func _on_connected_to_server() -> void:
 	_local_id = multiplayer.get_unique_id()
-	_peer_set = [1, _local_id]  # host is always id 1
-	_start()
+	_client_start()
 
 
-func _start() -> void:
+## Find World + clear pre-placed players (net mode spawns every player on join).
+func _find_and_clear() -> bool:
 	_world = _find_world()
 	if _world == null:
 		_fail("no World found")
+		return false
+	for eid in _player_like_ids():
+		_world.despawn_entity(eid)
+	return true
+
+
+func _server_start() -> void:
+	if not _find_and_clear():
 		return
-	# Assign each peer a distinct controllable actor (sorted for a stable map).
-	var actors := _resolve_actors(_world)
-	for i in range(_peer_set.size()):
-		if actors.size() > 0:
-			_actor_of_peer[_peer_set[i]] = actors[i % actors.size()]
-	_local_actor = str(_actor_of_peer.get(_local_id, ""))
-	# Per-window camera: each peer's camera follows its OWN actor (presentation
-	# override; never touches sim state). Same mechanism as ADR 0061's visual demo.
-	if _visual and _local_actor != "":
-		Engine.set_meta("yume_local_follow_id", _local_actor)
-	# INTERACTIVE input: _poll_input routes the keyboard to the ACTIVE actor, so
-	# each window must make ITS OWN actor active — otherwise one keyboard would
-	# drive both player-tagged characters (or the wrong one). With this, focusing a
-	# window and pressing WASD moves only that peer's character (locally predicted);
-	# the client also relays those keystrokes to the server (_client_process).
-	if _local_actor != "":
-		var am = _world.get("actor_manager")
-		if am != null:
-			am.active_actor_id = _local_actor
+	_local_id = 1
+	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_started = true
-	print(
-		(
-			"[net] started role=%s peer=%d actors=%s ticks=%d snapshot_hz=%d"
-			% [
-				"server" if _is_host else "client",
-				_local_id,
-				str(_actor_of_peer),
-				_ticks_target,
-				int(_snapshot_hz),
-			]
-		)
+	print("[net] SERVER started (dedicated, no player) ticks=%d snapshot_hz=%d"
+		% [_ticks_target, int(_snapshot_hz)])
+
+
+func _client_start() -> void:
+	if not _find_and_clear():
+		return
+	_started = true
+	print("[net] CLIENT started peer=%d (awaiting spawn from server)" % _local_id)
+
+
+## Player-def ids (defs tagged `player`), sorted — the spawnable-character roster.
+func _player_defs() -> Array:
+	var out: Array = []
+	for did in _world.defs:
+		var d = _world.defs[did]
+		var tags = (d as Dictionary).get("tags", []) if d is Dictionary else []
+		if tags is Array and (tags as Array).has("player"):
+			out.append(str(did))
+	out.sort()
+	return out
+
+
+## Pre-placed PLAYER instance ids — cleared at start so net spawns every player
+## on join. Only `player`-tagged (NPCs tagged `actor` but not `player` stay,
+## server-simmed + replicated like any other dynamic entity).
+func _player_like_ids() -> Array:
+	var out: Array = []
+	for id in _world.entities:
+		var e = _world.entities[id]
+		if e is Entity and (e as Entity).has_tag("player"):
+			out.append(str(id))
+	return out
+
+
+## SERVER: spawn a joining peer's player, assign ownership, sync the full roster.
+func _spawn_player_for_peer(id: int) -> void:
+	var defs := _player_defs()
+	if defs.is_empty():
+		printerr("[net] no player-tagged defs to spawn")
+		return
+	var index := _actor_of_peer.size()  # join order → which def + spawn slot
+	var def_id := str(defs[index % defs.size()])
+	var eid := "netplayer_%d" % id
+	var pos := _spawn_pos(index)
+	_server_spawn(eid, def_id, pos)
+	_actor_of_peer[id] = eid
+	_player_def_of[eid] = def_id
+	_player_pos_of[eid] = pos
+	# Tell every client the new player exists; tell the joiner the existing roster
+	# + which entity is THEIRS (camera + input ownership).
+	_recv_spawn.rpc(eid, def_id, pos)
+	for other in _player_def_of:
+		if str(other) != eid:
+			_recv_spawn.rpc_id(id, str(other), str(_player_def_of[other]), _player_pos_of[other])
+	_recv_assign.rpc_id(id, eid)
+	print("[net] spawned %s (%s) for peer %d at %s" % [eid, def_id, id, str(pos)])
+
+
+func _despawn_player_for_peer(id: int) -> void:
+	if not _actor_of_peer.has(id):
+		return
+	var eid := str(_actor_of_peer[id])
+	_world.despawn_entity(eid)
+	_actor_of_peer.erase(id)
+	_player_def_of.erase(eid)
+	_player_pos_of.erase(eid)
+	_pending_input.erase(id)
+	_recv_despawn.rpc(eid)
+	print("[net] despawned %s (peer %d left)" % [eid, id])
+
+
+func _server_spawn(eid: String, def_id: String, pos: Array) -> void:
+	_world.spawn_instance(
+		{"def": def_id, "id": eid, "position": pos, "state": {"position": pos, "facing": 0.0}}
 	)
 
 
-## Controllable characters, sorted by id (stable across peers): `player`-tagged,
-## else `actor`-tagged. (Same resolution as lockstep_driver.)
-func _resolve_actors(world) -> Array:
-	var players: Array = []
-	var actors: Array = []
-	for id in world.entities:
-		var e = world.entities[id]
-		if not (e is Entity):
-			continue
-		if (e as Entity).has_tag("player"):
-			players.append(str(id))
-		elif (e as Entity).has_tag("actor"):
-			actors.append(str(id))
-	players.sort()
-	actors.sort()
-	return players if not players.is_empty() else actors
+## Spawn slots — side by side near the authored spawn, offset by join index.
+func _spawn_pos(index: int) -> Array:
+	return [-5.0 + float(index) * 3.0, 6.2, 18.0]
 
 
 # ============================================================
@@ -215,6 +269,37 @@ func _resolve_actors(world) -> Array:
 func _recv_input(actions: Array, facing: float) -> void:
 	if _is_host and _started:
 		_pending_input[multiplayer.get_remote_sender_id()] = {"actions": actions, "facing": facing}
+
+
+## SERVER → CLIENTS: a player entity exists — create it locally (so snapshots can
+## position it + the renderer shows it). Reliable: clients must not miss a spawn.
+@rpc("authority", "call_remote", "reliable")
+func _recv_spawn(eid: String, def_id: String, pos: Array) -> void:
+	if _is_host or _world == null:
+		return
+	if not _world.entities.has(eid):
+		_world.spawn_instance(
+			{"def": def_id, "id": eid, "position": pos, "state": {"position": pos, "facing": 0.0}}
+		)
+
+
+## SERVER → one CLIENT: this entity is YOURS (camera follows it; input relays for it).
+@rpc("authority", "call_remote", "reliable")
+func _recv_assign(eid: String) -> void:
+	if _is_host:
+		return
+	_local_actor = eid
+	if _visual:
+		Engine.set_meta("yume_local_follow_id", eid)
+
+
+## SERVER → CLIENTS: a player left — remove it locally.
+@rpc("authority", "call_remote", "reliable")
+func _recv_despawn(eid: String) -> void:
+	if _is_host or _world == null:
+		return
+	if _world.entities.has(eid):
+		_world.despawn_entity(eid)
 
 
 ## SERVER → CLIENT: an authoritative state snapshot. The host has authority over
@@ -307,11 +392,8 @@ func _process(delta: float) -> void:
 
 
 func _server_process(delta: float) -> void:
-	# Host's OWN input: scripted (headless) is queued here; interactive keyboard is
-	# routed by World._poll_input (active actor = host's owned, set in _start).
-	if _input_action != "" and _local_actor != "":
-		_world.queue_input(_input_action, {"actor": _local_actor})
-	# Each client's relayed input → its actor. Set facing FIRST (the shell's
+	# Dedicated server: it owns no player, so ALL movement comes from clients'
+	# relayed input. Each client's input → its actor. Set facing FIRST (the shell's
 	# movement is camera-relative, so the action direction depends on it), then
 	# queue each pressed action (dedups per tick).
 	for pid in _pending_input:
@@ -437,14 +519,16 @@ func _finish() -> void:
 	if _done:
 		return
 	_done = true
-	# Per-actor positions — for the server, its authoritative truth; for the
-	# client, the state it APPLIED. Phase 1 correctness: these must match.
+	# Positions of every player/actor entity — the server's authoritative truth vs
+	# the client's APPLIED state. Both run the same spawn-replicated roster, so
+	# these must match (correctness check). Keyed by entity id (stable across peers).
 	var actor_pos: Dictionary = {}
-	for pid in _actor_of_peer:
-		var aid := str(_actor_of_peer[pid])
-		if _world != null and _world.entities.has(aid):
-			var p = (_world.entities[aid] as Entity).get_planar_position()
-			actor_pos[aid] = [snappedf(p.x, 0.001), snappedf(p.y, 0.001)]
+	if _world != null:
+		for id in _world.entities:
+			var e = _world.entities[id]
+			if e is Entity and ((e as Entity).has_tag("player") or (e as Entity).has_tag("actor")):
+				var p = (e as Entity).get_planar_position()
+				actor_pos[str(id)] = [snappedf(p.x, 0.001), snappedf(p.y, 0.001)]
 	var result := {
 		"peer_id": _local_id,
 		"role": "server" if _is_host else "client",

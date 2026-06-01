@@ -411,6 +411,20 @@ func _run_multimesh_director() -> void:
 		)
 
 
+## ADR 0063 — runtime spawn/despawn from a driver (e.g. client-server netcode
+## spawning a player on join). Thin public wrappers over SpawnManager so io/
+## drivers don't reach into the private member. `inst` is the same dict shape as
+## initial_instances ({def, id, position, state, ...}).
+func spawn_instance(inst: Dictionary) -> void:
+	if _spawn_manager != null:
+		_spawn_manager.spawn(inst)
+
+
+func despawn_entity(id: String) -> void:
+	if _spawn_manager != null:
+		_spawn_manager.despawn(id)
+
+
 ## ADR 0039: canonical sim-tick body. Reads as a schedule — each line
 ## is one step; implementation lives in private helpers below. Used by:
 ##   1. The live `_process(delta)` accumulator (above) after the freeze check.

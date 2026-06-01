@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# ADR 0063 — VISUAL client-server demo: open TWO windowed Godot instances on the
-# WINDOWS binary. The HOST is the authoritative server (runs the sim with normal
-# physics); the CLIENT applies replicated state — its OWN character is predicted
-# locally (responsive) and the REMOTE character is interpolated (smooth). You
-# watch both windows; each follows its own character (host=marken, client=morwen
-# in demo_tiny_village).
+# ADR 0063 — VISUAL client-server demo: a DEDICATED server (headless, no player,
+# the only authority) + TWO client windows (each a player). Each client sends its
+# input to the server; the server computes the outcome and sends state back; both
+# clients render the server's authoritative state. Players are SPAWNED on join
+# (not pre-placed). Each client window follows its own character.
 #
 # Usage:
-#   ./scripts/net_demo.sh                 # demo_tiny_village, walk north
+#   ./scripts/net_demo.sh                       # interactive, demo_tiny_village
 #   ./scripts/net_demo.sh <game> <ticks> <input>
 #
 # Notes:
-# - Windows binary (ENet/UDP works fine; you get GPU rendering + visible windows).
-# - The headless correctness proof is `scripts/run_linux.sh net <game>`
-#   (client's applied state == server authority); this is the eyeball version.
+# - Windows binary for the CLIENT windows (GPU rendering); the SERVER runs HEADLESS
+#   (no window, no GPU cost) so the only GPU load is the 2 client windows.
+# - Headless correctness proof: `scripts/run_linux.sh net <game>` (server + both
+#   clients agree on the spawned roster). This is the eyeball version.
 # - If a Windows Firewall dialog appears on first run, click Allow (localhost ENet).
 set -uo pipefail
 
@@ -22,8 +22,8 @@ eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' "${YUME_ROOT}/scripts/play.sh")"
 
 GAME="${1:-demo_tiny_village}"
 TICKS="${2:-30000}"
-# INTERACTIVE by default (empty input → you drive with the keyboard). Pass a 3rd
-# arg (e.g. move_north) to auto-walk both characters instead (the old scripted demo).
+# INTERACTIVE by default (empty input → drive with the keyboard). Pass a 3rd arg
+# (e.g. move_north) to auto-walk every player instead (scripted).
 INPUT="${3:-}"
 PORT=7803
 
@@ -55,36 +55,45 @@ if [ -z "${SCENE}" ]; then
 fi
 echo "[net_demo] scene: ${SCENE}"
 
-# Side-by-side windows. --resolution / --position are Godot ENGINE flags (before
-# the `--`): the demo places the host on the left, the client on the right so you
-# watch both at once. Override the geometry with WIN_W/WIN_H/GAP/TOP env vars.
+USER_ARGS=( -- "${SCENE_ARGS[@]}" --net-port="${PORT}" --net-ticks="${TICKS}" )
+if [ -n "${INPUT}" ]; then
+  USER_ARGS+=( --net-input="${INPUT}" )
+  echo "[net_demo] scripted input: ${INPUT} (every player auto-walks)"
+else
+  echo "[net_demo] INTERACTIVE: focus a client window, WASD to move + mouse to look."
+  echo "[net_demo]   (each window controls ITS OWN character; click a window to drive it.)"
+fi
+
+# Two client windows, side by side. --resolution/--position are Godot ENGINE flags
+# (before `--`). Override geometry with WIN_W/WIN_H/GAP/TOP env vars.
 WIN_W="${WIN_W:-900}"
 WIN_H="${WIN_H:-540}"
 TOP="${TOP:-60}"
 GAP="${GAP:-20}"
-CLIENT_X=$(( WIN_W + GAP ))
-ENGINE_COMMON=( --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" )
-USER_ARGS=( -- "${SCENE_ARGS[@]}" --net-visual --net-port="${PORT}" --net-ticks="${TICKS}" )
-if [ -n "${INPUT}" ]; then
-  USER_ARGS+=( --net-input="${INPUT}" )
-  echo "[net_demo] scripted input: ${INPUT} (both characters auto-walk)"
-else
-  echo "[net_demo] INTERACTIVE: focus a window, then WASD to move + mouse to look."
-  echo "[net_demo]   (one keyboard drives the FOCUSED window's character; click the"
-  echo "[net_demo]    other window to drive the other. Both see both, in sync.)"
-fi
+C2_X=$(( WIN_W + GAP ))
 
-echo "[net_demo] launching HOST (authoritative server) window — left..."
-"${GODOT_BIN}" "${ENGINE_COMMON[@]}" --position "0,${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-host &
-HOST=$!
-# Host must finish loading the 3D scene before the client connects (its main
-# thread can't pump ENet while loading). Same rationale as lockstep_demo.sh.
+# 1) DEDICATED SERVER — headless (no window, no GPU), the only authority.
+echo "[net_demo] launching DEDICATED SERVER (headless)..."
+"${GODOT_BIN}" --path . --headless "${SCENE}" "${USER_ARGS[@]}" --net-host >/tmp/net_demo_server.log 2>&1 &
+SERVER=$!
+# Server must finish loading before clients connect (its main thread can't pump
+# ENet while loading). Headless loads faster than a window, but give it margin.
 sleep 6
-echo "[net_demo] launching CLIENT window — right..."
-"${GODOT_BIN}" "${ENGINE_COMMON[@]}" --position "${CLIENT_X},${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-join=127.0.0.1:"${PORT}" &
-CLIENT=$!
 
-echo "[net_demo] two windows should be open — host = authority, client predicts+interpolates."
-echo "[net_demo] (Ctrl-C to kill both; they self-quit after ${TICKS} server ticks)"
-trap 'kill ${HOST} ${CLIENT} 2>/dev/null' INT TERM
-wait ${HOST} ${CLIENT}
+echo "[net_demo] launching CLIENT 1 window — left..."
+"${GODOT_BIN}" --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" \
+  --position "0,${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-visual --net-join=127.0.0.1:"${PORT}" \
+  >/tmp/net_demo_c1.log 2>&1 &
+C1=$!
+sleep 2
+echo "[net_demo] launching CLIENT 2 window — right..."
+"${GODOT_BIN}" --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" \
+  --position "${C2_X},${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-visual --net-join=127.0.0.1:"${PORT}" \
+  >/tmp/net_demo_c2.log 2>&1 &
+C2=$!
+
+echo "[net_demo] server (headless) + 2 client windows — each controls its own player,"
+echo "[net_demo] both render the server's authoritative state. (Ctrl-C to kill all.)"
+trap 'kill ${SERVER} ${C1} ${C2} 2>/dev/null' INT TERM
+wait ${C1} ${C2}
+kill ${SERVER} 2>/dev/null || true

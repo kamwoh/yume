@@ -164,21 +164,34 @@ model-agnostic (lockstep, client-server, and future models all plug in here).
    between the two bracketing snapshots, so motion is smooth at render FPS from a
    20Hz stream. Derives planar velocity from the lerp so walk/idle animation
    rules fire on replicated movement. (`net_driver._render_interpolated`.)
-3. **Client-side prediction + reconciliation. — DONE 2026-06-01 (v1).** The
-   client sims locally and applies its own input to the owned actor immediately
-   (zero local input lag); remotes are interpolated (the owned actor is skipped
-   in interpolation — it's predicted). Each frame the owned actor is reconciled
-   toward the latest authoritative position (`RECONCILE_RATE` blend above
-   `SNAP_THRESHOLD`; a no-op on LAN where prediction ≈ server). **Scope:** sound
-   for tiny_village-like scenes where only player actors are dynamic; AI-heavy
-   games need predict-OWNED-only (treat NPCs as server-authoritative) — until
-   then the client would mispredict non-owned dynamic entities. Full input-replay
-   reconciliation (replay unacked inputs from the acked snapshot, eliminating
-   rubber-band under loss) is a later refinement. Verified each phase headless via
-   `run_linux.sh net` (client converges to server authority). Visual:
-   `scripts/net_demo.sh` (two windows; host authority, client predict+interp).
-4. **Bandwidth/scale.** Delta compression, interest management, lag compensation,
-   and predict-owned-only for AI-heavy games.
+3. **Client-side prediction — built then REMOVED (user choice 2026-06-01).**
+   Prediction + reconciliation were implemented (client sims its own actor for
+   instant response), but the user chose **pure server-authoritative**: only the
+   server computes; the client sends input and renders the server's interpolated
+   state (incl. its own character). The reconciliation blend toward the
+   time-delayed server position also felt draggy. So the client no longer
+   simulates — `yume_external_tick_driver` gates its World; it relays input +
+   mouse-look facing and renders. Trade: the client's own character has
+   round-trip input latency (accepted for simplicity + a single source of truth);
+   only the camera LOOK stays local. The "owned/predicted" row of the entity
+   model above is now "owned = server-authoritative (no prediction)". Prediction
+   remains available to re-enable per-game if a twitch title needs it.
+4. **Game integration — dedicated server + spawn-on-join. — DONE 2026-06-01.**
+   The host is a **dedicated server with no player of its own** (fairness: every
+   player is a client with equal latency). Players are **spawned on join** (not
+   pre-placed): on connect the server `spawn_instance`s a player from a
+   `player`-tagged def, assigns ownership, and replicates the spawn to all clients
+   (`_recv_spawn`) + tells the joiner which entity is theirs (`_recv_assign`);
+   on disconnect it despawns + `_recv_despawn`. Clients clear any pre-placed
+   players at start (single-player keeps them; net spawns fresh) and create
+   server-spawned ones locally. New engine surface: `World.spawn_instance` /
+   `despawn_entity` (thin wrappers over SpawnManager). Verified: `run_linux.sh net`
+   = 1 dedicated server + 2 clients → 2 players spawned, server + both clients
+   agree on the full roster. Visual: `scripts/net_demo.sh` (headless server + 2
+   client windows side by side).
+5. **Bandwidth/scale (future).** Delta compression, interest management, lag
+   compensation; lobby/ready handshake; predict-owned-only if prediction is
+   re-enabled for an AI-heavy twitch game.
 
 ## References
 
