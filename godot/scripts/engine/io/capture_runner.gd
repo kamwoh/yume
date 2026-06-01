@@ -32,6 +32,12 @@ func _ready() -> void:
 	# fits on a cmdline — supports click, expect, screenshot, etc.).
 	var input_script := ""
 	var script_path := ""
+	# Frame-SEQUENCE capture (for video): --capture-sequence=<fps>,<seconds>
+	# saves <output>_0000.png, _0001.png, ... at <fps> in REAL time (no movie mode,
+	# so live networked render + interpolation stay correct), starting after the
+	# --capture-after delay (lets clients connect first). Stitch with ffmpeg.
+	var seq_fps := 0.0
+	var seq_secs := 0.0
 	for arg in OS.get_cmdline_user_args():
 		var s := str(arg)
 		if s.begins_with("--capture-after="):
@@ -42,9 +48,30 @@ func _ready() -> void:
 			input_script = s.substr(16)
 		elif s.begins_with("--capture-script="):
 			script_path = s.substr(17)
-	if delay <= 0.0 and script_path == "":
+		elif s.begins_with("--capture-sequence="):
+			var spec := s.substr(19).split(",")
+			if spec.size() >= 2:
+				seq_fps = float(spec[0])
+				seq_secs = float(spec[1])
+	if delay <= 0.0 and script_path == "" and seq_fps <= 0.0:
 		return  # no capture requested — no-op
 	await get_tree().process_frame
+
+	# Frame-sequence branch: wait `delay` (connect), then snapshot at seq_fps.
+	if seq_fps > 0.0 and seq_secs > 0.0:
+		if delay > 0.0:
+			await get_tree().create_timer(delay).timeout
+		var base := output_path.trim_suffix(".png")
+		var n := int(seq_fps * seq_secs)
+		var period := 1.0 / seq_fps
+		for i in range(n):
+			var img: Image = get_viewport().get_texture().get_image()
+			if img != null:
+				img.save_png("%s_%04d.png" % [base, i])
+			await get_tree().create_timer(period).timeout
+		print("[CaptureRunner] saved %d frames %s_NNNN.png" % [n, base])
+		get_tree().quit()
+		return
 
 	# Find the World node — required for StepRunner. Look up via root since
 	# capture_runner is an autoload and World is in the scene tree.
