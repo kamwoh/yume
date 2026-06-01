@@ -144,14 +144,15 @@ PY
     GAME="${1:-demo_tiny_village}"
     TICKS="${2:-300}"
     INPUT="${3:-move_north}"
+    INPUT2="${4:-${INPUT}}"  # client 2's input (default = client 1's)
     sync_project
     pkill -f "$(basename "${BIN}")" 2>/dev/null || true
     sleep 1
     rm -f /tmp/net_host.json /tmp/net_c1.json /tmp/net_c2.json
-    echo "[run_linux] net ${GAME}: dedicated server + 2 clients × ${TICKS} ticks, input='${INPUT}'"
+    echo "[run_linux] net ${GAME}: dedicated server + 2 clients × ${TICKS} ticks, c1='${INPUT}' c2='${INPUT2}'"
     "${BIN}" --path "${PROJECT}" --headless scenes/play.tscn -- \
       --game="${GAME}" --net-host --net-port=7801 \
-      --net-ticks="${TICKS}" --net-input="${INPUT}" \
+      --net-ticks="${TICKS}" \
       --net-out=/tmp/net_host.json >/tmp/net_host.log 2>&1 &
     HOST=$!
     sleep 2.5
@@ -163,7 +164,7 @@ PY
     sleep 1
     "${BIN}" --path "${PROJECT}" --headless scenes/play.tscn -- \
       --game="${GAME}" --net-join=127.0.0.1:7801 --net-port=7801 \
-      --net-ticks="${TICKS}" --net-input="${INPUT}" \
+      --net-ticks="${TICKS}" --net-input="${INPUT2}" \
       --net-out=/tmp/net_c2.json >/tmp/net_c2.log 2>&1 &
     C2=$!
     wait "${HOST}" "${C1}" "${C2}" 2>/dev/null

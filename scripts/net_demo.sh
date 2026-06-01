@@ -23,8 +23,11 @@ eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' "${YUME_ROOT}/scripts/play.sh")"
 GAME="${1:-demo_tiny_village}"
 TICKS="${2:-30000}"
 # INTERACTIVE by default (empty input → drive with the keyboard). Pass a 3rd arg
-# (e.g. move_north) to auto-walk every player instead (scripted).
-INPUT="${3:-}"
+# to auto-walk client 1, and an optional 4th to give client 2 a DIFFERENT action
+# (e.g. `net_demo.sh demo_tiny_village 3000 move_north move_west` → client 1 walks
+# north, client 2 walks west — a clear synchronization test).
+INPUT1="${3:-}"
+INPUT2="${4:-${INPUT1}}"
 PORT=7803
 
 if [ ! -x "${GODOT_BIN}" ]; then
@@ -63,10 +66,14 @@ if [ -z "${SCENE}" ]; then
 fi
 echo "[net_demo] scene: ${SCENE}"
 
+# Base args (server uses these; it owns no player → no input). Each CLIENT appends
+# its own --net-input so the two can walk in different directions (sync test).
 USER_ARGS=( -- "${SCENE_ARGS[@]}" --net-port="${PORT}" --net-ticks="${TICKS}" )
-if [ -n "${INPUT}" ]; then
-  USER_ARGS+=( --net-input="${INPUT}" )
-  echo "[net_demo] scripted input: ${INPUT} (every player auto-walks)"
+C1_INPUT=(); C2_INPUT=()
+if [ -n "${INPUT1}" ]; then
+  C1_INPUT=( --net-input="${INPUT1}" )
+  C2_INPUT=( --net-input="${INPUT2}" )
+  echo "[net_demo] scripted: client1='${INPUT1}', client2='${INPUT2}' (auto-walk)"
 else
   echo "[net_demo] INTERACTIVE: focus a client window, WASD to move + mouse to look."
   echo "[net_demo]   (each window controls ITS OWN character; click a window to drive it.)"
@@ -102,13 +109,13 @@ fi
 echo "[net_demo] launching CLIENT 1 window — left..."
 "${GODOT_BIN}" --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" \
   --position "0,${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-visual --net-join=127.0.0.1:"${PORT}" \
-  >/tmp/net_demo_c1.log 2>&1 &
+  "${C1_INPUT[@]}" >/tmp/net_demo_c1.log 2>&1 &
 C1=$!
 sleep 2
 echo "[net_demo] launching CLIENT 2 window — right..."
 "${GODOT_BIN}" --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" \
   --position "${C2_X},${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-visual --net-join=127.0.0.1:"${PORT}" \
-  >/tmp/net_demo_c2.log 2>&1 &
+  "${C2_INPUT[@]}" >/tmp/net_demo_c2.log 2>&1 &
 C2=$!
 
 echo "[net_demo] server (headless) + 2 client windows — each controls its own player,"
