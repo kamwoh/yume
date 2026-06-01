@@ -147,10 +147,18 @@ model-agnostic (lockstep, client-server, and future models all plug in here).
 
 ## Phasing
 
-1. **Transport + authority (correctness, no smoothing).** Server runs the sim;
-   client connects; server RPCs full state snapshots at the network rate; client
-   applies + renders. Laggy (no prediction/interp) but correct. Reuses ADR 0061's
-   ENet setup + a new client-mode `World`.
+1. **Transport + authority (correctness, no smoothing). — DONE 2026-06-01.**
+   Server runs the sim; client connects; server RPCs state snapshots at
+   `--net-snapshot-hz` (default 20); client applies + renders. Laggy (no
+   prediction/interp) but correct. `io/net_driver.gd` (autoload, active only on
+   `--net-host`/`--net-join`): the client sets `yume_external_tick_driver` (no
+   local sim) + applies snapshots via `Entity.set_position`/`set_state`; the
+   server runs `World` normally and broadcasts `actor`-tagged entity state.
+   Per-window camera + ownership reuse ADR 0061's `actor_of_peer` +
+   `yume_local_follow_id`. Verified: `run_linux.sh net demo_tiny_village 300` →
+   **REPLICATED ✓**, client's applied positions byte-equal the server's — and the
+   two actors moved DIFFERENT distances under the server's `move_and_slide`
+   collision, confirming no cross-machine determinism is needed.
 2. **Remote interpolation.** Smooth remote entities between snapshots.
 3. **Client-side prediction + reconciliation** for the owned actor — the twitch
    responsiveness.

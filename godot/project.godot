@@ -28,6 +28,7 @@ CaptureRunner="*res://scripts/engine/io/capture_runner.gd"
 AudioBus="*res://scripts/engine/io/audio_bus.gd"
 StdioStepDriver="*res://scripts/engine/io/stdio_step_driver.gd"
 LockstepDriver="*res://scripts/engine/io/lockstep_driver.gd"
+NetDriver="*res://scripts/engine/io/net_driver.gd"
 
 ; Input bindings live in per-game data/demo_X/ui/input.json. The universal
 ; WASD + Arrow movement set is shared via data/lib/input/universal.json

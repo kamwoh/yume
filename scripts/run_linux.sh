@@ -137,6 +137,45 @@ print("\nLOCKSTEP:", "IN SYNC ✓ — identical hashes, no desync" if ok
 sys.exit(0 if ok else 1)
 PY
     ;;
+  net)
+    # ADR 0063: client-server. Host runs the authoritative sim + broadcasts state
+    # snapshots; client applies them (no local sim). Correctness check: the
+    # client's APPLIED actor positions must equal the server's authoritative ones.
+    GAME="${1:-demo_tiny_village}"
+    TICKS="${2:-300}"
+    INPUT="${3:-move_north}"
+    sync_project
+    pkill -f "$(basename "${BIN}")" 2>/dev/null || true
+    sleep 1
+    rm -f /tmp/net_host.json /tmp/net_client.json
+    echo "[run_linux] net ${GAME}: server + client × ${TICKS} ticks, input='${INPUT}'"
+    "${BIN}" --path "${PROJECT}" --headless scenes/play.tscn -- \
+      --game="${GAME}" --net-host --net-port=7801 \
+      --net-ticks="${TICKS}" --net-input="${INPUT}" \
+      --net-out=/tmp/net_host.json >/tmp/net_host.log 2>&1 &
+    HOST=$!
+    sleep 2.5
+    "${BIN}" --path "${PROJECT}" --headless scenes/play.tscn -- \
+      --game="${GAME}" --net-join=127.0.0.1:7801 --net-port=7801 \
+      --net-ticks="${TICKS}" --net-input="${INPUT}" \
+      --net-out=/tmp/net_client.json >/tmp/net_client.log 2>&1 &
+    CLIENT=$!
+    wait "${HOST}" "${CLIENT}" 2>/dev/null
+    venv/bin/python - <<'PY'
+import json, sys
+try:
+    h = json.load(open("/tmp/net_host.json")); c = json.load(open("/tmp/net_client.json"))
+except Exception as e:
+    print("FAIL: no result (see /tmp/net_host.log /tmp/net_client.log) —", e); sys.exit(1)
+print("server:", json.dumps(h))
+print("client:", json.dumps(c))
+sp = h.get("actor_positions", {}); cp = c.get("actor_positions", {})
+ok = bool(sp) and sp == cp
+print("\nCLIENT-SERVER:", "REPLICATED ✓ — client state matches server"
+      if ok else "MISMATCH ✗ — client applied state differs from server authority")
+sys.exit(0 if ok else 1)
+PY
+    ;;
   ""|help|-h|--help)
     sed -n '2,33p' "${BASH_SOURCE[0]}"
     ;;
