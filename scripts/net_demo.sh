@@ -53,18 +53,26 @@ if [ -z "${SCENE}" ]; then
 fi
 echo "[net_demo] scene: ${SCENE}"
 
-COMMON=( --path . --rendering-driver opengl3 "${SCENE}" --
-         "${SCENE_ARGS[@]}" --net-visual --net-port="${PORT}"
-         --net-ticks="${TICKS}" --net-input="${INPUT}" )
+# Side-by-side windows. --resolution / --position are Godot ENGINE flags (before
+# the `--`): the demo places the host on the left, the client on the right so you
+# watch both at once. Override the geometry with WIN_W/WIN_H/GAP/TOP env vars.
+WIN_W="${WIN_W:-900}"
+WIN_H="${WIN_H:-540}"
+TOP="${TOP:-60}"
+GAP="${GAP:-20}"
+CLIENT_X=$(( WIN_W + GAP ))
+ENGINE_COMMON=( --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" )
+USER_ARGS=( -- "${SCENE_ARGS[@]}" --net-visual --net-port="${PORT}"
+            --net-ticks="${TICKS}" --net-input="${INPUT}" )
 
-echo "[net_demo] launching HOST (authoritative server) window..."
-"${GODOT_BIN}" "${COMMON[@]}" --net-host &
+echo "[net_demo] launching HOST (authoritative server) window — left..."
+"${GODOT_BIN}" "${ENGINE_COMMON[@]}" --position "0,${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-host &
 HOST=$!
 # Host must finish loading the 3D scene before the client connects (its main
 # thread can't pump ENet while loading). Same rationale as lockstep_demo.sh.
 sleep 6
-echo "[net_demo] launching CLIENT window..."
-"${GODOT_BIN}" "${COMMON[@]}" --net-join=127.0.0.1:"${PORT}" &
+echo "[net_demo] launching CLIENT window — right..."
+"${GODOT_BIN}" "${ENGINE_COMMON[@]}" --position "${CLIENT_X},${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-join=127.0.0.1:"${PORT}" &
 CLIENT=$!
 
 echo "[net_demo] two windows should be open — host = authority, client predicts+interpolates."
