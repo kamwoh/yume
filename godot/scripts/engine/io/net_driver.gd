@@ -38,11 +38,12 @@ const DEFAULT_PORT := 7777
 ## clients finish loading + connect. Empirical 2026-06-01.
 const CONNECT_TIMEOUT_SEC := 60.0
 const DEFAULT_SNAPSHOT_HZ := 20.0
-## Phase 2 — render remote entities INTERP_DELAY behind the latest snapshot,
-## interpolating between the two bracketing snapshots. The delay (2 snapshot
-## periods at 20Hz) absorbs jitter + the sub-tick send rate so motion is smooth
-## at render FPS instead of stepping at the snapshot rate. Standard entity lerp.
-const INTERP_DELAY := 0.1
+const DEFAULT_INTERP_DELAY := 0.1  # render this far behind, lerping (absorbs jitter)
+## ADR 0064 — default replication policy when a game ships no net.json: one group
+## (actor-tagged) replicating position + facing. Matches the pre-0064 hardcode.
+const DEFAULT_REPLICATE := [{"query": {"tags_all": ["actor"]}, "fields": ["position", "facing"]}]
+## Orientation fields use angle-lerp (wrap-aware) instead of plain lerp.
+const ANGLE_FIELDS := ["facing", "yaw", "pitch", "heading"]
 
 var _active := false
 var _is_host := false
@@ -53,6 +54,9 @@ var _ticks_target := 600
 var _out_path := ""
 var _visual := false
 var _snapshot_hz := DEFAULT_SNAPSHOT_HZ
+var _interp_delay := DEFAULT_INTERP_DELAY
+var _interp_enabled := true
+var _replicate: Array = []  # ADR 0064 — replication groups [{query, fields}], from net.json
 
 var _world = null
 var _local_id := 0
@@ -166,9 +170,42 @@ func _find_and_clear() -> bool:
 	if _world == null:
 		_fail("no World found")
 		return false
+	_load_net_cfg()
 	for eid in _player_like_ids():
 		_world.despawn_entity(eid)
 	return true
+
+
+## ADR 0064 — load the per-game replication policy from data/<game>/net.json.
+## Absent → the default (actor-tagged, position+facing, 20Hz, interpolated), i.e.
+## the pre-0064 behavior. Server + client both load it so they agree on the wire.
+func _load_net_cfg() -> void:
+	_replicate = DEFAULT_REPLICATE.duplicate(true)
+	var root := str(_world.get("data_root")).rstrip("/")
+	var path := root + "/net.json"
+	if FileAccess.file_exists(path):
+		var f := FileAccess.open(path, FileAccess.READ)
+		if f != null:
+			var data = JSON.parse_string(f.get_as_text())
+			f.close()
+			if data is Dictionary:
+				var cfg: Dictionary = data
+				if cfg.has("snapshot_hz"):
+					_snapshot_hz = float(cfg["snapshot_hz"])
+				var interp = cfg.get("interpolation", {})
+				if interp is Dictionary:
+					_interp_enabled = bool((interp as Dictionary).get("enabled", true))
+					_interp_delay = float((interp as Dictionary).get("delay", DEFAULT_INTERP_DELAY))
+				if cfg.get("replicate", null) is Array and not (cfg["replicate"] as Array).is_empty():
+					_replicate = cfg["replicate"]
+	if not _interp_enabled:
+		_interp_delay = 0.0  # disabled → snap to newest (no render delay, no lerp)
+	print(
+		(
+			"[net] replication: %d group(s), snapshot_hz=%d, interp=%s/%.2fs"
+			% [_replicate.size(), int(_snapshot_hz), str(_interp_enabled), _interp_delay]
+		)
+	)
 
 
 func _server_start() -> void:
@@ -334,47 +371,62 @@ func _recv_done(snap: Dictionary) -> void:
 # ============================================================
 
 
-## Serialize the DYNAMIC entities (the movers — `actor`-tagged) as
-## id -> [x, y, z, facing]. Static props don't move, so clients keep them at
-## their loaded positions; only movers are replicated. (Phase 4 generalizes to
-## any changed entity + delta compression.)
+## ADR 0064 — serialize state per the data-driven replication config: for each
+## `replicate` group, every entity matching its `query` contributes its listed
+## `fields`. Self-describing per entity: id -> {field: value}. Only the declared
+## fields of matched (dynamic) entities travel; static props the clients already
+## have from loading the scene aren't sent.
 func _serialize_state() -> Dictionary:
 	var out: Dictionary = {}
-	for id in _world.entities:
-		var e = _world.entities[id]
-		if not (e is Entity) or not (e as Entity).has_tag("actor"):
-			continue
-		var p = (e as Entity).get_position()
-		var v3 := Vector3.ZERO
-		if p is Vector3:
-			v3 = p
-		elif p is Vector2:
-			v3 = Vector3((p as Vector2).x, 0.0, (p as Vector2).y)
-		var facing := float((e as Entity).get_state("facing", 0.0))
-		out[str(id)] = [
-			snappedf(v3.x, 0.001), snappedf(v3.y, 0.001), snappedf(v3.z, 0.001),
-			snappedf(facing, 0.0001),
-		]
+	var env: Dictionary = _world.scheduler.env if _world.scheduler != null else {}
+	for group in _replicate:
+		var spec: Dictionary = (group as Dictionary).get("query", {})
+		var fields: Array = (group as Dictionary).get("fields", [])
+		for id in _world.entities:
+			var e = _world.entities[id]
+			if not (e is Entity) or not QueryLib.matches(e as Entity, spec, env):
+				continue
+			var rec: Dictionary = out.get(str(id), {})
+			for f in fields:
+				rec[str(f)] = _serialize_field(e as Entity, str(f))
+			out[str(id)] = rec
 	return out
 
 
-## Apply a server snapshot to local entities (CLIENT). set_position drives the
-## renderer (entity_mesh_3d reads get_position each frame) + mirrors the body
-## transform; facing drives mesh yaw. Phase 1 applies directly (steppy); Phase 2
-## interpolates between snapshots for smoothness.
+## Serialize ONE field: `position` → [x,y,z]; anything else → its state value
+## (float / Vector2 / Vector3 / int / bool / string — Godot RPC sends it typed).
+func _serialize_field(e: Entity, field: String):
+	if field == "position":
+		var p = e.get_position()
+		if p is Vector3:
+			return [snappedf(p.x, 0.001), snappedf(p.y, 0.001), snappedf(p.z, 0.001)]
+		if p is Vector2:
+			return [snappedf(p.x, 0.001), 0.0, snappedf(p.y, 0.001)]
+		return [0.0, 0.0, 0.0]
+	return e.get_state(field, 0.0)
+
+
+## Apply a snapshot directly (no interpolation) — used for the final state at
+## end-of-run. Generic over the configured fields.
 func _apply_snapshot(snap: Dictionary) -> void:
 	_last_snapshot = snap
 	for id in snap:
 		if not _world.entities.has(id):
 			continue
 		var e = _world.entities[id]
-		if not (e is Entity):
+		if not (e is Entity) or not (snap[id] is Dictionary):
 			continue
-		var a: Array = snap[id]
-		if a.size() >= 3:
-			(e as Entity).set_position(Vector3(float(a[0]), float(a[1]), float(a[2])))
-		if a.size() >= 4:
-			(e as Entity).set_state("facing", float(a[3]))
+		for f in (snap[id] as Dictionary):
+			_apply_field(e as Entity, str(f), (snap[id] as Dictionary)[f])
+
+
+## Apply ONE field's value to an entity. `position` → set_position (drives the
+## renderer + body); anything else → set_state.
+func _apply_field(e: Entity, field: String, value) -> void:
+	if field == "position" and value is Array and (value as Array).size() >= 3:
+		e.set_position(Vector3(float(value[0]), float(value[1]), float(value[2])))
+	else:
+		e.set_state(field, value)
 
 
 # ============================================================
@@ -470,7 +522,7 @@ func _poll_local_actions() -> Array:
 func _render_interpolated() -> void:
 	if _snap_buffer.is_empty():
 		return
-	var rt := _client_clock - INTERP_DELAY
+	var rt := _client_clock - _interp_delay
 	var s0 = null
 	var s1 = null
 	for e in _snap_buffer:
@@ -493,36 +545,51 @@ func _render_interpolated() -> void:
 		_snap_buffer.pop_front()
 
 
+## Apply the interpolated snapshot to local entities (ADR 0064: generic over the
+## configured fields). Each field lerps by type; the OWNED actor keeps its LOCAL
+## `facing` (responsive mouse-look — pure server-auth still owns its POSITION).
 func _apply_interp(snap0: Dictionary, snap1: Dictionary, alpha: float, dt: float) -> void:
 	for id in snap1:
-		if not _world.entities.has(id):
+		if not _world.entities.has(id) or not (snap1[id] is Dictionary):
 			continue
 		var e = _world.entities[id]
 		if not (e is Entity):
 			continue
-		var a1: Array = snap1[id]
-		var a0: Array = snap0.get(id, a1)
-		if a1.size() < 3 or a0.size() < 3:
-			continue
-		# POSITION is server-authoritative for ALL actors (incl. the owned one —
-		# pure server-auth, no client prediction).
-		var pos := Vector3(
-			lerpf(float(a0[0]), float(a1[0]), alpha),
-			lerpf(float(a0[1]), float(a1[1]), alpha),
-			lerpf(float(a0[2]), float(a1[2]), alpha),
-		)
-		(e as Entity).set_position(pos)
-		# FACING: interpolate remotes; the OWNED actor keeps its LOCAL mouse-look
-		# facing (camera_director set it this frame) so the camera stays responsive
-		# even though movement is server-driven.
-		if str(id) != _local_actor and a1.size() >= 4 and a0.size() >= 4:
-			(e as Entity).set_state("facing", lerp_angle(float(a0[3]), float(a1[3]), alpha))
-		# Planar velocity (XZ) for animation_state_rules; near-zero when at rest.
-		if dt > 0.0001:
-			(e as Entity).set_state(
-				"velocity",
-				Vector2((float(a1[0]) - float(a0[0])) / dt, (float(a1[2]) - float(a0[2])) / dt),
-			)
+		var r1: Dictionary = snap1[id]
+		var r0: Dictionary = snap0.get(id, r1)
+		for f in r1:
+			var fs := str(f)
+			# Owned actor's facing stays local (camera look) — don't overwrite it.
+			if fs == "facing" and str(id) == _local_actor:
+				continue
+			_apply_field(e as Entity, fs, _lerp_value(fs, r0.get(f, r1[f]), r1[f], alpha))
+		# Planar velocity (XZ) from position delta → drives walk/idle animation.
+		if dt > 0.0001 and r1.has("position") and (r1["position"] is Array):
+			var p1: Array = r1["position"]
+			var p0: Array = r0.get("position", p1)
+			if p1.size() >= 3 and p0.size() >= 3:
+				(e as Entity).set_state(
+					"velocity",
+					Vector2((float(p1[0]) - float(p0[0])) / dt, (float(p1[2]) - float(p0[2])) / dt),
+				)
+
+
+## Type-driven interpolation between two field values. Numbers + numeric arrays
+## (e.g. position) lerp; orientation fields angle-lerp (wrap-aware); non-numeric
+## (string/bool) snap to the newer value. No-op (returns newer) if interp disabled.
+func _lerp_value(field: String, v0, v1, alpha: float):
+	if not _interp_enabled:
+		return v1
+	if (v1 is float or v1 is int) and (v0 is float or v0 is int):
+		if field in ANGLE_FIELDS:
+			return lerp_angle(float(v0), float(v1), alpha)
+		return lerpf(float(v0), float(v1), alpha)
+	if v1 is Array and v0 is Array and (v1 as Array).size() == (v0 as Array).size():
+		var out: Array = []
+		for i in range((v1 as Array).size()):
+			out.append(lerpf(float(v0[i]), float(v1[i]), alpha))
+		return out
+	return v1  # non-numeric → snap
 
 
 # ============================================================
