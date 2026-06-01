@@ -103,32 +103,56 @@ func tick(_now_seconds: float) -> void:
 	if _animation_player == null:
 		return
 	var picked := _pick_state()
-	if picked == _active_state:
-		return  # already playing
-	_active_state = picked
-	if picked == "":
-		_animation_player.stop()
-		return
-	# Per-state blend override: animations.<state>.blend_seconds. Falls
-	# back to the mesh-def-level animation_blend_seconds.
-	var blend := _default_blend
-	var clip = _animations.get(picked, null)
-	if clip is Dictionary and (clip as Dictionary).has("blend_seconds"):
-		blend = float((clip as Dictionary)["blend_seconds"])
-	# Phase B: resolve clip_alias mapping if registered (state → .glb
-	# clip name). Falls back to the state name verbatim.
-	var clip_name := str(_clip_aliases.get(picked, picked))
-	if not _animation_player.has_animation(clip_name):
-		# Silent miss: keeps the entity static rather than crashing on
-		# typo'd alias. Author can grep stdout for the warning.
-		push_warning(
-			(
-				"AnimationDirector: clip '%s' not in player (state=%s, " % [clip_name, picked]
-				+ "available: %s)" % str(_animation_player.get_animation_list())
+	if picked != _active_state:
+		_active_state = picked
+		if picked == "":
+			_animation_player.stop()
+			return
+		# Per-state blend override: animations.<state>.blend_seconds. Falls
+		# back to the mesh-def-level animation_blend_seconds.
+		var blend := _default_blend
+		var clip = _animations.get(picked, null)
+		if clip is Dictionary and (clip as Dictionary).has("blend_seconds"):
+			blend = float((clip as Dictionary)["blend_seconds"])
+		# Phase B: resolve clip_alias mapping if registered (state → .glb
+		# clip name). Falls back to the state name verbatim.
+		var clip_name := str(_clip_aliases.get(picked, picked))
+		if not _animation_player.has_animation(clip_name):
+			# Silent miss: keeps the entity static rather than crashing on
+			# typo'd alias. Author can grep stdout for the warning.
+			push_warning(
+				(
+					"AnimationDirector: clip '%s' not in player (state=%s, " % [clip_name, picked]
+					+ "available: %s)" % str(_animation_player.get_animation_list())
+				)
 			)
-		)
+			return
+		_animation_player.play(clip_name, blend)
+	# ADR 0065 — synced animation: if the entity carries a replicated `anim_phase`
+	# (0..1, a deterministic sim-state field), DRIVE the clip's playback position
+	# from it every tick instead of letting the AnimationPlayer free-run — so every
+	# client shows the SAME pose (same leg forward), not just the same clip out of
+	# phase. Opt-in: absent → free-run (single-player / non-networked unchanged).
+	_apply_synced_phase()
+
+
+## Pin the clip's playback time to anim_phase·length when the entity has a synced
+## phase. No-op if the field is absent (free-run) or the clip is missing.
+func _apply_synced_phase() -> void:
+	if _entity == null or _active_state == "":
 		return
-	_animation_player.play(clip_name, blend)
+	var ph = _entity.get_state("anim_phase", null)
+	if ph == null:
+		return  # not a synced-animation entity → leave the AnimationPlayer alone
+	var clip_name := str(_clip_aliases.get(_active_state, _active_state))
+	if not _animation_player.has_animation(clip_name):
+		return
+	var length := _animation_player.get_animation(clip_name).length
+	if length <= 0.0:
+		return
+	if _animation_player.current_animation != clip_name:
+		_animation_player.play(clip_name)
+	_animation_player.seek(fposmod(float(ph), 1.0) * length, true)
 
 
 ## Evaluate state rules top-to-bottom. First match wins. `default` is the

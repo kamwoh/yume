@@ -583,6 +583,15 @@ func _lerp_value(field: String, v0, v1, alpha: float):
 	if (v1 is float or v1 is int) and (v0 is float or v0 is int):
 		if field in ANGLE_FIELDS:
 			return lerp_angle(float(v0), float(v1), alpha)
+		if field.ends_with("phase"):
+			# 0..1 cyclic (e.g. anim_phase): take the short way around the wrap so
+			# the walk cycle never briefly reverses at the 1→0 boundary.
+			var d := float(v1) - float(v0)
+			if d > 0.5:
+				d -= 1.0
+			elif d < -0.5:
+				d += 1.0
+			return fposmod(float(v0) + d * alpha, 1.0)
 		return lerpf(float(v0), float(v1), alpha)
 	if v1 is Array and v0 is Array and (v1 as Array).size() == (v0 as Array).size():
 		var out: Array = []
@@ -610,7 +619,10 @@ func _finish() -> void:
 			var e = _world.entities[id]
 			if e is Entity and ((e as Entity).has_tag("player") or (e as Entity).has_tag("actor")):
 				var p = (e as Entity).get_planar_position()
-				actor_pos[str(id)] = [snappedf(p.x, 0.001), snappedf(p.y, 0.001)]
+				# Include anim_phase (snapped) so the sync check covers replicated
+				# animation state, not just position (ADR 0065).
+				var ph := snappedf(float((e as Entity).get_state("anim_phase", 0.0)), 0.01)
+				actor_pos[str(id)] = [snappedf(p.x, 0.001), snappedf(p.y, 0.001), ph]
 	var result := {
 		"peer_id": _local_id,
 		"role": "server" if _is_host else "client",
