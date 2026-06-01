@@ -32,7 +32,11 @@ extends Node
 ##   --net-snapshot-hz=<n>       state send rate (default 20; decoupled from 60Hz)
 
 const DEFAULT_PORT := 7777
-const CONNECT_TIMEOUT_SEC := 30.0
+## Generous: a dedicated server + N client windows on ONE machine all load the 3D
+## scene at once (GPU/CPU contention), so the first connection can take a while.
+## 60s keeps the server from giving up ("connect timeout (no peer)") before slow
+## clients finish loading + connect. Empirical 2026-06-01.
+const CONNECT_TIMEOUT_SEC := 60.0
 const DEFAULT_SNAPSHOT_HZ := 20.0
 ## Phase 2 — render remote entities INTERP_DELAY behind the latest snapshot,
 ## interpolating between the two bracketing snapshots. The delay (2 snapshot
