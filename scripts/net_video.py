@@ -1,56 +1,73 @@
 #!/usr/bin/env python3
 """Record a SIDE-BY-SIDE video of a client-server net demo (ADR 0063-0065).
 
-One command, no manual steps: kill leftovers -> sync the framework to the Windows
-template -> launch a headless dedicated server + 2 client windows (each driving a
-character and capturing a real-time frame sequence) -> ffmpeg-stitch the two
-sequences side by side into an mp4. Proves synchronization visually (left window
-walks one way, right window another; both show both characters in step).
+One command, no manual steps: sync the framework -> launch a HEADLESS dedicated
+server + 2 rendering clients (each driving a character + capturing a real-time
+frame sequence) -> ffmpeg-stitch the two sequences side by side into an mp4.
+Proves synchronization visually (one walks north, one west; both views show both
+characters in step).
+
+Two backends:
+  (default / --windows)  Windows Godot binary, real GPU (Intel iGPU) -> fast,
+                         smooth, but the 2 client windows are VISIBLE.
+  --linux                Linux Godot binary under Xvfb -> TRULY WINDOWLESS
+                         (proper for CI / "render a confirmed run to a file").
+                         Needs `sudo apt install -y xvfb` once; renders via
+                         SOFTWARE GL (llvmpipe — no GPU in WSL), so slower.
+                         Falls back to WSLg's display (:0) if Xvfb is absent
+                         (works, but then windows are visible).
 
 Usage:
-    venv/bin/python scripts/net_video.py [game] [input1] [input2]
-    venv/bin/python scripts/net_video.py demo_tiny_village move_north move_west
+  venv/bin/python scripts/net_video.py [game] [input1] [input2] [--linux]
+  venv/bin/python scripts/net_video.py demo_tiny_village move_north move_west
+  venv/bin/python scripts/net_video.py demo_tiny_village move_north move_west --linux
 
-Env overrides: PORT, FPS, SECS, DELAY (connect-wait before capture), WIN_W, WIN_H,
-YUME_USERDATA (the Godot user:// dir), OUT (output mp4 path).
-
-Why a script: orchestrating server + 2 clients + ffmpeg by hand is fragile and not
-reusable. This is the reusable, reproducible version.
+Env: PORT, FPS, SECS, DELAY (connect-wait), WIN_W, WIN_H, OUT.
 """
 import glob
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LINUX = "--linux" in sys.argv
+ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 
 
 def from_play_sh(var):
-    """Read GODOT_BIN / TEMPLATE_DST out of scripts/play.sh (single source of truth)."""
     txt = open(os.path.join(REPO, "scripts", "play.sh")).read()
     m = re.search(rf'^{var}="\$\{{[^:]+:-([^}}]+)\}}"', txt, re.M)
     return m.group(1) if m else None
 
 
-GAME = sys.argv[1] if len(sys.argv) > 1 else "demo_tiny_village"
-INPUT1 = sys.argv[2] if len(sys.argv) > 2 else "move_north"
-INPUT2 = sys.argv[3] if len(sys.argv) > 3 else "move_west"
+GAME = ARGS[0] if len(ARGS) > 0 else "demo_tiny_village"
+INPUT1 = ARGS[1] if len(ARGS) > 1 else "move_north"
+INPUT2 = ARGS[2] if len(ARGS) > 2 else "move_west"
 SHORT = GAME[len("demo_"):] if GAME.startswith("demo_") else GAME
 
-GODOT = os.environ.get("YUME_GODOT_BIN") or from_play_sh("GODOT_BIN")
-TEMPLATE = os.environ.get("YUME_TEMPLATE_DST") or from_play_sh("TEMPLATE_DST")
-USERDATA = os.environ.get(
-    "YUME_USERDATA",
-    "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework",
-)
 PORT = os.environ.get("PORT", "7862")
 FPS = int(os.environ.get("FPS", "10"))
 SECS = int(os.environ.get("SECS", "5"))
-DELAY = int(os.environ.get("DELAY", "20"))  # seconds to wait for clients to connect
+DELAY = int(os.environ.get("DELAY", "20"))
 WIN_W = os.environ.get("WIN_W", "700")
 WIN_H = os.environ.get("WIN_H", "440")
+
+if LINUX:
+    GODOT = os.environ.get("YUME_GODOT_LINUX_BIN",
+                           os.path.expanduser("~/godot-linux/Godot_v4.6.1-stable_linux.x86_64"))
+    PROJECT = os.environ.get("YUME_GODOT_LINUX_PROJECT", os.path.expanduser("~/godot-linux/yume"))
+    USERDATA = os.path.expanduser("~/.local/share/godot/app_userdata/Yume Framework")
+    HAVE_XVFB = shutil.which("xvfb-run") is not None
+else:
+    GODOT = os.environ.get("YUME_GODOT_BIN") or from_play_sh("GODOT_BIN")
+    PROJECT = os.environ.get("YUME_TEMPLATE_DST") or from_play_sh("TEMPLATE_DST")
+    USERDATA = os.environ.get(
+        "YUME_USERDATA", "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework")
+    HAVE_XVFB = False
+
 OUT = os.environ.get("OUT", os.path.join(USERDATA, "net_demo_video.mp4"))
 
 
@@ -59,69 +76,98 @@ def sh(cmd, **kw):
 
 
 def kill_godot():
-    sh("powershell.exe -Command \"Get-Process Godot* -ErrorAction SilentlyContinue "
-       "| Stop-Process -Force\" 2>/dev/null")
+    if LINUX:
+        sh(f"pkill -f {os.path.basename(GODOT)} 2>/dev/null || true")
+    else:
+        sh('powershell.exe -Command "Get-Process Godot* -ErrorAction SilentlyContinue '
+           '| Stop-Process -Force" 2>/dev/null')
     time.sleep(1)
+
+
+def sync():
+    if LINUX:
+        # WITH assets — the 3D meshes must be present + imported to render.
+        sh(f'rsync -a --delete --exclude=.godot/ "{REPO}/godot/" "{PROJECT}/"')
+    else:
+        sh(f'cp -r "{REPO}/godot/." "{PROJECT}/"')
+    env = "DISPLAY=:0 " if LINUX else ""
+    sh(f'cd "{PROJECT}" && {env}"{GODOT}" --path . --headless --import >/dev/null 2>&1')
 
 
 def pick_scene():
     for v in (f"{SHORT}_3d.tscn", f"{SHORT}_2d.tscn", f"{SHORT}.tscn"):
-        if os.path.isfile(os.path.join(TEMPLATE, "scenes", v)):
+        if os.path.isfile(os.path.join(PROJECT, "scenes", v)):
             return f"scenes/{v}", []
     return "scenes/play.tscn", [f"--game={GAME}"]
+
+
+def client_cmd(pos_x, inp, after, tag):
+    """A rendering client. Windows: a positioned window. Linux: Xvfb (windowless)
+    or WSLg :0 fallback."""
+    g = [GODOT, "--path", ".", "--rendering-driver", "opengl3"]
+    win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{pos_x},60"]
+    user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000", "--net-visual",
+            f"--net-join=127.0.0.1:{PORT}", f"--net-input={inp}",
+            f"--capture-after={after}", f"--capture-sequence={FPS},{SECS}",
+            f"--capture-output=user://vid_{tag}.png"]
+    cmd = g + win + [SCENE] + user
+    if LINUX and HAVE_XVFB:
+        # Each client gets its OWN virtual display (-a auto-picks) → no windows,
+        # no contention.
+        return ["xvfb-run", "-a", "-s", f"-screen 0 {WIN_W}x{WIN_H}x24"] + cmd, {}
+    if LINUX:
+        return cmd, {"DISPLAY": ":0"}  # WSLg fallback — windows WILL be visible
+    return cmd, {}
 
 
 def main():
     if not GODOT or not os.path.exists(GODOT):
         sys.exit(f"Godot binary not found: {GODOT}")
+    backend = "linux/" + ("xvfb (windowless)" if HAVE_XVFB else "WSLg :0 (windows visible!)") \
+        if LINUX else "windows/GPU (windows visible)"
+    print(f"[net_video] backend={backend}")
     print(f"[net_video] {GAME}: server + 2 clients ({INPUT1} / {INPUT2}) -> side-by-side mp4")
+    if LINUX and not HAVE_XVFB:
+        print("[net_video] NOTE: xvfb-run not found — run `sudo apt install -y xvfb` for the "
+              "truly-windowless render. Falling back to WSLg :0 (windows will show).")
 
     kill_godot()
-    print("[net_video] syncing framework -> template ...")
-    sh(f'cp -r "{REPO}/godot/." "{TEMPLATE}/"')
-    sh(f'cd "{TEMPLATE}" && "{GODOT}" --path . --headless --import >/dev/null 2>&1')
+    print("[net_video] syncing framework + assets ...")
+    sync()
 
-    scene, scene_args = pick_scene()
-    print(f"[net_video] scene: {scene}")
-    for f in glob.glob(os.path.join(USERDATA, "vid_c1_*.png")) + \
-            glob.glob(os.path.join(USERDATA, "vid_c2_*.png")):
+    global SCENE, SCENE_ARGS
+    SCENE, SCENE_ARGS = pick_scene()
+    print(f"[net_video] scene: {SCENE}")
+    for f in glob.glob(os.path.join(USERDATA, "vid_c*_*.png")):
         os.remove(f)
 
-    common_user = ["--", *scene_args, "--net-port", PORT, "--net-ticks", "6000"]
+    server_user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000", "--net-host"]
+    logs, procs = {}, {}
 
-    logs = {}
-    procs = {}
-
-    # 1) Dedicated server — headless (no window, no GPU).
     print("[net_video] launching dedicated server (headless) ...")
     logs["server"] = open("/tmp/net_video_server.log", "w")
+    senv = dict(os.environ)
     procs["server"] = subprocess.Popen(
-        [GODOT, "--path", ".", "--headless", scene, *common_user, "--net-host"],
-        cwd=TEMPLATE, stdout=logs["server"], stderr=subprocess.STDOUT,
-    )
-    time.sleep(9)  # let the server load before clients connect
+        [GODOT, "--path", ".", "--headless", SCENE, *server_user],
+        cwd=PROJECT, stdout=logs["server"], stderr=subprocess.STDOUT, env=senv)
+    time.sleep(9)
 
-    # 2) Two client windows, side by side, each capturing a frame sequence.
-    def client(tag, pos_x, inp, after):
+    def launch(tag, pos_x, inp, after):
+        cmd, extra_env = client_cmd(pos_x, inp, after, tag)
+        e = dict(os.environ)
+        e.update(extra_env)
         logs[tag] = open(f"/tmp/net_video_{tag}.log", "w")
-        procs[tag] = subprocess.Popen(
-            [GODOT, "--path", ".", "--rendering-driver", "opengl3",
-             "--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{pos_x},60", scene,
-             *common_user, "--net-visual", f"--net-join=127.0.0.1:{PORT}",
-             f"--net-input={inp}", f"--capture-after={after}",
-             f"--capture-sequence={FPS},{SECS}", f"--capture-output=user://vid_{tag}.png"],
-            cwd=TEMPLATE, stdout=logs[tag], stderr=subprocess.STDOUT,
-        )
+        procs[tag] = subprocess.Popen(cmd, cwd=PROJECT, stdout=logs[tag],
+                                      stderr=subprocess.STDOUT, env=e)
 
     print("[net_video] launching client 1 (left) + client 2 (right) ...")
-    client("c1", 0, INPUT1, DELAY)
+    launch("c1", 0, INPUT1, DELAY)
     time.sleep(2)
-    client("c2", int(WIN_W) + 20, INPUT2, DELAY - 2)
+    launch("c2", int(WIN_W) + 20, INPUT2, DELAY - 2)
 
-    # 3) Wait for both sequences to finish (last frame written), with a budget.
     last1 = os.path.join(USERDATA, f"vid_c1_{FPS*SECS-1:04d}.png")
     last2 = os.path.join(USERDATA, f"vid_c2_{FPS*SECS-1:04d}.png")
-    budget = DELAY + SECS + 40
+    budget = DELAY + SECS + (90 if LINUX else 40)  # software GL needs more time
     print(f"[net_video] waiting up to {budget}s for {FPS*SECS} frames per client ...")
     t0 = time.time()
     while time.time() - t0 < budget:
@@ -135,24 +181,20 @@ def main():
     kill_godot()
 
     if n1 == 0 or n2 == 0:
-        print("[net_video] ERROR: a client captured no frames — likely it didn't connect "
-              "(see /tmp/net_video_*.log). On a slower box bump DELAY.", file=sys.stderr)
-        sys.exit(1)
+        sys.exit("[net_video] ERROR: a client captured no frames — see /tmp/net_video_*.log "
+                 "(connection? on a slow box bump DELAY).")
 
-    # 4) ffmpeg: stitch the two sequences side by side.
     print(f"[net_video] stitching side-by-side -> {OUT}")
     c1 = os.path.join(USERDATA, "vid_c1_%04d.png")
     c2 = os.path.join(USERDATA, "vid_c2_%04d.png")
-    r = sh(
-        f'ffmpeg -y -framerate {FPS} -i "{c1}" -framerate {FPS} -i "{c2}" '
-        f'-filter_complex "[0:v][1:v]hstack=inputs=2" -r {FPS} -pix_fmt yuv420p "{OUT}"',
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
+    r = sh(f'ffmpeg -y -framerate {FPS} -i "{c1}" -framerate {FPS} -i "{c2}" '
+           f'-filter_complex "[0:v][1:v]hstack=inputs=2" -r {FPS} -pix_fmt yuv420p "{OUT}"',
+           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if r.returncode != 0 or not os.path.exists(OUT):
         sys.exit("[net_video] ffmpeg failed")
-    win = OUT.replace("/mnt/c/", "C:\\\\").replace("/", "\\\\")
-    print(f"[net_video] DONE -> {OUT}\n[net_video] (Windows path: {win})")
+    print(f"[net_video] DONE -> {OUT}")
 
 
+SCENE, SCENE_ARGS = "", []
 if __name__ == "__main__":
     main()
