@@ -435,16 +435,26 @@ func _client_process(delta: float) -> void:
 ## game-agnostic (reads World.input_actions_hold/press, no hardcoded names).
 func _poll_local_actions() -> Array:
 	var out: Array = []
+	var moving := false
 	var hold = _world.get("input_actions_hold")
 	if hold != null:
 		for a in hold:
 			if Input.is_action_pressed(str(a)):
 				out.append(str(a))
+				moving = true
 	var press = _world.get("input_actions_press")
 	if press != null:
 		for a in press:
 			if Input.is_action_just_pressed(str(a)):
 				out.append(str(a))
+	# Stop-on-idle: World._poll_input normally injects stop_x/stop_y when keys are
+	# released, which zero the velocity. The client's World is gated (no _poll_input
+	# under pure server-auth), so we relay an explicit `stop` when NO hold action is
+	# pressed — else velocity_set/velocity_add_relative persists and the character
+	# keeps moving after release. (lib_wasd `stop` rule = velocity_set x:0 y:0;
+	# harmless no-op for games without it.) Empirical 2026-06-01: morwen ran forever.
+	if not moving:
+		out.append("stop")
 	return out
 
 
