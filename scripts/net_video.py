@@ -84,6 +84,12 @@ else:
         "YUME_USERDATA", "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework")
     HAVE_XVFB = False
 
+# All per-run scratch (captured frames, .ticks sidecars, the synced copies) lives
+# in ONE subfolder of the userdata so the root never fills with loose vid_*.png.
+# Wiped at start AND end of every run — so even a crashed run leaves just this one
+# folder, cleaned by the next run. On disk: <userdata>/_netcap/; in Godot: user://_netcap/.
+NETCAP = os.path.join(USERDATA, "_netcap")
+
 # Each run lands in its own dated folder so recordings don't pile up loose in
 # the userdata root: recordings/<game>_<YYYYMMDD_HHMMSS>/<game>.mp4. Override the
 # full path with OUT=..., or the recordings root with REC_DIR=...
@@ -139,7 +145,7 @@ def client_cmd(pos_x, pos_y, inp, after, tag):
     user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000", "--net-visual",
             f"--net-join=127.0.0.1:{PORT}", f"--net-input={inp}",
             f"--capture-after={after}", f"--capture-allframes={SECS}",
-            f"--capture-output=user://vid_{tag}.png"]
+            f"--capture-output=user://_netcap/vid_{tag}.png"]
     cmd = g + win + [SCENE] + user
     if LINUX and HAVE_XVFB:
         # Each client gets its OWN virtual display (-a auto-picks) → no windows,
@@ -168,7 +174,10 @@ def main():
     global SCENE, SCENE_ARGS
     SCENE, SCENE_ARGS = pick_scene()
     print(f"[net_video] scene: {SCENE}")
-    for f in glob.glob(os.path.join(USERDATA, "vid_c*")):
+    # Fresh scratch folder (also sweeps any legacy loose files from older versions).
+    shutil.rmtree(NETCAP, ignore_errors=True)
+    os.makedirs(NETCAP, exist_ok=True)
+    for f in glob.glob(os.path.join(USERDATA, "vid_c*")) + glob.glob(os.path.join(USERDATA, "net_demo_video.mp4")):
         os.remove(f)
 
     # Output grid geometry: 4 clients -> 2x2, 2 -> 1x2, 3 -> 2x2 (one black cell), etc.
@@ -228,11 +237,11 @@ def main():
         time.sleep(2)
 
     def frames(tag):
-        return len(glob.glob(os.path.join(USERDATA, f"vid_{tag}_*.png")))
+        return len(glob.glob(os.path.join(NETCAP, f"vid_{tag}_*.png")))
 
     def read_ticks(tag):
         try:
-            return [int(x) for x in open(os.path.join(USERDATA, f"vid_{tag}.ticks")).read().split()]
+            return [int(x) for x in open(os.path.join(NETCAP, f"vid_{tag}.ticks")).read().split()]
         except OSError:
             return []
 
@@ -277,7 +286,7 @@ def main():
         return best_i
 
     pos = {t: [x for x in tk[t] if x > 0] for t in tags}
-    sync_dir = os.path.join(USERDATA, "_sync")
+    sync_dir = os.path.join(NETCAP, "_sync")
     have_ticks = all(pos[t] and len(tk[t]) == n[t] for t in tags)
     if have_ticks:
         lo = max(min(pos[t]) for t in tags)  # shared tick window across ALL clients
@@ -292,7 +301,7 @@ def main():
                 continue
             for t in tags:
                 idx = i0 if t == drv else nearest_idx(tk[t], tk[drv][i0])
-                shutil.copyfile(os.path.join(USERDATA, f"vid_{t}_{idx:04d}.png"),
+                shutil.copyfile(os.path.join(NETCAP, f"vid_{t}_{idx:04d}.png"),
                                 os.path.join(sync_dir, f"{t}_{k:04d}.png"))
             k += 1
         rate = max(1.0, fps[drv])
@@ -301,7 +310,7 @@ def main():
         srcdir, pat_dir, frame_count = sync_dir, True, k
     else:
         print("[net_video] WARNING: missing .ticks — cells may not be synced (raw assembly)")
-        srcdir, pat_dir = USERDATA, False
+        srcdir, pat_dir = NETCAP, False
         frame_count = min(n[t] for t in tags)
         rate = max(1.0, min(fps[t] for t in tags))
 
@@ -333,12 +342,8 @@ def main():
            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if r.returncode != 0 or not os.path.exists(OUT):
         sys.exit(f"[net_video] ffmpeg failed (filter: {filt})")
-    # Tidy ALL scratch out of the userdata root — the dated-folder mp4 is the keeper.
-    for pat in ("vid_c*", "net_demo_video.mp4"):
-        for f in glob.glob(os.path.join(USERDATA, pat)):
-            os.remove(f)
-    if os.path.isdir(sync_dir):
-        shutil.rmtree(sync_dir, ignore_errors=True)
+    # Remove the whole scratch folder — the dated-folder mp4 is the only keeper.
+    shutil.rmtree(NETCAP, ignore_errors=True)
     print(f"[net_video] DONE -> {OUT}")
 
 
