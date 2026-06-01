@@ -66,6 +66,7 @@ var _player_pos_of: Dictionary = {}  # entity id -> spawn pos (server roster)
 var _local_actor := ""
 var _started := false
 var _done := false
+var _cleared := false  # pre-placed players cleared at startup (net mode)
 var _elapsed := 0.0
 var _snap_accum := 0.0
 var _pending_input: Dictionary = {}  # SERVER: peer_id -> latest action string from that client
@@ -170,10 +171,31 @@ func _find_and_clear() -> bool:
 	if _world == null:
 		_fail("no World found")
 		return false
-	_load_net_cfg()
-	for eid in _player_like_ids():
-		_world.despawn_entity(eid)
+	if not _cleared:
+		_load_net_cfg()
+		for eid in _player_like_ids():
+			_world.despawn_entity(eid)
+		_cleared = true
 	return true
+
+
+## Clear pre-placed players the moment the scene has loaded (called every frame
+## until done). Runs for BOTH server + client, with or without a connection, so a
+## disconnected client ends up with an empty world rather than the authored pair.
+func _try_clear_preplaced() -> void:
+	var w = _find_world()
+	if w == null:
+		return
+	var ents = w.get("entities")
+	if not (ents is Dictionary) or (ents as Dictionary).is_empty():
+		return  # scene not loaded yet
+	_world = w
+	_load_net_cfg()
+	var ids := _player_like_ids()
+	for eid in ids:
+		w.despawn_entity(eid)
+	_cleared = true
+	print("[net] cleared %d pre-placed player(s) at startup — spawn-on-join only" % ids.size())
 
 
 ## ADR 0064 — load the per-game replication policy from data/<game>/net.json.
@@ -437,6 +459,15 @@ func _apply_field(e: Entity, field: String, value) -> void:
 func _process(delta: float) -> void:
 	if not _active or _done:
 		return
+	# Clean dedicated-server model: clear authored (pre-placed) players as soon as
+	# the scene loads — BEFORE/regardless of connecting — so every networked player
+	# is server-spawned-on-join. A DISCONNECTED client then shows an EMPTY world
+	# (obviously not connected) instead of the misleading pre-placed pair (both
+	# defaulting to marken). Single-player (net inactive) never reaches here, so it
+	# keeps its pre-placed character. (See ADR 0063 — exposed by the both-marken
+	# diagnosis 2026-06-01.)
+	if not _cleared:
+		_try_clear_preplaced()
 	if not _started:
 		_elapsed += delta
 		if _elapsed > CONNECT_TIMEOUT_SEC:
