@@ -171,6 +171,15 @@ func _start() -> void:
 	# override; never touches sim state). Same mechanism as ADR 0061's visual demo.
 	if _visual and _local_actor != "":
 		Engine.set_meta("yume_local_follow_id", _local_actor)
+	# INTERACTIVE input: _poll_input routes the keyboard to the ACTIVE actor, so
+	# each window must make ITS OWN actor active — otherwise one keyboard would
+	# drive both player-tagged characters (or the wrong one). With this, focusing a
+	# window and pressing WASD moves only that peer's character (locally predicted);
+	# the client also relays those keystrokes to the server (_client_process).
+	if _local_actor != "":
+		var am = _world.get("actor_manager")
+		if am != null:
+			am.active_actor_id = _local_actor
 	_started = true
 	print(
 		(
@@ -214,9 +223,9 @@ func _resolve_actors(world) -> Array:
 ## dropped input on a held action just re-arrives next frame, but ordering keeps
 ## press/release coherent.
 @rpc("any_peer", "call_remote", "reliable")
-func _recv_input(action: String) -> void:
+func _recv_input(actions: Array, facing: float) -> void:
 	if _is_host and _started:
-		_pending_input[multiplayer.get_remote_sender_id()] = action
+		_pending_input[multiplayer.get_remote_sender_id()] = {"actions": actions, "facing": facing}
 
 
 ## SERVER → CLIENT: an authoritative state snapshot. The host has authority over
@@ -314,15 +323,22 @@ func _process(delta: float) -> void:
 
 
 func _server_process(delta: float) -> void:
-	# Inject every peer's current input for ITS actor each frame. queue_input
-	# dedups (action, actor) per tick, so frame-rate queuing fires once per tick.
+	# Host's OWN input: scripted (headless) is queued here; interactive keyboard is
+	# routed by World._poll_input (active actor = host's owned, set in _start).
 	if _input_action != "" and _local_actor != "":
 		_world.queue_input(_input_action, {"actor": _local_actor})
+	# Each client's relayed input → its actor. Set facing FIRST (the shell's
+	# movement is camera-relative, so the action direction depends on it), then
+	# queue each pressed action (dedups per tick).
 	for pid in _pending_input:
 		var actor := str(_actor_of_peer.get(pid, ""))
-		var act := str(_pending_input[pid])
-		if actor != "" and act != "":
-			_world.queue_input(act, {"actor": actor})
+		if actor == "" or not _world.entities.has(actor):
+			continue
+		var pin: Dictionary = _pending_input[pid]
+		(_world.entities[actor] as Entity).set_state("facing", float(pin.get("facing", 0.0)))
+		for act in pin.get("actions", []):
+			if str(act) != "":
+				_world.queue_input(str(act), {"actor": actor})
 	# Broadcast a state snapshot at the network rate (decoupled from 60Hz sim).
 	_snap_accum += delta
 	var period: float = 1.0 / max(1.0, _snapshot_hz)
@@ -337,18 +353,46 @@ func _server_process(delta: float) -> void:
 
 func _client_process(delta: float) -> void:
 	_client_clock += delta
-	# Phase 3 PREDICTION: apply the local input to the owned actor locally (the
-	# client's World sims it this frame → instant response) AND send it to the
-	# server. Real keyboard input reaches the owned actor via World._poll_input;
-	# the scripted demo action is queued here.
+	# Phase 3 PREDICTION + relay. Gather this client's input:
+	#   - scripted (headless / demo): the single --net-input action, also queued
+	#     locally here (no keyboard to poll).
+	#   - interactive: World._poll_input already applied the keyboard to the owned
+	#     actor (active actor, set in _start) → instant local response; we only
+	#     RELAY the same pressed actions to the server.
+	var actions: Array = []
 	if _input_action != "":
+		actions = [_input_action]
 		if _local_actor != "":
 			_world.queue_input(_input_action, {"actor": _local_actor})
-		_recv_input.rpc(_input_action)
+	else:
+		actions = _poll_local_actions()
+	# Facing (set locally by mouse-look via camera_director) so the server moves
+	# the client's actor in the same camera-relative direction.
+	var facing := 0.0
+	if _local_actor != "" and _world.entities.has(_local_actor):
+		facing = float((_world.entities[_local_actor] as Entity).get_state("facing", 0.0))
+	_recv_input.rpc(actions, facing)
 	# Remotes: interpolate from server snapshots (owned actor is skipped — predicted).
 	_render_interpolated()
 	# Reconcile the predicted owned actor toward the server's authority.
 	_reconcile_owned()
+
+
+## Currently-pressed actions from the game's own action lists (hold + press) —
+## game-agnostic (reads World.input_actions_hold/press, no hardcoded names).
+func _poll_local_actions() -> Array:
+	var out: Array = []
+	var hold = _world.get("input_actions_hold")
+	if hold != null:
+		for a in hold:
+			if Input.is_action_pressed(str(a)):
+				out.append(str(a))
+	var press = _world.get("input_actions_press")
+	if press != null:
+		for a in press:
+			if Input.is_action_just_pressed(str(a)):
+				out.append(str(a))
+	return out
 
 
 ## Pull the locally-predicted owned actor toward the latest authoritative server

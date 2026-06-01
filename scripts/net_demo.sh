@@ -21,8 +21,10 @@ YUME_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' "${YUME_ROOT}/scripts/play.sh")"
 
 GAME="${1:-demo_tiny_village}"
-TICKS="${2:-3000}"
-INPUT="${3:-move_north}"
+TICKS="${2:-30000}"
+# INTERACTIVE by default (empty input → you drive with the keyboard). Pass a 3rd
+# arg (e.g. move_north) to auto-walk both characters instead (the old scripted demo).
+INPUT="${3:-}"
 PORT=7803
 
 if [ ! -x "${GODOT_BIN}" ]; then
@@ -62,8 +64,15 @@ TOP="${TOP:-60}"
 GAP="${GAP:-20}"
 CLIENT_X=$(( WIN_W + GAP ))
 ENGINE_COMMON=( --path . --rendering-driver opengl3 --resolution "${WIN_W}x${WIN_H}" )
-USER_ARGS=( -- "${SCENE_ARGS[@]}" --net-visual --net-port="${PORT}"
-            --net-ticks="${TICKS}" --net-input="${INPUT}" )
+USER_ARGS=( -- "${SCENE_ARGS[@]}" --net-visual --net-port="${PORT}" --net-ticks="${TICKS}" )
+if [ -n "${INPUT}" ]; then
+  USER_ARGS+=( --net-input="${INPUT}" )
+  echo "[net_demo] scripted input: ${INPUT} (both characters auto-walk)"
+else
+  echo "[net_demo] INTERACTIVE: focus a window, then WASD to move + mouse to look."
+  echo "[net_demo]   (one keyboard drives the FOCUSED window's character; click the"
+  echo "[net_demo]    other window to drive the other. Both see both, in sync.)"
+fi
 
 echo "[net_demo] launching HOST (authoritative server) window — left..."
 "${GODOT_BIN}" "${ENGINE_COMMON[@]}" --position "0,${TOP}" "${SCENE}" "${USER_ARGS[@]}" --net-host &
