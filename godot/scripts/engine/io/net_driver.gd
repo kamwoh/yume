@@ -39,14 +39,6 @@ const DEFAULT_SNAPSHOT_HZ := 20.0
 ## periods at 20Hz) absorbs jitter + the sub-tick send rate so motion is smooth
 ## at render FPS instead of stepping at the snapshot rate. Standard entity lerp.
 const INTERP_DELAY := 0.1
-## Phase 3 — reconcile the locally-predicted owned actor toward the server's
-## authoritative position. Below SNAP_THRESHOLD (m) the prediction is trusted as-is
-## (no jitter at rest / on LAN where prediction ≈ server); a larger divergence
-## (mispredicted collision, packet loss) is corrected by blending at RECONCILE_RATE
-## per frame. (Full input-replay reconciliation — replaying unacked inputs from the
-## acknowledged snapshot — is a later refinement; this v1 removes local input lag.)
-const RECONCILE_RATE := 0.25
-const SNAP_THRESHOLD := 0.05
 
 var _active := false
 var _is_host := false
@@ -71,7 +63,6 @@ var _pending_input: Dictionary = {}  # SERVER: peer_id -> latest action string f
 var _last_snapshot: Dictionary = {}  # CLIENT: last applied snapshot (for the result)
 var _client_clock := 0.0  # CLIENT: monotonic local time, stamps snapshot arrivals
 var _snap_buffer: Array = []  # CLIENT: [{t, snap}] recent snapshots for interpolation
-var _owned_server_pos = null  # CLIENT: latest authoritative pos of the owned actor (Vector3)
 
 
 func _ready() -> void:
@@ -105,18 +96,16 @@ func _ready() -> void:
 		return
 	if _visual:
 		Engine.set_meta("yume_lockstep_visual", true)  # reuse the visual seam (keep directors)
-	# Phase 3: the client RUNS the sim locally — but only to PREDICT its own actor
-	# (responsive input). Remote actors are overwritten each frame with
-	# interpolated server state, and the owned actor is reconciled toward the
-	# server's authority; the server stays the source of truth. So we do NOT gate
-	# the client's World.
-	#
-	# Scope (tiny_village + similar): only player actors are dynamic, so local
-	# prediction of "everything" is harmless (remotes get overwritten; nothing
-	# else moves). For AI-heavy games the client must predict ONLY the owned actor
-	# and treat NPCs as server-authoritative (interpolated) — a later refinement;
-	# until then, predicting non-owned dynamic entities locally would drift from
-	# the server. Documented in ADR 0063.
+	# PURE server-authoritative (user choice 2026-06-01): the CLIENT computes
+	# NOTHING. It sends input to the server, renders the server's authoritative
+	# state (interpolated), and never simulates movement itself — so we gate the
+	# client's World. The SERVER runs the sim (the only authority). Trade: the
+	# client's own character has round-trip input latency (no client-side
+	# prediction); accepted for simplicity + a single source of truth. The camera's
+	# LOOK stays local/responsive (mouse-look orients the camera immediately); only
+	# POSITION is server-driven.
+	if not _is_host:
+		Engine.set_meta("yume_external_tick_driver", true)
 	_setup_transport()
 
 
@@ -238,11 +227,6 @@ func _recv_snapshot(snap: Dictionary) -> void:
 		# INTERP_DELAY behind, lerping. (Phase 1 applied directly → stepping.)
 		_snap_buffer.append({"t": _client_clock, "snap": snap})
 		_last_snapshot = snap
-		# Phase 3: record the owned actor's authoritative position for reconciliation.
-		if _local_actor != "" and snap.has(_local_actor):
-			var a: Array = snap[_local_actor]
-			if a.size() >= 3:
-				_owned_server_pos = Vector3(float(a[0]), float(a[1]), float(a[2]))
 
 
 ## SERVER → CLIENT: final authoritative snapshot + end-of-run. Reliable so the
@@ -353,29 +337,16 @@ func _server_process(delta: float) -> void:
 
 func _client_process(delta: float) -> void:
 	_client_clock += delta
-	# Phase 3 PREDICTION + relay. Gather this client's input:
-	#   - scripted (headless / demo): the single --net-input action, also queued
-	#     locally here (no keyboard to poll).
-	#   - interactive: World._poll_input already applied the keyboard to the owned
-	#     actor (active actor, set in _start) → instant local response; we only
-	#     RELAY the same pressed actions to the server.
-	var actions: Array = []
-	if _input_action != "":
-		actions = [_input_action]
-		if _local_actor != "":
-			_world.queue_input(_input_action, {"actor": _local_actor})
-	else:
-		actions = _poll_local_actions()
-	# Facing (set locally by mouse-look via camera_director) so the server moves
-	# the client's actor in the same camera-relative direction.
+	# PURE server-auth: read this client's input (scripted action or real keyboard)
+	# + the local mouse-look facing, send it to the server, and do NOT apply it
+	# locally — the server computes the outcome and we render it (interpolated).
+	var actions: Array = [_input_action] if _input_action != "" else _poll_local_actions()
 	var facing := 0.0
 	if _local_actor != "" and _world.entities.has(_local_actor):
 		facing = float((_world.entities[_local_actor] as Entity).get_state("facing", 0.0))
 	_recv_input.rpc(actions, facing)
-	# Remotes: interpolate from server snapshots (owned actor is skipped — predicted).
+	# Render every actor (incl. our own) from the server's authoritative snapshots.
 	_render_interpolated()
-	# Reconcile the predicted owned actor toward the server's authority.
-	_reconcile_owned()
 
 
 ## Currently-pressed actions from the game's own action lists (hold + press) —
@@ -393,27 +364,6 @@ func _poll_local_actions() -> Array:
 			if Input.is_action_just_pressed(str(a)):
 				out.append(str(a))
 	return out
-
-
-## Pull the locally-predicted owned actor toward the latest authoritative server
-## position. On LAN (prediction ≈ server) the error is below SNAP_THRESHOLD and
-## this is a no-op; a real divergence (mispredicted collision, loss) blends in at
-## RECONCILE_RATE so it converges without a visible snap.
-func _reconcile_owned() -> void:
-	if _owned_server_pos == null or _local_actor == "":
-		return
-	if not _world.entities.has(_local_actor):
-		return
-	var e = _world.entities[_local_actor]
-	if not (e is Entity):
-		return
-	var cur = (e as Entity).get_position()
-	if not (cur is Vector3):
-		return
-	var err: float = (cur as Vector3).distance_to(_owned_server_pos)
-	if err <= SNAP_THRESHOLD:
-		return
-	(e as Entity).set_position((cur as Vector3).lerp(_owned_server_pos, RECONCILE_RATE))
 
 
 ## Render remote entities at (now - INTERP_DELAY) by lerping between the two
@@ -448,9 +398,6 @@ func _render_interpolated() -> void:
 
 func _apply_interp(snap0: Dictionary, snap1: Dictionary, alpha: float, dt: float) -> void:
 	for id in snap1:
-		# Phase 3: the owned actor is PREDICTED locally (not interpolated) — skip it.
-		if str(id) == _local_actor:
-			continue
 		if not _world.entities.has(id):
 			continue
 		var e = _world.entities[id]
@@ -460,13 +407,18 @@ func _apply_interp(snap0: Dictionary, snap1: Dictionary, alpha: float, dt: float
 		var a0: Array = snap0.get(id, a1)
 		if a1.size() < 3 or a0.size() < 3:
 			continue
+		# POSITION is server-authoritative for ALL actors (incl. the owned one —
+		# pure server-auth, no client prediction).
 		var pos := Vector3(
 			lerpf(float(a0[0]), float(a1[0]), alpha),
 			lerpf(float(a0[1]), float(a1[1]), alpha),
 			lerpf(float(a0[2]), float(a1[2]), alpha),
 		)
 		(e as Entity).set_position(pos)
-		if a1.size() >= 4 and a0.size() >= 4:
+		# FACING: interpolate remotes; the OWNED actor keeps its LOCAL mouse-look
+		# facing (camera_director set it this frame) so the camera stays responsive
+		# even though movement is server-driven.
+		if str(id) != _local_actor and a1.size() >= 4 and a0.size() >= 4:
 			(e as Entity).set_state("facing", lerp_angle(float(a0[3]), float(a1[3]), alpha))
 		# Planar velocity (XZ) for animation_state_rules; near-zero when at rest.
 		if dt > 0.0001:
