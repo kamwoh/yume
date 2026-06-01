@@ -34,9 +34,12 @@ extends Node
 const DEFAULT_PORT := 7777
 ## Generous: a dedicated server + N client windows on ONE machine all load the 3D
 ## scene at once (GPU/CPU contention), so the first connection can take a while.
-## 60s keeps the server from giving up ("connect timeout (no peer)") before slow
-## clients finish loading + connect. Empirical 2026-06-01.
-const CONNECT_TIMEOUT_SEC := 60.0
+## Large enough to cover client connect-retries while the server loads. Empirical
+## 2026-06-01.
+const CONNECT_TIMEOUT_SEC := 120.0
+## A client re-attempts the connection this many times (each ENet attempt ~5s)
+## while the server is still loading a heavy scene, instead of failing instantly.
+const MAX_CONNECT_RETRIES := 18
 const DEFAULT_SNAPSHOT_HZ := 20.0
 const DEFAULT_INTERP_DELAY := 0.1  # render this far behind, lerping (absorbs jitter)
 ## ADR 0064 — default replication policy when a game ships no net.json: one group
@@ -67,6 +70,7 @@ var _local_actor := ""
 var _started := false
 var _done := false
 var _cleared := false  # pre-placed players cleared at startup (net mode)
+var _connect_retries := 0  # CLIENT: connection_failed retry count
 var _elapsed := 0.0
 var _snap_accum := 0.0
 var _pending_input: Dictionary = {}  # SERVER: peer_id -> latest action string from that client
@@ -76,32 +80,68 @@ var _snap_buffer: Array = []  # CLIENT: [{t, snap}] recent snapshots for interpo
 
 
 func _ready() -> void:
-	for arg in OS.get_cmdline_user_args():
-		var s := str(arg)
+	# Accept BOTH `--flag=value` AND `--flag value` (space-separated) forms.
+	# Empirical 2026-06-01: net_video.py launched the server with `--net-port`
+	# and `7862` as two separate argv; the old parser only matched `--net-port=`
+	# (with `=`), so the server silently bound DEFAULT_PORT (7777) while clients
+	# dialed :7862 → permanent connection_failed (the long-standing "clients
+	# never connect" blocker). A space-tolerant parser makes the bug class
+	# impossible regardless of how a launcher spells the flag.
+	var argv := OS.get_cmdline_user_args()
+	var i := 0
+	while i < argv.size():
+		var s := str(argv[i])
+		# Resolve the value for a `--name=value` OR `--name value` flag. For the
+		# space form, peek argv[i+1] and bump the cursor past it.
+		var val := ""
+		var eq := s.find("=")
+		var name := s.substr(0, eq) if eq >= 0 else s
+		if eq >= 0:
+			val = s.substr(eq + 1)
+		elif i + 1 < argv.size():
+			val = str(argv[i + 1])  # candidate for the space form; consumed below
 		if s == "--net-host":
 			_active = true
 			_is_host = true
-		elif s.begins_with("--net-join="):
+		elif name == "--net-join":
 			_active = true
 			_is_host = false
-			var addr := s.substr(11)
-			if addr.contains(":"):
-				_join_ip = addr.get_slice(":", 0)
-				_port = int(addr.get_slice(":", 1))
+			if eq < 0:
+				i += 1
+			if val.contains(":"):
+				_join_ip = val.get_slice(":", 0)
+				_port = int(val.get_slice(":", 1))
 			else:
-				_join_ip = addr
-		elif s.begins_with("--net-port="):
-			_port = int(s.substr(11))
-		elif s.begins_with("--net-input="):
-			_input_action = s.substr(12)
-		elif s.begins_with("--net-ticks="):
-			_ticks_target = int(s.substr(12))
-		elif s.begins_with("--net-out="):
-			_out_path = s.substr(10)
+				_join_ip = val
+		elif name == "--net-port":
+			if eq < 0:
+				i += 1
+			_port = int(val)
+		elif name == "--net-input":
+			if eq < 0:
+				i += 1
+			_input_action = val
+		elif name == "--net-ticks":
+			if eq < 0:
+				i += 1
+			_ticks_target = int(val)
+		elif name == "--net-out":
+			if eq < 0:
+				i += 1
+			_out_path = val
 		elif s == "--net-visual":
 			_visual = true
-		elif s.begins_with("--net-snapshot-hz="):
-			_snapshot_hz = float(s.substr(18))
+		elif name == "--net-snapshot-hz":
+			if eq < 0:
+				i += 1
+			_snapshot_hz = float(val)
+		elif name.begins_with("--net-"):
+			# Gate (2026-06-01): an unrecognized --net-* flag would otherwise be
+			# silently ignored — the exact failure mode that hid the port-parse
+			# bug for so long. Make it LOUD so a future flag/typo can't masquerade
+			# as a wrong default.
+			push_warning("[net] unrecognized arg '%s' — IGNORED (typo or wrong form?)" % s)
+		i += 1
 	if not _active:
 		return
 	if _visual:
@@ -131,10 +171,31 @@ func _setup_transport() -> void:
 		return
 	multiplayer.multiplayer_peer = peer
 	multiplayer.peer_connected.connect(_on_peer_connected)
-	multiplayer.connection_failed.connect(func(): _fail("connection_failed"))
+	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(func(): _fail("server_disconnected"))
 	if not _is_host:
 		multiplayer.connected_to_server.connect(_on_connected_to_server)
+
+
+## A client's first connection attempt fails (connection_failed) if the server is
+## still loading a heavy 3D scene (its main thread can't pump ENet yet). Godot
+## doesn't retry, so RETRY here — re-create the client peer — until the server is
+## up or we exhaust retries. This is what makes a windowed video record reliably
+## (clients keep trying through the server's load). Each ENet attempt ~5s, so the
+## retries span the load. (Server never fires connection_failed.)
+func _on_connection_failed() -> void:
+	if _is_host:
+		return
+	_connect_retries += 1
+	if _connect_retries > MAX_CONNECT_RETRIES:
+		_fail("connection_failed after %d retries" % MAX_CONNECT_RETRIES)
+		return
+	print("[net] connect attempt %d failed — retrying (server may still be loading)" % _connect_retries)
+	var peer := ENetMultiplayerPeer.new()
+	if peer.create_client(_join_ip, _port) != OK:
+		_fail("ENet create_client retry failed")
+		return
+	multiplayer.multiplayer_peer = peer
 
 
 # ============================================================
@@ -338,7 +399,15 @@ func _recv_input(actions: Array, facing: float) -> void:
 ## position it + the renderer shows it). Reliable: clients must not miss a spawn.
 @rpc("authority", "call_remote", "reliable")
 func _recv_spawn(eid: String, def_id: String, pos: Array) -> void:
-	if _is_host or _world == null:
+	if _is_host:
+		return
+	# Ensure World is resolved — the spawn RPC can arrive before _client_start has
+	# cached _world (RPC vs connected_to_server race); without this the spawn was
+	# silently dropped -> no netplayer -> camera had nothing to follow (oblique
+	# default). Empirical 2026-06-01.
+	if _world == null:
+		_world = _find_world()
+	if _world == null:
 		return
 	if not _world.entities.has(eid):
 		_world.spawn_instance(

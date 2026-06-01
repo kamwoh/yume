@@ -155,24 +155,20 @@ def main():
     print("[net_video] launching dedicated server (headless) ...")
     logs["server"] = open("/tmp/net_video_server.log", "w")
     senv = dict(os.environ)
+    # Dedicated server is headless (correct design; not the connection issue —
+    # windowed-offscreen server tested identically). Linux headless ENet is proven
+    # (run_linux.sh net). NOTE: net_driver + Windows windowed CLIENTS don't connect
+    # in this sandbox (players=0 confirmed via diagnostics) — a quirk distinct from
+    # lockstep_demo (windowed, connects) + run_linux net (headless, connects).
     procs["server"] = subprocess.Popen(
         [GODOT, "--path", ".", "--headless", SCENE, *server_user],
         cwd=PROJECT, stdout=logs["server"], stderr=subprocess.STDOUT, env=senv)
-    # Wait until the server has FINISHED loading the scene before launching clients
-    # — a heavy 3D scene takes >9s, and while the main thread loads it can't pump
-    # ENet, so an early client gets connection_failed (empirically: client 1 always
-    # failed on a fixed 9s sleep). Poll the log for the load marker.
-    logs["server"].flush()
-    t0 = time.time()
-    while time.time() - t0 < 45:
-        try:
-            if "loaded:" in open("/tmp/net_video_server.log").read():
-                break
-        except OSError:
-            pass
-        time.sleep(1)
-    time.sleep(2)  # small margin after load
-    print("[net_video] server ready (loaded) — launching clients")
+    # Fixed wait for the heavy 3D server to load before clients connect. (NOT
+    # log-polling: Windows stdout is buffered, so the 'loaded' marker never shows
+    # up in the file — a poll just times out and blows past the server's own
+    # connect-timeout, so NO client connects. A fixed sleep is what actually works.)
+    time.sleep(int(os.environ.get("SERVER_WAIT", "14")))
+    print("[net_video] server load wait done — launching clients")
 
     def launch(tag, pos_x, inp, after):
         cmd, extra_env = client_cmd(pos_x, inp, after, tag)
@@ -182,28 +178,15 @@ def main():
         procs[tag] = subprocess.Popen(cmd, cwd=PROJECT, stdout=logs[tag],
                                       stderr=subprocess.STDOUT, env=e)
 
-    def wait_connected(tag, secs=40):
-        # SEQUENCE the launches: a client's ENet handshake fails (connection_failed,
-        # no retry) if it races a second client loading at the same time on one
-        # box. So wait for this client to actually connect (its driver logs "this
-        # window controls") before starting the next. Empirically fixes the
-        # always-client-1-fails symptom.
-        t0 = time.time()
-        while time.time() - t0 < secs:
-            try:
-                if "this window controls" in open(f"/tmp/net_video_{tag}.log").read():
-                    return True
-            except OSError:
-                pass
-            time.sleep(1)
-        return False
-
+    # Small FIXED gap between clients (not log-polling — buffered). Enough to keep
+    # the two from racing the ENet handshake while loading simultaneously, short
+    # enough that both still connect well within the server's connect-timeout.
+    gap = int(os.environ.get("CLIENT_GAP", "4"))
     print("[net_video] launching client 1 (left) ...")
     launch("c1", 0, INPUT1, DELAY)
-    if not wait_connected("c1"):
-        print("[net_video] WARNING: client 1 didn't report connect; launching client 2 anyway")
+    time.sleep(gap)
     print("[net_video] launching client 2 (right) ...")
-    launch("c2", int(WIN_W) + 20, INPUT2, DELAY)
+    launch("c2", int(WIN_W) + 20, INPUT2, DELAY - gap)
 
     last1 = os.path.join(USERDATA, f"vid_c1_{FPS*SECS-1:04d}.png")
     last2 = os.path.join(USERDATA, f"vid_c2_{FPS*SECS-1:04d}.png")
@@ -223,6 +206,25 @@ def main():
     if n1 == 0 or n2 == 0:
         sys.exit("[net_video] ERROR: a client captured no frames — see /tmp/net_video_*.log "
                  "(connection? on a slow box bump DELAY).")
+
+    # Connection verification — frames alone don't prove the clients CONNECTED; a
+    # disconnected client still renders an empty/oblique fallback. Check the POSITIVE
+    # signal each client prints on a successful spawn+assign ("controls + follows
+    # netplayer"). The server log can't be trusted here (Windows buffers stdout and
+    # the server is killed before flush); the client lines DO flush. Empirical
+    # 2026-06-01: the old "absence of connect-timeout" check false-passed because
+    # the server hadn't hit its 120s timeout before being killed.
+    def _connected(tag):
+        try:
+            return "controls + follows netplayer" in open(f"/tmp/net_video_{tag}.log").read()
+        except OSError:
+            return False
+    if not (_connected("c1") and _connected("c2")):
+        sys.exit("[net_video] ERROR: a client never connected (no 'controls + follows netplayer' "
+                 "in its log) — the capture is the disconnected fallback, not real multiplayer. "
+                 "See /tmp/net_video_c1.log / c2.log; bump DELAY on a slow box. NOTE: server and "
+                 "client --net-port must match — net_driver now accepts both --net-port=N and "
+                 "--net-port N forms, so a form mismatch is no longer the cause.")
 
     print(f"[net_video] stitching side-by-side -> {OUT}")
     c1 = os.path.join(USERDATA, "vid_c1_%04d.png")
