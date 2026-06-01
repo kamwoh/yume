@@ -83,3 +83,6 @@ godot/data/lib/textures/*
 !godot/data/lib/textures/*.tres
 godot/data/**/assets/concepts/
 *.glb.import
+
+# Local video recordings (net_video.py) — large binaries, regenerated
+recordings/

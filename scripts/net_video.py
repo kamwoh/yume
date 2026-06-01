@@ -25,6 +25,7 @@ Usage:
 Env: PORT, FPS, SECS, DELAY (connect-wait), WIN_W, WIN_H, OUT.
 """
 import glob
+import datetime
 import os
 import re
 import shutil
@@ -79,7 +80,13 @@ else:
         "YUME_USERDATA", "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework")
     HAVE_XVFB = False
 
-OUT = os.environ.get("OUT", os.path.join(USERDATA, "net_demo_video.mp4"))
+# Each run lands in its own dated folder so recordings don't pile up loose in
+# the userdata root: recordings/<game>_<YYYYMMDD_HHMMSS>/<game>.mp4. Override the
+# full path with OUT=..., or the recordings root with REC_DIR=...
+RUN_STAMP = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+REC_DIR = os.environ.get("REC_DIR", os.path.join(REPO, "recordings"))
+RUN_DIR = os.path.join(REC_DIR, f"{SHORT}_{RUN_STAMP}")
+OUT = os.environ.get("OUT") or os.path.join(RUN_DIR, f"{SHORT}.mp4")
 
 
 def sh(cmd, **kw):
@@ -313,12 +320,21 @@ def main():
         src2 = os.path.join(USERDATA, "vid_c2_%04d.png")
         rate1, rate2 = fps1, fps2
 
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
     print(f"[net_video] stitching side-by-side @ {FPS}fps -> {OUT}")
     r = sh(f'ffmpeg -y -framerate {rate1:.4f} -i "{src1}" -framerate {rate2:.4f} -i "{src2}" '
            f'-filter_complex "[0:v][1:v]hstack=inputs=2" -r {FPS} -pix_fmt yuv420p "{OUT}"',
            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if r.returncode != 0 or not os.path.exists(OUT):
         sys.exit("[net_video] ffmpeg failed")
+    # Tidy ALL scratch (frames, sidecars, the legacy bare vid_cN.png) out of the
+    # userdata root (the messy part) — the finished mp4 in its dated folder is the
+    # keeper. OUT lives under recordings/, so it's never matched here.
+    for pat in ("vid_c1*", "vid_c2*", "net_demo_video.mp4"):
+        for f in glob.glob(os.path.join(USERDATA, pat)):
+            os.remove(f)
+    if os.path.isdir(sync_dir):
+        shutil.rmtree(sync_dir, ignore_errors=True)
     print(f"[net_video] DONE -> {OUT}")
 
 
