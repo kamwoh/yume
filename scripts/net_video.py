@@ -34,7 +34,13 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LINUX = "--linux" in sys.argv
+# --hidden (Windows backend): spawn the client windows OFF-SCREEN so the GPU still
+# renders + we still capture, but nothing shows on the desktop. Effectively
+# windowless video output without the Linux/Xvfb setup. (No effect on --linux,
+# which is already windowless under Xvfb.)
+HIDDEN = "--hidden" in sys.argv
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+OFFSCREEN = 5000  # px beyond the visible desktop
 
 
 def from_play_sh(var):
@@ -105,7 +111,9 @@ def client_cmd(pos_x, inp, after, tag):
     """A rendering client. Windows: a positioned window. Linux: Xvfb (windowless)
     or WSLg :0 fallback."""
     g = [GODOT, "--path", ".", "--rendering-driver", "opengl3"]
-    win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{pos_x},60"]
+    py = OFFSCREEN if HIDDEN else 60
+    px = (OFFSCREEN + pos_x) if HIDDEN else pos_x
+    win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{px},{py}"]
     user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000", "--net-visual",
             f"--net-join=127.0.0.1:{PORT}", f"--net-input={inp}",
             f"--capture-after={after}", f"--capture-sequence={FPS},{SECS}",
@@ -124,7 +132,7 @@ def main():
     if not GODOT or not os.path.exists(GODOT):
         sys.exit(f"Godot binary not found: {GODOT}")
     backend = "linux/" + ("xvfb (windowless)" if HAVE_XVFB else "WSLg :0 (windows visible!)") \
-        if LINUX else "windows/GPU (windows visible)"
+        if LINUX else ("windows/GPU (off-screen — windowless)" if HIDDEN else "windows/GPU (windows visible)")
     print(f"[net_video] backend={backend}")
     print(f"[net_video] {GAME}: server + 2 clients ({INPUT1} / {INPUT2}) -> side-by-side mp4")
     if LINUX and not HAVE_XVFB:
@@ -150,7 +158,21 @@ def main():
     procs["server"] = subprocess.Popen(
         [GODOT, "--path", ".", "--headless", SCENE, *server_user],
         cwd=PROJECT, stdout=logs["server"], stderr=subprocess.STDOUT, env=senv)
-    time.sleep(9)
+    # Wait until the server has FINISHED loading the scene before launching clients
+    # — a heavy 3D scene takes >9s, and while the main thread loads it can't pump
+    # ENet, so an early client gets connection_failed (empirically: client 1 always
+    # failed on a fixed 9s sleep). Poll the log for the load marker.
+    logs["server"].flush()
+    t0 = time.time()
+    while time.time() - t0 < 45:
+        try:
+            if "loaded:" in open("/tmp/net_video_server.log").read():
+                break
+        except OSError:
+            pass
+        time.sleep(1)
+    time.sleep(2)  # small margin after load
+    print("[net_video] server ready (loaded) — launching clients")
 
     def launch(tag, pos_x, inp, after):
         cmd, extra_env = client_cmd(pos_x, inp, after, tag)
@@ -160,10 +182,28 @@ def main():
         procs[tag] = subprocess.Popen(cmd, cwd=PROJECT, stdout=logs[tag],
                                       stderr=subprocess.STDOUT, env=e)
 
-    print("[net_video] launching client 1 (left) + client 2 (right) ...")
+    def wait_connected(tag, secs=40):
+        # SEQUENCE the launches: a client's ENet handshake fails (connection_failed,
+        # no retry) if it races a second client loading at the same time on one
+        # box. So wait for this client to actually connect (its driver logs "this
+        # window controls") before starting the next. Empirically fixes the
+        # always-client-1-fails symptom.
+        t0 = time.time()
+        while time.time() - t0 < secs:
+            try:
+                if "this window controls" in open(f"/tmp/net_video_{tag}.log").read():
+                    return True
+            except OSError:
+                pass
+            time.sleep(1)
+        return False
+
+    print("[net_video] launching client 1 (left) ...")
     launch("c1", 0, INPUT1, DELAY)
-    time.sleep(2)
-    launch("c2", int(WIN_W) + 20, INPUT2, DELAY - 2)
+    if not wait_connected("c1"):
+        print("[net_video] WARNING: client 1 didn't report connect; launching client 2 anyway")
+    print("[net_video] launching client 2 (right) ...")
+    launch("c2", int(WIN_W) + 20, INPUT2, DELAY)
 
     last1 = os.path.join(USERDATA, f"vid_c1_{FPS*SECS-1:04d}.png")
     last2 = os.path.join(USERDATA, f"vid_c2_{FPS*SECS-1:04d}.png")
