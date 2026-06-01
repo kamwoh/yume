@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# ADR 0063 — VISUAL client-server demo: open TWO windowed Godot instances on the
+# WINDOWS binary. The HOST is the authoritative server (runs the sim with normal
+# physics); the CLIENT applies replicated state — its OWN character is predicted
+# locally (responsive) and the REMOTE character is interpolated (smooth). You
+# watch both windows; each follows its own character (host=marken, client=morwen
+# in demo_tiny_village).
+#
+# Usage:
+#   ./scripts/net_demo.sh                 # demo_tiny_village, walk north
+#   ./scripts/net_demo.sh <game> <ticks> <input>
+#
+# Notes:
+# - Windows binary (ENet/UDP works fine; you get GPU rendering + visible windows).
+# - The headless correctness proof is `scripts/run_linux.sh net <game>`
+#   (client's applied state == server authority); this is the eyeball version.
+# - If a Windows Firewall dialog appears on first run, click Allow (localhost ENet).
+set -uo pipefail
+
+YUME_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' "${YUME_ROOT}/scripts/play.sh")"
+
+GAME="${1:-demo_tiny_village}"
+TICKS="${2:-3000}"
+INPUT="${3:-move_north}"
+PORT=7803
+
+if [ ! -x "${GODOT_BIN}" ]; then
+  echo "Error: Windows Godot not found at ${GODOT_BIN}" >&2; exit 1
+fi
+
+echo "[net_demo] syncing framework -> template..."
+cp -r "${YUME_ROOT}/godot/." "${TEMPLATE_DST}/"
+echo "[net_demo] importing (new resources)..."
+( cd "${TEMPLATE_DST}" && "${GODOT_BIN}" --path . --headless --import >/dev/null 2>&1 )
+
+cd "${TEMPLATE_DST}"
+
+# Per-game 3D scene (NOT the 2D universal play.tscn — see lockstep_demo.sh note).
+SHORT="${GAME#demo_}"
+SCENE=""
+SCENE_ARGS=()
+for variant in "${SHORT}_3d.tscn" "${SHORT}_2d.tscn" "${SHORT}.tscn"; do
+  if [ -f "${TEMPLATE_DST}/scenes/${variant}" ]; then
+    SCENE="scenes/${variant}"
+    break
+  fi
+done
+if [ -z "${SCENE}" ]; then
+  SCENE="scenes/play.tscn"
+  SCENE_ARGS=( --game="${GAME}" )
+  echo "[net_demo] WARNING: no per-game scene for '${GAME}' — using play.tscn (2D)."
+fi
+echo "[net_demo] scene: ${SCENE}"
+
+COMMON=( --path . --rendering-driver opengl3 "${SCENE}" --
+         "${SCENE_ARGS[@]}" --net-visual --net-port="${PORT}"
+         --net-ticks="${TICKS}" --net-input="${INPUT}" )
+
+echo "[net_demo] launching HOST (authoritative server) window..."
+"${GODOT_BIN}" "${COMMON[@]}" --net-host &
+HOST=$!
+# Host must finish loading the 3D scene before the client connects (its main
+# thread can't pump ENet while loading). Same rationale as lockstep_demo.sh.
+sleep 6
+echo "[net_demo] launching CLIENT window..."
+"${GODOT_BIN}" "${COMMON[@]}" --net-join=127.0.0.1:"${PORT}" &
+CLIENT=$!
+
+echo "[net_demo] two windows should be open — host = authority, client predicts+interpolates."
+echo "[net_demo] (Ctrl-C to kill both; they self-quit after ${TICKS} server ticks)"
+trap 'kill ${HOST} ${CLIENT} 2>/dev/null' INT TERM
+wait ${HOST} ${CLIENT}

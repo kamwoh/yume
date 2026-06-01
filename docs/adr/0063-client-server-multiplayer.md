@@ -159,10 +159,26 @@ model-agnostic (lockstep, client-server, and future models all plug in here).
    **REPLICATED ✓**, client's applied positions byte-equal the server's — and the
    two actors moved DIFFERENT distances under the server's `move_and_slide`
    collision, confirming no cross-machine determinism is needed.
-2. **Remote interpolation.** Smooth remote entities between snapshots.
-3. **Client-side prediction + reconciliation** for the owned actor — the twitch
-   responsiveness.
-4. **Bandwidth/scale.** Delta compression, interest management, lag compensation.
+2. **Remote interpolation. — DONE 2026-06-01.** The client buffers snapshots and
+   renders remotes at `now - INTERP_DELAY` (0.1s), lerping position + facing
+   between the two bracketing snapshots, so motion is smooth at render FPS from a
+   20Hz stream. Derives planar velocity from the lerp so walk/idle animation
+   rules fire on replicated movement. (`net_driver._render_interpolated`.)
+3. **Client-side prediction + reconciliation. — DONE 2026-06-01 (v1).** The
+   client sims locally and applies its own input to the owned actor immediately
+   (zero local input lag); remotes are interpolated (the owned actor is skipped
+   in interpolation — it's predicted). Each frame the owned actor is reconciled
+   toward the latest authoritative position (`RECONCILE_RATE` blend above
+   `SNAP_THRESHOLD`; a no-op on LAN where prediction ≈ server). **Scope:** sound
+   for tiny_village-like scenes where only player actors are dynamic; AI-heavy
+   games need predict-OWNED-only (treat NPCs as server-authoritative) — until
+   then the client would mispredict non-owned dynamic entities. Full input-replay
+   reconciliation (replay unacked inputs from the acked snapshot, eliminating
+   rubber-band under loss) is a later refinement. Verified each phase headless via
+   `run_linux.sh net` (client converges to server authority). Visual:
+   `scripts/net_demo.sh` (two windows; host authority, client predict+interp).
+4. **Bandwidth/scale.** Delta compression, interest management, lag compensation,
+   and predict-owned-only for AI-heavy games.
 
 ## References
 

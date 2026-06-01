@@ -34,6 +34,19 @@ extends Node
 const DEFAULT_PORT := 7777
 const CONNECT_TIMEOUT_SEC := 30.0
 const DEFAULT_SNAPSHOT_HZ := 20.0
+## Phase 2 — render remote entities INTERP_DELAY behind the latest snapshot,
+## interpolating between the two bracketing snapshots. The delay (2 snapshot
+## periods at 20Hz) absorbs jitter + the sub-tick send rate so motion is smooth
+## at render FPS instead of stepping at the snapshot rate. Standard entity lerp.
+const INTERP_DELAY := 0.1
+## Phase 3 — reconcile the locally-predicted owned actor toward the server's
+## authoritative position. Below SNAP_THRESHOLD (m) the prediction is trusted as-is
+## (no jitter at rest / on LAN where prediction ≈ server); a larger divergence
+## (mispredicted collision, packet loss) is corrected by blending at RECONCILE_RATE
+## per frame. (Full input-replay reconciliation — replaying unacked inputs from the
+## acknowledged snapshot — is a later refinement; this v1 removes local input lag.)
+const RECONCILE_RATE := 0.25
+const SNAP_THRESHOLD := 0.05
 
 var _active := false
 var _is_host := false
@@ -56,6 +69,9 @@ var _elapsed := 0.0
 var _snap_accum := 0.0
 var _pending_input: Dictionary = {}  # SERVER: peer_id -> latest action string from that client
 var _last_snapshot: Dictionary = {}  # CLIENT: last applied snapshot (for the result)
+var _client_clock := 0.0  # CLIENT: monotonic local time, stamps snapshot arrivals
+var _snap_buffer: Array = []  # CLIENT: [{t, snap}] recent snapshots for interpolation
+var _owned_server_pos = null  # CLIENT: latest authoritative pos of the owned actor (Vector3)
 
 
 func _ready() -> void:
@@ -89,10 +105,18 @@ func _ready() -> void:
 		return
 	if _visual:
 		Engine.set_meta("yume_lockstep_visual", true)  # reuse the visual seam (keep directors)
-	# CLIENT does not run the authoritative sim — it applies snapshots. SERVER
-	# runs World normally (it is the source of truth), so NO flag on the host.
-	if not _is_host:
-		Engine.set_meta("yume_external_tick_driver", true)
+	# Phase 3: the client RUNS the sim locally — but only to PREDICT its own actor
+	# (responsive input). Remote actors are overwritten each frame with
+	# interpolated server state, and the owned actor is reconciled toward the
+	# server's authority; the server stays the source of truth. So we do NOT gate
+	# the client's World.
+	#
+	# Scope (tiny_village + similar): only player actors are dynamic, so local
+	# prediction of "everything" is harmless (remotes get overwritten; nothing
+	# else moves). For AI-heavy games the client must predict ONLY the owned actor
+	# and treat NPCs as server-authoritative (interpolated) — a later refinement;
+	# until then, predicting non-owned dynamic entities locally would drift from
+	# the server. Documented in ADR 0063.
 	_setup_transport()
 
 
@@ -201,7 +225,15 @@ func _recv_input(action: String) -> void:
 @rpc("authority", "call_remote", "unreliable_ordered")
 func _recv_snapshot(snap: Dictionary) -> void:
 	if not _is_host and _started:
-		_apply_snapshot(snap)
+		# Phase 2: buffer with arrival time; _render_interpolated applies it
+		# INTERP_DELAY behind, lerping. (Phase 1 applied directly → stepping.)
+		_snap_buffer.append({"t": _client_clock, "snap": snap})
+		_last_snapshot = snap
+		# Phase 3: record the owned actor's authoritative position for reconciliation.
+		if _local_actor != "" and snap.has(_local_actor):
+			var a: Array = snap[_local_actor]
+			if a.size() >= 3:
+				_owned_server_pos = Vector3(float(a[0]), float(a[1]), float(a[2]))
 
 
 ## SERVER → CLIENT: final authoritative snapshot + end-of-run. Reliable so the
@@ -303,11 +335,101 @@ func _server_process(delta: float) -> void:
 		_finish()
 
 
-func _client_process(_delta: float) -> void:
-	# Send the local input to the server every frame (held). The server holds the
-	# latest per peer; Phase 3 will also apply it locally as prediction.
+func _client_process(delta: float) -> void:
+	_client_clock += delta
+	# Phase 3 PREDICTION: apply the local input to the owned actor locally (the
+	# client's World sims it this frame → instant response) AND send it to the
+	# server. Real keyboard input reaches the owned actor via World._poll_input;
+	# the scripted demo action is queued here.
 	if _input_action != "":
+		if _local_actor != "":
+			_world.queue_input(_input_action, {"actor": _local_actor})
 		_recv_input.rpc(_input_action)
+	# Remotes: interpolate from server snapshots (owned actor is skipped — predicted).
+	_render_interpolated()
+	# Reconcile the predicted owned actor toward the server's authority.
+	_reconcile_owned()
+
+
+## Pull the locally-predicted owned actor toward the latest authoritative server
+## position. On LAN (prediction ≈ server) the error is below SNAP_THRESHOLD and
+## this is a no-op; a real divergence (mispredicted collision, loss) blends in at
+## RECONCILE_RATE so it converges without a visible snap.
+func _reconcile_owned() -> void:
+	if _owned_server_pos == null or _local_actor == "":
+		return
+	if not _world.entities.has(_local_actor):
+		return
+	var e = _world.entities[_local_actor]
+	if not (e is Entity):
+		return
+	var cur = (e as Entity).get_position()
+	if not (cur is Vector3):
+		return
+	var err: float = (cur as Vector3).distance_to(_owned_server_pos)
+	if err <= SNAP_THRESHOLD:
+		return
+	(e as Entity).set_position((cur as Vector3).lerp(_owned_server_pos, RECONCILE_RATE))
+
+
+## Render remote entities at (now - INTERP_DELAY) by lerping between the two
+## buffered snapshots that bracket that time — smooth motion at render FPS from
+## a 20Hz snapshot stream. Also derives planar velocity so walk/idle animation
+## rules (which read state.velocity) fire on replicated movement.
+func _render_interpolated() -> void:
+	if _snap_buffer.is_empty():
+		return
+	var rt := _client_clock - INTERP_DELAY
+	var s0 = null
+	var s1 = null
+	for e in _snap_buffer:
+		if float(e["t"]) <= rt:
+			s0 = e
+		if float(e["t"]) >= rt:
+			s1 = e
+			break
+	if s0 == null:
+		s0 = _snap_buffer[0]
+	if s1 == null:
+		s1 = _snap_buffer[_snap_buffer.size() - 1]
+	var dt := float(s1["t"]) - float(s0["t"])
+	var alpha := 0.0
+	if dt > 0.0001:
+		alpha = clampf((rt - float(s0["t"])) / dt, 0.0, 1.0)
+	_apply_interp(s0["snap"], s1["snap"], alpha, dt)
+	# Prune: keep the entry just before rt plus everything newer.
+	while _snap_buffer.size() > 2 and float(_snap_buffer[1]["t"]) < rt:
+		_snap_buffer.pop_front()
+
+
+func _apply_interp(snap0: Dictionary, snap1: Dictionary, alpha: float, dt: float) -> void:
+	for id in snap1:
+		# Phase 3: the owned actor is PREDICTED locally (not interpolated) — skip it.
+		if str(id) == _local_actor:
+			continue
+		if not _world.entities.has(id):
+			continue
+		var e = _world.entities[id]
+		if not (e is Entity):
+			continue
+		var a1: Array = snap1[id]
+		var a0: Array = snap0.get(id, a1)
+		if a1.size() < 3 or a0.size() < 3:
+			continue
+		var pos := Vector3(
+			lerpf(float(a0[0]), float(a1[0]), alpha),
+			lerpf(float(a0[1]), float(a1[1]), alpha),
+			lerpf(float(a0[2]), float(a1[2]), alpha),
+		)
+		(e as Entity).set_position(pos)
+		if a1.size() >= 4 and a0.size() >= 4:
+			(e as Entity).set_state("facing", lerp_angle(float(a0[3]), float(a1[3]), alpha))
+		# Planar velocity (XZ) for animation_state_rules; near-zero when at rest.
+		if dt > 0.0001:
+			(e as Entity).set_state(
+				"velocity",
+				Vector2((float(a1[0]) - float(a0[0])) / dt, (float(a1[2]) - float(a0[2])) / dt),
+			)
 
 
 # ============================================================
