@@ -25,7 +25,11 @@ extends Node
 ##   --net-host                  host = authoritative server (peer id 1)
 ##   --net-join=<ip:port>        client — connect to a host
 ##   --net-port=<n>              port (default 7777; host + client must match)
-##   --net-input=<action>        local peer's input each frame (demo/headless)
+##   --net-input=<action[,...]>  local peer's scripted input. A single action is
+##                               held; a comma-list cycles (PATTERN_DWELL_SEC each)
+##                               so the character oscillates in place.
+##   --net-clients=<n>           server waits for n clients to join, then broadcasts
+##                               GO (clients start capture + scripted input together)
 ##   --net-ticks=<n>             server runs n sim ticks, then finish + quit
 ##   --net-out=<path>            write result JSON (peer_id, role, actor_positions)
 ##   --net-visual                keep camera + renderer running (watch windows)
@@ -42,6 +46,16 @@ const CONNECT_TIMEOUT_SEC := 120.0
 const MAX_CONNECT_RETRIES := 18
 const DEFAULT_SNAPSHOT_HZ := 20.0
 const DEFAULT_INTERP_DELAY := 0.1  # render this far behind, lerping (absorbs jitter)
+## Demo/headless input pattern: when --net-input is a comma-list (e.g.
+## move_north,move_south,move_east,move_west), the client cycles through it,
+## holding each action this many SERVER TICKS. front/back + left/right with equal
+## dwell cancel out → the character oscillates in place instead of walking off
+## the map. A single-action --net-input is just a 1-cycle (sustained).
+##
+## Keyed to the SERVER tick (not each client's local clock) so every client's
+## pattern advances on the ONE shared clock — both characters switch direction on
+## the same tick → the side-by-side is genuinely synced. 42 ticks ≈ 0.7s @ 60Hz.
+const PATTERN_DWELL_TICKS := 42
 ## ADR 0064 — default replication policy when a game ships no net.json: one group
 ## (actor-tagged) replicating position + facing. Matches the pre-0064 hardcode.
 const DEFAULT_REPLICATE := [{"query": {"tags_all": ["actor"]}, "fields": ["position", "facing"]}]
@@ -53,6 +67,10 @@ var _is_host := false
 var _join_ip := "127.0.0.1"
 var _port := DEFAULT_PORT
 var _input_action := ""
+var _input_pattern: Array = []  # scripted action cycle (comma-list from --net-input)
+var _expected_clients := 1  # server waits for this many before broadcasting GO
+var _go := false  # both/all clients spawned — start capture + scripted input
+var _server_tick := 0  # CLIENT: latest authoritative tick from snapshots (shared clock)
 var _ticks_target := 600
 var _out_path := ""
 var _visual := false
@@ -66,6 +84,7 @@ var _local_id := 0
 var _actor_of_peer: Dictionary = {}  # peer_id -> controlled actor entity id (server)
 var _player_def_of: Dictionary = {}  # entity id -> def id (server roster)
 var _player_pos_of: Dictionary = {}  # entity id -> spawn pos (server roster)
+var _player_facing_of: Dictionary = {}  # entity id -> spawn facing (server roster)
 var _local_actor := ""
 var _started := false
 var _done := false
@@ -121,6 +140,13 @@ func _ready() -> void:
 			if eq < 0:
 				i += 1
 			_input_action = val
+			for a in val.split(","):
+				if a.strip_edges() != "":
+					_input_pattern.append(a.strip_edges())
+		elif name == "--net-clients":
+			if eq < 0:
+				i += 1
+			_expected_clients = maxi(1, int(val))
 		elif name == "--net-ticks":
 			if eq < 0:
 				i += 1
@@ -156,6 +182,10 @@ func _ready() -> void:
 	# POSITION is server-driven.
 	if not _is_host:
 		Engine.set_meta("yume_external_tick_driver", true)
+		# Tell capture_runner to hold its frame-sequence until the server's GO
+		# (all clients spawned), so the video never records the pre-spawn /
+		# floating / mid-join state. Cleared-meaning default is "no wait".
+		Engine.set_meta("yume_net_await_go", true)
 	_setup_transport()
 
 
@@ -214,6 +244,15 @@ func _on_peer_connected(id: int) -> void:
 		_server_start()
 	if _started:
 		_spawn_player_for_peer(id)
+	# Once every expected client has joined (and thus spawned its player), tell
+	# everyone to GO: clients start their capture sequence + scripted input at
+	# the SAME moment, so the recording shows synced in-place motion from frame 0
+	# rather than whatever each client was doing mid-join. Spawn RPCs above are
+	# reliable + ordered, so each client has its netplayer before GO arrives.
+	if not _go and _actor_of_peer.size() >= _expected_clients:
+		_go = true
+		_recv_go.rpc()
+		print("[net] all %d client(s) spawned — GO (start capture + input)" % _expected_clients)
 
 
 func _on_peer_disconnected(id: int) -> void:
@@ -342,18 +381,21 @@ func _spawn_player_for_peer(id: int) -> void:
 	var def_id := str(defs[index % defs.size()])
 	var eid := "netplayer_%d" % id
 	var pos := _spawn_pos(index)
-	_server_spawn(eid, def_id, pos)
+	var facing := _spawn_facing(index)  # face the group center → players look at each other
+	_server_spawn(eid, def_id, pos, facing)
 	_actor_of_peer[id] = eid
 	_player_def_of[eid] = def_id
 	_player_pos_of[eid] = pos
+	_player_facing_of[eid] = facing
 	# Tell every client the new player exists; tell the joiner the existing roster
 	# + which entity is THEIRS (camera + input ownership).
-	_recv_spawn.rpc(eid, def_id, pos)
+	_recv_spawn.rpc(eid, def_id, pos, facing)
 	for other in _player_def_of:
 		if str(other) != eid:
-			_recv_spawn.rpc_id(id, str(other), str(_player_def_of[other]), _player_pos_of[other])
+			_recv_spawn.rpc_id(id, str(other), str(_player_def_of[other]),
+				_player_pos_of[other], float(_player_facing_of.get(other, 0.0)))
 	_recv_assign.rpc_id(id, eid)
-	print("[net] spawned %s (%s) for peer %d at %s" % [eid, def_id, id, str(pos)])
+	print("[net] spawned %s (%s) for peer %d at %s facing=%.2f" % [eid, def_id, id, str(pos), facing])
 
 
 func _despawn_player_for_peer(id: int) -> void:
@@ -364,20 +406,38 @@ func _despawn_player_for_peer(id: int) -> void:
 	_actor_of_peer.erase(id)
 	_player_def_of.erase(eid)
 	_player_pos_of.erase(eid)
+	_player_facing_of.erase(eid)
 	_pending_input.erase(id)
 	_recv_despawn.rpc(eid)
 	print("[net] despawned %s (peer %d left)" % [eid, id])
 
 
-func _server_spawn(eid: String, def_id: String, pos: Array) -> void:
+func _server_spawn(eid: String, def_id: String, pos: Array, facing: float = 0.0) -> void:
 	_world.spawn_instance(
-		{"def": def_id, "id": eid, "position": pos, "state": {"position": pos, "facing": 0.0}}
+		{"def": def_id, "id": eid, "position": pos, "state": {"position": pos, "facing": facing}}
 	)
 
 
 ## Spawn slots — side by side near the authored spawn, offset by join index.
 func _spawn_pos(index: int) -> Array:
 	return [-5.0 + float(index) * 3.0, 6.2, 18.0]
+
+
+## Initial facing (radians, Y-rotation; 0 = -Z/north) so spawned players look at
+## the group's X-center — with two side-by-side players, they face each other.
+## +X (east) = -PI/2, -X (west) = +PI/2 (Godot Y-rotation is CCW from above).
+func _spawn_facing(index: int) -> float:
+	var n := maxi(_expected_clients, index + 1)
+	var my_x := float(_spawn_pos(index)[0])
+	var sum := 0.0
+	for k in range(n):
+		sum += float(_spawn_pos(k)[0])
+	var center_x := sum / float(n)
+	if my_x < center_x:
+		return -PI / 2.0
+	if my_x > center_x:
+		return PI / 2.0
+	return 0.0
 
 
 # ============================================================
@@ -398,7 +458,7 @@ func _recv_input(actions: Array, facing: float) -> void:
 ## SERVER → CLIENTS: a player entity exists — create it locally (so snapshots can
 ## position it + the renderer shows it). Reliable: clients must not miss a spawn.
 @rpc("authority", "call_remote", "reliable")
-func _recv_spawn(eid: String, def_id: String, pos: Array) -> void:
+func _recv_spawn(eid: String, def_id: String, pos: Array, facing: float = 0.0) -> void:
 	if _is_host:
 		return
 	# Ensure World is resolved — the spawn RPC can arrive before _client_start has
@@ -411,7 +471,7 @@ func _recv_spawn(eid: String, def_id: String, pos: Array) -> void:
 		return
 	if not _world.entities.has(eid):
 		_world.spawn_instance(
-			{"def": def_id, "id": eid, "position": pos, "state": {"position": pos, "facing": 0.0}}
+			{"def": def_id, "id": eid, "position": pos, "state": {"position": pos, "facing": facing}}
 		)
 
 
@@ -424,6 +484,17 @@ func _recv_assign(eid: String) -> void:
 	if _visual:
 		Engine.set_meta("yume_local_follow_id", eid)
 	print("[net] this window (peer %d) controls + follows %s" % [_local_id, eid])
+
+
+## SERVER → ALL (incl. self): every expected client has joined + spawned. Clients
+## start their capture sequence + scripted input pattern from this instant, so the
+## side-by-side recording is synchronized and in-place (not mid-join motion).
+@rpc("authority", "call_local", "reliable")
+func _recv_go() -> void:
+	_go = true
+	Engine.set_meta("yume_net_go", true)
+	if not _is_host:
+		print("[net] GO received (all spawned) — starting capture + input pattern")
 
 
 ## SERVER → CLIENTS: a player left — remove it locally.
@@ -439,20 +510,24 @@ func _recv_despawn(eid: String) -> void:
 ## this RPC; clients apply it. Unreliable-ordered: snapshots supersede each other,
 ## so a dropped one is simply skipped (the next is newer) — never re-sent stale.
 @rpc("authority", "call_remote", "unreliable_ordered")
-func _recv_snapshot(snap: Dictionary) -> void:
+func _recv_snapshot(snap: Dictionary, tick: int = 0) -> void:
 	if not _is_host and _started:
 		# Phase 2: buffer with arrival time; _render_interpolated applies it
 		# INTERP_DELAY behind, lerping. (Phase 1 applied directly → stepping.)
-		_snap_buffer.append({"t": _client_clock, "snap": snap})
+		# `tick` is the server's authoritative tick for this snapshot — the shared
+		# clock that drives the scripted patrol + cross-client frame pairing.
+		_snap_buffer.append({"t": _client_clock, "snap": snap, "tick": tick})
 		_last_snapshot = snap
+		_server_tick = tick
 
 
 ## SERVER → CLIENT: final authoritative snapshot + end-of-run. Reliable so the
 ## client applies the exact final state before reporting (Phase 1 correctness
 ## check: client's applied positions must equal the server's).
 @rpc("authority", "call_remote", "reliable")
-func _recv_done(snap: Dictionary) -> void:
+func _recv_done(snap: Dictionary, tick: int = 0) -> void:
 	if not _is_host and not _done:
+		_server_tick = tick
 		_apply_snapshot(snap)
 		_finish()
 
@@ -567,10 +642,11 @@ func _server_process(delta: float) -> void:
 	var period: float = 1.0 / max(1.0, _snapshot_hz)
 	if _snap_accum >= period:
 		_snap_accum = 0.0
-		_recv_snapshot.rpc(_serialize_state())
+		_recv_snapshot.rpc(_serialize_state(), int(_world.get("_tick_count")))
 	# Finish when the authoritative sim reaches the target tick count.
 	if int(_world.get("_tick_count")) >= _ticks_target:
-		_recv_done.rpc(_serialize_state())  # final authoritative state to clients
+		# final authoritative state + tick to clients
+		_recv_done.rpc(_serialize_state(), int(_world.get("_tick_count")))
 		_finish()
 
 
@@ -579,13 +655,31 @@ func _client_process(delta: float) -> void:
 	# PURE server-auth: read this client's input (scripted action or real keyboard)
 	# + the local mouse-look facing, send it to the server, and do NOT apply it
 	# locally — the server computes the outcome and we render it (interpolated).
-	var actions: Array = [_input_action] if _input_action != "" else _poll_local_actions()
+	var actions: Array = _client_actions(delta)
 	var facing := 0.0
 	if _local_actor != "" and _world.entities.has(_local_actor):
 		facing = float((_world.entities[_local_actor] as Entity).get_state("facing", 0.0))
 	_recv_input.rpc(actions, facing)
 	# Render every actor (incl. our own) from the server's authoritative snapshots.
 	_render_interpolated()
+
+
+## What this client sends the server this frame.
+##   - before GO: "stop" (hold position at spawn until all clients have joined),
+##   - scripted pattern (--net-input comma-list): cycle a direction per dwell so
+##     the character oscillates in place; matching patterns across clients make
+##     the side-by-side obviously synced,
+##   - no pattern (interactive play): the real keyboard.
+func _client_actions(_delta: float) -> Array:
+	if not _go:
+		return ["stop"]
+	if _input_pattern.is_empty():
+		return _poll_local_actions()
+	# Keyed to the SHARED server tick (not a per-client clock) so every client's
+	# pattern advances in lockstep → both characters switch direction on the same
+	# tick. This is what makes the two windows synchronized.
+	var idx := int(_server_tick / PATTERN_DWELL_TICKS) % _input_pattern.size()
+	return [str(_input_pattern[idx])]
 
 
 ## Currently-pressed actions from the game's own action lists (hold + press) —
@@ -640,6 +734,13 @@ func _render_interpolated() -> void:
 	if dt > 0.0001:
 		alpha = clampf((rt - float(s0["t"])) / dt, 0.0, 1.0)
 	_apply_interp(s0["snap"], s1["snap"], alpha, dt)
+	# Publish the server tick this frame actually SHOWS (interpolated between the
+	# two bracketing snapshots). capture_runner records it per frame; net_video
+	# pairs the two clients' frames by this tick → the side-by-side shows the same
+	# authoritative moment on both halves regardless of each client's render fps or
+	# capture-start jitter.
+	var shown_tick := int(round(lerp(float(s0.get("tick", 0)), float(s1.get("tick", 0)), alpha)))
+	Engine.set_meta("yume_net_render_tick", shown_tick)
 	# Prune: keep the entry just before rt plus everything newer.
 	while _snap_buffer.size() > 2 and float(_snap_buffer[1]["t"]) < rt:
 		_snap_buffer.pop_front()

@@ -50,13 +50,18 @@ def from_play_sh(var):
 
 
 GAME = ARGS[0] if len(ARGS) > 0 else "demo_tiny_village"
-INPUT1 = ARGS[1] if len(ARGS) > 1 else "move_north"
-INPUT2 = ARGS[2] if len(ARGS) > 2 else "move_west"
+# Default: an in-place patrol (front/back/left/right cycle) — net_driver holds each
+# direction PATTERN_DWELL_SEC, so the character oscillates around its spawn instead
+# of walking off the map. SAME pattern for both clients → the side-by-side shows the
+# two characters doing the identical dance in lockstep = sync is obvious at a glance.
+PATROL = "move_north,move_south,move_east,move_west"
+INPUT1 = ARGS[1] if len(ARGS) > 1 else PATROL
+INPUT2 = ARGS[2] if len(ARGS) > 2 else PATROL
 SHORT = GAME[len("demo_"):] if GAME.startswith("demo_") else GAME
 
 PORT = os.environ.get("PORT", "7862")
-FPS = int(os.environ.get("FPS", "10"))
-SECS = int(os.environ.get("SECS", "5"))
+FPS = int(os.environ.get("FPS", "30"))   # OUTPUT video fps (capture grabs every rendered frame)
+SECS = int(os.environ.get("SECS", "5"))  # real-time capture window
 DELAY = int(os.environ.get("DELAY", "20"))
 WIN_W = os.environ.get("WIN_W", "700")
 WIN_H = os.environ.get("WIN_H", "440")
@@ -114,9 +119,15 @@ def client_cmd(pos_x, inp, after, tag):
     py = OFFSCREEN if HIDDEN else 60
     px = (OFFSCREEN + pos_x) if HIDDEN else pos_x
     win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{px},{py}"]
+    # --capture-after is now a fallback only: net_driver sets `yume_net_await_go`,
+    # so capture_runner holds capture until the server's GO (both spawned) rather
+    # than firing at a fixed delay. `after` left at 0.
+    # --capture-allframes: grab EVERY rendered frame for SECS real seconds (no
+    # sampling → no per-frame jumps), buffered in RAM + written after. We assemble
+    # at the ACHIEVED fps (frames / SECS) so playback is real-time + smooth.
     user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000", "--net-visual",
             f"--net-join=127.0.0.1:{PORT}", f"--net-input={inp}",
-            f"--capture-after={after}", f"--capture-sequence={FPS},{SECS}",
+            f"--capture-after={after}", f"--capture-allframes={SECS}",
             f"--capture-output=user://vid_{tag}.png"]
     cmd = g + win + [SCENE] + user
     if LINUX and HAVE_XVFB:
@@ -149,7 +160,10 @@ def main():
     for f in glob.glob(os.path.join(USERDATA, "vid_c*_*.png")):
         os.remove(f)
 
-    server_user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000", "--net-host"]
+    # --net-clients=2: the server waits for BOTH clients to join+spawn before it
+    # broadcasts GO, so neither client starts capturing/walking until both exist.
+    server_user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000",
+                   "--net-host", "--net-clients", "2"]
     logs, procs = {}, {}
 
     print("[net_video] launching dedicated server (headless) ...")
@@ -182,25 +196,35 @@ def main():
     # the two from racing the ENet handshake while loading simultaneously, short
     # enough that both still connect well within the server's connect-timeout.
     gap = int(os.environ.get("CLIENT_GAP", "4"))
+    # after=0: capture is GO-gated now (server signals when both spawned), so the
+    # fixed per-client delay no longer drives the start.
     print("[net_video] launching client 1 (left) ...")
-    launch("c1", 0, INPUT1, DELAY)
+    launch("c1", 0, INPUT1, 0)
     time.sleep(gap)
     print("[net_video] launching client 2 (right) ...")
-    launch("c2", int(WIN_W) + 20, INPUT2, DELAY - gap)
+    launch("c2", int(WIN_W) + 20, INPUT2, 0)
 
-    last1 = os.path.join(USERDATA, f"vid_c1_{FPS*SECS-1:04d}.png")
-    last2 = os.path.join(USERDATA, f"vid_c2_{FPS*SECS-1:04d}.png")
-    budget = DELAY + SECS + (90 if LINUX else 40)  # software GL needs more time
-    print(f"[net_video] waiting up to {budget}s for {FPS*SECS} frames per client ...")
+    # Every-frame capture: the frame COUNT is unknown up front (depends on the
+    # achieved render fps), so wait for both client processes to EXIT — each quits
+    # right after writing its buffered PNGs — rather than polling for a fixed last
+    # frame index.
+    budget = DELAY + SECS + (90 if LINUX else 50)  # software GL / RAM-flush needs more time
+    print(f"[net_video] waiting up to {budget}s for both clients to finish capture ...")
     t0 = time.time()
     while time.time() - t0 < budget:
-        if os.path.exists(last1) and os.path.exists(last2):
+        if procs["c1"].poll() is not None and procs["c2"].poll() is not None:
             break
         time.sleep(2)
 
     n1 = len(glob.glob(os.path.join(USERDATA, "vid_c1_*.png")))
     n2 = len(glob.glob(os.path.join(USERDATA, "vid_c2_*.png")))
-    print(f"[net_video] captured: client1={n1} frames, client2={n2} frames")
+    # Achieved fps = frames captured over the SECS real-time window. Assembling each
+    # input at its own achieved fps makes both clips exactly SECS long → they align
+    # in the side-by-side, and motion plays at true real-time speed (no compression).
+    fps1 = max(1.0, n1 / float(SECS))
+    fps2 = max(1.0, n2 / float(SECS))
+    print(f"[net_video] captured: client1={n1} frames (~{fps1:.1f} fps), "
+          f"client2={n2} frames (~{fps2:.1f} fps) over {SECS}s")
     kill_godot()
 
     if n1 == 0 or n2 == 0:
@@ -226,10 +250,71 @@ def main():
                  "client --net-port must match — net_driver now accepts both --net-port=N and "
                  "--net-port N forms, so a form mismatch is no longer the cause.")
 
-    print(f"[net_video] stitching side-by-side -> {OUT}")
-    c1 = os.path.join(USERDATA, "vid_c1_%04d.png")
-    c2 = os.path.join(USERDATA, "vid_c2_%04d.png")
-    r = sh(f'ffmpeg -y -framerate {FPS} -i "{c1}" -framerate {FPS} -i "{c2}" '
+    # --- Sync the two halves by SERVER TICK ---------------------------------
+    # Each client wrote a .ticks sidecar: the authoritative server tick each frame
+    # SHOWS. We pair frames by that shared tick so the left/right halves render the
+    # same game moment, regardless of per-client render fps or capture-start jitter.
+    def read_ticks(tag):
+        try:
+            lines = open(os.path.join(USERDATA, f"vid_{tag}.ticks")).read().split()
+            return [int(x) for x in lines]
+        except OSError:
+            return []
+    tk1, tk2 = read_ticks("c1"), read_ticks("c2")
+
+    def nearest_idx(ticks, target):
+        # ticks is monotonic-nondecreasing; linear scan is plenty for ~150 frames.
+        best_i, best_d = 0, None
+        for i, t in enumerate(ticks):
+            if t <= 0:
+                continue  # pre-first-snapshot frames carry no real tick
+            d = abs(t - target)
+            if best_d is None or d < best_d:
+                best_i, best_d = i, d
+        return best_i
+
+    pos1 = [t for t in tk1 if t > 0]
+    pos2 = [t for t in tk2 if t > 0]
+    sync_dir = os.path.join(USERDATA, "_sync")
+    if pos1 and pos2 and len(tk1) == n1 and len(tk2) == n2:
+        # Drive the timeline from client 1's frames — they're already real-time
+        # (every captured frame, uniform over the SECS window). For each c1 frame in
+        # the shared tick range, pair client 2's nearest-tick frame. This keeps the
+        # left half real-time + smooth and locks the right half to the SAME server
+        # tick, with NO assumption about the sim's tick rate (which sags under the
+        # 3-instance capture load). Assemble at c1's achieved fps → real-time.
+        lo, hi = max(min(pos1), min(pos2)), min(max(pos1), max(pos2))
+        os.makedirs(sync_dir, exist_ok=True)
+        for f in glob.glob(os.path.join(sync_dir, "*.png")):
+            os.remove(f)
+        k = 0
+        for i1 in range(n1):
+            if not (lo <= tk1[i1] <= hi):
+                continue
+            i2 = nearest_idx(tk2, tk1[i1])
+            shutil.copyfile(os.path.join(USERDATA, f"vid_c1_{i1:04d}.png"),
+                            os.path.join(sync_dir, f"c1_{k:04d}.png"))
+            shutil.copyfile(os.path.join(USERDATA, f"vid_c2_{i2:04d}.png"),
+                            os.path.join(sync_dir, f"c2_{k:04d}.png"))
+            k += 1
+        # c1's real fps over the subset = (#paired frames) / (their real-time span).
+        # The subset is a contiguous run of c1 frames, so span ≈ k / fps1 seconds;
+        # assembling at fps1 plays it back at true real-time speed.
+        rate1 = rate2 = max(1.0, fps1)
+        print(f"[net_video] tick-synced: {k} paired frames over server ticks {lo}..{hi} "
+              f"(playback ~{k / max(1.0, fps1):.1f}s @ real-time)")
+        src1 = os.path.join(sync_dir, "c1_%04d.png")
+        src2 = os.path.join(sync_dir, "c2_%04d.png")
+    else:
+        # Fallback (no tick data): assemble each at its achieved fps (un-synced).
+        print("[net_video] WARNING: no .ticks sidecars — halves may not be synced "
+              "(falling back to per-client fps assembly)")
+        src1 = os.path.join(USERDATA, "vid_c1_%04d.png")
+        src2 = os.path.join(USERDATA, "vid_c2_%04d.png")
+        rate1, rate2 = fps1, fps2
+
+    print(f"[net_video] stitching side-by-side @ {FPS}fps -> {OUT}")
+    r = sh(f'ffmpeg -y -framerate {rate1:.4f} -i "{src1}" -framerate {rate2:.4f} -i "{src2}" '
            f'-filter_complex "[0:v][1:v]hstack=inputs=2" -r {FPS} -pix_fmt yuv420p "{OUT}"',
            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if r.returncode != 0 or not os.path.exists(OUT):

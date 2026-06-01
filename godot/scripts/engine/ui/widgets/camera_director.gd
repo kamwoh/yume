@@ -39,6 +39,9 @@ var _shake_intensity: float = 0.0
 # levels. Each camera-follow path consumes the flag, sets position
 # directly (no lerp) for one frame, then clears it.
 var _snap_pending: bool = false
+# Third-person: snap (not lerp) the first frame the follow target resolves, so a
+# spawn-on-join character doesn't get a ~0.3s lerp-in from the default camera pose.
+var _tp_has_target: bool = false
 
 # Mode-transition detection — first_person_3d capture mode + tracking
 # last-frame mode so enter/leave-FP can reset state.
@@ -413,8 +416,17 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
 	if target_v == null:
+		_tp_has_target = false
 		return
 	var target: Vector3 = target_v
+	# Snap (no lerp) the FIRST frame a follow target appears. Covers net
+	# spawn-on-join: the followed character pops in mid-session, and without a
+	# snap the camera lerps in from its default .tscn pose — which is an oblique/
+	# top-down frame — for ~0.3s. Empirical 2026-06-01: the net video's first
+	# frame showed that default top-down before the lerp settled behind the actor.
+	if not _tp_has_target:
+		_snap_pending = true
+		_tp_has_target = true
 	# 2026-05-19: third-person also captures the mouse so _drain_mouse_facing
 	# updates state.facing. Without capture, the drain bails at its
 	# mouse_mode != CAPTURED check and the player can't rotate. Mirrors
