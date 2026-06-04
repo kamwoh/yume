@@ -82,6 +82,7 @@ PORT = os.environ.get("PORT", "7862")
 FPS = int(os.environ.get("FPS", "30"))   # OUTPUT video fps (capture grabs every rendered frame)
 SECS = int(os.environ.get("SECS", "5"))  # real-time capture / record window
 MOVIE_FPS = int(os.environ.get("MOVIE_FPS", "60"))  # --smooth: fixed Movie-Maker fps
+CRF = os.environ.get("CRF", "18")  # libx264 quality (lower = better; 14 ≈ near-lossless, 23 = default)
 DELAY = int(os.environ.get("DELAY", "20"))
 WIN_W = os.environ.get("WIN_W", "700")
 WIN_H = os.environ.get("WIN_H", "440")
@@ -301,9 +302,9 @@ def run_smooth():
                    "-i", f"color=c=black:s={WIN_W}x{WIN_H}:r={MOVIE_FPS}"]
     filt = grid_filter(cols, rows, cells)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    print(f"[net_video] stitching {cols}x{rows} grid @ {MOVIE_FPS}fps -> {OUT}")
+    print(f"[net_video] stitching {cols}x{rows} grid @ {MOVIE_FPS}fps crf={CRF} -> {OUT}")
     r = sh(f'ffmpeg -y {" ".join(inputs)} -filter_complex "{filt}" -map "[out]" '
-           f'-r {MOVIE_FPS} -pix_fmt yuv420p "{OUT}"',
+           f'-r {MOVIE_FPS} -c:v libx264 -crf {CRF} -preset slow -pix_fmt yuv420p "{OUT}"',
            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if r.returncode != 0 or not os.path.exists(OUT):
         sys.exit(f"[net_video] ffmpeg failed (filter: {filt})")
@@ -498,9 +499,9 @@ def main():
         filt = filt.replace("[row0];", "[out]")
     else:
         filt += "".join(row_labels) + f"vstack=inputs={rows}[out]"
-    print(f"[net_video] stitching {cols}x{rows} grid @ {FPS}fps -> {OUT}")
+    print(f"[net_video] stitching {cols}x{rows} grid @ {FPS}fps crf={CRF} -> {OUT}")
     r = sh(f'ffmpeg -y {" ".join(inputs)} -filter_complex "{filt}" -map "[out]" '
-           f'-r {FPS} -pix_fmt yuv420p "{OUT}"',
+           f'-r {FPS} -c:v libx264 -crf {CRF} -preset slow -pix_fmt yuv420p "{OUT}"',
            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if r.returncode != 0 or not os.path.exists(OUT):
         sys.exit(f"[net_video] ffmpeg failed (filter: {filt})")
