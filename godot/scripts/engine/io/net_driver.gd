@@ -56,6 +56,10 @@ const DEFAULT_INTERP_DELAY := 0.1  # render this far behind, lerping (absorbs ji
 ## pattern advances on the ONE shared clock — both characters switch direction on
 ## the same tick → the side-by-side is genuinely synced. 42 ticks ≈ 0.7s @ 60Hz.
 const PATTERN_DWELL_TICKS := 42
+## Players spawn above the ground (safe-high) and FALL to it on join. Skip this
+## long after GO before recording, so the replay never shows the sky-drop or the
+## fall's transient horizontal drift (which whipped the body-yaw around). ADR 0066.
+const RECORD_SETTLE_SEC := 1.5
 ## ADR 0064 — default replication policy when a game ships no net.json: one group
 ## (actor-tagged) replicating position + facing. Matches the pre-0064 hardcode.
 const DEFAULT_REPLICATE := [{"query": {"tags_all": ["actor"]}, "fields": ["position", "facing"]}]
@@ -705,10 +709,14 @@ func _server_process(delta: float) -> void:
 		var tk := int(_world.get("_tick_count"))
 		if _go_tick == 0:
 			_go_tick = tk
+		var since := tk - _go_tick
+		var settle := int(RECORD_SETTLE_SEC / _tick_seconds())
+		if since < settle:
+			return  # let the just-spawned players fall + settle (no sky-drop in the video)
 		if tk != _record_last_tick:
 			_record_last_tick = tk
 			_record_frames.append({"tick": tk, "ents": _serialize_state()})
-		if _record_secs > 0.0 and (tk - _go_tick) >= int(_record_secs / _tick_seconds()):
+		if _record_secs > 0.0 and (since - settle) >= int(_record_secs / _tick_seconds()):
 			_finish()
 			return
 	# Finish when the authoritative sim reaches the target tick count.
@@ -936,12 +944,19 @@ func _replay_spawn() -> void:
 		_try_clear_preplaced()  # finds + caches _world, clears pre-placed players
 	if not _cleared or _world == null:
 		return  # world not loaded yet — try again next frame
+	var first_ents: Dictionary = {}
+	if not _replay_frames.is_empty():
+		first_ents = (_replay_frames[0] as Dictionary).get("ents", {})
 	for r in _replay_roster:
 		var rd: Dictionary = r
 		var eid := str(rd.get("id", ""))
 		if eid == "" or _world.entities.has(eid):
 			continue
+		# Spawn at the FIRST RECORDED (already-landed) position, not the high server
+		# spawn pos — so the camera snaps behind a grounded player with no swoop.
 		var pos = rd.get("pos", [0, 0, 0])
+		if first_ents.has(eid) and (first_ents[eid] as Dictionary).has("position"):
+			pos = (first_ents[eid] as Dictionary)["position"]
 		_world.spawn_instance({
 			"def": str(rd.get("def", "")), "id": eid, "position": pos,
 			"state": {"position": pos, "facing": float(rd.get("facing", 0.0))},
