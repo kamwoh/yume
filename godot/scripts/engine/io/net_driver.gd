@@ -93,6 +93,7 @@ var _replay_first_tick := 0
 var _replay_last_tick := 0
 var _replay_t := 0.0
 var _replay_spawned := false
+var _replay_prev_ents: Dictionary = {}  # last applied frame's ents (for velocity derivation)
 var _ticks_target := 600
 var _out_path := ""
 var _visual := false
@@ -945,6 +946,11 @@ func _replay_spawn() -> void:
 			"state": {"position": pos, "facing": float(rd.get("facing", 0.0))},
 		})
 	_replay_spawned = true
+	# Apply the FIRST recorded frame immediately so frame 0 already has the correct
+	# pose/facing (not the roster default) — minimizes the spawn-frame T-pose / facing
+	# pop. (net_video also drops the first few frames while the AnimationPlayer seeks.)
+	if not _replay_frames.is_empty():
+		_apply_replay_frame((_replay_frames[0] as Dictionary).get("ents", {}), 1.0 / _replay_tick_hz)
 	print("[net] replay spawned %d entities" % _replay_roster.size())
 
 
@@ -973,7 +979,32 @@ func _replay_process(delta: float) -> void:
 		if d < best_d:
 			best_d = d
 			best = fr
-	_apply_snapshot((best as Dictionary).get("ents", {}))
+	_apply_replay_frame((best as Dictionary).get("ents", {}), delta)
+
+
+## Apply a recorded frame's ents AND derive planar velocity from the previous
+## applied frame's positions — exactly what _apply_interp does for the live client,
+## so the walk/idle animation state machine fires (without velocity it stays idle
+## while anim_phase advances → the laggy/wrong animation). dt = movie frame delta.
+func _apply_replay_frame(ents: Dictionary, dt: float) -> void:
+	for id in ents:
+		if not _world.entities.has(id) or not (ents[id] is Dictionary):
+			continue
+		var e = _world.entities[id]
+		if not (e is Entity):
+			continue
+		var r: Dictionary = ents[id]
+		for f in r:
+			_apply_field(e as Entity, str(f), r[f])
+		if dt > 0.0001 and r.has("position") and r["position"] is Array:
+			var p1: Array = r["position"]
+			var p0: Array = (_replay_prev_ents.get(id, {}) as Dictionary).get("position", p1)
+			if p1.size() >= 3 and (p0 as Array).size() >= 3:
+				(e as Entity).set_state(
+					"velocity",
+					Vector2((float(p1[0]) - float(p0[0])) / dt, (float(p1[2]) - float(p0[2])) / dt),
+				)
+	_replay_prev_ents = ents
 
 
 func _finish() -> void:

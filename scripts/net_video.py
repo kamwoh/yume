@@ -275,10 +275,15 @@ def run_smooth():
     cells = cols * rows
     frame_counts = [len(glob.glob(os.path.join(NETCAP, f"view{i}", "frame*.png"))) for i in range(len(roster))]
     nmin = min(frame_counts)
+    # Drop the first few frames of every view: frame 0 is the spawn (T-pose, before
+    # the AnimationPlayer seeks anim_phase) and the next 1-2 settle facing/pose. All
+    # views drop the SAME count, so they stay synced.
+    skip = min(int(os.environ.get("SKIP_FRAMES", "4")), max(0, nmin - 2))
     inputs = []
     for i in range(len(roster)):
-        inputs += ["-framerate", str(MOVIE_FPS), "-i", f'"{os.path.join(NETCAP, f"view{i}", "frame%08d.png")}"']
-    dur = nmin / float(MOVIE_FPS)
+        inputs += ["-framerate", str(MOVIE_FPS), "-start_number", str(skip),
+                   "-i", f'"{os.path.join(NETCAP, f"view{i}", "frame%08d.png")}"']
+    dur = (nmin - skip) / float(MOVIE_FPS)
     for _ in range(cells - len(roster)):
         inputs += ["-f", "lavfi", "-t", f"{dur:.3f}",
                    "-i", f"color=c=black:s={WIN_W}x{WIN_H}:r={MOVIE_FPS}"]
