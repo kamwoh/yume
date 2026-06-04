@@ -94,6 +94,8 @@ var _replay_last_tick := 0
 var _replay_t := 0.0
 var _replay_spawned := false
 var _replay_prev_ents: Dictionary = {}  # last applied frame's ents (for velocity derivation)
+var _replay_yaw: Dictionary = {}  # per-entity smoothed body yaw (turn toward motion)
+const REPLAY_TURN_RATE := 0.15  # per-frame angle-lerp toward motion dir (~90° in ~0.25s @60fps)
 var _ticks_target := 600
 var _out_path := ""
 var _visual := false
@@ -945,6 +947,7 @@ func _replay_spawn() -> void:
 			"def": str(rd.get("def", "")), "id": eid, "position": pos,
 			"state": {"position": pos, "facing": float(rd.get("facing", 0.0))},
 		})
+		_replay_yaw[eid] = float(rd.get("facing", 0.0))  # seed body yaw from spawn facing
 	_replay_spawned = true
 	# Apply the FIRST recorded frame immediately so frame 0 already has the correct
 	# pose/facing (not the roster default) — minimizes the spawn-frame T-pose / facing
@@ -1000,10 +1003,20 @@ func _apply_replay_frame(ents: Dictionary, dt: float) -> void:
 			var p1: Array = r["position"]
 			var p0: Array = (_replay_prev_ents.get(id, {}) as Dictionary).get("position", p1)
 			if p1.size() >= 3 and (p0 as Array).size() >= 3:
-				(e as Entity).set_state(
-					"velocity",
-					Vector2((float(p1[0]) - float(p0[0])) / dt, (float(p1[2]) - float(p0[2])) / dt),
-				)
+				var vx := (float(p1[0]) - float(p0[0])) / dt
+				var vz := (float(p1[2]) - float(p0[2])) / dt
+				(e as Entity).set_state("velocity", Vector2(vx, vz))
+				# Smoothly turn the BODY toward its motion direction (replay-only).
+				# yaw drives the mesh (priority over facing); the camera keeps the
+				# recorded `facing` so it doesn't swing. Without this the body holds a
+				# fixed facing while the patrol moves it 4 ways → moonwalk + the abrupt
+				# 90° "control snapped" feel the user reported. Mesh-forward = -Z, so
+				# yaw = atan2(vx, -vz); lerp_angle handles the wrap.
+				var cur := float(_replay_yaw.get(id, float((e as Entity).get_state("facing", 0.0))))
+				if vx * vx + vz * vz > 0.04:  # |v| > 0.2 → moving
+					cur = lerp_angle(cur, atan2(vx, -vz), REPLAY_TURN_RATE)
+					_replay_yaw[id] = cur
+				(e as Entity).set_state("yaw", cur)
 	_replay_prev_ents = ents
 
 
