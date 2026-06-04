@@ -93,7 +93,6 @@ var _replay_first_tick := 0
 var _replay_last_tick := 0
 var _replay_t := 0.0
 var _replay_spawned := false
-var _replay_prev_ents: Dictionary = {}  # last applied frame's ents (for velocity derivation)
 var _replay_yaw: Dictionary = {}  # per-entity smoothed body yaw (turn toward motion)
 const REPLAY_TURN_RATE := 0.15  # per-frame angle-lerp toward motion dir (~90° in ~0.25s @60fps)
 var _ticks_target := 600
@@ -953,7 +952,8 @@ func _replay_spawn() -> void:
 	# pose/facing (not the roster default) — minimizes the spawn-frame T-pose / facing
 	# pop. (net_video also drops the first few frames while the AnimationPlayer seeks.)
 	if not _replay_frames.is_empty():
-		_apply_replay_frame((_replay_frames[0] as Dictionary).get("ents", {}), 1.0 / _replay_tick_hz)
+		var e0: Dictionary = (_replay_frames[0] as Dictionary).get("ents", {})
+		_apply_replay_frame(e0, e0, 1.0 / _replay_tick_hz)  # prev=self → zero velocity
 	print("[net] replay spawned %d entities" % _replay_roster.size())
 
 
@@ -974,22 +974,28 @@ func _replay_process(delta: float) -> void:
 		_done = true
 		get_tree().quit(0)
 		return
-	# Nearest recorded frame to target tick (frames are tick-sorted).
-	var best = _replay_frames[0]
-	var best_d: int = abs(int((best as Dictionary).get("tick", 0)) - target)
-	for fr in _replay_frames:
-		var d: int = abs(int((fr as Dictionary).get("tick", 0)) - target)
+	# Nearest recorded frame INDEX to target tick (frames are tick-sorted).
+	var best_i := 0
+	var best_d: int = abs(int((_replay_frames[0] as Dictionary).get("tick", 0)) - target)
+	for i in range(_replay_frames.size()):
+		var d: int = abs(int((_replay_frames[i] as Dictionary).get("tick", 0)) - target)
 		if d < best_d:
 			best_d = d
-			best = fr
-	_apply_replay_frame((best as Dictionary).get("ents", {}), delta)
+			best_i = i
+	# Velocity comes from the recorded NEIGHBOR tick (stable), NOT the movie-frame
+	# delta — at 60fps movie vs ~60Hz record, frames alias onto duplicate ticks and
+	# the per-movie-frame delta flickers 0/burst, which jittered both the body turn
+	# and the walk/idle animation.
+	var ents: Dictionary = (_replay_frames[best_i] as Dictionary).get("ents", {})
+	var prev: Dictionary = (_replay_frames[maxi(0, best_i - 1)] as Dictionary).get("ents", {})
+	_apply_replay_frame(ents, prev, 1.0 / _replay_tick_hz)
 
 
 ## Apply a recorded frame's ents AND derive planar velocity from the previous
 ## applied frame's positions — exactly what _apply_interp does for the live client,
 ## so the walk/idle animation state machine fires (without velocity it stays idle
 ## while anim_phase advances → the laggy/wrong animation). dt = movie frame delta.
-func _apply_replay_frame(ents: Dictionary, dt: float) -> void:
+func _apply_replay_frame(ents: Dictionary, prev: Dictionary, tick_dt: float) -> void:
 	for id in ents:
 		if not _world.entities.has(id) or not (ents[id] is Dictionary):
 			continue
@@ -999,25 +1005,24 @@ func _apply_replay_frame(ents: Dictionary, dt: float) -> void:
 		var r: Dictionary = ents[id]
 		for f in r:
 			_apply_field(e as Entity, str(f), r[f])
-		if dt > 0.0001 and r.has("position") and r["position"] is Array:
+		# Velocity from the recorded neighbor tick (stable, no movie-frame aliasing).
+		if tick_dt > 0.0001 and r.has("position") and r["position"] is Array:
 			var p1: Array = r["position"]
-			var p0: Array = (_replay_prev_ents.get(id, {}) as Dictionary).get("position", p1)
+			var p0: Array = (prev.get(id, r) as Dictionary).get("position", r["position"])
 			if p1.size() >= 3 and (p0 as Array).size() >= 3:
-				var vx := (float(p1[0]) - float(p0[0])) / dt
-				var vz := (float(p1[2]) - float(p0[2])) / dt
+				var vx := (float(p1[0]) - float(p0[0])) / tick_dt
+				var vz := (float(p1[2]) - float(p0[2])) / tick_dt
 				(e as Entity).set_state("velocity", Vector2(vx, vz))
 				# Smoothly turn the BODY toward its motion direction (replay-only).
 				# yaw drives the mesh (priority over facing); the camera keeps the
-				# recorded `facing` so it doesn't swing. Without this the body holds a
-				# fixed facing while the patrol moves it 4 ways → moonwalk + the abrupt
-				# 90° "control snapped" feel the user reported. Mesh-forward = -Z, so
-				# yaw = atan2(vx, -vz); lerp_angle handles the wrap.
+				# recorded `facing` so it does NOT swing (confirmed: cam_yaw constant,
+				# only yaw moves). Mesh-forward = -Z → yaw = atan2(vx, -vz);
+				# lerp_angle (per movie frame) handles the wrap + smooths the turn.
 				var cur := float(_replay_yaw.get(id, float((e as Entity).get_state("facing", 0.0))))
 				if vx * vx + vz * vz > 0.04:  # |v| > 0.2 → moving
 					cur = lerp_angle(cur, atan2(vx, -vz), REPLAY_TURN_RATE)
 					_replay_yaw[id] = cur
 				(e as Entity).set_state("yaw", cur)
-	_replay_prev_ents = ents
 
 
 func _finish() -> void:

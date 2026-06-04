@@ -68,7 +68,9 @@ GAME = ARGS[0] if len(ARGS) > 0 else "demo_tiny_village"
 # direction PATTERN_DWELL_TICKS, so the character oscillates around its spawn instead
 # of walking off the map. SAME pattern for every client → all characters do the
 # identical dance in lockstep (server-tick-driven) = sync is obvious at a glance.
-PATROL = "move_north,move_south,move_east,move_west"
+# Square path (N,E,S,W) so consecutive body turns are 90° each — not the 180°
+# whip-arounds of N,S,E,W — and the character traces a small square back to start.
+PATROL = "move_north,move_east,move_south,move_west"
 SHORT = GAME[len("demo_"):] if GAME.startswith("demo_") else GAME
 
 # Number of rendering clients. CLIENTS=4 → a 2x2 grid; 2 → side-by-side. Per-client
