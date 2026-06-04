@@ -255,12 +255,22 @@ def run_smooth():
                  f"(a client didn't connect — see /tmp/net_video_c*.log)")
 
     # --- Phase 2: render each view offline in Movie-Maker mode (smooth) ----------
+    # Windowless render: --linux wraps in Xvfb (a VIRTUAL framebuffer → NO window
+    # appears at all, genuinely headless). The Windows stock binary has no offscreen
+    # driver, so it falls back to an off-screen window (--position 9999,9999).
+    if LINUX and HAVE_XVFB:
+        prefix = f'xvfb-run -a -s "-screen 0 {WIN_W}x{WIN_H}x24" '
+        pos = ""
+    else:
+        prefix = ""
+        pos = "--position 9999,9999 "
     for i, eid in enumerate(roster):
         viewdir = os.path.join(NETCAP, f"view{i}")
         os.makedirs(viewdir, exist_ok=True)
-        print(f"[net_video] rendering view {i+1}/{len(roster)} (follow {eid}) @ {MOVIE_FPS}fps ...")
-        r = sh(f'cd "{PROJECT}" && "{GODOT}" --path . --rendering-driver opengl3 '
-               f'--position 9999,9999 --resolution {WIN_W}x{WIN_H} '
+        where = "Xvfb (no window)" if (LINUX and HAVE_XVFB) else "off-screen window"
+        print(f"[net_video] rendering view {i+1}/{len(roster)} (follow {eid}) @ {MOVIE_FPS}fps [{where}] ...")
+        r = sh(f'cd "{PROJECT}" && {prefix}"{GODOT}" --path . --rendering-driver opengl3 '
+               f'{pos}--resolution {WIN_W}x{WIN_H} '
                f'--write-movie "user://_netcap/view{i}/frame.png" --fixed-fps {MOVIE_FPS} '
                f'{SCENE} -- --replay={rec_user} --replay-follow={eid} '
                f'> /tmp/net_video_view{i}.log 2>&1')

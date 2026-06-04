@@ -53,6 +53,15 @@ Split "run the sim" from "render the video":
   4.6.1 binary (real iGPU, real asset import), sidestepping the 4.7-beta
   `--headless-render` box/import problem entirely. The custom offscreen
   build is no longer required for a good-looking video.
+- **Truly windowless** via `--smooth --linux`: the offline render runs the
+  stock 4.6.1 *Linux* binary under **Xvfb** (a virtual framebuffer), so NO
+  window appears at all — genuinely headless — while still getting real
+  meshes (the Linux project is imported) + smooth Movie-Maker output. The
+  Windows stock binary has no offscreen driver, so `--smooth` alone falls
+  back to an off-screen window (`--position 9999,9999`). The custom 4.7
+  `--headless-render` build is windowless too but renders boxes (can't load
+  4.6.1 assets; its template can't import) — so Xvfb is the better
+  windowless path until the patch is ported to a 4.6.1 build.
 - The recorded sim IS the real server-authoritative netcode output —
   replay is only a visualization, so it still faithfully demonstrates the
   networked, synced multiplayer.
