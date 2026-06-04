@@ -121,6 +121,17 @@ REC_DIR = os.environ.get("REC_DIR", os.path.join(REPO, "recordings"))
 RUN_DIR = os.path.join(REC_DIR, f"{SHORT}_{RUN_STAMP}")
 OUT = os.environ.get("OUT") or os.path.join(RUN_DIR, f"{SHORT}.mp4")
 
+# WSL exposes the host GPU through Mesa's d3d12 Gallium driver (/dev/dxg). Plain
+# Xvfb otherwise defaults to llvmpipe (CPU software) — so headless renders were
+# CPU-bound. Forcing d3d12 routes GL to the real GPU even under Xvfb → fast +
+# windowless. On a non-WSL Linux GPU box (/dev/dxg absent) we leave the driver
+# alone (it should pick the native GPU driver). Override via GALLIUM_DRIVER=.
+WSL_GPU = LINUX and os.path.exists("/dev/dxg") and "GALLIUM_DRIVER" not in os.environ
+# `env` prefix (not a bare VAR=val): xvfb-run execs its command directly without a
+# shell, so a bare VAR=val would be treated as the command name. `env VAR=val cmd`
+# works whether or not xvfb-run wraps it.
+GL_ENV = "env GALLIUM_DRIVER=d3d12 MESA_LOADER_DRIVER_OVERRIDE=d3d12 " if WSL_GPU else ""
+
 
 def sh(cmd, **kw):
     return subprocess.run(cmd, shell=True, **kw)
@@ -183,8 +194,9 @@ def client_cmd(pos_x, pos_y, inp, after, tag):
     cmd = g + win + [SCENE] + user
     if LINUX and HAVE_XVFB:
         # Each client gets its OWN virtual display (-a auto-picks) → no windows,
-        # no contention.
-        return ["xvfb-run", "-a", "-s", f"-screen 0 {WIN_W}x{WIN_H}x24"] + cmd, {}
+        # no contention. d3d12 env routes GL to the WSL GPU (else llvmpipe/CPU).
+        gpu_env = {"GALLIUM_DRIVER": "d3d12", "MESA_LOADER_DRIVER_OVERRIDE": "d3d12"} if WSL_GPU else {}
+        return ["xvfb-run", "-a", "-s", f"-screen 0 {WIN_W}x{WIN_H}x24"] + cmd, gpu_env
     if LINUX:
         return cmd, {"DISPLAY": ":0"}  # WSLg fallback — windows WILL be visible
     return cmd, {}
@@ -270,9 +282,10 @@ def run_smooth():
     for i, eid in enumerate(roster):
         viewdir = os.path.join(NETCAP, f"view{i}")
         os.makedirs(viewdir, exist_ok=True)
-        where = "Xvfb (no window)" if (LINUX and HAVE_XVFB) else "off-screen window"
+        gpu = "GPU/d3d12" if GL_ENV else ("GPU" if not LINUX else "software")
+        where = ("Xvfb, no window" if (LINUX and HAVE_XVFB) else "off-screen window") + f", {gpu}"
         print(f"[net_video] rendering view {i+1}/{len(roster)} (follow {eid}) @ {MOVIE_FPS}fps [{where}] ...")
-        r = sh(f'cd "{PROJECT}" && {prefix}"{GODOT}" --path . --rendering-driver opengl3 '
+        r = sh(f'cd "{PROJECT}" && {prefix}{GL_ENV}"{GODOT}" --path . --rendering-driver opengl3 '
                f'{pos}--resolution {WIN_W}x{WIN_H} '
                f'--write-movie "user://_netcap/view{i}/frame.png" --fixed-fps {MOVIE_FPS} '
                f'{SCENE} -- --replay={rec_user} --replay-follow={eid} '
