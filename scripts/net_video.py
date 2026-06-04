@@ -30,8 +30,6 @@ Plumbing / flags (implementation detail — you normally only need --smooth
   (default)    Windows binary; off-screen window (--hidden) — native GPU
                readback, faster to produce in WSL, but an off-screen window
                exists.
-  --offscreen  the custom 4.7 --headless-render build (true offscreen Vulkan).
-               Currently renders grey boxes (4.7 vs 4.6.1 assets) — not used.
 
 Env: CLIENTS, SECS, MOVIE_FPS, CRF, PORT, WIN_W/WIN_H, DELAY, OUT, REC_DIR.
 """
@@ -58,12 +56,6 @@ HIDDEN = "--hidden" in sys.argv
 # speed (slow GPU just takes longer to produce). Uses the stock binary → real meshes.
 # Views are inherently synced (same recording, same fixed fps → identical frame count).
 SMOOTH = "--smooth" in sys.argv
-# --offscreen (truly windowless): the custom Godot build's --headless-render
-# (--display-driver offscreen) renders via Vulkan with NO window at all — no Xvfb,
-# no off-screen-window trick. NOTE: Vulkan here is software (lavapipe) → ~16% of
-# real-time, so it's slower than the Windows-iGPU --hidden path; its value is being
-# genuinely headless (CI / no display). Uses a separate 4.7 project + import cache.
-OFFSCREEN = "--offscreen" in sys.argv
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 OFFSCREEN_PX = 5000  # px beyond the visible desktop (for the --hidden window trick)
 
@@ -98,14 +90,7 @@ DELAY = int(os.environ.get("DELAY", "20"))
 WIN_W = os.environ.get("WIN_W", "700")
 WIN_H = os.environ.get("WIN_H", "440")
 
-if OFFSCREEN:
-    GODOT = os.environ.get(
-        "YUME_GODOT_OFFSCREEN_BIN",
-        "/mnt/c/Users/kamwoh/Documents/Projects/Personal/godot/bin/godot.linuxbsd.template_debug.x86_64")
-    PROJECT = os.environ.get("YUME_GODOT_OFFSCREEN_PROJECT", os.path.expanduser("~/godot-offscreen/yume"))
-    USERDATA = os.path.expanduser("~/.local/share/godot/app_userdata/Yume Framework")
-    HAVE_XVFB = False
-elif LINUX:
+if LINUX:
     GODOT = os.environ.get("YUME_GODOT_LINUX_BIN",
                            os.path.expanduser("~/godot-linux/Godot_v4.6.1-stable_linux.x86_64"))
     PROJECT = os.environ.get("YUME_GODOT_LINUX_PROJECT", os.path.expanduser("~/godot-linux/yume"))
@@ -149,7 +134,7 @@ def sh(cmd, **kw):
 
 
 def kill_godot():
-    if LINUX or OFFSCREEN:
+    if LINUX:
         sh(f"pkill -f {os.path.basename(GODOT)} 2>/dev/null || true")
     else:
         sh('powershell.exe -Command "Get-Process Godot* -ErrorAction SilentlyContinue '
@@ -158,16 +143,11 @@ def kill_godot():
 
 
 def sync():
-    if LINUX or OFFSCREEN:
+    if LINUX:
         # WITH assets — the 3D meshes must be present + imported to render.
         sh(f'rsync -a --delete --exclude=.godot/ "{REPO}/godot/" "{PROJECT}/"')
     else:
         sh(f'cp -r "{REPO}/godot/." "{PROJECT}/"')
-    if OFFSCREEN:
-        # The 4.7-beta importer stalls on our 4.6.1 assets, so offscreen relies on a
-        # PRE-SEEDED .godot import cache (set up out of band). Our changed files are
-        # .gd scripts, which load directly (no import needed). Skip the import step.
-        return
     env = "DISPLAY=:0 " if LINUX else ""
     sh(f'cd "{PROJECT}" && {env}"{GODOT}" --path . --headless --import >/dev/null 2>&1')
 
@@ -180,7 +160,7 @@ def pick_scene():
 
 
 def client_cmd(pos_x, pos_y, inp, after, tag):
-    """A rendering client. offscreen: --headless-render (Vulkan, no window). Windows:
+    """A rendering client. Linux: Xvfb (windowless). Windows:
     a positioned window. Linux: Xvfb (windowless) or WSLg :0 fallback."""
     # --capture-after is now a fallback only: net_driver sets `yume_net_await_go`,
     # so capture_runner holds capture until the server's GO (both spawned) rather
@@ -192,12 +172,6 @@ def client_cmd(pos_x, pos_y, inp, after, tag):
             f"--net-join=127.0.0.1:{PORT}", f"--net-input={inp}",
             f"--capture-after={after}", f"--capture-allframes={SECS}",
             f"--capture-output=user://_netcap/vid_{tag}.png"]
-    if OFFSCREEN:
-        # Truly windowless real render. NO --write-movie (that forces fixed-fps movie
-        # mode → would desync the live ENet sim); we keep real-time + capture-allframes.
-        cmd = [GODOT, "--headless-render", "--path", ".",
-               "--resolution", f"{WIN_W}x{WIN_H}", SCENE] + user
-        return cmd, {}
     g = [GODOT, "--path", ".", "--rendering-driver", "opengl3"]
     px = (OFFSCREEN_PX + pos_x) if HIDDEN else pos_x
     py = (OFFSCREEN_PX + pos_y) if HIDDEN else (60 + pos_y)
@@ -342,10 +316,9 @@ def main():
         return
     if not GODOT or not os.path.exists(GODOT):
         sys.exit(f"Godot binary not found: {GODOT}")
-    if OFFSCREEN:
-        backend = "offscreen (--headless-render, Vulkan/software — truly windowless)"
-    elif LINUX:
-        backend = "linux/" + ("xvfb (windowless)" if HAVE_XVFB else "WSLg :0 (windows visible!)")
+    if LINUX:
+        gpu = "GPU/d3d12" if GL_ENV else "software"
+        backend = ("linux/xvfb (no window, %s)" % gpu) if HAVE_XVFB else "linux/WSLg :0 (windows visible!)"
     else:
         backend = "windows/GPU (off-screen — windowless)" if HIDDEN else "windows/GPU (windows visible)"
     print(f"[net_video] backend={backend}")
@@ -415,7 +388,7 @@ def main():
     # Every-frame capture: frame COUNT is unknown up front, so wait for ALL clients
     # to EXIT (each quits after writing its buffered PNGs). More clients = slower
     # simultaneous load + lower sim fps, so scale the budget with CLIENTS.
-    budget = DELAY + SECS + 60 + CLIENTS * 20 + (120 if (LINUX or OFFSCREEN) else 0)
+    budget = DELAY + SECS + 60 + CLIENTS * 20 + (120 if LINUX else 0)
     print(f"[net_video] waiting up to {budget}s for all {CLIENTS} clients to finish ...")
     t0 = time.time()
     while time.time() - t0 < budget:
