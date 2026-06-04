@@ -1,28 +1,39 @@
 #!/usr/bin/env python3
-"""Record a SIDE-BY-SIDE video of a client-server net demo (ADR 0063-0065).
+"""Record an N-up grid video of the client-server net demo (ADR 0063-0066).
 
-One command, no manual steps: sync the framework -> launch a HEADLESS dedicated
-server + 2 rendering clients (each driving a character + capturing a real-time
-frame sequence) -> ffmpeg-stitch the two sequences side by side into an mp4.
-Proves synchronization visually (one walks north, one west; both views show both
-characters in step).
+Records the live netcode once (CLIENTS players, real server-authoritative sim),
+then renders each player's view and stitches them into one mp4 — proving the
+multiplayer is synchronized.
 
-Two backends:
-  (default / --windows)  Windows Godot binary, real GPU (Intel iGPU) -> fast,
-                         smooth, but the 2 client windows are VISIBLE.
-  --linux                Linux Godot binary under Xvfb -> TRULY WINDOWLESS
-                         (proper for CI / "render a confirmed run to a file").
-                         Needs `sudo apt install -y xvfb` once; renders via
-                         SOFTWARE GL (llvmpipe — no GPU in WSL), so slower.
-                         Falls back to WSLg's display (:0) if Xvfb is absent
-                         (works, but then windows are visible).
+============================================================================
+TWO MODES (that's all — everything else below is just plumbing):
+  NORMAL    a window you can see  → the regular game (play.sh).
+  HEADLESS  no window             → THIS tool with `--smooth --linux`.
+============================================================================
 
-Usage:
-  venv/bin/python scripts/net_video.py [game] [input1] [input2] [--linux]
-  venv/bin/python scripts/net_video.py demo_tiny_village move_north move_west
-  venv/bin/python scripts/net_video.py demo_tiny_village move_north move_west --linux
+Recommended (headless, real meshes, smooth 60fps, synced):
 
-Env: PORT, FPS, SECS, DELAY (connect-wait), WIN_W, WIN_H, OUT.
+  CLIENTS=4 SECS=6 CRF=18 venv/bin/python scripts/net_video.py demo_tiny_village --smooth --linux
+
+That's the one to use. It records the sim, then re-renders each view offline in
+Movie-Maker mode under Xvfb (a virtual display → no window) using the stock
+4.6.1 Linux binary (real meshes). Full quality; just slow to PRODUCE in WSL
+(per-frame GPU readback across WSL's d3d12 layer — not a quality issue).
+
+----------------------------------------------------------------------------
+Plumbing / flags (implementation detail — you normally only need --smooth
+--linux). These exist for speed experiments + other environments:
+  --smooth     record-then-replay-offline (Movie-Maker, smooth). Without it,
+               real-time capture (GPU-bound → choppier).
+  --linux      stock 4.6.1 Linux binary under Xvfb (windowless). Auto-routes
+               GL to the WSL GPU (d3d12) when /dev/dxg is present.
+  (default)    Windows binary; off-screen window (--hidden) — native GPU
+               readback, faster to produce in WSL, but an off-screen window
+               exists.
+  --offscreen  the custom 4.7 --headless-render build (true offscreen Vulkan).
+               Currently renders grey boxes (4.7 vs 4.6.1 assets) — not used.
+
+Env: CLIENTS, SECS, MOVIE_FPS, CRF, PORT, WIN_W/WIN_H, DELAY, OUT, REC_DIR.
 """
 import glob
 import datetime
