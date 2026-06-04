@@ -71,6 +71,28 @@ var _input_pattern: Array = []  # scripted action cycle (comma-list from --net-i
 var _expected_clients := 1  # server waits for this many before broadcasting GO
 var _go := false  # both/all clients spawned — start capture + scripted input
 var _server_tick := 0  # CLIENT: latest authoritative tick from snapshots (shared clock)
+
+# Record (SERVER): dump the authoritative per-tick state stream to a file, so the
+# views can be RE-RENDERED offline in Movie-Maker mode (smooth 60fps regardless of
+# GPU speed) — see ADR 0066. Recording starts at GO and runs _record_secs seconds.
+var _record_path := ""
+var _record_secs := 0.0
+var _record_frames: Array = []   # [{tick, ents}] post-GO, deduped per tick
+var _record_last_tick := -1
+var _go_tick := 0                # server tick at GO (record window origin)
+
+# Replay (single instance): drive entities from a recorded state file instead of
+# the live wire, in Movie-Maker mode. No ENet. One run per camera view.
+var _replay := false
+var _replay_path := ""
+var _replay_follow := ""
+var _replay_frames: Array = []
+var _replay_roster: Array = []
+var _replay_tick_hz := 60.0
+var _replay_first_tick := 0
+var _replay_last_tick := 0
+var _replay_t := 0.0
+var _replay_spawned := false
 var _ticks_target := 600
 var _out_path := ""
 var _visual := false
@@ -147,6 +169,23 @@ func _ready() -> void:
 			if eq < 0:
 				i += 1
 			_expected_clients = maxi(1, int(val))
+		elif name == "--net-record":
+			if eq < 0:
+				i += 1
+			_record_path = val
+		elif name == "--net-record-secs":
+			if eq < 0:
+				i += 1
+			_record_secs = float(val)
+		elif name == "--replay":
+			if eq < 0:
+				i += 1
+			_replay_path = val
+			_replay = true
+		elif name == "--replay-follow":
+			if eq < 0:
+				i += 1
+			_replay_follow = val
 		elif name == "--net-ticks":
 			if eq < 0:
 				i += 1
@@ -168,6 +207,17 @@ func _ready() -> void:
 			# as a wrong default.
 			push_warning("[net] unrecognized arg '%s' — IGNORED (typo or wrong form?)" % s)
 		i += 1
+	# Replay mode: no ENet at all. Gate the World sim (we drive entities from the
+	# recorded file) but KEEP the renderer + directors (visual seam) so the camera
+	# follows + meshes render. Movie-Maker mode (--write-movie, passed to Godot
+	# directly) renders every frame at a fixed fps → smooth regardless of GPU speed.
+	if _replay:
+		Engine.set_meta("yume_lockstep_visual", true)
+		Engine.set_meta("yume_external_tick_driver", true)
+		if _replay_follow != "":
+			Engine.set_meta("yume_local_follow_id", _replay_follow)
+		_load_replay()
+		return
 	if not _active:
 		return
 	if _visual:
@@ -601,6 +651,10 @@ func _apply_field(e: Entity, field: String, value) -> void:
 
 
 func _process(delta: float) -> void:
+	if _replay:
+		if not _done:
+			_replay_process(delta)
+		return
 	if not _active or _done:
 		return
 	# Clean dedicated-server model: clear authored (pre-placed) players as soon as
@@ -643,6 +697,18 @@ func _server_process(delta: float) -> void:
 	if _snap_accum >= period:
 		_snap_accum = 0.0
 		_recv_snapshot.rpc(_serialize_state(), int(_world.get("_tick_count")))
+	# Record the authoritative state stream (post-GO, one frame per sim tick) so the
+	# views can be re-rendered offline + smooth (ADR 0066). Finish after the window.
+	if _record_path != "" and _go:
+		var tk := int(_world.get("_tick_count"))
+		if _go_tick == 0:
+			_go_tick = tk
+		if tk != _record_last_tick:
+			_record_last_tick = tk
+			_record_frames.append({"tick": tk, "ents": _serialize_state()})
+		if _record_secs > 0.0 and (tk - _go_tick) >= int(_record_secs / _tick_seconds()):
+			_finish()
+			return
 	# Finish when the authoritative sim reaches the target tick count.
 	if int(_world.get("_tick_count")) >= _ticks_target:
 		# final authoritative state + tick to clients
@@ -807,10 +873,127 @@ func _lerp_value(field: String, v0, v1, alpha: float):
 # ============================================================
 
 
+# ============================================================
+# Record (server) + Replay-render (offline, Movie-Maker mode) — ADR 0066
+# ============================================================
+
+
+func _tick_seconds() -> float:
+	var ts := 0.0167
+	if _world != null:
+		var v = _world.get("tick_seconds")
+		if v != null and float(v) > 0.0:
+			ts = float(v)
+	return ts
+
+
+func _tick_seconds_to_hz() -> float:
+	return 1.0 / _tick_seconds()
+
+
+## Roster the offline replay needs to spawn the dynamic players (def + spawn pose).
+func _record_roster() -> Array:
+	var out: Array = []
+	for eid in _player_def_of:
+		out.append({
+			"id": str(eid),
+			"def": str(_player_def_of[eid]),
+			"pos": _player_pos_of.get(eid, [0, 0, 0]),
+			"facing": float(_player_facing_of.get(eid, 0.0)),
+		})
+	return out
+
+
+## REPLAY: load the recorded state file.
+func _load_replay() -> void:
+	if not FileAccess.file_exists(_replay_path):
+		printerr("[net] replay file not found: %s" % _replay_path)
+		return
+	var f := FileAccess.open(_replay_path, FileAccess.READ)
+	if f == null:
+		return
+	var data = JSON.parse_string(f.get_as_text())
+	f.close()
+	if not (data is Dictionary):
+		printerr("[net] replay file malformed")
+		return
+	var d: Dictionary = data
+	_replay_tick_hz = float(d.get("tick_hz", 60.0))
+	_replay_roster = d.get("roster", [])
+	_replay_frames = d.get("frames", [])
+	if _replay_frames.size() > 0:
+		_replay_first_tick = int((_replay_frames[0] as Dictionary).get("tick", 0))
+		_replay_last_tick = int((_replay_frames[_replay_frames.size() - 1] as Dictionary).get("tick", 0))
+	print("[net] replay loaded: %d frames, ticks %d..%d, follow=%s"
+		% [_replay_frames.size(), _replay_first_tick, _replay_last_tick, _replay_follow])
+
+
+## REPLAY: spawn the recorded roster once the World is up (clears any pre-placed).
+func _replay_spawn() -> void:
+	if not _cleared:
+		_try_clear_preplaced()  # finds + caches _world, clears pre-placed players
+	if not _cleared or _world == null:
+		return  # world not loaded yet — try again next frame
+	for r in _replay_roster:
+		var rd: Dictionary = r
+		var eid := str(rd.get("id", ""))
+		if eid == "" or _world.entities.has(eid):
+			continue
+		var pos = rd.get("pos", [0, 0, 0])
+		_world.spawn_instance({
+			"def": str(rd.get("def", "")), "id": eid, "position": pos,
+			"state": {"position": pos, "facing": float(rd.get("facing", 0.0))},
+		})
+	_replay_spawned = true
+	print("[net] replay spawned %d entities" % _replay_roster.size())
+
+
+## REPLAY per-frame: advance the recorded timeline by real (Movie-Maker fixed) dt,
+## apply the nearest recorded frame's state. Movie mode renders every frame at a
+## fixed fps, so the output is smooth no matter how slowly the GPU actually draws.
+func _replay_process(delta: float) -> void:
+	if _replay_frames.is_empty():
+		_done = true
+		get_tree().quit(0)
+		return
+	if not _replay_spawned:
+		_replay_spawn()
+		return  # spawn this frame; start applying next
+	_replay_t += delta
+	var target := _replay_first_tick + int(round(_replay_t * _replay_tick_hz))
+	if target > _replay_last_tick:
+		_done = true
+		get_tree().quit(0)
+		return
+	# Nearest recorded frame to target tick (frames are tick-sorted).
+	var best = _replay_frames[0]
+	var best_d: int = abs(int((best as Dictionary).get("tick", 0)) - target)
+	for fr in _replay_frames:
+		var d: int = abs(int((fr as Dictionary).get("tick", 0)) - target)
+		if d < best_d:
+			best_d = d
+			best = fr
+	_apply_snapshot((best as Dictionary).get("ents", {}))
+
+
 func _finish() -> void:
 	if _done:
 		return
 	_done = true
+	# Write the recorded authoritative state stream (server, --net-record). The
+	# offline replay renders each camera view from this in Movie-Maker mode.
+	if _record_path != "" and _is_host:
+		var rec := {
+			"tick_hz": _tick_seconds_to_hz(),
+			"roster": _record_roster(),
+			"frames": _record_frames,
+		}
+		var rf := FileAccess.open(_record_path, FileAccess.WRITE)
+		if rf != null:
+			rf.store_string(JSON.stringify(rec))
+			rf.close()
+			print("[net] recorded %d frames (%d entities) -> %s"
+				% [_record_frames.size(), _record_roster().size(), _record_path])
 	# Positions of every player/actor entity — the server's authoritative truth vs
 	# the client's APPLIED state. Both run the same spawn-replicated roster, so
 	# these must match (correctness check). Keyed by entity id (stable across peers).

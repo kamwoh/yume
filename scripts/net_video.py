@@ -26,6 +26,7 @@ Env: PORT, FPS, SECS, DELAY (connect-wait), WIN_W, WIN_H, OUT.
 """
 import glob
 import datetime
+import json
 import math
 import os
 import re
@@ -41,8 +42,19 @@ LINUX = "--linux" in sys.argv
 # windowless video output without the Linux/Xvfb setup. (No effect on --linux,
 # which is already windowless under Xvfb.)
 HIDDEN = "--hidden" in sys.argv
+# --smooth (ADR 0066): record the live netcode once (real-time), then RE-RENDER each
+# view offline in Movie-Maker mode (--write-movie) → buttery 60fps regardless of GPU
+# speed (slow GPU just takes longer to produce). Uses the stock binary → real meshes.
+# Views are inherently synced (same recording, same fixed fps → identical frame count).
+SMOOTH = "--smooth" in sys.argv
+# --offscreen (truly windowless): the custom Godot build's --headless-render
+# (--display-driver offscreen) renders via Vulkan with NO window at all — no Xvfb,
+# no off-screen-window trick. NOTE: Vulkan here is software (lavapipe) → ~16% of
+# real-time, so it's slower than the Windows-iGPU --hidden path; its value is being
+# genuinely headless (CI / no display). Uses a separate 4.7 project + import cache.
+OFFSCREEN = "--offscreen" in sys.argv
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
-OFFSCREEN = 5000  # px beyond the visible desktop
+OFFSCREEN_PX = 5000  # px beyond the visible desktop (for the --hidden window trick)
 
 
 def from_play_sh(var):
@@ -66,12 +78,20 @@ INPUTS = [(ARGS[1 + i] if len(ARGS) > 1 + i else PATROL) for i in range(CLIENTS)
 
 PORT = os.environ.get("PORT", "7862")
 FPS = int(os.environ.get("FPS", "30"))   # OUTPUT video fps (capture grabs every rendered frame)
-SECS = int(os.environ.get("SECS", "5"))  # real-time capture window
+SECS = int(os.environ.get("SECS", "5"))  # real-time capture / record window
+MOVIE_FPS = int(os.environ.get("MOVIE_FPS", "60"))  # --smooth: fixed Movie-Maker fps
 DELAY = int(os.environ.get("DELAY", "20"))
 WIN_W = os.environ.get("WIN_W", "700")
 WIN_H = os.environ.get("WIN_H", "440")
 
-if LINUX:
+if OFFSCREEN:
+    GODOT = os.environ.get(
+        "YUME_GODOT_OFFSCREEN_BIN",
+        "/mnt/c/Users/kamwoh/Documents/Projects/Personal/godot/bin/godot.linuxbsd.template_debug.x86_64")
+    PROJECT = os.environ.get("YUME_GODOT_OFFSCREEN_PROJECT", os.path.expanduser("~/godot-offscreen/yume"))
+    USERDATA = os.path.expanduser("~/.local/share/godot/app_userdata/Yume Framework")
+    HAVE_XVFB = False
+elif LINUX:
     GODOT = os.environ.get("YUME_GODOT_LINUX_BIN",
                            os.path.expanduser("~/godot-linux/Godot_v4.6.1-stable_linux.x86_64"))
     PROJECT = os.environ.get("YUME_GODOT_LINUX_PROJECT", os.path.expanduser("~/godot-linux/yume"))
@@ -104,7 +124,7 @@ def sh(cmd, **kw):
 
 
 def kill_godot():
-    if LINUX:
+    if LINUX or OFFSCREEN:
         sh(f"pkill -f {os.path.basename(GODOT)} 2>/dev/null || true")
     else:
         sh('powershell.exe -Command "Get-Process Godot* -ErrorAction SilentlyContinue '
@@ -113,11 +133,16 @@ def kill_godot():
 
 
 def sync():
-    if LINUX:
+    if LINUX or OFFSCREEN:
         # WITH assets — the 3D meshes must be present + imported to render.
         sh(f'rsync -a --delete --exclude=.godot/ "{REPO}/godot/" "{PROJECT}/"')
     else:
         sh(f'cp -r "{REPO}/godot/." "{PROJECT}/"')
+    if OFFSCREEN:
+        # The 4.7-beta importer stalls on our 4.6.1 assets, so offscreen relies on a
+        # PRE-SEEDED .godot import cache (set up out of band). Our changed files are
+        # .gd scripts, which load directly (no import needed). Skip the import step.
+        return
     env = "DISPLAY=:0 " if LINUX else ""
     sh(f'cd "{PROJECT}" && {env}"{GODOT}" --path . --headless --import >/dev/null 2>&1')
 
@@ -130,12 +155,8 @@ def pick_scene():
 
 
 def client_cmd(pos_x, pos_y, inp, after, tag):
-    """A rendering client. Windows: a positioned window. Linux: Xvfb (windowless)
-    or WSLg :0 fallback."""
-    g = [GODOT, "--path", ".", "--rendering-driver", "opengl3"]
-    px = (OFFSCREEN + pos_x) if HIDDEN else pos_x
-    py = (OFFSCREEN + pos_y) if HIDDEN else (60 + pos_y)
-    win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{px},{py}"]
+    """A rendering client. offscreen: --headless-render (Vulkan, no window). Windows:
+    a positioned window. Linux: Xvfb (windowless) or WSLg :0 fallback."""
     # --capture-after is now a fallback only: net_driver sets `yume_net_await_go`,
     # so capture_runner holds capture until the server's GO (both spawned) rather
     # than firing at a fixed delay. `after` left at 0.
@@ -146,6 +167,16 @@ def client_cmd(pos_x, pos_y, inp, after, tag):
             f"--net-join=127.0.0.1:{PORT}", f"--net-input={inp}",
             f"--capture-after={after}", f"--capture-allframes={SECS}",
             f"--capture-output=user://_netcap/vid_{tag}.png"]
+    if OFFSCREEN:
+        # Truly windowless real render. NO --write-movie (that forces fixed-fps movie
+        # mode → would desync the live ENet sim); we keep real-time + capture-allframes.
+        cmd = [GODOT, "--headless-render", "--path", ".",
+               "--resolution", f"{WIN_W}x{WIN_H}", SCENE] + user
+        return cmd, {}
+    g = [GODOT, "--path", ".", "--rendering-driver", "opengl3"]
+    px = (OFFSCREEN_PX + pos_x) if HIDDEN else pos_x
+    py = (OFFSCREEN_PX + pos_y) if HIDDEN else (60 + pos_y)
+    win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{px},{py}"]
     cmd = g + win + [SCENE] + user
     if LINUX and HAVE_XVFB:
         # Each client gets its OWN virtual display (-a auto-picks) → no windows,
@@ -156,11 +187,125 @@ def client_cmd(pos_x, pos_y, inp, after, tag):
     return cmd, {}
 
 
-def main():
+def grid_filter(cols, rows, n_inputs):
+    """Build an ffmpeg filter_complex string: hstack each row, vstack the rows."""
+    filt, rows_lbl = "", []
+    for r in range(rows):
+        ins = "".join(f"[{r * cols + c}:v]" for c in range(cols))
+        filt += (f"{ins}null[row{r}];" if cols == 1
+                 else f"{ins}hstack=inputs={cols}[row{r}];")
+        rows_lbl.append(f"[row{r}]")
+    if rows == 1:
+        return filt.replace("[row0];", "[out]")
+    return filt + "".join(rows_lbl) + f"vstack=inputs={rows}[out]"
+
+
+def run_smooth():
+    """ADR 0066: record the live sim once, then render each view offline in
+    Movie-Maker mode (smooth fixed-fps), then grid-stitch. Stock binary → real
+    meshes; views are inherently synced (same recording @ same fps)."""
     if not GODOT or not os.path.exists(GODOT):
         sys.exit(f"Godot binary not found: {GODOT}")
-    backend = "linux/" + ("xvfb (windowless)" if HAVE_XVFB else "WSLg :0 (windows visible!)") \
-        if LINUX else ("windows/GPU (off-screen — windowless)" if HIDDEN else "windows/GPU (windows visible)")
+    print(f"[net_video] SMOOTH mode: record {CLIENTS}-player sim, re-render @ {MOVIE_FPS}fps (Movie-Maker)")
+    kill_godot()
+    print("[net_video] syncing framework + assets ...")
+    sync()
+    global SCENE, SCENE_ARGS
+    SCENE, SCENE_ARGS = pick_scene()
+    print(f"[net_video] scene: {SCENE}")
+    shutil.rmtree(NETCAP, ignore_errors=True)
+    os.makedirs(NETCAP, exist_ok=True)
+    rec_user = "user://_netcap/netrec.json"
+    rec_disk = os.path.join(NETCAP, "netrec.json")
+
+    # --- Phase 1: record the live networked sim (all headless → fast, no GPU) ----
+    procs, logs = {}, {}
+    logs["server"] = open("/tmp/net_video_server.log", "w")
+    procs["server"] = subprocess.Popen(
+        [GODOT, "--path", ".", "--headless", SCENE, "--",
+         *SCENE_ARGS, "--net-host", f"--net-port={PORT}", f"--net-clients={CLIENTS}",
+         "--net-ticks=6000", f"--net-record={rec_user}", f"--net-record-secs={SECS}"],
+        cwd=PROJECT, stdout=logs["server"], stderr=subprocess.STDOUT)
+    time.sleep(int(os.environ.get("SERVER_WAIT", "14")))
+    gap = int(os.environ.get("CLIENT_GAP", "4"))
+    for i in range(CLIENTS):
+        logs[f"c{i}"] = open(f"/tmp/net_video_c{i+1}.log", "w")
+        procs[f"c{i}"] = subprocess.Popen(
+            [GODOT, "--path", ".", "--headless", SCENE, "--",
+             *SCENE_ARGS, f"--net-join=127.0.0.1:{PORT}", f"--net-port={PORT}",
+             f"--net-input={PATROL}", "--net-ticks=6000"],
+            cwd=PROJECT, stdout=logs[f"c{i}"], stderr=subprocess.STDOUT)
+        print(f"[net_video] recording client {i+1}/{CLIENTS} ...")
+        if i < CLIENTS - 1:
+            time.sleep(gap)
+    # The server quits after writing the record (SECS post-GO).
+    budget = DELAY + SECS + 60 + CLIENTS * 20
+    print(f"[net_video] waiting up to {budget}s for the record ...")
+    t0 = time.time()
+    while time.time() - t0 < budget and procs["server"].poll() is None:
+        time.sleep(2)
+    kill_godot()
+    if not os.path.isfile(rec_disk):
+        sys.exit(f"[net_video] ERROR: no record written ({rec_disk}) — see /tmp/net_video_server.log")
+    rec = json.load(open(rec_disk))
+    roster = [r["id"] for r in rec.get("roster", [])]
+    print(f"[net_video] recorded {len(rec.get('frames', []))} frames, roster={roster}")
+    if len(roster) < CLIENTS:
+        sys.exit(f"[net_video] ERROR: roster has {len(roster)} players, expected {CLIENTS} "
+                 f"(a client didn't connect — see /tmp/net_video_c*.log)")
+
+    # --- Phase 2: render each view offline in Movie-Maker mode (smooth) ----------
+    for i, eid in enumerate(roster):
+        viewdir = os.path.join(NETCAP, f"view{i}")
+        os.makedirs(viewdir, exist_ok=True)
+        print(f"[net_video] rendering view {i+1}/{len(roster)} (follow {eid}) @ {MOVIE_FPS}fps ...")
+        r = sh(f'cd "{PROJECT}" && "{GODOT}" --path . --rendering-driver opengl3 '
+               f'--position 9999,9999 --resolution {WIN_W}x{WIN_H} '
+               f'--write-movie "user://_netcap/view{i}/frame.png" --fixed-fps {MOVIE_FPS} '
+               f'{SCENE} -- --replay={rec_user} --replay-follow={eid} '
+               f'> /tmp/net_video_view{i}.log 2>&1')
+        nfr = len(glob.glob(os.path.join(viewdir, "frame*.png")))
+        print(f"[net_video]   view {i+1}: {nfr} frames")
+        if nfr == 0:
+            sys.exit(f"[net_video] ERROR: view {i+1} rendered no frames — see /tmp/net_video_view{i}.log")
+
+    # --- Phase 3: grid-stitch (views share frame count → already aligned) --------
+    cols = math.ceil(math.sqrt(len(roster)))
+    rows = math.ceil(len(roster) / cols)
+    cells = cols * rows
+    frame_counts = [len(glob.glob(os.path.join(NETCAP, f"view{i}", "frame*.png"))) for i in range(len(roster))]
+    nmin = min(frame_counts)
+    inputs = []
+    for i in range(len(roster)):
+        inputs += ["-framerate", str(MOVIE_FPS), "-i", f'"{os.path.join(NETCAP, f"view{i}", "frame%08d.png")}"']
+    dur = nmin / float(MOVIE_FPS)
+    for _ in range(cells - len(roster)):
+        inputs += ["-f", "lavfi", "-t", f"{dur:.3f}",
+                   "-i", f"color=c=black:s={WIN_W}x{WIN_H}:r={MOVIE_FPS}"]
+    filt = grid_filter(cols, rows, cells)
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
+    print(f"[net_video] stitching {cols}x{rows} grid @ {MOVIE_FPS}fps -> {OUT}")
+    r = sh(f'ffmpeg -y {" ".join(inputs)} -filter_complex "{filt}" -map "[out]" '
+           f'-r {MOVIE_FPS} -pix_fmt yuv420p "{OUT}"',
+           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if r.returncode != 0 or not os.path.exists(OUT):
+        sys.exit(f"[net_video] ffmpeg failed (filter: {filt})")
+    shutil.rmtree(NETCAP, ignore_errors=True)
+    print(f"[net_video] DONE -> {OUT}")
+
+
+def main():
+    if SMOOTH:
+        run_smooth()
+        return
+    if not GODOT or not os.path.exists(GODOT):
+        sys.exit(f"Godot binary not found: {GODOT}")
+    if OFFSCREEN:
+        backend = "offscreen (--headless-render, Vulkan/software — truly windowless)"
+    elif LINUX:
+        backend = "linux/" + ("xvfb (windowless)" if HAVE_XVFB else "WSLg :0 (windows visible!)")
+    else:
+        backend = "windows/GPU (off-screen — windowless)" if HIDDEN else "windows/GPU (windows visible)"
     print(f"[net_video] backend={backend}")
     print(f"[net_video] {GAME}: server + {CLIENTS} clients -> grid mp4")
     if LINUX and not HAVE_XVFB:
@@ -228,7 +373,7 @@ def main():
     # Every-frame capture: frame COUNT is unknown up front, so wait for ALL clients
     # to EXIT (each quits after writing its buffered PNGs). More clients = slower
     # simultaneous load + lower sim fps, so scale the budget with CLIENTS.
-    budget = DELAY + SECS + 60 + CLIENTS * 20 + (60 if LINUX else 0)
+    budget = DELAY + SECS + 60 + CLIENTS * 20 + (120 if (LINUX or OFFSCREEN) else 0)
     print(f"[net_video] waiting up to {budget}s for all {CLIENTS} clients to finish ...")
     t0 = time.time()
     while time.time() - t0 < budget:
