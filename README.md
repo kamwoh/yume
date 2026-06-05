@@ -59,55 +59,19 @@ those are *content*, expressed by composing primitives).
 
 ## Features
 
-What the framework can do today (each line is JSON-authored unless noted;
-most map to an ADR under `docs/adr/`).
+What the framework can do today — JSON-authored unless noted; most rows map to
+an ADR under `docs/adr/`.
 
-**Core engine — primitives + interpreter (ADR 0001, 0021)**
-- 7 primitives: Entity, Tag, Rule, Trigger, Effect, Query, Relation.
-- Triggers: `tick`, `contact`, `signal`, `input`, `spawn`, `despawn`,
-  `relation_changed`, `frame`.
-- ~60 effect verbs: state (`state_set/add/mul/clamp`), `spawn`/`remove`/
-  `transform`, relations, tags, velocity (4 variants), arrays, `pathfind_to`,
-  `raycast_hit`, zones, and the shell-lifecycle verbs below.
-- Formula evaluator (whitelisted math), deterministic fixed-rate tick,
-  phase-flush scheduler, `@lib`/`$include` cross-game JSON reuse (ADR 0027),
-  rule macros, deterministic instance-pattern scatter/ring/grid.
-
-**Rendering & world**
-- 2D + 3D renderers; 8 camera modes (top-down / side-scroll / isometric /
-  third-person / first-person / fixed / free-cam, 2D & 3D).
-- GLB meshes, kit-of-parts composite meshes, MultiMesh decoration, trimesh
-  static world; shaders-as-JSON; multi-biome ground from a semantic map;
-  water surface; day/night cycle; fog + procedural sky.
-
-**Gameplay system primitives** (opt-in directors, mounted only if used)
-- party, schedule, class/occupation, zones, faction, tech-tree, dynasty,
-  lifecycle/aging, vehicles, multi-actor + scripted-policy AI, pathfinding,
-  procedural generation, grid/dynamic placement, animation.
-
-**"Complete game" layer**
-- declarative screens/modals, save/load, tutorial overlays, settings schema,
-  HUD-from-JSON, event→SFX audio, juice (shake/flash/particles).
-
-**Physics** — Godot PhysicsServer + CharacterBody motion, AABB blockers,
-camera-relative WASD.
-
-**Generation pipelines (LLM-in-the-loop)**
-- `/yume-design` (prose → full game), `/yume-create-scene` (prose → 3D scene),
-  HUD/screen/map authors; **38 specialist skills**; optional codegen + AI
-  assetgen (textures via OpenAI, meshes + rig via Tripo3D, shaders).
-
-**Networking & I/O (ADR 0060–0066)**
-- Deterministic POMDP stepping env (Python, gym-like) + determinism oracle.
-- Lockstep; **client-server (server-authoritative)** with data-driven
-  `net.json` replication; synced animation phase.
-- **Record-then-replay smooth headless video** of N-player synced sessions
-  (`scripts/net_video.py` — two modes: normal window / `--linux` headless;
-  GPU-rendered, grid layout, 60 fps).
-
-**Tooling & QA** — 24 static validators (run as a sync gate),
-Playwright-style scenario tests, visual QA (Gemini + Claude vision),
-tech-director invariant gate.
+| Area | Capabilities |
+|---|---|
+| **Core engine** (primitives + interpreter — ADR 0001, 0021) | 7 primitives (Entity / Tag / Rule / Trigger / Effect / Query / Relation); 8 trigger types (`tick`, `contact`, `signal`, `input`, `spawn`, `despawn`, `relation_changed`, `frame`); ~60 effect verbs (`state_set/add/mul/clamp`, `spawn`/`remove`/`transform`, relations, tags, velocity ×4, arrays, `pathfind_to`, `raycast_hit`, zones, shell-lifecycle); formula evaluator (whitelisted math); deterministic fixed-rate tick + phase-flush scheduler; `@lib`/`$include` cross-game reuse (ADR 0027); rule macros; deterministic scatter/ring/grid placement. |
+| **Rendering & world** | 2D + 3D renderers; 8 camera modes (top-down / side-scroll / isometric / third- / first-person / fixed / free-cam, 2D & 3D); GLB meshes, kit-of-parts composites, MultiMesh decoration, trimesh static world; shaders-as-JSON; multi-biome ground from a semantic map; water surface; day/night; fog + procedural sky. |
+| **Gameplay system primitives** (opt-in directors — mounted only if used) | party, schedule, class/occupation, zones, faction, tech-tree, dynasty, lifecycle/aging, vehicles, multi-actor + scripted-policy AI, pathfinding, procedural generation, grid/dynamic placement, animation. |
+| **"Complete game" layer** | declarative screens/modals, save/load, tutorial overlays, settings schema, HUD-from-JSON, event→SFX audio, juice (shake/flash/particles). |
+| **Physics** | Godot PhysicsServer + CharacterBody motion, AABB blockers, camera-relative WASD. |
+| **Generation pipelines** (LLM-in-the-loop) | `/yume-design` (prose → full game), `/yume-create-scene` (prose → 3D scene), HUD/screen/map authors; **38 specialist skills**; optional codegen + AI assetgen (textures via OpenAI, meshes + rig via Tripo3D, shaders). |
+| **Networking & I/O** (ADR 0060–0066) | deterministic gym-like stepping env (Python) + determinism oracle; lockstep; **client-server (server-authoritative)** with data-driven `net.json` replication; synced animation; **record-then-replay smooth headless video** of N-player synced sessions (`scripts/net_video.py` — normal window / `--linux` headless, GPU, grid, 60 fps). |
+| **Tooling & QA** | 24 static validators (sync gate); Playwright-style scenario tests; visual QA (Gemini + Claude vision); tech-director invariant gate. |
 
 ---
 
