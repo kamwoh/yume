@@ -370,39 +370,15 @@ audio/cues.json     event→SFX           tests.json scenario tests (steps[])
 
 An honest list of where the framework is thin or demo-grade.
 
-**Networking** (newest; most demo-grade)
-- Pure server-authoritative → **no client-side prediction** (your own
-  character has round-trip input latency); no lag compensation.
-- **LAN/localhost only** — no NAT traversal, relay, or matchmaking; no
-  reconnection; no persistence of multiplayer state.
-- Only the **walk-shell** is networked — the real genre games (merchant,
-  shooter, …) aren't net-tested.
-
-**Headless render fidelity**
-- The truly-windowless `--headless-render` path is a custom Godot patch built
-  on **4.7-beta**, so it can't load our **4.6.1** assets (renders boxes) —
-  would need porting to 4.6.1. The Xvfb path works (real meshes, no window)
-  but is GPU-readback-bound in WSL (fast on a native-GPU Linux box).
-
-**Animation**
-- No validator that a declared `animation_clip` actually exists in the mesh
-  (a mismatch silently falls back → "laggy"; bit us in `tiny_village`).
-- `anim_phase` is fixed-cadence, not speed-proportional → foot-sliding at
-  speed. No blend trees, IK, or root motion.
-
-**Formula / query**
-- Ternary `a if c else b` is **broken** in Godot 4.6.1's Expression.
-- `self.nearest({…})` is **not implemented** — no spatial query inside
-  formulas (use a `contact` trigger instead).
-
-**Pipelines** — `/yume-design` and `/yume-create-scene` **clobber** each
-other's files; re-running `compose_scene` wipes hand-added game rules.
-
-**Authoring / UX** — no in-engine visual editor (everything is JSON + skills);
-input is keyboard/mouse/gamepad, **no touch/mobile** path.
-
-**Other** — LLM-driven NPC behavior (ADR 0020 external-agent IPC) is a seam,
-not a shipped feature; audio is procedural SFX + cues, music/BGM is thin.
+| Area | Gap |
+|---|---|
+| **Networking** (newest, most demo-grade) | Pure server-authoritative → **no client-side prediction** (your own character has round-trip input latency), no lag compensation. **LAN/localhost only** — no NAT/relay/matchmaking, no reconnection, no persistence of multiplayer state. Only the **walk-shell** is networked; the real genre games (merchant, shooter, …) aren't net-tested. |
+| **Headless-render fidelity** | The truly-windowless `--headless-render` path is a custom Godot patch on **4.7-beta**, so it can't load our **4.6.1** assets (renders boxes) — needs porting to 4.6.1. The Xvfb path works (real meshes, no window) but is GPU-readback-bound in WSL (fast on a native-GPU Linux box). |
+| **Animation** | No validator that a declared `animation_clip` exists in the mesh (mismatch silently falls back → "laggy"; bit us in `tiny_village`). `anim_phase` is fixed-cadence, not speed-proportional → foot-sliding at speed. No blend trees, IK, or root motion. |
+| **Formula / query** | Ternary `a if c else b` is **broken** in Godot 4.6.1's Expression. `self.nearest({…})` is **not implemented** — no spatial query inside formulas (use a `contact` trigger instead). |
+| **Pipelines** | `/yume-design` and `/yume-create-scene` **clobber** each other's files; re-running `compose_scene` wipes hand-added game rules. |
+| **Authoring / UX** | No in-engine visual editor (everything is JSON + skills); input is keyboard/mouse/gamepad — **no touch/mobile** path. |
+| **AI / audio** | LLM-driven NPC behavior (ADR 0020 external-agent IPC) is a seam, not a shipped feature; audio is procedural SFX + cues — music/BGM is thin. |
 
 ---
 
