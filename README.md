@@ -1,9 +1,11 @@
 # Yume (夢)
 
-JSON-driven game framework on Godot 4.6.1. The engine ships a fixed set of
-**primitives + a small interpreter**; each game's mechanics are **pure JSON**.
-No game-specific GDScript — adding a game means writing JSON, never editing the
-engine (Invariant #1 / #8; ADR 0021).
+**Yume is a programmable, explicit _world model_** — built on Godot 4.6.1.
+A world's entities and rules are written as **pure JSON**; a small interpreter
+advances that world tick by tick; Godot *projects* the resulting state to pixels,
+audio, HUD, or text. The engine ships a fixed set of **primitives + interpreter**
+— no game-specific GDScript; you describe a world, never edit the engine
+(Invariant #1 / #8; ADR 0021). **Games are one use of this — not the only one.**
 
 > ## 🤖 Built by Claude, for Claude
 > This repository was written **entirely by Claude** (Anthropic's AI) and is
@@ -19,6 +21,39 @@ engine (Invariant #1 / #8; ADR 0021).
 > **[INSTALLATION.md](INSTALLATION.md)** to set up.
 
 _Last updated: 2026-06-05_
+
+---
+
+## What Yume is for
+
+Yume is a **programmable explicit world model**, not just a game engine. A world
+model is a transition function `f(state, action) → next_state`; Yume lets you
+**write `f` as JSON** and run it:
+
+- **JSON is the world-spec language** — entities (the state) + rules
+  (`{trigger, query, effect}`, the transition function).
+- **The runtime is the interpreter** — it executes that spec, ticking state forward.
+- **Godot is the projection function** — state → pixels / audio / HUD / text.
+  (Per ADR 0021: *expose Godot, don't reimplement it.*)
+
+**Games are one downstream consumer.** The same substrate serves:
+
+| Use | How |
+|---|---|
+| 🎮 **Games** | the Godot projection — a playable build |
+| 🤖 **RL / agent-evaluation testbeds** | deterministic, seedable, gym-like stepping (ADR 0060) |
+| 🏞️ **Scene / world generation** | prose → 3D scene pipelines (`/yume-create-scene`) |
+| 🧠 **Training-data for neural world models** | roll a JSON world out, record `(state, action, next_state)` trajectories, train an implicit model (Dreamer/Genie-style) that approximates the same `f` at scale |
+
+That last row is the thesis: Yume aims to be the **clean, authorable *explicit*
+substrate** that bridges to the *implicit* (neural) world-model world — interpret
+it directly, *and* use it as a faucet of reproducible training data. The seven
+primitives (Entity / Tag / Rule / Trigger / Effect / Query / Relation) are the
+**minimal universal vocabulary** for describing discrete-time worlds — which is
+why the engine refuses game-specific verbs (no `damage` / `heal` / `attack`;
+those are *content*, expressed by composing primitives).
+
+📖 **Full vision:** [`docs/guideline/00_what_yume_is.md`](docs/guideline/00_what_yume_is.md).
 
 ---
 
