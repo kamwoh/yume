@@ -68,6 +68,46 @@ frame loop can't sneak in extra ticks — `StepRunner` is the sole tick driver.
 
 ---
 
+## 1 step = 1 tick = 1 frame — and how Python controls the pace
+
+**tick** = one state transition (`advance_one_tick()`); **frame** = one rendered
+image. In a normal game these *decouple* — the live `World._process` drains a
+real-time accumulator, so under load you get extra/skipped ticks per frame. The
+env removes that: `set_process(false)` turns the accumulator OFF, so they're
+pinned **1:1**. With `frames=True`, **one `step()` → exactly one tick → exactly
+one rendered frame → one obs**, so `frame N ↔ tick N ↔ obs N`. (per-frame =
+per-tick, the intuitive model — it only diverges in live real-time play.)
+
+**How Python "controls" it — two mechanisms:**
+
+1. **The gate (the pipe).** Between steps the driver blocks on
+   `OS.read_string_from_stdin()`, which halts the **main thread** — the engine
+   can't advance to its next frame, so it's **frozen** (0 frames, 0 ticks). The
+   *only* thing that unblocks it is Python writing a line; Python then blocks on
+   the reply. So the two processes run in **strict alternation** — nothing
+   advances unless Python feeds a line. Python sets the clock.
+
+2. **The one-frame primitive (`await process_frame`).** `advance_one_tick()`
+   changes *state* but does NOT redraw — rendering only happens on an engine
+   frame iteration. So `_write_frame()` does `await get_tree().process_frame`,
+   which **suspends the driver coroutine and hands the engine exactly one
+   main-loop iteration** (which renders the new positions), then resumes. So:
+   **0 awaits → 0 frames** (state-only), **1 await → exactly 1 frame** (frame
+   mode). The driver spends each "permission to advance" on precisely one tick
+   (+ optionally one render), then blocks again.
+
+```
+Godot frozen on stdin ──(Python sends line)──▶ advance_one_tick() ×1
+   ──▶ [frames] await process_frame → engine renders 1 frame → get_image()
+   ──▶ emit @YUMESTEP@{…} ──▶ block on stdin again (frozen)
+```
+
+So the engine never free-runs: it does "1 tick (+1 render) per line" and goes
+back to sleep. That manual single-yield stepping is exactly what a normal Godot
+app does *not* do (its main loop spins frames continuously on its own).
+
+---
+
 ## What one `step()` does (engine side: `stdio_step_driver.gd::_step`)
 
 1. `Input.action_press(a)` for each action — sets the same action state a real
