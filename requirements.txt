@@ -1,0 +1,27 @@
+# Python deps for Yume's AUTHORING-TIME tooling only — the asset generators,
+# visual-QA, the text->layout pipelines (HUD/screen/map), and the net-video
+# recorder under tools/ and scripts/.
+#
+# The Godot ENGINE itself needs NONE of these. You only need them if you run the
+# Python tools (most of which Claude runs for you — see INSTALLATION.md).
+#
+#   python3 -m venv venv
+#   venv/bin/pip install -r requirements.txt
+#
+# (Always use the project venv — see CLAUDE.md global constraints.)
+
+pillow>=10                 # PIL — image read/write for asset gen + layout pipelines
+numpy>=1.26                # semantic-map / heightmap pixel math
+opencv-python-headless>=4.9  # cv2 — wireframe/layout extraction
+requests>=2.31             # OpenAI Images + Tripo3D backends call their HTTP APIs directly
+google-genai>=1.0          # Gemini — visual QA (Gemini+Claude vision) + map/semantic pipelines
+
+# System tools (NOT pip — install via your package manager; see INSTALLATION.md):
+#   ffmpeg            stitch captured frames into mp4 (net-video recorder)
+#   xvfb              headless rendering (--linux mode of net_video.py)
+#   rsync             sync the framework to the Godot project dir (run_linux.sh)
+#   mesa GL drivers   software/GPU GL under Xvfb (libgl1-mesa-dri, libegl1)
+#
+# AI backends need API keys in the environment (only if you generate assets):
+#   OPENAI_API_KEY    (OpenAI Images)        TRIPO_API_KEY (Tripo3D meshes)
+#   GEMINI_API_KEY / GOOGLE_API_KEY          (Gemini visual QA + map pipeline)

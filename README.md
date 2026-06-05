@@ -5,6 +5,19 @@ JSON-driven game framework on Godot 4.6.1. The engine ships a fixed set of
 No game-specific GDScript — adding a game means writing JSON, never editing the
 engine (Invariant #1 / #8; ADR 0021).
 
+> ## 🤖 Built by Claude, for Claude
+> This repository was written **entirely by Claude** (Anthropic's AI) and is
+> **designed to be read and operated by Claude** — its conventions, build steps,
+> and run workflow live in `CLAUDE.md` and `.claude/` for exactly that purpose.
+>
+> **The recommended way to use Yume is to open it in [Claude Code](https://claude.com/claude-code)
+> and ask, in plain English, for what you want** — "generate a game about X",
+> "run the tests", "record a headless multiplayer video". Claude knows the
+> fiddly invocation details (syncing, `--path .`, asset imports, the visual-QA
+> gate). You *can* run the commands yourself, but it's easy to get them wrong;
+> letting Claude drive is the intended, lower-friction path. See
+> **[INSTALLATION.md](INSTALLATION.md)** to set up.
+
 _Last updated: 2026-06-05_
 
 ---
@@ -65,19 +78,26 @@ tech-director invariant gate.
 
 ## Quick start
 
-Demos are **not tracked in git** (gitignored) — generate them locally or copy
-from a working tree. Once a demo exists at `godot/data/demo_<name>/`:
+Set up once via **[INSTALLATION.md](INSTALLATION.md)** (Godot 4.6.1 + a Python
+venv). Then — **recommended** — open the repo in **Claude Code** and just ask:
+
+> *"Generate a game: a roguelike where vampires steal HP from light sources."*
+> *"Run the engine tests."*  ·  *"Record a 4-player headless multiplayer video."*
+
+Claude runs the right pipeline and handles the invocation details.
+
+**Or drive it yourself** (manual fallback — demos are gitignored, generate or
+copy a `demo_<name>/` first):
 
 ```bash
-./scripts/play.sh <name>            # Windows Godot binary — play / capture
-./scripts/play.sh <name> --capture  # render a frame for visual QA
+/yume-design "<your prose pitch>" --autonomous   # prose → full game
+./scripts/play.sh <name>                         # play / capture (Windows binary)
+./scripts/play.sh <name> --capture               # render a frame for visual QA
 ```
 
-Generate a new game from prose:
-
-```
-/yume-design "<your prose pitch>" --autonomous
-```
+⚠️ Manual runs have sharp edges (the `cd "$TEMPLATE_DST" && --path .` trap, asset
+`--import`, …) — see `CLAUDE.md` § "Running Godot". This is why letting Claude
+drive is recommended.
 
 ---
 
