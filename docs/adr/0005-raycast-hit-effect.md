@@ -98,7 +98,7 @@ Engine behavior:
 
 **Updates needed:**
 - `effect_apply.gd` — add `raycast_hit` dispatch + implementation
-- `docs/30_framework_primitives.md` — list as effect, mark hitscan
+- `docs/guideline/30_framework_primitives.md` — list as effect, mark hitscan
   category
 - `docs/engine-reference/api-manifest.json` — auto-regen will pick
   up the new effect from source

@@ -438,7 +438,7 @@ lap / drift / kart / racing).
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — engine primitives covering
+- `docs/guideline/30_framework_primitives.md` — engine primitives covering
   velocity / facing / friction
 - `godot/data/demo_doomarena3d/` — closest
   existing reference (free movement + facing); read the

@@ -1,7 +1,7 @@
 """
 rules.py — builders for rule JSON dicts.
 
-Schema reference: docs/30_framework_primitives.md § Rule.
+Schema reference: docs/guideline/30_framework_primitives.md § Rule.
 Validator: tools/validate_rules.py.
 
 The canonical rule shape:

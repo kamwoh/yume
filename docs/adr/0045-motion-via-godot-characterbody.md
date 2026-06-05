@@ -503,7 +503,7 @@ full scenario suite green.
 
 ### Session E — doc + lib updates
 
-Update `docs/30_framework_primitives.md` to describe character
+Update `docs/guideline/30_framework_primitives.md` to describe character
 bodies. Update `data/lib/physics/bodies.json` with a
 `standard_character_actor` template. Update CLAUDE.md's
 `state.velocity` rule to point at the new flow.

@@ -3,7 +3,7 @@ class_name EffectApply
 
 ## Primitive #5 — Effect (application side).
 ##
-## Contract: docs/30_framework_primitives.md §5
+## Contract: docs/guideline/30_framework_primitives.md §5
 ##
 ## `apply(effect, env, context)` mutates the world to fulfill one effect dict.
 ## The calling phase scheduler (W1.8) decides *when* to apply (commit vs react)

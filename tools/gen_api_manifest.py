@@ -805,7 +805,7 @@ def render_markdown(m: Manifest) -> str:
         "",
         f"## Invariants",
         "",
-        f"{m.invariants_count} contract invariants — see `docs/30_framework_primitives.md`.",
+        f"{m.invariants_count} contract invariants — see `docs/guideline/30_framework_primitives.md`.",
         "",
     ]
     return "\n".join(lines)

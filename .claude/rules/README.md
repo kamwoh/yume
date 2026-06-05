@@ -37,7 +37,7 @@ cat ~/yume/.claude/rules/data-demo.md
 | `pipeline-stability.md` | `tools/visual_layout/**` + yume-{hud,screen,map}-author skills | 2D fit-fit pipelines (HUD + screen) are STABLE — ADR required to modify the harness. 3D map/world pipeline is ACTIVE — modify freely. The live content (hud.json / screens.json) is NOT locked even when its harness is. |
 
 Each rule file links back to relevant **invariants** from
-`docs/30_framework_primitives.md`. If a rule and an invariant ever conflict,
+`docs/guideline/30_framework_primitives.md`. If a rule and an invariant ever conflict,
 the invariant wins — rules document enforcement, not policy.
 
 ## Static validators

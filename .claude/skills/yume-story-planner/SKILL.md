@@ -421,10 +421,10 @@ the beat list to wire triggers.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — engine primitives (signal,
+- `docs/guideline/30_framework_primitives.md` — engine primitives (signal,
   trigger, state_set, transition_level) cover most narrative
   expression
-- `docs/32_mda_for_yume.md` — aesthetic vocabulary
+- `docs/guideline/32_mda_for_yume.md` — aesthetic vocabulary
 - `godot/data/demo_doomarena3d/` — multi-
   level campaign with chamber-clear beats (good linear-narrative
   reference)

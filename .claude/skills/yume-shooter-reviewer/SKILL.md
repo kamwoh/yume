@@ -278,8 +278,8 @@ After `yume-game-reviewer` accepts. Steps:
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — engine surface
-- `docs/32_mda_for_yume.md` — aesthetic vocabulary
+- `docs/guideline/30_framework_primitives.md` — engine surface
+- `docs/guideline/32_mda_for_yume.md` — aesthetic vocabulary
 - `docs/adr/0004-blocks-motion-tag.md` — projectile-obstacle policy
 - `.claude/skills/yume-game-reviewer/SKILL.md` — the generic 15-axis
   this layer extends

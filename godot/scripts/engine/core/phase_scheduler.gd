@@ -3,7 +3,7 @@ class_name PhaseScheduler
 
 ## Four-phase tick loop + effect write buffer.
 ##
-## Contract: docs/30_framework_primitives.md § "Tick ordering (phased-sequential)"
+## Contract: docs/guideline/30_framework_primitives.md § "Tick ordering (phased-sequential)"
 ##
 ## Phases per tick:
 ##   1. input   — input-triggered rules (W2 wires this; W1 stub)

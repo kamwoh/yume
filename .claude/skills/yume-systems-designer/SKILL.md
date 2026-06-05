@@ -421,8 +421,8 @@ clock advancing). NOT for player-driven core interactions.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — primitive contract (read in full)
-- `docs/32_mda_for_yume.md` — dynamics vocabulary
+- `docs/guideline/30_framework_primitives.md` — primitive contract (read in full)
+- `docs/guideline/32_mda_for_yume.md` — dynamics vocabulary
 - `docs/adr/README.md` — ADR format + when to write
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
 - `.claude/rules/data-demo.md` — JSON authoring rules

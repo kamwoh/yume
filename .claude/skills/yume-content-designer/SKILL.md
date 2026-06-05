@@ -568,7 +568,7 @@ rendered as intended. See visual-qa.md for the full per-skill checklist.
 
 - `.claude/rules/data-demo.md` — schema authoring rules (read first)
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
-- `docs/30_framework_primitives.md` — full primitive vocabulary
+- `docs/guideline/30_framework_primitives.md` — full primitive vocabulary
 - `godot/scripts/engine/rule.gd` — what
   Rule.validate_all checks
 - `godot/data/demo_*/` — pattern library

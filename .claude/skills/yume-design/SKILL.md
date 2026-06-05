@@ -719,9 +719,9 @@ intermediate artifacts.
 I read these before invoking any agent, to ground myself in current
 state:
 
-- `docs/30_framework_primitives.md` — primitive contract
-- `docs/32_mda_for_yume.md` — design vocabulary
-- `docs/31_text_to_game_pipeline.md` — full pipeline architecture
+- `docs/guideline/30_framework_primitives.md` — primitive contract
+- `docs/guideline/32_mda_for_yume.md` — design vocabulary
+- `docs/guideline/31_text_to_game_pipeline.md` — full pipeline architecture
 - `.claude/skills/yume-*/SKILL.md` — specialist skills (loaded via Skill tool)
 - `.claude/rules/` — path-scoped rule files
 - `task_plan.md` — current state of the framework

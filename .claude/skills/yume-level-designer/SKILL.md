@@ -553,8 +553,8 @@ After game-planner's world-plan.md is approved by reviewer.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — what the engine can express
-- `docs/32_mda_for_yume.md` — aesthetic vocabulary
+- `docs/guideline/30_framework_primitives.md` — what the engine can express
+- `docs/guideline/32_mda_for_yume.md` — aesthetic vocabulary
 - `godot/scripts/engine/instance_patterns.gd`
   — the placement primitives (ring/grid/scatter/line/cluster)
   available to content-designer

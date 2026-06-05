@@ -22,7 +22,7 @@ export const entry29 = {
   files: [
     "docs/adr/0021-yume-as-json-layer-over-platform.md (new — foundational)",
     "docs/adr/0015-vehicle-physics-primitive.md (never-list refined)",
-    "docs/30_framework_primitives.md (architectural framing section added)",
+    "docs/guideline/30_framework_primitives.md (architectural framing section added)",
     "docs/adr/README.md (index updated)",
     "task_plan.md (capability roadmap to be appended)",
     "docs/timeline/entries/29 (this entry)",

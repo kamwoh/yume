@@ -631,8 +631,8 @@ Example bad critique:
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — what the engine can express
-- `docs/32_mda_for_yume.md` — aesthetic vocabulary
+- `docs/guideline/30_framework_primitives.md` — what the engine can express
+- `docs/guideline/32_mda_for_yume.md` — aesthetic vocabulary
 - `docs/games/*/GDD.md` — examples of past GDDs (vary in depth)
 - `docs/games/*/qa-report.md` — what qa-tester catches AFTER build (this
   reviewer should catch issues before they get there)

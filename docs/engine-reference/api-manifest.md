@@ -177,4 +177,4 @@ Fields the engine reads by name (everything else is content vocabulary):
 
 ## Invariants
 
-8 contract invariants — see `docs/30_framework_primitives.md`.
+8 contract invariants — see `docs/guideline/30_framework_primitives.md`.

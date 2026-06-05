@@ -1,7 +1,7 @@
 """
 entities.py — builders for entity def + instance JSON dicts.
 
-Schema: docs/30_framework_primitives.md § Entity.
+Schema: docs/guideline/30_framework_primitives.md § Entity.
 Entities live in two shapes:
     - `definition`: the template (id, tags, properties, state_init)
     - `initial_instances`: per-game placements that reference a def

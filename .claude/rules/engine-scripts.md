@@ -9,7 +9,7 @@ The engine is **primitives + interpreter**. Adding a vocabulary item
 (effect type, draw op, query operator) requires engine code; adding
 a **composition** (rule, shape, binding) requires only JSON.
 
-Contract: `docs/30_framework_primitives.md` invariants #1–#8.
+Contract: `docs/guideline/30_framework_primitives.md` invariants #1–#8.
 
 ## DON'T
 
@@ -33,7 +33,7 @@ Contract: `docs/30_framework_primitives.md` invariants #1–#8.
 
 - ✅ **Treat new vocabulary as a primitive expansion** — it joins
   the verb set for ALL games. Document in
-  `docs/30_framework_primitives.md`.
+  `docs/guideline/30_framework_primitives.md`.
 - ✅ **Pass `env: Dictionary`** for cross-module state — entities,
   relations, spatial_index. No singletons / direct script refs.
 - ✅ **Variant return types** for context resolvers (`_value`,

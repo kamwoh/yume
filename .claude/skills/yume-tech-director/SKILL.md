@@ -213,7 +213,7 @@ Camera-mode functions that don't capture the mouse (e.g. `_camera_top_down_3d`, 
 4. **Run the test suite + acid demos** (test_main.tscn + the W5 demos).
 
 5. **Verify the new vocabulary integrates:** if a new effect type
-   was added, verify it's documented in `docs/30_framework_primitives.md`
+   was added, verify it's documented in `docs/guideline/30_framework_primitives.md`
    and has unit tests in `test_runner.gd`.
 
 6. **Visual gate (rendering primitives only).** If the diff touches
@@ -419,7 +419,7 @@ position (per-level override allowed).
 
 ## My authority
 
-The contract (`docs/30_framework_primitives.md`) is law. Invariants are
+The contract (`docs/guideline/30_framework_primitives.md`) is law. Invariants are
 not negotiable mid-merge. If a change requires bending an invariant,
 the contract changes FIRST (via ADR), then the code change lands.
 
@@ -428,7 +428,7 @@ is not recoverable without massive refactoring.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — the contract (read in full)
+- `docs/guideline/30_framework_primitives.md` — the contract (read in full)
 - `docs/adr/README.md` — ADR format + when-to-write
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
 - `.claude/rules/engine-scripts.md` — path-scoped rules for engine

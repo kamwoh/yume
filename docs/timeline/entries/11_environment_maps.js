@@ -16,6 +16,6 @@ export const entry11 = {
     "Context + Affordance: not new primitives — helper APIs (<code>World.contexts_containing</code>, <code>World.affordances_for</code>)",
     "Total primitive count: 7 active + 2 deferred = 9",
   ],
-  files: ["docs/30_framework_primitives.md (§Deferred primitives)"],
+  files: ["docs/guideline/30_framework_primitives.md (§Deferred primitives)"],
   followups: ["Tier 3 expanded with 3.4a/b/c for Plan, Knowledge, helpers"],
 };

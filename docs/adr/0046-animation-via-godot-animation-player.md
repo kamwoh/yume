@@ -359,7 +359,7 @@ If any of those three fail, merge is BLOCKED.
 - Deferred: `engine-reference/api-manifest.json` — no engine signatures
   changed (effect types unchanged; this is a rendering-layer rewrite).
   Skipping manifest regen.
-- Deferred: `docs/30_framework_primitives.md` Animation section — the
+- Deferred: `docs/guideline/30_framework_primitives.md` Animation section — the
   primitives doc doesn't currently carry an animation section
   (animation lives entirely in ADRs 0035/0046). No edit needed; if a
   primitives-doc Animation section lands later, it should link to ADR

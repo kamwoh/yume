@@ -5,7 +5,7 @@ _Status: proposed_
 
 ## Context
 
-Per `docs/00_what_yume_is.md`, Yume is an explicit programmable
+Per `docs/guideline/00_what_yume_is.md`, Yume is an explicit programmable
 world model whose specification language is JSON. The seven
 primitives are the alphabet of the world model itself; ADR 0021
 (`expose, don't reimplement`) directs us to use Godot as the
@@ -253,7 +253,7 @@ into a corner:
   mirrors the world-model layer. Both halves of Yume — world model
   AND projection function — become JSON-driven.
 - Aligns shader work with the world-model framing in
-  `docs/00_what_yume_is.md`: projection configuration is content.
+  `docs/guideline/00_what_yume_is.md`: projection configuration is content.
 
 **Negative:**
 - New build step: shader codegen must run before Godot sync. Same
@@ -316,7 +316,7 @@ into a corner:
   (gated on whether `shader_spec.json` is newer than the compiled
   output, like Makefile dependency tracking).
 - **A.5**: Document the new authoring path in
-  `docs/30_framework_primitives.md` § Shaders (new section).
+  `docs/guideline/30_framework_primitives.md` § Shaders (new section).
 
 **Acceptance:** Aldenmere renders identically before vs. after.
 Adding a 6th biome to a hypothetical new game requires zero GLSL
@@ -338,7 +338,7 @@ edits.
   Phase B's compiler replaces it. Migrate all Phase-A `.j2`
   templates to primitive DAGs in the same commit.
 - **B.6**: Document primitive vocabulary in
-  `docs/30_framework_primitives.md` § Shader primitives.
+  `docs/guideline/30_framework_primitives.md` § Shader primitives.
 
 **Acceptance:** at least 2 distinct shaders (ground + e.g. sky or
 water-only) share 3+ primitives between them. Adding a new shader
@@ -366,7 +366,7 @@ changes for common cases.
 
 ## Related
 
-- `docs/00_what_yume_is.md` — the framing this ADR is derived from
+- `docs/guideline/00_what_yume_is.md` — the framing this ADR is derived from
   (Yume = explicit world model; projection is content, not code)
 - ADR 0021 — Yume is a Godot layer (expose, don't reimplement)
 - ADR 0052 — Shader as visual primitive (declared `ground.mesh.shader`
@@ -375,5 +375,5 @@ changes for common cases.
   5-biome shader being unblocked by this ADR)
 - ADR 0051 — Authoring-time Python emitters (the precedent for
   codegen tools alongside the JSON content)
-- `docs/30_framework_primitives.md` — primary contract doc; gets
+- `docs/guideline/30_framework_primitives.md` — primary contract doc; gets
   a new section after Phase A and another after Phase B

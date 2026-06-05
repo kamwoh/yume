@@ -245,7 +245,7 @@ performance for shipping. Not Year 1 work.
   this ADR)
 - ADR 0020 — External agent IPC (the "external tools" layer
   formalized for one specific case)
-- docs/30_framework_primitives.md — contract doc updated to
+- docs/guideline/30_framework_primitives.md — contract doc updated to
   reflect this framing
 - docs/timeline/entries/29 — capture of the architectural
   realization moment

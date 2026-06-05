@@ -11,7 +11,7 @@ them as code: precise, versioned, audited.
 
 ## DON'T
 
-- ❌ **Edit `docs/30_framework_primitives.md` without an ADR.** The contract
+- ❌ **Edit `docs/guideline/30_framework_primitives.md` without an ADR.** The contract
   is invariant-bearing; changes need explicit reasoning + version trail.
   Adding a primitive, changing tick semantics, renaming an effect type —
   all require ADRs in `docs/adr/`.
@@ -42,9 +42,9 @@ them as code: precise, versioned, audited.
 
 | File | Why |
 |---|---|
-| `docs/30_framework_primitives.md` | Engine contract. Invariant-bearing. ADR-gated. |
-| `docs/31_text_to_game_pipeline.md` | Tier 2.5 strategic plan. CCGS analysis + decisions. |
-| `docs/33_architecture.md` | Detailed architecture reference (engine + pipelines). |
+| `docs/guideline/30_framework_primitives.md` | Engine contract. Invariant-bearing. ADR-gated. |
+| `docs/guideline/31_text_to_game_pipeline.md` | Tier 2.5 strategic plan. CCGS analysis + decisions. |
+| `docs/guideline/33_architecture.md` | Detailed architecture reference (engine + pipelines). |
 | `.claude/plan/backlog.md` | Live actionable backlog. Delete-when-shipped. |
 | `.claude/plan/archive.md` | Roadmap + history + decision log. Append-mostly. |
 | `docs/timeline/` | Diary. One entry per major decision. |

@@ -1,7 +1,7 @@
 ; Yume framework template — universal simulation engine.
 ; Minimal project config. Downstream games copy from here and customize data/.
 ;
-; Contract: docs/30_framework_primitives.md
+; Contract: docs/guideline/30_framework_primitives.md
 ; Plan:     task_plan.md
 
 config_version=5

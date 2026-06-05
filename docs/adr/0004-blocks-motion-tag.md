@@ -76,7 +76,7 @@ plus `aabb_extents` properties. No content changes elsewhere.
   CCD-style swept check.
 
 **Updates needed:**
-- `docs/30_framework_primitives.md` — add `blocks_motion` to the
+- `docs/guideline/30_framework_primitives.md` — add `blocks_motion` to the
   tag-convention list under Effect / Motion.
 - `.claude/rules/data-demo.md` — add an example showing
   `aabb_extents` properties for a wall.

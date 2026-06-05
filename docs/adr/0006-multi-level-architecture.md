@@ -148,7 +148,7 @@ When `transition_level` target is "next":
 - `effect_apply.gd` — add transition_level effect dispatch.
 - `world.gd` — extend load_data + add _process_pending_transition.
 - `entity.gd` — no change (tags already drive everything).
-- `docs/30_framework_primitives.md` — document the convention.
+- `docs/guideline/30_framework_primitives.md` — document the convention.
 - `.claude/rules/data-demo.md` — multi-level authoring rules.
 - `.claude/skills/yume-content-designer/SKILL.md` — translation
   guide.

@@ -3,7 +3,7 @@ class_name RelationStore
 
 ## Primitive #7 — Relation.
 ##
-## Contract: docs/30_framework_primitives.md §7
+## Contract: docs/guideline/30_framework_primitives.md §7
 ##
 ## Typed directed edges between entities. Storage is a directed multigraph
 ## indexed both ways: (type, from) → [to_ids] and (type, to) → [from_ids].

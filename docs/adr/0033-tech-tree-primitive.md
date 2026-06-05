@@ -514,7 +514,7 @@ Phase 1 (engine, this ADR's scope):
 - `tools/gen_api_manifest.py` regenerates manifest with new effects
 - Documentation:
   - Add ADR to `docs/adr/README.md` index
-  - Cross-reference in `docs/30_framework_primitives.md` § Effects
+  - Cross-reference in `docs/guideline/30_framework_primitives.md` § Effects
     + § Tech-tree (new section under "domain primitives")
 
 Phase 2 (Aldenmere content, separate ADR-implementation PRs):

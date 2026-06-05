@@ -11,7 +11,7 @@ fragments together, and emits the output to
 `data/<game>/assets/shaders/ground.gdshader`. Patches
 `scene.json.ground.mesh.shader` to point at the compiled output.
 
-Per docs/00_what_yume_is.md, the shader is projection-configuration
+Per docs/guideline/00_what_yume_is.md, the shader is projection-configuration
 = content = JSON-driven. No game-specific GLSL files live in the
 repo long-term; per-game compiled .gdshaders are build artifacts
 (gitignored).

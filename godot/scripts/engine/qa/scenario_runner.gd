@@ -44,7 +44,7 @@ var failed := 0
 var failures: Array = []
 var verbose := true
 
-# Trajectory recording (ADR 0058 audit follow-up / docs/00_what_yume_is.md
+# Trajectory recording (ADR 0058 audit follow-up / docs/guideline/00_what_yume_is.md
 # § "Bridging to implicit world models"). When --record-trajectory=path
 # is on the cmdline, ScenarioRunner asks World to record per-tick (state,
 # action) JSONL rows. Paired consecutive rows give (state_t, action_t,

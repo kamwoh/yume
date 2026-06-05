@@ -3,7 +3,7 @@ class_name Rule
 
 ## Primitive #3 — Rule.
 ##
-## Contract: docs/30_framework_primitives.md §3
+## Contract: docs/guideline/30_framework_primitives.md §3
 ##
 ## Shape (JSON):
 ##   {id, trigger, query?, require?, chance?, effect, before?, after?, scope?}

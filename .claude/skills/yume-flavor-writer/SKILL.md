@@ -361,9 +361,9 @@ need your prose to fill in their skeletons.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — `flavor_text`, `voice`,
+- `docs/guideline/30_framework_primitives.md` — `flavor_text`, `voice`,
   `barker_lines` schema fields per ADR pending
-- `docs/32_mda_for_yume.md` — aesthetic vocabulary
+- `docs/guideline/32_mda_for_yume.md` — aesthetic vocabulary
 - `.claude/skills/yume-game-reviewer/SKILL.md` § Axis 14 — the gate
   this skill's output is judged against
 - `godot/data/demo_*/entities/*.json` — example entity defs that

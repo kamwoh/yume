@@ -189,7 +189,7 @@ property we want.
 
 ## References
 
-- Invariant #1 (JSON-only content channel) — `docs/30_framework_primitives.md`
+- Invariant #1 (JSON-only content channel) — `docs/guideline/30_framework_primitives.md`
 - ADR 0009 Phase 2d (variants) — variants persist via this same
   `world_state_keys` mechanism
 - Tier 2.6a — structured engine errors for save version mismatch

@@ -8,12 +8,12 @@ _Reviewed: yume-tech-director 2026-05-31 — accept; invariant-clean, accurately
 > reuses 0060's deliverables (one input path, `canonical_state_hash`,
 > `stdio_driver`). It does NOT schedule implementation — 0060 (the I/O contract)
 > must land and the determinism audit must pass before any networking work
-> begins. This is the "Tier 4 / future" hold from `docs/30_framework_primitives.md:853`
+> begins. This is the "Tier 4 / future" hold from `docs/guideline/30_framework_primitives.md:853`
 > converted into a concrete, decided path — not a build order.
 
 ## Context
 
-Yume is single-instance only today. `docs/30_framework_primitives.md:853` holds
+Yume is single-instance only today. `docs/guideline/30_framework_primitives.md:853` holds
 networked multiplayer as "future work layered on top of state serialization,"
 and ADR 0016 (multi-actor) explicitly scoped networking out. No networking
 layer, authority model, or replication strategy exists.
@@ -127,7 +127,7 @@ re-sim cost per tick. Scoped only when a twitch game actually needs it; not now.
 
 **Neutral.**
 - Supersedes the "networked multiplayer — future" hold in
-  `docs/30_framework_primitives.md:853` with a decided path (a contract-doc
+  `docs/guideline/30_framework_primitives.md:853` with a decided path (a contract-doc
   cross-reference edit is ADR-gated per `.claude/rules/docs.md`; make it when
   this ADR is accepted).
 - Per ADR 0021 (Yume = JSON layer over Godot), this is a capability-exposure of
@@ -235,7 +235,7 @@ Phased like 0060 — each phase CI-testable:
 - Related ADRs: 0010 (save/load — snapshot basis for rollback), 0016 (multi-actor
   — scoped networking out, now addressed here), 0021 (capability-exposure of
   Godot `MultiplayerAPI`).
-- Contract: `docs/30_framework_primitives.md:853` (the "future multiplayer" hold
+- Contract: `docs/guideline/30_framework_primitives.md:853` (the "future multiplayer" hold
   this ADR decides).
 - Godot APIs: `ENetMultiplayerPeer`, `MultiplayerAPI`, `@rpc`,
   `MultiplayerSynchronizer` (evaluate vs manual input-replication during impl).

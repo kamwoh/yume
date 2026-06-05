@@ -15,7 +15,7 @@ art director (subjective rubric); you are the unit-test author
 This skill loads into the orchestrator's main context (Tier 2.6 —
 no subagent spawn).
 
-Per `docs/00_what_yume_is.md`, the visual-QA layer is content, not
+Per `docs/guideline/00_what_yume_is.md`, the visual-QA layer is content, not
 engine. Test plans are JSON. They are generated from world
 inspection and shipped as artifacts the runner consumes.
 

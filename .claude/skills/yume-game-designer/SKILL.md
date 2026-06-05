@@ -153,10 +153,10 @@ Unknowns to resolve with user before handing to systems-designer.
 1. **Read the prose carefully.** What's the *intended feel*? What does
    the user keep saying? Those words signal aesthetic priorities.
 
-2. **Read MDA framework first**: `docs/32_mda_for_yume.md`. Internalize
+2. **Read MDA framework first**: `docs/guideline/32_mda_for_yume.md`. Internalize
    its 8 aesthetic categories and how mechanics → dynamics → aesthetics.
 
-3. **Read primitive contract**: `docs/30_framework_primitives.md` (especially
+3. **Read primitive contract**: `docs/guideline/30_framework_primitives.md` (especially
    the §"Composition examples" section to see what's expressible).
 
 4. **Apply MDA decomposition top-down:**
@@ -212,9 +212,9 @@ A GDD that:
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — what's expressible
-- `docs/32_mda_for_yume.md` — the framework you use
-- `docs/31_text_to_game_pipeline.md` — your role in the broader pipeline
+- `docs/guideline/30_framework_primitives.md` — what's expressible
+- `docs/guideline/32_mda_for_yume.md` — the framework you use
+- `docs/guideline/31_text_to_game_pipeline.md` — your role in the broader pipeline
 - `docs/adr/0001-seven-primitives.md` — the engine's vocabulary
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
 - `godot/data/demo_*/` — existing demos as

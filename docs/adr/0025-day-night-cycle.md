@@ -176,7 +176,7 @@ Effects are tick-aligned by design.
 ## References
 
 - ADR 0021 — Yume as JSON layer over Godot (the architectural framing).
-- `docs/30_framework_primitives.md` § "Engine-recognized scene config"
+- `docs/guideline/30_framework_primitives.md` § "Engine-recognized scene config"
   (where this block joins `ground` and `level_seed`).
 - `godot/scripts/engine/lighting_director.gd` — implementation.
 - `godot/scripts/engine/tests/test_runner.gd` § `test_lighting_director_*`.

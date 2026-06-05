@@ -16,6 +16,6 @@ export const entry10 = {
     "<strong>NOT adopting:</strong> 49-agent hierarchy (Yume's 3-agent model matches its scope), 7-phase production workflow, sprint/milestone tracking",
     "Honest scope: <em>any simulation-shaped game</em> — not visual novels, rhythm, continuous physics",
   ],
-  files: ["docs/31_text_to_game_pipeline.md"],
+  files: ["docs/guideline/31_text_to_game_pipeline.md"],
   followups: ["Cheap pulls (path rules + engine reference) can land alongside W2"],
 };

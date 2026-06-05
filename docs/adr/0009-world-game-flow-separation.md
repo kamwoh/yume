@@ -265,7 +265,7 @@ the current `levels/<name>/world_rules.json` path; rename to
   file loader; variant overlay; new path resolution
 - `godot/scripts/engine/game_shell.gd` —
   audio_cue interception; string substitution
-- `docs/30_framework_primitives.md` — document the new layout
+- `docs/guideline/30_framework_primitives.md` — document the new layout
 - `.claude/rules/data-demo.md` — schema rules updated
 - New skills: `yume-game-rules-designer`, `yume-flow-designer`
 - Existing skills updated: `yume-content-designer` (narrowed scope),

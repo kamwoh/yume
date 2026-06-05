@@ -3,7 +3,7 @@ class_name Entity
 
 ## Primitive #1 — Entity.
 ##
-## Contract: `docs/30_framework_primitives.md` §1
+## Contract: `docs/guideline/30_framework_primitives.md` §1
 ##
 ## A single, generic node type. Renderer-agnostic — does NOT extend Node2D or
 ## Node3D. Position lives in `state.position` as Vector2 or Vector3 (pure data).

@@ -13,6 +13,6 @@ export const entry07 = {
     "Spike code itself: deleted (per throwaway agreement) — learning lives in the contract doc",
   ],
   commit: "3cb878b",
-  files: ["docs/30_framework_primitives.md", "task_plan.md"],
+  files: ["docs/guideline/30_framework_primitives.md", "task_plan.md"],
   followups: ["Begin W1 production engine"],
 };

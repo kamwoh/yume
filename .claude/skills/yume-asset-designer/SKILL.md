@@ -1114,8 +1114,8 @@ games (an emergent-narrative sim-style), an objective-less HUD is fine.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` § "Composition examples"
-- `docs/31_text_to_game_pipeline.md` § "Asset layer"
+- `docs/guideline/30_framework_primitives.md` § "Composition examples"
+- `docs/guideline/31_text_to_game_pipeline.md` § "Asset layer"
 - `godot/data/shapes.json` — stock 2D shapes
 - `godot/data/meshes.json` — stock 3D meshes
 - `godot/scripts/renderer_2d/entity_sprite_2d.gd` —

@@ -147,7 +147,7 @@ If yes, ask: why the extra scope?
 ### Pass 3: Principle alignment
 
 Cross-reference relevant invariants from:
-- `docs/30_framework_primitives.md`
+- `docs/guideline/30_framework_primitives.md`
 - `CLAUDE.md` design principles
 - `.claude/rules/*.md` path-scoped rules
 

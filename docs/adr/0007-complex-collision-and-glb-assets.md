@@ -163,7 +163,7 @@ Resolution order:
 **Costs:**
 - Engine surface grows by 3 fields (`aabb_volumes`,
   `visual.glb`, `collision_mode`). Not a small expansion. Each
-  is documented in `docs/30_framework_primitives.md`.
+  is documented in `docs/guideline/30_framework_primitives.md`.
 - `concave` mode introduces a SECOND physics path — Yume's
   swept-AABB integrator queries Godot's PhysicsServer3D for
   static-mesh entities. Hybrid physics. Cleanly contained: only
@@ -182,7 +182,7 @@ Resolution order:
   small extension. Not engine work — content of the QA scenarios.
 
 **Updates needed:**
-- `docs/30_framework_primitives.md` — document `aabb_volumes`,
+- `docs/guideline/30_framework_primitives.md` — document `aabb_volumes`,
   `visual.glb`, `collision_mode` alongside `blocks_motion`.
 - `docs/engine-reference/api-manifest.json` — auto-regen after
   engine work to surface the new fields in the canonical

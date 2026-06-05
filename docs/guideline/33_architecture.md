@@ -11,7 +11,7 @@ Visual reference for the Yume engine, grounded in the actual
 Mermaid viewer (GitHub renders these inline; VS Code "Markdown Preview Mermaid
 Support"; or `docs/timeline/index.html` patterns).
 
-The contract is `docs/30_framework_primitives.md`; this doc is illustration,
+The contract is `docs/guideline/30_framework_primitives.md`; this doc is illustration,
 not invariant-bearing. Where a diagram cites a file, it's a real path.
 
 ---
@@ -506,5 +506,5 @@ flowchart TB
 | 🟥 Red | Directors / multiplayer / warnings |
 | 🟨 Yellow | The input merge seam |
 
-**Source of truth:** `docs/30_framework_primitives.md` (the contract).
+**Source of truth:** `docs/guideline/30_framework_primitives.md` (the contract).
 **Verified against:** `godot/scripts/engine/` tree, 2026-05-31.

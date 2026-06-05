@@ -74,7 +74,7 @@ can perceive is something a future contributor can inspect, modify,
 or extend without retraining anything.
 
 This is the foundational technical claim — what Yume IS. See
-`docs/00_what_yume_is.md` for the implicit-vs-explicit world-model
+`docs/guideline/00_what_yume_is.md` for the implicit-vs-explicit world-model
 framing (DreamerV3 / MuZero / Genie bake worlds into weights; game
 engines + sims keep them explicit; Yume sits in the explicit cell)
 and the 4 ADR-extension questions every future framework decision
@@ -134,7 +134,7 @@ genre engines) trade some subset of these features for others.
 
 **Honest scope:** simulation-shaped scenes/games. Non-goals:
 rhythm, precision platformers, continuous physics, narrative-heavy
-adventures. See `docs/31_text_to_game_pipeline.md` for full
+adventures. See `docs/guideline/31_text_to_game_pipeline.md` for full
 analysis.
 
 ---
@@ -235,7 +235,7 @@ moment W5.0c lands `world_3d.tscn` and runs the proof-of-life demo, drop
 this note. Two reference points = drift; one is the framework's own 3D
 demo from then on.
 
-**Design contract:** see `docs/30_framework_primitives.md` for the full spec
+**Design contract:** see `docs/guideline/30_framework_primitives.md` for the full spec
 of the seven primitives, JSON schema, and invariants. Everything below traces
 back to that doc.
 
@@ -310,7 +310,7 @@ headless. Nine demos ran against one engine.
   triggered `relation_changed` → `tag_add`. ✅ PASS
 - [x] **W0.9 Exit criterion:** 9/9 demos pass on one engine.
 
-**Findings that revised the contract** (see `docs/30_framework_primitives.md`):
+**Findings that revised the contract** (see `docs/guideline/30_framework_primitives.md`):
 
 1. **`require` clause** (new rule field). Chess exposed this. Rules carrying
    entity references in payload (input/signal/relation_changed) couldn't
@@ -333,7 +333,7 @@ headless. Nine demos ran against one engine.
 - Formula AST whitelist + parsed-expression caching (W4 tasks).
 - O(n²) contact at scale (W3 spatial index).
 
-**Deliverable:** revised `docs/30_framework_primitives.md`. Spike code
+**Deliverable:** revised `docs/guideline/30_framework_primitives.md`. Spike code
 **deleted** per throwaway contract — no carry-over into W1.
 
 ### W1 — Primitive schema + 2D baseline (~1 week)
@@ -341,7 +341,7 @@ headless. Nine demos ran against one engine.
 Goal: minimal runnable 2D scene with the new primitive engine. No reactions
 yet, but the data shape is final.
 
-- [x] **W1.1** Write `docs/30_framework_primitives.md` (contract doc).
+- [x] **W1.1** Write `docs/guideline/30_framework_primitives.md` (contract doc).
 - [x] **W1.2** Strip agent-side code. Deleted via `git rm`:
   5 brain_*.gd + inventory.gd + hp_bar.gd + needs_hud.gd + agent_needs_panel.gd
   + world_rules_engine.gd (rewritten in W1.7) + entire `renderer_3d/` folder
@@ -836,7 +836,7 @@ yet again.
 _Added 2026-04-23 after CCGS analysis + user's goal clarification: "make Yume
 able to create any game we want with any different rules and physics, all
 just through text description." Full rationale in
-`docs/31_text_to_game_pipeline.md`._
+`docs/guideline/31_text_to_game_pipeline.md`._
 
 Text-to-game needs three layers: design (prose → GDD), spec (GDD → entity
 defs + rule specs with ADR trail), runtime (Yume, layers 1-2 missing). Tier
@@ -882,7 +882,7 @@ platformers, continuous physics, narrative-heavy adventures.
     W5.0-review decision that landed as W1.14 refactor.
   TR-registry deferred — start with ADR-only; if/when content scales
   enough that traceability needs tags, add the YAML registry then.
-- [x] **2.5e** `docs/32_mda_for_yume.md` — MDA framework translated for
+- [x] **2.5e** `docs/guideline/32_mda_for_yume.md` — MDA framework translated for
   Yume vocabulary. Mechanics = JSON (entities + rules + relations).
   Dynamics = emergent behavior (cascades, equilibria, phase transitions,
   chains). Aesthetics = LeBlanc's 8 categories with Yume-mechanism
@@ -1158,7 +1158,7 @@ felt. With it, Tier 3 builds on a closed-loop substrate.
 Once the engine is genre-agnostic and content-rich, **agents** re-enter as
 entities that observe state and emit input triggers. Tier 3 also lands the
 **two deferred primitives** (Plan, Knowledge) flagged in
-`docs/30_framework_primitives.md` §"Deferred primitives" — motivated by
+`docs/guideline/30_framework_primitives.md` §"Deferred primitives" — motivated by
 Feng et al. 2026 *"Environment Maps"* showing structured agent
 representations beat raw-trace consumption on long-horizon tasks.
 
@@ -1242,7 +1242,7 @@ proceeds.
 
 ## Design Principles (enforced during redesign)
 
-From `docs/30_framework_primitives.md` — the **invariants** are non-negotiable:
+From `docs/guideline/30_framework_primitives.md` — the **invariants** are non-negotiable:
 
 1. **JSON is the only content channel.** Adding entities, rules, formulas,
    properties = JSON. Never GDScript.
@@ -1269,7 +1269,7 @@ Behavioral posture (karpathy-guidelines):
 
 ## Boundary: what the engine does NOT do
 
-From `docs/30_framework_primitives.md`. Flexibility holds, not refusals:
+From `docs/guideline/30_framework_primitives.md`. Flexibility holds, not refusals:
 
 - Narrative-shaped games (visual novels, parser text adventures) — engine
   can express state, but dialogue UI is a later archetype layer.
@@ -1314,7 +1314,7 @@ Design must not preclude these. None are on the critical path.
 │   │
 │   └── rpg/templates/godot/              ← legacy 2D RPG track (unchanged)
 │
-└── docs/30_framework_primitives.md       ← the contract
+└── docs/guideline/30_framework_primitives.md       ← the contract
 ```
 
 Per-demo data folders will be added as `data/demo_ecology/`,
@@ -1326,7 +1326,7 @@ Per-demo data folders will be added as `data/demo_ecology/`,
 
 ## Reference artifacts
 
-- `docs/30_framework_primitives.md` — **the contract.** Seven primitives,
+- `docs/guideline/30_framework_primitives.md` — **the contract.** Seven primitives,
   JSON schemas, acid test, deletion list, testing layers. Read first.
 - `docs/21_emergent_world_vision.md` — original vision doc. Philosophy still
   current; the 5-phase A–E implementation sketch is superseded by W1–W6.
@@ -3687,7 +3687,7 @@ an explicit programmable world model.
   data-driven procedure.
 
 **Yume positioning document:**
-- `docs/00_what_yume_is.md` — load-bearing positioning. Yume is an
+- `docs/guideline/00_what_yume_is.md` — load-bearing positioning. Yume is an
   EXPLICIT PROGRAMMABLE WORLD MODEL. JSON = world specification
   language. Runtime = interpreter. Godot = projection function.
   Cites the implicit (DreamerV3, MuZero, Genie) vs explicit (game
@@ -3788,7 +3788,7 @@ an explicit programmable world model.
 
 ### Files added (tracked)
 
-- `docs/00_what_yume_is.md` — positioning document
+- `docs/guideline/00_what_yume_is.md` — positioning document
 - `docs/adr/0056-visual-assertion-library.md` — accepted
 - `docs/adr/0057-yume-visual-tester-skill.md` — proposed
 - `docs/adr/0058-shader-as-json.md` — proposed
@@ -4978,3 +4978,28 @@ Open items for when water comes back:
 - Water region in totem_hills is a winding river — the box-mesh
   approach is over-broad (we have a big box clipped to a thin
   river). A pond/lake scene would fit a box more naturally.
+
+## Camera intrinsics — TODO (2026-05-28)
+
+User wants two extensions to scene.json camera control. Both are
+small engine changes in `camera_director._apply_ortho`.
+
+1. **Projection-mode override**: today the projection (perspective
+   vs orthographic) is hardcoded per camera_mode — FPS / TP /
+   free_cam always perspective; iso / top_down always orthographic.
+   Add an optional `projection: "perspective" | "orthographic"`
+   field in cam_cfg that `_apply_ortho` honors when set, with the
+   mode default as fallback. Enables e.g. orthographic FPS for a
+   stylized-art-direction scene, or perspective top-down for a
+   cinematic.
+
+2. **Clip planes + focal-length-in-mm**: expose
+   `clip_near` / `clip_far` (default 0.05 / 4000) and an optional
+   `focal_length_mm` (converted to FOV via `fov = 2*atan(36/
+   (2*focal_mm))` using a 36mm sensor assumption). Authors can
+   then write film-camera-language in cam_cfg.
+
+Scope: ~20 lines in `_apply_ortho`, plus lib camera preset docs.
+No new validators needed (fields default to current behavior).
+
+Defer until tiny_village tuning is done.

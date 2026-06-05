@@ -381,9 +381,9 @@ normal_texture, roughness, metallic}). See each package's README.
 
 ## Read More
 
-- `docs/30_framework_primitives.md` — the engine contract (invariant-bearing)
-- `docs/31_text_to_game_pipeline.md` — strategic plan + CCGS analysis
-- `docs/32_mda_for_yume.md` — design vocabulary
+- `docs/guideline/30_framework_primitives.md` — the engine contract (invariant-bearing)
+- `docs/guideline/31_text_to_game_pipeline.md` — strategic plan + CCGS analysis
+- `docs/guideline/32_mda_for_yume.md` — design vocabulary
 - `docs/adr/README.md` — index of architectural decisions
 - `docs/adr/0046-animation-via-godot-animation-player.md` — animation primitive
 - `docs/adr/0051-authoring-time-python-emitters.md` — codegen + assetgen rationale

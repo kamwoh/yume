@@ -404,8 +404,8 @@ GDD mentions a combining mechanic.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — what the engine can express
-- `docs/32_mda_for_yume.md` — aesthetic vocabulary
+- `docs/guideline/30_framework_primitives.md` — what the engine can express
+- `docs/guideline/32_mda_for_yume.md` — aesthetic vocabulary
 - `godot/data/demo_ecology_deep/` — has
   smelting + transform chains, useful pattern reference
 - `godot/data/demo_harvestcore/` — has

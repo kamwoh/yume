@@ -199,8 +199,8 @@ finding what they need becomes a chore.
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — what's expressible
-- `docs/32_mda_for_yume.md` — design vocabulary
+- `docs/guideline/30_framework_primitives.md` — what's expressible
+- `docs/guideline/32_mda_for_yume.md` — design vocabulary
 - `.claude/skills/yume-shooter-designer/SKILL.md` — sibling genre-
   specialist (template for this skill's structure)
 - an item-shop merchant game (canonical reference); a merchant-adventurer game (modern variant);

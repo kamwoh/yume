@@ -63,7 +63,7 @@ uses. The director only handles leashing and KO recovery.
 ### 1. New relation type — `party_member_of`
 
 Standard relation, no engine code (relations are user-defined
-strings — see §7 of `docs/30_framework_primitives.md`). Convention:
+strings — see §7 of `docs/guideline/30_framework_primitives.md`). Convention:
 `{type: "party_member_of", from: <npc_id>, to: <player_id>}`. The
 director scans for entities tagged `party_member` and reads their
 single outgoing `party_member_of` edge to find the leash anchor.

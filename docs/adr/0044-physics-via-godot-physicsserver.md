@@ -764,7 +764,7 @@ tech-director must verify:
 - ADR 0024 — Pathfinding A* grid (independent; will be addressed in future ADR 0045)
 - ADR 0027 — Cross-game lib references (`@lib.physics.X` templates use this)
 - ADR 0040 — Camera-relative WASD (`velocity_set_relative` effect must route to physics body correctly)
-- `docs/30_framework_primitives.md` — to be updated when this ADR is accepted
+- `docs/guideline/30_framework_primitives.md` — to be updated when this ADR is accepted
 - `docs/33_yume_full_architecture.md` § 12 — to be REWRITTEN once this ADR lands
 
 ## Acceptance gate

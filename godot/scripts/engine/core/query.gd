@@ -3,7 +3,7 @@ class_name QueryLib
 
 ## Primitive #6 — Query.
 ##
-## Contract: docs/30_framework_primitives.md §6
+## Contract: docs/guideline/30_framework_primitives.md §6
 ##
 ## Declarative entity matcher. One code path serves Rule.query (pivot scan),
 ## contact pair matching (`a`/`b`), formula `self.nearest(...)`, and effect

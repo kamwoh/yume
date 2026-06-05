@@ -91,7 +91,7 @@ early. Killed in favor of W5.0 promotion.
 ## References
 
 - ADR 0001 (the seven-primitives + invariant #3 decision)
-- `docs/30_framework_primitives.md` § "Tick ordering" + invariant #3
+- `docs/guideline/30_framework_primitives.md` § "Tick ordering" + invariant #3
 - `docs/timeline/entries/16_renderer_3d_promoted.js` — W5.0 promotion
 - `docs/timeline/entries/17_renderer_3d_review_fixes.js` — review that surfaced this debt
 - `godot/scripts/engine/entity.gd` — implementation

@@ -97,7 +97,7 @@ Eventually accumulates genre assumptions. Killed.
 
 ## References
 
-- `docs/30_framework_primitives.md` — full contract doc
+- `docs/guideline/30_framework_primitives.md` — full contract doc
 - `docs/timeline/entries/04_seven_primitives.js` — initial six → seven decision
 - `docs/timeline/entries/03_independent_review.js` — review that caught Relation gap
 - W5 acid test — 5 demos pass on identical engine code

@@ -370,9 +370,9 @@ content-designer + systems-designer + game-rules-designer write JSON
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — engine primitives (state_add,
+- `docs/guideline/30_framework_primitives.md` — engine primitives (state_add,
   state_set, state_clamp, transform, spawn) cover all resource flow
-- `docs/32_mda_for_yume.md` — aesthetic vocabulary
+- `docs/guideline/32_mda_for_yume.md` — aesthetic vocabulary
 - `godot/data/demo_harvestcore/` — multi-
   currency game (gold + crops + relationships) — read for working
   patterns

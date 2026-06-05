@@ -137,7 +137,7 @@ yume/
 │   ├── yume_env/                  ← ADR 0060 env: oracle.py, env.py (gym-like), test_env.py
 │   ├── yume_codegen/ yume_assetgen/  ← optional authoring-time emitters
 │   └── visual_layout/             ← text→2D/3D layout pipelines (HUD/screen/map)
-├── docs/                          ← contract (30_*), ADRs (adr/NNNN-*), per-game design
+├── docs/                          ← guideline/ (contract 30_*, architecture), adr/NNNN-*, per-game design
 ├── .claude/                       ← skills (yume-*) + path-scoped rules + plan/
 └── CLAUDE.md                      ← full project instructions (read this for conventions)
 ```
@@ -409,7 +409,7 @@ not a shipped feature; audio is procedural SFX + cues, music/BGM is thin.
 
 ## Where to read more
 
-- `docs/30_framework_primitives.md` — the engine contract (invariant-bearing)
+- `docs/guideline/30_framework_primitives.md` — the engine contract (invariant-bearing)
 - `docs/adr/` — architectural decisions (e.g. ADR 0021 expose-don't-reimplement,
   ADR 0039 step-runner, ADR 0060 deterministic I/O + env)
 - `.claude/rules/` — path-scoped invariants (engine-scripts, data-demo, …)

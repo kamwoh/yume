@@ -19,7 +19,7 @@ export const entry13 = {
     "<strong>Test of correctness:</strong> swapping pixel-art to AI-gen 3D = swap JSON files. Going silent = delete one JSON file. Adding a shape = edit one JSON file. Engine is ignorant of every specific asset/shape/sound/prompt by design.",
   ],
   files: [
-    "docs/30_framework_primitives.md (invariant #8 added)",
+    "docs/guideline/30_framework_primitives.md (invariant #8 added)",
     "task_plan.md (W2.7a revised, 2.5i-l tightened)",
   ],
   followups: ["Apply this consistency check whenever new layer is proposed"],

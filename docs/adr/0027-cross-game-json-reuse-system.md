@@ -333,7 +333,7 @@ when they choose. Initial migration:
 - `yume-asset-designer`, `yume-content-designer`, `yume-screen-flow
   -designer`, `yume-systems-designer` SKILLs gain a "prefer lib
   reference" instruction.
-- `docs/30_framework_primitives.md` adds a § "JSON reuse layer"
+- `docs/guideline/30_framework_primitives.md` adds a § "JSON reuse layer"
   documenting `@lib.X` / `$extends` / `$include` semantics.
 
 ### Risks
@@ -457,7 +457,7 @@ Phase 5 (broader migration — separate ADRs/sessions):
 
 ## References
 
-- `docs/30_framework_primitives.md` — invariants this fits under
+- `docs/guideline/30_framework_primitives.md` — invariants this fits under
 - `docs/adr/0019-rule-plugin-macro-layer.md` — existing macro
   system (per-game, doesn't solve cross-game reuse)
 - `docs/adr/0021-yume-as-json-layer-over-platform.md` — Yume's

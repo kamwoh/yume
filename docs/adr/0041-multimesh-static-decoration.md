@@ -411,7 +411,7 @@ scenario test in `test_runner.gd`:
 ### Conditions for documentation
 
 - Add `__multimesh_managed` tag to the engine-managed metadata
-  list in `docs/30_framework_primitives.md` (alongside `_origin`,
+  list in `docs/guideline/30_framework_primitives.md` (alongside `_origin`,
   `_params`, `_phase`, `_pending_*`).
 - Update `yume-asset-designer` skill to recommend
   `multimesh_eligible: true` on any new static-decoration mesh

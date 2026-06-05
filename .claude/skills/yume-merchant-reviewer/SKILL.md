@@ -381,8 +381,8 @@ Same as generic reviewer:
 
 ## Reference files
 
-- `docs/30_framework_primitives.md`
-- `docs/32_mda_for_yume.md`
+- `docs/guideline/30_framework_primitives.md`
+- `docs/guideline/32_mda_for_yume.md`
 - `.claude/skills/yume-merchant-designer/SKILL.md` — paired skill
 - `.claude/skills/yume-shooter-reviewer/SKILL.md` — sibling genre-
   reviewer (template structure)

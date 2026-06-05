@@ -351,7 +351,7 @@ Splitting lets tech-director gate them separately.
 
 ## References
 
-- Invariant #1 (JSON-only content channel) — `docs/30_framework_primitives.md`
+- Invariant #1 (JSON-only content channel) — `docs/guideline/30_framework_primitives.md`
 - ADR 0010 (save/load) — composes via `save_state` / `load_state`
   effects on screen buttons
 - ADR 0012 (overlays) — tutorial overlays compose with screens

@@ -123,7 +123,7 @@ lookups). At Aldenmere's ~237 entities both are microseconds; at the
 ~50-bullet doomarena3d ceiling both are negligible. If a future
 particle-heavy game hits real cost, the optimization path is groups +
 call_group (the "ADR 0050"-shape future work I sketched in
-`docs/group-dispatch-flow.md`) — not "move back to engine code."
+`.claude/plan/group-dispatch-flow.md`) — not "move back to engine code."
 
 ## Alternatives considered
 
@@ -178,7 +178,7 @@ pre-existing motion-test brittleness unrelated to lifetime.
 
 - `data/lib/engine_rules/lifetime.json` — the new rule file
 - `godot/scripts/engine/coordinators/world_boot.gd::_load_engine_rules`
-- `docs/group-dispatch-flow.md` — future optimization sketch (groups)
+- `.claude/plan/group-dispatch-flow.md` — future optimization sketch (groups)
 - ADR 0047 — `world_state` as `_engine` entity (precedent for the
   "JSON-shape this instead of engine-special-case" thinking)
 - ADR 0048 — `velocity_add_relative` auto-reset (immediate prior

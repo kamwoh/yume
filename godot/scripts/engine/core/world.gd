@@ -7,7 +7,7 @@ class_name World
 ## each subsystem. Almost all behavior lives in the coordinators; World's
 ## job is to construct them and sequence the per-frame + per-tick calls.
 ##
-## Contract: docs/30_framework_primitives.md § "File layout after redesign"
+## Contract: docs/guideline/30_framework_primitives.md § "File layout after redesign"
 ##
 ## Renderer-agnostic. Extends plain Node — no transform. Entities are
 ## children; each gets a positioned renderer node (Sprite2D / MeshInstance3D)
@@ -103,7 +103,7 @@ var _tick_count: int = 0
 # When set_trajectory_recorder(path) is called, World opens a JSONL
 # file and writes one row per tick capturing (state, actions). This
 # is the explicit-world-model → implicit-world-model bridge per
-# docs/00_what_yume_is.md. The recorder is opt-in; default is null
+# docs/guideline/00_what_yume_is.md. The recorder is opt-in; default is null
 # (no recording, no overhead).
 
 var _trajectory_file: FileAccess = null
@@ -216,7 +216,7 @@ func _apply_hash_log_flag() -> void:
 ## mesh-vs-collider misalignment (e.g., "I can't jump on the bench" → its
 ## collider doesn't extend up to the bench's visual top).
 ##
-## Per docs/00_what_yume_is.md, this is PROJECTION (debug overlay), not
+## Per docs/guideline/00_what_yume_is.md, this is PROJECTION (debug overlay), not
 ## world-model state. Doesn't affect game behavior, only visualization.
 func _apply_debug_flags() -> void:
 	var show_colliders := false
@@ -454,7 +454,7 @@ func advance_one_tick() -> void:
 	if actor_manager != null:
 		actor_manager.process_pending(scheduler.env, world_state, verbose)  # ADR 0016
 	# Trajectory recording (opt-in, ADR 0058 audit follow-up /
-	# docs/00_what_yume_is.md § "Bridging to implicit world models").
+	# docs/guideline/00_what_yume_is.md § "Bridging to implicit world models").
 	# Set via set_trajectory_recorder(path); writes one JSONL row per
 	# tick capturing (state_t, actions_applied_this_tick). Paired
 	# consecutive rows give (state_t, action_t, state_{t+1}) triples
@@ -794,7 +794,7 @@ func _build_env() -> Dictionary:
 #
 # Opt-in JSONL-per-tick world-state dump. Bridges the explicit world
 # model (Yume's JSON-spec'd rollouts) to implicit world model
-# trainers (DreamerV3, MuZero, etc. — see docs/00_what_yume_is.md
+# trainers (DreamerV3, MuZero, etc. — see docs/guideline/00_what_yume_is.md
 # § "Bridging to implicit world models").
 
 

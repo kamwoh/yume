@@ -93,4 +93,4 @@ wire — JSON is only the authoring format, per ADR 0063.)
   makes the *policy* content).
 - Reuses **`Query.matches`** (the query primitive — Invariant #5).
 - Invariants **#1** (data drives everything) + **#8** (engine = primitives +
-  interpreter), `docs/30_framework_primitives.md`.
+  interpreter), `docs/guideline/30_framework_primitives.md`.

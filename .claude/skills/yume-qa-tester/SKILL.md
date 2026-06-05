@@ -522,7 +522,7 @@ A game passes QA when:
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` § "Tick ordering" — semantic
+- `docs/guideline/30_framework_primitives.md` § "Tick ordering" — semantic
   identity (helps debug timing-related bugs)
 - `docs/engine-reference/api-manifest.json` — canonical engine vocabulary
 - `godot/scripts/engine/core/world.gd` —

@@ -355,7 +355,7 @@ rendered as intended. See visual-qa.md for the full per-skill checklist.
   (just goal_reached → transition_level)
 - `data/demo_doomarena3d/levels/<chamber>/rules.json` — per-level
   game rules pattern
-- `docs/30_framework_primitives.md` — engine vocabulary
+- `docs/guideline/30_framework_primitives.md` — engine vocabulary
 - `.claude/rules/data-demo.md` — JSON authoring rules
 
 ## Status

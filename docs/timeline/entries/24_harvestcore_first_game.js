@@ -23,7 +23,7 @@ export const entry24 = {
     "docs/games/harvestcore/{GDD.md,rules-sketch.md,qa-report.md,README.md} (new game artifacts)",
     "archetypes/core/templates/godot/data/demo_harvestcore/{entities.json,world_rules.json,world.json,shapes.json}",
     "archetypes/core/templates/godot/scenes/harvestcore_2d.tscn (new)",
-    "docs/30_framework_primitives.md (ternary syntax corrected)",
+    "docs/guideline/30_framework_primitives.md (ternary syntax corrected)",
     ".claude/rules/data-demo.md (formula whitelist refined)",
     "archetypes/core/templates/godot/scripts/engine/formula.gd (error hint corrected)",
     "tools/gen_api_manifest.py (formula syntax notes added)",

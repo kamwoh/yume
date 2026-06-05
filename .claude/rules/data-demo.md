@@ -377,7 +377,7 @@ mutations on one store don't show up reading the other.
 }
 ```
 
-Rules JSON (per `docs/30_framework_primitives.md` §3):
+Rules JSON (per `docs/guideline/30_framework_primitives.md` §3):
 
 ```jsonc
 {

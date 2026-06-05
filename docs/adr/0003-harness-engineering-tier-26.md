@@ -93,9 +93,9 @@ to ship a coherent tier than 6 partial wins.
 
 ## References
 
-- `docs/30_framework_primitives.md` — engine primitives (the action
+- `docs/guideline/30_framework_primitives.md` — engine primitives (the action
   space the harness wraps)
-- `docs/31_text_to_game_pipeline.md` — where Tier 2.6 sits in the
+- `docs/guideline/31_text_to_game_pipeline.md` — where Tier 2.6 sits in the
   bigger plan
 - ADR 0001 — primitive set (the constrained action space property)
 - ADR 0002 — renderer-agnostic Entity (state observation primitive)

@@ -173,8 +173,8 @@ Pick a policy and commit.
    shooter? boomer shooter? hero shooter? immersive sim?). Different
    sub-genres have different feel targets.
 
-2. **Read MDA + reference docs:** `docs/32_mda_for_yume.md`,
-   `docs/30_framework_primitives.md`. Internalize the engine surface.
+2. **Read MDA + reference docs:** `docs/guideline/32_mda_for_yume.md`,
+   `docs/guideline/30_framework_primitives.md`. Internalize the engine surface.
 
 3. **Write the generic MDA scaffolding first** (or coordinate with
    `yume-game-designer` to do so):
@@ -245,8 +245,8 @@ After `yume-design` Phase 0 setup. Steps:
 
 ## Reference files
 
-- `docs/30_framework_primitives.md` — engine surface
-- `docs/32_mda_for_yume.md` — MDA framework
+- `docs/guideline/30_framework_primitives.md` — engine surface
+- `docs/guideline/32_mda_for_yume.md` — MDA framework
 - `docs/adr/0004-blocks-motion-tag.md` — projectile-obstacle policy
 - `.claude/skills/yume-shooter-reviewer/SKILL.md` — paired reviewer
   (writing this GDD with that reviewer's checklist in mind speeds

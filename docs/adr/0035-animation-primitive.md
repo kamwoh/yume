@@ -749,7 +749,7 @@ layers, root-motion) require their own ADRs.
   designation; this ADR is first in the slate.
 - `docs/games/aldenmere/world.md` § "Phase 1 — Survival" —
   contemplative aesthetic dependency on visible walking.
-- `docs/30_framework_primitives.md` Invariant #1 (JSON-only
+- `docs/guideline/30_framework_primitives.md` Invariant #1 (JSON-only
   content), #2 (no semantic effects), #8 (engine = primitives +
   interpreter) — animation is content-shape (JSON) + interpreter
   (animation_director.gd); zero effect types added.

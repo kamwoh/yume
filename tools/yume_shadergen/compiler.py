@@ -7,7 +7,7 @@ Walks a JSON DAG declared in scene.json under
 `data/lib/shaders/primitives/<id>.json`; primitives carry hand-tuned
 GLSL Jinja2 fragments that the compiler stitches together in order.
 
-Per docs/00_what_yume_is.md, the shader system is projection-
+Per docs/guideline/00_what_yume_is.md, the shader system is projection-
 configuration = content = JSON-driven. Phase A used a monolithic
 Jinja template; Phase B's primitives are reusable across shader
 domains (ground, water, sky, ...).

@@ -4,7 +4,7 @@ export const entry04 = {
   type: "build",
   title: "Contract finalized — seven primitives + four-phase tick",
   summary:
-    "All review feedback applied. <code>docs/30_framework_primitives.md</code> becomes the " +
+    "All review feedback applied. <code>docs/guideline/30_framework_primitives.md</code> becomes the " +
     "design contract — every engine choice traces back to it.",
   highlights: [
     "<strong>7 primitives:</strong> Entity, Tag, Rule, Trigger, Effect, Query, <strong>Relation</strong>",
@@ -14,6 +14,6 @@ export const entry04 = {
     "Six-layer test plan baked in: unit, schema validator, integration, determinism/replay, acid-test, no-genre-leak",
     "Reserved triggers: <code>scheduled</code> (rhythm), <code>relation_changed</code> (equip-on-pickup)",
   ],
-  files: ["docs/30_framework_primitives.md"],
+  files: ["docs/guideline/30_framework_primitives.md"],
   followups: ["W0 throwaway spike before W1 production work"],
 };

@@ -163,7 +163,7 @@ CCGS patterns to make text-to-game achievable.
    - `docs/architecture/tr-registry.yaml` — requirements tracked with TR-IDs
    - JSON comments reference `"_tr": "TR-042"` for traceability
 
-4. **MDA framework doc** — `docs/32_mda_for_yume.md`. Translates MDA
+4. **MDA framework doc** — `docs/guideline/32_mda_for_yume.md`. Translates MDA
    (Mechanics/Dynamics/Aesthetics) vocabulary into Yume terms:
    - Mechanics = Yume rules + entities
    - Dynamics = emergent behavior from rule composition
