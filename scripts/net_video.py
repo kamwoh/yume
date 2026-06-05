@@ -6,30 +6,28 @@ then renders each player's view and stitches them into one mp4 — proving the
 multiplayer is synchronized.
 
 ============================================================================
-TWO MODES (that's all — everything else below is just plumbing):
-  NORMAL    a window you can see  → the regular game (play.sh).
-  HEADLESS  no window             → THIS tool with `--smooth --linux`.
+Smooth record-then-replay is the DEFAULT (this tool is always automated, so the
+real-time path has no upside). Pick where it renders — that's the only choice:
+
+  HEADLESS  no window  → add `--linux`  (Xvfb + GPU; for CI / servers)
+  (default)            → Windows binary, off-screen window (faster in WSL)
 ============================================================================
 
 Recommended (headless, real meshes, smooth 60fps, synced):
 
-  CLIENTS=4 SECS=6 CRF=18 venv/bin/python scripts/net_video.py demo_tiny_village --smooth --linux
+  CLIENTS=4 SECS=6 CRF=18 venv/bin/python scripts/net_video.py demo_tiny_village --linux
 
-That's the one to use. It records the sim, then re-renders each view offline in
-Movie-Maker mode under Xvfb (a virtual display → no window) using the stock
-4.6.1 Linux binary (real meshes). Full quality; just slow to PRODUCE in WSL
-(per-frame GPU readback across WSL's d3d12 layer — not a quality issue).
+It records the sim once, then re-renders each view offline in Movie-Maker mode
+under Xvfb (a virtual display → no window) using the stock 4.6.1 Linux binary
+(real meshes). Full quality; just slow to PRODUCE in WSL (per-frame GPU readback
+across WSL's d3d12 layer — not a quality issue).
 
 ----------------------------------------------------------------------------
-Plumbing / flags (implementation detail — you normally only need --smooth
---linux). These exist for speed experiments + other environments:
-  --smooth     record-then-replay-offline (Movie-Maker, smooth). Without it,
-               real-time capture (GPU-bound → choppier).
-  --linux      stock 4.6.1 Linux binary under Xvfb (windowless). Auto-routes
-               GL to the WSL GPU (d3d12) when /dev/dxg is present.
-  (default)    Windows binary; off-screen window (--hidden) — native GPU
-               readback, faster to produce in WSL, but an off-screen window
-               exists.
+Flags (you normally only need --linux):
+  --linux   stock 4.6.1 Linux binary under Xvfb (windowless). Auto-routes GL
+            to the WSL GPU (d3d12) when /dev/dxg is present. Omit → Windows
+            binary, off-screen window (native GPU readback, faster in WSL).
+  --live    opt OUT of smooth → real-time capture (quick preview; choppier).
 
 Env: CLIENTS, SECS, MOVIE_FPS, CRF, PORT, WIN_W/WIN_H, DELAY, OUT, REC_DIR.
 """
@@ -51,11 +49,12 @@ LINUX = "--linux" in sys.argv
 # windowless video output without the Linux/Xvfb setup. (No effect on --linux,
 # which is already windowless under Xvfb.)
 HIDDEN = "--hidden" in sys.argv
-# --smooth (ADR 0066): record the live netcode once (real-time), then RE-RENDER each
-# view offline in Movie-Maker mode (--write-movie) → buttery 60fps regardless of GPU
-# speed (slow GPU just takes longer to produce). Uses the stock binary → real meshes.
-# Views are inherently synced (same recording, same fixed fps → identical frame count).
-SMOOTH = "--smooth" in sys.argv
+# Record-then-replay (ADR 0066) is the DEFAULT: this tool is always automated (the
+# scripted patrol drives the players — you never control it live), so there's no
+# reason to want the real-time capture. Record the netcode once, then RE-RENDER each
+# view offline in Movie-Maker mode → buttery 60fps regardless of GPU speed, real
+# meshes, inherently synced. `--live` opts out (real-time capture; quick + choppy).
+SMOOTH = "--live" not in sys.argv
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 OFFSCREEN_PX = 5000  # px beyond the visible desktop (for the --hidden window trick)
 
