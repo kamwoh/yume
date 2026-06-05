@@ -87,6 +87,8 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0052](./0052-shader-as-visual-primitive.md) | visual.shader — entity-level shader as visual primitive | accepted | 2026-05-17 |
 | [0053](./0053-tripo3d-animation-pipeline.md) | Tripo3D animation pipeline (rig + retarget, all 8 rig types) | accepted | 2026-05-18 |
 | [0054](./0054-visual-layout-compiler.md) | Visual layout compiler — image gen → CV extraction → JSON | accepted | 2026-05-19 |
+| [0060](./0060-deterministic-pomdp-pluggable-io.md) | Deterministic I/O contract — pluggable input source + partitioned observe channels (tests / AI-play / world-model) | proposed | 2026-05-30 |
+| [0061](./0061-networked-multiplayer-lockstep.md) | Networked multiplayer — input-replicated lockstep (decision-only; depends on 0060) | proposed | 2026-05-30 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 

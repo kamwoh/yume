@@ -15,9 +15,10 @@ them as code: precise, versioned, audited.
   is invariant-bearing; changes need explicit reasoning + version trail.
   Adding a primitive, changing tick semantics, renaming an effect type —
   all require ADRs in `docs/adr/`.
-- ❌ **Let task_plan.md drift from reality.** When a phase completes,
-  mark `[x]` and add the actual scope landed (vs original spec). When
-  scope changes mid-phase, document the deviation.
+- ❌ **Let the backlog drift from reality.** When an item in
+  `.claude/plan/backlog.md` ships, delete it (the archive keeps the
+  record); when scope changes mid-flight, note the deviation in
+  `.claude/plan/archive.md`.
 - ❌ **Duplicate timeline entries across files.** Diary lives in
   `docs/timeline/entries/`; add a NEW entry rather than rewriting an
   existing one.
@@ -28,8 +29,10 @@ them as code: precise, versioned, audited.
   invariant, link back to `30_framework_primitives.md` § X.
 - ✅ **Date entries.** `_Last updated: YYYY-MM-DD_` at the top of any
   living doc. Strategic-shift sections include the date.
-- ✅ **Append, don't rewrite, in `task_plan.md`.** Keep the deferred
-  / superseded text visible (commented or marked) so the history is
+- ✅ **Append history to `.claude/plan/archive.md`** (the former
+  `task_plan.md`; root `task_plan.md` is now just an index). Live TODOs live in
+  `.claude/plan/backlog.md` — delete items there when they ship; the archive
+  keeps the record. Keep deferred / superseded text visible so history is
   self-explanatory.
 - ✅ **Use the timeline diary** (`docs/timeline/entries/NN_*.js`) for
   major architectural decisions, reviews, or pivots. Auto-renders via
@@ -41,8 +44,9 @@ them as code: precise, versioned, audited.
 |---|---|
 | `docs/30_framework_primitives.md` | Engine contract. Invariant-bearing. ADR-gated. |
 | `docs/31_text_to_game_pipeline.md` | Tier 2.5 strategic plan. CCGS analysis + decisions. |
-| `docs/32_architecture_diagrams.md` | Visual reference. Mermaid diagrams. |
-| `task_plan.md` | Roadmap + phase state. Append-mostly. |
+| `docs/33_architecture.md` | Detailed architecture reference (engine + pipelines). |
+| `.claude/plan/backlog.md` | Live actionable backlog. Delete-when-shipped. |
+| `.claude/plan/archive.md` | Roadmap + history + decision log. Append-mostly. |
 | `docs/timeline/` | Diary. One entry per major decision. |
 
 ## ADR format (when one is needed)

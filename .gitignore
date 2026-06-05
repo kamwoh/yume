@@ -86,3 +86,8 @@ godot/data/**/assets/concepts/
 
 # Local video recordings (net_video.py) — large binaries, regenerated
 recordings/
+
+# Generated doc HTML (no committed doc-viewer anymore). The timeline/ viewer is
+# kept (docs/timeline/index.html is in a subdir, so these globs don't touch it).
+docs/*.html
+docs/adr/*.html
