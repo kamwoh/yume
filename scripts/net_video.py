@@ -9,8 +9,8 @@ multiplayer is synchronized.
 Smooth record-then-replay is the DEFAULT (this tool is always automated, so the
 real-time path has no upside). Pick where it renders — that's the only choice:
 
-  HEADLESS  no window  → add `--linux`  (Xvfb + GPU; for CI / servers)
-  (default)            → Windows binary, off-screen window (faster in WSL)
+  HEADLESS  no window       → add `--linux`  (Xvfb + GPU; for CI / servers)
+  NORMAL    a visible window → default (Windows binary; faster in WSL)
 ============================================================================
 
 Recommended (headless, real meshes, smooth 60fps, synced):
@@ -26,7 +26,7 @@ across WSL's d3d12 layer — not a quality issue).
 Flags (you normally only need --linux):
   --linux   stock 4.6.1 Linux binary under Xvfb (windowless). Auto-routes GL
             to the WSL GPU (d3d12) when /dev/dxg is present. Omit → Windows
-            binary, off-screen window (native GPU readback, faster in WSL).
+            binary in a normal on-screen window (native GPU, faster in WSL).
   --live    opt OUT of smooth → real-time capture (quick preview; choppier).
 
 Env: CLIENTS, SECS, MOVIE_FPS, CRF, PORT, WIN_W/WIN_H, DELAY, OUT, REC_DIR.
@@ -44,11 +44,6 @@ import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LINUX = "--linux" in sys.argv
-# --hidden (Windows backend): spawn the client windows OFF-SCREEN so the GPU still
-# renders + we still capture, but nothing shows on the desktop. Effectively
-# windowless video output without the Linux/Xvfb setup. (No effect on --linux,
-# which is already windowless under Xvfb.)
-HIDDEN = "--hidden" in sys.argv
 # Record-then-replay (ADR 0066) is the DEFAULT: this tool is always automated (the
 # scripted patrol drives the players — you never control it live), so there's no
 # reason to want the real-time capture. Record the netcode once, then RE-RENDER each
@@ -56,7 +51,6 @@ HIDDEN = "--hidden" in sys.argv
 # meshes, inherently synced. `--live` opts out (real-time capture; quick + choppy).
 SMOOTH = "--live" not in sys.argv
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
-OFFSCREEN_PX = 5000  # px beyond the visible desktop (for the --hidden window trick)
 
 
 def from_play_sh(var):
@@ -172,9 +166,7 @@ def client_cmd(pos_x, pos_y, inp, after, tag):
             f"--capture-after={after}", f"--capture-allframes={SECS}",
             f"--capture-output=user://_netcap/vid_{tag}.png"]
     g = [GODOT, "--path", ".", "--rendering-driver", "opengl3"]
-    px = (OFFSCREEN_PX + pos_x) if HIDDEN else pos_x
-    py = (OFFSCREEN_PX + pos_y) if HIDDEN else (60 + pos_y)
-    win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{px},{py}"]
+    win = ["--resolution", f"{WIN_W}x{WIN_H}", "--position", f"{pos_x},{60 + pos_y}"]
     cmd = g + win + [SCENE] + user
     if LINUX and HAVE_XVFB:
         # Each client gets its OWN virtual display (-a auto-picks) → no windows,
@@ -254,23 +246,20 @@ def run_smooth():
                  f"(a client didn't connect — see /tmp/net_video_c*.log)")
 
     # --- Phase 2: render each view offline in Movie-Maker mode (smooth) ----------
-    # Windowless render: --linux wraps in Xvfb (a VIRTUAL framebuffer → NO window
-    # appears at all, genuinely headless). The Windows stock binary has no offscreen
-    # driver, so it falls back to an off-screen window (--position 9999,9999).
+    # --linux → Xvfb (a VIRTUAL framebuffer → NO window at all, genuinely headless).
+    # Default → the Windows binary in a NORMAL on-screen window (you'll see it render).
     if LINUX and HAVE_XVFB:
         prefix = f'xvfb-run -a -s "-screen 0 {WIN_W}x{WIN_H}x24" '
-        pos = ""
     else:
         prefix = ""
-        pos = "--position 9999,9999 "
     for i, eid in enumerate(roster):
         viewdir = os.path.join(NETCAP, f"view{i}")
         os.makedirs(viewdir, exist_ok=True)
-        gpu = "GPU/d3d12" if GL_ENV else ("GPU" if not LINUX else "software")
-        where = ("Xvfb, no window" if (LINUX and HAVE_XVFB) else "off-screen window") + f", {gpu}"
+        gpu = "GPU/d3d12" if GL_ENV else "GPU"
+        where = ("Xvfb, no window" if (LINUX and HAVE_XVFB) else "window") + f", {gpu}"
         print(f"[net_video] rendering view {i+1}/{len(roster)} (follow {eid}) @ {MOVIE_FPS}fps [{where}] ...")
         r = sh(f'cd "{PROJECT}" && {prefix}{GL_ENV}"{GODOT}" --path . --rendering-driver opengl3 '
-               f'{pos}--resolution {WIN_W}x{WIN_H} '
+               f'--resolution {WIN_W}x{WIN_H} '
                f'--write-movie "user://_netcap/view{i}/frame.png" --fixed-fps {MOVIE_FPS} '
                f'{SCENE} -- --replay={rec_user} --replay-follow={eid} '
                f'> /tmp/net_video_view{i}.log 2>&1')
@@ -319,7 +308,7 @@ def main():
         gpu = "GPU/d3d12" if GL_ENV else "software"
         backend = ("linux/xvfb (no window, %s)" % gpu) if HAVE_XVFB else "linux/WSLg :0 (windows visible!)"
     else:
-        backend = "windows/GPU (off-screen — windowless)" if HIDDEN else "windows/GPU (windows visible)"
+        backend = "windows/GPU (normal window)"
     print(f"[net_video] backend={backend}")
     print(f"[net_video] {GAME}: server + {CLIENTS} clients -> grid mp4")
     if LINUX and not HAVE_XVFB:
