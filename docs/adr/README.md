@@ -87,8 +87,18 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0052](./0052-shader-as-visual-primitive.md) | visual.shader — entity-level shader as visual primitive | accepted | 2026-05-17 |
 | [0053](./0053-tripo3d-animation-pipeline.md) | Tripo3D animation pipeline (rig + retarget, all 8 rig types) | accepted | 2026-05-18 |
 | [0054](./0054-visual-layout-compiler.md) | Visual layout compiler — image gen → CV extraction → JSON | accepted | 2026-05-19 |
-| [0060](./0060-deterministic-pomdp-pluggable-io.md) | Deterministic I/O contract — pluggable input source + partitioned observe channels (tests / AI-play / world-model) | proposed | 2026-05-30 |
-| [0061](./0061-networked-multiplayer-lockstep.md) | Networked multiplayer — input-replicated lockstep (decision-only; depends on 0060) | proposed | 2026-05-30 |
+| [0055](./0055-multi-biome-ground-from-semantic-map.md) | Multi-biome ground from the semantic map | accepted | 2026-05-20 |
+| [0056](./0056-visual-assertion-library.md) | Visual assertion library + capture-per-test runner | accepted | 2026-05-22 |
+| [0057](./0057-yume-visual-tester-skill.md) | yume-visual-tester skill (auto-generated visual test plans) | proposed | 2026-05-22 |
+| [0058](./0058-shader-as-json.md) | Shader as JSON (templates + composable primitives) | proposed | 2026-05-23 |
+| [0059](./0059-water-surface-from-scene-json.md) | Water surface from scene.json | accepted | 2026-05-26 |
+| [0060](./0060-deterministic-pomdp-pluggable-io.md) | Deterministic I/O contract — pluggable input + partitioned observe channels | accepted | 2026-05-30 |
+| [0061](./0061-networked-multiplayer-lockstep.md) | Networked multiplayer — input-replicated lockstep | accepted | 2026-05-30 |
+| [0062](./0062-trimesh-static-world-mesh.md) | Trimesh collision for static world meshes | accepted | 2026-05-30 |
+| [0063](./0063-client-server-multiplayer.md) | Client-server multiplayer (server-authoritative + state replication) | accepted | 2026-06-01 |
+| [0064](./0064-data-driven-replication-config.md) | Data-driven replication config (net.json) | accepted | 2026-06-01 |
+| [0065](./0065-synced-animation-phase.md) | Synced animation — phase as deterministic sim state | accepted | 2026-06-01 |
+| [0066](./0066-record-replay-smooth-render.md) | Record-then-replay for smooth offline net video | accepted | 2026-06-04 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 
