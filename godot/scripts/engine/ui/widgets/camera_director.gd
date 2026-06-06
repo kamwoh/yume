@@ -489,9 +489,10 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var fz := -cos(facing)
 	# Over-the-shoulder offset (2026-05-20): shoulder_offset shifts the
 	# camera SIDEWAYS in the player's local frame. Positive = camera to
-	# the player's right (player appears LEFT of center on screen, GTA-
-	# style). Negative = camera to the player's left (mirrored framing).
-	# 0 = centered (Skyrim-style). Vector perpendicular to facing-forward
+	# the player's right (player appears LEFT of center on screen,
+	# over-the-shoulder style). Negative = camera to the player's left
+	# (mirrored framing).
+	# 0 = centered (centered-third-person style). Vector perpendicular to facing-forward
 	# in the XZ plane: right = (cos facing, -sin facing).
 	var shoulder := float(cam_cfg.get("shoulder_offset", 0.0))
 	var right := Vector3(cos(facing), 0, -sin(facing))
@@ -924,8 +925,8 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 	# - FPS: camera position + camera forward (camera == player eye).
 	# - Third-person: PLAYER's eye + facing direction. The camera sits
 	#   behind the player so a camera-based raycast would target the
-	#   player's own back. Skyrim / Witcher / RE4-style: crosshair fires
-	#   from the player's point of view regardless of camera orbit.
+	#   player's own back. Over-the-shoulder third-person style: crosshair
+	#   fires from the player's point of view regardless of camera orbit.
 	var mode := str(cam_cfg.get("mode", "first_person_3d"))
 	# Per-frame override from world_clock.state.camera_mode (matches
 	# update_follow's lookup so V-toggle changes mode-of-truth in one place).

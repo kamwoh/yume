@@ -37,12 +37,12 @@ Some examples (the skill applies to all of these and many more):
 | Alchemy / cooking | herb + herb → potion (an open-world action-RPG, an in-game cooking-pot) |
 | Plant breeding | rose + tulip → hybrid (a village life-sim, a farming sim) |
 | Key combos | up + down + punch → uppercut (Street Fighter) |
-| Chemistry / factory | iron ore + coal → steel (Factorio) |
-| Spell weaving | fire + water → steam-spell (Magicka) |
-| Doodle God / Little Alchemy | air + earth → dust |
-| Pokémon breeding | parent A + parent B → child with combined IVs |
-| Card combos / deckbuilding | trigger A + condition B → effect (Slay the Spire) |
-| Cooking-Mama style | ingredient A + ingredient B + technique → dish |
+| Chemistry / factory | iron ore + coal → steel |
+| Spell weaving | fire + water → steam-spell |
+| Element-combining games | air + earth → dust |
+| Creature breeding | parent A + parent B → child with combined traits |
+| Card combos / deckbuilding | trigger A + condition B → effect |
+| Cooking-minigame style | ingredient A + ingredient B + technique → dish |
 
 ## Inputs you accept
 
@@ -125,8 +125,8 @@ named entry) or EMERGENT (rule-based: any "wet" + any "fire" →
 
 - **Explicit map** — a farming sim, a voxel survival, an open-world action-RPG alchemy. Each recipe
   is named. Player learns through trial / book / NPC.
-- **Emergent rules** — Doodle God (early), Magicka. Rules combine
-  properties, output computed from input properties.
+- **Emergent rules** — element-combining games, spell-mixing action
+  games. Rules combine properties, output computed from input properties.
 - **Hybrid** — Most games. Core recipes explicit; emergent fallback
   for edge cases.
 
@@ -148,8 +148,8 @@ Choose based on:
 - **NPC teaches** — story-driven (a farming sim: get recipe from villager
   on heart event). Adds narrative weight.
 - **Free experimentation** — player tries combos blindly. High
-  delight on success; high frustration on dead-ends. Doodle God,
-  Little Alchemy.
+  delight on success; high frustration on dead-ends. Element-combining
+  discovery games.
 - **Hint system** — vague gestures ("herbs help with sleep"). Middle
   ground.
 - **Hybrid** — most polished games combine 2-3 of these.
@@ -181,10 +181,10 @@ use emergent rules.
 
 - **Consume** (most common) — inputs vanish, output appears. a voxel survival
   crafting, farming-sim cooking.
-- **Copy** — inputs preserved, output added. Pokémon breeding (parents
+- **Copy** — inputs preserved, output added. Creature breeding (parents
   remain), a farming-sim flower color genes.
 - **Partial consumption** — one input stays (catalyst / kiln / forge),
-  others consumed. Factorio assemblers.
+  others consumed. Factory-builder assemblers.
 - **Quantity transformations** — 4 stone → 1 stone block. N:1 ratios.
 - **Stochastic yield** — recipe sometimes produces extras / sometimes
   fails. Rolls a chance.
@@ -201,7 +201,7 @@ inputs?
   the item-shop merchant game's "Junk Trader" pattern. Adds humor + light cost without
   full denial.
 - **No effect** — combination just doesn't work, inputs preserved.
-  Friendliest. Doodle God.
+  Friendliest. (Element-combining discovery games.)
 - **Inputs lost** — punishes blind experimentation. Most punishing.
   Used sparingly (an open-world action-RPG: bad alchemy = wasted ingredients).
 - **Hybrid penalty** — small chance of trash + small chance of input
@@ -349,7 +349,7 @@ Note any:
 - Engine: input rule with sequence-state (state.combo_buffer fills
   with recent inputs; rule matches buffer pattern)
 
-### Doodle God / Little Alchemy
+### Element-combining discovery games
 
 - Recipe table: EXPLICIT (hand-authored ~500 recipes per game)
 - Discovery: free-experimentation, full reveal book

@@ -35,7 +35,7 @@ job is choosing the values.
   voice-and-texture tone)
 - The current `data/demo_<name>/scene.json` (existing lighting block)
 - Optional: a target reference image / mood word ("warm afternoon",
-  "Bergman winter", "Studio Ghibli summer")
+  "Bergman winter", "hand-painted-anime summer")
 - Optional: a screenshot capture showing the current rendering
 
 ## Outputs you produce
@@ -178,9 +178,9 @@ The GDD's "Aesthetics target" (per MDA framework) drives the palette:
 - **Challenge** (combat / survival) → cooler, harder shadows; ambient
   energy low; sun pure white-blue at noon.
 - **Discovery / Wonder** → high ambient energy (everywhere readable);
-  warm sun; saturated horizon. Studio Ghibli direction.
+  warm sun; saturated horizon. Hand-painted-anime direction.
 - **Submission / Slice-of-life** → balanced, painterly. Warm noon,
-  cool night, soft transitions. Stardew direction.
+  cool night, soft transitions. Cozy farming-sim direction.
 - **Narrative / Drama** → high contrast at dawn/dusk, dim noon.
   Reduces world to silhouettes during signature beats.
 - **Sensation** (raw feel — racing, FPS) → punchy primary colors;
@@ -198,7 +198,7 @@ Standard recipes:
 | Stark winter | `#e8f0f8` | `#c0d0e8` | `#101830` |
 | Spring thaw | `#fff8e8` | `#ffa860` | `#404880` |
 | Dramatic dusk | `#ffe0a0` | `#ff5028` (saturated) | `#080820` |
-| Studio Ghibli | `#ffffe0` | `#ffd060` | `#506890` |
+| Hand-painted anime | `#ffffe0` | `#ffd060` | `#506890` |
 
 Pick whichever matches the season + tone.
 

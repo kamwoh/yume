@@ -261,8 +261,9 @@ position, size, panel structure)**:
 image the user shared (e.g. `~/Downloads/ui_refs/`) and list what's
 working: where major elements live (corners vs center), visual
 hierarchy (what does the eye land on first), whitespace, size
-relationships. No reference → name a well-known game in the genre
-("Stardew distributed-corner HUD", "Skyrim compass top-center").
+relationships. No reference → name a well-known pattern in the genre
+("a farming-sim's distributed-corner HUD", "an open-world RPG's
+top-center compass").
 
 **Gate 2 — Design-heuristic VQA**. In addition to functional checks,
 the Read prompt MUST ask:

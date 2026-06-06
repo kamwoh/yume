@@ -18,9 +18,9 @@ onto screen at 45°, so:
 The diagonal-key combinations collapse to cardinal screen directions
 because the screen-projection of the world's NW direction is straight-
 up. Conversely, pressing W alone gives diagonal-up-right motion on
-screen — counter-intuitive for players used to Stardew/Diablo/
-Hades-style WASD (where W = forward = up on screen regardless of
-camera angle).
+screen — counter-intuitive for players used to isometric-RPG /
+twin-stick-ARPG-style WASD (where W = forward = up on screen regardless
+of camera angle).
 
 Yume's WASD lib bundle (`@lib.input_bundles.wasd_with_fp_variant`)
 already has **two camera-mode variants**:
@@ -232,8 +232,8 @@ cleanness is per-mode explicit.
 
 ### Positive
 
-- **W = up on screen in iso mode.** WASD feels intuitive — Stardew /
-  Diablo / Hades convention. The biggest UX win.
+- **W = up on screen in iso mode.** WASD feels intuitive — the
+  isometric-RPG / twin-stick-ARPG convention. The biggest UX win.
 - **Diagonal pairs combine correctly.** W+D = screen up-right (world
   N), W+A = up-left (world W), etc. Matches player intuition.
 - **All camera modes covered explicitly.** No more "iso uses world-

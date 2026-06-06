@@ -283,9 +283,9 @@ Match keywords from the one-line pitch:
 |---|---|---|---|
 | **shooter** | "shooter", "fps", "doom", "arena shooter", "twin-stick", "first-person" | `yume-shooter-designer` | `yume-shooter-reviewer` |
 | **merchant** | "merchant", "shopkeeper", "item shop", "an item-shop merchant game", "trader", "a merchant-adventurer game" | `yume-merchant-designer` | `yume-merchant-reviewer` |
-| **racing** | "racing", "kart", "a high-speed futuristic racer", "a high-speed futuristic racer", "a time-attack racer", "an arcade combat racer" | `yume-racing-designer` | (future: yume-racing-reviewer) |
-| **td** | "tower defense", "td", "bloons", "kingdom rush", "pvz" | (future: yume-td-designer) | (future: yume-td-reviewer) |
-| **sim** | "sim", "ecology", "farming", "stardew", "harvest moon", "life sim" | (future) | (future) |
+| **racing** | "racing", "kart", "drift", "lap", "time-attack", "combat racer" | `yume-racing-designer` | (future: yume-racing-reviewer) |
+| **td** | "tower defense", "td", "lane defense", "wave defense" | (future: yume-td-designer) | (future: yume-td-reviewer) |
+| **sim** | "sim", "ecology", "farming", "life sim", "harvest" | (future) | (future) |
 | **puzzle** | "puzzle", "sokoban", "match", "block-push", "tile" | (future) | (future) |
 | **roguelike** | "roguelike", "dungeon crawler", "rogue-lite" | (future) | (future) |
 | _(no match)_ | fallback | `yume-game-designer` only | `yume-game-reviewer` only |

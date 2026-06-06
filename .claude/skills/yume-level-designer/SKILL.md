@@ -126,8 +126,8 @@ Match the genre to a spatial archetype. Apply genre-specific patterns:
 #### Tower defense
 
 - **Linear path** (a tower defense, lane-based TD): single fixed route. Good for entry-level.
-- **Multi-path** (Kingdom Rush): 2-3 spawn points. Forces split defense.
-- **Maze TD** (Element TD): no fixed path; towers block; pathfinding
+- **Multi-path** (branching-lane TD): 2-3 spawn points. Forces split defense.
+- **Maze TD** (open-field maze TD): no fixed path; towers block; pathfinding
   required. Engine-heavy, defer unless explicitly designed for.
 - **Lane-based** (lane-based TD): parallel rows. Simple, focused decisions.
 

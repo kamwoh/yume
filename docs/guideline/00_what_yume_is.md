@@ -56,7 +56,7 @@ authored and human-readable.
 
 Examples: traditional game engines (Unity, Unreal, Godot), physics
 simulators (MuJoCo, PyBullet), agent-based modeling toolkits
-(NetLogo, Mesa), Minecraft.
+(NetLogo, Mesa), and voxel sandbox games.
 
 Explicit models are interpretable, debuggable, and require zero
 training data. But they're labor-intensive to author per-world and
