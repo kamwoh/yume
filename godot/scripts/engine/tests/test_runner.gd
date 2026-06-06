@@ -68,6 +68,7 @@ func _ready() -> void:
 	test_lib_resolver()
 	test_global_input_toggle_edge()
 	test_input_edge_last_writer_wins()
+	test_runtime_spawn_builds_body()
 	test_collider_matches_mesh()
 	test_schedule_primitive()
 	test_animation_primitive()
@@ -4522,6 +4523,46 @@ func test_global_input_toggle_edge() -> void:
 		"re-press → edge true again (close half fires; was the bug)"
 	)
 	sf.free()
+
+
+## GUARDRAIL (post-mortem 2026-06-06): the RUNTIME spawn path (EffectCore.spawn,
+## used by every rule-driven `spawn` effect) must build the physics body for the
+## new entity — parity with SpawnManager.spawn (initial instances). It diverged:
+## only initial instances built bodies, so rule-spawned movers (projectiles,
+## summoned NPCs) got a renderer but NO body and were frozen in place — the
+## doomarena3d "enemies + bullets never move" bug. The headless harness has no
+## 3D physics space to build a real body, so this gate asserts the WIRING: that
+## EffectCore.spawn invokes build_runtime_physics_body on its parent. If the
+## call is removed again, this FAILS.
+func test_runtime_spawn_builds_body() -> void:
+	_section("effect_core.spawn builds physics body (parity) (2026-06-06)")
+	# Spy parent: records build_runtime_physics_body invocations.
+	var spy_src := GDScript.new()
+	spy_src.source_code = (
+		"extends Node\n"
+		+ "var built: Array = []\n"
+		+ "func _attach_renderer(_e) -> void: pass\n"
+		+ "func build_runtime_physics_body(e) -> void: built.append(e)\n"
+	)
+	spy_src.reload()
+	var spy = spy_src.new()
+	add_child(spy)
+	var defs: Dictionary = {
+		"bolt": {"id": "bolt", "tags": ["projectile"], "state_init": {"velocity": [0, 0, -22]},
+			"physics": {"body_type": "rigid", "collision_shape": {"type": "sphere", "radius": 0.1}}},
+	}
+	var env: Dictionary = {
+		"entities": {}, "defs": defs, "relations": RelationStore.new(),
+		"world": {}, "parent": spy, "next_id": {"_": 0}, "spatial_index": null,
+	}
+	EffectCore.spawn({"type": "spawn", "template": "bolt"}, env, {})
+	expect_eq(spy.built.size(), 1, "EffectCore.spawn called build_runtime_physics_body once")
+	if spy.built.size() == 1:
+		expect_eq(
+			(spy.built[0] as Entity).def_id, "bolt",
+			"the body-build hook received the spawned entity"
+		)
+	spy.queue_free()
 
 
 ## GUARDRAIL (post-mortem 2026-06-06): InputRegistrar edge classification must

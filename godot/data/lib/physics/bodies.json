@@ -40,6 +40,7 @@
   },
 
   "rigid_projectile": {
+    "_comment": "RigidBody3D projectile — Godot's PhysicsServer integrates it with the full 3D velocity vector (so a pitch-aimed shot rises/falls correctly) and gravity_scale 0 keeps it straight. CAVEAT: rigid bodies only move under a LIVE physics server; the headless scenario/step harness has none (it integrates only CharacterBody3D via tick_headless), so rigid projectiles are FROZEN in scenario tests — gate a projectile's hit RULE by placing the target within contact range (position-based), not by relying on headless flight.",
     "body_type": "rigid",
     "collision_shape": {"type": "sphere", "radius": 0.1},
     "collision_layer": ["projectile"],
@@ -49,6 +50,14 @@
     "restitution": 0.0,
     "linear_damp": 0.0,
     "gravity_scale": 0.0
+  },
+
+  "character_projectile": {
+    "_comment": "CharacterBody3D projectile — the only Yume body that moves VISIBLY (move_and_slide writes global_position back to state.position live; tick_headless does the same in scenario tests). Rigid bodies fly in PhysicsServer space but never write back to state, so they render frozen. Small sphere; collision_mask = wall only (stops at walls, passes THROUGH monsters — a contact RULE applies damage). LIMITATION: the character runner owns velocity.y (gravity/jump channel), so the projectile flies FLAT regardless of pitch — fine for ground targets, wrong for arc/vertical shots. A free-3D-velocity projectile (rigid + a body→state readback) is future work. Author the def with state_init.gravity 0. Used by doomarena3d bullets.",
+    "body_type": "character",
+    "collision_shape": {"type": "sphere", "radius": 0.15},
+    "collision_layer": ["projectile"],
+    "collision_mask": ["wall"]
   },
 
   "area_trigger_zone": {

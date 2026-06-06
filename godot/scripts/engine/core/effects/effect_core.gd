@@ -258,6 +258,13 @@ static func spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary
 		# directly by World._spawn_initial — same hook).
 		if parent.has_method("_attach_renderer"):
 			parent.call("_attach_renderer", ent)
+		# ADR 0044/0045 parity: build the physics body for runtime spawns too.
+		# SpawnManager.spawn (initial instances) builds bodies; this path didn't,
+		# so rule-spawned movers (projectiles, summoned NPCs) were frozen — they
+		# got a renderer but no CharacterBody3D / rigid body to integrate motion.
+		# Empirical 2026-06-06: doomarena3d enemies + bullets never moved.
+		if parent.has_method("build_runtime_physics_body"):
+			parent.call("build_runtime_physics_body", ent)
 	# Spatial index registration (W3.1)
 	var sx = env.get("spatial_index", null)
 	if sx != null and sx.has_method("update_entity"):

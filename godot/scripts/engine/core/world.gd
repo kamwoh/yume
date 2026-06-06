@@ -425,6 +425,18 @@ func despawn_entity(id: String) -> void:
 		_spawn_manager.despawn(id)
 
 
+## Build the physics body for a RUNTIME-spawned entity (the `spawn` effect),
+## restoring parity with SpawnManager.spawn's initial-instance path. Without
+## this, rule-spawned entities (projectiles, summoned NPCs) get a renderer but
+## NO physics body, so they can't move — only initial instances did. Called by
+## EffectCore.spawn via env.parent. Empirical 2026-06-06 (doomarena3d): runtime
+## monsters + bullets were frozen at spawn because only initial instances built
+## bodies.
+func build_runtime_physics_body(ent: Entity) -> void:
+	if _spawn_manager != null and ent is Entity:
+		_spawn_manager._build_physics_body_if_declared(ent)
+
+
 ## ADR 0039: canonical sim-tick body. Reads as a schedule — each line
 ## is one step; implementation lives in private helpers below. Used by:
 ##   1. The live `_process(delta)` accumulator (above) after the freeze check.

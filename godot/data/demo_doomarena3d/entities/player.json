@@ -8,6 +8,7 @@
         "drag": 8.0,
         "body_radius": 0.4
       },
+      "physics": {"$extends": "@lib.physics.bodies.standard_character_player"},
       "state_init": {
         "hp": 100.0,
         "ammo": 30,

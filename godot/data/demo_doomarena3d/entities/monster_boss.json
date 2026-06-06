@@ -1,19 +1,35 @@
 {
-  "_comment": "The Industrial Mover — boss that spawns at score=25. 10 HP, very slow, double-size mesh. Killing it = early 'CHAMBER STABILIZED' win. Per Axis 9 signature moment.",
+  "_comment": "The Industrial Mover \u2014 boss that spawns at score=25. 10 HP, very slow, double-size mesh. Killing it = early 'CHAMBER STABILIZED' win. Per Axis 9 signature moment.",
   "definitions": [
     {
       "id": "monster_boss",
-      "tags": ["monster", "enemy", "creature", "boss"],
+      "tags": [
+        "monster",
+        "enemy",
+        "creature",
+        "boss"
+      ],
       "properties": {
         "speed": 1.5
       },
+      "physics": {
+        "$extends": "@lib.physics.bodies.standard_character_npc"
+      },
       "state_init": {
         "hp": 10,
-        "velocity": [0, 0, 0]
+        "velocity": [
+          0,
+          0,
+          0
+        ]
       },
       "visual": {
         "mesh": "boss_3d",
-        "params": {"body": "#2a0a0a", "core": "#ff4040", "horn": "#1a0505"}
+        "params": {
+          "body": "#2a0a0a",
+          "core": "#ff4040",
+          "horn": "#1a0505"
+        }
       }
     }
   ]

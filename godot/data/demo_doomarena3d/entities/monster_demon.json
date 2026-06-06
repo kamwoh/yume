@@ -1,19 +1,34 @@
 {
-  "_comment": "Rare brown-red enemy. 2 HP. Slower (2.5 m/s) but tankier. Reserved for v2 — current spawn rule only spawns imps.",
+  "_comment": "Rare brown-red enemy. 2 HP. Slower (2.5 m/s) but tankier. Reserved for v2 \u2014 current spawn rule only spawns imps.",
   "definitions": [
     {
       "id": "monster_demon",
-      "tags": ["monster", "enemy", "demon", "creature"],
+      "tags": [
+        "monster",
+        "enemy",
+        "demon",
+        "creature"
+      ],
       "properties": {
         "speed": 2.5
       },
+      "physics": {
+        "$extends": "@lib.physics.bodies.standard_character_npc"
+      },
       "state_init": {
         "hp": 2,
-        "velocity": [0, 0, 0]
+        "velocity": [
+          0,
+          0,
+          0
+        ]
       },
       "visual": {
         "mesh": "demon_3d",
-        "params": {"body": "#601810", "horn": "#3a0a0a"}
+        "params": {
+          "body": "#601810",
+          "horn": "#3a0a0a"
+        }
       }
     }
   ]

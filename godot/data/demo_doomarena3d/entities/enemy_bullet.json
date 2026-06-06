@@ -3,17 +3,31 @@
   "definitions": [
     {
       "id": "enemy_bullet",
-      "tags": ["enemy_bullet", "projectile"],
+      "tags": [
+        "enemy_bullet",
+        "projectile"
+      ],
       "properties": {},
+      "physics": {
+        "$extends": "@lib.physics.bodies.character_projectile"
+      },
       "state_init": {
         "lifetime": 30,
         "max_lifetime": 30,
-        "velocity": [0, 0, 0]
+        "velocity": [
+          0,
+          0,
+          0
+        ],
+        "gravity": 0
       },
       "visual": {
         "mesh": "enemy_bolt_3d",
         "fade_with_lifetime": true,
-        "params": {"core": "#ff4040", "tail": "#a02020"}
+        "params": {
+          "core": "#ff4040",
+          "tail": "#a02020"
+        }
       }
     }
   ]

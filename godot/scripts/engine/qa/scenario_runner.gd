@@ -242,8 +242,17 @@ func _apply_setup(world: World, setup: Dictionary) -> void:
 		var inst_id := str(s.get("id", "%s_setup_%d" % [template, randi()]))
 		var ent := Entity.create(defs[template], inst_id, override)
 		world.scheduler.env.get("entities", {})[inst_id] = ent
+		# Parity with SpawnManager.spawn / EffectCore.spawn: add to the tree +
+		# build the physics body, so a setup-spawned mover (e.g. a monster whose
+		# chase rule sets velocity) actually moves under tick_headless. Without
+		# this the entity is bodiless and frozen — monster-homing scenarios saw
+		# imps stuck at their spawn coords. 2026-06-06.
+		if not ent.is_inside_tree():
+			world.add_child(ent)
 		if world.spatial_index != null:
 			world.spatial_index.update_entity(inst_id, ent.get_planar_position())
+		if world.has_method("build_runtime_physics_body"):
+			world.build_runtime_physics_body(ent)
 
 	# entity_state: {entity_id: {field: value, ...}}
 	var es: Dictionary = setup.get("entity_state", {})

@@ -38,7 +38,7 @@
         "type": "velocity_add_relative",
         "target": "actor",
         "forward": 0,
-        "strafe": -2.0
+        "strafe": 2.0
       }
     },
     {
@@ -51,7 +51,7 @@
         "type": "velocity_add_relative",
         "target": "actor",
         "forward": 0,
-        "strafe": 2.0
+        "strafe": -2.0
       }
     },
     {
@@ -774,6 +774,78 @@
           "name": "pickup"
         }
       ]
+    },
+    {
+      "_comment": "Player projectile hits a monster: deal the bullet's damage (properties.damage: plasma/pellet 1, rocket 3) then consume the bullet. monster_death (tick, hp<=0) handles removal + score. once_per_a so one bullet damages one monster.",
+      "id": "bullet_hits_monster",
+      "trigger": {
+        "type": "contact"
+      },
+      "query": {
+        "a": {
+          "tags_all": [
+            "bullet"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "monster"
+          ]
+        },
+        "radius": 1.6,
+        "once_per_a": true,
+        "_comment_radius": "1.6 (not 1.0): at tick_seconds 0.05 a 22 m/s bullet steps 1.1m/tick, so a tighter radius tunnels past monsters between ticks."
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "b",
+          "field": "hp",
+          "amount": "-a.properties.damage"
+        },
+        {
+          "type": "remove",
+          "target": "a"
+        }
+      ]
+    },
+    {
+      "_comment": "Projectiles count down their lifetime each tick (state_init lifetime: plasma 24 / pellet 12 / rocket 36) so missed shots that stop against a wall don't accumulate.",
+      "id": "bullet_age",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "bullet"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "lifetime",
+        "amount": -1
+      }
+    },
+    {
+      "id": "bullet_expire",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "bullet"
+        ],
+        "state": {
+          "lifetime_lte": 0
+        }
+      },
+      "effect": {
+        "type": "remove",
+        "target": "self"
+      }
     }
   ],
   "_v3_note": "Spawn rules + chamber-clear rules + boss intro live in levels/<chamber>/rules.json (appended at level load). Chamber 1 has imp-only spawns + score=5 clear. Chamber 2 has full enemy mix + score=20 clear. Chamber 3 has boss pre-spawned + supplemental imps + boss-kill clear (engine sets world.all_levels_complete after last level)."

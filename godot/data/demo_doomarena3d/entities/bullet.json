@@ -3,47 +3,97 @@
   "definitions": [
     {
       "id": "bullet",
-      "tags": ["bullet", "projectile"],
-      "properties": {"damage": 1},
+      "tags": [
+        "bullet",
+        "projectile"
+      ],
+      "properties": {
+        "damage": 1
+      },
+      "physics": {
+        "$extends": "@lib.physics.bodies.character_projectile"
+      },
       "state_init": {
         "lifetime": 24,
         "max_lifetime": 24,
-        "velocity": [0, 0, 0]
+        "velocity": [
+          0,
+          0,
+          0
+        ],
+        "gravity": 0
       },
       "visual": {
         "mesh": "bolt_3d",
         "fade_with_lifetime": true,
-        "params": {"core": "#ffe060", "tail": "#ff8020"}
+        "params": {
+          "core": "#ffe060",
+          "tail": "#ff8020"
+        }
       }
     },
     {
       "id": "bullet_pellet",
-      "tags": ["bullet", "projectile", "pellet"],
-      "properties": {"damage": 1},
+      "tags": [
+        "bullet",
+        "projectile",
+        "pellet"
+      ],
+      "properties": {
+        "damage": 1
+      },
+      "physics": {
+        "$extends": "@lib.physics.bodies.character_projectile"
+      },
       "state_init": {
         "lifetime": 12,
         "max_lifetime": 12,
-        "velocity": [0, 0, 0]
+        "velocity": [
+          0,
+          0,
+          0
+        ],
+        "gravity": 0
       },
       "visual": {
         "mesh": "pellet_3d",
         "fade_with_lifetime": true,
-        "params": {"core": "#fff8d8", "tail": "#a09870"}
+        "params": {
+          "core": "#fff8d8",
+          "tail": "#a09870"
+        }
       }
     },
     {
       "id": "bullet_rocket",
-      "tags": ["bullet", "projectile", "rocket"],
-      "properties": {"damage": 3},
+      "tags": [
+        "bullet",
+        "projectile",
+        "rocket"
+      ],
+      "properties": {
+        "damage": 3
+      },
+      "physics": {
+        "$extends": "@lib.physics.bodies.character_projectile"
+      },
       "state_init": {
         "lifetime": 36,
         "max_lifetime": 36,
-        "velocity": [0, 0, 0]
+        "velocity": [
+          0,
+          0,
+          0
+        ],
+        "gravity": 0
       },
       "visual": {
         "mesh": "rocket_3d",
         "fade_with_lifetime": false,
-        "params": {"core": "#ff5020", "tail": "#902020"}
+        "params": {
+          "core": "#ff5020",
+          "tail": "#902020"
+        }
       }
     }
   ]

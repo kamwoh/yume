@@ -303,6 +303,15 @@ func _build_physics_body_if_declared(ent: Entity) -> void:
 		PhysicsBodyBuilder.build_character_3d(ent, phys_cfg, layer_map)
 	else:
 		PhysicsBodyBuilder.build_3d(ent, phys_cfg, space, layer_map)
+	# Push the entity's CURRENT velocity to the freshly-built body. Spawn-time
+	# velocity overrides (e.g. a projectile's `overrides.state.velocity`) are
+	# applied during Entity.create — BEFORE the body exists — so set_velocity's
+	# sync_body_velocity funnel was a no-op then. Without this the body is born
+	# at rest and a fire-and-forget projectile never leaves the muzzle (only
+	# continuously-driven actors like WASD players / chase NPCs moved, because
+	# their velocity effect re-fires every tick AFTER the body exists).
+	# Empirical 2026-06-06: doomarena3d bullets piled up invisibly at spawn.
+	PhysicsBodyBuilder.sync_body_velocity(ent)
 	# Static bodies use PhysicsServer3D RIDs (not scene-tree nodes), so
 	# Godot's built-in debug_collisions_hint can't render their wireframes.
 	# When debug-colliders is on, also attach a MeshInstance3D with a
