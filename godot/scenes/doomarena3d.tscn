@@ -1,0 +1,19 @@
+[gd_scene load_steps=2 format=3]
+
+; DoomArena3D — first-person arena shooter. All directors auto-mounted
+; by WorldBoot (engine). Sky/Sun via LightingDirector + scene.json.
+; Ground plane via GroundRenderer + scene.json. Per-game data lives
+; entirely in res://data/demo_doomarena3d/ (phase 3 cleanup 2026-05-14).
+
+[ext_resource type="Script" path="res://scripts/engine/core/world.gd" id="1"]
+
+[node name="World" type="Node"]
+script = ExtResource("1")
+data_root = "res://data/demo_doomarena3d"
+auto_start = true
+verbose = true
+renderer_script = "res://scripts/renderer_3d/entity_mesh_3d.gd"
+input_actions_press = PackedStringArray("spark")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+position = Vector3(0, 1.6, 0)
