@@ -37,16 +37,16 @@ by tick by a fixed primitives + interpreter engine; games are one use of it.
 - **Networking & I/O** (ADR 0060–0066): deterministic gym-like Python stepping
   env + determinism oracle; lockstep; server-authoritative client-server with
   data-driven `net.json`; record-then-replay smooth headless N-player video.
-- **Tooling & QA**: 24 static validators (sync gate), scenario tests, visual QA
+- **Tooling & QA**: 25 static validators (sync gate), scenario tests, visual QA
   (Gemini + Claude vision), tech-director invariant gate.
 - **Three committed example games** (run on a fresh clone, no API keys):
   `demo_sokoban` (2D puzzle), `demo_doomarena3d` (first-person arena shooter),
   `demo_lanterns` (third-person collect-’em-up with generated low-poly meshes).
-- Project docs: README (world-model framing, feature/gap tables, pipeline +
-  skill graph), `LICENSE` (MIT), `CONTRIBUTING`, `ROADMAP`, `INSTALLATION`.
+- Project docs: README (world-model framing, feature/gap tables, roadmap,
+  pipeline + skill graph), `LICENSE` (MIT), `CONTRIBUTING`, `INSTALLATION`.
 
 ### Known gaps
-See the README "Known gaps / what's lacking" table and `ROADMAP.md` — most
+See the README "Known gaps / what's lacking" and "Roadmap" sections — most
 notably: no client-side prediction in multiplayer; tight box colliders can clip
 on steep slopes (convex-hull follow-up); thin music/BGM; no in-engine editor.
 
