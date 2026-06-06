@@ -569,10 +569,12 @@
           "overrides": {
             "state": {
               "velocity": [
-                1.5,
-                1.0,
-                1.5
-              ]
+                3.5,
+                4.0,
+                3.5
+              ],
+              "y_velocity": 4.0,
+              "on_floor": 0
             }
           }
         },
@@ -587,10 +589,12 @@
           "overrides": {
             "state": {
               "velocity": [
-                -1.5,
-                1.0,
-                1.5
-              ]
+                -3.5,
+                4.0,
+                3.5
+              ],
+              "y_velocity": 4.0,
+              "on_floor": 0
             }
           }
         },
@@ -605,10 +609,12 @@
           "overrides": {
             "state": {
               "velocity": [
-                1.5,
-                1.0,
-                -1.5
-              ]
+                3.5,
+                4.0,
+                -3.5
+              ],
+              "y_velocity": 4.0,
+              "on_floor": 0
             }
           }
         },
@@ -623,10 +629,12 @@
           "overrides": {
             "state": {
               "velocity": [
-                -1.5,
-                1.0,
-                -1.5
-              ]
+                -3.5,
+                4.0,
+                -3.5
+              ],
+              "y_velocity": 4.0,
+              "on_floor": 0
             }
           }
         },
