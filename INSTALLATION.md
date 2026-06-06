@@ -29,16 +29,25 @@ Download **Godot 4.6.1.stable** (standard build, not .NET/Mono) from
 <https://godotengine.org/download/archive/> — grab the binary(ies) for how you'll
 run it:
 
+- **macOS binary** (`Godot_v4.6.1-stable_macos.universal.zip` → `Godot.app`) —
+  used by `scripts/play.sh`, same as the Windows path. Native Godot reads the
+  repo directly, so the `play.sh` "template sync" is just a harmless copy on a
+  Mac (it exists because the *Windows* `.exe` can't read WSL `/home` paths).
 - **Windows binary** (`Godot_v4.6.1-stable_win64.exe`) — used by `scripts/play.sh`
-  (the authoritative play/capture/test path; runs the `.exe` from WSL).
+  (runs the `.exe` from WSL; the sync-to-template dance is a WSL workaround).
 - **Linux binary** (`Godot_v4.6.1-stable_linux.x86_64`) — used by
   `scripts/run_linux.sh` and the Python env (fast headless tests, the net-video
   `--linux` mode).
 
-You can use either or both. Then point Yume at them with env vars (defaults are
-the author's machine paths, so **set your own**):
+Use whichever fits your OS. Then point Yume at it with env vars (defaults are
+the author's WSL machine paths, so **set your own**):
 
 ```bash
+# macOS — the binary lives inside the .app; YUME_TEMPLATE_DST is any empty dir:
+export YUME_GODOT_BIN="/Applications/Godot.app/Contents/MacOS/Godot"
+export YUME_TEMPLATE_DST="$HOME/yume-run"             # any empty dir; play.sh syncs into it
+#   first-time Gatekeeper unblock:  xattr -dr com.apple.quarantine /Applications/Godot.app
+
 # Windows binary + a writable "template" copy of the project it runs:
 export YUME_GODOT_BIN="/path/to/Godot_v4.6.1-stable_win64.exe"
 export YUME_TEMPLATE_DST="/path/to/YumeTemplate"      # any empty dir; play.sh syncs into it
@@ -48,7 +57,16 @@ export YUME_GODOT_LINUX_BIN="/path/to/Godot_v4.6.1-stable_linux.x86_64"
 export YUME_GODOT_LINUX_PROJECT="$HOME/godot-linux/yume"
 ```
 
-(Put these in your shell profile so Claude's commands pick them up.)
+(Put these in your shell profile — `~/.zshrc` on macOS — so Claude's commands
+pick them up.)
+
+On a **fresh clone**, build the resource cache once before the first run (the
+`.godot/` cache isn't committed; `demo_lanterns` ships `.glb` meshes that need
+importing):
+
+```bash
+"$YUME_GODOT_BIN" --path godot --headless --import
+```
 
 ---
 
@@ -110,9 +128,18 @@ with no test output. New `class_name` scripts need a `--import` pass first. See
 
 ---
 
-## 6. Demos are not in git
+## 6. What ships in the clone
 
-Per-game content (`godot/data/demo_<name>/`) is **gitignored** — generate it
-locally via `/yume-design` (ask Claude), or copy a `demo_<name>/` folder from
-another working tree. The repo ships the **framework** (engine, skills, shared
-libs), not specific games.
+The repo ships the **framework** (engine, skills, shared libs) **plus three
+runnable example games** so a fresh clone has something to play key-free:
+
+```bash
+./scripts/play.sh sokoban       # 2D puzzle  (code-draw)
+./scripts/play.sh doomarena3d   # FPS        (code-draw)
+./scripts/play.sh lanterns      # third-person (low-poly .glb meshes)
+```
+
+All **other** per-game content (`godot/data/demo_<name>/`) is **gitignored** —
+generate it locally via `/yume-design` (ask Claude), or copy a `demo_<name>/`
+folder from another working tree. No API keys are needed to run the three
+examples; keys are only for *generating new* games (`--scene` / `--with-assets`).
