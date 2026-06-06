@@ -36,6 +36,11 @@ godot/scenes/*.tscn
 !godot/scenes/test_main.tscn
 !godot/scenes/scenario_test.tscn
 !godot/scenes/asset_preview.tscn
+# Per-game launchers for the committed example games (each picks its own
+# renderer/camera — play.tscn is 2D-only, so the 3D examples need theirs).
+!godot/scenes/sokoban_2d.tscn
+!godot/scenes/doomarena3d.tscn
+!godot/scenes/lanterns_3d.tscn
 
 # Per-game design docs (GDD, world-plan, level-design, reviews, QA reports).
 # These are local artifacts produced by /yume-design pipeline; they pair with
