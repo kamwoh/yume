@@ -93,6 +93,10 @@ godot/data/lib/textures/*
 # (e.g. NoiseTexture2D resource definitions), NOT generated assets.
 # (Must use `dir/*` instead of `dir/` so negation re-includes work.)
 !godot/data/lib/textures/*.tres
+# grass_detail.png is the ground shader's tiling detail texture (sampler2D
+# grass_detail in ground_biome_displace.gdshader) — a SHARED framework asset
+# the example games depend on, not a per-game gen artifact. Ship it.
+!godot/data/lib/textures/grass_detail.png
 godot/data/**/assets/concepts/
 *.glb.import
 
