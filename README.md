@@ -65,6 +65,9 @@ those are *content*, expressed by composing primitives).
 
 ## Vision — a programmable, explicit world model
 
+> *"Everything is a world model if you squint hard enough."*
+> — [Zihan "Zenus" Wang (@wzenus)](https://x.com/wzenus/status/2002092055884124297)
+
 Two trends motivate Yume:
 
 1. **Programming is becoming unstructured.** With LLMs (and VLMs like Qwen) you
