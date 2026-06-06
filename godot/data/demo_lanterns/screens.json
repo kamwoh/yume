@@ -1,0 +1,113 @@
+{
+  "_comment": "Built-in HELP overlay from compose_shell. H toggles a controls + objective screen (global_inputs paired if_screen filters). No starting_screen \u2192 boots in-world. A game with its own screens APPENDS to `screens` + keeps `global_inputs` (don't overwrite this file \u2014 ADR 0067).",
+  "global_inputs": [
+    {
+      "action": "toggle_help",
+      "if_screen": "",
+      "on_press": [
+        {
+          "type": "transition_screen",
+          "target": "help"
+        }
+      ]
+    },
+    {
+      "action": "toggle_help",
+      "if_screen": "help",
+      "on_press": [
+        {
+          "type": "transition_screen",
+          "target": "@previous"
+        }
+      ]
+    }
+  ],
+  "screens": [
+    {
+      "id": "help",
+      "freeze_world": true,
+      "background_color": "#0a0c10",
+      "background_alpha": 0.9,
+      "elements": [
+        {
+          "type": "label",
+          "text": "Controls",
+          "anchor": "top_center",
+          "y_offset": 56,
+          "font_size": 40,
+          "color": "#ffd479",
+          "halign": "center"
+        },
+        {
+          "type": "vbox",
+          "anchor": "center",
+          "y_offset": -6,
+          "separation": 10,
+          "children": [
+            {
+              "type": "label",
+              "text": "Move \u2014 W A S D",
+              "font_size": 22,
+              "color": "#e8e8e8",
+              "halign": "center"
+            },
+            {
+              "type": "label",
+              "text": "Look \u2014 Mouse",
+              "font_size": 22,
+              "color": "#e8e8e8",
+              "halign": "center"
+            },
+            {
+              "type": "label",
+              "text": "Sprint \u2014 Shift",
+              "font_size": 22,
+              "color": "#e8e8e8",
+              "halign": "center"
+            },
+            {
+              "type": "label",
+              "text": "Jump \u2014 Space",
+              "font_size": 22,
+              "color": "#e8e8e8",
+              "halign": "center"
+            },
+            {
+              "type": "label",
+              "text": "Free camera \u2014 C    \u00b7    Cycle cameras \u2014 Tab",
+              "font_size": 22,
+              "color": "#e8e8e8",
+              "halign": "center"
+            },
+            {
+              "type": "label",
+              "text": "Help \u2014 H    \u00b7    Release mouse \u2014 Esc",
+              "font_size": 22,
+              "color": "#e8e8e8",
+              "halign": "center"
+            }
+          ]
+        },
+        {
+          "type": "label",
+          "binds": "world.objective",
+          "format": "Objective: {}",
+          "anchor": "bottom_center",
+          "y_offset": -120,
+          "font_size": 24,
+          "color": "#a0e0a0",
+          "halign": "center"
+        },
+        {
+          "type": "label",
+          "text": "Press H to close",
+          "anchor": "bottom_center",
+          "y_offset": -56,
+          "font_size": 18,
+          "color": "#909090",
+          "halign": "center"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "_comment": "WASD + camera/freecam controls. Space-as-jump fires outside free-cam (the engine's character_body_runner consumes it as a vertical impulse); Space-as-cam_up holds for the free-cam vertical ascent. Same key, different edge + gated by camera_mode \u2014 matches aldenmere convention. ESC releases mouse capture.",
+  "actions": [
+    {
+      "$include": "@lib.input.universal.actions"
+    },
+    {
+      "name": "jump",
+      "key": "Space",
+      "edge": "press"
+    },
+    {
+      "name": "toggle_freecam",
+      "key": "C",
+      "edge": "press"
+    },
+    {
+      "name": "cam_up",
+      "key": "Space",
+      "edge": "hold"
+    },
+    {
+      "name": "cam_down",
+      "key": "Ctrl",
+      "edge": "hold"
+    },
+    {
+      "name": "sprint",
+      "key": "Shift",
+      "edge": "hold"
+    },
+    {
+      "name": "cycle_camera",
+      "key": "Tab",
+      "edge": "press"
+    },
+    {
+      "name": "toggle_help",
+      "key": "H",
+      "edge": "press"
+    },
+    {
+      "name": "toggle_mouse_capture",
+      "key": "Escape",
+      "edge": "press"
+    },
+    {
+      "name": "zoom_in",
+      "mouse_button": "WheelUp",
+      "edge": "press"
+    },
+    {
+      "name": "zoom_out",
+      "mouse_button": "WheelDown",
+      "edge": "press"
+    }
+  ]
+}

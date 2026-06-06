@@ -1,0 +1,22 @@
+{
+  "_comment": "Shell singleton. Starts third_person_3d. C \u2192 free_cam.",
+  "definitions": [
+    {
+      "id": "world_clock",
+      "tags": [
+        "world_clock",
+        "persistent"
+      ],
+      "properties": {},
+      "state_init": {
+        "camera_mode": "third_person_3d",
+        "previous_camera_mode": "third_person_3d",
+        "active_camera_id": "camera_oblique",
+        "current_hour": 15.0
+      },
+      "visual": {
+        "hidden": true
+      }
+    }
+  ]
+}

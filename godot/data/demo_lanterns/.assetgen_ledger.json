@@ -1,0 +1,96 @@
+{
+  "_comment": "Auto-managed by tools.yume_assetgen. Tracks paid API calls (nanobanana, tripo3d) so re-runs don't regenerate. To force regen: delete the matching entry (or this whole file). Editing the prompt also triggers regen since prompt_hash changes.",
+  "version": 1,
+  "entries": [
+    {
+      "timestamp": "2026-06-06T11:09:16Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "large_house",
+      "prompt_hash": "sha256:a5c1167de0136867ea5d8fda1130e186a23071c08f98d007cb5a9c57a84b8c1b",
+      "prompt": "stylized small fantasy cottage with thatched roof and wooden walls, painterly soft cel-shaded, clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/large_house_a5c1167d.glb"
+    },
+    {
+      "timestamp": "2026-06-06T11:13:10Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "rock",
+      "prompt_hash": "sha256:aaabd17c86cb583232d7db366b655e4e4333fb4ba9fc39dd3d5832fd02a8ac03",
+      "prompt": "stylized mossy stone boulder cluster, weathered grey stones with green moss, painterly, clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/rock_aaabd17c.glb"
+    },
+    {
+      "timestamp": "2026-06-06T11:18:04Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "tree",
+      "prompt_hash": "sha256:d64465e5c14d00dd97f6c4b5c082bb3833557e7b92ca900bf3481975b5dcd310",
+      "prompt": "stylized whimsical fantasy tree, rounded lush foliage, painterly soft-shaded, clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/tree_d64465e5.glb"
+    },
+    {
+      "timestamp": "2026-06-06T11:21:41Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "wooden_fence",
+      "prompt_hash": "sha256:6952ed69e92474e381a60a8ceb7a7a6e4a21870532779321ff106b642317800e",
+      "prompt": "stylized rustic wooden fence section, two posts with horizontal rails, painterly soft cel-shaded, clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/wooden_fence_6952ed69.glb"
+    },
+    {
+      "timestamp": "2026-06-06T11:25:45Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "lost_lantern",
+      "prompt_hash": "sha256:20128afbc97b73bb6b328cc0524c09bc0febbe9704d135f9d5eceddf3f4bf7e1",
+      "prompt": "a small glowing hand lantern, wrought-iron frame, warm amber candle glow inside frosted glass, cozy stylized fantasy, full object viewable from any angle, clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/lost_lantern_20128afb.glb"
+    },
+    {
+      "timestamp": "2026-06-06T18:56:34Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "large_house",
+      "prompt_hash": "sha256:86304e2a219da56a769368f7ea92a2e9523fdc00b4cd16396c27537198a4dfde",
+      "prompt": "stylized small fantasy cottage with thatched roof and wooden walls, painterly soft cel-shaded Low-poly, game-ready, minimal triangles., clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/large_house_86304e2a.glb"
+    },
+    {
+      "timestamp": "2026-06-06T18:58:07Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "rock",
+      "prompt_hash": "sha256:833dfd1cb17c97ca1f2f27d12427657a004d40732a6870518f9ae79501b29d40",
+      "prompt": "stylized mossy stone boulder cluster, weathered grey stones with green moss, painterly Low-poly, game-ready, minimal triangles., clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/rock_833dfd1c.glb"
+    },
+    {
+      "timestamp": "2026-06-06T19:00:03Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "tree",
+      "prompt_hash": "sha256:b9f9bb975c1664956c9e7f17650a94516bbd80cbaa4b65ec1b93887a2d43692b",
+      "prompt": "stylized whimsical fantasy tree, rounded lush foliage, painterly soft-shaded Low-poly, game-ready, minimal triangles., clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/tree_b9f9bb97.glb"
+    },
+    {
+      "timestamp": "2026-06-06T19:02:28Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "wooden_fence",
+      "prompt_hash": "sha256:527f0325fd58312784c4dd8dd60cf332482d96edf21397e38cf7223498eded5a",
+      "prompt": "stylized rustic wooden fence section, two posts with horizontal rails, painterly soft cel-shaded Low-poly, game-ready, minimal triangles., clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/wooden_fence_527f0325.glb"
+    },
+    {
+      "timestamp": "2026-06-06T19:04:42Z",
+      "backend": "tripo3d",
+      "kind": "mesh",
+      "entity_id": "lost_lantern",
+      "prompt_hash": "sha256:283c6a50d0f512b7ad3c3d44d4140ec3ef99936dc84cb1482ce002c7651a9176",
+      "prompt": "a small glowing hand lantern, wrought-iron frame, warm amber candle glow inside frosted glass, cozy stylized fantasy, full object viewable from any angle Low-poly, game-ready, minimal triangles., clean topology, T-pose, low triangle count",
+      "out_path": "assets/meshes/lost_lantern_283c6a50.glb"
+    }
+  ]
+}

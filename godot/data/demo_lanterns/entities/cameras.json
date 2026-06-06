@@ -1,0 +1,29 @@
+{
+  "_comment": "Free-cam anchors. Logical entities \u2014 hidden. Tab cycles in free_cam.",
+  "definitions": [
+    {
+      "id": "free_camera",
+      "tags": [
+        "free_camera",
+        "persistent",
+        "decorative"
+      ],
+      "properties": {
+        "display_name": "Camera"
+      },
+      "state_init": {
+        "position": [
+          0,
+          30,
+          30
+        ],
+        "yaw": 0.0,
+        "pitch": -0.6,
+        "fov": 60.0
+      },
+      "visual": {
+        "hidden": true
+      }
+    }
+  ]
+}

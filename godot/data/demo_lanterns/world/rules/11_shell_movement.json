@@ -1,0 +1,11 @@
+{
+  "_comment": "Player movement. Camera-relative WASD via @lib bundle (fp variant fires for third_person_3d) + face_motion.",
+  "rules": [
+    {
+      "$include": "@lib.input_bundles.wasd_with_fp_variant.rules"
+    },
+    {
+      "$include": "@lib.motion.face_motion.rules"
+    }
+  ]
+}

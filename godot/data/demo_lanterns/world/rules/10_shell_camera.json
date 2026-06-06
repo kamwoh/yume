@@ -1,0 +1,225 @@
+{
+  "_comment": "Shell camera control. C toggles free_cam \u2194 previous mode. Mouse wheel zooms.",
+  "rules": [
+    {
+      "id": "freecam_enter_from_third_person_3d",
+      "trigger": {
+        "type": "input",
+        "action": "toggle_freecam"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "third_person_3d"
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "previous_camera_mode",
+          "value": "third_person_3d"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "camera_mode",
+          "value": "free_cam"
+        },
+        {
+          "type": "velocity_set",
+          "target": "actor",
+          "x": 0,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "freecam_enter_from_first_person_3d",
+      "trigger": {
+        "type": "input",
+        "action": "toggle_freecam"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "first_person_3d"
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "previous_camera_mode",
+          "value": "first_person_3d"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "camera_mode",
+          "value": "free_cam"
+        },
+        {
+          "type": "velocity_set",
+          "target": "actor",
+          "x": 0,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "freecam_enter_from_isometric_3d",
+      "trigger": {
+        "type": "input",
+        "action": "toggle_freecam"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "isometric_3d"
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "previous_camera_mode",
+          "value": "isometric_3d"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "camera_mode",
+          "value": "free_cam"
+        },
+        {
+          "type": "velocity_set",
+          "target": "actor",
+          "x": 0,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "freecam_enter_from_top_down_3d",
+      "trigger": {
+        "type": "input",
+        "action": "toggle_freecam"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "top_down_3d"
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "previous_camera_mode",
+          "value": "top_down_3d"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "camera_mode",
+          "value": "free_cam"
+        },
+        {
+          "type": "velocity_set",
+          "target": "actor",
+          "x": 0,
+          "y": 0
+        }
+      ]
+    },
+    {
+      "id": "freecam_exit",
+      "_comment": "C while in free_cam \u2192 restore saved camera_mode (formula reads the literal saved earlier).",
+      "trigger": {
+        "type": "input",
+        "action": "toggle_freecam"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "free_cam"
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "camera_mode",
+          "value": "self.state.previous_camera_mode"
+        }
+      ]
+    },
+    {
+      "id": "camera_zoom_in",
+      "_comment": "Mouse wheel up \u2192 camera closer.",
+      "trigger": {
+        "type": "input",
+        "action": "zoom_in"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "camera_distance",
+          "amount": -1.5
+        },
+        {
+          "type": "state_clamp",
+          "target": "self",
+          "field": "camera_distance",
+          "min": 3.0,
+          "max": 40.0
+        }
+      ]
+    },
+    {
+      "id": "camera_zoom_out",
+      "_comment": "Mouse wheel down \u2192 camera farther.",
+      "trigger": {
+        "type": "input",
+        "action": "zoom_out"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "camera_distance",
+          "amount": 1.5
+        },
+        {
+          "type": "state_clamp",
+          "target": "self",
+          "field": "camera_distance",
+          "min": 3.0,
+          "max": 40.0
+        }
+      ]
+    }
+  ]
+}

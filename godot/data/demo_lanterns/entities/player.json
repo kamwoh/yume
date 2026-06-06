@@ -1,0 +1,66 @@
+{
+  "_comment": "Walkable player. Third-person camera follows tag 'player'.",
+  "definitions": [
+    {
+      "id": "player_input_anchor",
+      "tags": [
+        "player",
+        "actor",
+        "persistent"
+      ],
+      "properties": {
+        "display_name": "Player",
+        "speed_base": 7.0,
+        "mesh_yaw_offset": 1.5708
+      },
+      "state_init": {
+        "velocity": [
+          0,
+          0
+        ],
+        "drag": 0.0,
+        "max_speed": 7.0,
+        "speed_multiplier": 1.0,
+        "sprint_t": 0,
+        "facing": 0.0,
+        "pitch": 0.0,
+        "y_velocity": 0.0,
+        "on_floor": 1,
+        "gravity": 18.0,
+        "camera_distance": 4.0,
+        "scale": 1.7
+      },
+      "physics": {
+        "$extends": "@lib.physics.bodies.standard_character_player"
+      },
+      "visual": {
+        "mesh": "res://data/demo_lanterns/assets/meshes/player_marken_animated_0b249fa7.glb",
+        "animation_clips": [
+          "idle",
+          "walk",
+          "run",
+          "jump"
+        ],
+        "animation_state_rules": [
+          {
+            "if_state_eq": {
+              "on_floor": 0
+            },
+            "state": "jump"
+          },
+          {
+            "if_velocity_gt": 4.5,
+            "state": "run"
+          },
+          {
+            "if_velocity_gt": 0.1,
+            "state": "walk"
+          },
+          {
+            "default": "idle"
+          }
+        ]
+      }
+    }
+  ]
+}

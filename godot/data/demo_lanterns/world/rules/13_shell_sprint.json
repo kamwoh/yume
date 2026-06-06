@@ -1,0 +1,77 @@
+{
+  "_comment": "Hold Shift to run (scales speed_multiplier via a release-safe countdown). 1.0 walk \u2192 1.8 run.",
+  "rules": [
+    {
+      "id": "sprint_arm",
+      "trigger": {
+        "type": "input",
+        "action": "sprint"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "sprint_t",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "sprint_apply",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "sprint_t_gt": 0
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "speed_multiplier",
+          "value": 1.8
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "sprint_t",
+          "amount": -1
+        }
+      ]
+    },
+    {
+      "id": "sprint_reset",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "sprint_t_lt": 1
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "speed_multiplier",
+          "value": 1.0
+        }
+      ]
+    }
+  ]
+}

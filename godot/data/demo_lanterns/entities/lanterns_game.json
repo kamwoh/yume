@@ -1,0 +1,109 @@
+{
+  "_comment": "GAME layer (ADR 0067): the lantern collectibles + game-state singleton. Layers onto the compose_world village + compose_shell player. Owns its own file; never touches auto_gen.json / scene.json / levels/.",
+  "definitions": [
+    {
+      "id": "lost_lantern",
+      "tags": [
+        "lantern",
+        "collectible"
+      ],
+      "properties": {
+        "display_name": "Lost Lantern"
+      },
+      "state_init": {
+        "bob_t": 0.0
+      },
+      "visual": {
+        "shape": "sphere",
+        "color": "#ffcc55",
+        "scale": [
+          0.6,
+          0.6,
+          0.6
+        ],
+        "emission": "#ffaa22",
+        "y_offset": 1.6,
+        "mesh_prompt": "a small glowing hand lantern, wrought-iron frame, warm amber candle glow inside frosted glass, cozy stylized fantasy, full object viewable from any angle Low-poly, game-ready, minimal triangles.",
+        "mesh_reference_prompt": "a single ornate hand lantern with warm amber light, stylized PBR, neutral background",
+        "mesh": "res://data/demo_lanterns/assets/meshes/lost_lantern_283c6a50.glb"
+      }
+    },
+    {
+      "id": "game_state",
+      "tags": [
+        "game_state",
+        "persistent"
+      ],
+      "properties": {
+        "display_name": "Game State"
+      },
+      "state_init": {
+        "collected": 0,
+        "total": 3,
+        "won": 0
+      },
+      "visual": {
+        "hidden": true
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "game_state",
+      "id": "game_state",
+      "position": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "def": "lost_lantern",
+      "id": "lantern_a",
+      "position": [
+        12.0,
+        4.0,
+        6.0
+      ],
+      "state": {
+        "position": [
+          12.0,
+          4.0,
+          6.0
+        ]
+      }
+    },
+    {
+      "def": "lost_lantern",
+      "id": "lantern_b",
+      "position": [
+        -10.0,
+        4.0,
+        14.0
+      ],
+      "state": {
+        "position": [
+          -10.0,
+          4.0,
+          14.0
+        ]
+      }
+    },
+    {
+      "def": "lost_lantern",
+      "id": "lantern_c",
+      "position": [
+        6.0,
+        4.0,
+        -12.0
+      ],
+      "state": {
+        "position": [
+          6.0,
+          4.0,
+          -12.0
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "_comment": "GAME layer (ADR 0067): win when all 3 lanterns are collected. Sets game_state.won=1; hud.json's win block (collected_eq total) shows the overlay.",
+  "rules": [
+    {
+      "id": "lantern_win_check",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["game_state"], "state": {"collected_ge": 3, "won_eq": 0}},
+      "effect": [
+        {"type": "state_set", "target": "self", "field": "won", "value": 1},
+        {"type": "emit", "event": "all_lanterns_collected"}
+      ]
+    }
+  ]
+}

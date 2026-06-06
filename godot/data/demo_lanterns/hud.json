@@ -1,0 +1,32 @@
+{
+  "_comment": "GAME layer (ADR 0067): lantern counter + win block. Game-owned (compose_shell/compose_world don't write hud.json).",
+  "panels": [
+    {
+      "anchor": "top-center",
+      "width": 260,
+      "height": 28,
+      "x_offset": 0,
+      "y_offset": 14,
+      "align": "center",
+      "elements": [
+        {
+          "type": "label",
+          "binds": "game_state.collected",
+          "format": "Lanterns {} / 3",
+          "size": 18,
+          "color": "#ffd479",
+          "bold": true,
+          "shadow": true,
+          "align": "center"
+        }
+      ]
+    }
+  ],
+  "win": {
+    "_comment": "Win: all three lanterns collected.",
+    "binds": "game_state.collected",
+    "op": ">=",
+    "value": 3,
+    "message": "You gathered all three lost lanterns before nightfall."
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "_comment": "Asset-gen config for this game. Edit `backend` + `style` then run `python3 -m tools.yume_assetgen <game_name>`. Set GEMINI_API_KEY + TRIPO_API_KEY env vars before running with the real backends.",
+  "backend": {
+    "texture": "openai_images",
+    "mesh": "tripo3d",
+    "concept": "openai_images"
+  },
+  "backend_config": {
+    "mock": {
+      "output_size": [
+        512,
+        512
+      ]
+    },
+    "openai_images": {
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-image-2-2026-04-21",
+      "quality": "high",
+      "timeout": 420
+    },
+    "nanobanana": {
+      "api_key_env": "GEMINI_API_KEY",
+      "model": "gemini-2.5-flash-image",
+      "timeout": 120
+    },
+    "tripo3d": {
+      "api_key_env": "TRIPO_API_KEY",
+      "poll_interval": 5,
+      "timeout": 600,
+      "texture": true,
+      "pbr": true,
+      "_comment_model_versions": "Available model_version values (Tripo OpenAPI): v1.4-20240625 (legacy), v2.5-20250123 (API default, ~40 credits=$0.40/mesh), v3.0-20250812, v3.1-20260211 (latest stable, same price as v2.5), P1-20260311 (low-poly specialist, ~100 credits=$1.00/mesh). Add `\"model_version\": \"v3.1-20260211\"` to switch. Tripo OpenAPI: $0.01/credit, 100-credit min top-up, 2000 free credits/account.",
+      "model_version": "P1-20260311"
+    }
+  },
+  "style": {
+    "global_prefix": "",
+    "texture_suffix": ", color albedo only, tileable, no shadows",
+    "mesh_suffix": ", clean topology, T-pose, low triangle count",
+    "concept_suffix": ", front view, neutral pose, clean style",
+    "negative_prompt": "blur, noise, signature, watermark"
+  },
+  "outputs": {
+    "texture_dir": "assets/textures",
+    "mesh_dir": "assets/meshes",
+    "concept_dir": "assets/concepts",
+    "image_size": [
+      512,
+      512
+    ]
+  },
+  "patch_entities": true,
+  "skip_existing": true
+}

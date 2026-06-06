@@ -1,0 +1,85 @@
+{
+  "_comment": "Shell singletons (world_clock, player, free cameras) spliced by compose_shell. Flat layout.",
+  "initial_instances": [
+    {
+      "def": "world_clock",
+      "id": "world_clock",
+      "position": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "def": "player_input_anchor",
+      "id": "player_input_anchor",
+      "position": [
+        0.0,
+        -0.522,
+        10.0
+      ],
+      "state": {
+        "position": [
+          0.0,
+          -0.522,
+          10.0
+        ],
+        "facing": 0.0
+      }
+    },
+    {
+      "def": "free_camera",
+      "id": "camera_overhead",
+      "position": [
+        0.0,
+        109.19999999999999,
+        0.1
+      ],
+      "state": {
+        "position": [
+          0.0,
+          109.19999999999999,
+          0.1
+        ],
+        "yaw": 0.0,
+        "pitch": -1.55
+      }
+    },
+    {
+      "def": "free_camera",
+      "id": "camera_oblique",
+      "position": [
+        0.0,
+        54.599999999999994,
+        62.400000000000006
+      ],
+      "state": {
+        "position": [
+          0.0,
+          54.599999999999994,
+          62.400000000000006
+        ],
+        "yaw": 0.0,
+        "pitch": -0.72
+      }
+    },
+    {
+      "def": "free_camera",
+      "id": "camera_ground",
+      "position": [
+        0.0,
+        3.0,
+        62.400000000000006
+      ],
+      "state": {
+        "position": [
+          0.0,
+          3.0,
+          62.400000000000006
+        ],
+        "yaw": 0.0,
+        "pitch": -0.1
+      }
+    }
+  ]
+}

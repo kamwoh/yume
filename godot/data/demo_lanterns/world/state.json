@@ -1,0 +1,6 @@
+{
+  "_comment": "GAME layer: global world_state. load_world_file merges the state block. objective shows in the H help overlay (world.objective bind).",
+  "state": {
+    "objective": "Collect 3 lost lanterns before nightfall."
+  }
+}

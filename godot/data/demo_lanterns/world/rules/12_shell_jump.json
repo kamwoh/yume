@@ -1,0 +1,47 @@
+{
+  "_comment": "Space \u2192 jump. Sets actor.y_velocity; character_body_runner mirrors it into body.velocity.y and gravity brings the player back. Grounded-only (require on_floor==1) = no double-jump. Gated to first/third-person (free_cam uses Space for cam_up).",
+  "rules": [
+    {
+      "id": "player_jump",
+      "trigger": {
+        "type": "input",
+        "action": "jump"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "first_person_3d",
+            "third_person_3d"
+          ]
+        }
+      },
+      "require": {
+        "actor": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "on_floor_eq": 1
+          }
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "actor",
+          "field": "y_velocity",
+          "value": 7.0
+        },
+        {
+          "type": "state_set",
+          "target": "actor",
+          "field": "on_floor",
+          "value": 0
+        }
+      ]
+    }
+  ]
+}

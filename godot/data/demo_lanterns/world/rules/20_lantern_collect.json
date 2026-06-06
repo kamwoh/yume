@@ -1,0 +1,28 @@
+{
+  "_comment": "GAME layer (ADR 0067): collect a lantern on contact with the player. Pair-matched contact binds a=player, b=lantern. Destructive remove(b) is LAST per effect-chain gate.",
+  "rules": [
+    {
+      "id": "lantern_collect",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["player"]},
+        "b": {"tags_all": ["lantern"]},
+        "radius": 1.8,
+        "once_per_a": false
+      },
+      "effect": [
+        {"type": "state_add", "target": "game_state", "field": "collected", "amount": 1},
+        {"type": "emit", "event": "lantern_collected"},
+        {"type": "remove", "target": "b"}
+      ]
+    },
+    {
+      "id": "lantern_bob",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["lantern"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "bob_t", "amount": 0.05}
+      ]
+    }
+  ]
+}

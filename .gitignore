@@ -98,7 +98,14 @@ docs/adr/*.html
 !godot/data/demo_sokoban/**
 !godot/data/demo_doomarena3d/
 !godot/data/demo_doomarena3d/**
+!godot/data/demo_lanterns/
+!godot/data/demo_lanterns/**
 # ...but never the _snapshots/ backup dirs inside the example demos.
 godot/data/demo_sokoban/_snapshots/
 godot/data/demo_doomarena3d/_snapshots/
 godot/data/demo_lanterns/_snapshots/
+# demo_lanterns ships RUNTIME assets only (low-poly meshes + the heightmap/
+# splatmap maps + the player glb). The AI-gen concept + reference image dirs
+# are authoring scratch, not needed to run — keep them out of the repo.
+godot/data/demo_lanterns/assets/concepts/
+godot/data/demo_lanterns/assets/reference/
