@@ -1,0 +1,32 @@
+{
+  "_comment": "Chamber 2 — The Foundry (v3.0 SIGNATURE). Inherits the v2.5/v2.6 layout: 44×44m arena + chamber divider + 8 pillars (4 forward zone, 4 back zone) + 4 machinery crates (2 per zone). Full enemy mix (imp + demon + ranger). Score=20 clears. Tactical signature chamber — rangers force pillar-flanking.",
+
+  "initial_instances": [
+    {"def": "arena_clock", "id": "clock_foundry", "position": [0, 0, 0]},
+    {"def": "floor",       "id": "floor_foundry", "position": [0, 0, 0]},
+
+    {"def": "wall_ns",     "id": "wall_foundry_n", "position": [0, 0,  22]},
+    {"def": "wall_ns",     "id": "wall_foundry_s", "position": [0, 0, -22]},
+    {"def": "wall_ew",     "id": "wall_foundry_e", "position": [ 22, 0, 0]},
+    {"def": "wall_ew",     "id": "wall_foundry_w", "position": [-22, 0, 0]},
+
+    {"def": "wall_divider", "id": "divider_foundry_w", "position": [-14, 0, 0]},
+    {"def": "wall_divider", "id": "divider_foundry_e", "position": [ 14, 0, 0]},
+
+    {"def": "pillar", "id": "pillar_foundry_FL1", "position": [-9, 0,  -6]},
+    {"def": "pillar", "id": "pillar_foundry_FL2", "position": [-6, 0, -15]},
+    {"def": "pillar", "id": "pillar_foundry_FR1", "position": [11, 0,  -8]},
+    {"def": "pillar", "id": "pillar_foundry_FR2", "position": [ 8, 0, -16]},
+    {"def": "pillar", "id": "pillar_foundry_BC1", "position": [-13, 0, 4]},
+    {"def": "pillar", "id": "pillar_foundry_BC2", "position": [ 11, 0, 6]},
+    {"def": "pillar", "id": "pillar_foundry_BL",  "position": [ -6, 0, 13]},
+    {"def": "pillar", "id": "pillar_foundry_BR",  "position": [  8, 0, 15]},
+
+    {"def": "machinery", "id": "machinery_foundry_FL", "position": [-15, 0, -10]},
+    {"def": "machinery", "id": "machinery_foundry_FR", "position": [ 15, 0, -12]},
+    {"def": "machinery", "id": "machinery_foundry_BL", "position": [-15, 0,  10]},
+    {"def": "machinery", "id": "machinery_foundry_BR", "position": [ 13, 0,  12]}
+  ],
+
+  "initial_relations": []
+}

@@ -1,0 +1,425 @@
+{
+ "_comment": "Sokoban v0.2 movement scenarios. Validates: walk into empty cell, walls block, push moves box, push blocked when cell beyond is wall. Cell size = 32px. Level 1 layout: P(1,2)=(48,80), B(2,2)=(80,80), G(3,2)=(112,80), perimeter walls.",
+ "scenarios": [
+  {
+   "name": "walk_north_into_empty",
+   "_": "Player at (48, 80) presses N. Target (48, 48) is empty cell (1,1). Should move.",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_north"
+    },
+    {
+     "tick": 4
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "player"
+         ]
+        },
+        "field": "state.position.y",
+        "op": "==",
+        "value": 48
+       }
+      },
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "player"
+         ]
+        },
+        "field": "state.position.x",
+        "op": "==",
+        "value": 48
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "walk_south_into_empty",
+   "_": "Player at (48, 80) presses S. Target (48, 112) is empty cell (1,3). Should move.",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_south"
+    },
+    {
+     "tick": 4
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "player"
+         ]
+        },
+        "field": "state.position.y",
+        "op": "==",
+        "value": 112
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "wall_blocks_west",
+   "_": "Player at (48, 80) presses W. Target (16, 80) is the west perimeter wall. Player must NOT move.",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_west"
+    },
+    {
+     "tick": 4
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "player"
+         ]
+        },
+        "field": "state.position.x",
+        "op": "==",
+        "value": 48
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "moves_increment_per_action",
+   "_": "Each successful move increments level_clock.moves. Walk N then S \u2014 should be 2 moves (back to start). No level transition because no goal triggered.",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_north"
+    },
+    {
+     "tick": 4
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "tick": 6
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "clock"
+         ]
+        },
+        "field": "state.moves",
+        "op": "==",
+        "value": 2
+       }
+      },
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "player"
+         ]
+        },
+        "field": "state.position.y",
+        "op": "==",
+        "value": 80
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "blocked_move_does_NOT_increment",
+   "_": "Walking into a wall should not count as a move.",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_west"
+    },
+    {
+     "tick": 4
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "clock"
+         ]
+        },
+        "field": "state.moves",
+        "op": "==",
+        "value": 0
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "push_box_onto_goal_advances_level",
+   "_": "Pushing box onto goal completes level 1. Count-based win check needs 2-tick latency (react accumulates, next decide checks).",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_east"
+    },
+    {
+     "tick": 9
+    },
+    {
+     "expect": [
+      {
+       "world_field": {
+        "field": "current_level",
+        "op": "==",
+        "value": "2"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "playthrough_l1_to_l4",
+   "_": "Solve levels 1, 2, 3, 4 in sequence. Level\u2192level transition takes ~4 ticks (compute\u2192win\u2192reset\u2192count chain). L1: 1E. L2: 4E+S+3W+S+3E (12). L3: 3E+S+3W+3S+3E+N+2W (16). L4: 2E+S+3W+S+2E (9). Verify advance to level 5.",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_east"
+    },
+    {
+     "tick": 3
+    },
+    {
+     "hold": "move_east",
+     "for": 0.4
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "hold": "move_west",
+     "for": 0.3
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "hold": "move_east",
+     "for": 0.3
+    },
+    {
+     "tick": 3
+    },
+    {
+     "hold": "move_east",
+     "for": 0.3
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "hold": "move_west",
+     "for": 0.3
+    },
+    {
+     "hold": "move_south",
+     "for": 0.3
+    },
+    {
+     "hold": "move_east",
+     "for": 0.3
+    },
+    {
+     "press": "move_north"
+    },
+    {
+     "hold": "move_west",
+     "for": 0.2
+    },
+    {
+     "tick": 3
+    },
+    {
+     "hold": "move_east",
+     "for": 0.2
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "hold": "move_west",
+     "for": 0.3
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "hold": "move_east",
+     "for": 0.2
+    },
+    {
+     "tick": 8
+    },
+    {
+     "expect": [
+      {
+       "world_field": {
+        "field": "current_level",
+        "op": "==",
+        "value": "5"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "wall_blocks_push_at_perimeter_l2",
+   "_": "Win level 1, then on level 2 push B1 east 5 times. 4 pushes land B1 on G1 at (208,80). 5th push target (240,80) is perimeter wall \u2014 must NOT push B1 to (240). All boxes in level 2 must stay at x <= 208 (col 6 = G1 column = rightmost in-bounds).",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_east"
+    },
+    {
+     "tick": 3
+    },
+    {
+     "hold": "move_east",
+     "for": 0.5
+    },
+    {
+     "tick": 3
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "box"
+         ]
+        },
+        "field": "state.position.x",
+        "op": "<=",
+        "value": 208
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "variant_no_move_counter_disables_track_moves",
+   "_": "ADR 0009 Phase 2d. Variant 'no_move_counter' overrides track_moves rule's chance to 0.0. Player walks N then S (2 moves) \u2014 without the override, clock.moves=2; with it, clock.moves=0. Also asserts world_state.variant_active was overlaid.",
+   "variant": "no_move_counter",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_north"
+    },
+    {
+     "tick": 4
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "tick": 6
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "clock"
+         ]
+        },
+        "field": "state.moves",
+        "op": "==",
+        "value": 0
+       }
+      },
+      {
+       "world_field": {
+        "field": "variant_active",
+        "op": "==",
+        "value": "no_move_counter"
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "restart_resets_level",
+   "_": "Move N (player(48,80)\u2192(48,48)), then press R: player respawns at level-start (48, 80). Verifies transition_level with current_level reloads.",
+   "setup": {},
+   "steps": [
+    {
+     "press": "move_north"
+    },
+    {
+     "tick": 4
+    },
+    {
+     "press": "restart"
+    },
+    {
+     "tick": 6
+    },
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "player"
+         ]
+        },
+        "field": "state.position.x",
+        "op": "==",
+        "value": 48
+       }
+      },
+      {
+       "entity_field": {
+        "query": {
+         "tags_all": [
+          "player"
+         ]
+        },
+        "field": "state.position.y",
+        "op": "==",
+        "value": 80
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

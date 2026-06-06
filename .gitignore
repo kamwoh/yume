@@ -18,7 +18,6 @@ findings.md
 progress.md
 session_log.txt
 .vqa.log
-CHANGELOG.md
 
 # Capture screenshots — local artifacts, regenerable via play.sh --capture
 captures/
@@ -91,3 +90,15 @@ recordings/
 # kept (docs/timeline/index.html is in a subdir, so these globs don't touch it).
 docs/*.html
 docs/adr/*.html
+
+# ── OSS example games — committed so a fresh `git clone` has runnable demos ──
+# (README § Generation pipeline · CONTRIBUTING). sokoban + doomarena3d are
+# code-draw / asset-free; demo_lanterns ships a slimmed low-poly mesh set.
+!godot/data/demo_sokoban/
+!godot/data/demo_sokoban/**
+!godot/data/demo_doomarena3d/
+!godot/data/demo_doomarena3d/**
+# ...but never the _snapshots/ backup dirs inside the example demos.
+godot/data/demo_sokoban/_snapshots/
+godot/data/demo_doomarena3d/_snapshots/
+godot/data/demo_lanterns/_snapshots/

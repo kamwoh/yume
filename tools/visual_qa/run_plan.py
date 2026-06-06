@@ -57,7 +57,10 @@ GODOT_BIN = os.environ.get(
     "/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe",
 )
 CAPTURE_USER_DIR = Path(
-    "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework"
+    os.environ.get(
+        "YUME_USERDATA",
+        "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework",
+    )
 )
 
 

@@ -1,0 +1,19 @@
+{
+  "_comment": "Sokoban HUD (ADR 0009 Phase 2c). Display widgets only — win condition uses @strings.win_message which resolves via ui/strings.json. To localize the entire game, only ui/strings.json needs translating; this file's structure stays.",
+
+  "panels": [
+    {
+      "anchor": "top-left",
+      "elements": [
+        {"type": "label", "binds": "world.current_level", "format": "@strings.hud.level_label", "size": 22, "color": "#f0e0c0"},
+        {"type": "spacer", "height": 4},
+        {"type": "label", "binds": "level_clock.moves", "format": "@strings.hud.moves_label", "size": 16, "color": "#d8c8a0"}
+      ]
+    }
+  ],
+
+  "controls_hint": "@strings.hud.controls_hint",
+
+  "win":  {"binds": "world.all_levels_complete", "op": ">=", "value": 1,
+           "message": "@strings.win_message"}
+}

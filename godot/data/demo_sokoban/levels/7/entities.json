@@ -1,0 +1,1115 @@
+{
+  "_comment": "Level 7 \u2014 auto-generated from ASCII grid in docs/games/sokoban/level-design.md. 10\u00d713 grid, 56 walls, 74 floor tiles, 3 boxes, 3 goals.",
+  "initial_instances": [
+    {
+      "def": "level_clock",
+      "id": "level_clock",
+      "position": [
+        16,
+        16
+      ],
+      "state": {
+        "total_boxes": 3,
+        "on_goal_count": 0,
+        "is_won": 0
+      }
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_01",
+      "position": [
+        16,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_02",
+      "position": [
+        48,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_03",
+      "position": [
+        80,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_04",
+      "position": [
+        112,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_05",
+      "position": [
+        144,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_06",
+      "position": [
+        176,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_07",
+      "position": [
+        208,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_08",
+      "position": [
+        240,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_09",
+      "position": [
+        272,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_10",
+      "position": [
+        304,
+        16
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_11",
+      "position": [
+        16,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_01",
+      "position": [
+        48,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_02",
+      "position": [
+        80,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_03",
+      "position": [
+        112,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_04",
+      "position": [
+        144,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_05",
+      "position": [
+        176,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_06",
+      "position": [
+        208,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_07",
+      "position": [
+        240,
+        48
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_08",
+      "position": [
+        272,
+        48
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_12",
+      "position": [
+        304,
+        48
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_13",
+      "position": [
+        16,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_09",
+      "position": [
+        48,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_10",
+      "position": [
+        80,
+        80
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l7_goal_01",
+      "position": [
+        80,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_11",
+      "position": [
+        112,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_12",
+      "position": [
+        144,
+        80
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l7_goal_02",
+      "position": [
+        144,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_13",
+      "position": [
+        176,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_14",
+      "position": [
+        208,
+        80
+      ]
+    },
+    {
+      "def": "goal",
+      "id": "goal_l7_goal_03",
+      "position": [
+        208,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_15",
+      "position": [
+        240,
+        80
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_16",
+      "position": [
+        272,
+        80
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_14",
+      "position": [
+        304,
+        80
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_15",
+      "position": [
+        16,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_17",
+      "position": [
+        48,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_18",
+      "position": [
+        80,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_19",
+      "position": [
+        112,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_20",
+      "position": [
+        144,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_21",
+      "position": [
+        176,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_22",
+      "position": [
+        208,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_23",
+      "position": [
+        240,
+        112
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_24",
+      "position": [
+        272,
+        112
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_16",
+      "position": [
+        304,
+        112
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_17",
+      "position": [
+        16,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_25",
+      "position": [
+        48,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_26",
+      "position": [
+        80,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_18",
+      "position": [
+        112,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_75",
+      "position": [
+        144,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_76",
+      "position": [
+        176,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_21",
+      "position": [
+        208,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_27",
+      "position": [
+        240,
+        144
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_28",
+      "position": [
+        272,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_22",
+      "position": [
+        304,
+        144
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_23",
+      "position": [
+        16,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_29",
+      "position": [
+        48,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_30",
+      "position": [
+        80,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_24",
+      "position": [
+        112,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_31",
+      "position": [
+        144,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_32",
+      "position": [
+        176,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_25",
+      "position": [
+        208,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_33",
+      "position": [
+        240,
+        176
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_34",
+      "position": [
+        272,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_26",
+      "position": [
+        304,
+        176
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_27",
+      "position": [
+        16,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_35",
+      "position": [
+        48,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_36",
+      "position": [
+        80,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_28",
+      "position": [
+        112,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_37",
+      "position": [
+        144,
+        208
+      ]
+    },
+    {
+      "def": "player",
+      "id": "player_l7_player",
+      "position": [
+        144,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_38",
+      "position": [
+        176,
+        208
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l7_box_01",
+      "position": [
+        176,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_29",
+      "position": [
+        208,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_39",
+      "position": [
+        240,
+        208
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_40",
+      "position": [
+        272,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_30",
+      "position": [
+        304,
+        208
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_31",
+      "position": [
+        16,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_41",
+      "position": [
+        48,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_42",
+      "position": [
+        80,
+        240
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_32",
+      "position": [
+        112,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_43",
+      "position": [
+        144,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_44",
+      "position": [
+        176,
+        240
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_33",
+      "position": [
+        208,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_45",
+      "position": [
+        240,
+        240
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_46",
+      "position": [
+        272,
+        240
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_34",
+      "position": [
+        304,
+        240
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_35",
+      "position": [
+        16,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_47",
+      "position": [
+        48,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_48",
+      "position": [
+        80,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_36",
+      "position": [
+        112,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_37",
+      "position": [
+        144,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_38",
+      "position": [
+        176,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_39",
+      "position": [
+        208,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_49",
+      "position": [
+        240,
+        272
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_50",
+      "position": [
+        272,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_40",
+      "position": [
+        304,
+        272
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_41",
+      "position": [
+        16,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_51",
+      "position": [
+        48,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_52",
+      "position": [
+        80,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_53",
+      "position": [
+        112,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_54",
+      "position": [
+        144,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_55",
+      "position": [
+        176,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_56",
+      "position": [
+        208,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_57",
+      "position": [
+        240,
+        304
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_58",
+      "position": [
+        272,
+        304
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_42",
+      "position": [
+        304,
+        304
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_43",
+      "position": [
+        16,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_59",
+      "position": [
+        48,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_60",
+      "position": [
+        80,
+        336
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l7_box_02",
+      "position": [
+        80,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_61",
+      "position": [
+        112,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_62",
+      "position": [
+        144,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_63",
+      "position": [
+        176,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_64",
+      "position": [
+        208,
+        336
+      ]
+    },
+    {
+      "def": "box",
+      "id": "box_l7_box_03",
+      "position": [
+        208,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_65",
+      "position": [
+        240,
+        336
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_66",
+      "position": [
+        272,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_44",
+      "position": [
+        304,
+        336
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_45",
+      "position": [
+        16,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_67",
+      "position": [
+        48,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_68",
+      "position": [
+        80,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_69",
+      "position": [
+        112,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_70",
+      "position": [
+        144,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_71",
+      "position": [
+        176,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_72",
+      "position": [
+        208,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_73",
+      "position": [
+        240,
+        368
+      ]
+    },
+    {
+      "def": "floor_tile",
+      "id": "floor_l7_floor_74",
+      "position": [
+        272,
+        368
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_46",
+      "position": [
+        304,
+        368
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_47",
+      "position": [
+        16,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_48",
+      "position": [
+        48,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_49",
+      "position": [
+        80,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_50",
+      "position": [
+        112,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_51",
+      "position": [
+        144,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_52",
+      "position": [
+        176,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_53",
+      "position": [
+        208,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_54",
+      "position": [
+        240,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_55",
+      "position": [
+        272,
+        400
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_l7_wall_56",
+      "position": [
+        304,
+        400
+      ]
+    }
+  ],
+  "initial_relations": []
+}

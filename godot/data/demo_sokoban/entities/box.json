@@ -1,0 +1,19 @@
+{
+  "_comment": "Pushable crate. NOT persistent — destroyed at level transition. on_goal flag toggled when overlapping a goal.",
+  "definitions": [
+    {
+      "id": "box",
+      "tags": ["box", "pushable"],
+      "properties": {},
+      "state_init": {
+        "on_goal": 0,
+        "being_pushed": 0
+      },
+      "visual": {
+        "shape": "tile_26",
+        "params": {"color": "#a07040"},
+        "z_index": 5
+      }
+    }
+  ]
+}

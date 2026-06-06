@@ -4,7 +4,7 @@ test_smoke.py — smoke test for yume_codegen. Builds rules + entities
 the existing validators against the output.
 
 Usage:
-    cd /home/kamwoh/yume
+    cd <repo root>
     python3 -m tools.yume_codegen.tests.test_smoke
 
 Or via the package's __main__:

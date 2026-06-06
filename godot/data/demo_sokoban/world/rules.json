@@ -1,0 +1,175 @@
+{
+  "_comment": "Sokoban WORLD physics (ADR 0009). How the world physically behaves: input → motion signal → wall/box detection → commit move/push. No game logic here (no scoring, no win/lose). A 'player' could walk around indefinitely with these rules alone — that's the sandbox version of sokoban. Game/rules.json layers the goal on top.",
+
+  "rules": [
+
+    {
+      "_comment": "=== INPUT → MOTION SIGNAL — one rule per direction. Reset clock flags + set delta + emit attempt_move signal whose _origin_position is the target cell. Translates player intent into a world event.",
+      "id": "input_move_north",
+      "trigger": {"type": "input", "action": "move_north"},
+      "query": {"tags_all": ["player"]},
+      "effect": [
+        {"type": "state_set", "target": "level_clock", "field": "move_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_pending", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "move_attempted", "value": 1},
+        {"type": "state_set", "target": "level_clock", "field": "last_dx", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "last_dy", "value": -32},
+        {"type": "emit", "signal": "attempt_move",
+         "payload": {
+           "_origin_position": ["self.state.position.x", "self.state.position.y - 32"],
+           "move": {"dx": 0, "dy": -32}
+         }}
+      ]
+    },
+    {
+      "id": "input_move_south",
+      "trigger": {"type": "input", "action": "move_south"},
+      "query": {"tags_all": ["player"]},
+      "effect": [
+        {"type": "state_set", "target": "level_clock", "field": "move_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_pending", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "move_attempted", "value": 1},
+        {"type": "state_set", "target": "level_clock", "field": "last_dx", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "last_dy", "value": 32},
+        {"type": "emit", "signal": "attempt_move",
+         "payload": {
+           "_origin_position": ["self.state.position.x", "self.state.position.y + 32"],
+           "move": {"dx": 0, "dy": 32}
+         }}
+      ]
+    },
+    {
+      "id": "input_move_east",
+      "trigger": {"type": "input", "action": "move_east"},
+      "query": {"tags_all": ["player"]},
+      "effect": [
+        {"type": "state_set", "target": "level_clock", "field": "move_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_pending", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "move_attempted", "value": 1},
+        {"type": "state_set", "target": "level_clock", "field": "last_dx", "value": 32},
+        {"type": "state_set", "target": "level_clock", "field": "last_dy", "value": 0},
+        {"type": "emit", "signal": "attempt_move",
+         "payload": {
+           "_origin_position": ["self.state.position.x + 32", "self.state.position.y"],
+           "move": {"dx": 32, "dy": 0}
+         }}
+      ]
+    },
+    {
+      "id": "input_move_west",
+      "trigger": {"type": "input", "action": "move_west"},
+      "query": {"tags_all": ["player"]},
+      "effect": [
+        {"type": "state_set", "target": "level_clock", "field": "move_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_pending", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "push_blocked", "value": 0},
+        {"type": "state_set", "target": "level_clock", "field": "move_attempted", "value": 1},
+        {"type": "state_set", "target": "level_clock", "field": "last_dx", "value": -32},
+        {"type": "state_set", "target": "level_clock", "field": "last_dy", "value": 0},
+        {"type": "emit", "signal": "attempt_move",
+         "payload": {
+           "_origin_position": ["self.state.position.x - 32", "self.state.position.y"],
+           "move": {"dx": -32, "dy": 0}
+         }}
+      ]
+    },
+
+    {
+      "_comment": "=== REACT — wall-at-target check.",
+      "id": "wall_blocks_attempt",
+      "trigger": {"type": "signal", "name": "attempt_move"},
+      "query": {"tags_all": ["wall"], "radius": 12},
+      "effect": {"type": "state_set", "target": "level_clock", "field": "move_blocked", "value": 1}
+    },
+
+    {
+      "_comment": "=== REACT — box-at-target check. Tag THE specific box at the move target with being_pushed=1; commit_push filters on it so multi-box levels only push the one box. push_pending on the clock signals 'a push is in flight'.",
+      "id": "box_at_attempt",
+      "trigger": {"type": "signal", "name": "attempt_move"},
+      "query": {"tags_all": ["box"], "radius": 12},
+      "effect": [
+        {"type": "state_set", "target": "self", "field": "being_pushed", "value": 1},
+        {"type": "state_set", "target": "level_clock", "field": "push_pending", "value": 1},
+        {"type": "emit", "signal": "attempt_push",
+         "payload": {
+           "_origin_position": [
+             "self.state.position.x + move.dx",
+             "self.state.position.y + move.dy"
+           ]
+         }}
+      ]
+    },
+
+    {
+      "_comment": "=== REACT — wall-blocks-push (cell beyond box).",
+      "id": "wall_blocks_push",
+      "trigger": {"type": "signal", "name": "attempt_push"},
+      "query": {"tags_all": ["wall"], "radius": 12},
+      "effect": {"type": "state_set", "target": "level_clock", "field": "push_blocked", "value": 1}
+    },
+
+    {
+      "_comment": "=== REACT — box-blocks-push (another box at push target).",
+      "id": "box_blocks_push",
+      "trigger": {"type": "signal", "name": "attempt_push"},
+      "query": {"tags_all": ["box"], "radius": 12},
+      "effect": {"type": "state_set", "target": "level_clock", "field": "push_blocked", "value": 1}
+    },
+
+    {
+      "_comment": "=== REACT — commit_push runs FIRST (before commit_move) so box's position-formula evaluates while clock.last_dx is non-zero. Filter on a.being_pushed=1 so multi-box levels only push the targeted box (set by box_at_attempt).",
+      "id": "commit_push",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["box"], "state": {"being_pushed": 1}},
+        "b": {"tags_all": ["clock"], "state": {"push_pending": 1, "push_blocked": 0}},
+        "radius": 1000
+      },
+      "effect": [
+        {"type": "state_set", "target": "a", "field": "position",
+         "value": [
+           "a.state.position.x + b.state.last_dx",
+           "a.state.position.y + b.state.last_dy"
+         ]},
+        {"type": "state_set", "target": "a", "field": "being_pushed", "value": 0},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "@cues.wood_push"}
+      ]
+    },
+
+    {
+      "_comment": "=== REACT — reset being_pushed on any box that DIDN'T commit (push was blocked by wall/box). Without this, a blocked box's being_pushed stays at 1 and the next push erroneously moves it. Runs in decide phase so it clears flags from the PREVIOUS tick before a new input/react cycle.",
+      "id": "reset_being_pushed",
+      "trigger": {"type": "tick", "interval": 1},
+      "query": {"tags_all": ["box"], "state": {"being_pushed": 1}},
+      "effect": {"type": "state_set", "target": "self", "field": "being_pushed", "value": 0}
+    },
+
+    {
+      "_comment": "=== REACT — commit_move. Emits player_moved signal so game rules can react (e.g., increment move counter).",
+      "id": "commit_move",
+      "trigger": {"type": "contact"},
+      "query": {
+        "a": {"tags_all": ["player"]},
+        "b": {"tags_all": ["clock"], "state": {"move_attempted": 1, "move_blocked": 0, "push_blocked": 0}},
+        "radius": 1000
+      },
+      "effect": [
+        {"type": "state_set", "target": "a", "field": "position",
+         "value": [
+           "a.state.position.x + b.state.last_dx",
+           "a.state.position.y + b.state.last_dy"
+         ]},
+        {"type": "state_set", "target": "b", "field": "last_dx", "value": 0},
+        {"type": "state_set", "target": "b", "field": "last_dy", "value": 0},
+        {"type": "state_set", "target": "b", "field": "push_pending", "value": 0},
+        {"type": "state_set", "target": "b", "field": "move_attempted", "value": 0},
+        {"_comment": "Emit semantic event — game/rules.json's track_moves rule subscribes.",
+         "type": "emit", "signal": "player_moved"},
+        {"type": "emit_shell_event", "event": "play_sound", "name": "@cues.wood_step"}
+      ]
+    }
+  ]
+}

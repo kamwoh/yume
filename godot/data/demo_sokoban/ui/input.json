@@ -1,0 +1,12 @@
+{
+  "_comment": "Sokoban is turn-based — every action fires on press-edge (one move per keypress, not every frame held). Universal lib registers WASD/Arrow with edge=hold by default; we re-declare each movement action with edge=press AFTER the $include to override the edge classification (last-writer-wins per ADR 0043). The lib's key bindings (W/Up etc.) carry through. R for restart.",
+
+  "actions": [
+    {"$include": "@lib.input.universal.actions"},
+    {"name": "move_north", "edge": "press"},
+    {"name": "move_south", "edge": "press"},
+    {"name": "move_east",  "edge": "press"},
+    {"name": "move_west",  "edge": "press"},
+    {"name": "restart", "key": "R", "edge": "press"}
+  ]
+}

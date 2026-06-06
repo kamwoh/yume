@@ -1,0 +1,79 @@
+{
+  "_comment": "DoomArena3D scene — first-person, full 3D aim. Tick 0.05s for snappy combat. position_scale=1.0 because positions are in world units (meters), not pixels.",
+  "tick_seconds": 0.05,
+  "renderer": {
+    "position_scale": 1.0
+  },
+  "_ground_doc": "Engine ground primitive (Tier 2.6r): creatures (tag) clamp to Y=0, projectiles (tag) despawn below it. Replaces what creature_bounds + projectile_floor_despawn rules used to do — engine-level instead of content-level. mesh{} drives the visual floor plane built by GroundRenderer.",
+  "ground": {
+    "y": 0,
+    "clamp_tags": [
+      "creature"
+    ],
+    "despawn_tags": [
+      "projectile"
+    ],
+    "mesh": {
+      "size": [
+        30,
+        30
+      ],
+      "color": "#1a141a",
+      "roughness": 0.8,
+      "metallic": 0.2
+    }
+  },
+  "camera": {
+    "mode": "first_person_3d",
+    "follow_tag": "player",
+    "eye_height": 1.6,
+    "mouse_sensitivity": 0.003,
+    "use_pitch": true,
+    "fov": 78,
+    "viewmodel": {
+      "follow_state": "current_weapon",
+      "offset": [
+        0.35,
+        -0.28,
+        -0.55
+      ],
+      "weapons": {
+        "1": {
+          "mesh": "viewmodel_plasma"
+        },
+        "2": {
+          "mesh": "viewmodel_shotgun"
+        },
+        "3": {
+          "mesh": "viewmodel_rocket"
+        }
+      }
+    }
+  },
+  "_lighting_doc": "Static sci-fi look — red horizon, warm-tinted sun, no day/night cycle (no world_clock so LightingDirector's time-of-day resolver falls back to noon=12). All color_day == color_night so the visual is constant regardless. Replaces the hardcoded Sun + WorldEnvironment nodes that used to live in doomarena3d.tscn.",
+  "lighting": {
+    "directional_light": {
+      "enabled": true,
+      "shadow_enabled": true,
+      "color_at_noon": "#ffb299",
+      "color_at_dawn_dusk": "#ffb299",
+      "color_at_night": "#ffb299",
+      "energy_noon": 0.8,
+      "energy_horizon": 0.8,
+      "energy_night": 0.8
+    },
+    "ambient": {
+      "color_day": "#996666",
+      "color_night": "#996666",
+      "energy_day": 0.4,
+      "energy_night": 0.4
+    },
+    "sky": {
+      "horizon_day": "#801919",
+      "horizon_night": "#801919",
+      "ground_day": "#2d0f14",
+      "ground_night": "#2d0f14"
+    }
+  },
+  "_comment_tick": "tick_seconds=0.05 (20Hz) — corridor shooter with WASD + hitscan. 50ms input latency acceptable (genre is exploration, not twitch). Halves rule-firing overhead vs 60Hz on the larger entity counts (projectiles, enemies, blocks_motion bodies). Per CLAUDE.md § Tick rate is the engine's heartbeat, this is a deliberate per-game override of the 60Hz default."
+}

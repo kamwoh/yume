@@ -1,0 +1,16 @@
+{
+  "_comment": "Static wall. Sokoban walls block movement (queried via signal-driven check). NOT using blocks_motion AABB primitive because sokoban movement is teleport-on-input, not velocity-driven.",
+  "definitions": [
+    {
+      "id": "wall",
+      "tags": ["wall", "structure", "decoration"],
+      "properties": {},
+      "state_init": {},
+      "visual": {
+        "shape": "tile_32",
+        "params": {"color": "#3a2a18"},
+        "z_index": -8
+      }
+    }
+  ]
+}

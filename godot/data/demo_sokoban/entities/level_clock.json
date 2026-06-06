@@ -1,0 +1,25 @@
+{
+  "_comment": "Per-level invisible state holder. Tracks: total moves (for HUD), current move's blocking flags (move_blocked, push_pending, push_blocked), pending push details (push_box_id, push_dx, push_dy). Reset to 0/empty each tick at the start of decide phase by clear_flags rule.",
+  "definitions": [
+    {
+      "id": "level_clock",
+      "tags": ["clock"],
+      "properties": {},
+      "state_init": {
+        "moves": 0,
+        "move_attempted": 0,
+        "move_blocked": 0,
+        "push_pending": 0,
+        "push_blocked": 0,
+        "last_dx": 0,
+        "last_dy": 0,
+        "total_boxes": 1,
+        "on_goal_count": 0,
+        "is_won": 0
+      },
+      "visual": {
+        "hidden": true
+      }
+    }
+  ]
+}

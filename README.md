@@ -20,7 +20,8 @@ audio, HUD, or text. The engine ships a fixed set of **primitives + interpreter*
 > letting Claude drive is the intended, lower-friction path. See
 > **[INSTALLATION.md](INSTALLATION.md)** to set up.
 
-_Last updated: 2026-06-05_
+_Status: **pre-1.0 / experimental** (`0.x` — the 7 primitives + JSON schema
+aren't frozen yet; `1.0` will freeze the contract). Last updated: 2026-06-06._
 
 ---
 
@@ -69,7 +70,7 @@ an ADR under `docs/adr/`.
 | **Gameplay system primitives** (opt-in directors — mounted only if used) | party, schedule, class/occupation, zones, faction, tech-tree, dynasty, lifecycle/aging, vehicles, multi-actor + scripted-policy AI, pathfinding, procedural generation, grid/dynamic placement, animation. |
 | **"Complete game" layer** | declarative screens/modals, save/load, tutorial overlays, settings schema, HUD-from-JSON, event→SFX audio, juice (shake/flash/particles). |
 | **Physics** | Godot PhysicsServer + CharacterBody motion, AABB blockers, camera-relative WASD. |
-| **Generation pipelines** (LLM-in-the-loop) | `/yume-design` (prose → full game), `/yume-create-scene` (prose → 3D scene), HUD/screen/map authors; **38 specialist skills**; optional codegen + AI assetgen (textures via OpenAI, meshes + rig via Tripo3D, shaders). |
+| **Generation pipelines** (LLM-in-the-loop) | `/yume-design` is the single orchestrator — prose → full game, with `--scene` (generate a 3D world to play in) + `--with-assets` (AI textures/meshes) composing as **three disjoint-ownership layers** (World / Game / Assets — ADR 0067); no flags = key-free code-draw. Plus standalone authors: `/yume-create-scene`, `/yume-hud-author`, `/yume-screen-author`, `/yume-map-author`. **38 specialist skills**; optional codegen + AI assetgen (textures via OpenAI/Gemini, meshes + rig via Tripo3D, shaders). See [§ Generation pipeline](#generation-pipeline-prose--game). |
 | **Networking & I/O** (ADR 0060–0066) | deterministic gym-like stepping env (Python) + determinism oracle; lockstep; **client-server (server-authoritative)** with data-driven `net.json` replication; synced animation; **record-then-replay smooth headless video** of N-player synced sessions (`scripts/net_video.py` — normal window / `--linux` headless, GPU, grid, 60 fps). |
 | **Tooling & QA** | 24 static validators (sync gate); Playwright-style scenario tests; visual QA (Gemini + Claude vision); tech-director invariant gate. |
 
@@ -110,6 +111,78 @@ runs the rule's query to pick entities, and applies the effect (a primitive verb
 like `state_set` / `velocity_set` / `spawn`). The renderer is a separate read-only
 layer that draws entity state. **Seven primitives**: Entity, Tag, Rule, Trigger,
 Effect, Query, Relation (ADR 0001).
+
+---
+
+## Generation pipeline (prose → game)
+
+`/yume-design` is the **single orchestrator**. It's a *skill* loaded into
+Claude's own context (Tier 2.6 — no subagents); it walks specialist skills in
+sequence, and each one writes one slice of the game's JSON. A game is composed
+from **three layers with disjoint file ownership**, so they never clobber each
+other (ADR 0067):
+
+```
+/yume-design "<pitch>"  [--scene]  [--with-assets]  [--autonomous]
+
+ Phase W   (--scene)        yume-scene-class-catalog ─▶ compose_scene --no-shell
+   WORLD                      └─ image-gen (gpt-image) ─▶ compose_world (3D scene:
+                                 biome ground, water, heightmap, placed props)
+                                 + compose_shell (walk/jump/sprint + camera + .tscn)
+ Phases 1-4 (always)        game-designer ─▶ game-reviewer ─▶ game-planner ─▶
+   GAME                     level-designer ─▶ [combining-logic / economy / story]* ─▶
+                            systems-designer ─▶ content-designer ─▶
+                            game-rules-designer ─▶ asset-designer
+                            (+ soul skills: flavor-writer, audio, juice, lighting,
+                             screen-flow, save-policy, tutorial — as the GDD needs)
+ Phase A   (--with-assets)  tools.yume_assetgen  (gpt-image concepts + Tripo3D .glb,
+   ASSETS                     patches visual.* in place)
+ Phase QA  (always)         qa-tester ─▶ visual-designer / visual-tester ─▶
+                            gdd-coverage-tracker  (GDD = contract; no silent drops)
+ on demand                  tech-director  (gates engine / new-primitive / ADR changes)
+```
+
+`*` conditional — those run only if the GDD signals crafting, an economy, or a
+story. **Genre detection** swaps in strict specialists where they exist
+(`shooter` / `merchant` / `racing` designers + their reviewers) on top of the
+generic `game-designer` / `game-reviewer` floor.
+
+**How the layers stay disjoint** — World writes `scene.json`,
+`entities/auto_gen.json`, `assets/`; Game writes `entities/<slug>.json`,
+`world/rules/*.json`, `hud.json`, goals; Assets patches `visual.*` on existing
+defs. The engine globs `entities/*.json` + `world/rules/*.json` and merges by
+id, so the layers compose with no merge code. **No flags = a key-free,
+code-drawn single-player game** (and the graceful-degrade target when API keys
+are absent).
+
+### Standalone authoring pipelines (outside `/yume-design`)
+
+| Slash command | Makes | Driver script(s) |
+|---|---|---|
+| `/yume-create-scene` | a walkable 3D scene / diorama (scene **+** walk shell) | `compose_scene` → `compose_world` + `compose_shell` (+ `compare_semantic` QA) |
+| `/yume-hud-author` | `hud.json` fit to a wireframe | `wireframe_to_hud` (preprocess/postprocess) |
+| `/yume-screen-author` | `screens.json` fit to a wireframe | `wireframe_to_screen` |
+| `/yume-map-author` | a level's instances/patterns from a 2D sketch | `compose_map` + `wireframe_to_map` |
+
+### Which skill drives which script
+
+Most skills only **write JSON** — the orchestrator does the single sync + Godot
+run. The skills that actually invoke a script:
+
+| Skill | Script(s) it runs |
+|---|---|
+| `yume-design` | `compose_scene --no-shell` (World), `tools.yume_assetgen` (Assets), `scripts/play.sh` (QA capture) |
+| `yume-create-scene` | `compose_scene` → `compose_world` + `compose_shell`, `tools.yume_assetgen`, `compare_semantic` |
+| `yume-scene-class-catalog` | authors the catalog `compose_world` consumes (no run) |
+| `yume-asset-designer` | `tools.yume_assetgen`, `tools/validators/run_all.py` |
+| `yume-hud-author` / `screen-author` / `map-author` | `wireframe_to_{hud,screen,map}` |
+| `yume-qa-tester` · `playtest` · `visual-designer` · `visual-tester` · `lighting-designer` | `scripts/play.sh` (run + `--capture`) |
+| `yume-tech-director` | invariant greps + the unit suite (gate, no content) |
+| _all other designers_ | write JSON only — no scripts |
+
+Pipeline-stability tiers live in `.claude/rules/pipeline-stability.md`: the 2D
+HUD/screen pipelines are **locked** (ADR required to change the harness); the 3D
+scene/world + level/map pipelines are **active**.
 
 ---
 
@@ -376,7 +449,7 @@ An honest list of where the framework is thin or demo-grade.
 | **Headless-render fidelity** | The truly-windowless `--headless-render` path is a custom Godot patch on **4.7-beta**, so it can't load our **4.6.1** assets (renders boxes) — needs porting to 4.6.1. The Xvfb path works (real meshes, no window) but is GPU-readback-bound in WSL (fast on a native-GPU Linux box). |
 | **Animation** | No validator that a declared `animation_clip` exists in the mesh (mismatch silently falls back → "laggy"; bit us in `tiny_village`). `anim_phase` is fixed-cadence, not speed-proportional → foot-sliding at speed. No blend trees, IK, or root motion. |
 | **Formula / query** | Ternary `a if c else b` is **broken** in Godot 4.6.1's Expression. `self.nearest({…})` is **not implemented** — no spatial query inside formulas (use a `contact` trigger instead). |
-| **Pipelines** | `/yume-design` and `/yume-create-scene` **clobber** each other's files; re-running `compose_scene` wipes hand-added game rules. |
+| **Pipelines** | The 3 generation layers no longer clobber (ADR 0067 — `/yume-design --scene` reuses `compose_world` cleanly). Remaining: re-running `compose_world`/`compose_shell` regenerates the World/shell files, so hand-edits to those (not the game's own `entities/<slug>.json` / `world/rules/`) are overwritten; and `/yume-create-scene`'s walk-shell still conflicts if run on a `/yume-design` game folder (use `--scene` instead). |
 | **Authoring / UX** | No in-engine visual editor (everything is JSON + skills); input is keyboard/mouse/gamepad — **no touch/mobile** path. |
 | **AI / audio** | LLM-driven NPC behavior (ADR 0020 external-agent IPC) is a seam, not a shipped feature; audio is procedural SFX + cues — music/BGM is thin. |
 

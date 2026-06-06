@@ -1,0 +1,20 @@
+{
+  "_comment": "Transient spark — spawned on monster death. lifetime=18 ticks. fade_with_lifetime for smooth fade-out. Outward Vector3 velocity gives a 3D burst (XZ outward + small Y up).",
+  "definitions": [
+    {
+      "id": "particle_spark",
+      "tags": ["particle", "effect"],
+      "properties": {},
+      "state_init": {
+        "lifetime": 18,
+        "max_lifetime": 18,
+        "velocity": [0, 0, 0]
+      },
+      "visual": {
+        "mesh": "spark_3d",
+        "fade_with_lifetime": true,
+        "params": {"glow": "#ffe080", "core": "#ffffff"}
+      }
+    }
+  ]
+}

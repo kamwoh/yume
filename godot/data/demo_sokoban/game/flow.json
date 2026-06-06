@@ -1,0 +1,10 @@
+{
+  "_comment": "Sokoban 8-level progression (ADR 0006). All 8 levels playable. Levels generated from ASCII grids in docs/games/sokoban/level-design.md via tools/gen_sokoban_levels.py.",
+
+  "levels": ["1", "2", "3", "4", "5", "6", "7", "8"],
+  "starting_level": "1",
+
+  "on_all_complete": {
+    "win_message": "🌟 ALL LEVELS CLEARED 🌟"
+  }
+}
