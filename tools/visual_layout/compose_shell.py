@@ -40,10 +40,12 @@ from tools.visual_layout import scene_config as scfg  # noqa: E402
 
 def _camera_block(camera_mode: str = "third_person_3d") -> dict:
     """Choose the lib camera preset to match the scene's starting
-    camera_mode. The preset carries mode-specific tuning (eye_height,
-    use_pitch for FPS; distance/height for third-person; ortho_size for
-    iso/top-down). Without picking the right preset, FPS scenes lose
-    mouse-pitch (use_pitch defaults to false on non-FPS presets).
+    camera_mode. The preset carries mode-specific tuning (eye_height
+    for FPS; distance/height for third-person; ortho_size for
+    iso/top-down). Mouse-pitch (look up/down) is ON by default for both
+    first- and third-person (2026-06-06: engine `use_pitch` defaults to
+    true + the third_person_default preset sets it explicitly). A
+    fixed-pitch follow opts out with `use_pitch: false`.
     """
     if camera_mode == "first_person_3d":
         return {
@@ -157,17 +159,27 @@ def _player_def() -> dict:
                     "drag": 0.0,
                     "max_speed": 7.0,
                     "speed_multiplier": 1.0,
+                    "sprint_t": 0,
                     "facing": 0.0,
                     "pitch": 0.0,
                     "y_velocity": 0.0,
                     "on_floor": 1,
                     "gravity": 18.0,
-                    "camera_distance": 8.0,
+                    "camera_distance": 4.0,
                     "scale": 1.7,
                 },
                 "physics": {"$extends": "@lib.physics.bodies.standard_character_player"},
                 "visual": {
-                    "mesh": "res://data/demo_aldenmere/assets/meshes/player_marken_animated_cc1c2175.glb"
+                    "mesh": "res://data/demo_aldenmere/assets/meshes/player_marken_animated_0b249fa7.glb",
+                    "animation_clips": ["idle", "walk", "run", "jump"],
+                    # First-match-wins, default last. jump = airborne
+                    # (on_floor==0); run = sprint speed (walk≈3.0, sprint≈5.4).
+                    "animation_state_rules": [
+                        {"if_state_eq": {"on_floor": 0}, "state": "jump"},
+                        {"if_velocity_gt": 4.5, "state": "run"},
+                        {"if_velocity_gt": 0.1, "state": "walk"},
+                        {"default": "idle"}
+                    ]
                 }
             }
         ]
@@ -186,7 +198,6 @@ def _world_clock_def(camera_mode: str = "third_person_3d") -> dict:
                     "camera_mode": camera_mode,
                     "previous_camera_mode": camera_mode,
                     "active_camera_id": "camera_oblique",
-                    "current_level": "level_default",
                     "current_hour": 15.0,
                 },
                 "visual": {"hidden": True}
@@ -257,8 +268,107 @@ def _camera_rules() -> dict:
              "value": "self.state.previous_camera_mode"}
         ]
     })
+    # Mouse-wheel zoom: each wheel tick is one press. state_add nudges the
+    # player's camera_distance; state_clamp keeps it in the camera's
+    # [distance_min, distance_max] band so the value can't drift unbounded
+    # (the camera ALSO clamps on read, but clamping the state too avoids a
+    # "scroll back many ticks" lag after over-scrolling). camera_director
+    # reads state.camera_distance for the third-person orbit radius.
+    rules.append({
+        "id": "camera_zoom_in",
+        "_comment": "Mouse wheel up → camera closer.",
+        "trigger": {"type": "input", "action": "zoom_in"},
+        "query": {"tags_all": ["player"]},
+        "effect": [
+            {"type": "state_add", "target": "self",
+             "field": "camera_distance", "amount": -1.5},
+            {"type": "state_clamp", "target": "self",
+             "field": "camera_distance", "min": 3.0, "max": 40.0},
+        ],
+    })
+    rules.append({
+        "id": "camera_zoom_out",
+        "_comment": "Mouse wheel down → camera farther.",
+        "trigger": {"type": "input", "action": "zoom_out"},
+        "query": {"tags_all": ["player"]},
+        "effect": [
+            {"type": "state_add", "target": "self",
+             "field": "camera_distance", "amount": 1.5},
+            {"type": "state_clamp", "target": "self",
+             "field": "camera_distance", "min": 3.0, "max": 40.0},
+        ],
+    })
     return {"_comment": "Shell camera control. C toggles free_cam ↔ "
-                        "previous mode.", "rules": rules}
+                        "previous mode. Mouse wheel zooms.", "rules": rules}
+
+
+def _jump_rules() -> dict:
+    return {
+        "_comment": "Space → jump. Sets actor.y_velocity; character_body_runner "
+                    "mirrors it into body.velocity.y and gravity brings the "
+                    "player back. Grounded-only (require on_floor==1) = no "
+                    "double-jump. Gated to first/third-person (free_cam uses "
+                    "Space for cam_up).",
+        "rules": [
+            {
+                "id": "player_jump",
+                "trigger": {"type": "input", "action": "jump"},
+                "query": {"tags_all": ["world_clock"],
+                          "state": {"camera_mode_in":
+                                    ["first_person_3d", "third_person_3d"]}},
+                "require": {"actor": {"tags_all": ["player"],
+                                      "state": {"on_floor_eq": 1}}},
+                "effect": [
+                    {"type": "state_set", "target": "actor",
+                     "field": "y_velocity", "value": 7.0},
+                    {"type": "state_set", "target": "actor",
+                     "field": "on_floor", "value": 0},
+                ],
+            }
+        ]
+    }
+
+
+def _sprint_rules() -> dict:
+    # Shift → faster walk. The FP-variant WASD bundle scales its per-tick
+    # forward/strafe by actor.state.speed_multiplier, so sprint just raises
+    # that. Reset-on-release is handled by a countdown (sprint_t): the hold
+    # rule refreshes it to 2 each tick held; a decide-tick rule applies the
+    # multiplier while sprint_t>0 and decrements it; another resets to 1.0
+    # when it hits 0. The countdown survives the input→decide phase ordering
+    # (the move rule reads the PREVIOUS tick's multiplier), so there's no
+    # intra-phase race — ~1-2 ticks (≈30ms) of ramp on start/stop, imperceptible.
+    return {
+        "_comment": "Hold Shift to run (scales speed_multiplier via a "
+                    "release-safe countdown). 1.0 walk → 1.8 run.",
+        "rules": [
+            {
+                "id": "sprint_arm",
+                "trigger": {"type": "input", "action": "sprint"},
+                "query": {"tags_all": ["player"]},
+                "effect": [{"type": "state_set", "target": "self",
+                            "field": "sprint_t", "value": 2}],
+            },
+            {
+                "id": "sprint_apply",
+                "trigger": {"type": "tick", "interval": 1},
+                "query": {"tags_all": ["player"], "state": {"sprint_t_gt": 0}},
+                "effect": [
+                    {"type": "state_set", "target": "self",
+                     "field": "speed_multiplier", "value": 1.8},
+                    {"type": "state_add", "target": "self",
+                     "field": "sprint_t", "amount": -1},
+                ],
+            },
+            {
+                "id": "sprint_reset",
+                "trigger": {"type": "tick", "interval": 1},
+                "query": {"tags_all": ["player"], "state": {"sprint_t_lt": 1}},
+                "effect": [{"type": "state_set", "target": "self",
+                            "field": "speed_multiplier", "value": 1.0}],
+            },
+        ]
+    }
 
 
 def _movement_rules() -> dict:
@@ -288,8 +398,69 @@ def _input_map() -> dict:
             {"name": "cam_down",              "key": "Ctrl",     "edge": "hold"},
             {"name": "sprint",                "key": "Shift",    "edge": "hold"},
             {"name": "cycle_camera",          "key": "Tab",      "edge": "press"},
+            {"name": "toggle_help",           "key": "H",        "edge": "press"},
             {"name": "toggle_mouse_capture",  "key": "Escape",   "edge": "press"},
+            {"name": "zoom_in",   "mouse_button": "WheelUp",   "edge": "press"},
+            {"name": "zoom_out",  "mouse_button": "WheelDown", "edge": "press"},
         ]
+    }
+
+
+def _screens() -> dict:
+    """A built-in HELP overlay every shell game gets for free: press H to
+    toggle a screen listing the controls (key → action) + the objective.
+    No `starting_screen` → the game boots straight into the world; H opens
+    the modal, H/again (or the Close button) pops it. The toggle is
+    declared via `global_inputs` with paired `if_screen` filters
+    (engine-native, no rules needed — see screen_flow.gd _handle_global_inputs).
+
+    The objective label binds `world.objective` — a game sets
+    `world_state.objective` (state_set target=world) and it shows here; if
+    unset it's blank. Controls below are the shell's fixed bindings.
+    """
+    ctl = lambda s: {"type": "label", "text": s, "font_size": 22,
+                     "color": "#e8e8e8", "halign": "center"}
+    return {
+        "_comment": "Built-in HELP overlay from compose_shell. H toggles a "
+                    "controls + objective screen (global_inputs paired "
+                    "if_screen filters). No starting_screen → boots in-world. "
+                    "A game with its own screens APPENDS to `screens` + keeps "
+                    "`global_inputs` (don't overwrite this file — ADR 0067).",
+        "global_inputs": [
+            {"action": "toggle_help", "if_screen": "",
+             "on_press": [{"type": "transition_screen", "target": "help"}]},
+            {"action": "toggle_help", "if_screen": "help",
+             "on_press": [{"type": "transition_screen", "target": "@previous"}]},
+        ],
+        "screens": [
+            {
+                "id": "help",
+                "freeze_world": True,
+                "background_color": "#0a0c10",
+                "background_alpha": 0.9,
+                "elements": [
+                    {"type": "label", "text": "Controls", "anchor": "top_center",
+                     "y_offset": 56, "font_size": 40, "color": "#ffd479",
+                     "halign": "center"},
+                    {"type": "vbox", "anchor": "center", "y_offset": -6,
+                     "separation": 10, "children": [
+                         ctl("Move — W A S D"),
+                         ctl("Look — Mouse"),
+                         ctl("Sprint — Shift"),
+                         ctl("Jump — Space"),
+                         ctl("Free camera — C    ·    Cycle cameras — Tab"),
+                         ctl("Help — H    ·    Release mouse — Esc"),
+                     ]},
+                    {"type": "label", "binds": "world.objective",
+                     "format": "Objective: {}", "anchor": "bottom_center",
+                     "y_offset": -120, "font_size": 24, "color": "#a0e0a0",
+                     "halign": "center"},
+                    {"type": "label", "text": "Press H to close",
+                     "anchor": "bottom_center", "y_offset": -56, "font_size": 18,
+                     "color": "#909090", "halign": "center"},
+                ],
+            }
+        ],
     }
 
 
@@ -353,10 +524,11 @@ size = {int(world_w)}
 # COMPOSE SHELL
 # ============================================================
 
-def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
-                  level_id: str = "level_default") -> Path:
-    """Add the playable wrapper to an existing map dir (compose_world
-    output). Returns the game dir."""
+def compose_shell(game_name: str,
+                  shell_type: str = "third_person_explorer") -> Path:
+    """Add the playable wrapper to an existing scene dir (compose_world
+    output). Returns the game dir. Produces a FLAT, runnable scene (no
+    levels/ or flow.json) per ADR 0067."""
     if shell_type != "third_person_explorer":
         raise ValueError(f"unknown shell_type: {shell_type} "
                          f"(only 'third_person_explorer' today)")
@@ -374,18 +546,47 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     scene = json.loads(scene_path.read_text())
     world_w = float(scene.get("ground", {}).get("mesh", {})
                     .get("size", [80.0])[0])
-    scene["camera"] = _camera_block(cfg.player.camera_mode)
+    # Camera block: lib preset (chosen by player.camera_mode) deep-merged
+    # with scene_config.camera overrides — same pattern as lighting.
+    scene["camera"] = scfg.deep_merge(
+        _camera_block(cfg.player.camera_mode), cfg.camera
+    )
     scene["lighting"] = scfg.deep_merge(_lighting_block(), cfg.lighting)
     scene_path.write_text(json.dumps(scene, indent=2))
 
-    # Player spawn clearance: just above the max terrain displacement so
-    # gravity drops it onto the HeightMapShape3D collider. Max displaced Y =
-    # (1 + height_offset) * height_scale (read from the ground shader the
-    # map layer wrote). +2m margin.
+    # Player spawn height: sample the LOCAL terrain height at the spawn x/z
+    # and add a small margin, so the player drops ~0.5m and lands almost
+    # immediately. (Was `max_terrain_displacement + 2m` — on a hilly map
+    # that's many metres above the local ground; the long fall let a game
+    # that moves-on-spawn drift the still-falling player into a TALL prop
+    # box mid-air, where collision depenetration ejected it DOWN through the
+    # floor — looked like the player "fell through" / "launched". Spawning
+    # on the local ground removes that airborne window. 2026-06-06, ADR 0067.)
     sp = scene.get("ground", {}).get("mesh", {}).get("shader_params", {})
     h_scale = float(sp.get("height_scale", 0.0))
     h_off = float(sp.get("height_offset", -0.5))
-    spawn_clear_y = (1.0 + h_off) * h_scale + 2.0 if h_scale > 0.0 else 2.0
+    sp_xz = cfg.player.spawn or [0.0, None, 10.0]
+    spawn_x = float(sp_xz[0])
+    spawn_z = float(sp_xz[2]) if len(sp_xz) > 2 else 10.0
+    local_ground_y = 0.0
+    if h_scale > 0.0:
+        try:
+            from tools.visual_layout.lib_extract_dispatch import HeightmapSampler
+            hm_path = game_dir / "assets" / "textures" / "heightmap_carved.png"
+            if not hm_path.exists():
+                hm_path = game_dir / "assets" / "textures" / "heightmap.png"
+            if hm_path.exists():
+                _s = HeightmapSampler(hm_path, world_w, h_scale, h_off)
+                local_ground_y = float(_s.y_at(spawn_x, spawn_z))
+        except Exception as _e:
+            print(f"[compose_shell] heightmap spawn-sample failed ({_e}); "
+                  f"using flat ground. Player may drop from a small height.")
+    # +0.1m only: the player origin is at its feet, so this drops ~0.1m and
+    # is grounded within ~2 physics frames. A bigger margin (was +0.5) left
+    # the player airborne long enough that moving on spawn sent it into a
+    # tall prop collider mid-air → depenetrated through the floor. Small
+    # margin = no airborne window = colliders block cleanly. 2026-06-06.
+    spawn_clear_y = local_ground_y + 0.1
 
     # 2. Shell entity defs.
     (game_dir / "entities").mkdir(exist_ok=True)
@@ -403,12 +604,17 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     rules_dir = game_dir / "world" / "rules"
     rules_dir.mkdir(parents=True, exist_ok=True)
     for legacy in ("01_freecam_toggle.json", "02_movement.json",
-                   "10_shell_camera.json", "11_shell_movement.json"):
+                   "10_shell_camera.json", "11_shell_movement.json",
+                   "12_shell_jump.json", "13_shell_sprint.json"):
         (rules_dir / legacy).unlink(missing_ok=True)
     (rules_dir / "10_shell_camera.json").write_text(
         json.dumps(_camera_rules(), indent=2))
     (rules_dir / "11_shell_movement.json").write_text(
         json.dumps(_movement_rules(), indent=2))
+    (rules_dir / "12_shell_jump.json").write_text(
+        json.dumps(_jump_rules(), indent=2))
+    (rules_dir / "13_shell_sprint.json").write_text(
+        json.dumps(_sprint_rules(), indent=2))
 
     # 4. Input + tests.
     (game_dir / "ui").mkdir(exist_ok=True)
@@ -417,15 +623,25 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
     (game_dir / "tests.json").write_text(
         json.dumps({"scenarios": []}, indent=2))
 
-    # 5. Splice the shell singletons into the level's entities.json.
-    level_path = game_dir / "levels" / level_id / "entities.json"
-    level = json.loads(level_path.read_text())
-    objects = [i for i in level.get("initial_instances", [])
-               if i.get("def") not in (
-                   "world_clock", "player_input_anchor", "free_camera")]
-    level["initial_instances"] = _singleton_instances(
-        world_w, spawn=cfg.player.spawn, spawn_clear_y=spawn_clear_y) + objects
-    level_path.write_text(json.dumps(level, indent=2))
+    # 4b. Built-in HELP overlay (H toggles controls + objective). Only
+    # WRITE if absent — a game may have authored its own screens.json
+    # (with the help screen appended); don't clobber it (ADR 0067).
+    screens_path = game_dir / "screens.json"
+    if not screens_path.exists():
+        screens_path.write_text(json.dumps(_screens(), indent=2))
+
+    # 5. Shell singletons (world_clock, player, free cameras) → their own
+    # flat entities file (ADR 0067). compose_world's map content lives in
+    # entities/auto_gen.json; the engine globs entities/*.json and spawns
+    # both, so the scene boots FLAT — no levels/ or flow.json needed.
+    (game_dir / "entities" / "shell_singletons.json").write_text(
+        json.dumps({
+            "_comment": "Shell singletons (world_clock, player, free "
+                        "cameras) spliced by compose_shell. Flat layout.",
+            "initial_instances": _singleton_instances(
+                world_w, spawn=cfg.player.spawn,
+                spawn_clear_y=spawn_clear_y),
+        }, indent=2))
 
     # 6. The .tscn launcher.
     tscn_slug = game_name.removeprefix("demo_")
@@ -437,11 +653,10 @@ def compose_shell(game_name: str, shell_type: str = "third_person_explorer",
 
 def main() -> None:
     ap = argparse.ArgumentParser(prog="compose_shell")
-    ap.add_argument("game_name", help="map dir under godot/data/<name>")
+    ap.add_argument("game_name", help="scene dir under godot/data/<name>")
     ap.add_argument("--shell-type", default="third_person_explorer")
-    ap.add_argument("--level-id", default="level_default")
     args = ap.parse_args()
-    game_dir = compose_shell(args.game_name, args.shell_type, args.level_id)
+    game_dir = compose_shell(args.game_name, args.shell_type)
     print(f"[compose_shell] wrote {args.shell_type} shell into {game_dir}")
     print(f"run with: ./scripts/play.sh {args.game_name.removeprefix('demo_')}")
 

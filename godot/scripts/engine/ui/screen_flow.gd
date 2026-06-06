@@ -452,27 +452,60 @@ func _handle_global_inputs() -> void:
 	var current := ""
 	if not _stack.is_empty():
 		current = str(_stack[_stack.size() - 1]["id"])
+	# Press-edge is computed ONCE PER ACTION per frame, BEFORE firing any
+	# entry. Multiple global_inputs may share one action — the paired-
+	# if_screen toggle pattern (open when if_screen="", close when
+	# if_screen="X"). Previously _last_action_state[action] was updated
+	# per-entry, so the FIRST entry for an action clobbered the second
+	# entry's `was_pressed` → the close half never saw the edge.
+	# Empirical 2026-06-06: the shell H-help opened but would not close
+	# (first same-action toggle pair shipped; bug was latent until then).
+	var is_edge := _compute_action_edges(globals)
 	for g in globals:
 		if not (g is Dictionary):
 			continue
 		var action := str(g.get("action", ""))
 		if action == "" or not InputMap.has_action(action):
 			continue
-		# Track press-edge state UNCONDITIONALLY (see 2026-05-16 fix).
-		var pressed := Input.is_action_pressed(action)
-		var was_pressed := bool(_last_action_state.get(action, false))
-		_last_action_state[action] = pressed
-		var screen_filter := str(g.get("if_screen", ""))
 		# 2026-05-08: if_screen matches symmetrically. `if_screen: ""` fires
 		# only when stack empty (current=""); `if_screen: "X"` fires only
 		# when current=X. Lets data declare paired close-rules
 		# (if_screen: "X" → transition_screen @previous) for toggle behavior.
-		if screen_filter != current:
+		if str(g.get("if_screen", "")) != current:
 			continue
-		if pressed and not was_pressed:
+		if bool(is_edge.get(action, false)):
 			var effects = g.get("on_press", null)
 			if effects is Array:
 				_dispatch_effects(effects, {"_source": "global_input"})
+
+
+## Compute press-edge (pressed-this-frame AND not-last-frame) per ACTION
+## across the global_inputs list, updating _last_action_state ONCE per
+## action. Returns {action: bool is_edge}. Extracted + pure-ish (reads
+## Input via the injectable _pressed_lookup seam) so the same-action
+## toggle invariant is unit-testable without a live Input device.
+func _compute_action_edges(globals: Array) -> Dictionary:
+	var is_edge: Dictionary = {}
+	for g in globals:
+		if not (g is Dictionary):
+			continue
+		var action := str(g.get("action", ""))
+		if action == "" or is_edge.has(action) or not InputMap.has_action(action):
+			continue
+		var pressed := _action_pressed(action)
+		var was_pressed := bool(_last_action_state.get(action, false))
+		is_edge[action] = pressed and not was_pressed
+		_last_action_state[action] = pressed
+	return is_edge
+
+
+## Input seam — overridable in tests (set _pressed_lookup to a Dictionary
+## {action: bool}); falls back to the live Input device.
+var _pressed_lookup = null
+func _action_pressed(action: String) -> bool:
+	if _pressed_lookup is Dictionary:
+		return bool((_pressed_lookup as Dictionary).get(action, false))
+	return Input.is_action_pressed(action)
 
 
 # ============================================================

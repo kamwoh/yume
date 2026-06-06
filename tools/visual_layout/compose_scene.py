@@ -81,20 +81,60 @@ def _ortho_prompt(catalog: dict) -> str:
 
 
 def _semantic_prompt(catalog: dict) -> str:
+    """Output a POSITION SPEC, not a segmentation of the orthographic.
+
+    The semantic map's purpose is to tell the engine WHERE each entity
+    lives in the world (the (x, z) ground position + footprint size of
+    every cottage, tower, tree, fence, etc.). It is NOT a colour-
+    classification of the orthographic painting's pixels. If the LLM
+    treats the orthographic as ground truth and tries to segment its
+    painterly noise (shadows, brushwork, atmospheric blur), the semantic
+    inherits all that noise and downstream extraction goes wrong.
+
+    Pattern: use the orthographic ONLY to extract entity POSITIONS, then
+    DRAW EACH ENTITY AS A SOLID FOOTPRINT — independent of the original
+    pixel colours.
+    """
     classes = [c for c in catalog.get("classes", [])
                if c.get("intent_type") in ("terrain_shader", "object_placement")]
     palette = "\n".join(
         f"- {c['hex']} = {c['name']} ({c.get('description', '')[:60]})"
         for c in classes)
     return (
-        "Convert the attached top-down map into a FLAT-COLOR SEMANTIC "
-        "CLASSIFICATION map. PRESERVE the exact layout + positions, but "
-        "replace all detail with perfectly FLAT solid blocks of ONE hex "
-        "colour each. Top-down, 1024x1024.\n\n"
-        f"Use ONLY these exact hex colours:\n{palette}\n\n"
-        "ABSOLUTE RULES: only those hex colours; FLAT solid fills; ZERO "
-        "texture/shadow/gradient/outline/text. Looks like an MS-Paint "
-        "bucket-fill diagram. Keep every feature at its original position.")
+        "Produce a SEMANTIC POSITION MAP — a top-down bird's-eye plan of "
+        "WHERE each game entity lives in the world. This is NOT a "
+        "colour-segmentation of the attached image; it is a layout spec "
+        "you DRAW from scratch using ONLY the listed hex colours, each "
+        "entity rendered as a clean solid FOOTPRINT.\n\n"
+        "**THE ATTACHED IMAGE IS A POSITION REFERENCE ONLY** — use it to "
+        "see WHERE objects sit, then redraw the scene from a true "
+        "straight-down view, ignoring all of the input's painterly noise "
+        "(shadows, brushwork, perspective, atmospheric tint). Don't try "
+        "to classify the input's pixels; build a clean top-down plan.\n\n"
+        "**EVERY ENTITY → ITS FOOTPRINT** (the area it OCCUPIES viewed "
+        "from directly above). Examples:\n"
+        "- A house → a small SOLID RECTANGLE (~3-8% of the image width) "
+        "at its world (x, z), flat colour, no roof slope, no walls.\n"
+        "- A tower → a small SOLID SQUARE or CIRCLE (~2-4% wide) at its "
+        "ground position. NOT a tall vertical bar — that's the side "
+        "view; we want the top-down footprint.\n"
+        "- A tree → a small SOLID CIRCLE (the canopy outline from above), "
+        "drawn cleanly at each tree's (x, z) — not the painted bush.\n"
+        "- A fence → a THIN CONNECTED LINE (1-2 px wide) tracing the "
+        "fence path, ideally a CLOSED LOOP around an enclosed area.\n"
+        "- Terrain (grass / dirt_path / water_surface) → flat solid "
+        "regions tiling the entire ground.\n\n"
+        "**ABSOLUTE RULES**:\n"
+        "- ONLY the hex colours below; reject any other colour.\n"
+        "- ZERO gradients, shadows, outlines, text, antialiasing "
+        "beyond 1-2 px at solid edges. CAD-style.\n"
+        "- Single-instance entities (one cottage, one tower, ...) MUST "
+        "be present at their stated position + count.\n"
+        "- Footprints SHOULD NOT overlap unless the entities truly share "
+        "the same ground (e.g. a fence segment crossing a path is OK).\n"
+        "- Output looks like an MS-Paint bucket-fill diagram OR a CAD "
+        "footprint plan — NOT a painted illustration. 1024×1024.\n\n"
+        f"**LEGEND (use ONLY these hex colours):**\n{palette}\n")
 
 
 def _ground_paint_prompt(catalog: dict) -> str:
@@ -239,6 +279,12 @@ def main() -> int:
     ap.add_argument("--regen", action="store_true", help="regenerate images even if present")
     ap.add_argument("--skip-gen", action="store_true", help="skip image gen (maps already exist)")
     ap.add_argument("--assets", action="store_true", help="also run Tripo asset gen")
+    ap.add_argument("--no-shell", action="store_true",
+                    help="stop after compose_world (the scene/World layer): "
+                         "gen + scene, NO walkable shell. Entry point for "
+                         "/yume-design --scene (ADR 0067) — the game provides "
+                         "its own player/camera/movement, so the third-person "
+                         "shell would conflict.")
     args = ap.parse_args()
 
     game_dir = DATA_ROOT / args.game
@@ -267,8 +313,12 @@ def main() -> int:
           "--catalog", args.catalog, "--semantic-map", str(sem),
           "--heightmap", str(hm)])
 
-    print("[compose_scene] 6: compose_shell (presentation)")
-    _run(["tools.visual_layout.compose_shell", args.game])
+    if args.no_shell:
+        print("[compose_scene] --no-shell: skipping compose_shell (World "
+              "layer only — the game provides its own player/camera).")
+    else:
+        print("[compose_scene] 6: compose_shell (presentation)")
+        _run(["tools.visual_layout.compose_shell", args.game])
 
     if args.assets:
         print("[compose_scene] 7: asset gen (Tripo for asset_source:tripo)")

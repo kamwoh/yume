@@ -71,6 +71,14 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Di
 	# Collision shape
 	var shape_cfg = phys_cfg.get("collision_shape", null)
 	if shape_cfg is Dictionary:
+		# Shrink-wrap a box to the VISIBLE mesh (2026-06-06, ADR 0067
+		# §colliders): a box with `from_visual_mesh` derives its size +
+		# ground offset from the entity's visual .glb, normalized + scaled
+		# EXACTLY as EntityMesh3D draws it (unit-height, base-on-ground,
+		# native proportions, then × state.scale's height). So the collider
+		# tracks the drawn mesh PER-INSTANCE instead of a fixed canonical
+		# guess. Non-.glb visuals (kits) keep the cfg's fallback size.
+		shape_cfg = _shrinkwrap_box_to_visual(shape_cfg as Dictionary, entity)
 		var shape_rid := _create_shape_3d(shape_cfg)
 		if shape_rid.is_valid():
 			# Optional shape offset (collision_shape.offset = [x, y, z]).
@@ -134,6 +142,20 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Di
 		transform.origin = pos
 	elif pos is Vector2:
 		transform.origin = Vector3(pos.x, 0, pos.y)
+	# YAW rotation for BOX colliders ONLY (2026-06-06). The box SIZE is baked
+	# per-instance (shrink-wrap above resizes the shape), so the body basis
+	# carries ONLY rotation — never scale. That avoids the two earlier
+	# regressions: (1) a basis on the `trimesh` GROUND (ADR 0062, faces in
+	# world space) corrupts it → player falls through; (2) a NON-UNIFORM
+	# SCALE basis makes move_and_slide eject the player. Rotation-only on a
+	# box is safe + makes the collider track a rotated mesh (renderer:
+	# rotation.y = yaw + mesh_yaw_offset). Heightmap/trimesh shapes stay
+	# origin-only (their geometry is already world-oriented).
+	var _stype := ""
+	if shape_cfg is Dictionary:
+		_stype = str((shape_cfg as Dictionary).get("type", ""))
+	if _stype == "box":
+		transform.basis = Basis(Vector3.UP, _entity_yaw(entity))
 	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, transform)
 
 	# Stamp the entity with this body's RID so despawn can free it.
@@ -255,6 +277,79 @@ static func build_character_3d(
 ##   - Array[3]    → per-axis [x, y, z]
 ##   - Array[2]    → 2D-friendly (x, x, y), mirrors the iso convention
 ## Idempotent — leaves body.scale unchanged when state.scale isn't set.
+## Shrink-wrap a `from_visual_mesh` box collider to the entity's visual .glb,
+## mirroring EntityMesh3D's normalize-then-scale (see renderer _normalize_glb +
+## _sync_scale): the mesh is fit to unit-HEIGHT with native proportions and its
+## base on the ground, then scaled UNIFORMLY by state.scale's height. So the
+## box is [(w/h)·H, H, (d/h)·H] sitting on the ground (offset +H/2). Returns the
+## cfg unchanged when not opted-in or the visual isn't a .glb (kits keep their
+## authored fallback size). Per-instance — uses THIS entity's state.scale.
+static func _shrinkwrap_box_to_visual(shape_cfg: Dictionary, entity) -> Dictionary:
+	if str(shape_cfg.get("type", "")) != "box":
+		return shape_cfg
+	if not bool(shape_cfg.get("from_visual_mesh", false)):
+		return shape_cfg
+	if entity == null:
+		return shape_cfg
+	var vis = entity.get("visual")
+	if not (vis is Dictionary):
+		return shape_cfg
+	var mesh_path := str((vis as Dictionary).get("mesh", ""))
+	if not (mesh_path.ends_with(".glb") or mesh_path.ends_with(".gltf")):
+		return shape_cfg  # kit/primitive — keep the cfg's fallback size
+	var bb: AABB = _glb_bbox(mesh_path)
+	if bb.size.y <= 0.0001:
+		return shape_cfg
+	var h := _scale_height(entity)
+	var w := bb.size.x / bb.size.y * h
+	var d := bb.size.z / bb.size.y * h
+	var out: Dictionary = shape_cfg.duplicate()
+	# TIGHT: box exactly wraps the rendered mesh — proportions from the .glb
+	# bbox, height = state.scale's Y, base on the ground (offset +h/2 puts the
+	# box bottom at entity.y, top at entity.y+h, matching EntityMesh3D's
+	# normalize-base-on-ground + uniform-height scale). No skirt → no
+	# under-ground over-wrap. (The trade-off: a tight axis-aligned box can let
+	# the player clip a prop when entering it airborne on a steep slope — the
+	# robust+tight answer is a convex-hull collider, ADR 0067 follow-up.)
+	out["size"] = [w, h, d]
+	out["offset"] = [0.0, h * 0.5, 0.0]
+	return out
+
+
+## Height component of state.scale (default 1.0). Matches the renderer's
+## uniform-height convention for normalized .glb (_sync_scale uses scale.y).
+static func _scale_height(entity) -> float:
+	if entity == null or not entity.has_method("get_state"):
+		return 1.0
+	var s = entity.get_state("scale", null)
+	if s == null:
+		return 1.0
+	if s is float or s is int:
+		return float(s)
+	if s is Vector3:
+		return (s as Vector3).y
+	if s is Array and (s as Array).size() >= 2:
+		return float((s as Array)[1])
+	return 1.0
+
+
+## state.yaw (+ mesh_yaw_offset), matching EntityMesh3D._sync_yaw exactly so a
+## box collider rotates the same as the mesh it wraps. Falls back to
+## state.facing when yaw is unset (FPS/camera-driven actors).
+static func _entity_yaw(entity) -> float:
+	if entity == null or not entity.has_method("get_state"):
+		return 0.0
+	var raw = entity.get_state("yaw", null)
+	if raw == null:
+		raw = entity.get_state("facing", null)
+	if raw == null:
+		return 0.0
+	var off := 0.0
+	if entity.has_method("get_property"):
+		off = float(entity.get_property("mesh_yaw_offset", 0.0))
+	return float(raw) + off
+
+
 static func _apply_state_scale_to_body(body: Node3D, entity: Entity) -> void:
 	if entity == null or not entity.has_method("get_state"):
 		return

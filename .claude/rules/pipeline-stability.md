@@ -39,8 +39,7 @@ If a request is to fix a bug in a stable pipeline:
 - If the bug is in the HARNESS (parser fails on valid input,
   postprocess silently accepts invalid output): ADR + fix.
 - If the bug is in the LIVE CONTENT (`hud.json` / `screens.json`
-  per-game UX issues — #102–#106 in task_plan): edit the JSON
-  directly. NOT a harness change.
+  per-game UX issues): edit the JSON directly. NOT a harness change.
 
 The boundary between "harness" and "content":
 - Harness = code under `tools/visual_layout/`, skill files,
@@ -56,8 +55,25 @@ These pipelines are structurally harder (3D output, multi-consumer,
 composition concerns) and still settling. Modify freely with the
 usual discipline (post-mortem ritual, validators, scenario tests).
 
-- **Map / world pipeline** — `compose_map.py`,
-  `wireframe_to_map.py`, `/yume-map-author`.
+There are **two distinct** active 3D pipelines — they are NOT the same
+tool and must not be conflated (audit 2026-06-06):
+
+- **Scene / World pipeline** — `compose_scene.py` (orchestrator) →
+  `compose_world.py` (the SCENE: terrain, biomes, water, 3D
+  placements) + `compose_shell.py` (the walkable shell), driven by
+  `/yume-create-scene` + `yume-scene-class-catalog`. Generates a whole
+  3D **scene** from a prose pitch. `compose_world` is also the **World
+  layer** reused by `/yume-design --scene` (ADR 0067). Scene-only +
+  flat: `compose_world` writes no `levels/` / `flow.json` /
+  `world/state.json`.
+- **Level / map pipeline** — `compose_map.py`, `wireframe_to_map.py`,
+  `/yume-map-author`. A 2D semantic sketch → entity **instances +
+  patterns** spliced into an EXISTING game's `levels/<id>/entities.json`
+  (add/edit a level). It does NOT generate terrain/biomes/water.
+
+They overlap in spirit (semantic image → entity placements) but differ
+in output: a 3D scene vs a level's instance list. Don't reach for
+`compose_map` to build a world, or `compose_world` to add a level.
 
 ### Why this is harder than 2D
 
@@ -70,10 +86,11 @@ usual discipline (post-mortem ritual, validators, scenario tests).
 
 ### Where map/world work belongs
 
-New work goes in `tools/visual_layout/compose_map.py` +
-`wireframe_to_map.py` + `/yume-map-author` skill, or in NEW
-sibling stages alongside (e.g. a future `compose_scene_cinema`
-for lighting/fog/camera generation from the same semantic map).
+Scene/World work goes in `compose_scene.py` / `compose_world.py` /
+`compose_shell.py` (+ `/yume-create-scene`). Level/map work goes in
+`compose_map.py` / `wireframe_to_map.py` (+ `/yume-map-author`). New
+3D capabilities can also land as NEW sibling stages (e.g. a future
+`compose_scene_cinema` for lighting/fog/camera from the semantic map).
 
 Do NOT touch the HUD/screen surface while working on map/world.
 If a generalization seems to require touching all three, that's

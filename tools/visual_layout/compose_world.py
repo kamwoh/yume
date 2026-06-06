@@ -1,11 +1,20 @@
-"""compose_world.py — the MAP layer of the text-to-world pipeline.
+"""compose_world.py — the SCENE layer of the text-to-world pipeline.
 
-Produces the world CONTENT from a semantic map + heightmap: entity
-defs, object placements, terrain assets (biome splatmap, water mask,
-road graph), and scene.json's ground + water. It says NOTHING about
-how you view or control the world — that "shell" (camera, player,
-input, lighting, .tscn) is added separately by compose_shell.py, so a
-map generator never decides you walk around in third person.
+Produces ONLY the 3D environment from a semantic map + heightmap:
+entity defs + their placements, terrain assets (biome splatmap, water
+mask, road graph), and scene.json's ground + water. It says NOTHING
+about how you view or control the world (the "shell" — camera, player,
+input, lighting, .tscn — is added by compose_shell.py) AND NOTHING
+about the GAME (mechanics, goals, level progression, global state —
+owned by /yume-design; see ADR 0067). So this writes NO game/flow.json,
+NO levels/, NO world/state.json — it stays in the scene lane.
+
+The map placements are emitted as flat `initial_instances` INSIDE
+entities/auto_gen.json (the engine globs entities/*.json and spawns
+them; flat single-level boot needs no flow.json — world_boot
+_load_content's else-branch). A consumer that wants a level system
+(/yume-design with multi-level, or compose_shell standalone) adds it
+on top without compose_world ever touching the game's files.
 
 The flow:
   1. inject strategies from data/lib/extraction_strategies.json
@@ -16,8 +25,9 @@ The flow:
   5. validate + extraction↔render alignment check
   6. group instances by class/bucket → entity defs (primitive boxes/
      cylinders/spheres, sized + colored per strategy)
-  7. write scene.json (ground biome shader + water plane), defs, level
-     placements (objects only), terrain assets, road_graph, flow
+  7. write scene.json (ground biome shader + water plane), terrain
+     assets, road_graph, and entities/auto_gen.json (defs + flat
+     placements). NO game-domain files.
 
 OBJECTS (houses/walls/towers/bridges/fountain) → entities. NON-OBJECTS
 → biomes (ground splatmap), water (ADR 0059 plane), roads (biome
@@ -622,6 +632,13 @@ def _class_specs(catalog: dict) -> dict:
                     "asset_source": _resolve_asset_source(strat, b),
                     "mesh_prompt": b.get("mesh_prompt", strat.get("mesh_prompt")),
                     "mesh_reference_prompt": b.get("mesh_reference_prompt", strat.get("mesh_reference_prompt")),
+                    # Collision (ADR 0067 §colliders): "solid" → a static box
+                    # collider sized from canonical_size_meters so the player
+                    # can't walk through; "none" → passable (floor decor). The
+                    # box scales with per-instance state.scale in-engine.
+                    "collision": strat.get("collision", "solid"),
+                    "collision_size": list(b.get("canonical_size_meters",
+                        strat.get("canonical_size_meters", [1, 1, 1]))),
                 }
         else:
             canon = (list(strat["canonical_size_meters"])
@@ -638,6 +655,13 @@ def _class_specs(catalog: dict) -> dict:
                 "asset_source": _resolve_asset_source(strat, None),
                 "mesh_prompt": strat.get("mesh_prompt"),
                 "mesh_reference_prompt": strat.get("mesh_reference_prompt"),
+                # Collision (ADR 0067 §colliders): "solid" (default) → static
+                # box collider sized from canonical_size_meters; "none" →
+                # passable (floor decor like flower_patch). Scales with
+                # per-instance state.scale in-engine.
+                "collision": strat.get("collision", "solid"),
+                "collision_size": list(strat.get("canonical_size_meters",
+                                                  [1, 1, 1])),
             }
     return specs
 
@@ -692,6 +716,51 @@ def _group_by_class(instances: list[dict]) -> dict[str, list[dict]]:
     return grouped
 
 
+def _extract_instances(*, game_name, catalog, semantic_map_path,
+                       heightmap_path, world_size_m, height_scale,
+                       height_offset, anchors, rng_seed) -> list[dict]:
+    """Run object extraction. If a per-scene authored extractor exists at
+    `data/<game>/extract.py` exposing `extract(ctx)`, run THAT (the
+    LLM-authored, comparator-tuned script that DERIVES count / spacing /
+    scale / rotation from geometry instead of hand-set constants).
+    Otherwise fall back to the generic strategy dispatch.
+
+    The script lives WITH the scene it extracts (per-scene content,
+    gitignored alongside the rest of data/<game>/ — it is not shared
+    tooling). It receives a ctx dict with everything dispatch gets and
+    returns the SAME instance-dict shape (see _instance in
+    lib_extract_dispatch). Yume invariant (data-demo.md): the script
+    computes values via functions; it never carries hand-tuned magic
+    numbers in the strategy JSON.
+    """
+    script_path = (DATA_ROOT / game_name / "extract.py").resolve()
+    if script_path.exists():
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            f"scene_extractor_{game_name}", script_path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        ctx = {
+            "catalog": catalog,
+            "semantic_map_path": semantic_map_path,
+            "heightmap_path": heightmap_path,
+            "world_size_m": world_size_m,
+            "height_scale": height_scale,
+            "height_offset": height_offset,
+            "anchors": anchors,
+            "rng_seed": rng_seed,
+        }
+        print(f"[compose_world] per-scene extractor: {script_path.name}")
+        return mod.extract(ctx)
+
+    return dispatch.dispatch_extraction(
+        catalog=catalog, semantic_map_path=semantic_map_path,
+        heightmap_path=heightmap_path, world_size_m=world_size_m,
+        height_scale=height_scale, height_offset=height_offset,
+        anchors=anchors, rng_seed=rng_seed,
+    )
+
+
 # ============================================================
 # GENERATE YUME DEMO FILES
 # ============================================================
@@ -744,11 +813,11 @@ def compose(
     print(f"[compose_world] anchors: focal={anchors['focal_anchor']} "
           f"wall_ring_corners={len(anchors['wall_ring_corners'])}")
 
-    instances = dispatch.dispatch_extraction(
-        catalog=catalog, semantic_map_path=semantic_map_path,
-        heightmap_path=heightmap_path, world_size_m=world_size_m,
-        height_scale=height_scale, height_offset=height_offset,
-        anchors=anchors, rng_seed=rng_seed,
+    instances = _extract_instances(
+        game_name=game_name, catalog=catalog,
+        semantic_map_path=semantic_map_path, heightmap_path=heightmap_path,
+        world_size_m=world_size_m, height_scale=height_scale,
+        height_offset=height_offset, anchors=anchors, rng_seed=rng_seed,
     )
     print(f"[compose_world] extracted {len(instances)} object instances")
 
@@ -807,8 +876,6 @@ def compose(
     game_dir.mkdir(parents=True, exist_ok=True)
     (game_dir / "entities").mkdir(exist_ok=True)
     (game_dir / "world").mkdir(exist_ok=True)
-    (game_dir / "levels" / "level_default").mkdir(parents=True, exist_ok=True)
-    (game_dir / "game").mkdir(exist_ok=True)
     (game_dir / "assets" / "layouts").mkdir(parents=True, exist_ok=True)
     (game_dir / "assets" / "textures").mkdir(parents=True, exist_ok=True)
 
@@ -890,6 +957,87 @@ def compose(
             print(f"[compose_world] flattened foundation pads under "
                   f"buildings into {heightmap_dest.name} (deterministic, "
                   f"instance-aligned; building Y updated to pad)")
+
+        # Programmatic enclosure: for each class whose strategy declares
+        # `enclose_around: [target_class, ...]`, generate a rectangular
+        # fence loop around each target instance's footprint. Deterministic
+        # — doesn't rely on the LLM drawing a closed-loop fence in the
+        # semantic. Bypasses the "LLM amnesia for small structural
+        # elements" problem the same way flatten_pads and scatter-on-grass
+        # bypass LLM density issues.
+        from tools.visual_layout.lib_extract_dispatch import HeightmapSampler
+        sampler = HeightmapSampler(
+            heightmap_dest, max(_ww, _wh), height_scale, height_offset
+        ) if heightmap_dest is not None else None
+
+        def _normalize_bucket(c: str) -> str:
+            for p in ("large_", "medium_", "small_"):
+                if c.startswith(p):
+                    return c[len(p):]
+            return c
+
+        for cls in catalog.get("classes", []):
+            strategy = cls.get("strategy") or {}
+            enclose_targets = strategy.get("enclose_around", [])
+            if not enclose_targets:
+                continue
+            pad_m = float(strategy.get("enclose_padding_m", 2.0))
+            canonical = strategy.get("canonical_size_meters", [3.0, 1.2, 0.18])
+            seg_w = float(canonical[0])
+            seg_h = float(canonical[1])
+            seg_t = float(canonical[2])
+            targets = [i for i in instances
+                       if _normalize_bucket(str(i.get("class", ""))) in enclose_targets]
+            if not targets:
+                continue
+            added = 0
+            for ti in targets:
+                tx, _, tz = (ti.get("position") or [0, 0, 0])[:3]
+                ts = ti.get("scale") or [3.0, 3.0, 3.0]
+                hw = float(ts[0]) * 0.5 + pad_m
+                hd = float(ts[2]) * 0.5 + pad_m
+                # 4 corners of the rectangle around the target footprint
+                corners = [
+                    (tx - hw, tz - hd),
+                    (tx + hw, tz - hd),
+                    (tx + hw, tz + hd),
+                    (tx - hw, tz + hd),
+                ]
+                # For each edge, tile fence panels at canonical width
+                # end-to-end so a long edge gets MULTIPLE panels — preserves
+                # mesh detail (rail + posts) instead of stretching one mesh.
+                for ei in range(4):
+                    ax, az = corners[ei]
+                    bx, bz = corners[(ei + 1) % 4]
+                    edge_len = math.hypot(bx - ax, bz - az)
+                    if edge_len < 0.5:
+                        continue
+                    n_panels = max(1, int(round(edge_len / seg_w)))
+                    panel_len = edge_len / n_panels
+                    dirx = (bx - ax) / edge_len
+                    dirz = (bz - az) / edge_len
+                    yaw = math.atan2(bx - ax, -(bz - az))
+                    for pi in range(n_panels):
+                        # Panel center along the edge
+                        t_along = (pi + 0.5) * panel_len
+                        wx = ax + dirx * t_along
+                        wz = az + dirz * t_along
+                        wy = sampler.y_at(wx, wz) if sampler else 0.0
+                        instances.append({
+                            "class": cls["name"],
+                            "id": f"{cls['name']}_enc_{ti['id']}_{ei}_{pi:02d}",
+                            "position": [round(wx, 3), round(wy, 3), round(wz, 3)],
+                            "yaw": round(yaw, 4),
+                            "primitive": strategy.get("primitive", "prim_unit_box"),
+                            "canonical_front_axis": strategy.get(
+                                "canonical_front_axis", "+X"),
+                            "scale": [round(panel_len, 3), seg_h, seg_t],
+                        })
+                        added += 1
+            if added:
+                print(f"[compose_world] enclose_around: generated {added} "
+                      f"`{cls['name']}` panels around "
+                      f"{len(targets)} {enclose_targets} instance(s)")
 
     # Derive the TERRAIN-ONLY splatmap (object footprints filled with
     # surrounding terrain). The ground shader samples THIS, not the raw
@@ -1134,14 +1282,9 @@ def compose(
         }
     (game_dir / "scene.json").write_text(json.dumps(scene, indent=2))
 
-    # ============ world/state.json ============
-    # Per data-demo.md convention: world/state.json is for env-level
-    # global non-entity state (usually empty — env.world_state).
-    # Singleton entities (world_clock) + free_camera defs go in
-    # entities/ as proper entity definition files.
-    (game_dir / "world" / "state.json").write_text(json.dumps({
-        "_comment": "Empty placeholder. Singletons (world_clock, free_camera) live in entities/."
-    }, indent=2))
+    # NOTE (ADR 0067): world/state.json is GAME-domain (global state) —
+    # owned by /yume-design, not the scene layer. compose_world no
+    # longer writes it. A flat scene needs no world_state to boot.
 
     # ============ world/road_graph.json (metadata, not rendered) ====
     # Skeleton-derived road polylines. Roads render as ground biomes
@@ -1156,17 +1299,11 @@ def compose(
     }, indent=2))
 
     # world_clock / cameras / player / camera+movement rules are the
-    # SHELL — written by compose_shell.py, not here. The map only
-    # defines world CONTENT.
+    # SHELL — written by compose_shell.py, not here. game/flow.json,
+    # levels/, and goals are the GAME — owned by /yume-design (ADR 0067).
+    # The scene layer only defines world CONTENT (defs + placements).
 
-    # ============ game/flow.json ============
-    flow = {
-        "levels": [{"id": "level_default", "name": "Auto-generated scene"}],
-        "starting_level": "level_default",
-    }
-    (game_dir / "game" / "flow.json").write_text(json.dumps(flow, indent=2))
-
-    # ============ entities/auto_gen.json — one def per class/bucket ====
+    # ============ entities/auto_gen.json — defs + flat placements ====
     # Driven by _class_specs (strategy primitive + canonical scale +
     # albedo). Each variant bucket (small/medium/large_house) + the
     # synthetic path_segment get their own def. No pick_primitive
@@ -1196,7 +1333,7 @@ def compose(
                 print(f"[compose_world] [kit-reuse] class '{name}' is asset_source"
                       f":tripo but kit(s) {existing} exist — set asset_source:kit "
                       f"to reuse and skip the paid Tripo gen.")
-        defs_doc["definitions"].append({
+        entity_def = {
             "id": name,
             "tags": [name, "compose_world_gen"],
             "properties": {},
@@ -1205,14 +1342,43 @@ def compose(
                                        mesh_override=spec.get("mesh"),
                                        mesh_prompt=emit_prompt,
                                        mesh_reference_prompt=emit_ref_prompt),
-        })
-    (game_dir / "entities" / "auto_gen.json").write_text(
-        json.dumps(defs_doc, indent=2)
-    )
+        }
+        # Collider (ADR 0067 §colliders). Solid props get a STATIC box sized
+        # from canonical_size_meters, offset up by half-height so its base
+        # sits at the entity's ground position. `wall` layer is in the shell
+        # player's collision_mask → the player can't walk through. The engine
+        # scales the box by per-instance state.scale (physics_body_builder).
+        # "none" (floor decor: flower_patch, walkable bridge, thin banner) →
+        # no physics block → passable. Configurable via the class's
+        # `collision` field in extraction_strategies.json.
+        if spec.get("collision", "solid") != "none":
+            cs = spec.get("collision_size") or [1.0, 1.0, 1.0]
+            entity_def["physics"] = {
+                "$extends": "@lib.physics.bodies.static_wall",
+                "collision_shape": {
+                    "type": "box",
+                    # from_visual_mesh: the engine shrink-wraps the box to the
+                    # entity's actual visual .glb (normalized + per-instance
+                    # scaled exactly like the renderer) so the collider tracks
+                    # the drawn mesh. `size`/`offset` below are the FALLBACK for
+                    # kit/primitive visuals (no .glb bbox to read) — sized from
+                    # canonical_size_meters. (ADR 0067 §colliders.)
+                    "from_visual_mesh": True,
+                    # Fallback box (kit/primitive visuals with no .glb bbox):
+                    # canonical size, base on the ground, TIGHT (no skirt).
+                    # .glb visuals get shrink-wrapped to the actual mesh bbox
+                    # in-engine (_shrinkwrap_box_to_visual). (ADR 0067.)
+                    "size": [float(cs[0]), float(cs[1]), float(cs[2])],
+                    "offset": [0.0, float(cs[1]) * 0.5, 0.0],
+                },
+            }
+        defs_doc["definitions"].append(entity_def)
 
-    # ============ levels/level_default/entities.json ============
-    # Instances consume the extraction output directly: position Y is
-    # ALREADY heightmap-sampled at extraction time (no re-sampling);
+    # Flat placements live in the SAME file as the defs (ADR 0067): the
+    # engine globs entities/*.json and spawns initial_instances, so a
+    # scene boots flat with no levels/ or flow.json. Instances consume
+    # the extraction output directly: position Y is ALREADY
+    # heightmap-sampled at extraction time (no re-sampling);
     # canonical-scale classes carry size in their def's state_init.scale
     # (instances are position + yaw only); others carry per-instance
     # scale. _y_offset lifts a flat feature (path segment) above ground.
@@ -1234,17 +1400,14 @@ def compose(
                 "state": state,
             })
 
-    # The level holds MAP CONTENT only — the extracted objects. The
-    # shell singletons (world_clock, player, free cameras) are spliced
-    # in by compose_shell.py. (No world_clock/player here → not runnable
-    # on its own; that's intentional — run compose_shell next.)
-    level_doc = {
-        "_comment": f"Map content for {game_name} (compose_world). "
-                    f"compose_shell splices in world_clock/player/cameras.",
-        "initial_instances": initial_instances
-    }
-    (game_dir / "levels" / "level_default" / "entities.json").write_text(
-        json.dumps(level_doc, indent=2)
+    # auto_gen.json holds MAP CONTENT only — the extracted defs +
+    # placements. The shell singletons (world_clock, player, free
+    # cameras) come from compose_shell.py; a game's player + mechanics
+    # come from /yume-design. (No world_clock/player here → not runnable
+    # on its own; that's intentional — add a shell or a game next.)
+    defs_doc["initial_instances"] = initial_instances
+    (game_dir / "entities" / "auto_gen.json").write_text(
+        json.dumps(defs_doc, indent=2)
     )
 
     return game_dir

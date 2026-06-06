@@ -141,7 +141,7 @@ Each gate now blocks that bug class at design time, not playtest.
 - Not "be more careful" (not actionable)
 - Not "add a comment" (comments rot)
 - Not "remember for next time" (memory rots faster)
-- Not "log it in task_plan.md" (that's a TODO list, not a gate)
+- Not "log it in `.claude/plan/backlog.md`" (that's a TODO list, not a gate)
 
 The gate must be ENFORCING — a checklist a future skill MUST run, a
 test in CI, a validator that fails sync, a reviewer axis that

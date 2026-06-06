@@ -1,15 +1,19 @@
-"""tools.visual_layout — image-gen → CV extraction → JSON compiler.
+"""tools.visual_layout — image-gen → extraction → JSON compose pipelines.
 
-Per ADR 0054. Pipeline:
-    intent → semantic image → k-means quantize → legend match
-        → connected components → schema → validate + repair → JSON
+Two families of LLM-as-parser harnesses (prompt → image → preprocess
+context → LLM authors draft → postprocess validates):
 
-Modules:
-    extractor_common  — k-means quantize + legend match + mask helpers
-    extract_ui        — UI wireframe → rect schema (Phase 1)
-    extract_map       — semantic map → anchor schema (Phase 2)
-    compile_ui        — rect schema → hud.json
-    compile_map       — anchor schema → entities.json + patterns
+  3D world (ACTIVE)   compose_scene → compose_world (map: extract entities +
+                      biome ground + water) → compose_shell (camera/player/
+                      input/lighting/.tscn). Extraction dispatches via
+                      lib_extract_dispatch over data/lib/extraction_strategies.json;
+                      lib_extract supplies the CV helpers; a per-scene
+                      data/<game>/extract.py may override extraction.
+                      compare_semantic scores placement vs the semantic map.
 
-See tools/visual_layout/README.md for usage.
+  2D UI (STABLE)      compose_hud / compose_screen / compose_map +
+                      wireframe_to_* — fit-fit authoring handed to the
+                      yume-{hud,screen,map}-author skills.
+
+See tools/visual_layout/README.md and .claude/rules/pipeline-stability.md.
 """

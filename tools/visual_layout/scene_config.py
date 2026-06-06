@@ -91,6 +91,7 @@ class SceneConfig:
     player: PlayerConfig = field(default_factory=PlayerConfig)
     biomes: dict[str, str] = field(default_factory=dict)   # class → "#rrggbb"
     lighting: dict = field(default_factory=dict)            # _lighting_block override
+    camera: dict = field(default_factory=dict)              # _camera_block override (e.g. distance/height/fov tuning)
 
     @classmethod
     def load(cls, game_dir: Path) -> "SceneConfig":
@@ -110,6 +111,7 @@ class SceneConfig:
             player=_build(PlayerConfig, raw.get("player")),
             biomes=raw.get("biomes", {}) or {},
             lighting=raw.get("lighting", {}) or {},
+            camera=raw.get("camera", {}) or {},
         )
 
 

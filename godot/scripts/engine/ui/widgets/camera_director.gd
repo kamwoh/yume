@@ -836,7 +836,11 @@ func _drain_mouse_facing(cam_cfg: Dictionary):
 	var facing := float(actor.get_state("facing", 0.0))
 	facing -= delta.x * sensitivity
 	actor.set_state("facing", facing)
-	if bool(cam_cfg.get("use_pitch", false)):
+	# Mouse-Y drives pitch by DEFAULT (2026-06-06). Was `use_pitch` default
+	# false → third-person shipped with a frozen pitch (can't look up/down),
+	# a recurring user frustration. Sensible default = pitch works; a game
+	# that wants a fixed-pitch follow opts OUT with `use_pitch: false`.
+	if bool(cam_cfg.get("use_pitch", true)):
 		var pitch := float(actor.get_state("pitch", 0.0))
 		pitch -= delta.y * sensitivity
 		var lim := PI * 0.5 - 0.05

@@ -49,6 +49,46 @@ Nothing about the world advances unless Python calls `step()`.
 
 ---
 
+## Boot order — what starts first
+
+`env.py` launches `godot --path <proj> --headless scenes/play.tscn -- --game=<X>
+--stdio-step`. Two kinds of entry point are involved, and **autoloads load before
+the main scene**:
+
+- **Main scene** = `scenes/play.tscn` — holds the **`World`** node
+  (`auto_start = true`); `--game=<X>` selects which `data/demo_<X>/` it loads.
+- **Autoloads** (`project.godot`, in order): `CaptureRunner`, `AudioBus`,
+  **`StdioStepDriver`**, `LockstepDriver`, `NetDriver` (the last four are inert
+  without their flag).
+
+So `StdioStepDriver._ready()` fires **first** — but it immediately *defers* (two
+`await get_tree().process_frame`s) so the World can boot before it takes over:
+
+```
+1. Godot starts, parses args.
+2. AUTOLOADS instantiate (in order). StdioStepDriver._ready arms _run(), which
+   `await process_frame` ⇒ SUSPENDS (yields). (Lockstep/Net inert.)
+3. MAIN SCENE loads → World._ready() → (auto_start) start() → load_data()
+     → world_boot.run(): mount directors · register ui/input.json
+       · load entities/ + world/rules/ + scene.json · spawn initial_instances
+   ↑ the game/world actually boots here (synchronous inside World._ready).
+4. [~2 frames later] StdioStepDriver._run() RESUMES → finds the booted World
+     → world.set_process(false) → emits handshake @YUMESTEP@{"ready":true}.
+5. while-loop: block on stdin → (Python sends a line) → one tick → emit → block …
+```
+
+Meanwhile `env.__init__` blocks on `_read_step()` until step 4's handshake, then
+returns ready. **Key point:** `StdioStepDriver` is created first but deliberately
+**defers to the World boot**; the game loads first, *then* the driver grabs the
+ready World and becomes the sole tick driver.
+
+The World boot is **identical to live play** (`_ready → start → load_data →
+world_boot`). The only difference is *after* boot: live play lets `World._process`
+drive ticks via the real-time accumulator; stdio-step disables `_process` and
+drives them by hand. Same game, different clock.
+
+---
+
 ## The protocol (one line in → one tick → one line out)
 
 Newline-framed JSON over the pipes:

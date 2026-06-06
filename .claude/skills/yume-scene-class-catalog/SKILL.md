@@ -165,6 +165,29 @@ Three resolution paths:
    the class entry so downstream reviewers know it wasn't a clean
    lookup.
 
+#### Collision — what blocks the player vs what doesn't (2026-06-06)
+
+Every `object_placement` class carries a `collision` field in its
+strategy (ADR 0067 §colliders). `compose_world` turns it into a STATIC
+box collider (sized from `canonical_size_meters`, scaled per-instance)
+so the player can't walk through:
+
+- **`"solid"` (DEFAULT)** — gets a collider. Use for anything physical
+  the player should bump into: buildings (house/townhall/shed), walls,
+  towers, rocks/boulders, trees, wells, statues, fountains, fences,
+  hay bales, large props.
+- **`"none"`** — NO collider, the player walks over/through. Use for
+  FLOOR-LEVEL or insubstantial decoration: flower/grass patches, ground
+  scatter, walkable bridges/decks, thin hanging cloth (banners/flags),
+  puddles. (`flower_patch`, `bridge`, `banner` already ship `none`.)
+
+Rule of thumb (the user's framing): *"a house should block; flowers/grass
+on the floor are fine to walk over."* If a novel class is something you'd
+physically run into → leave it solid (the default); if it's flat ground
+decoration or you walk on top of it → set `"collision": "none"` in its
+strategy entry. Tall-thin decorative items (a lone reed) can also be
+`none` to avoid invisible-wall annoyance.
+
 Inject the resolved strategy block INTO each class entry. The
 catalog entry now looks like:
 

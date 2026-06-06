@@ -325,6 +325,13 @@ func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
 	var shape_cfg = phys_cfg.get("collision_shape", null)
 	if not (shape_cfg is Dictionary):
 		return
+	# Draw the wireframe at the ACTUAL collider size: resolve the SAME
+	# shrink-wrap build_3d applies (mesh-fitted size + ground offset),
+	# not the pre-shrinkwrap fallback `size`. 2026-06-06: the green box
+	# was the narrow canonical guess while the real collider was
+	# mesh-shrinkwrapped to the house — so the wireframe looked too small
+	# and "didn't wrap the house" even though the collider did.
+	shape_cfg = PhysicsBodyBuilder._shrinkwrap_box_to_visual(shape_cfg as Dictionary, ent)
 	if str(shape_cfg.get("type", "")) != "box":
 		return
 	var size_arr = shape_cfg.get("size", [1, 1, 1])
@@ -366,14 +373,15 @@ func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color(0.2, 1.0, 0.4, 1.0)
 	mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
-	# Honor depth test: wireframes occlude each other (and get
-	# occluded by world geometry) via the Z-buffer. Without this,
-	# every wireframe in the 15m radius rendered ON TOP of every
-	# other one through walls + meshes, turning the scene into a
-	# tangle of overlapping green lines. With proper depth, you
-	# only see the box of the structure you're currently looking at;
-	# distant boxes get clipped behind closer geometry.
-	mat.no_depth_test = false
+	# X-RAY (no depth test): draw the collider wireframe ON TOP of world
+	# geometry so you can SEE whether the box wraps the mesh it belongs to
+	# (2026-06-06: with depth-test ON, a prop's collider was hidden BEHIND
+	# its own opaque mesh → "the green box doesn't wrap the house" even
+	# though it did). The tangle-of-green-lines risk in dense scenes is held
+	# in check by GameShell._cull_debug_colliders_by_distance (only props
+	# within ~15m of the camera draw their wireframe).
+	mat.no_depth_test = true
+	mat.render_priority = 10
 	mesh.surface_set_material(0, mat)
 	var mi := MeshInstance3D.new()
 	mi.name = "_DebugCollider_%s" % str(ent.instance_id)
@@ -406,6 +414,9 @@ func _maybe_build_collider_debug_viz(ent: Entity, phys_cfg: Dictionary) -> void:
 	body_world_pos += off_v
 	_world.add_child(mi)
 	mi.global_position = body_world_pos
+	# Match the collider's yaw (box bodies rotate by state.yaw in build_3d) so
+	# the wireframe lines up with a rotated prop instead of staying axis-aligned.
+	mi.rotation.y = PhysicsBodyBuilder._entity_yaw(ent)
 
 
 ## Resolve the 3D physics space RID for the current scene. Returns

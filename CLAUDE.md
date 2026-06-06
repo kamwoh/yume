@@ -139,27 +139,44 @@ LightingDirector; floor plane comes from `scene.json`'s ground.mesh
 block via GroundRenderer. A .tscn just pins `data_root` + picks
 `renderer_script` + places a Camera.
 
-## Two generation pipelines (DON'T confuse or mix them)
+## Generation pipelines — one orchestrator, three layers (ADR 0067)
 
-Yume has **two independent** prose→content pipelines. They share NO
-orchestration and write OVERLAPPING files — running both on the same
-`data/<game>/` folder makes them clobber each other.
+`/yume-design` is the single entry point. A game is composed from **three
+layers with disjoint file ownership**, so they never clobber each other:
 
-| | `/yume-design` | `/yume-create-scene` (compose_*) |
-|---|---|---|
-| **Makes** | a complete **game** | a 3D **scene/map** + a walkable shell |
-| **Input** | prose game pitch | prose scene pitch + a class catalog |
-| **Writes** | `entities/` (semantic defs), `world/rules/*` (all mechanics), `game/{goals,flow}`, `hud.json`, `audio/`, `screens.json` | map: `entities/auto_gen`, `levels/*/entities`, biome `scene.json`, heightmap; shell: camera/player/input + `world/rules/10-13_shell_*` (walk/jump/sprint/camera) |
-| **Gameplay?** | the real game's mechanics | only a hardcoded **third-person-explorer shell** (walk/look/jump/sprint) |
+| Layer | `/yume-design` flag | Owns (writes only these) | Tool |
+|---|---|---|---|
+| **World** (the 3D stage) | `--scene` | `scene.json`, `game/flow.json`, `world/state.json`, `levels/level_default/entities.json`, `entities/auto_gen.json`, `assets/{layouts,textures}/` | `compose_world` |
+| **Game** (the play) | (always) | `world/rules/*.json`, `game/goals.json`, `entities/<slug>.json` (player + dynamic defs + instances), `hud.json`, `audio/`, `screens.json`, `ui/` | the game skills |
+| **Assets** (the look) | `--with-assets` | `asset_gen.json`, `assets/generated/`, in-place `visual.*` patches | `tools.yume_assetgen` |
 
-So `compose_world` is map-only, but **`compose_shell` DOES emit gameplay
-rules** (the walk/jump/sprint/camera shell) — the scene pipeline produces a
-walkable diorama, not a passive map. It is NOT a game-logic authoring tool;
-for real mechanics use `/yume-design`. **Never run both pipelines on one
-folder** — they overwrite each other's `entities/`, `world/rules/`, and
-`game/flow.json`. (A scene CAN later be hand-extended with game rules, but
-re-running `compose_scene` will then wipe them — same papercut as the
-`.glb`-path reset; see `.claude/plan/backlog.md`.)
+```
+/yume-design "<pitch>"  [--scene]  [--with-assets]  [--style=] [--name=] [--autonomous]
+```
+
+- **No flags** → key-free code-drawn single-player game (the default — this
+  is also the no-API-key fallback; the gen flags below DEGRADE to it).
+- **`--scene`** → run `compose_world` FIRST as the World layer; the game's
+  mechanics layer ONTO that world. The engine globs `entities/*.json` +
+  `world/rules/*.json` and merges by id, so the game's `entities/<slug>.json`
+  + `world/rules/*.json` spawn into the world's level for free — provided the
+  Game layer does NOT overwrite the World-owned files above (it doesn't; the
+  `/yume-design` SKILL enforces this per-phase). Needs image-gen keys.
+- **`--with-assets`** → after the game is built, auto-run `yume_assetgen` to
+  replace code-draw visuals with generated textures + meshes. Needs keys.
+
+**No API keys?** `--scene` (needs `OPENAI_API_KEY`) and `--with-assets` (needs
+an image key + `TRIPO_API_KEY`) are best-effort: `/yume-design` Phase 0
+prechecks env and DROPS a flag whose key is missing — degrading to the
+key-free code-draw game with a warning, never a crash.
+
+**`compose_shell` is NOT run inside `/yume-design`** — the game provides the
+player, movement, and camera. `/yume-create-scene` (`compose_world` +
+`compose_shell`) remains the standalone tool for a scene-only *walkable
+diorama* (it DOES emit a walk/jump/sprint shell). Don't run
+`/yume-create-scene` on a `/yume-design` game folder — that's the one
+remaining clobber (its shell overwrites the game's mechanics); use
+`/yume-design --scene` to get a world for a game.
 
 ## Creating a new game
 

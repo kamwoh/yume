@@ -115,7 +115,7 @@ func _build_blades(cfg: Dictionary, plane: float, biome_img: Image, key: Vector3
 	mmi.material_override = mat
 	_world.add_child(mmi)
 	if bool(_world.get("verbose")):
-		push_warning("[grass_renderer] %d blades placed" % pts.size())
+		print("[grass_renderer] %d blades placed" % pts.size())
 
 
 ## Flower specks — tiny per-instance-coloured crosses scattered sparsely on
@@ -163,7 +163,7 @@ func _build_flowers(cfg: Dictionary, plane: float, biome_img: Image, key: Vector
 	mmi.material_override = mat
 	_world.add_child(mmi)
 	if bool(_world.get("verbose")):
-		push_warning("[grass_renderer] %d flowers placed" % pts.size())
+		print("[grass_renderer] %d flowers placed" % pts.size())
 
 
 # --- helpers -----------------------------------------------------------

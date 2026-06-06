@@ -277,7 +277,7 @@ func build() -> void:
 		# avoid scaling entirely.
 		shape_node.shape = _build_heightmap_shape(w, d)
 		var _hm_n: int = _hm_collider_n(maxf(w, d))
-		push_warning("[ground_renderer] heightmap collider built: %dx%d cells, plane=%.0fm, y-range=%.2f..%.2f" % [
+		print("[ground_renderer] heightmap collider built: %dx%d cells, plane=%.0fm, y-range=%.2f..%.2f" % [
 			_hm_n, _hm_n, maxf(w, d),
 			_heightmap_offset * _heightmap_strength,
 			(1.0 + _heightmap_offset) * _heightmap_strength])

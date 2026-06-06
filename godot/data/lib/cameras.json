@@ -1,36 +1,34 @@
 {
-  "_comment": "ADR 0027 camera presets. Per-game scene.json::camera uses `{$extends: \"@lib.cameras.NAME\", follow_tag: \"player\", ...overrides}` to inherit a preset and override fields. Each preset is a complete camera_config (per manifest.json). Engine reads `mode` then mode-specific fields — see game_shell.gd::_update_camera_follow.",
-
-  "iso_top_down": {
-    "_comment": "Default for tactical / city / management games. 24m visible extent crosses player frustum in 6s at speed 4.0 — within the 5-10s movement-feel window per yume-systems-designer.",
-    "mode": "isometric_3d",
-    "distance": 24,
-    "ortho_size": 24,
-    "lerp": 0.18
-  },
-
-  "top_down_3d": {
-    "_comment": "farming-sim-style directly-overhead camera. Smaller extent (16m) for closer-quarters action.",
-    "mode": "top_down_3d",
-    "height": 20.0,
-    "ortho_size": 16,
-    "lerp": 0.18
-  },
-
-  "third_person_default": {
-    "_comment": "Behind-shoulder follow with mouse-yaw via _drain_mouse_facing. Perspective, not orthographic. Action-adventure / MMO.",
-    "mode": "third_person_3d",
-    "distance": 12.0,
-    "height": 5.0,
-    "lerp": 0.15,
-    "mouse_sensitivity": 0.003
-  },
-
-  "fps_default": {
-    "_comment": "First-person eye-height, mouse pitch+yaw. Doom / FPS feel. Engine wires WASD-relative via velocity_set_relative when world_clock.camera_mode = first_person_3d (see input_bundles.wasd_with_fp_variant).",
-    "mode": "first_person_3d",
-    "eye_height": 1.7,
-    "mouse_sensitivity": 0.003,
-    "use_pitch": true
-  }
+ "_comment": "ADR 0027 camera presets. Per-game scene.json::camera uses `{$extends: \"@lib.cameras.NAME\", follow_tag: \"player\", ...overrides}` to inherit a preset and override fields. Each preset is a complete camera_config (per manifest.json). Engine reads `mode` then mode-specific fields \u2014 see game_shell.gd::_update_camera_follow.",
+ "iso_top_down": {
+  "_comment": "Default for tactical / city / management games. 24m visible extent crosses player frustum in 6s at speed 4.0 \u2014 within the 5-10s movement-feel window per yume-systems-designer.",
+  "mode": "isometric_3d",
+  "distance": 24,
+  "ortho_size": 24,
+  "lerp": 0.18
+ },
+ "top_down_3d": {
+  "_comment": "farming-sim-style directly-overhead camera. Smaller extent (16m) for closer-quarters action.",
+  "mode": "top_down_3d",
+  "height": 20.0,
+  "ortho_size": 16,
+  "lerp": 0.18
+ },
+ "third_person_default": {
+  "_comment": "Behind-shoulder follow with mouse yaw+pitch via _drain_mouse_facing. Perspective, not orthographic. Action-adventure / MMO. use_pitch:true so mouse-Y looks up/down (orbits the camera) by default; set false for a fixed-pitch follow.",
+  "mode": "third_person_3d",
+  "distance": 6.0,
+  "height": 3.0,
+  "lerp": 1.0,
+  "mouse_sensitivity": 0.003,
+  "distance_min": 3.0,
+  "use_pitch": true
+ },
+ "fps_default": {
+  "_comment": "First-person eye-height, mouse pitch+yaw. Doom / FPS feel. Engine wires WASD-relative via velocity_set_relative when world_clock.camera_mode = first_person_3d (see input_bundles.wasd_with_fp_variant).",
+  "mode": "first_person_3d",
+  "eye_height": 1.7,
+  "mouse_sensitivity": 0.003,
+  "use_pitch": true
+ }
 }

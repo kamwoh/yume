@@ -1,112 +1,382 @@
 {
-  "_comment": "ADR 0027 — input bundle: WASD with first-person + third-person variants. Rules: 4 world-frame (top_down_3d only) + 4 camera-relative for FPS / third-person (both use velocity_add_relative driven by state.facing) + 4 camera-relative iso (isometric_3d, facing=π/4 fixed). 2026-05-19 update: third_person_3d moved from world-frame to camera-relative — mouse-look rotates the player + camera together, so W should walk in player's facing direction (not world-north), same as FPS. Per-game rules.json splices via {$include: '@lib.input_bundles.wasd_with_fp_variant.rules'}. Action declarations under `actions` are FOR DOCUMENTATION; per-game ui/input.json still authors its own action list (the canonical InputMap declarations).",
-
+  "_comment": "ADR 0027 \u2014 input bundle: WASD with first-person + third-person variants. Rules: 4 world-frame (top_down_3d only) + 4 camera-relative for FPS / third-person (both use velocity_add_relative driven by state.facing) + 4 camera-relative iso (isometric_3d, facing=\u03c0/4 fixed). 2026-05-19 update: third_person_3d moved from world-frame to camera-relative \u2014 mouse-look rotates the player + camera together, so W should walk in player's facing direction (not world-north), same as FPS. Per-game rules.json splices via {$include: '@lib.input_bundles.wasd_with_fp_variant.rules'}. Action declarations under `actions` are FOR DOCUMENTATION; per-game ui/input.json still authors its own action list (the canonical InputMap declarations).",
   "actions": [
-    {"name": "move_north", "edge": "hold", "_doc": "W key (canonical: ui/input.json)"},
-    {"name": "move_south", "edge": "hold", "_doc": "S key"},
-    {"name": "move_east",  "edge": "hold", "_doc": "D key"},
-    {"name": "move_west",  "edge": "hold", "_doc": "A key"},
-    {"name": "stop_x",     "edge": "press", "_doc": "Engine-injected when neither move_east nor move_west is held. Per-axis idle: zero only the x component. Lets W+A (NW) → release A → keep W behavior work correctly: stop_x zeros x (was -3 from A), move_north sets y=-3, result (0, -3) = pure north."},
-    {"name": "stop_y",     "edge": "press", "_doc": "Engine-injected when neither move_north nor move_south is held. Same per-axis idle pattern."},
-    {"name": "stop",       "edge": "press", "_doc": "LEGACY full-idle stop. Engine-injected when no movement key is held AND stop_action_on_idle='stop'. New games should use stop_x + stop_y (per-axis); kept for backwards-compat."}
+    {
+      "name": "move_north",
+      "edge": "hold",
+      "_doc": "W key (canonical: ui/input.json)"
+    },
+    {
+      "name": "move_south",
+      "edge": "hold",
+      "_doc": "S key"
+    },
+    {
+      "name": "move_east",
+      "edge": "hold",
+      "_doc": "D key"
+    },
+    {
+      "name": "move_west",
+      "edge": "hold",
+      "_doc": "A key"
+    },
+    {
+      "name": "stop_x",
+      "edge": "press",
+      "_doc": "Engine-injected when neither move_east nor move_west is held. Per-axis idle: zero only the x component. Lets W+A (NW) \u2192 release A \u2192 keep W behavior work correctly: stop_x zeros x (was -3 from A), move_north sets y=-3, result (0, -3) = pure north."
+    },
+    {
+      "name": "stop_y",
+      "edge": "press",
+      "_doc": "Engine-injected when neither move_north nor move_south is held. Same per-axis idle pattern."
+    },
+    {
+      "name": "stop",
+      "edge": "press",
+      "_doc": "LEGACY full-idle stop. Engine-injected when no movement key is held AND stop_action_on_idle='stop'. New games should use stop_x + stop_y (per-axis); kept for backwards-compat."
+    }
   ],
-
   "rules": [
     {
-      "_comment": "World-frame WASD — fires when camera is NOT first_person_3d. W=north regardless of player facing. Spliced into game's rules.json rules array. Per-axis pattern (added 2026-05-10): each directional rule sets ONLY its own axis. Engine's velocity_set preserves the OTHER axis when the field is omitted, so W+D = north + east diagonal works (each rule contributes one axis; combined velocity is (3, -3) at 45°). With both axes set per rule, last-writer-wins broke diagonals.",
+      "_comment": "World-frame WASD \u2014 fires when camera is NOT first_person_3d. W=north regardless of player facing. Spliced into game's rules.json rules array. Per-axis pattern (added 2026-05-10): each directional rule sets ONLY its own axis. Engine's velocity_set preserves the OTHER axis when the field is omitted, so W+D = north + east diagonal works (each rule contributes one axis; combined velocity is (3, -3) at 45\u00b0). With both axes set per rule, last-writer-wins broke diagonals.",
       "id": "lib_wasd_move_north_world",
-      "trigger": {"type": "input", "action": "move_north"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d"]}},
-      "effect": {"type": "velocity_set", "target": "actor", "y": -3.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "top_down_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "y": -3.0
+      }
     },
     {
       "id": "lib_wasd_move_south_world",
-      "trigger": {"type": "input", "action": "move_south"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d"]}},
-      "effect": {"type": "velocity_set", "target": "actor", "y": 3.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_south"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "top_down_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "y": 3.0
+      }
     },
     {
       "id": "lib_wasd_move_east_world",
-      "trigger": {"type": "input", "action": "move_east"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d"]}},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 3.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_east"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "top_down_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 3.0
+      }
     },
     {
       "id": "lib_wasd_move_west_world",
-      "trigger": {"type": "input", "action": "move_west"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d"]}},
-      "effect": {"type": "velocity_set", "target": "actor", "x": -3.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "top_down_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": -3.0
+      }
     },
     {
-      "_comment": "STOP_X — engine queues stop_x when neither move_east nor move_west is held (per-axis idle, world.gd::_poll_input). Zeros only the x component — preserves y so a still-held W/S keeps working. Gated to world-frame cameras only: camera-relative WASD (FP/iso) uses velocity_add_relative which auto-resets per tick; running stop_x there would WIPE the camera-relative x component when only one of forward/strafe is held.",
+      "_comment": "STOP_X \u2014 engine queues stop_x when neither move_east nor move_west is held (per-axis idle, world.gd::_poll_input). Zeros only the x component \u2014 preserves y so a still-held W/S keeps working. Gated to world-frame cameras only: camera-relative WASD (FP/iso) uses velocity_add_relative which auto-resets per tick; running stop_x there would WIPE the camera-relative x component when only one of forward/strafe is held.",
       "id": "lib_wasd_stop_x",
-      "trigger": {"type": "input", "action": "stop_x"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d"]}},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0}
+      "trigger": {
+        "type": "input",
+        "action": "stop_x"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "top_down_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0
+      }
     },
     {
-      "_comment": "STOP_Y — mirror of STOP_X for the y axis (north/south). Same world-frame gate.",
+      "_comment": "STOP_Y \u2014 mirror of STOP_X for the y axis (north/south). Same world-frame gate.",
       "id": "lib_wasd_stop_y",
-      "trigger": {"type": "input", "action": "stop_y"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["top_down_3d"]}},
-      "effect": {"type": "velocity_set", "target": "actor", "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "stop_y"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "top_down_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "y": 0
+      }
     },
     {
-      "_comment": "Full-idle STOP — fires when no movement key is held AND stop_action_on_idle='stop'. Both world-frame AND camera-relative cameras use this for snap-to-stop (no camera filter needed). For camera-relative WASD: when no keys held, velocity_add_relative doesn't fire, so this rule's velocity_set is what zeroes the leftover velocity. For world-frame: redundant with stop_x+stop_y but harmless.",
+      "_comment": "Full-idle STOP \u2014 fires when no movement key is held AND stop_action_on_idle='stop'. Both world-frame AND camera-relative cameras use this for snap-to-stop (no camera filter needed). For camera-relative WASD: when no keys held, velocity_add_relative doesn't fire, so this rule's velocity_set is what zeroes the leftover velocity. For world-frame: redundant with stop_x+stop_y but harmless.",
       "id": "lib_wasd_stop",
-      "trigger": {"type": "input", "action": "stop"},
-      "query": {"tags_all": ["world_clock"]},
-      "effect": {"type": "velocity_set", "target": "actor", "x": 0, "y": 0}
+      "trigger": {
+        "type": "input",
+        "action": "stop"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ]
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": 0
+      }
     },
     {
-      "_comment": "Camera-relative WASD — fires when camera IS first_person_3d. Engine's velocity_add_relative reads actor.state.facing (mouse-driven by _camera_first_person_3d's _drain_mouse_facing) and rotates forward/strafe into world XZ. The effect AUTO-RESETS velocity on the FIRST add per sim-tick (ADR 0048): old-tick velocity never carries over, so mouse-turn-mid-walk doesn't drift; multiple input rules in the SAME tick accumulate (W+D → forward+strafe diagonal). The full-idle stop rule (lib_wasd_stop) handles snap-to-zero when no key is held.",
+      "_comment": "Camera-relative WASD \u2014 fires when camera IS first_person_3d. Engine's velocity_add_relative reads actor.state.facing (mouse-driven by _camera_first_person_3d's _drain_mouse_facing) and rotates forward/strafe into world XZ. The effect AUTO-RESETS velocity on the FIRST add per sim-tick (ADR 0048): old-tick velocity never carries over, so mouse-turn-mid-walk doesn't drift; multiple input rules in the SAME tick accumulate (W+D \u2192 forward+strafe diagonal). The full-idle stop rule (lib_wasd_stop) handles snap-to-zero when no key is held.",
       "id": "lib_wasd_move_forward_fp",
-      "trigger": {"type": "input", "action": "move_north"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["first_person_3d", "third_person_3d"]}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 3.0, "strafe": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "first_person_3d",
+            "third_person_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": "3.0 * actor.state.speed_multiplier",
+        "strafe": 0
+      }
     },
     {
       "id": "lib_wasd_move_back_fp",
-      "trigger": {"type": "input", "action": "move_south"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["first_person_3d", "third_person_3d"]}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": -3.0, "strafe": 0}
+      "trigger": {
+        "type": "input",
+        "action": "move_south"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "first_person_3d",
+            "third_person_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": "-3.0 * actor.state.speed_multiplier",
+        "strafe": 0
+      }
     },
     {
       "id": "lib_wasd_strafe_right_fp",
-      "trigger": {"type": "input", "action": "move_east"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["first_person_3d", "third_person_3d"]}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": 3.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_east"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "first_person_3d",
+            "third_person_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": 0,
+        "strafe": "3.0 * actor.state.speed_multiplier"
+      }
     },
     {
       "id": "lib_wasd_strafe_left_fp",
-      "trigger": {"type": "input", "action": "move_west"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_in": ["first_person_3d", "third_person_3d"]}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -3.0}
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_in": [
+            "first_person_3d",
+            "third_person_3d"
+          ]
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": 0,
+        "strafe": "-3.0 * actor.state.speed_multiplier"
+      }
     },
     {
-      "_comment": "ADR 0040 — Camera-relative WASD for isometric_3d. Player presses W → moves where the camera is 'looking forward' (NW in world for SE-camera-looking-NW). facing=π/4 = 45° rotates the (forward, strafe) basis to align with the camera's XZ projection. velocity_add_relative auto-resets per tick (ADR 0048) so W+D both held → contributions sum to world-N (pure -Z) → projects to screen-up-right. Speed clamp via state.max_speed normalizes the diagonal sum to walking speed.",
+      "_comment": "ADR 0040 \u2014 Camera-relative WASD for isometric_3d. Player presses W \u2192 moves where the camera is 'looking forward' (NW in world for SE-camera-looking-NW). facing=\u03c0/4 = 45\u00b0 rotates the (forward, strafe) basis to align with the camera's XZ projection. velocity_add_relative auto-resets per tick (ADR 0048) so W+D both held \u2192 contributions sum to world-N (pure -Z) \u2192 projects to screen-up-right. Speed clamp via state.max_speed normalizes the diagonal sum to walking speed.",
       "id": "lib_wasd_move_forward_iso",
-      "trigger": {"type": "input", "action": "move_north"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 3.0, "strafe": 0, "facing": 0.7853982}
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "isometric_3d"
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": 3.0,
+        "strafe": 0,
+        "facing": 0.7853982
+      }
     },
     {
       "id": "lib_wasd_move_back_iso",
-      "trigger": {"type": "input", "action": "move_south"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": -3.0, "strafe": 0, "facing": 0.7853982}
+      "trigger": {
+        "type": "input",
+        "action": "move_south"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "isometric_3d"
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": -3.0,
+        "strafe": 0,
+        "facing": 0.7853982
+      }
     },
     {
       "id": "lib_wasd_strafe_right_iso",
-      "trigger": {"type": "input", "action": "move_east"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": 3.0, "facing": 0.7853982}
+      "trigger": {
+        "type": "input",
+        "action": "move_east"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "isometric_3d"
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": 0,
+        "strafe": 3.0,
+        "facing": 0.7853982
+      }
     },
     {
       "id": "lib_wasd_strafe_left_iso",
-      "trigger": {"type": "input", "action": "move_west"},
-      "query": {"tags_all": ["world_clock"], "state": {"camera_mode_eq": "isometric_3d"}},
-      "effect": {"type": "velocity_add_relative", "target": "actor", "forward": 0, "strafe": -3.0, "facing": 0.7853982}
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "query": {
+        "tags_all": [
+          "world_clock"
+        ],
+        "state": {
+          "camera_mode_eq": "isometric_3d"
+        }
+      },
+      "effect": {
+        "type": "velocity_add_relative",
+        "target": "actor",
+        "forward": 0,
+        "strafe": -3.0,
+        "facing": 0.7853982
+      }
     }
   ]
 }

@@ -75,9 +75,21 @@ DATA_FOLDER="demo_${GAME_NAME}"
 
 YUME_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE_SRC="${YUME_ROOT}/godot"
-# Override via env vars: YUME_TEMPLATE_DST, YUME_GODOT_BIN.
+# Override via env vars: YUME_TEMPLATE_DST, YUME_GODOT_BIN, YUME_USERDATA.
+# (The defaults below are the original author's WSL→Windows layout; set the
+#  env vars for your own machine — see README/INSTALLATION.)
 TEMPLATE_DST="${YUME_TEMPLATE_DST:-/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate}"
 GODOT_BIN="${YUME_GODOT_BIN:-/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe}"
+
+# Where Godot resolves user:// → on WSL→Windows that's
+# %APPDATA%/Godot/app_userdata/<ProjectName>. Derive the Windows user from
+# TEMPLATE_DST (so overriding YUME_TEMPLATE_DST auto-follows), fall back to
+# $USER; the project name comes from project.godot (default "Yume Framework").
+# Override the whole base directly with YUME_USERDATA.
+WIN_USER="$(printf '%s' "$TEMPLATE_DST" | sed -n 's#^/mnt/c/Users/\([^/]*\)/.*#\1#p')"
+WIN_USER="${WIN_USER:-$USER}"
+YUME_PROJECT_NAME="${YUME_PROJECT_NAME:-Yume Framework}"
+USERDATA_DST="${YUME_USERDATA:-/mnt/c/Users/${WIN_USER}/AppData/Roaming/Godot/app_userdata/${YUME_PROJECT_NAME}}"
 
 # Sanity checks
 if [ ! -d "${TEMPLATE_SRC}/data/${DATA_FOLDER}" ]; then
@@ -162,7 +174,7 @@ if [ -n "$RECORD_PATH" ]; then
   REC_PARENT_WSL=""
   if [[ "$RECORD_PATH" == user://* ]]; then
     REL="${RECORD_PATH#user://}"
-    REC_PARENT_WSL="/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework/$(dirname "${REL}")"
+    REC_PARENT_WSL="${USERDATA_DST}/$(dirname "${REL}")"
   elif [[ "$RECORD_PATH" == /mnt/* ]]; then
     REC_PARENT_WSL="$(dirname "$RECORD_PATH")"
   fi
@@ -190,7 +202,7 @@ if [ -n "$CAPTURE_DELAY" ]; then
   # Resolve user:// → %APPDATA% on Windows
   if [[ "$REAL_OUTPUT" == user://* ]]; then
     REL="${REAL_OUTPUT#user://}"
-    REAL_OUTPUT="/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework/${REL}"
+    REAL_OUTPUT="${USERDATA_DST}/${REL}"
   fi
   if [ -f "$REAL_OUTPUT" ]; then
     echo "[play.sh] captured: ${REAL_OUTPUT}"
@@ -203,7 +215,7 @@ if [ -n "$RECORD_PATH" ]; then
   REAL_REC="$RECORD_PATH"
   if [[ "$REAL_REC" == user://* ]]; then
     REL="${REAL_REC#user://}"
-    REAL_REC="/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework/${REL}"
+    REAL_REC="${USERDATA_DST}/${REL}"
   fi
   if [ -f "$REAL_REC" ]; then
     SIZE=$(du -h "$REAL_REC" | cut -f1)

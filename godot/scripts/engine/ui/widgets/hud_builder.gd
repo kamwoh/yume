@@ -85,19 +85,52 @@ func build(hud_cfg: Dictionary) -> void:
 		_apply_label_style(hl, 14, Color(0.9, 0.95, 1, 0.85))
 		root.add_child(hl)
 
-	# Win / lose panel (hidden until triggered)
+	# Win / lose panel (hidden until triggered). Geometry + style are
+	# data-driven from the hud.json win/lose block — EVERYTHING configurable
+	# (2026-06-06). Optional keys on `win` (or `lose` if win absent):
+	#   panel_width (520), panel_height (240), font_size (28),
+	#   text_color ("#fff2b3"), panel_color (default theme), inset (16).
+	# Defaults reproduce the previous hardcoded look.
+	var wl: Dictionary = {}
+	if hud_cfg.get("win") is Dictionary:
+		wl = hud_cfg["win"]
+	elif hud_cfg.get("lose") is Dictionary:
+		wl = hud_cfg["lose"]
+	var pw := float(wl.get("panel_width", 520))
+	var ph := float(wl.get("panel_height", 240))
+	var fs := int(wl.get("font_size", 28))
+	var inset := float(wl.get("inset", 16))
+	var tcol := _color_or(wl.get("text_color", null), Color(1, 0.95, 0.7, 1))
+
 	_win_panel = Panel.new()
 	_win_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_win_panel.size = Vector2(520, 240)
-	_win_panel.position = Vector2(-260, -120)
+	_win_panel.size = Vector2(pw, ph)
+	_win_panel.position = Vector2(-pw * 0.5, -ph * 0.5)
 	_win_panel.visible = false
+	# Optional panel background color (StyleBoxFlat); omit → engine theme.
+	if wl.has("panel_color"):
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = _color_or(wl.get("panel_color"), Color(0.1, 0.1, 0.12, 0.92))
+		sb.set_corner_radius_all(8)
+		_win_panel.add_theme_stylebox_override("panel", sb)
 	root.add_child(_win_panel)
 
 	_win_label = Label.new()
+	# Inset the label inside the panel so wrapped text doesn't kiss the edges.
 	_win_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_win_label.offset_left = inset
+	_win_label.offset_top = inset
+	_win_label.offset_right = -inset
+	_win_label.offset_bottom = -inset
 	_win_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_win_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_apply_label_style(_win_label, 28, Color(1, 0.95, 0.7, 1))
+	# Wrap long win/lose messages instead of overflowing the panel
+	# (2026-06-06: "You gathered all three lost lanterns before nightfall."
+	# ran off both edges at font 28 in the 520px panel). WORD_SMART keeps
+	# words intact; the label clips to the inset rect as a backstop.
+	_win_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_win_label.clip_text = true
+	_apply_label_style(_win_label, fs, tcol)
 	_win_panel.add_child(_win_label)
 
 
@@ -397,6 +430,16 @@ static func _color(v) -> Color:
 	if v is String:
 		return Color(v as String)
 	return Color.WHITE
+
+
+## Like _color but null/invalid → the supplied default (not white). Used by
+## the data-driven win/lose panel where omitted fields keep their defaults.
+static func _color_or(v, fallback: Color) -> Color:
+	if v is Color:
+		return v
+	if v is String and (v as String) != "":
+		return Color(v as String)
+	return fallback
 
 
 ## Dynamic-POV crosshair positioning (task #106). When camera_mode is

@@ -11,18 +11,13 @@ Pure stdlib + numpy + PIL — no scipy.
 
 Vocabulary (mirrors data/lib/extraction_strategies.json):
   extraction_method: single_instance / cluster_extract / snap_to_anchor /
-                     scatter_in_mask / polygon_decompose / llm_gestalt
+                     scatter_in_mask / polygon_decompose / skeleton_polyline /
+                     instance_per_component / require_adjacent
   rotation_rule:     no_rotation / face_nearest_road / face_anchor /
-                     along_tangent / perpendicular_to_water / random_seeded
+                     along_tangent / perpendicular_to_water / random_seeded /
+                     edge_aligned
   y_anchor:          heightmap_sample / water_level / anchor_floor / constant
   primitive:         prim_unit_box / prim_unit_cylinder / prim_unit_sphere
-
-Task #136 ships: single_instance, cluster_extract, snap_to_anchor,
-                  scatter_in_mask + all rotation rules EXCEPT
-                  along_tangent (lives in polygon_decompose, task #137)
-                  + all y_anchors EXCEPT anchor_floor (deferred).
-Task #137 adds:  polygon_decompose + along_tangent.
-Task #138 adds:  llm_gestalt.
 """
 from __future__ import annotations
 
@@ -291,23 +286,11 @@ def extract_class(
             image_size=image_size, world_size_m=world_size_m,
             sampler=sampler, anchors=anchors, rng=rng,
         )
-    if method == "llm_gestalt":
-        from tools.visual_layout.lib_extract_llm import gestalt_extract
-        if semantic_map_path is None:
-            import sys
-            print(
-                f"[lib_extract_dispatch] llm_gestalt needs semantic_map_path; "
-                f"passing through dispatch_extraction. Skipping '{name}'.",
-                file=sys.stderr,
-            )
-            return []
-        return gestalt_extract(
-            class_entry=class_entry,
-            semantic_map_path=semantic_map_path,
-            image_size=image_size,
-            world_size_m=world_size_m,
+    if method == "skeleton_polyline":
+        return _extract_skeleton_polyline(
+            name=name, mask=mask, class_entry=class_entry,
+            image_size=image_size, world_size_m=world_size_m,
             sampler=sampler,
-            anchors=anchors,
         )
     if method == "require_adjacent":
         # Bridge-style strategy: only extract instances of THIS class
@@ -882,6 +865,145 @@ def _emit_edge_box(
         front_axis=strategy.get("canonical_front_axis", "+X"),
         scale=[length_m, height_m, thickness_m],
     )
+
+
+def _extract_skeleton_polyline(*, name, mask, class_entry, image_size,
+                               world_size_m, sampler):
+    """Skeleton-based polyline extraction — for THIN linear structures
+    (fences, roads, walls, hedges) the LLM might draw as either a clean
+    line OR a shaded zone. Algorithm:
+
+      1. Skeletonize the binary mask (skimage) → 1-pixel-wide medial axis
+         — collapses any shaded zone down to its centerline.
+      2. Trace the skeleton: start from endpoints (degree-1 pixels), walk
+         the connected path one neighbor at a time, building a polyline
+         per connected branch. Cycles (closed-loop fences) trace from any
+         starting pixel in the cycle.
+      3. Ramer-Douglas-Peucker simplify each polyline (eps from strategy).
+      4. Emit one rotated unit_box per polyline edge — same downstream
+         logic as polygon_decompose.
+
+    Compared to polygon_decompose (traces the CONTOUR of the blob), this
+    is the right method when the LLM might render a fence as a fat band
+    rather than a thin line — the skeleton's centerline is invariant to
+    the band's width, so we get ONE chain instead of multiple parallel
+    polylines.
+
+    2026-05-29.
+    """
+    from skimage.morphology import skeletonize as _skel
+    strategy = class_entry["strategy"]
+    eps_px = float(strategy.get("simplify_tolerance_px", 4.0))
+    min_skeleton_len = int(strategy.get("min_skeleton_len_px", 6))
+
+    bool_mask = mask.astype(bool)
+    if bool_mask.sum() == 0:
+        return []
+    skel = _skel(bool_mask)
+    polylines = _trace_skeleton(skel)
+    # Filter tiny noise polylines
+    polylines = [p for p in polylines if len(p) >= min_skeleton_len]
+    if not polylines:
+        return []
+
+    out: list[dict] = []
+    idx = 0
+    for poly in polylines:
+        # poly is a list of (x, y) pixel coords
+        simplified = _rdp(poly, eps_px)
+        if len(simplified) < 2:
+            continue
+        for i in range(len(simplified) - 1):
+            a = simplified[i]
+            b = simplified[i + 1]
+            out.append(_emit_edge_box(
+                name=name, idx=idx, a_px=(a[0], a[1]), b_px=(b[0], b[1]),
+                class_entry=class_entry, image_size=image_size,
+                world_size_m=world_size_m, sampler=sampler,
+            ))
+            idx += 1
+    return out
+
+
+def _trace_skeleton(skel: np.ndarray) -> list[list[tuple[int, int]]]:
+    """Walk a 1-pixel binary skeleton into polylines. Endpoints (degree=1)
+    seed forward traces; remaining unvisited pixels (cycles) seed their
+    own traces. Branches at junctions (degree>=3) split into separate
+    polylines (each junction-to-junction segment is one polyline).
+
+    Returns list of polylines, each a list of (x, y) pixel coords.
+    """
+    H, W = skel.shape
+    visited = np.zeros((H, W), dtype=bool)
+
+    def neighbors(y, x):
+        out = []
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy == 0 and dx == 0:
+                    continue
+                ny, nx = y + dy, x + dx
+                if 0 <= ny < H and 0 <= nx < W and skel[ny, nx]:
+                    out.append((ny, nx))
+        return out
+
+    def degree(y, x):
+        return len(neighbors(y, x))
+
+    ys, xs = np.where(skel)
+    polylines: list[list[tuple[int, int]]] = []
+
+    # Pass 1: trace from endpoints (degree 1)
+    for k in range(len(ys)):
+        y0, x0 = int(ys[k]), int(xs[k])
+        if visited[y0, x0]:
+            continue
+        if degree(y0, x0) != 1:
+            continue
+        poly: list[tuple[int, int]] = []
+        cy, cx = y0, x0
+        while True:
+            poly.append((cx, cy))
+            visited[cy, cx] = True
+            nxt = None
+            for ny, nx in neighbors(cy, cx):
+                if not visited[ny, nx]:
+                    nxt = (ny, nx)
+                    break
+            if nxt is None:
+                break
+            # Stop at junction so each junction-to-junction is its own polyline
+            if degree(nxt[0], nxt[1]) > 2:
+                poly.append((nxt[1], nxt[0]))
+                visited[nxt[0], nxt[1]] = False  # keep junction available
+                break
+            cy, cx = nxt
+        if len(poly) >= 2:
+            polylines.append(poly)
+
+    # Pass 2: any unvisited skeleton pixels are inside cycles or
+    # junction-to-junction segments. Trace one from each unvisited.
+    for k in range(len(ys)):
+        y0, x0 = int(ys[k]), int(xs[k])
+        if visited[y0, x0]:
+            continue
+        poly = []
+        cy, cx = y0, x0
+        while True:
+            poly.append((cx, cy))
+            visited[cy, cx] = True
+            nxt = None
+            for ny, nx in neighbors(cy, cx):
+                if not visited[ny, nx]:
+                    nxt = (ny, nx)
+                    break
+            if nxt is None:
+                break
+            cy, cx = nxt
+        if len(poly) >= 2:
+            polylines.append(poly)
+
+    return polylines
 
 
 def _extract_polygon_decompose(*, name, mask, class_entry, label_map, palette,

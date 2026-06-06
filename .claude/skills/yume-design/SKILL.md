@@ -35,6 +35,7 @@ Turn a prose game description into a runnable Yume game.
 /yume-design <prose description of the game>
 /yume-design "a farming sim where moonlight grows crops faster" --style=pixel-art --name=<your-game>
 /yume-design "a roguelike where vampires steal HP from light sources" --with-assets
+/yume-design "explore a fortified river town and collect 5 lost relics" --scene --with-assets
 ```
 
 Args (parsed from the user's prompt after `/yume-design`):
@@ -44,8 +45,31 @@ Args (parsed from the user's prompt after `/yume-design`):
   Defaults to user-stated preference in prose, else `pixel-art`.
 - `--name=<slug>` — game folder name. Defaults to a slug derived from
   the prose (auto-suggest: ask user to confirm).
-- `--with-assets` — invoke AI-gen pipeline at the end. Default: skip.
-  Without this flag, code-draw fallback is used.
+- `--scene` — generate a 3D **world** for the game first (the World
+  layer, via `compose_world`): a semantic-map + heightmap-driven map
+  with biome ground, water, and placed environment props. The game's
+  mechanics then layer ONTO that world. Default: no generated world
+  (the game owns its own flat scene). **Needs `OPENAI_API_KEY`** — if
+  absent, the flag is DROPPED (graceful degrade to a flat code-draw
+  scene + a warning), never a crash. See Phase 0 step 2a.
+- `--with-assets` — after the game is built, auto-run the AI asset
+  pipeline (`tools.yume_assetgen`) to replace code-draw visuals with
+  generated textures + meshes. Default: skip (code-draw fallback).
+  **Needs an image key + `TRIPO_API_KEY`** — if absent, the flag is
+  DROPPED (graceful degrade to code-draw visuals + a warning).
+
+> **No API keys? You still get a game.** The no-flag path is fully
+> key-free (code-drawn shapes). `--scene`/`--with-assets` are
+> best-effort: present keys → used; absent → dropped with a warning,
+> and you fall back to the code-draw game. Nothing hard-fails for lack
+> of a key (Phase 0 step 2a).
+
+> **The three layers (ADR 0067).** A game is **World** (the 3D stage,
+> `--scene`) + **Game** (mechanics, always) + **Assets** (the look,
+> `--with-assets`). Each layer writes only its own files, so they
+> compose without clobbering. Default (no flags) = a key-free
+> code-drawn single-player game. See the per-layer file-ownership
+> table in Phase W below.
 
 ## What I do when invoked
 
@@ -70,11 +94,84 @@ shot, surfacing only on hard failure or at the final wrap. Default
 ### Phase 0 — Setup (no skill load)
 
 1. Parse the prose + flags. Detect `--autonomous`, `--name=<slug>`,
-   `--style=<value>`, `--with-assets`.
+   `--style=<value>`, `--scene`, `--with-assets`.
 2. Auto-suggest a `<name>` slug from the prose (a 1-2 syllable
    shorthand of the genre + theme) if `--name=` not given.
-3. State the plan: paths, phases, autonomous-or-interactive mode.
+2a. **API-key precheck (graceful degrade — NO crash without keys).**
+   The gen flags need keys; the DEFAULT path needs none. Before
+   running, check env and drop any flag whose key is missing, with a
+   clear one-line warning — never hard-fail into a mid-pipeline crash:
+
+   | Flag | Needs | If missing |
+   |---|---|---|
+   | `--scene` | `OPENAI_API_KEY` (gpt-image-2 for the semantic map + heightmap) | DROP `--scene` → the game uses a flat code-draw scene. Warn: "no OPENAI_API_KEY → skipping --scene (flat code-draw scene). Set the key for a generated 3D world." (Exception: a scene already on disk → keep `--scene` and run `compose_scene --skip-gen` to reuse the maps key-free.) |
+   | `--with-assets` | an image key (`OPENAI_API_KEY` or `GEMINI_API_KEY`) **and** `TRIPO_API_KEY` (meshes) | DROP `--with-assets` → keep code-draw visuals. Warn: "no image/Tripo keys → skipping --with-assets (code-draw visuals). Set OPENAI_API_KEY + TRIPO_API_KEY for generated textures + meshes." |
+
+   The no-flag path is **always key-free** (code-drawn shapes via
+   `data/shapes.json`) — that is the fallback. Degrading to it must be
+   loud (the warning) but non-fatal. In interactive mode, surface the
+   degrade in the plan and let the user re-run with keys; autonomous
+   proceeds degraded.
+3. State the plan: paths, phases (Phase W only if `--scene` SURVIVED
+   the precheck; Phase A only if `--with-assets` survived),
+   autonomous-or-interactive mode.
 4. Interactive mode: wait for explicit go-ahead. Autonomous: proceed.
+
+### Phase W — World (only if `--scene`) — the 3D stage
+
+Run BEFORE the game phases so the mechanics can layer onto a real
+world. This is the **World layer** of ADR 0067 — the 3D scene PLUS the
+default walk "play mode" (player + camera + movement). It reuses the
+`/yume-create-scene` pipeline's `compose_world` (scene) **and**
+`compose_shell` (the walkable explorer shell). See
+`.claude/skills/yume-create-scene/SKILL.md` § "Used as the World layer."
+
+1. Author the class catalog (the one LLM-in-the-loop step): invoke
+   `yume-scene-class-catalog` on the prose → `/tmp/_class_catalog.json`.
+   The catalog's scene brief is derived from the game's SETTING in the
+   prose (the town, the dungeon, the forest), NOT its mechanics. The
+   game's collectibles / NPCs / interactables are GAME-layer entities —
+   keep them OUT of the catalog.
+2. Run the scene pipeline (image gen → semantic map → heightmap →
+   extract → scene + walk shell):
+   ```bash
+   python3 -m tools.visual_layout.compose_scene <name> \
+       --catalog /tmp/_class_catalog.json
+   ```
+   This runs `compose_world` (scene: `scene.json` ground/water,
+   `entities/auto_gen.json` defs + flat placements) **+ `compose_shell`**
+   (the walk play mode: player `player_input_anchor` tagged `player`,
+   third-person camera written into `scene.json`, `world/rules/10–13_shell_*`
+   walk/jump/sprint, `ui/input.json`, the `.tscn`). Add `--skip-gen` to
+   reuse existing maps; do NOT pass `--assets` (Phase A runs
+   `yume_assetgen` once, after the game's asset-designer).
+   **Non-walk game** (shooter, top-down RTS): pass `--no-shell` instead,
+   and the game's systems-designer authors its own movement+camera.
+3. The World layer now owns these files — **the Game phases below must
+   NOT overwrite them** (this is the entire anti-clobber contract):
+
+   | File | Owner | Game phases must… |
+   |---|---|---|
+   | `scene.json` | **World** (compose_world ground/lighting + compose_shell camera) | NOT write it |
+   | `entities/auto_gen.json` | **World** (map prop defs + placements) | NOT touch; game writes a separate `entities/<slug>.json` |
+   | `entities/player.json`, `world_clock.json`, `cameras.json`, `shell_singletons.json` | **World** (shell) | NOT overwrite; REUSE the `player`-tagged player |
+   | `world/rules/10–13_shell_*.json` | **World** (shell walk/camera) | leave for walk games; REPLACE only for non-walk movement |
+   | `screens.json` | **World** (shell H-help overlay: controls + `world.objective`, toggled by `toggle_help`/H via `global_inputs`) | a game with its OWN screens APPENDS to `screens` + keeps `global_inputs` — don't overwrite. Set `world_state.objective` (via `world/state.json` `{"state":{...}}` or `state_set target=world`) so it shows in help. |
+   | `world/road_graph.json` | **World** | read-only |
+   | `assets/{layouts,textures}/` | **World** | read-only |
+   | `ui/input.json` | **World** (shell) | EXTEND (add game actions), don't clobber the shell's |
+
+   No `levels/`, `game/flow.json`, or `world/state.json` — `compose_world`
+   is scene-only + flat (ADR 0067). The engine globs `entities/*.json` +
+   `world/rules/*.json` and merges by id, so the game's
+   `entities/<slug>.json` (collectibles/NPCs/game-state singleton) and
+   extra `world/rules/*.json` (mechanics) spawn INTO the flat scene for
+   free — provided ids are disjoint from the map's `<class>_NNN` ids and
+   the shell's singleton ids.
+
+4. **No `--scene`?** Skip this phase entirely; the game owns a flat
+   scene as before (the content/asset phases write `scene.json` normally;
+   `game/flow.json` only if multi-level).
 
 ### Phase 0a — Multi-level detection
 
@@ -368,6 +465,18 @@ placements + world state. Rules are NOT written here.
     games), under `data/demo_<name>/`.
 14. Interactive: show file summary, ask approval. Autonomous: proceed.
 
+> **`--scene` ownership guard (ADR 0067).** When Phase W ran (walk
+> shell), the **player + camera + movement already exist** from the
+> shell (`player_input_anchor`, tagged `player`) — do NOT author a
+> player; the game's contact/interaction rules query the `player` tag.
+> Write the game's OWN entities (collectibles, NPCs, interactables, a
+> `game_state` singleton) with their `initial_instances` to
+> **`entities/<slug>.json`** — NOT to `entities/auto_gen.json` or the
+> shell's `entities/{player,world_clock,cameras,shell_singletons}.json`.
+> Put game-global state in the `game_state` singleton (not
+> `world/state.json`). Entity ids must not collide with the map's
+> `<class>_NNN` ids or the shell singleton ids.
+
 ### Phase 3.5 — game-rules-designer (HUD win/lose + flow) — NARROWED scope
 
 Post-ADR-0009-revision (2026-05-16), this phase covers only the
@@ -385,6 +494,12 @@ yume-systems-designer scope.
     For sandbox sims (no goals, single-level), this phase is SKIPPED.
 17. Interactive: show decisions, ask approval. Autonomous: proceed.
 
+> **`--scene` ownership guard (ADR 0067).** When Phase W ran, do NOT
+> write `game/flow.json` — the World owns it (a single `level_default`).
+> Win/lose blocks in `hud.json` are fine (game-owned); just reference
+> `level_default` as the level id. A `--scene` game is single-level by
+> construction (the generated world is one map).
+
 ### Phase 4 — asset-designer (visuals + audio + UI strings)
 
 Per ADR 0009 expanded scope: also writes audio/cues.json + ui/strings.json.
@@ -396,6 +511,39 @@ Per ADR 0009 expanded scope: also writes audio/cues.json + ui/strings.json.
     `ui/strings.json` (localizable HUD text), and `asset_gen.json` if
     `--with-assets`.
 20. Interactive: show visual + audio + string choices, ask approval. Autonomous: proceed.
+
+> **`--scene` ownership guard (ADR 0067).** When Phase W ran, do NOT
+> write `scene.json` — the World owns the camera/lighting/ground/tick.
+> Set `entity.visual.*` on the game's own defs only; the map props keep
+> their World-authored visuals. (If the game needs a specific camera
+> mode the world didn't set, surface it — don't silently overwrite the
+> world's `scene.json`.)
+
+### Phase A — Assets (only if `--with-assets`) — generate the look
+
+Run AFTER the asset-designer wrote `asset_gen.json` (which scans the
+defs' `*_prompt` fields) and BEFORE QA, so the visual gate captures the
+generated look, not the code-draw placeholders. This is the **Assets
+layer** of ADR 0067 — it patches `visual.*` on existing defs in place;
+it writes no new content files.
+
+```bash
+python3 -m tools.yume_assetgen <name>          # reads data/demo_<name>/asset_gen.json
+```
+
+- Generates textures (gpt-image-2 / nanobanana) + meshes (tripo3d) per
+  the manifest, writes them under `assets/generated/`, and patches each
+  def's `visual.albedo_texture` / `visual.model_3d` to the new
+  `res://…` paths. (`--dry-run` to preview the plan; `--init` to scaffold
+  a manifest.) See `tools/yume_assetgen/README.md`.
+- Generated assets use **versioned filenames** and are **never deleted
+  or committed** (gitignored, paid artifacts — memory:
+  never-delete / never-commit). Iterate by adding a variant suffix.
+- After patching, the NEXT phase must `--headless --import` before
+  capture (Godot errors "No loader found" otherwise — memory:
+  always-import-after-new-assets).
+- **No `--with-assets`?** Skip; the code-draw visuals from Phase 4 ship
+  as-is (the key-free default path).
 
 ### Phase 5 — qa-tester (verify)
 

@@ -251,7 +251,10 @@ func _load_glb_mesh(path: String, visual: Dictionary, ent: Entity) -> void:
 	# Tripo/most exporters center the mesh in an arbitrary bbox (e.g.
 	# 2×2×2 at origin); without this it'd render mis-sized + half-buried.
 	# Animated meshes (player) are authored to their scale + pivot — skip.
-	if ap == null:
+	# `visual.normalize: false` ALSO skips it — for a pre-authored world
+	# mesh (e.g. an imported city/terrain) that must render at its NATIVE
+	# scale + origin so a matching trimesh collider aligns 1:1. ADR 0062.
+	if ap == null and bool(visual.get("normalize", true)):
 		_normalize_glb(norm, imported)
 
 	_apply_shadow_only_if_set(visual)

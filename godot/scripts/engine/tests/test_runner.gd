@@ -66,6 +66,8 @@ func _ready() -> void:
 	test_nameplate_filters_named_npc_tag()
 	test_nameplate_picks_display_name_over_id()
 	test_lib_resolver()
+	test_global_input_toggle_edge()
+	test_collider_matches_mesh()
 	test_schedule_primitive()
 	test_animation_primitive()
 	test_lifecycle_primitive()
@@ -4273,6 +4275,27 @@ func test_lib_resolver() -> void:
 		"resolved dict carries _origin"
 	)
 
+	# === Test 1b: third-person pitch is UNLOCKED by default (gate) ===
+	# Post-mortem 2026-06-06: third-person shipped pitch-frozen because
+	# `use_pitch` defaulted false AND the third_person_default preset
+	# didn't set it → mouse-Y couldn't look up/down. Gate: the shipped
+	# third-person preset must enable pitch (use_pitch != false). Mirrors
+	# the engine default (_drain_mouse_facing now defaults use_pitch=true).
+	# Read the REAL cameras.json (not via the seeded LibResolver cache).
+	var cam_f := FileAccess.open("res://data/lib/cameras.json", FileAccess.READ)
+	expect_eq(cam_f != null, true, "data/lib/cameras.json opens")
+	if cam_f != null:
+		var cam_lib = JSON.parse_string(cam_f.get_as_text())
+		var tp: Dictionary = (cam_lib as Dictionary).get("third_person_default", {})
+		expect_eq(str(tp.get("mode")), "third_person_3d", "third_person preset present")
+		# get("use_pitch", true) mirrors _drain_mouse_facing's default; the
+		# preset must not ship it as false (would re-lock the pitch).
+		expect_eq(
+			bool(tp.get("use_pitch", true)),
+			true,
+			"third-person pitch unlocked by default (use_pitch not false)"
+		)
+
 	# === Test 2: $extends shallow merge ===
 	_section("lib_resolver.test_extends_shallow_merge")
 	var t2_in = {"$extends": "@lib.cameras.iso_top_down", "follow_tag": "player", "ortho_size": 30}
@@ -4457,6 +4480,90 @@ func test_lib_resolver() -> void:
 
 	# Cleanup
 	LibResolver.reset_cache_for_test()
+
+
+## Gate (post-mortem 2026-06-06): the shell H-help screen OPENED but
+## would NOT close. Cause: screen_flow._handle_global_inputs updated the
+## per-action press-edge state PER ENTRY, so when two global_inputs share
+## one action (the paired-if_screen toggle: open when if_screen="", close
+## when if_screen="X"), the first entry consumed the edge and the close
+## half never fired. Fix: _compute_action_edges computes the edge ONCE per
+## action. This test pins that: a same-action toggle pair must report a
+## single edge=true on press, false while held, true again on re-press —
+## independent of how many entries reference the action.
+func test_global_input_toggle_edge() -> void:
+	_section("screen_flow.global_input_toggle_edge (2026-06-06)")
+	if not InputMap.has_action("toggle_help"):
+		InputMap.add_action("toggle_help")
+	var sf := ScreenFlow.new()
+	# Two entries, SAME action — the toggle pattern that exposed the bug.
+	var globals: Array = [
+		{"action": "toggle_help", "if_screen": ""},
+		{"action": "toggle_help", "if_screen": "help"},
+	]
+	# Frame 1 — key down, no prior state → edge fires ONCE for the action.
+	sf._pressed_lookup = {"toggle_help": true}
+	var e1: Dictionary = sf._compute_action_edges(globals)
+	expect_eq(bool(e1.get("toggle_help")), true, "press → edge true (open half can fire)")
+	# Frame 2 — key still held → no edge (prevents repeat-fire each frame).
+	var e2: Dictionary = sf._compute_action_edges(globals)
+	expect_eq(bool(e2.get("toggle_help")), false, "held → no edge")
+	# Frame 3 — released.
+	sf._pressed_lookup = {"toggle_help": false}
+	var e3: Dictionary = sf._compute_action_edges(globals)
+	expect_eq(bool(e3.get("toggle_help")), false, "release → no edge")
+	# Frame 4 — pressed again → edge fires again (close half can now fire).
+	sf._pressed_lookup = {"toggle_help": true}
+	var e4: Dictionary = sf._compute_action_edges(globals)
+	expect_eq(
+		bool(e4.get("toggle_help")),
+		true,
+		"re-press → edge true again (close half fires; was the bug)"
+	)
+	sf.free()
+
+
+## GUARDRAIL (post-mortem 2026-06-06): a `from_visual_mesh` box collider must
+## SHRINK-WRAP to the entity's visual .glb — proportions from the mesh bbox,
+## height = state.scale's Y, base on the ground, yaw = state.yaw + offset —
+## mirroring EntityMesh3D's normalize + uniform-height scale + yaw. The
+## collider-vs-mesh mismatch recurred because a PROSE invariant ("derive from
+## mesh") wasn't ENFORCED + the collider used a canonical guess. This test is
+## the enforced gate: if the collider sizing/rotation drifts from the rendered
+## mesh again, it FAILS. If you change EntityMesh3D's placement math, update
+## _shrinkwrap_box_to_visual + this test together.
+func test_collider_matches_mesh() -> void:
+	_section("collider_matches_mesh (2026-06-06 guardrail)")
+	var glb := "res://data/lib/assets/meshes/primitive_humanoid_capsule.glb"
+	if not ResourceLoader.exists(glb):
+		expect_eq(true, true, "skip — lib primitive .glb missing")
+		return
+	var bb: AABB = PhysicsBodyBuilder._glb_bbox(glb)
+	expect_eq(bb.size.y > 0.0, true, "mesh bbox has positive height")
+	var def := {
+		"id": "test_prop", "tags": ["prop"], "properties": {},
+		"state_init": {"scale": [1.0, 2.0, 1.0], "yaw": 0.5},
+		"visual": {"mesh": glb},
+	}
+	var ent := Entity.create(def, "test_prop_1")
+	# Deliberately WRONG fallback size — the shrink-wrap MUST override it.
+	var cfg := {"type": "box", "from_visual_mesh": true,
+				"size": [9.0, 9.0, 9.0], "offset": [0.0, 4.0, 0.0]}
+	var out: Dictionary = PhysicsBodyBuilder._shrinkwrap_box_to_visual(cfg, ent)
+	var sz = out.get("size", [0, 0, 0])
+	var off = out.get("offset", [0, 0, 0])
+	var h := 2.0  # state.scale Y
+	var want_w := bb.size.x / bb.size.y * h
+	var want_d := bb.size.z / bb.size.y * h
+	expect_eq(abs(float(sz[1]) - h) < 0.001, true, "collider height == state.scale.y")
+	expect_eq(abs(float(sz[0]) - want_w) < 0.001, true, "collider width == mesh proportion × height")
+	expect_eq(abs(float(sz[2]) - want_d) < 0.001, true, "collider depth == mesh proportion × height")
+	expect_eq(abs(float(off[1]) - h * 0.5) < 0.001, true, "box base on the ground (offset y = h/2, TIGHT)")
+	expect_eq(float(sz[1]) != 9.0, true, "fallback canonical size was OVERRIDDEN by the mesh-derived box")
+	# Yaw must mirror EntityMesh3D._sync_yaw (state.yaw + mesh_yaw_offset).
+	expect_eq(abs(PhysicsBodyBuilder._entity_yaw(ent) - 0.5) < 0.001, true,
+		"collider yaw == state.yaw (rotates with the mesh)")
+	ent.free()
 
 
 # ============================================================

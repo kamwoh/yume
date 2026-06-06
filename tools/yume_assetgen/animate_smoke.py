@@ -77,7 +77,15 @@ ENTITIES: dict[str, dict] = {
     "player_marken": {
         "source_file": "entities/player.json",
         "rig_type": "biped",
-        "clips": ["preset:idle", "preset:walk"],
+        "clips": ["preset:idle", "preset:walk", "preset:run", "preset:jump"],
+        # First-match-wins, top-to-bottom; `default` MUST be last. jump gates
+        # on airborne (on_floor==0), run on sprint speed (walk≈3.0, sprint≈5.4).
+        "animation_state_rules": [
+            {"if_state_eq": {"on_floor": 0}, "state": "jump"},
+            {"if_velocity_gt": 4.5, "state": "run"},
+            {"if_velocity_gt": 0.1, "state": "walk"},
+            {"default": "idle"},
+        ],
         "ref_prompt": (
             "young adult farmer villager in T-POSE for 3D model rigging, "
             "arms straight out horizontal to the sides palms facing down, "
@@ -143,6 +151,14 @@ def main() -> int:
     cfg_entity = ENTITIES[entity_id]
     rig_type = cfg_entity["rig_type"]
     clips = cfg_entity["clips"]
+    # Engine-side clip names derived from the preset ids (preset:run → "run")
+    # so the rename list always matches the clip list length + order — no
+    # global constant to drift out of sync per entity.
+    engine_clip_names = [c.split(":")[-1] for c in clips]
+    state_rules = cfg_entity.get("animation_state_rules", [
+        {"if_velocity_gt": 0.1, "state": "walk"},
+        {"default": "idle"},
+    ])
     full_body_ref_prompt = cfg_entity["ref_prompt"]
     full_body_mesh_prompt = cfg_entity["mesh_prompt"]
 
@@ -360,10 +376,10 @@ def main() -> int:
         retarget_glbs,
         merged_path,
         on_name_collision="suffix",
-        rename_animations=ENGINE_CLIP_NAMES,
+        rename_animations=engine_clip_names,
     )
     print(f"[smoke] merged → {merged_path.name}")
-    print(f"[smoke] clips renamed: {ENGINE_CLIP_NAMES}")
+    print(f"[smoke] clips renamed: {engine_clip_names}")
 
     # --- Stage 6: patch entity def
     print(f"\n[smoke] === Stage 6: patch entity def ===")
@@ -373,15 +389,12 @@ def main() -> int:
     visual["mesh_prompt"] = full_body_mesh_prompt
     visual["animate"] = True
     visual["rig_type"] = rig_type
-    visual["animation_clips"] = ENGINE_CLIP_NAMES
-    # Clip names in the merged GLB are renamed to ENGINE_CLIP_NAMES during
+    visual["animation_clips"] = engine_clip_names
+    # Clip names in the merged GLB are renamed to engine_clip_names during
     # merge (see Stage 5), so no clip_alias indirection is needed.
     visual.pop("clip_alias", None)
-    # ADR 0046 schema — flat keys, NOT nested "if"
-    visual["animation_state_rules"] = [
-        {"if_velocity_gt": 0.1, "state": "walk"},
-        {"default": "idle"},
-    ]
+    # ADR 0046 schema — flat keys, NOT nested "if". Per-entity (config).
+    visual["animation_state_rules"] = state_rules
     # Re-derive y_offset_mesh from the merged GLB's bbox.
     #
     # CRITICAL (2026-05-18 morwen v3 post-mortem): animated rigged GLBs

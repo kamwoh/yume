@@ -2,19 +2,22 @@
 """
 Static validator: a shelled game must actually have its shell.
 
-The text-to-world pipeline is two layers: compose_world writes the MAP
-(objects-only level + scene.json ground/water, NO camera) and compose_shell
-adds the PRESENTATION shell (camera in scene.json + player/world_clock/
-camera singletons spliced into the level + world/rules/10_shell_camera.json).
+The text-to-world pipeline is two layers: compose_world writes the SCENE
+(defs + flat placements in entities/auto_gen.json + scene.json ground/water,
+NO camera) and compose_shell adds the PRESENTATION shell (camera in
+scene.json + player/world_clock/camera singletons in
+entities/shell_singletons.json + world/rules/10_shell_camera.json). Per
+ADR 0067 the scene boots FLAT — no levels/ or flow.json.
 
-Re-running compose_world REGENERATES the objects-only level and a
+Re-running compose_world REGENERATES entities/auto_gen.json and a
 camera-less scene.json — wiping the shell. If you forget to re-run
 compose_shell afterward, the scene boots with NO camera (renders black)
 and NO player. This validator catches that inconsistency:
 
   IF a shell was applied (world/rules/10_shell_camera.json exists)
   THEN scene.json must have a non-empty `camera` block
-   AND the level's initial_instances must include a player_input_anchor.
+   AND some entities/*.json initial_instances must include a
+       player_input_anchor.
 
 A map-only game that was never shelled (no shell-rules file) is skipped —
 that's a valid mid-pipeline state, not an error.
@@ -55,11 +58,15 @@ def validate_game(game_dir: Path) -> list[str]:
     else:
         errors.append("shell applied but scene.json missing")
 
-    # Player singleton present in the level?
+    # Player singleton present? Flat layout (ADR 0067): the engine globs
+    # entities/*.json, so check every one's initial_instances. Fall back
+    # to legacy levels/*/entities.json for pre-0067 game dirs.
     has_player = False
-    for lvl in sorted((game_dir / "levels").glob("*/entities.json")):
+    candidates = list((game_dir / "entities").glob("*.json"))
+    candidates += list((game_dir / "levels").glob("*/entities.json"))
+    for f in candidates:
         try:
-            inst = json.loads(lvl.read_text()).get("initial_instances", [])
+            inst = json.loads(f.read_text()).get("initial_instances", [])
         except json.JSONDecodeError:
             continue
         if any(i.get("def") == "player_input_anchor" for i in inst):
@@ -67,8 +74,9 @@ def validate_game(game_dir: Path) -> list[str]:
             break
     if not has_player:
         errors.append(
-            "shell was applied but no player_input_anchor in any level — "
-            "re-run compose_shell to splice the shell singletons back in.")
+            "shell was applied but no player_input_anchor found in "
+            "entities/*.json — re-run compose_shell to write the shell "
+            "singletons back in.")
     return errors
 
 
