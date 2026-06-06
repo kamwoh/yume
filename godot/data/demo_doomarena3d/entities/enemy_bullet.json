@@ -20,7 +20,7 @@
           0
         ],
         "gravity": 0,
-        "scale": 2.0
+        "scale": 1.0
       },
       "visual": {
         "mesh": "enemy_bolt_3d",

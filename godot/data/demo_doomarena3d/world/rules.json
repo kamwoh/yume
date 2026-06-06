@@ -784,7 +784,7 @@
       },
       "query": {
         "tags_all": [
-          "bullet"
+          "projectile"
         ]
       },
       "effect": {
@@ -802,7 +802,7 @@
       },
       "query": {
         "tags_all": [
-          "bullet"
+          "projectile"
         ],
         "state": {
           "lifetime_lte": 0
@@ -936,6 +936,44 @@
           "value": 1.0
         }
       ]
+    },
+    {
+      "_comment": "Death-burst sparks count down their lifetime each tick and despawn (mirrors bullet_age/expire). particle_spark has lifetime:18 but nothing acted on it -> sparks stayed forever once the renderer made them visible.",
+      "id": "particle_age",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "particle"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "lifetime",
+        "amount": -1
+      }
+    },
+    {
+      "id": "particle_expire",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "particle"
+        ],
+        "state": {
+          "lifetime_lte": 0
+        }
+      },
+      "effect": {
+        "type": "remove",
+        "target": "self"
+      }
     }
   ],
   "_v3_note": "Spawn rules + chamber-clear rules + boss intro live in levels/<chamber>/rules.json (appended at level load). Chamber 1 has imp-only spawns + score=5 clear. Chamber 2 has full enemy mix + score=20 clear. Chamber 3 has boss pre-spawned + supplemental imps + boss-kill clear (engine sets world.all_levels_complete after last level)."
