@@ -59,6 +59,14 @@ docs/ff9_raw/
 .env
 .env.local
 
+# Personal Claude Code config — hooks/permissions are machine- and user-specific
+# (absolute paths, learning logs, other-project references). Contributors bring
+# their own; the shared project config lives in CLAUDE.md + .claude/rules/ +
+# .claude/skills/.
+.claude/settings.json
+.claude/settings.local.json
+.claude/error_log.jsonl
+
 # OS
 .DS_Store
 Thumbs.db
