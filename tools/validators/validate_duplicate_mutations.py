@@ -97,25 +97,36 @@ def rule_effects(rule):
 
 
 def mutations_for_rule(rule):
-    """Return set of mutation keys, each a tuple:
+    """Yield (mutation_key, effect_type) pairs:
        ("field", <field_name>)  for state_*
        ("velocity",)             for velocity_*
        ("tag", <tag>)            for tag_add / tag_remove
-    """
-    out = set()
+    effect_type lets the caller tell a reset (state_set) from a decrement
+    (state_add) on the same field — the canonical cooldown/timer pattern,
+    which is NOT a clobber."""
+    out = []
     for ef in rule_effects(rule):
         et = ef.get("type", "")
         if et in STATE_MUTATION_EFFECTS:
             f = ef.get("field")
-            if f: out.add(("field", str(f)))
+            if f: out.append((("field", str(f)), et))
         elif et in VELOCITY_EFFECTS:
-            out.add(("velocity",))
+            out.append((("velocity",), et))
         elif et in TAG_EFFECTS:
             tags = ef.get("tags", [])
             if isinstance(tags, list):
                 for t in tags:
-                    out.add(("tag", str(t)))
+                    out.append((("tag", str(t)), et))
     return out
+
+
+def _is_level_rule_file(path_str):
+    """True if the file is a per-level rules file (levels/<id>/rules.json).
+    Rules in different levels are mutually exclusive at runtime — only one
+    level loads — so a (tag, field) shared across level files is not a real
+    overlap."""
+    p = path_str.replace("\\", "/")
+    return "/levels/" in p
 
 
 def collect_rule_files(game_dir):
@@ -142,15 +153,15 @@ def validate_game(game_dir, repo_root, strict=False):
     files = collect_rule_files(game_dir)
     if not files:
         return []
-    # group_key = (tags_frozenset, mutation_key) → list of (file, rule_id)
+    # group_key = (tags_frozenset, mutation_key) → list of (file, rule_id, effect_type)
     groups = defaultdict(list)
     for f in files:
         for rule, _ in gather_rules_from_file(f):
             rid = rule.get("id", "<no-id>")
             tags = query_target_tags(rule)
             if not tags: continue  # can't reason
-            for mk in mutations_for_rule(rule):
-                groups[(tags, mk)].append((str(f), rid))
+            for (mk, et) in mutations_for_rule(rule):
+                groups[(tags, mk)].append((str(f), rid, et))
 
     issues = []
     for (tags, mk), entries in groups.items():
@@ -158,10 +169,21 @@ def validate_game(game_dir, repo_root, strict=False):
         # CROSS-FILE check: are the entries split across files?
         files_seen = {e[0] for e in entries}
         if len(files_seen) < 2: continue  # same-file is intentional pattern
+        types = {e[2] for e in entries}
+        # SUPPRESS reset+modify (cooldown/timer): a state_set (reset on fire/
+        # spawn) coexisting with a state_add/state_mul (per-tick decrement) on
+        # the same field is the universal cooldown/timer idiom, not a clobber.
+        if "state_set" in types and (types & {"state_add", "state_mul"}):
+            continue
+        # SUPPRESS mutually-exclusive levels: if every contributing rule lives
+        # in a per-level rules file, the rules never run together (one level
+        # loads at a time) — e.g. per-chamber spawners sharing spawn_count.
+        if all(_is_level_rule_file(e[0]) for e in entries):
+            continue
         issues.append({
             "tags": sorted(tags),
             "mutation": mk,
-            "rules": entries,
+            "rules": [(e[0], e[1]) for e in entries],
         })
     return issues
 

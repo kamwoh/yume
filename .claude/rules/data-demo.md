@@ -233,20 +233,38 @@ formula.parse_failed per session.
 
 ## `velocity_add_relative` requires deceleration
 
-Camera-relative WASD (FP + iso variants) uses `velocity_add_relative`.
-Without decay, the previous tick's velocity in the OLD facing
-direction lags the camera when the player mouse-turns mid-walk
-(player feels "something pulling").
+Camera-relative WASD (FP + iso variants) uses `velocity_add_relative`,
+which auto-resets velocity each tick WHILE a movement key is held — so
+top speed = the per-tick `forward`/`strafe` add, and mid-walk mouse-turns
+don't drag old-facing velocity. But on RELEASE the effect stops firing,
+so nothing zeroes the leftover velocity — **the player glides forever**
+unless a stop rule fires.
 
-Any actor whose movement comes from `velocity_add_relative` MUST
-declare ONE of:
-- `state.zero_velocity_pretick: true` (engine zeros each tick →
-  tight FPS feel)
-- `state.drag > 0` (motion integrator decays each frame →
-  momentum-glide feel)
+**`state.drag` and `state.zero_velocity_pretick` are DEAD** (unimplemented
+since the ADR 0044 character-body migration removed the old motion
+integrator that read them). Do NOT rely on them — a player declaring
+`drag: 8` will still glide. **Empirical 2026-06-06**: doomarena3d's player
+had `drag=8.0` + a Vector3 velocity and glided continuously on release; the
+author trusted this (now-stale) rule.
+
+Any actor whose movement comes from `velocity_add_relative` MUST get
+snap-to-stop one of two ways:
+- `$include @lib.input_bundles.wasd_with_fp_variant.rules` — the canonical
+  movement bundle ships `lib_wasd_stop` (zeros velocity on the engine-queued
+  `stop` action). Preferred — use the bundle instead of hand-authoring move
+  rules.
+- Hand-authored movement → ALSO author a stop rule:
+  `{trigger: {type: input, action: stop}, query: {tags_all: [player]},
+    effect: {type: velocity_set, target: actor, x: 0, y: 0}}`. The engine
+  queues `stop` on full idle (`stop_action_on_idle`, default `"stop"`).
+
+**`velocity` MUST be `[x, z]` (Vector2)** for a floor-walker — `velocity_set
+x:0 y:0` then zeros BOTH planar axes. A Vector3 `[x,y,z]` velocity makes the
+stop's `y` address the vertical axis, leaving the forward `z` untouched → the
+player keeps gliding (data-demo.md § velocity dimensionality).
 
 Required for `isometric_3d` and `first_person_3d` camera modes;
-world-frame `top_down_3d` / `third_person_3d` don't need it
+world-frame `top_down_3d` / `third_person_3d` use per-axis `stop_x`/`stop_y`
 (last-writer-wins per-axis).
 
 ## Logical/singleton entities need `visual: {hidden: true}`

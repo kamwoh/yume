@@ -397,6 +397,15 @@ func trigger_flash(color, duration: int) -> void:
 	_flash_color = _color(color)
 	if not _flash_color.a or _flash_color.a == 0.0:
 		_flash_color.a = 0.5
+	# A flash is FEEDBACK — a translucent tint over the scene, never a full
+	# obscure. A 6-digit hex (e.g. "#ff0000") parses to alpha 1.0, which would
+	# blank the whole screen on every hit (you can't see what's attacking you).
+	# Cap it so an opaque color still reads as a flash, not a wipe. For an
+	# intentional full-screen wipe use screen_fade. Empirical 2026-06-06:
+	# doomarena3d's "#ff0000" damage flash washed the screen solid red on every
+	# monster melee, hiding the enemies, once monsters could actually reach the
+	# player.
+	_flash_color.a = minf(_flash_color.a, 0.5)
 	_flash_remaining = duration
 
 

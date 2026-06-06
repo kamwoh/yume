@@ -776,40 +776,6 @@
       ]
     },
     {
-      "_comment": "Player projectile hits a monster: deal the bullet's damage (properties.damage: plasma/pellet 1, rocket 3) then consume the bullet. monster_death (tick, hp<=0) handles removal + score. once_per_a so one bullet damages one monster.",
-      "id": "bullet_hits_monster",
-      "trigger": {
-        "type": "contact"
-      },
-      "query": {
-        "a": {
-          "tags_all": [
-            "bullet"
-          ]
-        },
-        "b": {
-          "tags_all": [
-            "monster"
-          ]
-        },
-        "radius": 1.6,
-        "once_per_a": true,
-        "_comment_radius": "1.6 (not 1.0): at tick_seconds 0.05 a 22 m/s bullet steps 1.1m/tick, so a tighter radius tunnels past monsters between ticks."
-      },
-      "effect": [
-        {
-          "type": "state_add",
-          "target": "b",
-          "field": "hp",
-          "amount": "-a.properties.damage"
-        },
-        {
-          "type": "remove",
-          "target": "a"
-        }
-      ]
-    },
-    {
       "_comment": "Projectiles count down their lifetime each tick (state_init lifetime: plasma 24 / pellet 12 / rocket 36) so missed shots that stop against a wall don't accumulate.",
       "id": "bullet_age",
       "trigger": {
@@ -845,6 +811,25 @@
       "effect": {
         "type": "remove",
         "target": "self"
+      }
+    },
+    {
+      "_comment": "Snap-to-stop for camera-relative movement. The engine queues `stop` (stop_action_on_idle, default) when no movement key is held; velocity_add_relative doesn't fire then, so WITHOUT this the player glides forever (state.drag + zero_velocity_pretick are unimplemented since the ADR 0044 body migration). Mirrors @lib.input_bundles.wasd_with_fp_variant lib_wasd_stop. 2026-06-06.",
+      "id": "player_stop_on_idle",
+      "trigger": {
+        "type": "input",
+        "action": "stop"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": {
+        "type": "velocity_set",
+        "target": "actor",
+        "x": 0,
+        "y": 0
       }
     }
   ],
