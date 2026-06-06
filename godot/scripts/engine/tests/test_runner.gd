@@ -67,6 +67,7 @@ func _ready() -> void:
 	test_nameplate_picks_display_name_over_id()
 	test_lib_resolver()
 	test_global_input_toggle_edge()
+	test_input_edge_last_writer_wins()
 	test_collider_matches_mesh()
 	test_schedule_primitive()
 	test_animation_primitive()
@@ -4521,6 +4522,48 @@ func test_global_input_toggle_edge() -> void:
 		"re-press → edge true again (close half fires; was the bug)"
 	)
 	sf.free()
+
+
+## GUARDRAIL (post-mortem 2026-06-06): InputRegistrar edge classification must
+## be LAST-WRITER-WINS per action name, with each action in EXACTLY ONE poll
+## list. A game splicing @lib.input.universal (move_* = hold) then re-declaring
+## move_* as press relies on the override (manifest: "re-declare after the
+## $include — last-writer-wins"). The old code APPENDED each occurrence, so
+## move_* sat in BOTH press + hold; the hold-poll (is_action_pressed) then
+## fired every frame regardless of the press override → sokoban's player slid
+## continuously while a key was held instead of moving one grid cell per press.
+## If classify_edges ever regresses to append-without-dedup, this FAILS.
+func test_input_edge_last_writer_wins() -> void:
+	_section("input_registrar.classify_edges last-writer-wins (2026-06-06)")
+	# The exact sokoban shape: universal include (hold) then per-game override (press).
+	var pairs: Array = [
+		{"name": "move_north", "edge": "hold"},
+		{"name": "move_south", "edge": "hold"},
+		{"name": "move_east", "edge": "hold"},
+		{"name": "move_west", "edge": "hold"},
+		{"name": "restart", "edge": "press"},
+		# per-game re-declarations AFTER the include:
+		{"name": "move_north", "edge": "press"},
+		{"name": "move_south", "edge": "press"},
+		{"name": "move_east", "edge": "press"},
+		{"name": "move_west", "edge": "press"},
+	]
+	var c: Dictionary = InputRegistrar.classify_edges(pairs)
+	var press: Array = c["press"]
+	var hold: Array = c["hold"]
+	# move_* overridden to press → in press, NOT in hold (the bug put them in both).
+	for mv in ["move_north", "move_south", "move_east", "move_west"]:
+		expect_eq(press.has(mv), true, "%s lands in press (override wins)" % mv)
+		expect_eq(hold.has(mv), false, "%s NOT in hold (was the bug)" % mv)
+	expect_eq(press.has("restart"), true, "restart stays press")
+	# Each action appears in exactly one list, once.
+	expect_eq(press.size() + hold.size(), 5, "5 distinct actions, no duplicates across lists")
+	# Reverse direction also wins last: press-then-hold → hold.
+	var c2: Dictionary = InputRegistrar.classify_edges(
+		[{"name": "aim", "edge": "press"}, {"name": "aim", "edge": "hold"}]
+	)
+	expect_eq((c2["hold"] as Array).has("aim"), true, "press→hold override → hold")
+	expect_eq((c2["press"] as Array).has("aim"), false, "aim removed from press on override")
 
 
 ## GUARDRAIL (post-mortem 2026-06-06): a `from_visual_mesh` box collider must

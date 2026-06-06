@@ -65,14 +65,50 @@ static func register_from_data_root(data_root: String) -> Dictionary:
 	if not (spec_raw is Dictionary):
 		return out
 	var spec: Dictionary = spec_raw
+	# Collect (name, edge) for every successfully-registered action, in order,
+	# then classify with LAST-WRITER-WINS per name (see classify_edges).
+	var pairs: Array = []
 	for action_def in spec.get("actions", []):
 		if not (action_def is Dictionary):
 			continue
 		var name := _register_one(action_def)
 		if name == "":
 			continue
-		var edge := str((action_def as Dictionary).get("edge", "press"))
-		if edge == "hold":
+		pairs.append({"name": name, "edge": str((action_def as Dictionary).get("edge", "press"))})
+	return classify_edges(pairs)
+
+
+## Build {"press": [...], "hold": [...]} from an ordered list of
+## {name, edge} pairs, LAST-WRITER-WINS per action name, each action in
+## EXACTLY ONE list. Pure (no InputMap / file IO) so it is unit-testable.
+##
+## Why last-writer-wins: it matches the key-binding semantics in
+## _register_one (which erases + re-adds events on re-declaration) and the
+## manifest contract: "re-declare the same action name after the $include —
+## last-writer-wins." A game that splices @lib.input.universal (move_* =
+## hold) then re-declares move_* as press MUST end up with move_* in the
+## press list only. The old code appended each occurrence, so move_* landed
+## in BOTH lists and the hold-poll (Input.is_action_pressed) fired every
+## frame regardless of the press override.
+##
+## Empirical 2026-06-06: sokoban — held WASD moved the player every frame
+## (continuous glide) instead of one grid cell per press.
+static func classify_edges(pairs: Array) -> Dictionary:
+	var out: Dictionary = {"press": [], "hold": []}
+	var edge_by_name: Dictionary = {}  # name -> "press" | "hold"
+	var seen_order: Array = []  # preserve first-seen order for deterministic lists
+	for pair in pairs:
+		if not (pair is Dictionary):
+			continue
+		var name := str((pair as Dictionary).get("name", ""))
+		if name == "":
+			continue
+		if not edge_by_name.has(name):
+			seen_order.append(name)
+		var edge := str((pair as Dictionary).get("edge", "press"))
+		edge_by_name[name] = "hold" if edge == "hold" else "press"
+	for name in seen_order:
+		if edge_by_name[name] == "hold":
 			(out["hold"] as Array).append(name)
 		else:
 			(out["press"] as Array).append(name)
