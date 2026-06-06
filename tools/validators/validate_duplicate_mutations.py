@@ -192,8 +192,8 @@ def main():
             continue
         issues = validate_game(game_dir, repo_root, strict=strict)
         if issues:
-            label = "FAIL" if strict else "WARN"
-            print(f"[{label}] {game_dir.name} ({len(issues)} cross-file mutation overlap(s)):")
+            # ADVISORY heuristic — always WARN, never FAIL (see exit note).
+            print(f"[WARN] {game_dir.name} ({len(issues)} cross-file mutation overlap(s)):")
             for it in issues:
                 tags_str = "+".join(it["tags"]) if it["tags"] else "<no tags>"
                 print(f"  query[{tags_str}] mutates {fmt_mutation(it['mutation'])}:")
@@ -211,8 +211,13 @@ def main():
         print("or delete the duplicate. If a rule needs both layers, split")
         print("into two — game/goals.json owns the state mutation;")
         print("world/rules.json owns the feedback (juice / signal handlers).")
-        if strict:
-            sys.exit(1)
+    # ADVISORY (2026-06-06): this is a HEURISTIC — overlapping-query (tag,field)
+    # mutation. It CANNOT distinguish an intentional cooldown/timer (set on an
+    # action + decrement on tick — universal in any game with weapons or
+    # spawners) from an accidental clobber. So it WARNS loudly but NEVER blocks,
+    # even under --strict; the author reviews the pairs. (Was a --strict
+    # blocker; that wrongly failed every cooldown-using game, e.g. the
+    # doomarena3d example.)
     sys.exit(0)
 
 

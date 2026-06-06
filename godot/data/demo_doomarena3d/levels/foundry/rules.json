@@ -1,96 +1,236 @@
 {
-  "_comment": "Chamber 2 (The Foundry) per-chamber rules. Full enemy mix: imp every 2s, demon every 4s, ranger every 6s. Score=20 clears (15 more after chamber 1's 5). Tactical signature — rangers force pillar-flanking on the divider's choke geometry.",
-
+  "_comment": "Chamber 2 (The Foundry) per-chamber rules. Full enemy mix: imp every 2s, demon every 4s, ranger every 6s. Score=20 clears (15 more after chamber 1's 5). Tactical signature \u2014 rangers force pillar-flanking on the divider's choke geometry.",
   "rules": [
     {
-      "_comment": "Imp spawn every 2s at radius 18 ring (within ±22 walls).",
+      "_comment": "Imp spawn every 2s at radius 18 ring (within \u00b122 walls).",
       "id": "foundry_imp_spawn",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"spawn_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "spawn_timer_lt": 0.0,
+          "spawn_count_lt": 30
+        }
+      },
       "effect": [
-        {"type": "spawn",
-         "template": "monster_imp",
-         "position": [
-           "cos(randf() * 6.28318) * 18",
-           0,
-           "sin(randf() * 6.28318) * 18"
-         ]},
-        {"type": "state_set", "target": "self", "field": "spawn_timer", "value": 2.0}
+        {
+          "type": "spawn",
+          "template": "monster_imp",
+          "position": [
+            "cos(randf() * 6.28318) * 18",
+            0,
+            "sin(randf() * 6.28318) * 18"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "spawn_timer",
+          "value": 2.0
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "spawn_count",
+          "amount": 1
+        }
       ]
     },
-
     {
-      "_comment": "Demon spawn every 4s. Tankier — needs 2 hits.",
+      "_comment": "Demon spawn every 4s. Tankier \u2014 needs 2 hits.",
       "id": "foundry_demon_spawn",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"demon_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "demon_timer_lt": 0.0,
+          "spawn_count_lt": 30
+        }
+      },
       "effect": [
-        {"type": "spawn",
-         "template": "monster_demon",
-         "position": [
-           "cos(randf() * 6.28318) * 18",
-           0,
-           "sin(randf() * 6.28318) * 18"
-         ]},
-        {"type": "state_set", "target": "self", "field": "demon_timer", "value": 4.0}
+        {
+          "type": "spawn",
+          "template": "monster_demon",
+          "position": [
+            "cos(randf() * 6.28318) * 18",
+            0,
+            "sin(randf() * 6.28318) * 18"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "demon_timer",
+          "value": 4.0
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "spawn_count",
+          "amount": 1
+        }
       ]
     },
-
     {
-      "_comment": "Ranger spawn every 6s. Stops + fires from distance — the chamber-2 signature threat.",
+      "_comment": "Ranger spawn every 6s. Stops + fires from distance \u2014 the chamber-2 signature threat.",
       "id": "foundry_ranger_spawn",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"ranger_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "ranger_timer_lt": 0.0,
+          "spawn_count_lt": 30
+        }
+      },
       "effect": [
-        {"type": "spawn",
-         "template": "monster_ranger",
-         "position": [
-           "cos(randf() * 6.28318) * 18",
-           0,
-           "sin(randf() * 6.28318) * 18"
-         ]},
-        {"type": "state_set", "target": "self", "field": "ranger_timer", "value": 6.0}
+        {
+          "type": "spawn",
+          "template": "monster_ranger",
+          "position": [
+            "cos(randf() * 6.28318) * 18",
+            0,
+            "sin(randf() * 6.28318) * 18"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "ranger_timer",
+          "value": 6.0
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "spawn_count",
+          "amount": 1
+        }
       ]
     },
-
     {
       "id": "foundry_pickup_spawn_health",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "pickup_timer_lt": 0.0
+        }
+      },
       "chance": 0.5,
       "effect": [
-        {"type": "spawn", "template": "health_pickup",
-         "position": ["(randf() - 0.5) * 36", 0.5, "(randf() - 0.5) * 36"]},
-        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
+        {
+          "type": "spawn",
+          "template": "health_pickup",
+          "position": [
+            "(randf() - 0.5) * 36",
+            0.5,
+            "(randf() - 0.5) * 36"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "pickup_timer",
+          "value": 7.0
+        }
       ]
     },
-
     {
       "id": "foundry_pickup_spawn_ammo",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "pickup_timer_lt": 0.0
+        }
+      },
       "effect": [
-        {"type": "spawn", "template": "ammo_pickup",
-         "position": ["(randf() - 0.5) * 36", 0.5, "(randf() - 0.5) * 36"]},
-        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
+        {
+          "type": "spawn",
+          "template": "ammo_pickup",
+          "position": [
+            "(randf() - 0.5) * 36",
+            0.5,
+            "(randf() - 0.5) * 36"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "pickup_timer",
+          "value": 7.0
+        }
       ]
     },
-
     {
-      "_comment": "CHAMBER CLEAR: player.score >= 20 → transition. Player needs 15 more kills past chamber 1's 5.",
+      "_comment": "CHAMBER CLEAR: player.score >= 20 \u2192 transition. Player needs 15 more kills past chamber 1's 5.",
       "id": "foundry_clear",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["clock"]},
-        "b": {"tags_all": ["player"], "state": {"score_gte": 20}},
+        "a": {
+          "tags_all": [
+            "clock"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "score_gte": 20
+          }
+        },
         "radius": 1000,
         "once_per_a": true
       },
       "effect": [
-        {"type": "emit_shell_event", "event": "play_sound", "name": "chamber_breach"},
-        {"type": "emit_shell_event", "event": "flash", "color": "#80c0ff", "duration": 12},
-        {"type": "emit_shell_event", "event": "shake", "intensity": 0.1, "duration": 16},
-        {"type": "transition_level", "target": "next"}
+        {
+          "type": "emit_shell_event",
+          "event": "play_sound",
+          "name": "chamber_breach"
+        },
+        {
+          "type": "emit_shell_event",
+          "event": "flash",
+          "color": "#80c0ff",
+          "duration": 12
+        },
+        {
+          "type": "emit_shell_event",
+          "event": "shake",
+          "intensity": 0.1,
+          "duration": 16
+        },
+        {
+          "type": "transition_level",
+          "target": "next"
+        }
       ]
     }
   ]

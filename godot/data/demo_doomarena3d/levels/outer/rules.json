@@ -1,64 +1,158 @@
 {
-  "_comment": "Chamber 1 (Outer Containment) per-chamber rules. Imp-only spawns at radius 11 (within ±14 walls). Pickups in ±11 spread. Score=5 clears → transition to foundry.",
-
+  "_comment": "Chamber 1 (Outer Containment) per-chamber rules. Imp-only spawns at radius 11 (within \u00b114 walls). Pickups in \u00b111 spread. Score=5 clears \u2192 transition to foundry.",
   "rules": [
     {
-      "_comment": "Imp spawn — every 1.5s at random angle on radius 11 ring (just inside chamber 1's ±14 walls).",
+      "_comment": "Imp spawn \u2014 every 1.5s at random angle on radius 11 ring (just inside chamber 1's \u00b114 walls).",
       "id": "outer_imp_spawn",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"spawn_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "spawn_timer_lt": 0.0,
+          "spawn_count_lt": 30
+        }
+      },
       "effect": [
-        {"type": "spawn",
-         "template": "monster_imp",
-         "position": [
-           "cos(randf() * 6.28318) * 11",
-           0,
-           "sin(randf() * 6.28318) * 11"
-         ]},
-        {"type": "state_set", "target": "self", "field": "spawn_timer", "value": 1.5}
+        {
+          "type": "spawn",
+          "template": "monster_imp",
+          "position": [
+            "cos(randf() * 6.28318) * 11",
+            0,
+            "sin(randf() * 6.28318) * 11"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "spawn_timer",
+          "value": 1.5
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "spawn_count",
+          "amount": 1
+        }
       ]
     },
-
     {
       "_comment": "Health pickup spawn (50% chance per pickup-timer tick).",
       "id": "outer_pickup_spawn_health",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "pickup_timer_lt": 0.0
+        }
+      },
       "chance": 0.5,
       "effect": [
-        {"type": "spawn", "template": "health_pickup",
-         "position": ["(randf() - 0.5) * 22", 0.5, "(randf() - 0.5) * 22"]},
-        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
+        {
+          "type": "spawn",
+          "template": "health_pickup",
+          "position": [
+            "(randf() - 0.5) * 22",
+            0.5,
+            "(randf() - 0.5) * 22"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "pickup_timer",
+          "value": 7.0
+        }
       ]
     },
-
     {
       "_comment": "Ammo pickup (catches the timer when health didn't fire).",
       "id": "outer_pickup_spawn_ammo",
-      "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["clock"], "state": {"pickup_timer_lt": 0.0}},
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "clock"
+        ],
+        "state": {
+          "pickup_timer_lt": 0.0
+        }
+      },
       "effect": [
-        {"type": "spawn", "template": "ammo_pickup",
-         "position": ["(randf() - 0.5) * 22", 0.5, "(randf() - 0.5) * 22"]},
-        {"type": "state_set", "target": "self", "field": "pickup_timer", "value": 7.0}
+        {
+          "type": "spawn",
+          "template": "ammo_pickup",
+          "position": [
+            "(randf() - 0.5) * 22",
+            0.5,
+            "(randf() - 0.5) * 22"
+          ]
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "pickup_timer",
+          "value": 7.0
+        }
       ]
     },
-
     {
       "_comment": "CHAMBER CLEAR: when player.score >= 5, fire transition_level + chamber_breach beat. once_per_a on clock side prevents duplicate fires.",
       "id": "outer_clear",
-      "trigger": {"type": "contact"},
+      "trigger": {
+        "type": "contact"
+      },
       "query": {
-        "a": {"tags_all": ["clock"]},
-        "b": {"tags_all": ["player"], "state": {"score_gte": 5}},
+        "a": {
+          "tags_all": [
+            "clock"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "score_gte": 5
+          }
+        },
         "radius": 1000,
         "once_per_a": true
       },
       "effect": [
-        {"type": "emit_shell_event", "event": "play_sound", "name": "chamber_breach"},
-        {"type": "emit_shell_event", "event": "flash", "color": "#80c0ff", "duration": 12},
-        {"type": "emit_shell_event", "event": "shake", "intensity": 0.08, "duration": 14},
-        {"type": "transition_level", "target": "next"}
+        {
+          "type": "emit_shell_event",
+          "event": "play_sound",
+          "name": "chamber_breach"
+        },
+        {
+          "type": "emit_shell_event",
+          "event": "flash",
+          "color": "#80c0ff",
+          "duration": 12
+        },
+        {
+          "type": "emit_shell_event",
+          "event": "shake",
+          "intensity": 0.08,
+          "duration": 14
+        },
+        {
+          "type": "transition_level",
+          "target": "next"
+        }
       ]
     }
   ]

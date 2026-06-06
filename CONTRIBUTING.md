@@ -40,6 +40,10 @@ no-flag path is always key-free.
 - **Path-scoped rules** in [`.claude/rules/`](.claude/rules/) gate edits to
   `scripts/engine/**`, `data/**`, `docs/**`, etc. Read the matching rule first.
 - **Every primitive ships with a test** in `scripts/engine/tests/test_runner.gd`.
+- **Committed example games must pass the validators** —
+  `python3 tools/validators/check_examples.py --strict` gates `demo_sokoban`,
+  `demo_doomarena3d`, `demo_lanterns`. Don't commit (or un-ignore) an example
+  that fails the bank.
 - **Post-mortem ritual**: when a bug surfaces, don't just fix it — find the
   skill/rule/validator that should have caught it and **harden that gate**
   (prefer an enforced test/validator over prose). See

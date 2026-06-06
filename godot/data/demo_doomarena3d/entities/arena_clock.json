@@ -1,9 +1,11 @@
 {
-  "_comment": "Invisible per-chamber singleton (v3.0). Tracks elapsed + spawn cadence timers + boss intro latch. Each chamber has its own instance (clock_outer/clock_foundry/clock_core) — destroyed and re-created at transition. siren_played + boss_killed retired in v3.0 (replaced by chamber transitions + world.all_levels_complete).",
+  "_comment": "Invisible per-chamber singleton (v3.0). Tracks elapsed + spawn cadence timers + boss intro latch. Each chamber has its own instance (clock_outer/clock_foundry/clock_core) \u2014 destroyed and re-created at transition. siren_played + boss_killed retired in v3.0 (replaced by chamber transitions + world.all_levels_complete).",
   "definitions": [
     {
       "id": "arena_clock",
-      "tags": ["clock"],
+      "tags": [
+        "clock"
+      ],
       "properties": {},
       "state_init": {
         "elapsed": 0.0,
@@ -11,7 +13,9 @@
         "demon_timer": 4.0,
         "ranger_timer": 6.0,
         "pickup_timer": 7.0,
-        "boss_spawned": 0
+        "boss_spawned": 0,
+        "spawn_count": 0,
+        "_comment_spawn_count": "live wave cap \u2014 spawners stop at spawn_count >= 30 so the arena doesn't grow without bound"
       },
       "visual": {
         "hidden": true

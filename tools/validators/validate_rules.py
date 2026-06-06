@@ -183,7 +183,15 @@ def compute_context_bindings(rule):
 # formula.gd): starts with lowercase/digit/_/@/(/+/- AND contains an
 # operator char (./+/-/*/// ( )). For binding-root extraction we only
 # care about strings with `.` and a lowercase-start root.
-FORMULA_ROOT_RE = re.compile(r"\b([a-z_][A-Za-z0-9_]*)\.[a-z_][A-Za-z0-9_]*")
+#
+# Capture ONLY the LEADING root of a FULL dotted chain, and consume the
+# WHOLE chain (one-or-more `.field`) so we don't re-match mid-path. 2026-06-06:
+# the old `(root)\.(field)` pair-regex matched `self.state` THEN `position.x`
+# on `self.state.position.x`, flagging the middle segment `position` as an
+# unbound binding (68 false positives on doomarena3d's projectile formulas;
+# every demo using `self.state.position.x` tripped it). Only the leading
+# token is a binding root; the rest are field accesses.
+FORMULA_ROOT_RE = re.compile(r"\b([a-z_][A-Za-z0-9_]*)(?:\.[A-Za-z0-9_]+)+")
 
 
 def is_formula_str(s):
