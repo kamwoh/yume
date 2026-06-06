@@ -31,10 +31,10 @@ In Yume terms: **the JSON.**
 
 | MDA term | Yume term | File |
 |---|---|---|
-| Entities (objects, units) | `Entity` defs | `entities.json` |
-| Rules (triggers + conditions + outcomes) | `Rule` defs | `world_rules.json` |
-| Relations (ownership, adjacency, membership) | `Relation` typed edges | `entities.json` `initial_relations` |
-| State (HP, XP, ammo, growth) | `state_init` fields | `entities.json` |
+| Entities (objects, units) | `Entity` defs | `entities/*.json` |
+| Rules (triggers + conditions + outcomes) | `Rule` defs | `world/rules*.json` |
+| Relations (ownership, adjacency, membership) | `Relation` typed edges | `entities/*.json` `initial_relations` |
+| State (HP, XP, ammo, growth) | `state_init` fields | `entities/*.json` |
 | Properties (mass, hardness, color) | `properties` fields | `entities.json` |
 | Tags (membership groups) | `tags` arrays | `entities.json` |
 

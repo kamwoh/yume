@@ -327,13 +327,14 @@ When a rule evaluates.
 
 | Trigger | Meaning | When to use |
 |---|---|---|
-| `tick` | Every N clock ticks | Decay, growth, periodic checks |
+| `tick` | Every N clock ticks (fixed sim rate) | Decay, growth, periodic checks |
+| `frame_tick` | Every rendered frame (display rate, not sim rate — ADR 0050) | Per-frame visuals, camera-coupled logic |
 | `contact` | Pair of entities within radius | Fire spread, collision damage, reactions |
 | `signal` | Named broadcast fired by another rule or input | Phase changes, chained events, turn-based |
 | `input` | Engine input action name | Player control, UI buttons |
 | `spawn` / `despawn` | Entity lifecycle | Setup effects, cleanup |
 | `relation_changed` | Edge added/removed matching pattern | Equip-on-pickup, unbind-on-drop, containment reactions |
-| `scheduled` | Absolute time (reserved, post-W5) | Rhythm games, timed events |
+| `scheduled` | Absolute time — in `VALID_TRIGGERS` but **no dispatcher yet** (validates, never fires) | (reserved — schedule director uses its own path) |
 
 All triggers route through the same `Rule.evaluate()` — only the dispatcher
 differs. No special handling per trigger type in effect code.
@@ -493,9 +494,10 @@ Rule struct — never re-parsed per tick.
 - `world.*` — global state (`world.tick`, `world.time_of_day`, `world.weather`, ...)
 - `self.<relation>` — relation traversal (see §7): `self.held_by`,
   `self.contains`, `self.part_of`, `self.parent_of.state.hp`
-- `self.nearest({...query...})` — spatial single-result helper
-- `self.nearby({...query...})` — spatial multi-result helper (supports
-  `.count`, `.sum(field)`, `.avg(field)`, `.max(field)`, `.min(field)`)
+- ⚠️ `self.nearest({...})` / `self.nearby({...})` — spatial formula helpers
+  are **NOT yet implemented** (the evaluator returns null → downstream
+  `.state.X` crashes). For pair-matching, use a `contact` trigger with
+  `query: {a, b, radius}` instead (see `.claude/rules/data-demo.md`).
 - Math helpers: `clamp`, `min`, `max`, `abs`, `sin`, `cos`, `randf`, `lerp`
 
 **Whitelist.** At load time, each formula's AST is walked. Allowed:
@@ -1019,35 +1021,22 @@ Git preserves the old code. Tier 3 work rebuilds agent-side from the new primiti
 
 ---
 
-## File layout after redesign
+## File layout
 
-```
-godot/
-├── scripts/
-│   ├── engine/                       ← all 7 primitives live here
-│   │   ├── entity.gd                 ← Entity node (generic, no subclasses)
-│   │   ├── rule.gd                   ← Rule struct + cached Expression
-│   │   ├── trigger_dispatch.gd       ← tick / contact / signal / input / spawn / relation_changed routing
-│   │   ├── query.gd                  ← query compiler + spatial matcher + relation filter
-│   │   ├── effect_apply.gd           ← all effect implementations
-│   │   ├── formula.gd                ← Expression wrapper + bindings + whitelist
-│   │   ├── spatial_index.gd          ← grid-bucket hash
-│   │   ├── relation_store.gd         ← typed directed-edge store, bi-indexed
-│   │   ├── phase_scheduler.gd        ← input/decide/commit/react phase loop
-│   │   ├── world_clock.gd            ← unchanged
-│   │   └── world.gd                  ← top-level orchestrator
-│   ├── renderer_2d/                  ← reads entity.visual, draws
-│   ├── renderer_3d/                  ← reads entity.visual, draws
-│   └── ui/
-│       └── state_display.gd          ← generic renderer for any state field
-└── data/
-    ├── meta.json                     ← world config, data_root pointer
-    ├── entities.json                 ← all entity definitions
-    └── world_rules.json              ← all rules (self, contact, signal, etc)
-```
+> The engine was later reorganized into subdirectories
+> (`core/ · coordinators/ · directors/ · io/ · ui/ · stores/ · libs/ · util/ ·
+> qa/`). For the **authoritative, current** engine file tree see
+> [`33_architecture.md`](33_architecture.md) §8 and the README's "Engine file
+> map". In brief: the seven primitives live in `godot/scripts/engine/core/`
+> (`entity.gd`, `rule.gd`, `query.gd`, `effect_apply.gd`, `formula.gd`,
+> `phase_scheduler.gd`, `world.gd`); trigger dispatch is inside
+> `phase_scheduler.gd` (there is no separate `trigger_dispatch.gd`);
+> `spatial_index.gd` + `relation_store.gd` live in `stores/`; the read-only
+> renderers are `renderer_2d/` + `renderer_3d/`.
 
-Per-genre content lives in `data/<game>/` with the same schema — swap `data_root`
-to switch games.
+Per-game content lives in `godot/data/demo_<game>/` (per-game dir of
+`entities/*.json` + `world/rules*.json` + `scene.json`, globbed and merged by
+id) — swap `--game=<name>` to switch games.
 
 ---
 

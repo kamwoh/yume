@@ -1,7 +1,7 @@
 # ADR 0004 — `blocks_motion` tag for static obstacles
 
 _Date: 2026-05-03_
-_Status: accepted (landed 2026-05-03)_
+_Status: accepted (landed 2026-05-03) — SUPERSEDED by [ADR 0044](0044-physics-via-godot-physicsserver.md) (physics via Godot PhysicsServer3D). `blocks_motion` remained partially live during the 0044 migration._
 
 ## Context
 

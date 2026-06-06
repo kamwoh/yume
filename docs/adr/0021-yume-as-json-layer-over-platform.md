@@ -142,14 +142,13 @@ Each capability-exposure ADR follows a consistent shape:
 5. **Document author guidance** (skill files explaining when to
    use this capability)
 
-Subsequent ADRs in this lineage:
-- **ADR 0022** (future) — Godot rigid-body physics integration
-  (replaces the never-list workaround for manipulation games)
-- **ADR 0023** (future) — Godot animation system integration
-- **ADR 0024** (future) — Godot pathfinding (NavigationServer)
-- **ADR 0025** (future) — Godot particles + advanced VFX
-- **ADR 0026** (future) — Godot advanced audio (buses, effects)
-- **ADR 0027** (future) — Godot character body / kinematic motion
+Subsequent ADRs in this lineage. **(These were speculative numbers written in
+2026-05; the capabilities actually landed under different ADR numbers —
+cross-reference by topic, not by the numbers originally guessed here.)**
+- Godot rigid-body / physics integration → landed as **[ADR 0044](0044-physics-via-godot-physicsserver.md)**
+- Godot animation system → **[ADR 0035](0035-animation-primitive.md)** + **[ADR 0046](0046-animation-via-godot-animation-player.md)**
+- Godot pathfinding (NavigationServer) → **[ADR 0024](0024-npc-pathfinding.md)**
+- Godot character body / kinematic motion → **[ADR 0045](0045-motion-via-godot-characterbody.md)**
 - (build reactively; ADR when the first game needs it)
 
 ## Consequences

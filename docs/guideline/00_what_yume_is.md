@@ -368,7 +368,7 @@ faucet of training data for the implicit half.
 - `30_framework_primitives.md` — the seven primitives (contract)
 - `31_text_to_game_pipeline.md` — authoring pipeline (Tier 2.5+)
 - `32_mda_for_yume.md` — design vocabulary (mechanics → dynamics → aesthetics)
-- `adr/0021-yume-is-godot-layer.md` — expose-don't-reimplement
-- `adr/0001-seven-primitives.md` — the original primitive set
-- `adr/0049-engine-rules-as-content.md` — rules ARE content (closes
+- `../adr/0021-yume-as-json-layer-over-platform.md` — expose-don't-reimplement
+- `../adr/0001-seven-primitives.md` — the original primitive set
+- `../adr/0049-engine-rules-as-content.md` — rules ARE content (closes
   one of the last gaps between vocabulary and content)

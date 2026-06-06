@@ -1,7 +1,16 @@
 # ADR 0060 — Deterministic I/O contract: pluggable input source + partitioned observe channels
 
 _Date: 2026-05-30_
-_Status: proposed_
+_Status: accepted — SHIPPED (2026-05-30). See ADR 0061 for documented deviations._
+
+> **Implementation reality (post-ship correction).** The shipped API differs
+> from this ADR's original prose: the canonical hash is
+> `DeterminismHash.canonical(world)` (not `canonical_state_hash`); the stdio
+> driver autoload is `io/stdio_step_driver.gd` (not `stdio_driver.gd`); and
+> input is unified at the **poll/queue seam** (`InputRegistrar.poll` →
+> `scheduler.queue_input`), NOT at synthesized Godot `InputEvent`s /
+> `parse_input_event` (see ADR 0061's deviation note — don't go looking for
+> `parse_input_event`).
 
 > **Scope guard.** This ADR is ONLY the I/O contract — input injection, a
 > determinism hash, and external observe channels — serving **automated tests**

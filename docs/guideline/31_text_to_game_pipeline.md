@@ -2,11 +2,18 @@
 
 _Session: 2026-04-23_
 
+> **Historical planning doc.** This captures the 2026-04-23 strategy
+> discussion. Some specifics did not land as planned: the pipeline grew from a
+> "lean 3-agent" sketch to **38 specialist skills**; the proposed
+> `docs/architecture/tr-registry.yaml` was **never built** (ADRs became the
+> decision record instead). For the current pipeline see the README "Generation
+> pipeline" section + [ADR 0067](../adr/0067-unified-generation-pipeline.md).
+
 ## Context
 
 Mid-W1, during runtime-engine build, the user raised two strategic points:
 
-1. **Side-quest**: read `/mnt/c/Users/kamwoh/Documents/Projects/Personal/Claude-Code-Game-Studios`
+1. **Side-quest**: read [Claude-Code-Game-Studios](https://github.com/Donchitos/Claude-Code-Game-Studios)
    (CCGS). User worried it might be "much better than Yume because we're not
    experienced game developers."
 2. **Goal clarification**: "eventually our goal is to make Yume able to create
@@ -274,7 +281,7 @@ See ADR 0051 for the rationale + tooling docs (`tools/yume_codegen/README.md`,
 
 ## Reference
 
-- CCGS repo: `/mnt/c/Users/kamwoh/Documents/Projects/Personal/Claude-Code-Game-Studios/`
+- CCGS repo: https://github.com/Donchitos/Claude-Code-Game-Studios
 - Key CCGS files:
   - `README.md`, `CLAUDE.md`, `UPGRADING.md`
   - `.claude/docs/agent-coordination-map.md`

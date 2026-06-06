@@ -9,6 +9,15 @@ Sequence is by chronology of acceptance.
 
 Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 
+> **Note on file paths in older ADRs.** The engine was later reorganized from a
+> flat `scripts/engine/*.gd` layout into subdirectories (`core/ · coordinators/
+> · directors/ · io/ · ui/ · stores/ · libs/ · util/ · qa/`). ADRs written
+> before that move (roughly 0001–0043) reference flat `scripts/engine/X.gd`
+> paths — the **filenames are still correct**, but the directory is now one of
+> those subdirs. For the authoritative current tree see
+> [`../guideline/33_architecture.md`](../guideline/33_architecture.md) §8 and
+> the README "Engine file map".
+
 ## When to write an ADR
 
 - **Adding a primitive** to the contract (e.g., `Plan` or `Knowledge`
@@ -99,6 +108,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0064](./0064-data-driven-replication-config.md) | Data-driven replication config (net.json) | accepted | 2026-06-01 |
 | [0065](./0065-synced-animation-phase.md) | Synced animation — phase as deterministic sim state | accepted | 2026-06-01 |
 | [0066](./0066-record-replay-smooth-render.md) | Record-then-replay for smooth offline net video | accepted | 2026-06-04 |
+| [0067](./0067-unified-generation-pipeline.md) | Unified generation pipeline (World / Game / Assets — disjoint-ownership layers) | accepted | 2026-06-06 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 

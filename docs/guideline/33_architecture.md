@@ -135,7 +135,7 @@ flowchart TB
     subgraph AUTH["① AUTHORING — offline, LLM-assisted"]
         direction LR
         PITCH["prose pitch"]
-        SKILLS["/yume-design (game)<br/>/yume-create-scene (3D world)<br/>— 28 specialist skills"]
+        SKILLS["/yume-design (game)<br/>/yume-create-scene (3D world)<br/>— 38 specialist skills"]
         PITCH --> SKILLS
     end
 

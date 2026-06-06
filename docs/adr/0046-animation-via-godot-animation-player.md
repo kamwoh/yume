@@ -288,8 +288,8 @@ crouch). Today no Yume content needs that.
 
 ### Phase A.1 — Translation layer + unit tests (1 session)
 
-- Build `scripts/engine/animation/animation_translator.gd` (or
-  similar): `static func build_library(animations_block: Dictionary)
+- Build `scripts/engine/directors/animation_translator.gd`:
+  `static func build_library(animations_block: Dictionary)
   -> AnimationLibrary`. Each clip in the JSON → one `Animation`
   resource with tracks added via `add_track()` / `track_insert_key()`.
 - Loop mode: read from JSON (`loop: true/false`).

@@ -35,7 +35,7 @@ To run a locally-generated demo:
 ```
 yume/
 ├── .claude/                            ← Skills + rules + settings
-│   ├── skills/yume-*/SKILL.md          (28 specialist skills, Tier 2.6)
+│   ├── skills/yume-*/SKILL.md          (38 specialist skills, Tier 2.6)
 │   └── rules/                          (path-scoped invariants)
 ├── godot/    ← Godot project (engine + scaffolding; demos gitignored)
 │   ├── data/                           ← shared engine libraries (TRACKED)

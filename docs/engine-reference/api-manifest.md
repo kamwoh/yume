@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-05-20T00:37:32+00:00_
+_Generated: 2026-06-06T23:39:30+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -88,7 +88,7 @@ Valid `rule.trigger.type` strings:
 
 Top-level keys allowed in a `query` spec:
 
-`tags_all`, `tags_any`, `tags_none`, `properties`, `state`, `relations`, `radius`, `order_by`, `limit`
+`tags_all`, `tags_any`, `tags_none`, `id`, `ids`, `properties`, `state`, `relations`, `radius`, `order_by`, `limit`
 
 ### Operator suffixes
 
