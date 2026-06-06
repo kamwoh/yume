@@ -21,7 +21,8 @@
           0,
           0
         ],
-        "gravity": 0
+        "gravity": 0,
+        "scale": 2.0
       },
       "visual": {
         "mesh": "bolt_3d",
@@ -53,7 +54,8 @@
           0,
           0
         ],
-        "gravity": 0
+        "gravity": 0,
+        "scale": 2.0
       },
       "visual": {
         "mesh": "pellet_3d",
@@ -85,7 +87,8 @@
           0,
           0
         ],
-        "gravity": 0
+        "gravity": 0,
+        "scale": 2.0
       },
       "visual": {
         "mesh": "rocket_3d",

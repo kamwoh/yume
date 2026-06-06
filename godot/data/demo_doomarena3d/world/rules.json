@@ -11,7 +11,7 @@
       "effect": {
         "type": "velocity_add_relative",
         "target": "actor",
-        "forward": 2.0,
+        "forward": "2.0 * actor.state.speed_multiplier",
         "strafe": 0
       }
     },
@@ -24,7 +24,7 @@
       "effect": {
         "type": "velocity_add_relative",
         "target": "actor",
-        "forward": -2.0,
+        "forward": "-2.0 * actor.state.speed_multiplier",
         "strafe": 0
       }
     },
@@ -38,7 +38,7 @@
         "type": "velocity_add_relative",
         "target": "actor",
         "forward": 0,
-        "strafe": 2.0
+        "strafe": "2.0 * actor.state.speed_multiplier"
       }
     },
     {
@@ -51,7 +51,7 @@
         "type": "velocity_add_relative",
         "target": "actor",
         "forward": 0,
-        "strafe": -2.0
+        "strafe": "-2.0 * actor.state.speed_multiplier"
       }
     },
     {
@@ -831,6 +831,111 @@
         "x": 0,
         "y": 0
       }
+    },
+    {
+      "_comment": "SPACE -> grounded jump. Sets y_velocity; character_body_runner mirrors it into the body + gravity (state.gravity=18) brings the player back. require on_floor==1 = no double-jump. Mirrors demo_lanterns 12_shell_jump.",
+      "id": "player_jump",
+      "trigger": {
+        "type": "input",
+        "action": "jump"
+      },
+      "require": {
+        "actor": {
+          "tags_all": [
+            "player"
+          ],
+          "state": {
+            "on_floor_eq": 1
+          }
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "actor",
+          "field": "y_velocity",
+          "value": 7.0
+        },
+        {
+          "type": "state_set",
+          "target": "actor",
+          "field": "on_floor",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "_comment": "Hold SHIFT to sprint (release-safe countdown). 1.0 walk -> 1.7 run; move rules read actor.state.speed_multiplier.",
+      "id": "sprint_arm",
+      "trigger": {
+        "type": "input",
+        "action": "sprint"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "sprint_t",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "sprint_apply",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "sprint_t_gt": 0
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "speed_multiplier",
+          "value": 1.7
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "sprint_t",
+          "amount": -1
+        }
+      ]
+    },
+    {
+      "id": "sprint_reset",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ],
+        "state": {
+          "sprint_t_lt": 1
+        }
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "speed_multiplier",
+          "value": 1.0
+        }
+      ]
     }
   ],
   "_v3_note": "Spawn rules + chamber-clear rules + boss intro live in levels/<chamber>/rules.json (appended at level load). Chamber 1 has imp-only spawns + score=5 clear. Chamber 2 has full enemy mix + score=20 clear. Chamber 3 has boss pre-spawned + supplemental imps + boss-kill clear (engine sets world.all_levels_complete after last level)."

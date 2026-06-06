@@ -21,13 +21,14 @@
           0,
           0,
           0
-        ]
+        ],
+        "scale": 2.3
       },
       "visual": {
         "mesh": "demon_3d",
         "params": {
-          "body": "#601810",
-          "horn": "#3a0a0a"
+          "body": "#ff3344",
+          "horn": "#7a1020"
         }
       }
     }

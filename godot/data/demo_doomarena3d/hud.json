@@ -38,7 +38,7 @@
     }
   ],
 
-  "controls_hint": "WASD walk · Mouse aim · SPACE fire\n1/2/3 swap weapon · ESC release cursor\nR restart · Q quit",
+  "controls_hint": "WASD move · SHIFT sprint · SPACE jump\nMOUSE aim · LEFT-CLICK fire · 1/2/3 weapon\nESC cursor · R restart · Q quit",
 
   "win":  {"binds": "world.all_levels_complete", "op": ">=", "value": 1,
            "message": "🌟 ALL CHAMBERS STABILIZED 🌟\nOuter, Foundry, Core — all clear.\nThe Industrial Mover is down.\nLast Marine endures."},

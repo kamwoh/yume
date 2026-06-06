@@ -21,13 +21,14 @@
           0,
           0,
           0
-        ]
+        ],
+        "scale": 1.7
       },
       "visual": {
         "mesh": "imp_3d",
         "params": {
-          "body": "#a02020",
-          "eye": "#ffd040"
+          "body": "#ff5a30",
+          "eye": "#ffe84a"
         }
       }
     }

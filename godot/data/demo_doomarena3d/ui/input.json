@@ -1,12 +1,12 @@
 {
-  "_comment": "DoomArena3D inputs. Movement is continuous (HOLD) — held key = sustained motion. Fire (SPACE) and weapon-switch (1/2/3) are discrete (PRESS-edge). Movement key bindings live in project.godot; this file just classifies the edge type per action.",
+  "_comment": "DoomArena3D inputs. WASD movement (HOLD, via the universal include + stop_x/stop_y/stop). Fire = LEFT MOUSE (spark, press). Jump = SPACE (press). Sprint = SHIFT (hold). Weapon swap = 1/2/3 (press). The universal include already classifies move_* as HOLD.",
 
   "actions": [
-    {"_comment": "ADR 0043 — universal WASD/Arrow movement + stop_x/stop_y/stop engine-injected actions.",
+    {"$include": "@lib.input.universal.actions"},
 
-      "$include": "@lib.input.universal.actions"},
-
-    {"name": "spark", "key": "Space", "edge": "press"},
+    {"name": "spark", "mouse_button": "Left", "edge": "press"},
+    {"name": "jump", "key": "Space", "edge": "press"},
+    {"name": "sprint", "key": "Shift", "edge": "hold"},
     {"name": "weapon_1", "key": "1", "edge": "press"},
     {"name": "weapon_2", "key": "2", "edge": "press"},
     {"name": "weapon_3", "key": "3", "edge": "press"}

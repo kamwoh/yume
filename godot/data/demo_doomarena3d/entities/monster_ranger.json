@@ -24,13 +24,14 @@
           0,
           0,
           0
-        ]
+        ],
+        "scale": 1.8
       },
       "visual": {
         "mesh": "ranger_3d",
         "params": {
-          "body": "#603030",
-          "lens": "#ff8040"
+          "body": "#40d8ff",
+          "lens": "#ffffff"
         }
       }
     }

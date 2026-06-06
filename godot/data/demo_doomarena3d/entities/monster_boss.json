@@ -21,7 +21,8 @@
           0,
           0,
           0
-        ]
+        ],
+        "scale": 3.2
       },
       "visual": {
         "mesh": "boss_3d",

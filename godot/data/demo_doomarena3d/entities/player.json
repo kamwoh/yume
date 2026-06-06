@@ -1,5 +1,5 @@
 {
-  "_comment": "First-person marine. velocity is VECTOR2 [x, z-plane] — the engine lifts it to Vector3(x,0,z) for the character body; the vertical axis is the runner's y_velocity channel. WASD uses velocity_add_relative for diagonal movement (ADR 0004); snap-to-stop on release comes from the player_stop_on_idle rule (state.drag is unimplemented post ADR-0044 — do NOT rely on it). state.facing is updated by mouse-look in GameShell. hide_for_camera_attach so the first-person mesh isn't visible in front of the camera. v2.5 adds current_weapon (1/2/3) + weapon_cooldown. v3.0 adds 'persistent' (ADR 0006) so HP/ammo/score/weapon survive level transitions.",
+  "_comment": "First-person marine. velocity is VECTOR2 [x, z-plane] \u2014 the engine lifts it to Vector3(x,0,z) for the character body; the vertical axis is the runner's y_velocity channel. WASD uses velocity_add_relative for diagonal movement (ADR 0004); snap-to-stop on release comes from the player_stop_on_idle rule (state.drag is unimplemented post ADR-0044 \u2014 do NOT rely on it). state.facing is updated by mouse-look in GameShell. hide_for_camera_attach so the first-person mesh isn't visible in front of the camera. v2.5 adds current_weapon (1/2/3) + weapon_cooldown. v3.0 adds 'persistent' (ADR 0006) so HP/ammo/score/weapon survive level transitions.",
   "definitions": [
     {
       "id": "player",
@@ -26,7 +26,11 @@
         "velocity": [
           0,
           0
-        ]
+        ],
+        "speed_multiplier": 1.0,
+        "y_velocity": 0.0,
+        "on_floor": 1,
+        "gravity": 18.0
       },
       "visual": {
         "hide_for_camera_attach": true,
