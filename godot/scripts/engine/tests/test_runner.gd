@@ -4551,20 +4551,27 @@ func test_runtime_spawn_builds_body() -> void:
 	var spy = spy_src.new()
 	add_child(spy)
 	var defs: Dictionary = {
-		"bolt": {"id": "bolt", "tags": ["projectile"], "state_init": {"velocity": [0, 0, -22]},
+		"bolt": {"id": "bolt", "tags": ["projectile"], "state_init": {"velocity": [0, 0, -22], "charge": 0},
 			"physics": {"body_type": "rigid", "collision_shape": {"type": "sphere", "radius": 0.1}}},
 	}
 	var env: Dictionary = {
 		"entities": {}, "defs": defs, "relations": RelationStore.new(),
 		"world": {}, "parent": spy, "next_id": {"_": 0}, "spatial_index": null,
 	}
-	EffectCore.spawn({"type": "spawn", "template": "bolt"}, env, {})
+	# SCALAR formula override must resolve (not just position/velocity arrays). A
+	# pitch-aimed projectile seeds state.y_velocity via a formula; if scalar
+	# overrides aren't resolved it stays a string -> 0 -> the shot flies flat.
+	var res = EffectCore.spawn(
+		{"type": "spawn", "template": "bolt", "overrides": {"state": {"charge": "2 + 3"}}}, env, {}
+	)
 	expect_eq(spy.built.size(), 1, "EffectCore.spawn called build_runtime_physics_body once")
 	expect_eq(spy.rendered.size(), 1, "EffectCore.spawn called attach_runtime_renderer once (else invisible)")
-	if spy.rendered.size() == 1:
+	var spawned_id := str(res.get("spawned_id", ""))
+	var spawned = (env["entities"] as Dictionary).get(spawned_id, null)
+	if spawned is Entity:
 		expect_eq(
-			(spy.rendered[0] as Entity).def_id, "bolt",
-			"the renderer-attach hook received the spawned entity"
+			float((spawned as Entity).get_state("charge", -1)), 5.0,
+			"scalar formula override 'charge: 2 + 3' resolved (not left as a string -> 0)"
 		)
 	spy.queue_free()
 

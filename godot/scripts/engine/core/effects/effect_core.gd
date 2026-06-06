@@ -230,15 +230,21 @@ static func spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary
 	var overrides: Dictionary = (e.get("overrides", {}) as Dictionary).duplicate(true)
 	if e.has("position"):
 		overrides["position"] = EffectResolution.position(e["position"], env, ctx)
-	# Resolve formula strings in state-override Arrays (position/velocity).
-	# Without this, override `state.velocity = ["cos(facing)*22", 0, ...]`
-	# survives Array→float coercion as Vector3.ZERO and the bullet doesn't
-	# move. Empirically caught during doomarena3d build (2026-05-03).
+	# Resolve formula strings in state overrides. position/velocity are Arrays
+	# (Vector-valued → EffectResolution.position); every OTHER scalar override
+	# that's a formula string goes through EffectResolution.value. Without the
+	# scalar pass, `state.y_velocity = "sin(pitch)*22"` survived as a STRING and
+	# coerced to 0 — a pitch-aimed projectile flew flat (the runner's vertical
+	# channel got 0). Array case empirically caught 2026-05-03; scalar case
+	# 2026-06-06 (doomarena3d "shoot up, bullet still goes horizontal").
 	if overrides.has("state") and overrides["state"] is Dictionary:
 		var ov_state: Dictionary = overrides["state"]
-		for key in ["position", "velocity"]:
-			if ov_state.has(key) and ov_state[key] is Array:
-				ov_state[key] = EffectResolution.position(ov_state[key], env, ctx)
+		for key in ov_state.keys():
+			var ov_v = ov_state[key]
+			if (key == "position" or key == "velocity") and ov_v is Array:
+				ov_state[key] = EffectResolution.position(ov_v, env, ctx)
+			elif ov_v is String:
+				ov_state[key] = EffectResolution.value(ov_v, ctx, env)
 	# Determine instance id
 	var inst_id := ""
 	if overrides.has("_forced_id"):

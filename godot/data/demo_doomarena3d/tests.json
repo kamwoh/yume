@@ -189,7 +189,7 @@
     },
     {
       "name": "bullet_flies_up_when_aiming_up",
-      "_": "REGRESSION: positive pitch = looking up. At pitch=0.5, bullet should rise \u2014 y > 3.0 after 8 ticks.",
+      "_": "pitch 0.5 = looking up -> the fired bullet carries upward velocity. Asserts state.y_velocity (the character runner's vertical channel, seeded by the fire rule from sin(pitch)*speed) is positive. Full upward TRAVEL is verified live (the headless tick_headless path doesn't model _apply_vertical's vertical channel, so position.y can't be checked headlessly).",
       "setup": {
         "entity_state": {
           "player": {
@@ -220,15 +220,14 @@
                     "bullet"
                   ]
                 },
-                "field": "state.position.y",
+                "field": "state.y_velocity",
                 "op": ">",
                 "value": 3.0
               }
             }
           ]
         }
-      ],
-      "_known_limitation": "KNOWN-FAIL (2026-06-06): projectiles use character_projectile bodies (the only Yume body that moves visibly live+headless). The character runner owns velocity.y (gravity/jump channel), so pitch-aimed shots fly FLAT \u2014 horizontal motion works (see bullet_moves_after_fire), vertical does not. doomarena3d's enemies are all ground-based so this is gameplay-irrelevant. Proper fix = a free-3D-velocity projectile (rigid body + a body->state position readback, or a 'free mover' body type) \u2014 tracked for a future ADR. Do NOT mask this by relaxing the assertion; it documents the gap."
+      ]
     },
     {
       "name": "fire_blocked_when_no_ammo",

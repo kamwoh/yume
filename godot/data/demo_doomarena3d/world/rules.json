@@ -162,7 +162,9 @@
                 "-sin(self.state.facing) * cos(self.state.pitch) * 22",
                 "sin(self.state.pitch) * 22",
                 "-cos(self.state.facing) * cos(self.state.pitch) * 22"
-              ]
+              ],
+              "y_velocity": "sin(self.state.pitch) * 22",
+              "on_floor": 0
             }
           }
         },
@@ -211,7 +213,9 @@
                 "-sin(self.state.facing - 0.262) * cos(self.state.pitch) * 18",
                 "sin(self.state.pitch) * 18",
                 "-cos(self.state.facing - 0.262) * cos(self.state.pitch) * 18"
-              ]
+              ],
+              "y_velocity": "sin(self.state.pitch) * 18",
+              "on_floor": 0
             }
           }
         },
@@ -229,7 +233,9 @@
                 "-sin(self.state.facing - 0.131) * cos(self.state.pitch) * 18",
                 "sin(self.state.pitch) * 18",
                 "-cos(self.state.facing - 0.131) * cos(self.state.pitch) * 18"
-              ]
+              ],
+              "y_velocity": "sin(self.state.pitch) * 18",
+              "on_floor": 0
             }
           }
         },
@@ -247,7 +253,9 @@
                 "-sin(self.state.facing) * cos(self.state.pitch) * 18",
                 "sin(self.state.pitch) * 18",
                 "-cos(self.state.facing) * cos(self.state.pitch) * 18"
-              ]
+              ],
+              "y_velocity": "sin(self.state.pitch) * 18",
+              "on_floor": 0
             }
           }
         },
@@ -265,7 +273,9 @@
                 "-sin(self.state.facing + 0.131) * cos(self.state.pitch) * 18",
                 "sin(self.state.pitch) * 18",
                 "-cos(self.state.facing + 0.131) * cos(self.state.pitch) * 18"
-              ]
+              ],
+              "y_velocity": "sin(self.state.pitch) * 18",
+              "on_floor": 0
             }
           }
         },
@@ -283,7 +293,9 @@
                 "-sin(self.state.facing + 0.262) * cos(self.state.pitch) * 18",
                 "sin(self.state.pitch) * 18",
                 "-cos(self.state.facing + 0.262) * cos(self.state.pitch) * 18"
-              ]
+              ],
+              "y_velocity": "sin(self.state.pitch) * 18",
+              "on_floor": 0
             }
           }
         },
@@ -338,7 +350,9 @@
                 "-sin(self.state.facing) * cos(self.state.pitch) * 14",
                 "sin(self.state.pitch) * 14",
                 "-cos(self.state.facing) * cos(self.state.pitch) * 14"
-              ]
+              ],
+              "y_velocity": "sin(self.state.pitch) * 14",
+              "on_floor": 0
             }
           }
         },
