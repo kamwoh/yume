@@ -437,6 +437,19 @@ func build_runtime_physics_body(ent: Entity) -> void:
 		_spawn_manager._build_physics_body_if_declared(ent)
 
 
+## Attach the per-entity renderer (entity_mesh_3d / entity_sprite_2d) to a
+## RUNTIME-spawned entity — parity with SpawnManager.spawn's initial path.
+## _attach_renderer lives on SpawnManager, so EffectCore.spawn (which only has
+## env.parent == this World) could never reach it: its `parent.has_method(
+## "_attach_renderer")` guard was ALWAYS false, so rule-spawned entities got a
+## collider but NO MESH — invisible. Empirical 2026-06-06 (doomarena3d): the
+## debug-collider capsule showed where a monster was, but the monster itself
+## was never drawn.
+func attach_runtime_renderer(ent: Entity) -> void:
+	if _spawn_manager != null and ent is Entity:
+		_spawn_manager._attach_renderer(ent)
+
+
 ## ADR 0039: canonical sim-tick body. Reads as a schedule — each line
 ## is one step; implementation lives in private helpers below. Used by:
 ##   1. The live `_process(delta)` accumulator (above) after the freeze check.

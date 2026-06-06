@@ -4535,13 +4535,16 @@ func test_global_input_toggle_edge() -> void:
 ## EffectCore.spawn invokes build_runtime_physics_body on its parent. If the
 ## call is removed again, this FAILS.
 func test_runtime_spawn_builds_body() -> void:
-	_section("effect_core.spawn builds physics body (parity) (2026-06-06)")
-	# Spy parent: records build_runtime_physics_body invocations.
+	_section("effect_core.spawn builds body + attaches renderer (parity) (2026-06-06)")
+	# Spy parent: records BOTH parity hooks. The renderer hook is named
+	# attach_runtime_renderer (NOT _attach_renderer — that lives on SpawnManager,
+	# not env.parent; the old guard silently skipped it → invisible spawns).
 	var spy_src := GDScript.new()
 	spy_src.source_code = (
 		"extends Node\n"
 		+ "var built: Array = []\n"
-		+ "func _attach_renderer(_e) -> void: pass\n"
+		+ "var rendered: Array = []\n"
+		+ "func attach_runtime_renderer(e) -> void: rendered.append(e)\n"
 		+ "func build_runtime_physics_body(e) -> void: built.append(e)\n"
 	)
 	spy_src.reload()
@@ -4557,10 +4560,11 @@ func test_runtime_spawn_builds_body() -> void:
 	}
 	EffectCore.spawn({"type": "spawn", "template": "bolt"}, env, {})
 	expect_eq(spy.built.size(), 1, "EffectCore.spawn called build_runtime_physics_body once")
-	if spy.built.size() == 1:
+	expect_eq(spy.rendered.size(), 1, "EffectCore.spawn called attach_runtime_renderer once (else invisible)")
+	if spy.rendered.size() == 1:
 		expect_eq(
-			(spy.built[0] as Entity).def_id, "bolt",
-			"the body-build hook received the spawned entity"
+			(spy.rendered[0] as Entity).def_id, "bolt",
+			"the renderer-attach hook received the spawned entity"
 		)
 	spy.queue_free()
 

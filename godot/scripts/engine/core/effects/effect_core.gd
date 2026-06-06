@@ -253,11 +253,14 @@ static func spawn(e: Dictionary, env: Dictionary, ctx: Dictionary) -> Dictionary
 	var parent = env.get("parent", null)
 	if parent is Node:
 		parent.add_child(ent)
-		# Attach renderer if World provides one. Required for transform/spawn
-		# at runtime so the new entity is visible (initial spawns are rendered
-		# directly by World._spawn_initial — same hook).
-		if parent.has_method("_attach_renderer"):
-			parent.call("_attach_renderer", ent)
+		# Attach the per-entity renderer so a runtime spawn is VISIBLE (initial
+		# instances get this via SpawnManager._attach_renderer). NOTE: the hook
+		# is World.attach_runtime_renderer, NOT "_attach_renderer" — the latter
+		# lives on SpawnManager, not on env.parent (World), so the old guard was
+		# always false and rule-spawned entities rendered nothing (collider only).
+		# Empirical 2026-06-06: doomarena3d monsters + bullets were invisible.
+		if parent.has_method("attach_runtime_renderer"):
+			parent.call("attach_runtime_renderer", ent)
 		# ADR 0044/0045 parity: build the physics body for runtime spawns too.
 		# SpawnManager.spawn (initial instances) builds bodies; this path didn't,
 		# so rule-spawned movers (projectiles, summoned NPCs) were frozen — they
