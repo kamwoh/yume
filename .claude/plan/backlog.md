@@ -31,16 +31,12 @@ default zoom, instant (no-lerp) follow, **run+jump clips**._
       `player_marken_animated_0b249fa7.glb` (idle/walk/run/jump). Rules: jump on
       `on_floor==0`, run on velocity>4.5. Wired in compose_shell + aldenmere
       player.json. Run visually confirmed (running stride).
-- [ ] **Jump may not impart upward velocity (NEEDS PLAYTEST).** Instrumenting
-      `_apply_vertical` showed the jump rule's `state.y_velocity=7` NEVER reaches
-      the integrator (no `y_vel>1` ever, even on flat tiny_village ground) under
-      *scripted capture*. Either (a) a real bug — the grounded `_writeback`
-      zeroes `state.y_velocity` before the physics frame consumes it (sim-tick ↔
-      `_physics_process` ordering race), or (b) a capture-harness artifact —
-      `Input.action_press` doesn't trigger Yume's press-edge for `jump`. Can't
-      disambiguate without a REAL keypress. If real: decouple the jump impulse
-      from `y_velocity` (one-shot `jump_impulse` field consumed by
-      `_apply_vertical`, untouched by `_writeback`). Empirical 2026-05-30.
+- [x] **Jump RESOLVED (user-confirmed working, 2026-06-08).** The earlier
+      "y_velocity never reaches the integrator" was the (b) capture-harness
+      artifact (`Input.action_press` not firing Yume's jump press-edge), NOT a
+      real sim-tick race — jump works in live play. Jump feel is also now a
+      generation knob: `scene_config.json` `"shell": {"jump_impulse", "gravity"}`
+      (was hardcoded 7.0/18.0), both runtime-mutable state.
 - [ ] **Step-up for stairs (CharacterBody3D has none).** Floor params now keep
       detection correct + ride shallow steps (ADR 0062), but tall stair risers
       still block the player. Add detect-step-ahead-within-max-height + lift.
