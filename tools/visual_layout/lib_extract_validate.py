@@ -33,6 +33,11 @@ from typing import Any
 DEFAULT_COUNT_TOLERANCE_PCT = 50.0
 DEFAULT_OVERLAP_THRESHOLD_M = 0.5
 DEFAULT_OVERLAP_MAX_PCT = 10.0
+# A class emitting MORE than expected_count × this factor is an
+# "overflow" — a hard FAIL, not mere drift. Catches mask-fill ignoring
+# expected_count from ANY extraction method (not just scatter_in_mask).
+# Empirical 2026-06-08: lanterns emitted 1510 instances for a ~30 catalog.
+DEFAULT_COUNT_OVERFLOW_FACTOR = 3.0
 
 
 def _instance_radius(inst: dict) -> float:
@@ -97,6 +102,7 @@ def _per_class_counts(
     instances: list[dict],
     catalog: dict,
     count_tolerance_pct: float,
+    overflow_factor: float = DEFAULT_COUNT_OVERFLOW_FACTOR,
 ) -> dict[str, dict]:
     """Compare per-class counts to catalog's expected_count."""
     actual: dict[str, int] = {}
@@ -124,6 +130,10 @@ def _per_class_counts(
             entry["drift_pct"] = round(drift_pct, 1)
             if n == 0:
                 entry["verdict"] = "missing"
+            elif n > expected * overflow_factor:
+                # Way over intent — a generation bug (mask-fill ignoring
+                # expected_count), not tolerable drift. Hard fail.
+                entry["verdict"] = "overflow"
             elif abs(drift_pct) > count_tolerance_pct:
                 entry["verdict"] = "drift"
             else:
@@ -140,6 +150,7 @@ def validate(
     count_tolerance_pct: float = DEFAULT_COUNT_TOLERANCE_PCT,
     overlap_threshold_m: float = DEFAULT_OVERLAP_THRESHOLD_M,
     overlap_max_pct: float = DEFAULT_OVERLAP_MAX_PCT,
+    overflow_factor: float = DEFAULT_COUNT_OVERFLOW_FACTOR,
 ) -> dict:
     """Run the full validation pass. Returns a report dict.
 
@@ -152,7 +163,8 @@ def validate(
         wsm = extracted.get("world_size_meters", [80.0, 80.0])
         world_size_m = (float(wsm[0]), float(wsm[1]))
 
-    per_class = _per_class_counts(instances, catalog, count_tolerance_pct)
+    per_class = _per_class_counts(instances, catalog, count_tolerance_pct,
+                                  overflow_factor)
     oob = _check_bounds(instances, world_size_m)
     overlap_count, overlap_pairs = _check_overlaps(
         instances, overlap_threshold_m
@@ -176,7 +188,9 @@ def validate(
                        if e["verdict"] == "missing"]
     drift_classes = [n for n, e in per_class.items()
                      if e["verdict"] == "drift"]
-    has_fail = bool(missing_classes) or bool(oob) or (
+    overflow_classes = [n for n, e in per_class.items()
+                        if e["verdict"] == "overflow"]
+    has_fail = bool(missing_classes) or bool(overflow_classes) or bool(oob) or (
         overlap_pct >= 0 and overlap_pct > overlap_max_pct * 2
     )
     has_warn = bool(drift_classes) or (
@@ -191,6 +205,7 @@ def validate(
         "per_class": per_class,
         "missing_classes": missing_classes,
         "drift_classes": drift_classes,
+        "overflow_classes": overflow_classes,
         "out_of_bounds": oob,
         "overlap": {
             "count": overlap_count,
@@ -230,6 +245,11 @@ def format_report(report: dict) -> str:
             f"{drift_str}  [{verdict_tag}]  origin={origin}"
         )
 
+    if report.get("overflow_classes"):
+        lines.append(
+            f"  OVERFLOW: {report['overflow_classes']} "
+            f"(emitted ≫ expected_count — generation bug)"
+        )
     if report["missing_classes"]:
         lines.append(
             f"  MISSING: {report['missing_classes']}"

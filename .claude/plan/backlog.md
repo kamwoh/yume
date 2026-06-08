@@ -15,15 +15,6 @@ file short enough to read in one screen.
       (perspective ↔ orthographic) + `clip_near`/`clip_far`/`focal_length_mm`
       in `_apply_ortho`. Goal: match the hero-reference framing. (You flagged
       this to revisit after tiny_village.)
-- [ ] **scatter-count gate gap (2026-06-06).** `compose_world`'s
-      `scatter_in_mask` strategy IGNORES the catalog's `expected_count` →
-      a "~30" request emitted 1510 instances (1220 rocks + 239 trees) on the
-      lanterns run; worked around by post-trim. The `/yume-create-scene` SKILL
-      *documents* "counts come from expected_count, never mask-fill" but
-      `lib_extract_dispatch.scatter` doesn't ENFORCE it (prose rule, no gate).
-      Fix (post-mortem step 3): cap `scatter_in_mask` at `expected_count`
-      (× spread factor), OR a validator that fails when emitted count exceeds
-      `expected_count` by a large factor. Owner: `lib_extract_dispatch.scatter`.
 - [ ] **Fence gaps (minor).** Ellipse-tiled fence ring leaves small gaps
       between sections; overlap at `section_len × 0.9` if a flush look is wanted.
 - [ ] **Water system** — DEFERRED. Box-mesh + FRONT_FACING underwater works but

@@ -32,6 +32,15 @@ from PIL import Image
 from tools.visual_layout import lib_extract as cv
 
 
+# scatter_in_mask honors the catalog's expected_count as design intent:
+# the density×area heuristic is CAPPED at expected_count × this factor so a
+# large source mask can't emit hundreds of instances for a class the author
+# asked ~30 of. Per-strategy override: strategy["scatter_max_factor"].
+# Empirical 2026-06-08: lanterns emitted 1220 rocks + 239 trees (1510 total)
+# for a catalog asking ~30 — density mask-fill ignored expected_count.
+SCATTER_SPREAD_FACTOR = 1.5
+
+
 # ============================================================
 # HEIGHTMAP SAMPLER (mirrors compose_world.HeightmapSampler)
 # ============================================================
@@ -456,6 +465,15 @@ def _extract_scatter(*, name, class_entry, label_map, palette,
     area_m2 = float(mask.sum()) * (wx_m * wz_m) / (iw * ih)
     density = float(strategy.get("scatter_density_per_m2", 0.02))
     target_n = max(1, int(round(area_m2 * density)))
+    # Cap (never inflate) at the catalog's expected_count × spread factor.
+    # Counts come from expected_count, never unbounded mask-fill — a class
+    # with no expected_count keeps the density-only behavior.
+    expected = class_entry.get("expected_count")
+    if expected and expected > 0:
+        factor = float(strategy.get("scatter_max_factor", SCATTER_SPREAD_FACTOR))
+        cap = max(1, int(round(expected * factor)))
+        if target_n > cap:
+            target_n = cap
     min_dist_m = float(strategy.get("min_distance_between_meters", 1.5))
     min_dist_px = min_dist_m * 0.5 * (iw / wx_m + ih / wz_m)
 

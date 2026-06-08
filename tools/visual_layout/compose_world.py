@@ -844,6 +844,19 @@ def compose(
         catalog=catalog)
     print(val.format_report(report))
 
+    # GATE (post-mortem 2026-06-08): a class emitting ≫ expected_count is a
+    # generation bug (mask-fill ignoring the catalog), not tolerable drift.
+    # scatter_in_mask now caps at expected_count × factor; this hard-fail
+    # catches the same bug class from ANY extraction method before it ships
+    # a 1500-entity scene. Empirical: lanterns shipped 1510 for a ~30 catalog.
+    if report.get("overflow_classes"):
+        raise SystemExit(
+            f"[compose_world] FAIL — count overflow: "
+            f"{report['overflow_classes']} emitted far more instances than "
+            f"the catalog's expected_count (> {val.DEFAULT_COUNT_OVERFLOW_FACTOR}×). "
+            f"Fix the class's extraction strategy or its expected_count."
+        )
+
     # Extraction↔rendering alignment gate (post-mortem 2026-05-26).
     # The shaders + HeightmapSampler must sample the splatmap at the
     # SAME pixel pixel_to_world read each entity from — i.e. NO V flip.
