@@ -239,4 +239,4 @@ Phased like 0060 — each phase CI-testable:
   this ADR decides).
 - Godot APIs: `ENetMultiplayerPeer`, `MultiplayerAPI`, `@rpc`,
   `MultiplayerSynchronizer` (evaluate vs manual input-replication during impl).
-- Design context: `.claude/plan/world-model-multiplayer.md`.
+- Design context: `docs/world-model-multiplayer.md`.

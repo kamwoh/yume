@@ -73,8 +73,12 @@ yume/
 │   └── timeline/                       (decision diary)
 ├── scripts/play.sh                     ← Run a demo (sync + launch)
 ├── tools/gen_api_manifest.py           ← Regenerate engine API manifest
-├── task_plan.md                        ← Index → .claude/plan/{backlog,archive}.md
 └── CLAUDE.md (this file)
+
+(Planning workspace — `task_plan.md`, `.claude/plan/{backlog,archive}.md`,
+`docs/`-bound design notes — is the author's LOCAL, gitignored scratch; not
+in a fresh clone. The framework's shared config lives in CLAUDE.md +
+`.claude/rules/` + `.claude/skills/`.)
 ```
 
 ## How the engine works
@@ -406,4 +410,4 @@ normal_texture, roughness, metallic}). See each package's README.
 - `docs/adr/0051-authoring-time-python-emitters.md` — codegen + assetgen rationale
 - `tools/yume_codegen/README.md` — rule/entity/screen JSON builders
 - `tools/yume_assetgen/README.md` — texture + mesh generation flow
-- `.claude/plan/backlog.md` — live actionable backlog (start here); `.claude/plan/archive.md` — full history + decision log (`task_plan.md` is now just an index pointing to both)
+- Planning/backlog/decision-log is the author's LOCAL workspace (`task_plan.md` + `.claude/plan/`, gitignored) — not in a fresh clone.

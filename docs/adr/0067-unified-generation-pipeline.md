@@ -77,8 +77,8 @@ ground/lighting) and makes explorer games near-free.
 **Follow-up (user direction):** generalize play modes into inheritable
 `data/lib/play_modes/<mode>/` bundles games `$include` (ADR 0027/0043 lib-ref
 machinery), so the walk shell is reusable by NON-`--scene` games too and a
-same-type game is just assets + scene + a few rules. Tracked in
-`.claude/plan/open-source-v0.1.md`; its own ADR.
+same-type game is just assets + scene + a few rules. A follow-up of its
+own ADR (the play-mode-inheritance lib bundle).
 
 ## (original) `compose_shell` rule — superseded by the revision above
 

@@ -29,11 +29,12 @@ them as code: precise, versioned, audited.
   invariant, link back to `30_framework_primitives.md` § X.
 - ✅ **Date entries.** `_Last updated: YYYY-MM-DD_` at the top of any
   living doc. Strategic-shift sections include the date.
-- ✅ **Append history to `.claude/plan/archive.md`** (the former
-  `task_plan.md`; root `task_plan.md` is now just an index). Live TODOs live in
+- ✅ **Append history to `.claude/plan/archive.md`**. Live TODOs live in
   `.claude/plan/backlog.md` — delete items there when they ship; the archive
   keeps the record. Keep deferred / superseded text visible so history is
-  self-explanatory.
+  self-explanatory. NOTE: the planning workspace (`task_plan.md` +
+  `.claude/plan/`) is LOCAL/gitignored — author's machine, not the public
+  repo. The guidance still applies to that local workspace.
 - ✅ **Use the timeline diary** (`docs/timeline/entries/NN_*.js`) for
   major architectural decisions, reviews, or pivots. Auto-renders via
   `docs/timeline/index.html` (run `python -m http.server` from there).
@@ -45,8 +46,8 @@ them as code: precise, versioned, audited.
 | `docs/guideline/30_framework_primitives.md` | Engine contract. Invariant-bearing. ADR-gated. |
 | `docs/guideline/31_text_to_game_pipeline.md` | Tier 2.5 strategic plan. CCGS analysis + decisions. |
 | `docs/guideline/33_architecture.md` | Detailed architecture reference (engine + pipelines). |
-| `.claude/plan/backlog.md` | Live actionable backlog. Delete-when-shipped. |
-| `.claude/plan/archive.md` | Roadmap + history + decision log. Append-mostly. |
+| `.claude/plan/backlog.md` | Live actionable backlog. Delete-when-shipped. **Local/gitignored.** |
+| `.claude/plan/archive.md` | Roadmap + history + decision log. Append-mostly. **Local/gitignored.** |
 | `docs/timeline/` | Diary. One entry per major decision. |
 
 ## ADR format (when one is needed)

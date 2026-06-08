@@ -395,6 +395,6 @@ state channel + frame channel emits a non-black 960×540 RGBA frame per step
 - Related ADRs: 0010 (save/load — state serialization), 0018 (actor-policy —
   in-engine AI), 0039 (StepRunner step verbs), 0043 (universal input library).
   **ADR 0061 (multiplayer) depends on this contract.**
-- Design + phased plan: `.claude/plan/world-model-multiplayer.md`.
+- Design + phased plan: `docs/world-model-multiplayer.md`.
 - Rules: determinism-audit bugs follow `.claude/rules/post-mortem.md`; new
   vocabulary is documented per `.claude/rules/engine-scripts.md`.

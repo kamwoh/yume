@@ -122,8 +122,10 @@ scan (query evaluation + binding setup + effect dispatch vs raw dict
 lookups). At Aldenmere's ~237 entities both are microseconds; at the
 ~50-bullet doomarena3d ceiling both are negligible. If a future
 particle-heavy game hits real cost, the optimization path is groups +
-call_group (the "ADR 0050"-shape future work I sketched in
-`.claude/plan/group-dispatch-flow.md`) — not "move back to engine code."
+call_group (an "ADR 0050"-shape future work) — not "move back to engine
+code." (A sketch of this existed but was retired 2026-06-08 as obsolete:
+its target per-tick scans were eliminated by other refactors. Revisit
+profile-driven if a real bottleneck appears.)
 
 ## Alternatives considered
 
@@ -146,7 +148,7 @@ explicit. Rejected — engine-shipped behaviors should be invisibly
 present, not opt-in surface area for content authors. The auto-load
 captures the "always present" semantic correctly.
 
-### D. Move to groups + call_group (per group-dispatch-flow.md)
+### D. Move to groups + call_group
 
 This would handle "K of N entities need work" efficiently. Better at
 scale. Rejected for THIS ADR — overlapping concerns. ADR 0049
@@ -178,7 +180,8 @@ pre-existing motion-test brittleness unrelated to lifetime.
 
 - `data/lib/engine_rules/lifetime.json` — the new rule file
 - `godot/scripts/engine/coordinators/world_boot.gd::_load_engine_rules`
-- `.claude/plan/group-dispatch-flow.md` — future optimization sketch (groups)
+- group dispatch (`add_to_group`/`call_group`) — future optimization
+  direction; a sketch existed but was retired 2026-06-08 (obsolete)
 - ADR 0047 — `world_state` as `_engine` entity (precedent for the
   "JSON-shape this instead of engine-special-case" thinking)
 - ADR 0048 — `velocity_add_relative` auto-reset (immediate prior
