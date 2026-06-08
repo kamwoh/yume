@@ -74,17 +74,17 @@ session. Multiplayer is SPLIT OUT to ADR 0061 (decision-only, depends on 0060).
       paths) + `tools/yume_env/oracle.py` (scenario-driven, tick-locked).
       Audit: **sokoban ✓ deterministic**, **doomarena3d ✓ deterministic**,
       **aldenmere ✗ DIVERGENT**. chess UNAVAILABLE (gitignored, not generated).
-- [ ] **DETERMINISM BUG (backlog, post-mortem when fixed): aldenmere
-      scattered-foragable nondeterminism.** Diverges at tick 1 on
-      `camp_berry_1..10` across all runs. Root: those bushes are
-      `patterns[]`-scattered (`instance_patterns.gd` uses the shared global
-      PRNG for pos/scale/yaw). `scene.json` DOES set `level_seed: 4412`, but
-      the seed is insufficient — PRNG consumption ORDER/COUNT varies run-to-run
-      (shared global RNG across scatter + ambient-wander/deer/plant `randf()`
-      rules → call order isn't pinned). Likely fix: per-pattern/per-stream
-      seeded RNG (not the shared global PRNG) + deterministic scatter order;
-      gate = a validator/test that scatter-using demos oracle-green. DO NOT FIX
-      NOW (Phase 0 only finds).
+- [x] **DETERMINISM BUG FIXED + VERIFIED (2026-06-08): aldenmere
+      scattered-foragable nondeterminism.** Was: `camp_berry_1..10` diverged
+      at tick 1 because `patterns[]` scatter drew from the shared global PRNG
+      (seeded but order-dependent across scatter + runtime `randf()` rules).
+      FIX: `instance_patterns.gd` now uses a PER-PATTERN seeded RNG
+      (`_pattern_rng`, seed = base_seed XOR identity-hash) — order-independent
+      by construction. GATE: `test_runner.gd:2026` "ADR 0060 GATE —
+      order-independence" sub-test (expands a berry scatter at seed 4412,
+      consumes the global PRNG 37×, re-expands, asserts identical — fails on
+      the old shared-PRNG code). VERIFIED: oracle re-run → aldenmere
+      DETERMINISTIC, 3× identical 652-tick hash sequences.
 - [ ] **Phase 0 contract ambiguities to confirm (ADR 0060 amendment / tech-
       director):** (a) hash algorithm — used SHA-256 of a canonical string (ADR
       said "CRC/hash"). (b) what counts as "state" — hashed the FULL `snapshot()`
