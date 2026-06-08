@@ -64,8 +64,10 @@ image_to_model). Simple/structural → kit.
 
 Drop a `godot/data/<game>/scene_config.json` (dataclass-backed; see
 `tools/visual_layout/scene_config.py`) to set world size, terrain
-height_scale/offset, biome colours, lighting mood, player spawn. Omit for
-sensible defaults.
+height_scale/offset, biome colours, lighting mood, player spawn, and shell
+jump feel (`"shell": {"jump_impulse": 7.0, "gravity": 18.0}` — initial
+jump/fall values written into the scaffold; both stay runtime-mutable
+state). Omit for sensible defaults.
 
 ### 3. Run the orchestrator
 

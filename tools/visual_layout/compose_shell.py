@@ -137,7 +137,7 @@ def _lighting_block() -> dict:
     }
 
 
-def _player_def() -> dict:
+def _player_def(gravity: float = 18.0) -> dict:
     # Walkable third-person player. Vector2 velocity [x,y]→world(x,0,y)
     # per data-demo.md; drag=0 for snappy feel; mesh_yaw_offset π/2
     # because Tripo character meshes face +Z. NOTE: borrows aldenmere's
@@ -164,7 +164,7 @@ def _player_def() -> dict:
                     "pitch": 0.0,
                     "y_velocity": 0.0,
                     "on_floor": 1,
-                    "gravity": 18.0,
+                    "gravity": gravity,
                     "camera_distance": 4.0,
                     "scale": 1.7,
                 },
@@ -302,7 +302,7 @@ def _camera_rules() -> dict:
                         "previous mode. Mouse wheel zooms.", "rules": rules}
 
 
-def _jump_rules() -> dict:
+def _jump_rules(jump_impulse: float = 7.0) -> dict:
     return {
         "_comment": "Space → jump. Sets actor.y_velocity; character_body_runner "
                     "mirrors it into body.velocity.y and gravity brings the "
@@ -320,7 +320,7 @@ def _jump_rules() -> dict:
                                       "state": {"on_floor_eq": 1}}},
                 "effect": [
                     {"type": "state_set", "target": "actor",
-                     "field": "y_velocity", "value": 7.0},
+                     "field": "y_velocity", "value": jump_impulse},
                     {"type": "state_set", "target": "actor",
                      "field": "on_floor", "value": 0},
                 ],
@@ -591,7 +591,7 @@ def compose_shell(game_name: str,
     # 2. Shell entity defs.
     (game_dir / "entities").mkdir(exist_ok=True)
     (game_dir / "entities" / "player.json").write_text(
-        json.dumps(_player_def(), indent=2))
+        json.dumps(_player_def(gravity=cfg.shell.gravity), indent=2))
     (game_dir / "entities" / "world_clock.json").write_text(
         json.dumps(_world_clock_def(cfg.player.camera_mode), indent=2))
     (game_dir / "entities" / "cameras.json").write_text(
@@ -612,7 +612,7 @@ def compose_shell(game_name: str,
     (rules_dir / "11_shell_movement.json").write_text(
         json.dumps(_movement_rules(), indent=2))
     (rules_dir / "12_shell_jump.json").write_text(
-        json.dumps(_jump_rules(), indent=2))
+        json.dumps(_jump_rules(jump_impulse=cfg.shell.jump_impulse), indent=2))
     (rules_dir / "13_shell_sprint.json").write_text(
         json.dumps(_sprint_rules(), indent=2))
 

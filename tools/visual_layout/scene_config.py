@@ -22,7 +22,8 @@ JSON shape (every key optional; unknown keys like "_comment" ignored):
   "water":   {"enabled": true, "level": null},  // enabled:false → no water plane/carving
   "biomes":  {"grass": "#79b048"},
   "lighting": { ...partial/full override of compose_shell._lighting_block... },
-  "player":  {"spawn": [0, null, 10]}   // null Y → auto terrain clearance
+  "player":  {"spawn": [0, null, 10]},  // null Y → auto terrain clearance
+  "shell":   {"jump_impulse": 7.0, "gravity": 18.0}  // jump/fall feel
 }
 """
 from __future__ import annotations
@@ -84,11 +85,24 @@ class PlayerConfig:
 
 
 @dataclass
+class ShellConfig:
+    # Jump/fall feel written into the scaffolded shell (compose_shell).
+    # These set the INITIAL values in the emitted JSON — the player's
+    # state.gravity and the player_jump rule's y_velocity impulse. Both
+    # remain plain state at runtime (a rule can still mutate gravity
+    # mid-game, e.g. a low-gravity zone). Jump height ≈ impulse²/(2·gravity);
+    # defaults (7.0 / 18.0) → ~1.36 m, ~0.78 s airtime.
+    jump_impulse: float = 7.0
+    gravity: float = 18.0
+
+
+@dataclass
 class SceneConfig:
     world: WorldConfig = field(default_factory=WorldConfig)
     terrain: TerrainConfig = field(default_factory=TerrainConfig)
     water: WaterConfig = field(default_factory=WaterConfig)
     player: PlayerConfig = field(default_factory=PlayerConfig)
+    shell: ShellConfig = field(default_factory=ShellConfig)
     biomes: dict[str, str] = field(default_factory=dict)   # class → "#rrggbb"
     lighting: dict = field(default_factory=dict)            # _lighting_block override
     camera: dict = field(default_factory=dict)              # _camera_block override (e.g. distance/height/fov tuning)
@@ -109,6 +123,7 @@ class SceneConfig:
             terrain=_build(TerrainConfig, raw.get("terrain")),
             water=_build(WaterConfig, raw.get("water")),
             player=_build(PlayerConfig, raw.get("player")),
+            shell=_build(ShellConfig, raw.get("shell")),
             biomes=raw.get("biomes", {}) or {},
             lighting=raw.get("lighting", {}) or {},
             camera=raw.get("camera", {}) or {},
