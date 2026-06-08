@@ -11,16 +11,19 @@ file short enough to read in one screen.
 
 ## Active — text-to-3D scene pipeline (`/yume-create-scene`)
 
-- [ ] **`compose_world → assetgen` papercut.** compose_world rewrites entity
-      defs every run and WIPES the resolved `.glb` paths; only a follow-up
-      `yume_assetgen` run re-patches them. Fix the primitive: compose_world
-      should preserve existing `model_3d` `.glb` paths (or auto-run the patch),
-      so re-composing a scene doesn't silently revert meshes to fallback
-      primitives. (Empirical 2026-05-29.)
 - [ ] **Camera intrinsics.** Per-scene projection-mode override
       (perspective ↔ orthographic) + `clip_near`/`clip_far`/`focal_length_mm`
       in `_apply_ortho`. Goal: match the hero-reference framing. (You flagged
       this to revisit after tiny_village.)
+- [ ] **scatter-count gate gap (2026-06-06).** `compose_world`'s
+      `scatter_in_mask` strategy IGNORES the catalog's `expected_count` →
+      a "~30" request emitted 1510 instances (1220 rocks + 239 trees) on the
+      lanterns run; worked around by post-trim. The `/yume-create-scene` SKILL
+      *documents* "counts come from expected_count, never mask-fill" but
+      `lib_extract_dispatch.scatter` doesn't ENFORCE it (prose rule, no gate).
+      Fix (post-mortem step 3): cap `scatter_in_mask` at `expected_count`
+      (× spread factor), OR a validator that fails when emitted count exceeds
+      `expected_count` by a large factor. Owner: `lib_extract_dispatch.scatter`.
 - [ ] **Fence gaps (minor).** Ellipse-tiled fence ring leaves small gaps
       between sections; overlap at `section_len × 0.9` if a flush look is wanted.
 - [ ] **Water system** — DEFERRED. Box-mesh + FRONT_FACING underwater works but

@@ -32,6 +32,10 @@ def main(argv=None):
                     help="override backend (mock / openai_images / ...)")
     ap.add_argument("--only-textures", action="store_true")
     ap.add_argument("--only-meshes", action="store_true")
+    ap.add_argument("--patch-only", action="store_true",
+                    help="generate nothing; re-apply resolved res:// paths to "
+                         "entity defs for assets already on disk (key-free). "
+                         "Use after an upstream re-run reset visual.mesh.")
     ap.add_argument("--init", action="store_true",
                     help="drop a starter asset_gen.json into the game dir and exit")
     ap.add_argument("--quiet", action="store_true")
@@ -70,6 +74,7 @@ def main(argv=None):
         only=only,
         dry_run=args.dry_run,
         backend_override=args.backend,
+        patch_only=args.patch_only,
         verbose=not args.quiet,
     )
 

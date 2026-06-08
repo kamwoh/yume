@@ -239,6 +239,7 @@ def run_pipeline(
     only: str | None = None,
     dry_run: bool = False,
     backend_override: str | None = None,
+    patch_only: bool = False,
     verbose: bool = True,
 ) -> dict:
     """Execute the full pipeline. Returns a summary dict with counts.
@@ -250,6 +251,16 @@ def run_pipeline(
     `backend_override` (CLI flag --backend) replaces ALL per-kind
     backend choices in config with this single backend name. Useful
     for forcing 'mock' on a config that's normally nanobanana+tripo3d.
+
+    `patch_only=True` (CLI flag --patch-only) generates NOTHING — for
+    every scanned prompt whose output `.glb`/texture already exists on
+    disk, it just re-applies the resolved `res://` path to the entity
+    def. This is the idempotent re-resolution an upstream re-run needs
+    (e.g. `compose_world` re-emits a tripo class's kit FALLBACK +
+    mesh_prompt, resetting visual.mesh; patch_only re-points it at the
+    generated asset). It never instantiates a backend, so it runs
+    WITHOUT any API key. Empirical 2026-06-08: compose_world re-runs
+    silently reverted tiny_village/lanterns meshes to kit primitives.
     """
     cfg = load_config(game_dir)
 
@@ -306,6 +317,23 @@ def run_pipeline(
             "prompt": item.assembled_prompt,
             "out": str(item.out_path),
         }
+        if patch_only:
+            # Re-apply the resolved path if the asset is on disk; generate
+            # nothing, touch no backend (key-free). Missing-on-disk items
+            # are left alone (no .glb to point at yet).
+            if (item.out_path.exists() and cfg.patch_entities
+                    and not item.intermediate and _patch_entity_file(item)):
+                rec["status"] = "repatched"
+                rec["patched"] = True
+                summary["patched"] += 1
+            else:
+                rec["status"] = "patch_skipped"
+                summary["skipped_existing"] += 1
+            summary["items"].append(rec)
+            if verbose:
+                print(f"  [patch] {item.kind:7s} {item.entity_id:20s} "
+                      f"({rec['status']})")
+            continue
         if dry_run:
             rec["status"] = "would_generate"
             summary["items"].append(rec)

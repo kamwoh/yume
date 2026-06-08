@@ -1410,6 +1410,26 @@ def compose(
         json.dumps(defs_doc, indent=2)
     )
 
+    # Re-apply any previously-generated .glb / texture paths (ADR 0067
+    # Assets layer). The write_text above re-emitted tripo classes with
+    # their kit FALLBACK mesh + mesh_prompt — wiping the assetgen-resolved
+    # res:// paths. The Assets layer owns that resolution, so we ASK it to
+    # re-resolve rather than reading our own prior output (compose_world
+    # stays a pure function of its inputs). patch_only generates nothing
+    # and needs no API key; it's a no-op when no assets were ever generated
+    # (guarded on asset_gen.json existing). Empirical 2026-06-08: a second
+    # compose_world run silently reverted tiny_village/lanterns meshes to
+    # kit primitives.
+    if (game_dir / "asset_gen.json").exists():
+        try:
+            from tools.yume_assetgen.pipeline import run_pipeline
+            s = run_pipeline(game_dir, patch_only=True, verbose=False)
+            if s.get("patched"):
+                print(f"[compose_world] re-applied {s['patched']} generated "
+                      f"asset path(s) to entity defs")
+        except Exception as e:  # never let a re-patch break composition
+            print(f"[compose_world] WARN: mesh re-patch skipped ({e})")
+
     return game_dir
 
 
