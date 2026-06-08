@@ -18,6 +18,9 @@ findings.md
 progress.md
 session_log.txt
 .vqa.log
+# Local-only planning workspace (backlog / archive / design notes — kept on
+# the author's machine, not in the public repo).
+.claude/plan/
 
 # Capture screenshots — local artifacts, regenerable via play.sh --capture
 captures/
