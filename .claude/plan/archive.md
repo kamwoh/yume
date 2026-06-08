@@ -5003,3 +5003,45 @@ Scope: ~20 lines in `_apply_ortho`, plus lib camera preset docs.
 No new validators needed (fields default to current behavior).
 
 Defer until tiny_village tuning is done.
+
+## Session 2026-06-08 — bug sweep on dev branch (5 commits)
+
+Worked the fixable-bug queue from the backlog; all on branch `dev` (not
+master, not pushed). Done items deleted from backlog.md per the
+delete-when-shipped rule; full detail in the commit messages.
+
+- **compose_world .glb re-resolution** (`a1ddac0`). compose_world's
+  wholesale rewrite of `auto_gen.json` re-emitted tripo classes with the
+  kit FALLBACK mesh + mesh_prompt, wiping assetgen's resolved `res://…glb`
+  paths (silent revert to fallback meshes). Fix: compose_world chains an
+  idempotent, key-free `run_pipeline(patch_only=True)` after writing defs
+  (asks the Assets layer to re-resolve; stays a pure function of inputs).
+  Gate: `validate_mesh_paths_resolved.py` (tripo def + generated .glb on
+  disk + visual.mesh not a .glb → fail). New assetgen `--patch-only` flag.
+- **pytest collection fix** (`fcc1b04`). `tools/yume_assetgen/tests/`
+  test_smoke.py + test_glb_merge.py are script-style (own main(), _check+
+  return, stateful) — pytest mis-collected them (12 errors + 2 false
+  greens). Added `conftest.py` collect_ignore; the canonical
+  `python3 -m …` runners stay green. `pytest tools/` now clean (15 real
+  tests pass).
+- **scatter expected_count cap + overflow gate** (`6bde593`).
+  `lib_extract_dispatch._extract_scatter` sized purely by density×area,
+  ignoring catalog expected_count → lanterns shipped 1510 instances
+  (1220 rocks + 239 trees) for a ~30 catalog; ~11 FPS. Fix: cap target_n
+  at expected_count × SCATTER_SPREAD_FACTOR (1.5). Gate: lib_extract_
+  validate "overflow" verdict (actual > expected × 3) → compose_world
+  hard-fails. Trimmed shipped lanterns 1510→141 (farthest-point sampling);
+  FPS recovered 11→37. 5 regression tests.
+- **shell jump/gravity generation knob** (`1d9ca80`). compose_shell
+  hardcoded jump impulse 7.0 / gravity 18.0. Added scene_config `shell`
+  block (ShellConfig dataclass); defaults unchanged so existing scaffolds
+  emit identical JSON. 4 tests + skill doc.
+- **aldenmere determinism — verified already fixed** (`656df77`). The
+  parked nondeterminism bug was resolved by the per-pattern seeded RNG in
+  instance_patterns.gd (with the order-independence regression test at
+  test_runner.gd:2026). Oracle re-run confirmed: DETERMINISTIC, 3×
+  identical 652-tick hashes. Backlog item closed.
+- **jump bug resolved** (`fd07555`). "y_velocity never reaches integrator"
+  was a capture-harness artifact, not a real race — jump works in live
+  play (user-confirmed). Now also config-driven (see shell knob above).
+- Also: deleted parked `open-source-v0.1.md` (OSS v0.1 released).
