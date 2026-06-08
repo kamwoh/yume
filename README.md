@@ -30,6 +30,42 @@ aren't frozen yet; `1.0` will freeze the contract). Last updated: 2026-06-06._
 
 ---
 
+## Demos
+
+Describe a world in plain English → an LLM writes the JSON → a fixed engine runs
+it on Godot. A few things built (or rendered) this way:
+
+### 🔫 `doomarena3d` — a first-person arena shooter
+![doomarena3d — first-person arena shooter](docs/media/doomarena.gif)
+
+Movement, shooting, enemies, deaths — all JSON rules. No game-specific engine code.
+
+### 🏎️ An arcade racer, generated end-to-end from a prose pitch
+![arcade racer generated via /yume-design](docs/media/racing.gif)
+
+`/yume-design "<pitch>"` — code-drawn, no asset generation needed.
+
+### 🌲 A walkable 3D scene — the text → 3D world pipeline
+![walkable 3D forest scene](docs/media/forest_scene.gif)
+
+Built with `/yume-create-scene`.
+
+### 🗿 Scene-generation algorithm (experimental)
+![scene-generation algorithm — text to placed 3D world](docs/media/scene_gen.gif)
+
+Text → semantic map → placed 3D world. Rough, but end-to-end — an active research direction.
+
+### 🧩 Sokoban — a committed 2D demo (runs on a fresh clone, no API keys)
+![sokoban 2D puzzle demo](docs/media/sokoban.gif)
+
+### 🎥 Camera-orbit trajectory — the 3D rendering / camera system
+![camera orbit trajectory](docs/media/camera_orbit.gif)
+
+### 🌐 Server-authoritative multiplayer (in development)
+![server-authoritative multiplayer](docs/media/multiplayer.gif)
+
+---
+
 ## What Yume is for
 
 Yume is a **programmable explicit world model**, not just a game engine. A world
