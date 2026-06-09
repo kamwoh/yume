@@ -9462,6 +9462,20 @@ func test_camera_intrinsics() -> void:
 	expect_eq(CameraDirector._focal_to_fov_deg(0.0), 75.0, "focal 0 → 75° fallback")
 	expect_eq(CameraDirector._focal_to_fov_deg(-5.0), 75.0, "negative focal → 75° fallback")
 
+	# Runtime overrides from world_clock state merge onto cam_cfg (opt-in per key).
+	var cfg := {"mode": "third_person_3d", "fov": 60.0}
+	CameraDirector._merge_camera_overrides(cfg, {})  # no cam_* keys → unchanged
+	expect_eq(cfg.get("projection", "<none>"), "<none>", "no override → projection untouched")
+	expect_eq(cfg["fov"], 60.0, "no override → fov untouched")
+	CameraDirector._merge_camera_overrides(cfg, {"cam_ortho": 1, "cam_ortho_size": 22.0, "cam_fov": 50.0, "cam_focal_mm": 0.0})
+	expect_eq(cfg["projection"], "orthographic", "cam_ortho 1 → orthographic")
+	expect_eq(cfg["ortho_size"], 22.0, "cam_ortho_size merged")
+	expect_eq(cfg["fov"], 50.0, "cam_fov merged")
+	expect(not cfg.has("focal_length_mm"), "cam_focal_mm 0 → no focal override (use fov)")
+	CameraDirector._merge_camera_overrides(cfg, {"cam_ortho": 0, "cam_focal_mm": 35.0})
+	expect_eq(cfg["projection"], "perspective", "cam_ortho 0 → perspective")
+	expect_eq(cfg["focal_length_mm"], 35.0, "positive cam_focal_mm → focal override")
+
 
 # ============================================================
 # Array primitives (multi-slot inventory foundation, #95)

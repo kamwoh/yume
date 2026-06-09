@@ -150,6 +150,7 @@ func update_follow(scene_cfg: Dictionary) -> void:
 				if e.has_method("has_tag") and e.has_tag("world_clock"):
 					var st: Dictionary = e.state as Dictionary
 					override_mode = str(st.get("camera_mode", ""))
+					_merge_camera_overrides(cam_cfg, st)
 					break
 	var mode: String = ""
 	if override_mode != "":
@@ -834,6 +835,24 @@ func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
 			_camera3d.fov = _focal_to_fov_deg(focal)
 		else:
 			_camera3d.fov = float(cam_cfg.get("fov", 75.0))
+
+
+## Runtime camera-intrinsic overrides from the world_clock entity's state —
+## same pattern as the camera_mode override in update_follow. Lets a rule or
+## debug keybind retune the camera LIVE (state_set/state_add on world_clock)
+## without editing scene.json. Each key is opt-in: absent → the scene's camera
+## block value stands. `cam_ortho` is an int (0 perspective / 1 orthographic).
+## Static + pure (no instance state) so it's unit-testable without a shell.
+static func _merge_camera_overrides(cam_cfg: Dictionary, st: Dictionary) -> void:
+	if st.has("cam_ortho"):
+		cam_cfg["projection"] = "orthographic" if int(st["cam_ortho"]) != 0 else "perspective"
+	if st.has("cam_ortho_size"):
+		cam_cfg["ortho_size"] = float(st["cam_ortho_size"])
+	if st.has("cam_fov"):
+		cam_cfg["fov"] = float(st["cam_fov"])
+	# focal overrides fov only when positive (0 = "use fov").
+	if st.has("cam_focal_mm") and float(st["cam_focal_mm"]) > 0.0:
+		cam_cfg["focal_length_mm"] = float(st["cam_focal_mm"])
 
 
 ## Convert a 35mm-equivalent focal length (mm) to FOV in degrees on a 36mm
