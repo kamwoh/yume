@@ -30,7 +30,7 @@
       "y_offset": 12,
       "elements": [
         {"type": "label", "text": "Camera tuning", "size": 14, "color": "#9fd0ff", "bold": true, "shadow": true},
-        {"type": "label", "text": "P/O proj   K/J ortho   N/M fov", "size": 12, "color": "#cfe6ff", "shadow": true},
+        {"type": "label", "text": "P toggle proj   K/J ortho   N/M fov", "size": 12, "color": "#cfe6ff", "shadow": true},
         {"type": "label", "binds": "world_clock.cam_ortho", "format": "Ortho mode: {}  (1=ortho)", "size": 13, "color": "#ffffff", "shadow": true},
         {"type": "label", "binds": "world_clock.cam_ortho_size", "format": "Ortho size: {}  (ortho only)", "size": 13, "color": "#ffffff", "shadow": true},
         {"type": "label", "binds": "world_clock.cam_fov", "format": "FOV: {}  (persp only)", "size": 13, "color": "#ffffff", "shadow": true}

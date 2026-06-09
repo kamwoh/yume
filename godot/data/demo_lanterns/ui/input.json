@@ -45,13 +45,8 @@
       "edge": "press"
     },
     {
-      "name": "cam_set_persp",
+      "name": "cam_toggle_proj",
       "key": "P",
-      "edge": "press"
-    },
-    {
-      "name": "cam_set_ortho",
-      "key": "O",
       "edge": "press"
     },
     {

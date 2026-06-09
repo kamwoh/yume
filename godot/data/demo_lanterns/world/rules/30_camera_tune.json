@@ -1,20 +1,12 @@
 {
-  "_comment": "DEBUG camera-intrinsics tuning (keybinds → world_clock state → camera_director runtime overrides). P=perspective O=orthographic, K/J ortho size, N/M FOV (degrees). Input rules query the world_clock singleton (binds as self). LITERAL values for projection (no self-read-write — free-cam-toggle bug class). state_clamp clamps the STORED value (write-back, NOT read-time) at Godot's hard limits — Camera3D.fov must be 1..179 and ortho size > 0, else Godot rejects the set + keeps the old value (= the 'scroll a long time with no visual change' bug). Remove this file + the cam_* keys once good values are baked into scene.json.",
+  "_comment": "DEBUG camera-intrinsics tuning (keybinds → world_clock state → camera_director runtime overrides). P toggles projection, K/J ortho size, N/M FOV (degrees). Input rules query the world_clock singleton (binds as self). Projection is a SINGLE-KEY toggle: state_set reads+writes its OWN field in one effect — SAFE because state_set evaluates value before the write (NOT the cross-effect free-cam-toggle hazard). state_clamp clamps the STORED value (write-back, NOT read-time) at Godot's hard limits — Camera3D.fov must be 1..179 and ortho size > 0, else Godot rejects the set + keeps the old value (= the 'scroll a long time with no visual change' bug). Remove this file + the cam_* keys once good values are baked into scene.json.",
   "rules": [
     {
-      "id": "cam_set_persp",
-      "trigger": {"type": "input", "action": "cam_set_persp"},
+      "id": "cam_toggle_proj",
+      "trigger": {"type": "input", "action": "cam_toggle_proj"},
       "query": {"tags_all": ["world_clock"]},
       "effect": [
-        {"type": "state_set", "target": "self", "field": "cam_ortho", "value": 0}
-      ]
-    },
-    {
-      "id": "cam_set_ortho",
-      "trigger": {"type": "input", "action": "cam_set_ortho"},
-      "query": {"tags_all": ["world_clock"]},
-      "effect": [
-        {"type": "state_set", "target": "self", "field": "cam_ortho", "value": 1}
+        {"type": "state_set", "target": "self", "field": "cam_ortho", "value": "1 - self.state.cam_ortho"}
       ]
     },
     {

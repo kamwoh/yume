@@ -298,23 +298,38 @@ def check_effect_read_after_write(rule, errors):
       previous_camera_mode = "self.state.camera_mode"
     in the same list that set camera_mode = "free_cam". previous got
     saved as "free_cam" → exit restored free_cam → stuck in free-cam.
-    Fix: save a LITERAL value, not a formula reading a co-written field.
+    Fix: save a LITERAL value, not a formula reading a CO-written field.
+
+    EXCEPTION (2026-06-09): an effect reading its OWN field is SAFE — a
+    self-referential toggle like `state_set cam_ortho = "1 - self.state.
+    cam_ortho"` evaluates the value BEFORE the write (effect_core.state_set:
+    value = EffectResolution.value(...) THEN set_state(...)). So this is the
+    canonical single-key on/off toggle, NOT a hazard. Only flag a formula
+    reading a field that a DIFFERENT effect in the list writes.
     """
     rule_id = rule.get("id", "<unnamed>")
     eff = rule.get("effect", None)
     effects = eff if isinstance(eff, list) else ([eff] if isinstance(eff, dict) else [])
-    written = {str(e.get("field")) for e in effects
-              if isinstance(e, dict) and e.get("type") in (
-                  "state_set", "state_add", "state_mul") and "field" in e}
-    if not written:
+    # Field each effect writes (parallel to `effects`; None if it writes none).
+    writes = [
+        str(e.get("field")) if (isinstance(e, dict)
+            and e.get("type") in ("state_set", "state_add", "state_mul")
+            and "field" in e) else None
+        for e in effects
+    ]
+    if not any(w is not None for w in writes):
         return
-    for e in effects:
+    for idx, e in enumerate(effects):
         if not isinstance(e, dict):
             continue
         val = e.get("value")
         if not (isinstance(val, str) and is_formula_str(val)):
             continue
-        for f in written:
+        # Fields written by OTHER effects in the list (NOT this one — reading
+        # your own field is computed pre-write, hence the self-toggle is safe).
+        written_by_others = {writes[j] for j in range(len(effects))
+                             if j != idx and writes[j] is not None}
+        for f in written_by_others:
             # match `<binding>.state.<f>` (self.state.f, actor.state.f, …)
             if re.search(r"\.state\." + re.escape(f) + r"\b", val):
                 errors.append((
