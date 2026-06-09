@@ -45,6 +45,36 @@
       "edge": "press"
     },
     {
+      "name": "cam_set_persp",
+      "key": "P",
+      "edge": "press"
+    },
+    {
+      "name": "cam_set_ortho",
+      "key": "O",
+      "edge": "press"
+    },
+    {
+      "name": "cam_ortho_up",
+      "key": "K",
+      "edge": "press"
+    },
+    {
+      "name": "cam_ortho_dn",
+      "key": "J",
+      "edge": "press"
+    },
+    {
+      "name": "cam_fov_up",
+      "key": "N",
+      "edge": "press"
+    },
+    {
+      "name": "cam_fov_dn",
+      "key": "M",
+      "edge": "press"
+    },
+    {
       "name": "zoom_in",
       "mouse_button": "WheelUp",
       "edge": "press"

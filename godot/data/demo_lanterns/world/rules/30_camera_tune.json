@@ -1,0 +1,57 @@
+{
+  "_comment": "DEBUG camera-intrinsics tuning (keybinds → world_clock state → camera_director runtime overrides). P=perspective O=orthographic, K/J ortho size, N/M FOV (degrees). Input rules query the world_clock singleton (binds as self). LITERAL values for projection (no self-read-write — free-cam-toggle bug class). state_clamp clamps the STORED value (write-back, NOT read-time) at Godot's hard limits — Camera3D.fov must be 1..179 and ortho size > 0, else Godot rejects the set + keeps the old value (= the 'scroll a long time with no visual change' bug). Remove this file + the cam_* keys once good values are baked into scene.json.",
+  "rules": [
+    {
+      "id": "cam_set_persp",
+      "trigger": {"type": "input", "action": "cam_set_persp"},
+      "query": {"tags_all": ["world_clock"]},
+      "effect": [
+        {"type": "state_set", "target": "self", "field": "cam_ortho", "value": 0}
+      ]
+    },
+    {
+      "id": "cam_set_ortho",
+      "trigger": {"type": "input", "action": "cam_set_ortho"},
+      "query": {"tags_all": ["world_clock"]},
+      "effect": [
+        {"type": "state_set", "target": "self", "field": "cam_ortho", "value": 1}
+      ]
+    },
+    {
+      "id": "cam_tune_ortho_up",
+      "trigger": {"type": "input", "action": "cam_ortho_up"},
+      "query": {"tags_all": ["world_clock"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "cam_ortho_size", "amount": 2.0},
+        {"type": "state_clamp", "target": "self", "field": "cam_ortho_size", "min": 1.0, "max": 1000.0}
+      ]
+    },
+    {
+      "id": "cam_tune_ortho_dn",
+      "trigger": {"type": "input", "action": "cam_ortho_dn"},
+      "query": {"tags_all": ["world_clock"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "cam_ortho_size", "amount": -2.0},
+        {"type": "state_clamp", "target": "self", "field": "cam_ortho_size", "min": 1.0, "max": 1000.0}
+      ]
+    },
+    {
+      "id": "cam_tune_fov_up",
+      "trigger": {"type": "input", "action": "cam_fov_up"},
+      "query": {"tags_all": ["world_clock"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "cam_fov", "amount": 5.0},
+        {"type": "state_clamp", "target": "self", "field": "cam_fov", "min": 1.0, "max": 179.0}
+      ]
+    },
+    {
+      "id": "cam_tune_fov_dn",
+      "trigger": {"type": "input", "action": "cam_fov_dn"},
+      "query": {"tags_all": ["world_clock"]},
+      "effect": [
+        {"type": "state_add", "target": "self", "field": "cam_fov", "amount": -5.0},
+        {"type": "state_clamp", "target": "self", "field": "cam_fov", "min": 1.0, "max": 179.0}
+      ]
+    }
+  ]
+}

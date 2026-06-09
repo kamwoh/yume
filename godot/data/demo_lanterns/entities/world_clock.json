@@ -12,7 +12,12 @@
         "camera_mode": "third_person_3d",
         "previous_camera_mode": "third_person_3d",
         "active_camera_id": "camera_oblique",
-        "current_hour": 15.0
+        "current_hour": 15.0,
+        "_comment_cam_tune": "Live camera-intrinsics tuning — camera_director reads these as runtime overrides. Seeded to lanterns' scene.json camera defaults so initial render is unchanged. cam_ortho 0=perspective 1=orthographic; cam_focal_mm 0=use fov.",
+        "cam_ortho": 0,
+        "cam_ortho_size": 20.0,
+        "cam_focal_mm": 0.0,
+        "cam_fov": 60.0
       },
       "visual": {
         "hidden": true
