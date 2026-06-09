@@ -825,16 +825,19 @@ func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
 	_camera3d.far = float(cam_cfg.get("clip_far", 4000.0))
 	if ortho:
 		_camera3d.projection = Camera3D.PROJECTION_ORTHOGONAL
-		_camera3d.size = float(cam_cfg.get("ortho_size", 16.0))
+		# Godot requires ortho size > 0; guard so a bad author/tune value can't
+		# spam errors (Camera3D rejects out-of-range + keeps the old value).
+		_camera3d.size = maxf(0.01, float(cam_cfg.get("ortho_size", 16.0)))
 	else:
 		_camera3d.projection = Camera3D.PROJECTION_PERSPECTIVE
 		# focal_length_mm (35mm-equiv, 36mm sensor) → FOV degrees; falls back
 		# to an explicit fov, then the 75° default.
 		var focal := float(cam_cfg.get("focal_length_mm", 0.0))
-		if focal > 0.0:
-			_camera3d.fov = _focal_to_fov_deg(focal)
-		else:
-			_camera3d.fov = float(cam_cfg.get("fov", 75.0))
+		var fov := _focal_to_fov_deg(focal) if focal > 0.0 else float(cam_cfg.get("fov", 75.0))
+		# Godot Camera3D.fov is hard-limited to [1, 179]; clamp so any author /
+		# runtime-tune value renders instead of being rejected (which would keep
+		# the prior fov — a confusing "no visual change" when scrubbing).
+		_camera3d.fov = clampf(fov, 1.0, 179.0)
 
 
 ## Runtime camera-intrinsic overrides from the world_clock entity's state —
