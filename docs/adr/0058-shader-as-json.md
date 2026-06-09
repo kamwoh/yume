@@ -1,7 +1,15 @@
 # ADR 0058 — Shader as JSON (templates + composable primitives)
 
 _Date: 2026-05-23_
-_Status: proposed_
+_Status: accepted — implemented (verified 2026-06-09)_
+
+> **Implementation note (2026-06-09).** Both phases shipped. Phase A
+> templates live in `data/lib/shaders/*.gdshader`; Phase B's DAG compiler is
+> `tools/yume_shadergen/compiler.py` (loads `data/lib/shaders/primitives/*.json`,
+> type-checks the DAG, emits a `.gdshader`), wired into `scripts/play.sh` and
+> used by `demo_aldenmere`'s `ground.mesh.shader_dag`. Regression tests:
+> `tools/yume_shadergen/tests/test_compiler.py`. Deferred open question:
+> `shadergen --watch` live-reload.
 
 ## Context
 
