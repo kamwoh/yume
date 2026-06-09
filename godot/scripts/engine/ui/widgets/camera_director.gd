@@ -801,15 +801,48 @@ func _follow_target_3d(cam_cfg: Dictionary):
 	return null
 
 
+## Apply projection + clip planes from cam_cfg. `want_ortho` is the
+## camera_mode's DEFAULT (iso / top_down → true; fp / tp / free_cam → false),
+## but a scene can OVERRIDE it with `cam_cfg.projection`
+## ("orthographic" | "perspective") — e.g. orthographic FPS for a stylized
+## look, or perspective top_down for a cinematic. `clip_near` / `clip_far` +
+## `focal_length_mm` let authors write film-camera language. Every field
+## defaults to the prior behavior (and to Godot's Camera3D defaults), so a
+## scene that sets none renders identically. (scene.json `camera` block.)
 func _apply_ortho(cam_cfg: Dictionary, want_ortho: bool) -> void:
 	if _camera3d == null:
 		return
-	if want_ortho:
+	# Projection: an explicit cam_cfg.projection overrides the mode default.
+	var ortho := want_ortho
+	var proj := str(cam_cfg.get("projection", "")).to_lower()
+	if proj == "orthographic" or proj == "ortho":
+		ortho = true
+	elif proj == "perspective" or proj == "persp":
+		ortho = false
+	# Clip planes — always applied (defaults match Godot's Camera3D defaults).
+	_camera3d.near = float(cam_cfg.get("clip_near", 0.05))
+	_camera3d.far = float(cam_cfg.get("clip_far", 4000.0))
+	if ortho:
 		_camera3d.projection = Camera3D.PROJECTION_ORTHOGONAL
 		_camera3d.size = float(cam_cfg.get("ortho_size", 16.0))
 	else:
 		_camera3d.projection = Camera3D.PROJECTION_PERSPECTIVE
-		_camera3d.fov = float(cam_cfg.get("fov", 75.0))
+		# focal_length_mm (35mm-equiv, 36mm sensor) → FOV degrees; falls back
+		# to an explicit fov, then the 75° default.
+		var focal := float(cam_cfg.get("focal_length_mm", 0.0))
+		if focal > 0.0:
+			_camera3d.fov = _focal_to_fov_deg(focal)
+		else:
+			_camera3d.fov = float(cam_cfg.get("fov", 75.0))
+
+
+## Convert a 35mm-equivalent focal length (mm) to FOV in degrees on a 36mm
+## sensor: fov = 2·atan(36 / (2·f)). Static + pure so it's unit-testable.
+## (e.g. 18mm → 90°, 35mm → ~54.4°, 50mm → ~39.6°.)
+static func _focal_to_fov_deg(focal_mm: float) -> float:
+	if focal_mm <= 0.0:
+		return 75.0
+	return rad_to_deg(2.0 * atan(36.0 / (2.0 * focal_mm)))
 
 
 func _drain_mouse_facing(cam_cfg: Dictionary):

@@ -88,6 +88,7 @@ func _ready() -> void:
 	test_lockstep()
 	test_grid_snap()
 	test_multimesh_director()
+	test_camera_intrinsics()
 	test_array_primitives()
 	test_animation_translator()
 	test_ground_renderer_rebind()
@@ -9435,6 +9436,31 @@ func test_multimesh_director() -> void:
 	# ---------- 8. cleanup() returns 0 when nothing was built ----------
 	var freed := dir.cleanup({})
 	expect_eq(freed, 0, "cleanup with no built nodes returns 0")
+
+
+# ============================================================
+# Camera intrinsics — focal_length_mm → FOV (scene.json camera block)
+# ============================================================
+
+
+func test_camera_intrinsics() -> void:
+	_section("camera_intrinsics (focal_length_mm → fov)")
+	# 36mm-sensor formula: fov = 2·atan(36/(2·f)).
+	# 18mm → exactly 90° (36/36 = 1 → atan = 45° → ×2).
+	expect(absf(CameraDirector._focal_to_fov_deg(18.0) - 90.0) < 0.01,
+		"18mm → 90° (got %f)" % CameraDirector._focal_to_fov_deg(18.0))
+	# 50mm → ~39.6° (a "normal" lens).
+	expect(absf(CameraDirector._focal_to_fov_deg(50.0) - 39.6) < 0.2,
+		"50mm → ~39.6° (got %f)" % CameraDirector._focal_to_fov_deg(50.0))
+	# 35mm → ~54.4°.
+	expect(absf(CameraDirector._focal_to_fov_deg(35.0) - 54.4) < 0.2,
+		"35mm → ~54.4° (got %f)" % CameraDirector._focal_to_fov_deg(35.0))
+	# Longer focal = narrower FOV (monotonic).
+	expect(CameraDirector._focal_to_fov_deg(85.0) < CameraDirector._focal_to_fov_deg(35.0),
+		"85mm narrower than 35mm")
+	# Non-positive focal → 75° fallback (the prior default).
+	expect_eq(CameraDirector._focal_to_fov_deg(0.0), 75.0, "focal 0 → 75° fallback")
+	expect_eq(CameraDirector._focal_to_fov_deg(-5.0), 75.0, "negative focal → 75° fallback")
 
 
 # ============================================================

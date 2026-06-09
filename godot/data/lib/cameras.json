@@ -1,5 +1,6 @@
 {
  "_comment": "ADR 0027 camera presets. Per-game scene.json::camera uses `{$extends: \"@lib.cameras.NAME\", follow_tag: \"player\", ...overrides}` to inherit a preset and override fields. Each preset is a complete camera_config (per manifest.json). Engine reads `mode` then mode-specific fields \u2014 see game_shell.gd::_update_camera_follow.",
+ "_comment_intrinsics": "Optional intrinsic overrides on ANY camera block (camera_director.gd::_apply_ortho): `projection` (\"orthographic\"|\"perspective\") FORCES the projection regardless of the mode default (e.g. orthographic FPS, or perspective top_down for a cinematic); `clip_near`/`clip_far` (default 0.05/4000); `focal_length_mm` (35mm-equiv, 36mm sensor \u2014 e.g. 18\u219290\u00b0, 35\u2192~54\u00b0, 50\u2192~40\u00b0 \u2014 wins over `fov` for perspective). All default to prior behavior; omit for the preset's look.",
  "iso_top_down": {
   "_comment": "Default for tactical / city / management games. 24m visible extent crosses player frustum in 6s at speed 4.0 \u2014 within the 5-10s movement-feel window per yume-systems-designer.",
   "mode": "isometric_3d",
