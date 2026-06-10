@@ -449,6 +449,51 @@ def check_schema_field_landmines(rule, errors):
 # ============================================================
 
 
+
+def check_emit_signal_fields(rule, errors):
+    """(2026-06-10, autorace post-mortem) Two silent-no-op field landmines in
+    the emit/signal pipeline, both empirically shipped:
+
+    1. The `emit` EFFECT reads `e["signal"]` (effect_core.emit) — an emit
+       authored with `"event":` silently no-ops (name="" -> return). The
+       signal TRIGGER reads `trigger["name"]` — authored `"event":` never
+       matches. Asymmetric field names; both wrong forms ship without any
+       runtime error. Empirical: autorace lap/finish chain dead until fixed;
+       demo_lanterns shipped the same latent bug.
+
+    2. Signal-rule consumers: _fire_payload_rule FLATTENS payload keys into
+       ctx (binding is bare `name`), so a formula reading `signal.X` errors
+       at runtime with a cryptic "self can't be used because instance is
+       null" (unknown identifier falls back to a null base instance).
+    """
+    rule_id = rule.get("id", "<unnamed>")
+    eff = rule.get("effect", None)
+    effects = eff if isinstance(eff, list) else ([eff] if isinstance(eff, dict) else [])
+    for e in effects:
+        if not isinstance(e, dict):
+            continue
+        if e.get("type") == "emit":
+            if "signal" not in e:
+                got = "event" if "event" in e else "(none)"
+                errors.append((rule_id, "emit",
+                    f"emit effect must use the `signal:` key (engine reads "
+                    f"e['signal']); got `{got}` — this emit silently no-ops."))
+        # formulas reading the never-existing `signal.` binding
+        for k, v in e.items():
+            if isinstance(v, str) and re.search(r"\bsignal\.", v):
+                errors.append((rule_id, str(k),
+                    "formula reads `signal.X` but payload keys are FLATTENED "
+                    "into ctx by _fire_payload_rule — bind the bare payload "
+                    "key (e.g. `name`), not `signal.name` (errors at runtime "
+                    "with a null-self Expression fallback)."))
+    trig = rule.get("trigger", {})
+    if isinstance(trig, dict) and trig.get("type") == "signal" and "name" not in trig:
+        got = "event" if "event" in trig else "(none)"
+        errors.append((rule_id, "trigger",
+            f"signal trigger must use the `name:` key (engine matches "
+            f"trigger['name']); got `{got}` — this rule never fires."))
+
+
 def check_input_actions(input_json, errors):
     """(6) Actions without a `key` MUST set engine_injected: true.
 
@@ -576,6 +621,7 @@ def validate_game(game_dir):
             check_2binding_non_contact(rule, r_errors)
             check_schema_field_landmines(rule, r_errors)
             check_effect_read_after_write(rule, r_errors)
+            check_emit_signal_fields(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

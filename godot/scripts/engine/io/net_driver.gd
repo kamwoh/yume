@@ -352,6 +352,15 @@ func _try_clear_preplaced() -> void:
 		w.despawn_entity(eid)
 	_cleared = true
 	print("[net] cleared %d pre-placed player(s) at startup — spawn-on-join only" % ids.size())
+	# Generic sim-visible GO gate (2026-06-10): games that must hold their
+	# match/race until every client has joined gate rules on `world.net_go`
+	# (solo play defaults it to 1 in world/state.json; the net server forces
+	# 0 here, then 1 at GO). Sim-side mirror of the yume_net_go Engine meta.
+	if _is_host:
+		var ws0 = _world.get("world_state")
+		if ws0 is Dictionary:
+			ws0["net_go"] = 0
+
 
 
 ## ADR 0064 — load the per-game replication policy from data/<game>/net.json.
@@ -549,6 +558,11 @@ func _recv_assign(eid: String) -> void:
 func _recv_go() -> void:
 	_go = true
 	Engine.set_meta("yume_net_go", true)
+	# Sim-visible GO (see _try_clear_preplaced). Host only — it owns the sim.
+	if _is_host and _world != null:
+		var wsg = _world.get("world_state")
+		if wsg is Dictionary:
+			wsg["net_go"] = 1
 	if not _is_host:
 		print("[net] GO received (all spawned) — starting capture + input pattern")
 

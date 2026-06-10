@@ -80,6 +80,12 @@ SECS = int(os.environ.get("SECS", "5"))  # real-time capture / record window
 MOVIE_FPS = int(os.environ.get("MOVIE_FPS", "60"))  # --smooth: fixed Movie-Maker fps
 CRF = os.environ.get("CRF", "18")  # libx264 quality (lower = better; 14 ≈ near-lossless, 23 = default)
 DELAY = int(os.environ.get("DELAY", "20"))
+NET_TICKS = os.environ.get("NET_TICKS", "6000")  # server sim ticks (60Hz); raise for longer demos (e.g. a full race)
+# Replay-view override: FOLLOW=entity_a,entity_b renders the replay views
+# following these entity ids instead of the per-client roster players —
+# for demos where the stars are AI entities (e.g. autorace cars), not the
+# client-controlled actors. Default: the roster (old behavior).
+FOLLOW = [v for v in os.environ.get("FOLLOW", "").split(",") if v]
 WIN_W = os.environ.get("WIN_W", "700")
 WIN_H = os.environ.get("WIN_H", "440")
 
@@ -161,7 +167,7 @@ def client_cmd(pos_x, pos_y, inp, after, tag):
     # --capture-allframes: grab EVERY rendered frame for SECS real seconds (no
     # sampling → no per-frame jumps), buffered in RAM + written after. We assemble
     # at the ACHIEVED fps (frames / SECS) so playback is real-time + smooth.
-    user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000", "--net-visual",
+    user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", NET_TICKS, "--net-visual",
             f"--net-join=127.0.0.1:{PORT}", f"--net-input={inp}",
             f"--capture-after={after}", f"--capture-allframes={SECS}",
             f"--capture-output=user://_netcap/vid_{tag}.png"]
@@ -215,7 +221,7 @@ def run_smooth():
     procs["server"] = subprocess.Popen(
         [GODOT, "--path", ".", "--headless", SCENE, "--",
          *SCENE_ARGS, "--net-host", f"--net-port={PORT}", f"--net-clients={CLIENTS}",
-         "--net-ticks=6000", f"--net-record={rec_user}", f"--net-record-secs={SECS}"],
+         f"--net-ticks={NET_TICKS}", f"--net-record={rec_user}", f"--net-record-secs={SECS}"],
         cwd=PROJECT, stdout=logs["server"], stderr=subprocess.STDOUT)
     time.sleep(int(os.environ.get("SERVER_WAIT", "14")))
     gap = int(os.environ.get("CLIENT_GAP", "4"))
@@ -224,7 +230,7 @@ def run_smooth():
         procs[f"c{i}"] = subprocess.Popen(
             [GODOT, "--path", ".", "--headless", SCENE, "--",
              *SCENE_ARGS, f"--net-join=127.0.0.1:{PORT}", f"--net-port={PORT}",
-             f"--net-input={PATROL}", "--net-ticks=6000"],
+             f"--net-input={PATROL}", f"--net-ticks={NET_TICKS}"],
             cwd=PROJECT, stdout=logs[f"c{i}"], stderr=subprocess.STDOUT)
         print(f"[net_video] recording client {i+1}/{CLIENTS} ...")
         if i < CLIENTS - 1:
@@ -252,12 +258,13 @@ def run_smooth():
         prefix = f'xvfb-run -a -s "-screen 0 {WIN_W}x{WIN_H}x24" '
     else:
         prefix = ""
-    for i, eid in enumerate(roster):
+    views = FOLLOW or roster
+    for i, eid in enumerate(views):
         viewdir = os.path.join(NETCAP, f"view{i}")
         os.makedirs(viewdir, exist_ok=True)
         gpu = "GPU/d3d12" if GL_ENV else "GPU"
         where = ("Xvfb, no window" if (LINUX and HAVE_XVFB) else "window") + f", {gpu}"
-        print(f"[net_video] rendering view {i+1}/{len(roster)} (follow {eid}) @ {MOVIE_FPS}fps [{where}] ...")
+        print(f"[net_video] rendering view {i+1}/{len(views)} (follow {eid}) @ {MOVIE_FPS}fps [{where}] ...")
         r = sh(f'cd "{PROJECT}" && {prefix}{GL_ENV}"{GODOT}" --path . --rendering-driver opengl3 '
                f'--resolution {WIN_W}x{WIN_H} '
                f'--write-movie "user://_netcap/view{i}/frame.png" --fixed-fps {MOVIE_FPS} '
@@ -269,21 +276,21 @@ def run_smooth():
             sys.exit(f"[net_video] ERROR: view {i+1} rendered no frames — see /tmp/net_video_view{i}.log")
 
     # --- Phase 3: grid-stitch (views share frame count → already aligned) --------
-    cols = math.ceil(math.sqrt(len(roster)))
-    rows = math.ceil(len(roster) / cols)
+    cols = math.ceil(math.sqrt(len(views)))
+    rows = math.ceil(len(views) / cols)
     cells = cols * rows
-    frame_counts = [len(glob.glob(os.path.join(NETCAP, f"view{i}", "frame*.png"))) for i in range(len(roster))]
+    frame_counts = [len(glob.glob(os.path.join(NETCAP, f"view{i}", "frame*.png"))) for i in range(len(views))]
     nmin = min(frame_counts)
     # Drop the first few frames of every view: frame 0 is the spawn (T-pose, before
     # the AnimationPlayer seeks anim_phase) and the next 1-2 settle facing/pose. All
     # views drop the SAME count, so they stay synced.
     skip = min(int(os.environ.get("SKIP_FRAMES", "4")), max(0, nmin - 2))
     inputs = []
-    for i in range(len(roster)):
+    for i in range(len(views)):
         inputs += ["-framerate", str(MOVIE_FPS), "-start_number", str(skip),
                    "-i", f'"{os.path.join(NETCAP, f"view{i}", "frame%08d.png")}"']
     dur = (nmin - skip) / float(MOVIE_FPS)
-    for _ in range(cells - len(roster)):
+    for _ in range(cells - len(views)):
         inputs += ["-f", "lavfi", "-t", f"{dur:.3f}",
                    "-i", f"color=c=black:s={WIN_W}x{WIN_H}:r={MOVIE_FPS}"]
     filt = grid_filter(cols, rows, cells)
@@ -335,7 +342,7 @@ def main():
 
     # --net-clients=N: the server waits for ALL N clients to join+spawn before it
     # broadcasts GO, so no client starts capturing/walking until everyone exists.
-    server_user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", "6000",
+    server_user = ["--", *SCENE_ARGS, "--net-port", PORT, "--net-ticks", NET_TICKS,
                    "--net-host", "--net-clients", str(CLIENTS)]
     logs, procs = {}, {}
 

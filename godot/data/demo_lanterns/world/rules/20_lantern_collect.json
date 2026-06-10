@@ -12,7 +12,7 @@
       },
       "effect": [
         {"type": "state_add", "target": "game_state", "field": "collected", "amount": 1},
-        {"type": "emit", "event": "lantern_collected"},
+        {"type": "emit", "signal": "lantern_collected"},
         {"type": "remove", "target": "b"}
       ]
     },
