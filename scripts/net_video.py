@@ -236,7 +236,13 @@ def run_smooth():
         if i < CLIENTS - 1:
             time.sleep(gap)
     # The server quits after writing the record (SECS post-GO).
-    budget = DELAY + SECS + 60 + CLIENTS * 20
+    # Budget must cover: client CONNECT time on heavy scenes (up to
+    # CONNECT_TIMEOUT_SEC=120 in net_driver) + the record window at the
+    # server's EFFECTIVE tick rate — a loaded headless server can tick well
+    # below realtime (empirical 2026-06-10: ~30Hz with ~300 entities + 2
+    # clients → the 120s record took ~2x wall time; the old budget of
+    # DELAY+SECS+60+20*C expired mid-record and orphaned the run).
+    budget = DELAY + 120 + SECS * 2.5 + CLIENTS * 20
     print(f"[net_video] waiting up to {budget}s for the record ...")
     t0 = time.time()
     while time.time() - t0 < budget and procs["server"].poll() is None:
@@ -383,7 +389,13 @@ def main():
     # Every-frame capture: frame COUNT is unknown up front, so wait for ALL clients
     # to EXIT (each quits after writing its buffered PNGs). More clients = slower
     # simultaneous load + lower sim fps, so scale the budget with CLIENTS.
-    budget = DELAY + SECS + 60 + CLIENTS * 20 + (120 if LINUX else 0)
+    # Budget must cover: client CONNECT time on heavy scenes (up to
+    # CONNECT_TIMEOUT_SEC=120 in net_driver) + the record window at the
+    # server's EFFECTIVE tick rate — a loaded headless server can tick well
+    # below realtime (empirical 2026-06-10: ~30Hz with ~300 entities + 2
+    # clients → the 120s record took ~2x wall time; the old budget of
+    # DELAY+SECS+60+20*C expired mid-record and orphaned the run).
+    budget = DELAY + 120 + SECS * 2.5 + CLIENTS * 20 + (120 if LINUX else 0)
     print(f"[net_video] waiting up to {budget}s for all {CLIENTS} clients to finish ...")
     t0 = time.time()
     while time.time() - t0 < budget:
