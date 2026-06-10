@@ -1120,3 +1120,24 @@ games (an emergent-narrative sim-style), an objective-less HUD is fine.
 - `godot/data/meshes.json` — stock 3D meshes
 - `godot/scripts/renderer_2d/entity_sprite_2d.gd` —
   three-tier fallback logic
+
+## Generated-mesh orientation gate (2026-06-10, autorace post-mortem)
+
+Tripo meshes have **no consistent forward axis — not even within one
+batch** (autorace: red car body along X, blue along Z). Treat orientation
+as a PER-ASSET derivation + verification:
+
+1. **Derive the body axis** from the GLB's POSITION-accessor bounds
+   (longer-than-wide ⇒ length axis). Normals are ±1 VEC3s — filter to
+   POSITION accessors or every axis reads 2.0.
+2. **Set a per-def `properties.mesh_yaw_offset`** (engine mesh-forward is
+   −Z). The axis check narrows it to a ±90° pair; the SIGN cannot be
+   derived — verify it visually.
+3. **Verification must use ground truth + approach direction**: the
+   asset's CONCEPT image (assets/concepts/*.png) defines what the front
+   looks like (grille/headlights/hood vs wing/tail); capture the entity
+   moving TOWARD a camera and match the leading face to the concept's
+   front. **Behind-view stills are NOT verification** — nose/tail on
+   stylized low-poly bodies was misread twice in one session (shipped a
+   crab-walking car, then two reversing cars; the user caught both).
+4. Prefer motion (two frames / short clip) over any single still.
