@@ -287,7 +287,19 @@ static func build_character_3d(
 static func _shrinkwrap_box_to_visual(shape_cfg: Dictionary, entity) -> Dictionary:
 	if str(shape_cfg.get("type", "")) != "box":
 		return shape_cfg
-	if not bool(shape_cfg.get("from_visual_mesh", false)):
+	# Modes: true → full-bbox wrap; "base" → footprint of the mesh's bottom
+	# slice (trunk / pole / pedestal) at full height. "base" exists for
+	# top-heavy props (trees, lampposts, signposts): a full wrap turns the
+	# canopy span into an invisible wall at ground level. Empirical
+	# 2026-06-11 (autorace): scale-8 pines 4.1m off the racing line blocked
+	# the lane with their canopy boxes; the trunk is what should collide.
+	var fvm = shape_cfg.get("from_visual_mesh", false)
+	var mode := ""
+	if fvm is bool and fvm:
+		mode = "full"
+	elif fvm is String and str(fvm) == "base":
+		mode = "base"
+	if mode == "":
 		return shape_cfg
 	if entity == null:
 		return shape_cfg
@@ -301,9 +313,22 @@ static func _shrinkwrap_box_to_visual(shape_cfg: Dictionary, entity) -> Dictiona
 	if bb.size.y <= 0.0001:
 		return shape_cfg
 	var h := _scale_height(entity)
-	var w := bb.size.x / bb.size.y * h
-	var d := bb.size.z / bb.size.y * h
+	var k := h / bb.size.y  # mesh-space → world-space factor (renderer's unit-height × scale)
 	var out: Dictionary = shape_cfg.duplicate()
+	if mode == "base":
+		var fp := _glb_base_footprint(mesh_path)
+		if fp.size.x > 0.0001 and fp.size.z > 0.0001:
+			# Renderer recenters the FULL bbox in X/Z (entity_mesh_3d
+			# _normalize_glb), so the slice's world center = its offset
+			# from the full-bbox center, scaled. Height stays FULL so the
+			# pillar blocks at any ride height (low cars vs overhangs).
+			var cx := (fp.position.x + fp.size.x * 0.5 - (bb.position.x + bb.size.x * 0.5)) * k
+			var cz := (fp.position.z + fp.size.z * 0.5 - (bb.position.z + bb.size.z * 0.5)) * k
+			out["size"] = [fp.size.x * k, h, fp.size.z * k]
+			out["offset"] = [cx, h * 0.5, cz]
+			return out
+		# Slice parse failed (sparse accessor / external buffer / no BIN
+		# chunk) → fall through to the full wrap rather than no collider.
 	# TIGHT: box exactly wraps the rendered mesh — proportions from the .glb
 	# bbox, height = state.scale's Y, base on the ground (offset +h/2 puts the
 	# box bottom at entity.y, top at entity.y+h, matching EntityMesh3D's
@@ -311,7 +336,7 @@ static func _shrinkwrap_box_to_visual(shape_cfg: Dictionary, entity) -> Dictiona
 	# under-ground over-wrap. (The trade-off: a tight axis-aligned box can let
 	# the player clip a prop when entering it airborne on a steep slope — the
 	# robust+tight answer is a convex-hull collider, ADR 0067 follow-up.)
-	out["size"] = [w, h, d]
+	out["size"] = [bb.size.x * k, h, bb.size.z * k]
 	out["offset"] = [0.0, h * 0.5, 0.0]
 	return out
 
@@ -803,6 +828,13 @@ const _GLB_MAGIC := 0x46546C67  # "glTF"
 const _GLB_CHUNK_JSON := 0x4E4F534A  # "JSON"
 const _GLB_CHUNK_BIN := 0x004E4942  # "BIN\0"
 static var _glb_bbox_cache: Dictionary = {}
+static var _glb_base_cache: Dictionary = {}
+
+## Fraction of mesh height considered the "base" for from_visual_mesh:
+## "base" colliders. Engine convention, not per-def (no escape hatches):
+## the bottom quarter captures trunks/poles/pedestals while staying below
+## a canopy's flare on every tree-shaped mesh tested.
+const _BASE_SLICE_FRAC := 0.25
 
 
 ## Read POSITION min/max from a .glb file. Returns an empty AABB
@@ -814,6 +846,99 @@ static func _glb_bbox(res_path: String) -> AABB:
 	var aabb := _glb_bbox_uncached(res_path)
 	_glb_bbox_cache[res_path] = aabb
 	return aabb
+
+
+## Mesh-space AABB of the vertices in the bottom _BASE_SLICE_FRAC of the
+## mesh's height — the "trunk footprint" for from_visual_mesh: "base".
+## Reads POSITION vertex data from the .glb's BIN chunk (the header-only
+## _glb_bbox can't slice — accessor min/max covers the whole primitive).
+## Returns an empty AABB when vertex data isn't reachable (sparse
+## accessors, external buffers); caller falls back to the full wrap.
+## Cached per path; runs once per unique mesh at load.
+static func _glb_base_footprint(res_path: String) -> AABB:
+	if _glb_base_cache.has(res_path):
+		return _glb_base_cache[res_path]
+	var out := _glb_base_footprint_uncached(res_path)
+	_glb_base_cache[res_path] = out
+	return out
+
+
+static func _glb_base_footprint_uncached(res_path: String) -> AABB:
+	var full := _glb_bbox(res_path)
+	if full.size.y <= 0.0001:
+		return AABB()
+	if not FileAccess.file_exists(res_path):
+		return AABB()
+	var f := FileAccess.open(res_path, FileAccess.READ)
+	if f == null:
+		return AABB()
+	var magic := f.get_32()
+	var _version := f.get_32()
+	var _total_length := f.get_32()
+	if magic != _GLB_MAGIC:
+		return AABB()
+	var json_len := f.get_32()
+	var json_type := f.get_32()
+	if json_type != _GLB_CHUNK_JSON:
+		return AABB()
+	var json_bytes := f.get_buffer(json_len)
+	var bin_bytes := PackedByteArray()
+	if f.get_position() + 8 <= f.get_length():
+		var bin_len := f.get_32()
+		var bin_type := f.get_32()
+		if bin_type == _GLB_CHUNK_BIN:
+			bin_bytes = f.get_buffer(bin_len)
+	if bin_bytes.is_empty():
+		return AABB()
+	var parser := JSON.new()
+	if parser.parse(json_bytes.get_string_from_utf8()) != OK:
+		return AABB()
+	var doc = parser.data
+	if not (doc is Dictionary):
+		return AABB()
+	var y_cut := full.position.y + full.size.y * _BASE_SLICE_FRAC
+	var accessors: Array = doc.get("accessors", [])
+	var buffer_views: Array = doc.get("bufferViews", [])
+	var mn := Vector3(INF, INF, INF)
+	var mx := Vector3(-INF, -INF, -INF)
+	var found := false
+	for m in doc.get("meshes", []):
+		for p in (m as Dictionary).get("primitives", []):
+			var pos_idx = ((p as Dictionary).get("attributes", {}) as Dictionary).get(
+				"POSITION", null
+			)
+			if pos_idx == null or int(pos_idx) >= accessors.size():
+				continue
+			var acc: Dictionary = accessors[int(pos_idx)]
+			# float32 VEC3, non-sparse, BIN-chunk buffer only.
+			if int(acc.get("componentType", 0)) != 5126 or str(acc.get("type", "")) != "VEC3":
+				continue
+			if acc.has("sparse"):
+				continue
+			var bv_idx = acc.get("bufferView", null)
+			if bv_idx == null or int(bv_idx) >= buffer_views.size():
+				continue
+			var bv: Dictionary = buffer_views[int(bv_idx)]
+			if int(bv.get("buffer", 0)) != 0:
+				continue
+			var stride := maxi(int(bv.get("byteStride", 12)), 12)
+			var base := int(bv.get("byteOffset", 0)) + int(acc.get("byteOffset", 0))
+			var count := int(acc.get("count", 0))
+			for i in range(count):
+				var o := base + i * stride
+				if o + 12 > bin_bytes.size():
+					break
+				var vy := bin_bytes.decode_float(o + 4)
+				if vy > y_cut:
+					continue
+				var vx := bin_bytes.decode_float(o)
+				var vz := bin_bytes.decode_float(o + 8)
+				mn = Vector3(minf(mn.x, vx), minf(mn.y, vy), minf(mn.z, vz))
+				mx = Vector3(maxf(mx.x, vx), maxf(mx.y, vy), maxf(mx.z, vz))
+				found = true
+	if not found:
+		return AABB()
+	return AABB(mn, mx - mn)
 
 
 static func _glb_bbox_uncached(res_path: String) -> AABB:
