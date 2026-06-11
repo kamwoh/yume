@@ -55,6 +55,19 @@ func _ready() -> void:
 		push_error("ScreenFlow must be a child of a World node")
 		return
 	_load_config()
+	# Screen-INDEPENDENT shell services (toasts, quit_app, reload_scene
+	# event drain) exist regardless of screens.json — build them BEFORE
+	# the no-screens early return. Empirical 2026-06-11 (autorace, no
+	# screens.json): show_toast was a silent no-op in every screens-less
+	# demo — the early return skipped both the toast layer and the drain.
+	var sched0 = _world.get("scheduler")
+	if sched0 != null and sched0.get("env") != null:
+		var env0: Dictionary = sched0.env
+		if not env0.has("screen_event_buffer"):
+			env0["screen_event_buffer"] = []
+	_toast_layer = CanvasLayer.new()
+	_toast_layer.layer = 50
+	add_child(_toast_layer)
 	if _cfg.is_empty():
 		# No screens.json — engine auto-launches world (legacy behavior).
 		# Mark world_state so binding-readers know there's no screen system.
@@ -72,16 +85,8 @@ func _ready() -> void:
 	# ControlFactory looks this up to wire MinimapWidget.bind_world; per-
 	# frame tick happens via _update_bound_elements.
 	Engine.set_meta("yume_world", _world)
-	# Ensure env has screen_event_buffer
-	var sched = _world.get("scheduler")
-	if sched != null and sched.get("env") != null:
-		var env: Dictionary = sched.env
-		if not env.has("screen_event_buffer"):
-			env["screen_event_buffer"] = []
-	# Build toast layer (above all screens, below nothing)
-	_toast_layer = CanvasLayer.new()
-	_toast_layer.layer = 50
-	add_child(_toast_layer)
+	# (screen_event_buffer + toast layer built above, before the
+	# no-screens early return — they are screen-independent.)
 	# Push starting screen SYNCHRONOUSLY (not deferred) so freeze_world lands
 	# before the world's first tick — eliminates the "1 frame of game then
 	# title" flash. Previously we used call_deferred to wait for
@@ -94,9 +99,11 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	# Drain BEFORE the no-screens guard: toasts / quit_app / reload_scene
+	# are screen-independent (see _ready note, empirical 2026-06-11).
+	_drain_screen_events()
 	if _cfg.is_empty():
 		return
-	_drain_screen_events()
 	_update_bound_elements()
 	_handle_global_inputs()
 
