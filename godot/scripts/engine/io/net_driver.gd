@@ -1042,16 +1042,24 @@ func _apply_replay_frame(ents: Dictionary, prev: Dictionary, tick_dt: float) -> 
 				var vx := (float(p1[0]) - float(p0[0])) / tick_dt
 				var vz := (float(p1[2]) - float(p0[2])) / tick_dt
 				(e as Entity).set_state("velocity", Vector2(vx, vz))
-				# Smoothly turn the BODY toward its motion direction (replay-only).
-				# yaw drives the mesh (priority over facing); the camera keeps the
-				# recorded `facing` so it does NOT swing (confirmed: cam_yaw constant,
-				# only yaw moves). Mesh-forward = -Z → yaw = atan2(vx, -vz);
-				# lerp_angle (per movie frame) handles the wrap + smooths the turn.
-				var cur := float(_replay_yaw.get(id, float((e as Entity).get_state("facing", 0.0))))
-				if vx * vx + vz * vz > 0.04:  # |v| > 0.2 → moving
-					cur = lerp_angle(cur, atan2(vx, -vz), REPLAY_TURN_RATE)
-					_replay_yaw[id] = cur
-				(e as Entity).set_state("yaw", cur)
+				# Body yaw: RECORDED TRUTH WINS. If the snapshot replicates `yaw`,
+				# the server's authored body yaw was already applied above — never
+				# re-derive it from motion. Empirical 2026-06-11 (autorace): this
+				# override stomped the cars' recorded yaw every frame with a
+				# MIRRORED heading; replay-only wrong while solo + live clients
+				# were correct. Turn-toward-motion is a FALLBACK for entities
+				# whose replicate set lacks yaw (the position+facing humanoid
+				# default), so their bodies still face where they walk.
+				if not r.has("yaw"):
+					# Chirality: rotation.y = yaw makes mesh-forward
+					# (-sin yaw, -cos yaw), so facing motion (vx, vz) means
+					# yaw = atan2(-vx, -vz). atan2(vx, -vz) is the MIRROR —
+					# latent on symmetric humanoids, fatal on cars.
+					var cur := float(_replay_yaw.get(id, float((e as Entity).get_state("facing", 0.0))))
+					if vx * vx + vz * vz > 0.04:  # |v| > 0.2 → moving
+						cur = lerp_angle(cur, atan2(-vx, -vz), REPLAY_TURN_RATE)
+						_replay_yaw[id] = cur
+					(e as Entity).set_state("yaw", cur)
 
 
 func _finish() -> void:

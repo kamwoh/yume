@@ -54,6 +54,39 @@ grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|a
 
 Zero matches required.
 
+## Yaw-from-velocity chirality (one formula, everywhere)
+
+`rotation.y = yaw` points mesh-forward along **(−sin yaw, −cos yaw)**.
+Therefore any code (or lib JSON) deriving body yaw from a motion vector
+(vx, vz) MUST use `atan2(-vx, -vz)`. The variant `atan2(vx, -vz)` is
+the MIRROR — the sin component's sign is flipped, so headings reflect
+across the Z axis. It is latent on near-symmetric meshes (humanoids)
+and fatal on anything chirality-visible (vehicles, arrows, animals).
+
+**Grep gate** (run before merging any motion/orientation change):
+
+```bash
+grep -rn 'atan2(' godot/scripts/engine/ godot/data/lib/ \
+  | grep -v test | grep 'v[xz]\|velocity'
+```
+
+Every hit deriving yaw must have a NEGATED first argument
+(`atan2(-vx, -vz)` / `atan2(-...velocity[0], -...velocity[1])`).
+A non-negated first argument = mirror = reject.
+
+**Replicated-field priority (net/replay)**: if a snapshot/recorded
+frame carries a field, applying it is the END of that field's story —
+downstream "helper" derivation (turn-toward-motion, smoothing, etc.)
+may only run when the field is ABSENT from the frame. Re-deriving a
+replicated field silently forks the client/replay view from server
+truth, and ONLY off-the-main-path renders show it.
+
+Empirical 2026-06-11 (autorace): `_apply_replay_frame` overwrote the
+cars' recorded yaw every frame with mirrored turn-toward-motion —
+replay-only wrong mesh facing while solo + live clients were correct;
+the same mirrored formula had shipped in `lib/motion/face_motion.json`
+since it was authored, invisible on humanoids. Both fixed together.
+
 ## Camera-stability anti-patterns
 
 When writing Camera2D / Camera3D follow code, **never combine

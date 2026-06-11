@@ -1,6 +1,6 @@
 {
   "_comment": "Auto-orient walking entities to face their direction of motion. Opt-in via tag 'face_motion'. Splice into a game's rules.json with {$include: '@lib.motion.face_motion.rules'}.",
-  "_convention": "Mesh-forward in Yume is -Z. Yaw rotates CCW around UP. velocity in this bundle is Vector2 [vx, vy] where vy = world Z (floor-walkers per data-demo.md). yaw = atan2(vx, -vz) maps motion direction onto the mesh's forward axis.",
+  "_convention": "Mesh-forward in Yume is -Z. Yaw rotates CCW around UP: rotation.y = yaw points mesh-forward along (-sin yaw, -cos yaw). velocity in this bundle is Vector2 [vx, vy] where vy = world Z (floor-walkers per data-demo.md). Facing motion (vx, vz) therefore means yaw = atan2(-vx, -vz). NOTE 2026-06-11: this bundle shipped with atan2(vx, -vz) — the MIRROR (sign of the sin component flipped). Latent on near-symmetric humanoids; exposed the moment a chirality-visible mesh (autorace car) hit the same formula's twin in net_driver's replay path. Any yaw-from-velocity derivation MUST be atan2(-vx, -vz) — see engine-scripts.md anti-patterns.",
   "_gate": "Rule fires for every entity tagged face_motion every sim-tick. Inside the formula a clamp-based step (1 when |v|²>0.01, i.e. |v|>0.1; 0 below) gates the rotation: moving → snap yaw to motion direction; stopped → keep current yaw. Ternary-free (Yume's Expression has a broken ternary per data-demo.md), composed as `yaw + weight * (target - yaw)`.",
 
   "rules": [
@@ -13,7 +13,7 @@
         "type": "state_set",
         "target": "self",
         "field": "yaw",
-        "value": "self.state.yaw + clamp((pow(self.state.velocity[0], 2) + pow(self.state.velocity[1], 2) - 0.01) * 1000000, 0, 1) * (atan2(self.state.velocity[0], -self.state.velocity[1]) - self.state.yaw)"
+        "value": "self.state.yaw + clamp((pow(self.state.velocity[0], 2) + pow(self.state.velocity[1], 2) - 0.01) * 1000000, 0, 1) * (atan2(-self.state.velocity[0], -self.state.velocity[1]) - self.state.yaw)"
       }
     }
   ]
