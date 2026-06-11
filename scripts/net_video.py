@@ -197,6 +197,42 @@ def grid_filter(cols, rows, n_inputs):
     return filt + "".join(rows_lbl) + f"vstack=inputs={rows}[out]"
 
 
+def check_record_sanity(rec):
+    """Clock-skew gate (ADR 0068 post-mortem, 2026-06-11): a healthy record
+    moves every entity a small, bounded distance per sim tick. When the rule
+    clock skews against the physics clock, recorded per-tick displacements
+    burst to N ticks' worth (autorace empirical: 5x top_speed + 10.9m off the
+    racing line, user-visible as 'suddenly so fast / not following the path').
+    Catch it HERE, at record time, not after a 7-minute render.
+
+    Warns (not exits — replicated projectiles can legitimately be fast); cap
+    is u/s, overridable via REC_SPEED_CAP."""
+    cap = float(os.environ.get("REC_SPEED_CAP", "40"))
+    hz = float(rec.get("tick_hz", 60.0))
+    worst = {}  # eid -> (speed, tick)
+    prev = {}
+    for f in rec.get("frames", []):
+        tk = int(f.get("tick", 0))
+        for eid, ent in f.get("ents", {}).items():
+            p = ent.get("position")
+            if not (isinstance(p, list) and len(p) >= 3):
+                continue
+            if eid in prev:
+                (px, pz, pt) = prev[eid]
+                dt = (tk - pt) / hz
+                if dt > 0:
+                    v = math.hypot(p[0] - px, p[2] - pz) / dt
+                    if v > worst.get(eid, (0, 0))[0]:
+                        worst[eid] = (v, tk)
+            prev[eid] = (p[0], p[2], tk)
+    bad = {e: w for e, w in worst.items() if w[0] > cap}
+    if bad:
+        print(f"[net_video] WARNING: record sanity — per-tick speed exceeds "
+              f"{cap:.0f} u/s (clock-skew burst? see ADR 0068):")
+        for eid, (v, tk) in sorted(bad.items(), key=lambda kv: -kv[1][0]):
+            print(f"[net_video]   {eid}: {v:.1f} u/s at tick {tk}")
+
+
 def run_smooth():
     """ADR 0066: record the live sim once, then render each view offline in
     Movie-Maker mode (smooth fixed-fps), then grid-stitch. Stock binary → real
@@ -240,9 +276,10 @@ def run_smooth():
     # CONNECT_TIMEOUT_SEC=120 in net_driver) + the record window at the
     # server's EFFECTIVE tick rate — a loaded headless server can tick well
     # below realtime (empirical 2026-06-10: ~30Hz with ~300 entities + 2
-    # clients → the 120s record took ~2x wall time; the old budget of
+    # clients → empirically as low as ~15Hz on WSL, so the record window can
+    # take ~4x wall time; the old budget of
     # DELAY+SECS+60+20*C expired mid-record and orphaned the run).
-    budget = DELAY + 120 + SECS * 2.5 + CLIENTS * 20
+    budget = DELAY + 240 + SECS * 4 + CLIENTS * 20
     print(f"[net_video] waiting up to {budget}s for the record ...")
     t0 = time.time()
     while time.time() - t0 < budget and procs["server"].poll() is None:
@@ -256,6 +293,7 @@ def run_smooth():
     if len(roster) < CLIENTS:
         sys.exit(f"[net_video] ERROR: roster has {len(roster)} players, expected {CLIENTS} "
                  f"(a client didn't connect — see /tmp/net_video_c*.log)")
+    check_record_sanity(rec)
 
     # --- Phase 2: render each view offline in Movie-Maker mode (smooth) ----------
     # --linux → Xvfb (a VIRTUAL framebuffer → NO window at all, genuinely headless).
@@ -393,9 +431,10 @@ def main():
     # CONNECT_TIMEOUT_SEC=120 in net_driver) + the record window at the
     # server's EFFECTIVE tick rate — a loaded headless server can tick well
     # below realtime (empirical 2026-06-10: ~30Hz with ~300 entities + 2
-    # clients → the 120s record took ~2x wall time; the old budget of
+    # clients → empirically as low as ~15Hz on WSL, so the record window can
+    # take ~4x wall time; the old budget of
     # DELAY+SECS+60+20*C expired mid-record and orphaned the run).
-    budget = DELAY + 120 + SECS * 2.5 + CLIENTS * 20 + (120 if LINUX else 0)
+    budget = DELAY + 240 + SECS * 4 + CLIENTS * 20 + (120 if LINUX else 0)
     print(f"[net_video] waiting up to {budget}s for all {CLIENTS} clients to finish ...")
     t0 = time.time()
     while time.time() - t0 < budget:

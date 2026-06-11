@@ -717,26 +717,35 @@ func _server_process(delta: float) -> void:
 	if _snap_accum >= period:
 		_snap_accum = 0.0
 		_recv_snapshot.rpc(_serialize_state(), int(_world.get("_tick_count")))
-	# Record the authoritative state stream (post-GO, one frame per sim tick) so the
-	# views can be re-rendered offline + smooth (ADR 0066). Finish after the window.
-	if _record_path != "" and _go:
-		var tk := int(_world.get("_tick_count"))
-		if _go_tick == 0:
-			_go_tick = tk
-		var since := tk - _go_tick
-		var settle := int(RECORD_SETTLE_SEC / _tick_seconds())
-		if since < settle:
-			return  # let the just-spawned players fall + settle (no sky-drop in the video)
-		if tk != _record_last_tick:
-			_record_last_tick = tk
-			_record_frames.append({"tick": tk, "ents": _serialize_state()})
-		if _record_secs > 0.0 and (since - settle) >= int(_record_secs / _tick_seconds()):
-			_finish()
-			return
 	# Finish when the authoritative sim reaches the target tick count.
 	if int(_world.get("_tick_count")) >= _ticks_target:
 		# final authoritative state + tick to clients
 		_recv_done.rpc(_serialize_state(), int(_world.get("_tick_count")))
+		_finish()
+
+
+## Record the authoritative state stream (post-GO, one frame per sim tick) so
+## the views can be re-rendered offline + smooth (ADR 0066). Runs on the
+## PHYSICS clock (ADR 0068): the sim ticks in _physics_process, and under load
+## several ticks drain per rendered frame — recording from _server_process
+## (render clock) sampled only every 4th-8th tick (empirical 2026-06-11:
+## 88 frames / 598 ticks → ~9 poses/s judder in the movie). Per physics step
+## the recorder sees every tick. Autoloads step before scene nodes, so the
+## captured state is the PREVIOUS tick's — a constant 1-tick lag, harmless.
+func _physics_process(_delta: float) -> void:
+	if _record_path == "" or not _is_host or _done or _world == null or not _go:
+		return
+	var tk := int(_world.get("_tick_count"))
+	if _go_tick == 0:
+		_go_tick = tk
+	var since := tk - _go_tick
+	var settle := int(RECORD_SETTLE_SEC / _tick_seconds())
+	if since < settle:
+		return  # let the just-spawned players fall + settle (no sky-drop in the video)
+	if tk != _record_last_tick:
+		_record_last_tick = tk
+		_record_frames.append({"tick": tk, "ents": _serialize_state()})
+	if _record_secs > 0.0 and (since - settle) >= int(_record_secs / _tick_seconds()):
 		_finish()
 
 

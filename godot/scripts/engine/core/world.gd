@@ -546,16 +546,24 @@ func _stream_chunks_if_active() -> void:
 # break scenario tests + save-state reproducibility. See ADR 0001
 # (seven primitives — Trigger.tick is discrete) and the post-mortem
 # entry that catalogs the failure modes.
+#
+# Clock coherence (ADR 0068, 2026-06-11): the sim-tick gate runs in
+# _physics_process, NOT _process. Character bodies (ADR 0044) integrate
+# on the physics clock; if ticks drained on the render clock, a loaded
+# instance (frame rate < tick rate) slides the RULE clock to frame rate
+# while physics catches up to wall time — multiple body steps integrate
+# a stale velocity_set between steering decisions. Empirical: autorace
+# net record 2026-06-11, cars burst to 5x top_speed + cut corners 10.9m
+# off-line on a ~15fps server. One clock for rules + integration; under
+# load both dilate together instead of skewing.
 
 
-## Reads top-to-bottom as the per-frame flow:
-##   - frame-rate work (input poll + ground clamp) every call
+## Frame-rate work — reads top-to-bottom as the per-frame flow:
+##   - input poll (16ms latency target; skipped under freeze)
+##   - ground clamp
 ##   - frame_tick rules (ADR 0050 — content-authored per-frame behaviors)
-##   - sim-tick gate (_tick_due drains the delta accumulator)
-##   - freeze gate (modal/overlay screens pause the sim, ADR 0011/0012)
-##   - advance_one_tick — kept as a public method because step_runner.gd
-##     calls it directly for headless tests + capture VQA (bypasses freeze)
-func _process(delta: float) -> void:
+## The sim-tick gate lives in _physics_process (ADR 0068).
+func _process(_delta: float) -> void:
 	if scheduler == null:
 		return
 	# GENERIC external-tick-driver seam (NOT lockstep-specific): when something
@@ -581,15 +589,47 @@ func _process(delta: float) -> void:
 		_poll_input()
 	_ground_constraint.apply()
 	scheduler.fire_frame_tick()  # ADR 0050 — per-frame content rules
-	if not _tick_due(delta):
+
+
+## Sim-rate work (ADR 0068): the tick gate runs on the physics clock so
+## rules and body integration can never skew. delta here is FIXED
+## (1/physics_fps) and Godot's physics catch-up calls this multiple times
+## per frame under load — sim ticks inherit that catch-up 1:1.
+## The bounded drain loop serves tick_seconds < physics dt (e.g. a 120Hz
+## game on 60Hz physics needs 2 ticks per step); 8 caps runaway debt.
+##   - freeze gate (modal/overlay screens pause the sim, ADR 0011/0012)
+##   - advance_one_tick — kept as a public method because step_runner.gd
+##     calls it directly for headless tests + capture VQA (bypasses freeze)
+func _physics_process(delta: float) -> void:
+	if scheduler == null:
 		return
+	if Engine.has_meta("yume_external_tick_driver"):
+		return
+	var frozen := (
+		int(world_state.get("screen_freeze_world", 0)) != 0
+		or int(world_state.get("overlay_freeze_world", 0)) != 0
+	)
 	# ADR 0044 Invariant #10: PhysicsServer3D pauses with the sim.
 	# Godot animation / tween / audio continue regardless.
 	PhysicsServer3D.set_active(not frozen)
 	if frozen:
 		return
-	advance_one_tick()
-	if verbose and _tick_count % 4 == 0:
+	# Snap: tick_seconds within 0.5% of the physics step means "one tick per
+	# step", exactly. Without this, 0.0167 vs 1/60 (a 33ppm rounding gap)
+	# starves the accumulator into skipping one tick every ~8s — recorded as a
+	# single 2-step displacement spike (empirical 2026-06-11: both autorace
+	# cars logged a 25 u/s one-tick burst at the same tick, once per record).
+	if absf(tick_seconds - delta) < delta * 0.005:
+		advance_one_tick()
+		if verbose and _tick_count % 4 == 0:
+			_print_tick_summary(_tick_count)
+		return
+	var drained := 0
+	while _tick_due(delta) and drained < 8:
+		advance_one_tick()
+		drained += 1
+		delta = 0.0  # accumulator already credited this step's delta
+	if verbose and drained > 0 and _tick_count % 4 == 0:
 		_print_tick_summary(_tick_count)
 
 

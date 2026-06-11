@@ -118,8 +118,10 @@ is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
 `edge: "hold"` fires every tick held (move, sprint, aim).
 
 **`_process` vs `_physics_process`**: display-rate work (input sampling,
-camera smoothing, HUD, tick accumulator) in `_process`; fixed-rate
-physics (move_and_slide, collision) in `_physics_process`. Don't mix.
+camera smoothing, HUD) in `_process`; fixed-rate work (move_and_slide,
+collision, **the sim-tick accumulator** — ADR 0068) in
+`_physics_process`. Rules and body integration share the physics clock
+so they can never skew under load. Don't mix.
 
 ## Key files for editing
 
