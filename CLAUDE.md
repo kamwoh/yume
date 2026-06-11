@@ -117,11 +117,14 @@ is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
 `edge: "press"` fires once on key-down (menu, use, restart);
 `edge: "hold"` fires every tick held (move, sprint, aim).
 
-**`_process` vs `_physics_process`**: display-rate work (input sampling,
-camera smoothing, HUD) in `_process`; fixed-rate work (move_and_slide,
-collision, **the sim-tick accumulator** — ADR 0068) in
-`_physics_process`. Rules and body integration share the physics clock
-so they can never skew under load. Don't mix.
+**`_process` vs `_physics_process`**: display-rate work (camera
+smoothing, HUD) in `_process`; fixed-rate work (move_and_slide,
+collision, **the sim-tick accumulator** — ADR 0068, **and the input
+poll** — ADR 0069) in `_physics_process`. Input polls once per physics
+step so a held key fires once per sim tick at ANY render fps — polling
+per frame made hold strength frame-rate-dependent (autorace W/S dead at
+8 fps vs per-tick drag, 2026-06-11). Rules, body integration, and input
+share the physics clock so they can never skew under load. Don't mix.
 
 ## Key files for editing
 

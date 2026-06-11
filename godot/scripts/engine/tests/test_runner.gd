@@ -8771,6 +8771,7 @@ func test_step_runner() -> void:
 	# uses is_action_pressed; per-tick dedup collapses the overlap to one
 	# fire per tick).
 	world.set_process(false)
+	world.set_physics_process(false)  # ADR 0069: poll + tick gate both live there now
 	world.input_actions_press = PackedStringArray([test_action])
 	world.input_actions_hold = PackedStringArray([test_action])
 	world.scheduler = PhaseScheduler.new({})
@@ -9076,6 +9077,35 @@ func test_step_runner() -> void:
 		0,
 		"actor routing: decoy player-tagged entity did NOT receive the press"
 	)
+	# ---------- 15. hold cadence is per PHYSICS STEP (ADR 0069 gate) ----------
+	# The live input poll must run on the physics clock — once per sim
+	# tick — NOT per rendered frame. When it polled in _process, hold
+	# cadence was frame-rate-dependent: at 8 fps a held key fired 8×/s
+	# against per-tick rules firing 60×/s, so any opposing per-tick force
+	# (drag, decay) overpowered held input. Empirical 2026-06-11:
+	# autorace coast_drag made W/S unresponsive at low fps while the
+	# (per-tick) StepRunner scenario passed. This test drives
+	# _physics_process directly N times with an action HELD and asserts
+	# the input rule fired exactly N times — one per step, no frames
+	# involved.
+	kart.state["routed"] = 0
+	world.actor_manager = am  # kart receives input (test 14's manager)
+	# Live poll resolves the actor against World.entities (the member a
+	# booted world gets from load_data) — mirror it for the direct call.
+	world.entities = entities
+	var saved_tick_seconds := world.tick_seconds
+	world.tick_seconds = 1.0 / 60.0  # snap path: one tick per physics step
+	Input.action_press(test_action)
+	for i in range(5):
+		world._physics_process(1.0 / 60.0)
+	Input.action_release(test_action)
+	await get_tree().process_frame  # clear the press edge
+	expect_eq(
+		int(kart.get_state("routed", 0)),
+		5,
+		"ADR 0069: held action fires once per physics step (5 steps → 5 fires), frame-rate-independent"
+	)
+	world.tick_seconds = saved_tick_seconds
 	world.actor_manager = null
 
 	# Cleanup

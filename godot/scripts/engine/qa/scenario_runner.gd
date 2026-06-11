@@ -115,11 +115,15 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 	world.variant_override = str(sc.get("variant", ""))
 	add_child(world)
 	# ADR 0060 Phase 1: StepRunner is the SOLE tick driver in scenario
-	# mode. Disable World._process so the SceneTree's real frames (which
-	# StepRunner now awaits, to reset Godot's is_action_just_pressed edge)
-	# can't auto-advance ticks via _tick_due — that would inject
-	# uncontrolled ticks and break deterministic counts + the hash oracle.
+	# mode. Disable World._process AND _physics_process so the SceneTree's
+	# real frames (which StepRunner awaits, to reset Godot's
+	# is_action_just_pressed edge) can't auto-advance ticks or poll input
+	# — that would inject uncontrolled ticks and break deterministic
+	# counts + the hash oracle. (_physics_process added with ADR 0069:
+	# the sim tick gate moved there in ADR 0068, and the input poll
+	# followed in 0069 — _process alone no longer guards either.)
 	world.set_process(false)
+	world.set_physics_process(false)
 	# Run lifecycle: _ready on World already fired during add_child; data
 	# isn't loaded because auto_start=false. Load explicitly.
 	world.load_data()

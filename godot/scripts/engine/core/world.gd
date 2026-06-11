@@ -574,19 +574,12 @@ func _process(_delta: float) -> void:
 	# node's first _process (StdioStepDriver uses set_process(false) directly).
 	if Engine.has_meta("yume_external_tick_driver"):
 		return
-	var frozen := (
-		int(world_state.get("screen_freeze_world", 0)) != 0
-		or int(world_state.get("overlay_freeze_world", 0)) != 0
-	)
-	# Skip _poll_input while frozen — otherwise actions queue up in
-	# scheduler.input_queue and re-fire when the screen pops. Empirical
-	# case 2026-05-16: pressing I inside the inventory screen queued
-	# open_inventory; clicking Close → screen popped → queued I drained →
-	# `ui_open_inventory` rule re-fired → inventory reopened ("flash" UX).
-	# Screen-level global_inputs poll Godot.Input directly, so they still
-	# work during freeze for screen dismissal.
-	if not frozen:
-		_poll_input()
+	# NOTE (ADR 0069): _poll_input moved to _physics_process. Polling here
+	# (display rate) made hold-action cadence FRAME-RATE-DEPENDENT: at 8
+	# fps a held key fired 8×/s against rules firing 60×/s, so any
+	# per-tick opposing force (drag, decay) overpowered held input.
+	# Empirical 2026-06-11: autorace coast_drag (0.05/tick) made W/S
+	# unresponsive on a machine rendering ~8-19 fps.
 	_ground_constraint.apply()
 	scheduler.fire_frame_tick()  # ADR 0050 — per-frame content rules
 
@@ -613,7 +606,21 @@ func _physics_process(delta: float) -> void:
 	# Godot animation / tween / audio continue regardless.
 	PhysicsServer3D.set_active(not frozen)
 	if frozen:
+		# Freeze also skips _poll_input — otherwise actions queue up in
+		# scheduler.input_queue and re-fire when the screen pops.
+		# Empirical 2026-05-16: pressing I inside the inventory screen
+		# queued open_inventory; Close → queued I drained → inventory
+		# reopened ("flash" UX). Screen-level global_inputs poll
+		# Godot.Input directly, so they still work during freeze.
 		return
+	# ADR 0069: input polls on the PHYSICS clock, once per step, BEFORE
+	# the tick gate — so a held action fires once per sim tick at any
+	# render frame rate (the documented `edge: "hold"` contract). Godot
+	# tracks is_action_just_pressed per physics frame separately, so
+	# press-edges fire exactly once here too. Catch-up steps (multiple
+	# _physics_process calls per render frame under load) each poll —
+	# held keys correctly fire once per recovered tick.
+	_poll_input()
 	# Snap: tick_seconds within 0.5% of the physics step means "one tick per
 	# step", exactly. Without this, 0.0167 vs 1/60 (a 33ppm rounding gap)
 	# starves the accumulator into skipping one tick every ~8s — recorded as a
