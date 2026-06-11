@@ -683,8 +683,33 @@ func _apply_albedo_texture_to_primitives(tex_path: String) -> void:
 	var tex = load(tex_path)
 	if not (tex is Texture2D):
 		return
+	# Optional WORLD-TRIPLANAR mapping (2026-06-11): anisotropically
+	# scaled prims (road segments, walls — each instance a different
+	# length) stretch per-face UVs differently per instance. With
+	# `visual.texture_triplanar: true` the texture tiles in WORLD units
+	# (StandardMaterial3D uv1_world_triplanar), so texel density is
+	# uniform across every segment regardless of scale/yaw.
+	# `visual.texture_scale` = Godot's uv1_scale (higher = smaller
+	# texture; repeats every 1/scale world units). Pure Godot exposure.
+	if _entity_ref != null and _entity_ref.visual is Dictionary:
+		var vis: Dictionary = _entity_ref.visual
+		_paint_triplanar = bool(vis.get("texture_triplanar", false))
+		_paint_uv_scale = float(vis.get("texture_scale", 1.0))
 	for child in get_children():
 		_paint_albedo_texture_recursive(child, tex)
+
+
+var _paint_triplanar: bool = false
+var _paint_uv_scale: float = 1.0
+
+
+## Apply the optional triplanar flags to a freshly-duplicated material.
+func _paint_apply_mapping(mat: StandardMaterial3D) -> void:
+	if not _paint_triplanar:
+		return
+	mat.uv1_triplanar = true
+	mat.uv1_world_triplanar = true
+	mat.uv1_scale = Vector3(_paint_uv_scale, _paint_uv_scale, _paint_uv_scale)
 
 
 func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
@@ -708,6 +733,7 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 				else:
 					dup_override = StandardMaterial3D.new()
 				dup_override.albedo_texture = tex
+				_paint_apply_mapping(dup_override)
 				mi.material_override = dup_override
 				# Continue to children, skip the per-surface path
 				# (would no-op anyway since this MeshInstance3D's
@@ -725,6 +751,7 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 				else:
 					dup = StandardMaterial3D.new()
 				dup.albedo_texture = tex
+				_paint_apply_mapping(dup)
 				mi.set_surface_override_material(i, dup)
 	for child in node.get_children():
 		_paint_albedo_texture_recursive(child, tex)
