@@ -4,149 +4,1198 @@
     "house_1f": {
       "_comment": "Kit-of-parts 1-floor cottage (2026-05-27): box body + gable roof + door + 1 window row (front + sides) + chimney. UNIT space (y 0..1); state.scale=[W,H,D]. Paired with the small_house bucket (height ~3.5m) so a fitted ~2m footprint reads as a cottage, NOT a thin tower. $albedo set per instance; roof/door/window/chimney keep defaults.",
       "primitives": [
-        {"op": "box",   "pos": [0, 0.37, 0],      "size": [1.0, 0.74, 1.0],   "color": "$albedo"},
-        {"op": "prism", "pos": [0, 0.86, 0],      "size": [1.12, 0.30, 1.12], "color": "$roof"},
-        {"op": "box",   "pos": [0, 0.14, -0.5],   "size": [0.22, 0.28, 0.05], "color": "$door"},
-        {"op": "box",   "pos": [-0.27, 0.45, -0.5], "size": [0.13, 0.15, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [0.27, 0.45, -0.5],  "size": [0.13, 0.15, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [-0.5, 0.45, 0.0],   "size": [0.04, 0.15, 0.13], "color": "$window"},
-        {"op": "box",   "pos": [0.5, 0.45, 0.0],    "size": [0.04, 0.15, 0.13], "color": "$window"},
-        {"op": "box",   "pos": [0.3, 0.98, 0.18],   "size": [0.1, 0.26, 0.1],   "color": "$chimney"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.37,
+            0
+          ],
+          "size": [
+            1.0,
+            0.74,
+            1.0
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            0.86,
+            0
+          ],
+          "size": [
+            1.12,
+            0.3,
+            1.12
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.14,
+            -0.5
+          ],
+          "size": [
+            0.22,
+            0.28,
+            0.05
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.27,
+            0.45,
+            -0.5
+          ],
+          "size": [
+            0.13,
+            0.15,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.27,
+            0.45,
+            -0.5
+          ],
+          "size": [
+            0.13,
+            0.15,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.5,
+            0.45,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.15,
+            0.13
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.5,
+            0.45,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.15,
+            0.13
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.3,
+            0.98,
+            0.18
+          ],
+          "size": [
+            0.1,
+            0.26,
+            0.1
+          ],
+          "color": "$chimney"
+        }
       ],
-      "params": {"albedo": "#a04020", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0", "chimney": "#4a4038"}
+      "params": {
+        "albedo": "#a04020",
+        "roof": "#6e3b2e",
+        "door": "#2c1c12",
+        "window": "#7da8c0",
+        "chimney": "#4a4038"
+      }
     },
     "house_2f": {
       "_comment": "Kit-of-parts 2-floor house: body + gable roof + door + 2 window ROWS + mid trim band (floor divider) + chimney. The two window rows + the divider band make it READ as two storeys at any fitted footprint. Paired with the medium_house bucket (height ~6.5m).",
       "primitives": [
-        {"op": "box",   "pos": [0, 0.40, 0],      "size": [1.0, 0.80, 1.0],    "color": "$albedo"},
-        {"op": "prism", "pos": [0, 0.88, 0],      "size": [1.12, 0.26, 1.12],  "color": "$roof"},
-        {"op": "box",   "pos": [0, 0.10, -0.5],   "size": [0.20, 0.20, 0.05],  "color": "$door"},
-        {"op": "box",   "pos": [0, 0.45, 0],      "size": [1.03, 0.035, 1.03], "color": "$trim"},
-        {"op": "box",   "pos": [-0.27, 0.25, -0.5], "size": [0.12, 0.13, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [0.27, 0.25, -0.5],  "size": [0.12, 0.13, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [-0.27, 0.62, -0.5], "size": [0.12, 0.13, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [0.27, 0.62, -0.5],  "size": [0.12, 0.13, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [-0.5, 0.25, 0.0],   "size": [0.04, 0.13, 0.12], "color": "$window"},
-        {"op": "box",   "pos": [0.5, 0.62, 0.0],    "size": [0.04, 0.13, 0.12], "color": "$window"},
-        {"op": "box",   "pos": [0.3, 1.0, 0.18],    "size": [0.1, 0.24, 0.1],   "color": "$chimney"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            1.0,
+            0.8,
+            1.0
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            0.88,
+            0
+          ],
+          "size": [
+            1.12,
+            0.26,
+            1.12
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.1,
+            -0.5
+          ],
+          "size": [
+            0.2,
+            0.2,
+            0.05
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.45,
+            0
+          ],
+          "size": [
+            1.03,
+            0.035,
+            1.03
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.27,
+            0.25,
+            -0.5
+          ],
+          "size": [
+            0.12,
+            0.13,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.27,
+            0.25,
+            -0.5
+          ],
+          "size": [
+            0.12,
+            0.13,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.27,
+            0.62,
+            -0.5
+          ],
+          "size": [
+            0.12,
+            0.13,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.27,
+            0.62,
+            -0.5
+          ],
+          "size": [
+            0.12,
+            0.13,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.5,
+            0.25,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.13,
+            0.12
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.5,
+            0.62,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.13,
+            0.12
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.3,
+            1.0,
+            0.18
+          ],
+          "size": [
+            0.1,
+            0.24,
+            0.1
+          ],
+          "color": "$chimney"
+        }
       ],
-      "params": {"albedo": "#b85030", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0", "trim": "#5a4836", "chimney": "#4a4038"}
+      "params": {
+        "albedo": "#b85030",
+        "roof": "#6e3b2e",
+        "door": "#2c1c12",
+        "window": "#7da8c0",
+        "trim": "#5a4836",
+        "chimney": "#4a4038"
+      }
     },
     "house_3f": {
-      "_comment": "Kit-of-parts 3-floor townhouse: body + gable roof + door + 3 window ROWS + 2 trim bands + chimney. Paired with the large_house bucket (height ~9.5m) — the tallest tier still reads as a 3-storey building, not a featureless tower, because of the three window rows + two floor dividers.",
+      "_comment": "Kit-of-parts 3-floor townhouse: body + gable roof + door + 3 window ROWS + 2 trim bands + chimney. Paired with the large_house bucket (height ~9.5m) \u2014 the tallest tier still reads as a 3-storey building, not a featureless tower, because of the three window rows + two floor dividers.",
       "primitives": [
-        {"op": "box",   "pos": [0, 0.42, 0],      "size": [1.0, 0.84, 1.0],   "color": "$albedo"},
-        {"op": "prism", "pos": [0, 0.90, 0],      "size": [1.12, 0.22, 1.12], "color": "$roof"},
-        {"op": "box",   "pos": [0, 0.08, -0.5],   "size": [0.18, 0.16, 0.05], "color": "$door"},
-        {"op": "box",   "pos": [0, 0.34, 0],      "size": [1.03, 0.03, 1.03], "color": "$trim"},
-        {"op": "box",   "pos": [0, 0.62, 0],      "size": [1.03, 0.03, 1.03], "color": "$trim"},
-        {"op": "box",   "pos": [-0.26, 0.20, -0.5], "size": [0.11, 0.11, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [0.26, 0.20, -0.5],  "size": [0.11, 0.11, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [-0.26, 0.48, -0.5], "size": [0.11, 0.11, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [0.26, 0.48, -0.5],  "size": [0.11, 0.11, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [-0.26, 0.74, -0.5], "size": [0.11, 0.11, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [0.26, 0.74, -0.5],  "size": [0.11, 0.11, 0.04], "color": "$window"},
-        {"op": "box",   "pos": [-0.5, 0.48, 0.0],   "size": [0.04, 0.11, 0.11], "color": "$window"},
-        {"op": "box",   "pos": [0.5, 0.48, 0.0],    "size": [0.04, 0.11, 0.11], "color": "$window"},
-        {"op": "box",   "pos": [0.3, 1.0, 0.18],    "size": [0.1, 0.22, 0.1],   "color": "$chimney"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.42,
+            0
+          ],
+          "size": [
+            1.0,
+            0.84,
+            1.0
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            0.9,
+            0
+          ],
+          "size": [
+            1.12,
+            0.22,
+            1.12
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.08,
+            -0.5
+          ],
+          "size": [
+            0.18,
+            0.16,
+            0.05
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.34,
+            0
+          ],
+          "size": [
+            1.03,
+            0.03,
+            1.03
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.62,
+            0
+          ],
+          "size": [
+            1.03,
+            0.03,
+            1.03
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.26,
+            0.2,
+            -0.5
+          ],
+          "size": [
+            0.11,
+            0.11,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.26,
+            0.2,
+            -0.5
+          ],
+          "size": [
+            0.11,
+            0.11,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.26,
+            0.48,
+            -0.5
+          ],
+          "size": [
+            0.11,
+            0.11,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.26,
+            0.48,
+            -0.5
+          ],
+          "size": [
+            0.11,
+            0.11,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.26,
+            0.74,
+            -0.5
+          ],
+          "size": [
+            0.11,
+            0.11,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.26,
+            0.74,
+            -0.5
+          ],
+          "size": [
+            0.11,
+            0.11,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.5,
+            0.48,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.11,
+            0.11
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.5,
+            0.48,
+            0.0
+          ],
+          "size": [
+            0.04,
+            0.11,
+            0.11
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.3,
+            1.0,
+            0.18
+          ],
+          "size": [
+            0.1,
+            0.22,
+            0.1
+          ],
+          "color": "$chimney"
+        }
       ],
-      "params": {"albedo": "#c86040", "roof": "#6e3b2e", "door": "#2c1c12", "window": "#7da8c0", "trim": "#5a4836", "chimney": "#4a4038"}
+      "params": {
+        "albedo": "#c86040",
+        "roof": "#6e3b2e",
+        "door": "#2c1c12",
+        "window": "#7da8c0",
+        "trim": "#5a4836",
+        "chimney": "#4a4038"
+      }
     },
     "tower_kit": {
       "_comment": "Kit-of-parts tower: cylinder shaft + prism (peaked) roof. UNIT space; state.scale=[D,H,D]. $albedo = stone shaft.",
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.42, 0], "radius": 0.5, "height": 0.84, "color": "$albedo"},
-        {"op": "prism",    "pos": [0, 0.92, 0], "size": [1.05, 0.32, 1.05],     "color": "$roof"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.42,
+            0
+          ],
+          "radius": 0.5,
+          "height": 0.84,
+          "color": "$albedo"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            0.92,
+            0
+          ],
+          "size": [
+            1.05,
+            0.32,
+            1.05
+          ],
+          "color": "$roof"
+        }
       ],
-      "params": {"albedo": "#8a8278", "roof": "#5a3a4a"}
+      "params": {
+        "albedo": "#8a8278",
+        "roof": "#5a3a4a"
+      }
     },
     "fountain_kit": {
       "_comment": "Kit-of-parts fountain: stone basin + central column + water jet. UNIT space. $albedo = stone.",
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.15, 0], "radius": 0.5,  "height": 0.3, "color": "$albedo"},
-        {"op": "cylinder", "pos": [0, 0.42, 0], "radius": 0.12, "height": 0.5, "color": "$albedo"},
-        {"op": "sphere",   "pos": [0, 0.72, 0], "radius": 0.18,                "color": "$water"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.15,
+            0
+          ],
+          "radius": 0.5,
+          "height": 0.3,
+          "color": "$albedo"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.42,
+            0
+          ],
+          "radius": 0.12,
+          "height": 0.5,
+          "color": "$albedo"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.72,
+            0
+          ],
+          "radius": 0.18,
+          "color": "$water"
+        }
       ],
-      "params": {"albedo": "#9aa0a8", "water": "#5ba0d0"}
+      "params": {
+        "albedo": "#9aa0a8",
+        "water": "#5ba0d0"
+      }
     },
     "townhall_kit": {
       "_comment": "Kit-of-parts civic hall (2026-05-27): wide base + set-back upper storey + gable roof + 4 front columns + grand door + upper window row + roof finial. UNIT space; state.scale=[W,H,D]. Grander silhouette than houses (two-tier + columns + finial) so it reads as the town's focal building.",
       "primitives": [
-        {"op": "box",      "pos": [0, 0.22, 0],     "size": [1.0, 0.44, 1.0],   "color": "$albedo"},
-        {"op": "box",      "pos": [0, 0.55, 0],     "size": [0.82, 0.30, 0.82], "color": "$albedo"},
-        {"op": "prism",    "pos": [0, 0.80, 0],     "size": [0.94, 0.26, 0.94], "color": "$roof"},
-        {"op": "box",      "pos": [0, 0.13, -0.5],  "size": [0.28, 0.26, 0.05], "color": "$door"},
-        {"op": "cylinder", "pos": [-0.36, 0.22, -0.5], "radius": 0.05, "height": 0.44, "color": "$trim"},
-        {"op": "cylinder", "pos": [-0.12, 0.22, -0.5], "radius": 0.05, "height": 0.44, "color": "$trim"},
-        {"op": "cylinder", "pos": [0.12, 0.22, -0.5],  "radius": 0.05, "height": 0.44, "color": "$trim"},
-        {"op": "cylinder", "pos": [0.36, 0.22, -0.5],  "radius": 0.05, "height": 0.44, "color": "$trim"},
-        {"op": "box",      "pos": [-0.25, 0.55, -0.41], "size": [0.12, 0.14, 0.04], "color": "$window"},
-        {"op": "box",      "pos": [0.25, 0.55, -0.41],  "size": [0.12, 0.14, 0.04], "color": "$window"},
-        {"op": "cylinder", "pos": [0, 0.96, 0],     "radius": 0.05, "height": 0.16, "color": "$trim"},
-        {"op": "sphere",   "pos": [0, 1.07, 0],     "radius": 0.06,                "color": "$window"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.22,
+            0
+          ],
+          "size": [
+            1.0,
+            0.44,
+            1.0
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.55,
+            0
+          ],
+          "size": [
+            0.82,
+            0.3,
+            0.82
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            0.8,
+            0
+          ],
+          "size": [
+            0.94,
+            0.26,
+            0.94
+          ],
+          "color": "$roof"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.13,
+            -0.5
+          ],
+          "size": [
+            0.28,
+            0.26,
+            0.05
+          ],
+          "color": "$door"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.36,
+            0.22,
+            -0.5
+          ],
+          "radius": 0.05,
+          "height": 0.44,
+          "color": "$trim"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.12,
+            0.22,
+            -0.5
+          ],
+          "radius": 0.05,
+          "height": 0.44,
+          "color": "$trim"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.12,
+            0.22,
+            -0.5
+          ],
+          "radius": 0.05,
+          "height": 0.44,
+          "color": "$trim"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.36,
+            0.22,
+            -0.5
+          ],
+          "radius": 0.05,
+          "height": 0.44,
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.25,
+            0.55,
+            -0.41
+          ],
+          "size": [
+            0.12,
+            0.14,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.25,
+            0.55,
+            -0.41
+          ],
+          "size": [
+            0.12,
+            0.14,
+            0.04
+          ],
+          "color": "$window"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.96,
+            0
+          ],
+          "radius": 0.05,
+          "height": 0.16,
+          "color": "$trim"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            1.07,
+            0
+          ],
+          "radius": 0.06,
+          "color": "$window"
+        }
       ],
-      "params": {"albedo": "#b03828", "roof": "#5a2e26", "door": "#2a1810", "window": "#d8c060", "trim": "#d8d2c4"}
+      "params": {
+        "albedo": "#b03828",
+        "roof": "#5a2e26",
+        "door": "#2a1810",
+        "window": "#d8c060",
+        "trim": "#d8d2c4"
+      }
     },
     "bridge_kit": {
       "_comment": "Kit-of-parts bridge: flat deck + two side railings running the span + two end abutments. UNIT space; state.scale=[W,H,D] where D is the span across the river (the longest axis from PCA). $albedo = timber deck.",
       "primitives": [
-        {"op": "box", "pos": [0, 0.55, 0],     "size": [1.0, 0.18, 1.0],  "color": "$albedo"},
-        {"op": "box", "pos": [-0.46, 0.72, 0], "size": [0.06, 0.22, 1.0], "color": "$trim"},
-        {"op": "box", "pos": [0.46, 0.72, 0],  "size": [0.06, 0.22, 1.0], "color": "$trim"},
-        {"op": "box", "pos": [0, 0.25, -0.42], "size": [0.9, 0.5, 0.12],  "color": "$albedo"},
-        {"op": "box", "pos": [0, 0.25, 0.42],  "size": [0.9, 0.5, 0.12],  "color": "$albedo"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.55,
+            0
+          ],
+          "size": [
+            1.0,
+            0.18,
+            1.0
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.46,
+            0.72,
+            0
+          ],
+          "size": [
+            0.06,
+            0.22,
+            1.0
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.46,
+            0.72,
+            0
+          ],
+          "size": [
+            0.06,
+            0.22,
+            1.0
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.25,
+            -0.42
+          ],
+          "size": [
+            0.9,
+            0.5,
+            0.12
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.25,
+            0.42
+          ],
+          "size": [
+            0.9,
+            0.5,
+            0.12
+          ],
+          "color": "$albedo"
+        }
       ],
-      "params": {"albedo": "#8a7048", "trim": "#6a5436"}
+      "params": {
+        "albedo": "#8a7048",
+        "trim": "#6a5436"
+      }
     },
     "wall_kit": {
-      "_comment": "Kit-of-parts curtain wall: stone body + slightly-overhanging cap + 5 crenellation merlons along the top. UNIT space; state.scale=[length,H,thickness] (length fitted per segment). Merlons run along unit-X so they stretch with the fitted length (wider merlons on longer walls — acceptable). $albedo = stone.",
+      "_comment": "Kit-of-parts curtain wall: stone body + slightly-overhanging cap + 5 crenellation merlons along the top. UNIT space; state.scale=[length,H,thickness] (length fitted per segment). Merlons run along unit-X so they stretch with the fitted length (wider merlons on longer walls \u2014 acceptable). $albedo = stone.",
       "primitives": [
-        {"op": "box", "pos": [0, 0.4, 0],    "size": [1.0, 0.80, 1.0],  "color": "$albedo"},
-        {"op": "box", "pos": [0, 0.82, 0],   "size": [1.02, 0.06, 1.12], "color": "$trim"},
-        {"op": "box", "pos": [-0.4, 0.92, 0], "size": [0.09, 0.16, 1.04], "color": "$albedo"},
-        {"op": "box", "pos": [-0.2, 0.92, 0], "size": [0.09, 0.16, 1.04], "color": "$albedo"},
-        {"op": "box", "pos": [0.0, 0.92, 0],  "size": [0.09, 0.16, 1.04], "color": "$albedo"},
-        {"op": "box", "pos": [0.2, 0.92, 0],  "size": [0.09, 0.16, 1.04], "color": "$albedo"},
-        {"op": "box", "pos": [0.4, 0.92, 0],  "size": [0.09, 0.16, 1.04], "color": "$albedo"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.4,
+            0
+          ],
+          "size": [
+            1.0,
+            0.8,
+            1.0
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.82,
+            0
+          ],
+          "size": [
+            1.02,
+            0.06,
+            1.12
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.4,
+            0.92,
+            0
+          ],
+          "size": [
+            0.09,
+            0.16,
+            1.04
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.2,
+            0.92,
+            0
+          ],
+          "size": [
+            0.09,
+            0.16,
+            1.04
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.0,
+            0.92,
+            0
+          ],
+          "size": [
+            0.09,
+            0.16,
+            1.04
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.2,
+            0.92,
+            0
+          ],
+          "size": [
+            0.09,
+            0.16,
+            1.04
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.4,
+            0.92,
+            0
+          ],
+          "size": [
+            0.09,
+            0.16,
+            1.04
+          ],
+          "color": "$albedo"
+        }
       ],
-      "params": {"albedo": "#9a9080", "trim": "#7a7166"}
+      "params": {
+        "albedo": "#9a9080",
+        "trim": "#7a7166"
+      }
     },
     "bird_totem_kit": {
       "_comment": "Kit-of-parts giant ancient stone bird totem (2026-05-27): wide base + stepped pillar shaft + carved band + a stylized bird head (head box + beak wedge + eyes + crest) on top. UNIT space; state.scale=[W,H,D] with a GIANT H so it reads as a landmark. $albedo = weathered stone.",
       "primitives": [
-        {"op": "box",   "pos": [0, 0.04, 0],    "size": [1.0, 0.08, 1.0],  "color": "$albedo"},
-        {"op": "box",   "pos": [0, 0.30, 0],    "size": [0.72, 0.46, 0.72], "color": "$albedo"},
-        {"op": "box",   "pos": [0, 0.54, 0],    "size": [0.07, 0.04, 0.74], "color": "$trim"},
-        {"op": "box",   "pos": [0, 0.62, 0],    "size": [0.58, 0.20, 0.58], "color": "$albedo"},
-        {"op": "box",   "pos": [0, 0.82, 0],    "size": [0.52, 0.22, 0.46], "color": "$albedo"},
-        {"op": "prism", "pos": [0, 0.83, -0.32], "size": [0.18, 0.13, 0.28], "color": "$beak"},
-        {"op": "box",   "pos": [-0.13, 0.87, -0.20], "size": [0.06, 0.06, 0.04], "color": "$eye"},
-        {"op": "box",   "pos": [0.13, 0.87, -0.20],  "size": [0.06, 0.06, 0.04], "color": "$eye"},
-        {"op": "prism", "pos": [0, 0.97, 0.05], "size": [0.1, 0.14, 0.34], "color": "$albedo"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.04,
+            0
+          ],
+          "size": [
+            1.0,
+            0.08,
+            1.0
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.3,
+            0
+          ],
+          "size": [
+            0.72,
+            0.46,
+            0.72
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.54,
+            0
+          ],
+          "size": [
+            0.07,
+            0.04,
+            0.74
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.62,
+            0
+          ],
+          "size": [
+            0.58,
+            0.2,
+            0.58
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.82,
+            0
+          ],
+          "size": [
+            0.52,
+            0.22,
+            0.46
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            0.83,
+            -0.32
+          ],
+          "size": [
+            0.18,
+            0.13,
+            0.28
+          ],
+          "color": "$beak"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.13,
+            0.87,
+            -0.2
+          ],
+          "size": [
+            0.06,
+            0.06,
+            0.04
+          ],
+          "color": "$eye"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.13,
+            0.87,
+            -0.2
+          ],
+          "size": [
+            0.06,
+            0.06,
+            0.04
+          ],
+          "color": "$eye"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            0.97,
+            0.05
+          ],
+          "size": [
+            0.1,
+            0.14,
+            0.34
+          ],
+          "color": "$albedo"
+        }
       ],
-      "params": {"albedo": "#8a8278", "trim": "#6e655c", "beak": "#c89858", "eye": "#241f1a"}
+      "params": {
+        "albedo": "#8a8278",
+        "trim": "#6e655c",
+        "beak": "#c89858",
+        "eye": "#241f1a"
+      }
     },
     "ruin_kit": {
       "_comment": "Kit-of-parts ancient ruin: a low broken wall + two stub columns of different heights + a toppled block + a fallen capstone. UNIT space; state.scale=[length,H,thickness] (length fitted per component via PCA). $albedo = weathered sandstone.",
       "primitives": [
-        {"op": "box",      "pos": [0, 0.28, 0],     "size": [1.0, 0.56, 0.5],  "color": "$albedo"},
-        {"op": "box",      "pos": [0.32, 0.66, 0],  "size": [0.36, 0.2, 0.5],  "color": "$albedo"},
-        {"op": "cylinder", "pos": [-0.38, 0.45, 0.1], "radius": 0.11, "height": 0.9, "color": "$albedo"},
-        {"op": "cylinder", "pos": [0.28, 0.3, -0.2],  "radius": 0.09, "height": 0.6, "color": "$albedo"},
-        {"op": "box",      "pos": [-0.38, 0.92, 0.1], "size": [0.18, 0.1, 0.18], "color": "$trim"},
-        {"op": "box",      "pos": [0.05, 0.09, -0.32], "size": [0.3, 0.18, 0.22], "color": "$trim"}
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.28,
+            0
+          ],
+          "size": [
+            1.0,
+            0.56,
+            0.5
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.32,
+            0.66,
+            0
+          ],
+          "size": [
+            0.36,
+            0.2,
+            0.5
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            -0.38,
+            0.45,
+            0.1
+          ],
+          "radius": 0.11,
+          "height": 0.9,
+          "color": "$albedo"
+        },
+        {
+          "op": "cylinder",
+          "pos": [
+            0.28,
+            0.3,
+            -0.2
+          ],
+          "radius": 0.09,
+          "height": 0.6,
+          "color": "$albedo"
+        },
+        {
+          "op": "box",
+          "pos": [
+            -0.38,
+            0.92,
+            0.1
+          ],
+          "size": [
+            0.18,
+            0.1,
+            0.18
+          ],
+          "color": "$trim"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.05,
+            0.09,
+            -0.32
+          ],
+          "size": [
+            0.3,
+            0.18,
+            0.22
+          ],
+          "color": "$trim"
+        }
       ],
-      "params": {"albedo": "#b8a888", "trim": "#9a8a72"}
+      "params": {
+        "albedo": "#b8a888",
+        "trim": "#9a8a72"
+      }
     },
     "tree_round": {
       "_comment": "Kit-of-parts whimsical rounded tree (2026-05-27): short trunk + two stacked rounded foliage puffs. UNIT space; state.scale=[W,H,D]. $albedo = foliage color (set per instance); $trunk fixed brown. Replaces the bare-cylinder fallback so scattered trees read as stylized trees, not green poles.",
       "primitives": [
-        {"op": "cylinder", "pos": [0, 0.18, 0], "radius": 0.11, "height": 0.4, "color": "$trunk"},
-        {"op": "sphere",   "pos": [0, 0.52, 0], "radius": 0.42,                "color": "$albedo"},
-        {"op": "sphere",   "pos": [0.16, 0.74, 0.06], "radius": 0.28,          "color": "$albedo"},
-        {"op": "sphere",   "pos": [-0.14, 0.72, -0.05], "radius": 0.26,        "color": "$albedo"}
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            0.18,
+            0
+          ],
+          "radius": 0.11,
+          "height": 0.4,
+          "color": "$trunk"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            0.52,
+            0
+          ],
+          "radius": 0.42,
+          "color": "$albedo"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.16,
+            0.74,
+            0.06
+          ],
+          "radius": 0.28,
+          "color": "$albedo"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.14,
+            0.72,
+            -0.05
+          ],
+          "radius": 0.26,
+          "color": "$albedo"
+        }
       ],
-      "params": {"albedo": "#3a8f44", "trunk": "#6b4a2e"}
+      "params": {
+        "albedo": "#3a8f44",
+        "trunk": "#6b4a2e"
+      }
     },
     "tree": {
       "primitives": [
@@ -5700,13 +6749,181 @@
     "rock_cluster_kit": {
       "_comment": "Boulder-cluster rock kit (2026-05-28): 5 spheres at varying size/position so a single scattered instance reads as a mossy stone pile, not one ball. Mesh-unit space; per-instance state.scale + scale_jitter add silhouette variety. $albedo = stone color set per scene; $dark = inner shadow stones.",
       "primitives": [
-        {"op": "sphere", "pos": [0.00, 0.42,  0.00], "radius": 0.55, "color": "$albedo"},
-        {"op": "sphere", "pos": [0.55, 0.22,  0.28], "radius": 0.36, "color": "$dark"},
-        {"op": "sphere", "pos": [-0.38, 0.28, -0.42], "radius": 0.40, "color": "$albedo"},
-        {"op": "sphere", "pos": [0.18, 0.58, -0.48], "radius": 0.26, "color": "$dark"},
-        {"op": "sphere", "pos": [-0.55, 0.18, 0.30], "radius": 0.28, "color": "$albedo"}
+        {
+          "op": "sphere",
+          "pos": [
+            0.0,
+            0.42,
+            0.0
+          ],
+          "radius": 0.55,
+          "color": "$albedo"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.55,
+            0.22,
+            0.28
+          ],
+          "radius": 0.36,
+          "color": "$dark"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.38,
+            0.28,
+            -0.42
+          ],
+          "radius": 0.4,
+          "color": "$albedo"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0.18,
+            0.58,
+            -0.48
+          ],
+          "radius": 0.26,
+          "color": "$dark"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            -0.55,
+            0.18,
+            0.3
+          ],
+          "radius": 0.28,
+          "color": "$albedo"
+        }
       ],
-      "params": {"albedo": "#8a8278", "dark": "#5e564e"}
+      "params": {
+        "albedo": "#8a8278",
+        "dark": "#5e564e"
+      }
+    },
+    "feather_flag": {
+      "_comment": "Trackside/event feather flag: pole + tall tapered blade. Recolor via $pole / $blade. Generic event dressing (race tracks, festivals, shops).",
+      "primitives": [
+        {
+          "op": "cylinder",
+          "pos": [
+            0,
+            1.6,
+            0
+          ],
+          "radius": 0.04,
+          "height": 3.2,
+          "color": "$pole"
+        },
+        {
+          "op": "box",
+          "pos": [
+            0.42,
+            2.05,
+            0
+          ],
+          "size": [
+            0.78,
+            2.1,
+            0.06
+          ],
+          "color": "$blade"
+        },
+        {
+          "op": "sphere",
+          "pos": [
+            0,
+            3.25,
+            0
+          ],
+          "radius": 0.07,
+          "color": "$pole"
+        }
+      ],
+      "params": {
+        "pole": "#4a4f5a",
+        "blade": "#d83a2a"
+      }
+    },
+    "event_tent": {
+      "_comment": "Small event tent: prism canopy over an open box base. Recolor via $canvas / $base. Generic event dressing.",
+      "primitives": [
+        {
+          "op": "box",
+          "pos": [
+            0,
+            0.55,
+            0
+          ],
+          "size": [
+            2.6,
+            1.1,
+            2.2
+          ],
+          "color": "$base"
+        },
+        {
+          "op": "prism",
+          "pos": [
+            0,
+            1.55,
+            0
+          ],
+          "size": [
+            3.0,
+            0.9,
+            2.6
+          ],
+          "color": "$canvas"
+        }
+      ],
+      "params": {
+        "canvas": "#d83a2a",
+        "base": "#efe9dc"
+      }
+    },
+    "prim_unit_banner": {
+      "_comment": "Unit quad (1x1, base-anchored, faces +Z) for banner/sign textures: QuadMesh maps the FULL texture per face, unlike prim_unit_box whose BoxMesh uses a dice-atlas UV (each face samples 1/6 \u2014 bands instead of artwork). Two back-to-back quads so it reads from both sides. color=$albedo.",
+      "primitives": [
+        {
+          "op": "quad",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "color": "$albedo"
+        },
+        {
+          "op": "quad",
+          "pos": [
+            0,
+            0.5,
+            -0.001
+          ],
+          "rotation_deg": [
+            0,
+            180,
+            0
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "color": "$albedo"
+        }
+      ],
+      "params": {
+        "albedo": "#ffffff"
+      }
     }
   }
 }
