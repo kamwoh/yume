@@ -342,6 +342,43 @@ func _phase_react() -> void:
 	for r in contact_rules:
 		_fire_contact_rule(r)
 
+	# ADR 0070 — physics overlap events (buffered by World's area monitor
+	# callbacks during physics steps; drained here so dispatch ORDER stays
+	# inside the tick discipline). PRESENTATION-GRADE: the event origin is
+	# Godot physics, which is not cross-machine deterministic — overlap
+	# rules must not drive replicated / replayed / win-condition state.
+	var ob = env.get("overlap_events", null)
+	if ob is Array and not (ob as Array).is_empty():
+		var events: Array = (ob as Array).duplicate()
+		(ob as Array).clear()
+		var overlap_rules: Array = rules_by_trigger.get("overlap", [])
+		if not overlap_rules.is_empty():
+			for ev in events:
+				if not (ev is Dictionary):
+					continue
+				for orr in overlap_rules:
+					var orule: Rule = orr
+					if (
+						str(orule.trigger_param("change", "enter"))
+						!= str((ev as Dictionary).get("change", "enter"))
+					):
+						continue
+					if orule.chance < 1.0 and randf() > orule.chance:
+						continue
+					var a_id := str((ev as Dictionary).get("a", ""))
+					var b_id := str((ev as Dictionary).get("b", ""))
+					if not _overlap_pair_matches(orule, a_id, b_id):
+						continue
+					# Enqueue DIRECTLY with the pre-bound pair (mirrors
+					# contact). _fire_payload_rule would re-run the rule's
+					# query as a flat scan — an {a,b} spec has no top-level
+					# filters, so it matches every entity and fires N times.
+					var octx := {"a": a_id, "b": b_id, "self": a_id, "_phase": "react"}
+					if orule.require is Dictionary and not _require_ok(orule.require, octx):
+						continue
+					for oe in orule.effects:
+						_enqueue(oe, octx, orule.id)
+
 	# Drain relation_changed events that occurred since last drain.
 	if not _relation_changes.is_empty():
 		var changes := _relation_changes.duplicate()
@@ -356,6 +393,28 @@ func _phase_react() -> void:
 					continue
 				var ctx := {"from": ch["from"], "to": ch["to"], "self": ch["from"]}
 				_fire_payload_rule(rule, ctx, "react")
+
+
+## ADR 0070 — does an overlap event's (area, body) pair satisfy the
+## rule's query specs? Bindings mirror contact: `a` = the area entity,
+## `b` = the body entity. Full QueryLib filter vocabulary (tags / state /
+## relations) applies to both specs. No specs → match everything.
+func _overlap_pair_matches(rule: Rule, a_id: String, b_id: String) -> bool:
+	var q = rule.query
+	if not (q is Dictionary):
+		return true
+	var entities: Dictionary = env.get("entities", {})
+	var a_ent = entities.get(a_id, null)
+	var b_ent = entities.get(b_id, null)
+	if not (a_ent is Entity) or not (b_ent is Entity):
+		return false
+	var a_spec = (q as Dictionary).get("a", null)
+	if a_spec is Dictionary and not QueryLib.matches(a_ent, a_spec, env):
+		return false
+	var b_spec = (q as Dictionary).get("b", null)
+	if b_spec is Dictionary and not QueryLib.matches(b_ent, b_spec, env):
+		return false
+	return true
 
 
 ## Fire a contact rule (W3.2). Query has `a`, `b`, `radius`. For each entity

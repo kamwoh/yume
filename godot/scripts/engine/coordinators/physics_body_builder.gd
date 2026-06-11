@@ -158,10 +158,73 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Di
 		transform.basis = Basis(Vector3.UP, _entity_yaw(entity))
 	PhysicsServer3D.body_set_state(body, PhysicsServer3D.BODY_STATE_TRANSFORM, transform)
 
+	# ADR 0070: attach the Entity node's instance id so area monitor
+	# callbacks can resolve this body back to its entity.
+	if entity is Object:
+		PhysicsServer3D.body_attach_object_instance_id(body, (entity as Object).get_instance_id())
+
 	# Stamp the entity with this body's RID so despawn can free it.
 	entity.set_meta("_physics_body", body)
 
 	return body
+
+
+## ADR 0070 — build a PhysicsServer3D AREA (trigger volume) for
+## body_type: "area". Reuses the body shape pipeline (incl.
+## from_visual_mesh shrink-wrap + offset). collision_mask selects which
+## body LAYERS this area detects; the area itself is not monitorable
+## (it watches, it is not watched). The caller (SpawnManager) wires the
+## monitor callback — this builder has no World access by design.
+## RID stored as entity meta `_physics_area`; freed by free_3d.
+static func build_area_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Dictionary) -> RID:
+	if phys_cfg.is_empty():
+		return RID()
+	if not space_rid.is_valid():
+		push_warning(
+			(
+				"[PhysicsBodyBuilder] no valid 3D physics space — skipping area for %s"
+				% entity.instance_id
+			)
+		)
+		return RID()
+	var area := PhysicsServer3D.area_create()
+	PhysicsServer3D.area_set_space(area, space_rid)
+	var shape_cfg = phys_cfg.get("collision_shape", null)
+	if shape_cfg is Dictionary:
+		shape_cfg = _shrinkwrap_box_to_visual(shape_cfg as Dictionary, entity)
+		var shape_rid := _create_shape_3d(shape_cfg)
+		if shape_rid.is_valid():
+			var shape_xform := Transform3D()
+			var off_v = (shape_cfg as Dictionary).get("offset", null)
+			if off_v is Array and (off_v as Array).size() >= 3:
+				shape_xform.origin = Vector3(float(off_v[0]), float(off_v[1]), float(off_v[2]))
+			PhysicsServer3D.area_add_shape(area, shape_rid, shape_xform)
+	else:
+		push_warning(
+			(
+				"[PhysicsBodyBuilder] area entity %s has no collision_shape — trigger is shapeless"
+				% entity.instance_id
+			)
+		)
+	PhysicsServer3D.area_set_collision_mask(
+		area, _resolve_layer_mask(phys_cfg.get("collision_mask", "all"), layer_map)
+	)
+	PhysicsServer3D.area_set_collision_layer(
+		area, _resolve_layer_mask(phys_cfg.get("collision_layer", []), layer_map)
+	)
+	PhysicsServer3D.area_set_monitorable(area, false)
+	var pos = entity.get_position() if entity.has_method("get_position") else null
+	var transform := Transform3D()
+	if pos is Vector3:
+		transform.origin = pos
+	elif pos is Vector2:
+		transform.origin = Vector3(pos.x, 0, pos.y)
+	# Rotation-only basis for box triggers, mirroring build_3d's rule.
+	if shape_cfg is Dictionary and str((shape_cfg as Dictionary).get("type", "")) == "box":
+		transform.basis = Basis(Vector3.UP, _entity_yaw(entity))
+	PhysicsServer3D.area_set_transform(area, transform)
+	entity.set_meta("_physics_area", area)
+	return area
 
 
 ## Free a body created via build_3d / build_character_3d.
@@ -173,6 +236,17 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Di
 ##   - Node (character — a CharacterBody3D scene node) →
 ##     node.queue_free (Godot frees the body + its shape children)
 static func free_3d(entity) -> void:
+	# ADR 0070 — areas are RIDs under their own meta (area_* API, not body_*).
+	if entity.has_meta("_physics_area"):
+		var area = entity.get_meta("_physics_area")
+		entity.remove_meta("_physics_area")
+		if area is RID and (area as RID).is_valid():
+			var n := PhysicsServer3D.area_get_shape_count(area)
+			for i in range(n):
+				var s: RID = PhysicsServer3D.area_get_shape(area, i)
+				if s.is_valid():
+					PhysicsServer3D.free_rid(s)
+			PhysicsServer3D.free_rid(area)
 	if not entity.has_meta("_physics_body"):
 		return
 	var body = entity.get_meta("_physics_body")

@@ -86,6 +86,7 @@ TRIGGER_DEFAULTS = {
     "input":           {"self", "actor"}, # input_registrar sets actor=player_id
     "signal":          set(),             # bindings come from require or query
     "contact":         {"a", "b"},        # engine pair-matches
+    "overlap":         {"a", "b"},        # ADR 0070 — physics area pair (a=area, b=body)
     "spawn":           {"self"},
     "despawn":         {"self"},
     "relation_changed": {"from", "to"},
@@ -105,6 +106,7 @@ REQUIRE_ENGINE_BINDINGS = {
     "tick":             {"self"},
     "input":            {"self", "actor"},
     "contact":          {"a", "b", "self"},
+    "overlap":          {"a", "b", "self"},
     "spawn":            {"self"},
     "despawn":          {"self"},
     "relation_changed": {"from", "to", "self"},
@@ -403,7 +405,7 @@ def check_2binding_non_contact(rule, errors):
     query = rule.get("query")
     if not isinstance(query, dict):
         return
-    if t_type == "contact":
+    if t_type in ("contact", "overlap"):
         return
     sub_bindings = collect_query_bindings(query)
     if len(sub_bindings) >= 2 and sub_bindings != {"self"}:

@@ -85,6 +85,8 @@ func _ready() -> void:
 	# (total under-counts). Worked before only because StepRunner was
 	# synchronous. Tests below run after it completes.
 	await test_step_runner()
+	test_overlap_dispatch()
+	test_toast_without_screens()
 	test_lockstep()
 	test_grid_snap()
 	test_multimesh_director()
@@ -9110,6 +9112,125 @@ func test_step_runner() -> void:
 
 	# Cleanup
 	world.queue_free()
+
+
+# ============================================================
+# ScreenFlow shell services without screens.json
+# ============================================================
+
+
+## show_toast / quit_app / reload_scene are screen-INDEPENDENT shell
+## services: they must work in demos with NO screens.json. Empirical
+## 2026-06-11 (autorace): ScreenFlow's no-screens early return skipped
+## both the toast layer and the event drain, making show_toast a silent
+## no-op in every screens-less demo (autorace's lap-3 toast had been
+## dead since authoring). This test boots a screens-less World +
+## ScreenFlow and asserts a pushed show_toast event actually renders.
+func test_toast_without_screens() -> void:
+	_section("toast without screens.json (ScreenFlow shell services)")
+	var world := World.new()
+	world.auto_start = false
+	world.verbose = false
+	add_child(world)
+	world.set_process(false)
+	world.set_physics_process(false)
+	world.scheduler = PhaseScheduler.new(
+		{
+			"entities": {},
+			"defs": {},
+			"relations": RelationStore.new(),
+			"spatial_index": SpatialIndex.new(),
+			"world": {},
+			"parent": world,
+			"next_id": {"_": 0},
+			"error_buffer": [],
+		}
+	)
+	var sf: Node = load("res://scripts/engine/ui/screen_flow.gd").new()
+	sf.name = "ScreenFlow"
+	world.add_child(sf)  # _ready: data_root "" → no screens.json branch
+	expect(sf._toast_layer != null, "no-screens: toast layer still built")
+	var env: Dictionary = world.scheduler.env
+	expect(env.has("screen_event_buffer"), "no-screens: screen_event_buffer ensured")
+	(env["screen_event_buffer"] as Array).append(
+		{"event": "show_toast", "text": "HELLO", "duration": 0.4}
+	)
+	sf.drain()
+	expect_eq(
+		int(sf._toast_layer.get_child_count()),
+		1,
+		"no-screens: show_toast renders a toast label"
+	)
+	world.queue_free()
+
+
+# ============================================================
+# ADR 0070 — physics overlap trigger (dispatch plumbing)
+# ============================================================
+
+
+## The PHYSICS side of overlap (Godot broadphase → World callback) is
+## deliberately untested headless — non-determinism is its documented
+## nature, verified by live capture. What IS deterministic and gated
+## here is the dispatch: events injected into env.overlap_events must
+## fire `trigger: "overlap"` rules in the react phase with a/b bindings,
+## honor the `change` filter, respect query specs, and drain the buffer.
+func test_overlap_dispatch() -> void:
+	_section("overlap trigger (ADR 0070)")
+	var defs: Dictionary = {
+		"finish_line": {"id": "finish_line", "tags": ["finish_line"], "state_init": {}},
+		"kart":
+		{
+			"id": "kart",
+			"tags": ["kart"],
+			"state_init": {"crossings": 0, "position": Vector3.ZERO},
+		},
+	}
+	var fl := Entity.create(defs["finish_line"], "fl1", {})
+	var kart := Entity.create(defs["kart"], "k1", {})
+	var entities: Dictionary = {"fl1": fl, "k1": kart}
+	var env: Dictionary = {
+		"entities": entities,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+		"error_buffer": [],
+		"overlap_events": [],
+	}
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "cross_enter",
+					"trigger": {"type": "overlap", "change": "enter"},
+					"query":
+					{"a": {"tags_all": ["finish_line"]}, "b": {"tags_all": ["kart"]}},
+					"effect":
+					{"type": "state_add", "target": "b", "field": "crossings", "amount": 1},
+				}
+			)
+		]
+	)
+	# 1. enter event fires with a/b bindings
+	(env["overlap_events"] as Array).append({"a": "fl1", "b": "k1", "change": "enter"})
+	sched.tick()
+	expect_eq(int(kart.get_state("crossings", 0)), 1, "overlap enter: rule fired on b binding")
+	# 2. exit event must NOT fire an enter-rule
+	(env["overlap_events"] as Array).append({"a": "fl1", "b": "k1", "change": "exit"})
+	sched.tick()
+	expect_eq(int(kart.get_state("crossings", 0)), 1, "overlap exit: enter-rule did not fire")
+	# 3. pair failing the b spec is ignored
+	(env["overlap_events"] as Array).append({"a": "fl1", "b": "fl1", "change": "enter"})
+	sched.tick()
+	expect_eq(int(kart.get_state("crossings", 0)), 1, "overlap: non-matching pair ignored")
+	# 4. buffer drains every tick regardless of matches
+	expect_eq((env["overlap_events"] as Array).size(), 0, "overlap: buffer drained")
+	fl.free()
+	kart.free()
 
 
 # ============================================================

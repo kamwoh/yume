@@ -62,6 +62,7 @@ var defs: Dictionary = {}  # def_id → entity definition
 var world_state: Dictionary = {}
 var next_id_seq: Dictionary = {"_": 0}  # shared spawn-id counter
 var error_buffer: Array = []  # Tier 2.6a structured errors
+var _overlap_events: Array = []  # ADR 0070 — area overlap event buffer
 var save_policy: Dictionary = {}  # ADR 0010 — empty = no persistence
 
 var relations: RelationStore = null  # primitive #7
@@ -826,6 +827,55 @@ func _mount_boot_directors(root: String) -> void:
 				dir.call(method_name, root, scheduler.env)
 
 
+# ============================================================
+# ADR 0070 — physics area overlap monitor
+# ============================================================
+
+
+## Wire a PhysicsServer3D area's monitor callback to this World.
+## Called by SpawnManager after building a body_type:"area" entity.
+func register_area_monitor(area_rid: RID, area_entity_id: String) -> void:
+	PhysicsServer3D.area_set_monitor_callback(area_rid, _on_area_overlap.bind(area_entity_id))
+
+
+## PhysicsServer monitor callback (fires during the physics step).
+## Buffers only — rules run in the react phase of the next sim tick, so
+## overlap dispatch stays inside the tick's phase discipline. The EVENT
+## ORIGIN is Godot physics and therefore not cross-machine deterministic;
+## per ADR 0070, overlap rules are presentation-grade.
+func _on_area_overlap(
+	status: int, _body_rid: RID, instance_id: int, _body_shape: int, _self_shape: int,
+	area_entity_id: String,
+) -> void:
+	var change := ""
+	if status == PhysicsServer3D.AREA_BODY_ADDED:
+		change = "enter"
+	elif status == PhysicsServer3D.AREA_BODY_REMOVED:
+		change = "exit"
+	else:
+		return
+	var body_eid := _entity_id_from_instance(instance_id)
+	if body_eid == "" or body_eid == area_entity_id:
+		return
+	_overlap_events.append({"a": area_entity_id, "b": body_eid, "change": change})
+
+
+## Resolve a physics callback's object instance id to a Yume entity id.
+## RID bodies carry the Entity node's id (build_3d attaches it);
+## character bodies resolve via the CharacterBody3D node's entity_ref.
+func _entity_id_from_instance(iid: int) -> String:
+	var obj = instance_from_id(iid)
+	if obj == null:
+		return ""
+	if obj is Entity:
+		return (obj as Entity).instance_id
+	if obj is CharacterBodyRunner:
+		var er = (obj as CharacterBodyRunner).entity_ref
+		if er != null:
+			return str(er.instance_id)
+	return ""
+
+
 func _build_env() -> Dictionary:
 	# ADR 0038: ensure grid config is loaded before any rule resolves it.
 	# Idempotent — first call from any path triggers; subsequent are no-op.
@@ -843,6 +893,9 @@ func _build_env() -> Dictionary:
 		"parent": self,
 		"next_id": next_id_seq,
 		"error_buffer": error_buffer,
+		# ADR 0070 — physics area overlap events, appended by
+		# _on_area_overlap, drained by PhaseScheduler._phase_react.
+		"overlap_events": _overlap_events,
 		# ADR 0011: ScreenFlow drains transition_screen / quit_app /
 		# show_toast / reload_scene effects from this buffer. Lazily created
 		# by effect_apply if no ScreenFlow is mounted (harmless — events

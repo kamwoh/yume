@@ -301,6 +301,12 @@ func _build_physics_body_if_declared(ent: Entity) -> void:
 	var body_type := str(phys_cfg.get("body_type", ""))
 	if body_type == "character":
 		PhysicsBodyBuilder.build_character_3d(ent, phys_cfg, layer_map)
+	elif body_type == "area":
+		# ADR 0070 — trigger volume: World owns the monitor callback so
+		# overlap events land in env.overlap_events for the react phase.
+		var area_rid := PhysicsBodyBuilder.build_area_3d(ent, phys_cfg, space, layer_map)
+		if area_rid.is_valid() and _world.has_method("register_area_monitor"):
+			_world.register_area_monitor(area_rid, ent.instance_id)
 	else:
 		PhysicsBodyBuilder.build_3d(ent, phys_cfg, space, layer_map)
 	# Push the entity's CURRENT velocity to the freshly-built body. Spawn-time

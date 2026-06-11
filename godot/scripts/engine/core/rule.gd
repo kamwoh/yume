@@ -27,6 +27,7 @@ const VALID_TRIGGERS: Array = [
 	"despawn",
 	"relation_changed",
 	"scheduled",
+	"overlap",  # ADR 0070 — physics area enter/exit (presentation-grade)
 ]
 
 # ============================================================
