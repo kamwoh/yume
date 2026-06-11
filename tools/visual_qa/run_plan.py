@@ -49,17 +49,17 @@ ASSERTIONS_DIR = GODOT_DATA / "lib" / "visual_qa" / "assertions"
 TEMPLATE_DST = Path(
     os.environ.get(
         "YUME_TEMPLATE_DST",
-        "/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate",
+        os.path.expanduser("~/.yume/YumeTemplate"),  # set YUME_TEMPLATE_DST
     )
 )
 GODOT_BIN = os.environ.get(
     "YUME_GODOT_BIN",
-    "/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe",
+    "godot",  # set YUME_GODOT_BIN
 )
 CAPTURE_USER_DIR = Path(
     os.environ.get(
         "YUME_USERDATA",
-        "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework",
+        os.path.expanduser("~/.yume/userdata"),  # set YUME_USERDATA
     )
 )
 

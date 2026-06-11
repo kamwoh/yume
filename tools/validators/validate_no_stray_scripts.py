@@ -55,7 +55,7 @@ def main() -> int:
     # gitignored so nothing tracks there), but the sync target accumulates
     # orphans across `cp -r` runs — that's where the empirical bug lived.
     import os
-    sync_target = os.environ.get("YUME_TEMPLATE_DST", "/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate")
+    sync_target = os.environ.get("YUME_TEMPLATE_DST", os.path.expanduser("~/.yume/YumeTemplate"))
     roots = [
         repo / "godot" / "data",
         Path(sync_target) / "data",

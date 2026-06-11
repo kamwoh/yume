@@ -29,15 +29,24 @@ from pathlib import Path
 
 GODOT_BIN = os.environ.get(
     "YUME_GODOT_BIN",
-    "/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe",
+    "godot",  # set YUME_GODOT_BIN in your shell profile
 )
 TEMPLATE_DST = os.environ.get(
     "YUME_TEMPLATE_DST",
-    "/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate",
+    os.path.expanduser("~/.yume/YumeTemplate"),  # set YUME_TEMPLATE_DST
 )
-# Where Godot's user:// resolves on this WSL2+Windows setup (same as captures).
+# Where Godot's user:// resolves. Derive the Windows user from the template
+# path on WSL2+Windows; override with YUME_USERDATA.
+def _default_userdata() -> str:
+    import re as _re
+    m = _re.match(r"^/mnt/c/Users/([^/]+)/", os.environ.get("YUME_TEMPLATE_DST", ""))
+    if m:
+        return "/mnt/c/Users/%s/AppData/Roaming/Godot/app_userdata/Yume Framework" % m.group(1)
+    return os.path.expanduser("~/.yume/userdata")
+
+
 USERDATA = Path(
-    "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework"
+    os.environ.get("YUME_USERDATA", "") or _default_userdata()
 )
 
 

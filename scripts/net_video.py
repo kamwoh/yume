@@ -89,6 +89,15 @@ FOLLOW = [v for v in os.environ.get("FOLLOW", "").split(",") if v]
 WIN_W = os.environ.get("WIN_W", "700")
 WIN_H = os.environ.get("WIN_H", "440")
 
+def _derive_userdata() -> str:
+    """Windows appdata derived from YUME_TEMPLATE_DST on WSL2; generic fallback."""
+    import re as _re
+    m = _re.match(r"^/mnt/c/Users/([^/]+)/", os.environ.get("YUME_TEMPLATE_DST", ""))
+    if m:
+        return "/mnt/c/Users/%s/AppData/Roaming/Godot/app_userdata/Yume Framework" % m.group(1)
+    return os.path.expanduser("~/.yume/userdata")
+
+
 if LINUX:
     GODOT = os.environ.get("YUME_GODOT_LINUX_BIN",
                            os.path.expanduser("~/godot-linux/Godot_v4.6.1-stable_linux.x86_64"))
@@ -99,7 +108,7 @@ else:
     GODOT = os.environ.get("YUME_GODOT_BIN") or from_play_sh("GODOT_BIN")
     PROJECT = os.environ.get("YUME_TEMPLATE_DST") or from_play_sh("TEMPLATE_DST")
     USERDATA = os.environ.get(
-        "YUME_USERDATA", "/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework")
+        "YUME_USERDATA", "") or _derive_userdata()
     HAVE_XVFB = False
 
 # All per-run scratch (captured frames, .ticks sidecars, the synced copies) lives

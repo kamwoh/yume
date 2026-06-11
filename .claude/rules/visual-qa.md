@@ -100,7 +100,7 @@ sanity sweep would've caught it.
 ### Step 1 — Capture
 
 ```bash
-~/yume/scripts/play.sh <name> --capture
+./scripts/play.sh <name> --capture
 # OR for scripted-input flows:
 godot --path <template> scenes/<name>_3d.tscn --rendering-driver opengl3 \
   -- --game=<name> --capture-after=2 --capture-input='move_east,3.0' \
@@ -349,7 +349,7 @@ execution), they share `/mnt/c/.../YumeTemplate/`. Each running
 non-deterministic tests + corrupt captures.
 
 **Rule for parallel builders**:
-- ✅ Write source files in `/home/kamwoh/yume/godot/` (owned files
+- ✅ Write source files in the repo's `godot/` (owned files
   only, per file-ownership pre-allocation)
 - ❌ NOT sync to YumeTemplate
 - ❌ NOT run godot binary, tests, or VQA

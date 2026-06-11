@@ -28,7 +28,7 @@ When upgrading Godot, audit:
 ## Where Godot lives on the dev machine
 
 ```
-/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/
+$YUME_GODOT_BIN  # e.g. /mnt/c/Users/<you>/Downloads/Godot_v4.6.1-stable_win64.exe/
   Godot_v4.6.1-stable_win64_console.exe
 ```
 
@@ -40,7 +40,7 @@ gets `cp`'d into the YumeTemplate project for runtime testing.
 ## Verifying
 
 ```bash
-$ /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe --version
+$ $YUME_GODOT_BIN  # e.g. /mnt/c/Users/<you>/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe --version
 4.6.1.stable.official.14d19694e
 ```
 

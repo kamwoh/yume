@@ -32,8 +32,8 @@ set -euo pipefail
 
 YUME_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_GODOT="${YUME_ROOT}/godot"
-BIN="${YUME_GODOT_LINUX_BIN:-/home/kamwoh/godot-linux/Godot_v4.6.1-stable_linux.x86_64}"
-PROJECT="${YUME_GODOT_LINUX_PROJECT:-/home/kamwoh/godot-linux/yume}"
+BIN="${YUME_GODOT_LINUX_BIN:-$HOME/godot-linux/Godot_v4.6.1-stable_linux.x86_64}"
+PROJECT="${YUME_GODOT_LINUX_PROJECT:-$HOME/godot-linux/yume}"
 
 REIMPORT=0
 WITH_ASSETS=0

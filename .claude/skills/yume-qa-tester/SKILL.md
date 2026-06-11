@@ -74,23 +74,20 @@ What content-designer / systems-designer should fix before re-testing.
 1. **Sync framework to test project:**
 
 ```bash
-cp -r ~/yume/godot/. \
-  /mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate/
+eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
+cp -r godot/. "$TEMPLATE_DST/"
 ```
 
 2. **Force class registration if any new GDScript landed:**
 
 ```bash
-timeout 90 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe \
-  --headless --editor --path C:/Users/kamwoh/Documents/Projects/Godot/YumeTemplate --quit
+cd "$TEMPLATE_DST" && timeout 90 "$GODOT_BIN" --headless --import --path . --quit
 ```
 
 3. **Run unit tests:**
 
 ```bash
-timeout 60 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe \
-  --headless --path C:/Users/kamwoh/Documents/Projects/Godot/YumeTemplate \
-  scenes/test_main.tscn
+cd "$TEMPLATE_DST" && timeout 240 "$GODOT_BIN" --headless --path . scenes/test_main.tscn
 ```
 
 Should report `passed: NN  failed: 0  total: NN`. If failed, content
@@ -100,8 +97,7 @@ introduced a regression — flag in QA report.
     a `tests.json`:
 
 ```bash
-timeout 30 /mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64_console.exe \
-  --headless --path C:/Users/kamwoh/Documents/Projects/Godot/YumeTemplate \
+cd "$TEMPLATE_DST" && timeout 120 "$GODOT_BIN" --headless --path . \
   scenes/scenario_test.tscn -- --game=demo_<name>
 ```
 

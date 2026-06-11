@@ -36,13 +36,13 @@ from pathlib import Path
 
 GODOT_LINUX_BIN = os.environ.get(
     "YUME_GODOT_LINUX_BIN",
-    "/home/kamwoh/godot-linux/Godot_v4.6.1-stable_linux.x86_64",
+    os.path.expanduser("~/godot-linux/Godot_v4.6.1-stable_linux.x86_64"),
 )
 # Dedicated Linux env project (separate .godot cache from the Windows template,
 # and keeps the source godot/ clean — .godot is not gitignored there).
 LINUX_PROJECT = os.environ.get(
     "YUME_GODOT_LINUX_PROJECT",
-    "/home/kamwoh/godot-linux/yume",
+    os.path.expanduser("~/godot-linux/yume"),
 )
 SOURCE_GODOT = os.environ.get(
     "YUME_GODOT_SOURCE",

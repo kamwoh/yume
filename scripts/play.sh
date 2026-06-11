@@ -75,11 +75,14 @@ DATA_FOLDER="demo_${GAME_NAME}"
 
 YUME_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE_SRC="${YUME_ROOT}/godot"
-# Override via env vars: YUME_TEMPLATE_DST, YUME_GODOT_BIN, YUME_USERDATA.
-# (The defaults below are the original author's WSL→Windows layout; set the
-#  env vars for your own machine — see README/INSTALLATION.)
-TEMPLATE_DST="${YUME_TEMPLATE_DST:-/mnt/c/Users/kamwoh/Documents/Projects/Godot/YumeTemplate}"
-GODOT_BIN="${YUME_GODOT_BIN:-/mnt/c/Users/kamwoh/Downloads/Godot_v4.6.1-stable_win64.exe/Godot_v4.6.1-stable_win64.exe}"
+# Machine config comes from env vars: YUME_TEMPLATE_DST, YUME_GODOT_BIN,
+# YUME_USERDATA — export them in your shell profile. Fallbacks are
+# generic (a `godot` on PATH + a local template dir). These two
+# assignment lines are a CONTRACT — workflows source them via
+#   eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
+# so keep them single-line, self-contained shell assignments.
+TEMPLATE_DST="${YUME_TEMPLATE_DST:-$HOME/.yume/YumeTemplate}"
+GODOT_BIN="${YUME_GODOT_BIN:-godot}"
 
 # Where Godot resolves user:// → on WSL→Windows that's
 # %APPDATA%/Godot/app_userdata/<ProjectName>. Derive the Windows user from
@@ -98,10 +101,14 @@ if [ ! -d "${TEMPLATE_SRC}/data/${DATA_FOLDER}" ]; then
   ls "${TEMPLATE_SRC}/data/" | grep '^demo_' | sed 's/^demo_/  - /'
   exit 1
 fi
-if [ ! -x "${GODOT_BIN}" ]; then
+if [ ! -x "${GODOT_BIN}" ] && ! command -v "${GODOT_BIN}" >/dev/null 2>&1; then
   echo "Error: Godot binary not found at: ${GODOT_BIN}"
+  echo "Set YUME_GODOT_BIN (and YUME_TEMPLATE_DST) in your shell profile, e.g.:"
+  echo "  export YUME_GODOT_BIN=/path/to/Godot_v4.6.1-stable_win64.exe"
+  echo "  export YUME_TEMPLATE_DST=/path/to/YumeTemplate"
   exit 1
 fi
+mkdir -p "${TEMPLATE_DST}"
 
 # Sync framework into the Godot project (unless SKIP_SYNC=1)
 if [ "${SKIP_SYNC}" != "1" ]; then

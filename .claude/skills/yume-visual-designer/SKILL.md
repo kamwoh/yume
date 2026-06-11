@@ -377,7 +377,7 @@ yourself:
 
 Then resolve the path:
 ```
-/mnt/c/Users/kamwoh/AppData/Roaming/Godot/app_userdata/Yume Framework/_visual_design.png
+<userdata>/_visual_design.png   # play.sh prints the resolved path; see YUME_USERDATA
 ```
 
 Read the PNG via the Read tool — Claude has vision and can analyze

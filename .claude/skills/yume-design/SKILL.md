@@ -724,7 +724,7 @@ Litmus test for "parallel-safe":
 ### Sync race — parallel agents must NOT sync to YumeTemplate
 
 CRITICAL constraint discovered Session 2 (2026-05-07): multiple
-parallel agents each running `cp -r /home/kamwoh/yume/godot/. /mnt/c/
+parallel agents each running `cp -r godot/. "$TEMPLATE_DST"/  # ← e.g. /mnt/c/
 .../YumeTemplate/` race to overwrite the SAME shared template
 directory. If two agents run godot binaries against this shared
 template at overlapping times, godot processes see mixed source
