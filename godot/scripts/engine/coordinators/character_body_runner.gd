@@ -49,9 +49,61 @@ func _physics_process(_delta: float) -> void:
 		return
 	_apply_vertical(_delta)
 	_apply_speed_clamp()
+	var pre_pos := global_position
+	var was_grounded := is_on_floor()
+	var desired_h := Vector3(velocity.x, 0.0, velocity.z) * _delta
 	move_and_slide()
+	_try_step_up(pre_pos, desired_h, was_grounded)
 	_writeback_vertical_state()
 	_writeback_position()
+
+
+## Stair/ledge step-up (CharacterBody3D has none natively — move_and_slide
+## treats a vertical riser like a wall). After the slide, if a grounded,
+## moving body got blocked horizontally, virtually test rise → forward → drop:
+## if it lands on a walkable surface within `max_step_height`, snap the body
+## up onto it. Opt-in: state.max_step_height defaults to 0 (disabled), so
+## existing actors are unaffected. (2026-06-09.)
+func _try_step_up(pre_pos: Vector3, desired_h: Vector3, was_grounded: bool) -> void:
+	var max_step := float(entity_ref.get_state("max_step_height", 0.0))
+	if max_step <= 0.0 or not was_grounded:
+		return
+	var want := desired_h.length()
+	if want < 0.001:
+		return
+	# Blocked? Compare actual horizontal travel this frame to what we wanted.
+	var actual_h := global_position - pre_pos
+	actual_h.y = 0.0
+	if actual_h.length() >= want - 0.01:
+		return  # moved freely — nothing to step over
+	var remaining := desired_h - actual_h
+	if remaining.length() < 0.001:
+		return
+	var up := up_direction * max_step
+	var t := global_transform
+	var col := KinematicCollision3D.new()
+	# 1. rise — abort if a ceiling is within the step height.
+	if test_move(t, up, col):
+		return
+	t.origin += up
+	# 2. move forward over the step — if still blocked, it's a real wall (too tall).
+	if test_move(t, remaining, col):
+		return
+	t.origin += remaining
+	# 3. drop back down to find the step surface (a little past max_step).
+	if not test_move(t, -up - up_direction * 0.1, col):
+		return  # nothing to land on within reach → stepping would float us
+	# Only step onto a WALKABLE surface (not a steep slope / overhang).
+	if col.get_normal().dot(up_direction) < cos(floor_max_angle):
+		return
+	# Accept: place the body on the step, kill downward velocity so the next
+	# frame's floor-snap grounds it cleanly (no gravity spike / jitter).
+	global_position = t.origin + col.get_travel()
+	if OS.is_debug_build():
+		print("[STEP-UP] climbed to y=%.2f" % global_position.y)
+	if velocity.y < 0.0:
+		velocity.y = 0.0
+		entity_ref.set_state("y_velocity", 0.0)
 
 
 ## Apply gravity + jump-impulse mechanics (2026-05-20). Each physics
