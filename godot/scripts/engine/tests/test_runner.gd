@@ -9013,6 +9013,71 @@ func test_step_runner() -> void:
 		"scripted press: release + one frame clears the edge — no re-fire (was the I-toggle double-open)"
 	)
 
+	# ---------- 14. scripted input routes via ActorManager (ADR 0016 parity) ----------
+	# StepRunner._find_actor_id must mirror LIVE play: when the world has
+	# an ActorManager, the ACTIVE actor's controlled entity receives
+	# scripted input — NOT the first world.actor_tag/"player"-tagged
+	# entity. Empirical 2026-06-11 (autorace possession): actors.json
+	# routed the keyboard to car_red (tagged "car"/"actor"), but the old
+	# forked tag-scan in _drive_poll looked for "player", resolved "",
+	# and silently dropped every --capture-input press — scripted capture
+	# diverged from live play. This test boots a kart-controlling actor
+	# alongside a decoy "player"-tagged entity and asserts the input
+	# lands on the kart.
+	var kart_def: Dictionary = {
+		"id": "kart",
+		"tags": ["kart"],
+		"state_init": {"routed": 0, "position": Vector3.ZERO},
+	}
+	var kart := Entity.create(kart_def, "k1", {})
+	entities["k1"] = kart
+	player.state["routed"] = 0
+	var route_rule := (
+		Rule
+		. from_dict(
+			{
+				"id": "step_test_actor_route",
+				"trigger": {"type": "input", "action": test_action},
+				"query": {"tags_all": ["kart"]},
+				"effect":
+				{
+					"type": "state_set",
+					"target": "actor",
+					"field": "routed",
+					"value": "actor.state.routed + 1"
+				},
+			}
+		)
+	)
+	world.scheduler.append_rules([route_rule])
+	var am := ActorManager.new()
+	am._actors = [
+		{
+			"id": "drv",
+			"input_device": "keyboard",
+			"control_mode": "human",
+			"starting_entity_tag": "kart",
+		}
+	]
+	am._by_id = {"drv": am._actors[0]}
+	am.active_actor_id = "drv"
+	world.actor_manager = am
+	var ctx14: Dictionary = {
+		"verbose": false, "passed": 0, "failed": 0, "failures": [], "screenshots": []
+	}
+	await StepRunner.run([{"press": test_action}], world, ctx14)
+	expect_eq(
+		int(kart.get_state("routed", 0)),
+		1,
+		"actor routing: scripted press lands on ActorManager's active entity (kart)"
+	)
+	expect_eq(
+		int(player.get_state("routed", 0)),
+		0,
+		"actor routing: decoy player-tagged entity did NOT receive the press"
+	)
+	world.actor_manager = null
+
 	# Cleanup
 	world.queue_free()
 

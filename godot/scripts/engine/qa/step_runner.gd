@@ -340,6 +340,18 @@ static func _tick_character_bodies(world: World) -> void:
 
 static func _find_actor_id(world: World) -> String:
 	var entities: Dictionary = world.scheduler.env.get("entities", {})
+	# Mirror LIVE play's resolution (ADR 0016): any booted world has an
+	# ActorManager, and the active actor's controlled entity is who
+	# receives scripted input — exactly like world.gd::_poll_input. A
+	# forked tag-scan here silently dropped scripted input for any game
+	# whose controlled entity isn't tagged world.actor_tag. Empirical
+	# 2026-06-11: autorace possession via actors.json (cars tagged
+	# "car"/"actor", not "player") — every --capture-input press
+	# resolved to "" and was dropped, while live keyboard worked.
+	if "actor_manager" in world and world.actor_manager != null:
+		return world.actor_manager.resolve_active_entity(entities)
+	# Fallback (actor_manager == null: auto_start=false unit-test
+	# worlds only): legacy tag scan.
 	var tag := "actor"
 	if "actor_tag" in world:
 		tag = str(world.get("actor_tag"))
