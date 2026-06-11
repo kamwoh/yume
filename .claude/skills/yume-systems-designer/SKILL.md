@@ -207,6 +207,40 @@ godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
 Then `Read("/mnt/c/.../verify.png")` and verify your specific change
 rendered as intended. See visual-qa.md for the full per-skill checklist.
 
+## Discrete-controller + camera-feed discipline (REQUIRED for AI/input-parity drivers, 2026-06-11)
+
+Two invariants for any tick-frequency discrete controller (an AI that
+presses virtual inputs, or any rule applying fixed per-press steps to
+a state field):
+
+**1. Deadband > per-press step.** If one press changes the controlled
+error by `step`, the press thresholds must satisfy `|threshold| >
+step`. Otherwise a single press can overshoot past the OPPOSITE
+threshold and the controller limit-cycles (press left, overshoot,
+press right, ...) — the entity vibrates at tick rate. Check is
+arithmetic: read the press rule's threshold and the input rule's step;
+compare. Empirical 2026-06-11 (autorace): steer step 0.035 rad vs
+threshold 0.02 → user-felt camera shake while steering.
+
+**2. Camera-feeding fields from stepped controllers must be
+low-passed, and the bridge formula DERIVED, not tuned.**
+`camera_director`'s orientation basis consumes `state.facing` raw
+(its 2026-05-20 stability fix assumes a smooth mouse source), so a
+stepped yaw snaps the camera per press — low-pass in the rule
+(shortest-arc lerp, ~0.15/tick):
+`facing + atan2(sin(target - facing), cos(target - facing)) * k`.
+And the facing↔yaw bridge must be derived from the camera math —
+camera offset is `(sin facing, cos facing)·dist` and renderer
+mesh-forward is `(−sin yaw, −cos yaw)`, so chase-behind ⇒
+**facing = yaw exactly**. NEVER tune the bridge constant from a
+straight-line capture: a wrong variant (`−yaw + π`) matches "behind"
+on one heading axis and mirrors the orbit during turns. **Verify at a
+90°+ cumulative heading change** (mid-corner + post-corner captures),
+not just the opening straight. Empirical 2026-06-11 (autorace): camera
+sat behind on the straight, swung to IN FRONT after steering;
+two wrong bridge constants shipped back-to-back, each "verified" on
+the straight.
+
 ## Movement-feel reference (REQUIRED for any game with player avatar)
 
 Every player-controlled entity must declare `properties.speed_base`
