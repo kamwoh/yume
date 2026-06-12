@@ -57,10 +57,18 @@ func _ready() -> void:
 		return
 	var visual: Dictionary = ent.visual
 
-	# ADR 0072 — per-entity light source. Mounted FIRST (independent of
-	# which visual tier renders below); follows the entity like any child.
-	if visual.get("light", null) is Dictionary:
-		_mount_light(visual["light"])
+	# ADR 0072 — per-entity light source(s). Mounted FIRST (independent
+	# of which visual tier renders below); follow the entity like any
+	# child. Accepts a single dict or an ARRAY of dicts — multi-light
+	# fixtures (area-light emulation panels, chandeliers, paired
+	# headlights) are one def.
+	var light_v = visual.get("light", null)
+	if light_v is Dictionary:
+		_mount_light(light_v)
+	elif light_v is Array:
+		for lc in (light_v as Array):
+			if lc is Dictionary:
+				_mount_light(lc)
 
 	# Tier 1 — real model file
 	var model_path := str(visual.get("model_3d", ""))
@@ -197,18 +205,30 @@ func _mount_light(cfg: Dictionary) -> void:
 	light.light_energy = float(cfg.get("energy", 1.0))
 	light.shadow_enabled = bool(cfg.get("shadow", false))
 	var pos = cfg.get("position", [0, 1, 0])
+	var world_off := Vector3(0, 1, 0)
 	if pos is Array and (pos as Array).size() >= 3:
-		light.position = Vector3(float(pos[0]), float(pos[1]), float(pos[2]))
+		world_off = Vector3(float(pos[0]), float(pos[1]), float(pos[2]))
+	light.position = world_off
 	add_child(light)
+	# visual.light offsets are WORLD units. The renderer node carries
+	# state.scale, which would otherwise scale the light's offset AND its
+	# cone/range geometry (a [0.16, 5, 0.16] pole catapults a y=4 light
+	# to world y=20 and crushes the cone 0.16x — empirical 2026-06-13,
+	# lightlab theater spot lit NOTHING). _apply_light_counter_scale
+	# inverts the node scale per light after every _sync_scale.
+	_light_world_offsets.append({"light": light, "offset": world_off})
+	_apply_light_counter_scale()
 	# ADR 0072 addendum — rule-DRIVEN lights: optional state bindings.
 	#   "energy_binds": "<state field>"  → light_energy follows the field
 	#   "color_binds":  "<state field>"  → light_color follows (hex string)
 	# Rules mutate the state; the renderer reads it per frame (the same
 	# state-read contract as position/yaw/scale). Enables flicker,
-	# day-gated lamps, dimmer switches — all pure JSON rules.
-	_light_ref = light
-	_light_energy_field = str(cfg.get("energy_binds", ""))
-	_light_color_field = str(cfg.get("color_binds", ""))
+	# day-gated lamps, dimmer switches — all pure JSON rules. Per-light
+	# records so multi-light fixtures bind independently.
+	var ef := str(cfg.get("energy_binds", ""))
+	var cf := str(cfg.get("color_binds", ""))
+	if ef != "" or cf != "":
+		_light_binds.append({"light": light, "energy": ef, "color": cf})
 	if light is SpotLight3D:
 		var dir = cfg.get("direction", [0, -1, 0])
 		if dir is Array and (dir as Array).size() >= 3:
@@ -218,24 +238,44 @@ func _mount_light(cfg: Dictionary) -> void:
 				light.look_at(light.global_position + v, up)
 
 
-var _light_ref: Light3D = null
-var _light_energy_field: String = ""
-var _light_color_field: String = ""
+var _light_binds: Array = []  # [{light: Light3D, energy: String, color: String}]
+var _light_world_offsets: Array = []  # [{light: Light3D, offset: Vector3 (world units)}]
 
 
-## Per-frame state→light sync (only when bindings declared — zero cost
-## for static lights).
-func _sync_light() -> void:
-	if _light_ref == null or _entity_ref == null:
+## Counter-scale mounted lights so visual.light offsets + cone/range
+## geometry stay in WORLD units regardless of the prop's state.scale.
+func _apply_light_counter_scale() -> void:
+	var s := scale
+	if absf(s.x) < 0.0001 or absf(s.y) < 0.0001 or absf(s.z) < 0.0001:
 		return
-	if _light_energy_field != "":
-		var e = _entity_ref.get_state(_light_energy_field, null)
-		if e != null:
-			_light_ref.light_energy = maxf(0.0, float(e))
-	if _light_color_field != "":
-		var c = _entity_ref.get_state(_light_color_field, null)
-		if c != null:
-			_light_ref.light_color = _parse_color(c)
+	for rec in _light_world_offsets:
+		var light: Light3D = rec["light"]
+		if light == null:
+			continue
+		var off: Vector3 = rec["offset"]
+		light.position = Vector3(off.x / s.x, off.y / s.y, off.z / s.z)
+		light.scale = Vector3(1.0 / s.x, 1.0 / s.y, 1.0 / s.z)
+
+
+## Per-frame state→light sync (only for lights with declared bindings —
+## zero cost otherwise).
+func _sync_light() -> void:
+	if _light_binds.is_empty() or _entity_ref == null:
+		return
+	for b in _light_binds:
+		var light: Light3D = b["light"]
+		if light == null:
+			continue
+		var ef := str(b["energy"])
+		if ef != "":
+			var e = _entity_ref.get_state(ef, null)
+			if e != null:
+				light.light_energy = maxf(0.0, float(e))
+		var cf := str(b["color"])
+		if cf != "":
+			var c = _entity_ref.get_state(cf, null)
+			if c != null:
+				light.light_color = _parse_color(c)
 
 
 # ============================================================
@@ -647,6 +687,7 @@ func _sync_scale() -> void:
 		elif s is Array and (s as Array).size() >= 2:
 			h = float((s as Array)[1])
 		scale = Vector3(h, h, h)
+		_apply_light_counter_scale()
 		return
 	if s is float or s is int:
 		var f := float(s)
@@ -659,6 +700,7 @@ func _sync_scale() -> void:
 			scale = Vector3(float(a[0]), float(a[1]), float(a[2]))
 		elif a.size() == 2:
 			scale = Vector3(float(a[0]), float(a[0]), float(a[1]))
+	_apply_light_counter_scale()
 
 
 ## Read the Y-component of state.scale for visual.y_offset_mesh

@@ -6928,6 +6928,48 @@
       "params": {
         "albedo": "#ffffff"
       }
+    },
+    "prim_unit_panel_lit": {
+      "_comment": "Emissive unit panel (quad pair, base-anchored, faces +Z): softbox / window glow / screen fixtures. Pair with a visual.light ARRAY of distributed soft omnis to emulate an AREA LIGHT (Godot has no realtime area light). $albedo tints, $glow drives emission.",
+      "primitives": [
+        {
+          "op": "quad",
+          "pos": [
+            0,
+            0.5,
+            0
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "color": "$albedo",
+          "emission": "$glow",
+          "emission_energy": 1.6
+        },
+        {
+          "op": "quad",
+          "pos": [
+            0,
+            0.5,
+            -0.001
+          ],
+          "rotation_deg": [
+            0,
+            180,
+            0
+          ],
+          "size": [
+            1,
+            1
+          ],
+          "color": "$albedo"
+        }
+      ],
+      "params": {
+        "albedo": "#f4f2ea",
+        "glow": "#fff6e0"
+      }
     }
   }
 }

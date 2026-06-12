@@ -9182,9 +9182,47 @@ func test_entity_light_mount() -> void:
 		absf((light3 as OmniLight3D).light_energy - 0.5) < 0.001,
 		"energy_binds: light_energy follows state.flame after sync"
 	)
+	# 4. ARRAY form: multi-light fixture mounts every entry
+	var def4: Dictionary = def.duplicate(true)
+	def4["visual"]["light"] = [
+		{"type": "omni", "energy": 1.0, "range": 5.0, "position": [-1, 1, 0]},
+		{"type": "omni", "energy": 1.0, "range": 5.0, "position": [1, 1, 0]},
+		{"type": "spot", "energy": 2.0, "range": 8.0, "position": [0, 2, 0]},
+	]
+	var ent4 := Entity.create(def4, "lamp4", {})
+	add_child(ent4)
+	var renderer4 := EntityMesh3D.new()
+	ent4.add_child(renderer4)
+	var light_count := 0
+	for c in renderer4.get_children():
+		if c is Light3D:
+			light_count += 1
+	expect_eq(light_count, 3, "visual.light array: all three lights mounted")
+	# 5. counter-scale: offsets are WORLD units regardless of state.scale
+	var def5: Dictionary = def.duplicate(true)
+	def5["state_init"]["scale"] = [0.2, 5.0, 0.2]
+	var ent5 := Entity.create(def5, "lamp5", {})
+	add_child(ent5)
+	var renderer5 := EntityMesh3D.new()
+	ent5.add_child(renderer5)
+	renderer5._sync_scale()
+	var light5: Light3D = renderer5.get_node_or_null("EntityLight")
+	expect(light5 != null, "counter-scale: light mounted")
+	if light5 != null:
+		# world offset [0, 3.05, 0]; node scale y=5 → local y must be 0.61
+		expect(
+			absf(light5.position.y - 3.05 / 5.0) < 0.001,
+			"counter-scale: local offset = world offset / node scale"
+		)
+		expect(
+			absf(light5.scale.y - 0.2) < 0.001 and absf(light5.scale.x - 5.0) < 0.001,
+			"counter-scale: light scale inverts node scale per axis"
+		)
+	ent5.free()
 	ent.free()
 	ent2.free()
 	ent3.free()
+	ent4.free()
 
 
 # ============================================================

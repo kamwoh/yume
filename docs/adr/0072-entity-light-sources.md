@@ -57,6 +57,25 @@ Godot ships OmniLight3D / SpotLight3D and material emission; per ADR
 - Carried lights (lantern in hand, headlights) come free — the light
   is a child of the entity's renderer and follows it.
 
+## Addendum (2026-06-13) — arrays, world-unit offsets, area emulation
+
+- `visual.light` accepts an ARRAY of light dicts — multi-light fixtures
+  (chandeliers, paired headlights, area-emulation panels) in one def.
+  Bindings (`energy_binds`/`color_binds`) are per-entry.
+- Light offsets + cone/range geometry are WORLD units: the renderer
+  counter-scales each mounted light against the prop's `state.scale`.
+  Without this, a [0.16, 5, 0.16] pole catapulted its y=4 spot to
+  world y=20 and crushed the cone 0.16x — every pole-mounted spot in
+  the lightlab silently lit nothing (empirical 2026-06-13; a bare
+  minimal-repro spot worked, isolating the parent-scale cause).
+- AREA LIGHTS (no Godot realtime equivalent) are emulated:
+  `prim_unit_panel_lit` emissive panel kit + an array of distributed
+  low-energy omnis. Reference exhibit: lightlab's hard-vs-soft wall
+  pair (theater_spot vs area_softbox).
+- gl_compatibility per-mesh light cap (~8) is REAL and silently drops
+  excess lights: keep light-dense exhibits spatially separated so no
+  single mesh sits inside 8+ light ranges.
+
 ## Addendum (2026-06-12) — camera-attached light
 
 `scene.json camera.light` (same schema as `visual.light`) mounts a
