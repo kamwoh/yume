@@ -245,6 +245,105 @@ entity lights carry the scene (autorace races at 15.7). Ambient is
 ANIMATED by time-of-day (night lerps ambient toward ~0) — don't
 fight it with the ambient knob; move the clock instead.
 
+## Lighting design discipline (2026-06-12 — distilled from industry references: the Level Design Book lighting chapter + Unity/Unreal lighting manuals)
+
+The blocks above are the HOW. This section is the WHY/WHERE — decide
+these before touching any number.
+
+### Lighting has three jobs — know which one each light does
+
+1. **Worldbuilding** — fixtures suggest era + setting (a sodium street
+   lamp vs a brazier tells the player when/where they are).
+2. **Spatial organization** — contrast (warm/cool, bright/dim) divides
+   one space into readable sub-regions without walls.
+3. **Wayfinding** — illumination HIERARCHY guides the player: the
+   important exit is brighter and more focused than secondary spaces;
+   a dark far wall reads "closet/backdoor, not the way forward."
+
+A light that does none of the three is decoration debt — cut it or
+give it a job.
+
+### Motivated lights (the fixture rule)
+
+A "motivated" light has a VISIBLE plausible source. In Yume terms this
+is the ADR 0072 pairing taken further: every `visual.light` wants a
+fixture mesh (lamppost, fire pit, window), and every glowing fixture
+wants its light. One fixture may legitimately need several engine
+lights to sell the effect (film practice: 11+ sources per fixture);
+the reverse — a pool of light with no source in frame — reads
+artificial and should be reserved for gameplay-clarity exceptions
+(objective glow), used knowingly.
+
+### The four-pass authoring order
+
+Do passes in this order, and do pass 1 EARLY (blockout stage, before
+asset polish — lighting is structure, not garnish):
+
+1. **Global** — sun (`directional_light` + time_of_day pin), ambient,
+   sky, fog. Get the world readable end-to-end first.
+2. **Wayfinding** — lights along the critical path; entrances/exits
+   by hierarchy (primary route brightest).
+3. **Gameplay** — tactical emphasis: objective markers, threat
+   silhouettes, puzzle elements, checkpoint/finish gates.
+4. **Detail/mood** — accents and atmosphere LAST, with restraint:
+   over-tweaking pass 4 destroys passes 1-3.
+
+### Placement vocabulary (the D6 strategies)
+
+Six reusable placement patterns for `visual.light` work — name the
+pattern in lighting-design.md so intent survives review:
+
+| Pattern | Use |
+|---|---|
+| Focal point | one lit object (statue, podium, boss door) |
+| Focal frame | light frames a view/threshold (gate, archway) |
+| Path | linear chain of lights guiding movement (track lamps, corridor) |
+| Area | general wash for a sub-region (camp, plaza) |
+| Area + focal | a zone with one emphasized element inside |
+| Area + path | a zone a lit route passes through |
+
+Three-point lighting (key/fill/rim) belongs to FIXED-camera moments
+only — title screens, hero captures, cinematic beats — it assumes a
+known camera and falls apart under free 3D navigation.
+
+### Type-choice cheat (2×2: global/local × omni/directional)
+
+|  | Omnidirectional | Directional |
+|---|---|---|
+| **Global** | `lighting.ambient` | `lighting.directional_light` (sun/moon) |
+| **Local** | `visual.light` omni (bulb, fire, ember) | `visual.light` spot (flashlight, headlight, stage beam) |
+
+Falloff physics worth knowing: point/omni intensity falls with the
+inverse square of distance (double the range ≠ double the reach);
+spot cones get a soft penumbra edge that WIDENS with the angle —
+tight angles read "beam," wide angles read "wash." Area lights and
+baked lightmaps/GI are NOT exposed (and Godot's gl_compatibility
+wouldn't run them) — emulate area-light softness with an emissive
+`prim_unit_banner` quad + a low-energy omni.
+
+### Cost ladder (Yume's mobility table)
+
+Industry engines rank static-baked < stationary < movable. Yume's
+equivalents, cheapest first:
+
+1. Emissive primitive only (free — material property; blooms with glow)
+2. `visual.light`, shadow OFF (cheap; budget ~8 omni influencing any
+   one mesh in gl_compatibility)
+3. `reflection_probes` update_mode "once" (one-time bake, ~free after)
+4. `visual.light`, shadow ON (per-light shadow maps — the expensive
+   half; reserve for ONE hero light per scene on iGPU targets)
+5. Sun shadow quality (`shadow.mode` 4_splits) — already the slowest
+   default; 2_splits halves it
+
+### The albedo brightness rule
+
+Indirect/ambient illumination can only bounce what albedo gives it:
+keep diffuse textures/colors in the **50-100% brightness range**
+unless deliberately void-black. Dark albedos + low ambient = a scene
+that NO amount of light energy rescues (the bounce is multiplying
+against near-zero). Symptom: "I keep raising energy and it's still
+black." Fix the albedo, not the light.
+
 ## How to tune (5-step recipe)
 
 ### Step 1 — Identify mood from GDD
@@ -371,6 +470,14 @@ Match these to the GDD's narrative arc.
   passes through magenta. Pick night color within 60° of dawn hue
   to avoid (e.g., orange dawn + blue night = magenta detour; orange
   dawn + dusty-purple night = clean transition).
+- **"Raising energy doesn't help" black scenes**: albedo too dark —
+  see § The albedo brightness rule. Bounce/ambient multiplies against
+  the diffuse color; near-black albedo stays near-black under any
+  light energy. Fix the texture/color, not the light.
+- **Unmotivated light pools**: a bright spot with no visible fixture
+  reads as a rendering bug to players. Pair every `visual.light` with
+  fixture geometry (or consciously accept the artifice for gameplay
+  clarity — objective glows).
 
 ## Reference files
 
