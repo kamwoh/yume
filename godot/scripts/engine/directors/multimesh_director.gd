@@ -198,6 +198,10 @@ func drain_pending_promotions(env: Dictionary) -> void:
 
 
 func _is_static_candidate(e: Entity, _defs: Dictionary, disqualified_tags: Dictionary) -> bool:
+	# ADR 0072: a batched entity loses its renderer node — and with it the
+	# mounted EntityLight. Light-bearing defs stay un-batched.
+	if e.visual is Dictionary and (e.visual as Dictionary).get("light", null) is Dictionary:
+		return false
 	if e.has_tag("actor") or e.has_tag("projectile") or e.has_tag("player"):
 		return false
 	# Existing velocity disqualifies — entity is already moving.

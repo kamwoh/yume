@@ -57,6 +57,11 @@ func _ready() -> void:
 		return
 	var visual: Dictionary = ent.visual
 
+	# ADR 0072 — per-entity light source. Mounted FIRST (independent of
+	# which visual tier renders below); follows the entity like any child.
+	if visual.get("light", null) is Dictionary:
+		_mount_light(visual["light"])
+
 	# Tier 1 — real model file
 	var model_path := str(visual.get("model_3d", ""))
 	if model_path != "" and ResourceLoader.exists(model_path):
@@ -165,6 +170,43 @@ func _ready() -> void:
 	_mode = "bare"
 	_apply_shadow_only_if_set(visual)
 	_sync_position()
+
+
+# ============================================================
+# ADR 0072 — per-entity light source
+# ============================================================
+
+
+## Mount an OmniLight3D / SpotLight3D child from visual.light.
+## Shadows default OFF — per-light shadow maps are the expensive half;
+## enabling them per-lamp is the author's informed choice. Spot lights
+## aim their -Z along `direction` (default straight down).
+func _mount_light(cfg: Dictionary) -> void:
+	var light: Light3D
+	if str(cfg.get("type", "omni")).to_lower() == "spot":
+		var spot := SpotLight3D.new()
+		spot.spot_range = float(cfg.get("range", 10.0))
+		spot.spot_angle = float(cfg.get("angle", 45.0))
+		light = spot
+	else:
+		var omni := OmniLight3D.new()
+		omni.omni_range = float(cfg.get("range", 10.0))
+		light = omni
+	light.name = "EntityLight"
+	light.light_color = _parse_color(cfg.get("color", "#ffffff"))
+	light.light_energy = float(cfg.get("energy", 1.0))
+	light.shadow_enabled = bool(cfg.get("shadow", false))
+	var pos = cfg.get("position", [0, 1, 0])
+	if pos is Array and (pos as Array).size() >= 3:
+		light.position = Vector3(float(pos[0]), float(pos[1]), float(pos[2]))
+	add_child(light)
+	if light is SpotLight3D:
+		var dir = cfg.get("direction", [0, -1, 0])
+		if dir is Array and (dir as Array).size() >= 3:
+			var v := Vector3(float(dir[0]), float(dir[1]), float(dir[2])).normalized()
+			if v.length() > 0.5:
+				var up := Vector3.UP if absf(v.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
+				light.look_at(light.global_position + v, up)
 
 
 # ============================================================

@@ -86,6 +86,7 @@ func _ready() -> void:
 	# synchronous. Tests below run after it completes.
 	await test_step_runner()
 	test_overlap_dispatch()
+	test_entity_light_mount()
 	test_render_block_mappings()
 	test_toast_without_screens()
 	test_lockstep()
@@ -9113,6 +9114,60 @@ func test_step_runner() -> void:
 
 	# Cleanup
 	world.queue_free()
+
+
+# ============================================================
+# ADR 0072 — per-entity light source
+# ============================================================
+
+
+func test_entity_light_mount() -> void:
+	_section("entity light mount (ADR 0072)")
+	var def: Dictionary = {
+		"id": "lamp",
+		"tags": ["decor"],
+		"state_init": {"position": Vector3.ZERO},
+		"visual":
+		{
+			"mesh": "prim_unit_box",
+			"light":
+			{
+				"type": "omni",
+				"color": "#ffd9a0",
+				"energy": 2.5,
+				"range": 11.0,
+				"position": [0, 3.05, 0],
+			},
+		},
+	}
+	var ent := Entity.create(def, "lamp1", {})
+	add_child(ent)
+	var renderer := EntityMesh3D.new()
+	ent.add_child(renderer)  # _ready mounts visual + light
+	var light := renderer.get_node_or_null("EntityLight")
+	expect(light is OmniLight3D, "visual.light type omni → OmniLight3D child")
+	if light is OmniLight3D:
+		var ol := light as OmniLight3D
+		expect(absf(ol.omni_range - 11.0) < 0.001, "light range applied")
+		expect(absf(ol.light_energy - 2.5) < 0.001, "light energy applied")
+		expect(not ol.shadow_enabled, "shadow defaults OFF")
+		expect(absf(ol.position.y - 3.05) < 0.001, "local offset applied")
+	# spot variant aims its direction
+	var def2: Dictionary = def.duplicate(true)
+	def2["visual"]["light"]["type"] = "spot"
+	def2["visual"]["light"]["angle"] = 30.0
+	var ent2 := Entity.create(def2, "lamp2", {})
+	add_child(ent2)
+	var renderer2 := EntityMesh3D.new()
+	ent2.add_child(renderer2)
+	var light2 := renderer2.get_node_or_null("EntityLight")
+	expect(light2 is SpotLight3D, "visual.light type spot → SpotLight3D child")
+	if light2 is SpotLight3D:
+		expect(
+			absf((light2 as SpotLight3D).spot_angle - 30.0) < 0.001, "spot angle applied"
+		)
+	ent.free()
+	ent2.free()
 
 
 # ============================================================

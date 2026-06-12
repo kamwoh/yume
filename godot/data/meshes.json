@@ -5115,7 +5115,9 @@
             0
           ],
           "radius": 0.32,
-          "color": "$lamp"
+          "color": "$lamp",
+          "emission": "$lamp",
+          "emission_energy": 2.2
         },
         {
           "op": "sphere",
@@ -5125,7 +5127,9 @@
             0
           ],
           "radius": 0.42,
-          "color": "$glow"
+          "color": "$glow",
+          "emission": "$lamp",
+          "emission_energy": 2.2
         }
       ],
       "params": {

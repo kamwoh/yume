@@ -146,6 +146,15 @@ static func build_primitives_into(
 		mi.material_override = _make_material(
 			_parse_color(_param_resolve(p.get("color", "#fff"), params))
 		)
+		# ADR 0072 — optional emissive primitive ("the lamp is ON").
+		# With a glow block enabled (ADR 0071-era), emission blooms.
+		if p.has("emission"):
+			var em_mat := mi.material_override as StandardMaterial3D
+			em_mat.emission_enabled = true
+			em_mat.emission = _parse_color(_param_resolve(p["emission"], params))
+			em_mat.emission_energy_multiplier = float(
+				_param_resolve(p.get("emission_energy", 1.0), params)
+			)
 		var pos := _to_vec3(_param_resolve(p.get("pos", [0, 0, 0]), params))
 		if p.has("rotation_deg"):
 			var rd := _to_vec3(p["rotation_deg"])
