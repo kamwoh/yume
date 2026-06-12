@@ -86,6 +86,7 @@ func _ready() -> void:
 	# synchronous. Tests below run after it completes.
 	await test_step_runner()
 	test_overlap_dispatch()
+	test_render_block_mappings()
 	test_toast_without_screens()
 	test_lockstep()
 	test_grid_snap()
@@ -9112,6 +9113,44 @@ func test_step_runner() -> void:
 
 	# Cleanup
 	world.queue_free()
+
+
+# ============================================================
+# ADR 0071 — render block JSON exposure (pure mapping helpers)
+# ============================================================
+
+
+func test_render_block_mappings() -> void:
+	_section("render block mappings (ADR 0071)")
+	expect_eq(LightingDirector.msaa_from_string("2x"), Viewport.MSAA_2X, "msaa 2x")
+	expect_eq(LightingDirector.msaa_from_string("disabled"), Viewport.MSAA_DISABLED, "msaa off")
+	expect_eq(
+		LightingDirector.msaa_from_string("bogus"), Viewport.MSAA_DISABLED, "msaa unknown → off"
+	)
+	expect_eq(
+		LightingDirector.screen_space_aa_from_string("SMAA"),
+		Viewport.SCREEN_SPACE_AA_SMAA,
+		"ssaa smaa (case-insensitive)"
+	)
+	expect_eq(
+		LightingDirector.scaling_mode_from_string("fsr"),
+		Viewport.SCALING_3D_MODE_FSR,
+		"scaling fsr"
+	)
+	expect_eq(
+		LightingDirector.shadow_mode_from_string("2_splits"),
+		DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS,
+		"shadow 2_splits"
+	)
+	var tex := LightingDirector.gradient_texture_from_stops(["#000000", "#808080", "#ffffff"])
+	expect(tex is GradientTexture1D, "gradient stops → GradientTexture1D")
+	expect_eq(tex.gradient.colors.size(), 3, "gradient keeps all stops")
+	expect(
+		absf(tex.gradient.offsets[1] - 0.5) < 0.001, "gradient stops evenly spaced (mid = 0.5)"
+	)
+	expect(
+		LightingDirector.gradient_texture_from_stops([]) == null, "empty gradient → null"
+	)
 
 
 # ============================================================

@@ -102,6 +102,10 @@ var _owns_env: bool = false  # true if we created _world_env
 var _bind_tag: String = ""
 var _bind_field: String = ""
 
+# ADR 0071 — top-level scene.json `render` block (viewport AA/scaling),
+# stashed by _load_config, applied once in _attach_lighting_nodes.
+var _render_cfg: Dictionary = {}
+
 # ============================================================
 # LIFECYCLE
 # ============================================================
@@ -153,6 +157,14 @@ func _load_config() -> void:
 	var data = JSON.parse_string(f.get_as_text())
 	if not (data is Dictionary):
 		return
+	# ADR 0071: the `render` block is a SIBLING of `lighting` (viewport
+	# AA/scaling has nothing to do with light). Stash before the
+	# lighting-presence check. NOTE: application still rides the
+	# lighting attach path, so a render block currently requires a
+	# lighting block to also exist (every 3D scene has one).
+	var render_v = (data as Dictionary).get("render", null)
+	if render_v is Dictionary:
+		_render_cfg = render_v
 	var lighting = (data as Dictionary).get("lighting", null)
 	if not (lighting is Dictionary):
 		return
@@ -249,6 +261,83 @@ func _attach_lighting_nodes() -> void:
 	# the world atmospheric depth + palette cohesion.
 	if _world_env != null and _world_env.environment != null:
 		_apply_static_environment(_world_env.environment)
+
+	# ADR 0071 — one-shot boot exposure: viewport render block,
+	# directional-shadow tuning, baked reflection probes.
+	_apply_render_block()
+	_apply_shadow_tuning(dl_cfg.get("shadow", {}))
+	_build_reflection_probes(_config.get("reflection_probes", []))
+
+
+## ADR 0071 — scene.json top-level `render` block → Viewport properties.
+## Pure Godot exposure; renderer-tier no-ops (TAA / FSR2 outside
+## Forward+) are Godot's own semantics.
+func _apply_render_block() -> void:
+	if _render_cfg.is_empty():
+		return
+	var vp := _world.get_viewport()
+	if vp == null:
+		return
+	if _render_cfg.has("msaa_3d"):
+		vp.msaa_3d = msaa_from_string(str(_render_cfg["msaa_3d"]))
+	if _render_cfg.has("screen_space_aa"):
+		vp.screen_space_aa = screen_space_aa_from_string(str(_render_cfg["screen_space_aa"]))
+	if _render_cfg.has("use_taa"):
+		vp.use_taa = bool(_render_cfg["use_taa"])
+	if _render_cfg.has("scaling_3d_mode"):
+		vp.scaling_3d_mode = scaling_mode_from_string(str(_render_cfg["scaling_3d_mode"]))
+	if _render_cfg.has("scaling_3d_scale"):
+		vp.scaling_3d_scale = float(_render_cfg["scaling_3d_scale"])
+	if _render_cfg.has("fsr_sharpness"):
+		vp.fsr_sharpness = float(_render_cfg["fsr_sharpness"])
+
+
+## ADR 0071 — lighting.directional_light.shadow → sun shadow tuning.
+## mode trades quality for fill-rate (4_splits is Godot's slowest
+## default); atlas_size goes through RenderingServer (project-level).
+func _apply_shadow_tuning(cfg_v) -> void:
+	if not (cfg_v is Dictionary) or (cfg_v as Dictionary).is_empty():
+		return
+	var cfg: Dictionary = cfg_v
+	if _sun != null:
+		if cfg.has("mode"):
+			_sun.directional_shadow_mode = shadow_mode_from_string(str(cfg["mode"]))
+		if cfg.has("blur"):
+			_sun.shadow_blur = float(cfg["blur"])
+		if cfg.has("max_distance"):
+			_sun.directional_shadow_max_distance = float(cfg["max_distance"])
+	if cfg.has("atlas_size"):
+		RenderingServer.directional_shadow_atlas_set_size(int(cfg["atlas_size"]), true)
+
+
+## ADR 0071 — lighting.reflection_probes → baked ReflectionProbe nodes.
+## update_mode "once" (default) bakes over 6 frames and is near-free at
+## runtime; "always" re-renders per frame (author's informed choice).
+## In gl_compatibility (no SSR) a probe is the ONLY way metallic
+## materials get real reflections.
+func _build_reflection_probes(cfg_v) -> void:
+	if not (cfg_v is Array):
+		return
+	for p in (cfg_v as Array):
+		if not (p is Dictionary):
+			continue
+		var pd: Dictionary = p
+		var probe := ReflectionProbe.new()
+		var pos = pd.get("position", [0, 5, 0])
+		if pos is Array and (pos as Array).size() >= 3:
+			probe.position = Vector3(float(pos[0]), float(pos[1]), float(pos[2]))
+		var size = pd.get("size", [40, 20, 40])
+		if size is Array and (size as Array).size() >= 3:
+			probe.size = Vector3(float(size[0]), float(size[1]), float(size[2]))
+		probe.intensity = float(pd.get("intensity", 1.0))
+		probe.box_projection = bool(pd.get("box_projection", false))
+		probe.update_mode = (
+			ReflectionProbe.UPDATE_ALWAYS
+			if str(pd.get("update_mode", "once")) == "always"
+			else ReflectionProbe.UPDATE_ONCE
+		)
+		probe.enable_shadows = bool(pd.get("enable_shadows", false))
+		add_child(probe)
 
 
 # ============================================================
@@ -470,6 +559,29 @@ func _apply_adjustments(env_obj: Environment, cfg: Dictionary) -> void:
 		env_obj.adjustment_contrast = float(cfg["contrast"])
 	if cfg.has("saturation"):
 		env_obj.adjustment_saturation = float(cfg["saturation"])
+	# ADR 0071 — color-correction LUT. Either a texture resource path
+	# (GradientTexture1D .tres / Texture3D) or a JSON-native `gradient`
+	# (array of hex stops, evenly spaced → GradientTexture1D). Works on
+	# every renderer; SDR only (Godot semantics).
+	# SHARP TOOL (empirical 2026-06-12, autorace): the LUT is sampled in
+	# LINEAR domain — sRGB-authored diagonal stops compress the visible
+	# range into the dark end and crush the frame to near-black. Author
+	# stops against linear luminance (dense at the low end), or use a
+	# proper .tres LUT; verify with a capture before shipping.
+	var cc = cfg.get("color_correction", null)
+	if cc is Dictionary:
+		var tex: Texture = null
+		var tex_path := str((cc as Dictionary).get("texture", ""))
+		if tex_path != "" and ResourceLoader.exists(tex_path):
+			var loaded = load(tex_path)
+			if loaded is Texture:
+				tex = loaded
+		elif (cc as Dictionary).get("gradient", null) is Array:
+			tex = gradient_texture_from_stops((cc as Dictionary)["gradient"])
+		if tex != null:
+			env_obj.adjustment_color_correction = tex
+		else:
+			push_warning("lighting.adjustments.color_correction: no usable texture/gradient")
 
 
 func _apply_ssao(env_obj: Environment, cfg: Dictionary) -> void:
@@ -485,6 +597,69 @@ func _apply_ssao(env_obj: Environment, cfg: Dictionary) -> void:
 # ============================================================
 # STATIC HELPERS (testable without a SceneTree)
 # ============================================================
+
+
+# --- ADR 0071 string→enum mappings (pure; unit-tested headless) ---
+
+
+static func msaa_from_string(s: String) -> int:
+	match s.to_lower():
+		"2x": return Viewport.MSAA_2X
+		"4x": return Viewport.MSAA_4X
+		"8x": return Viewport.MSAA_8X
+		"disabled": return Viewport.MSAA_DISABLED
+		_:
+			push_warning("render.msaa_3d unknown: " + s)
+			return Viewport.MSAA_DISABLED
+
+
+static func screen_space_aa_from_string(s: String) -> int:
+	match s.to_lower():
+		"fxaa": return Viewport.SCREEN_SPACE_AA_FXAA
+		"smaa": return Viewport.SCREEN_SPACE_AA_SMAA
+		"disabled": return Viewport.SCREEN_SPACE_AA_DISABLED
+		_:
+			push_warning("render.screen_space_aa unknown: " + s)
+			return Viewport.SCREEN_SPACE_AA_DISABLED
+
+
+static func scaling_mode_from_string(s: String) -> int:
+	match s.to_lower():
+		"bilinear": return Viewport.SCALING_3D_MODE_BILINEAR
+		"fsr": return Viewport.SCALING_3D_MODE_FSR
+		"fsr2": return Viewport.SCALING_3D_MODE_FSR2
+		_:
+			push_warning("render.scaling_3d_mode unknown: " + s)
+			return Viewport.SCALING_3D_MODE_BILINEAR
+
+
+static func shadow_mode_from_string(s: String) -> int:
+	match s.to_lower():
+		"orthogonal": return DirectionalLight3D.SHADOW_ORTHOGONAL
+		"2_splits": return DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+		"4_splits": return DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+		_:
+			push_warning("directional_light.shadow.mode unknown: " + s)
+			return DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
+
+
+## Evenly-spaced hex stops → GradientTexture1D for adjustment_color_correction.
+static func gradient_texture_from_stops(stops: Array) -> GradientTexture1D:
+	if stops.is_empty():
+		return null
+	var g := Gradient.new()
+	var offsets := PackedFloat32Array()
+	var colors := PackedColorArray()
+	var n: int = stops.size()
+	for i in range(n):
+		offsets.append(0.0 if n == 1 else float(i) / float(n - 1))
+		colors.append(Color(str(stops[i])))
+	g.offsets = offsets
+	g.colors = colors
+	var tex := GradientTexture1D.new()
+	tex.gradient = g
+	tex.width = 256
+	return tex
 
 
 ## day_factor: 0 = full night (midnight), 1 = full day (noon).
