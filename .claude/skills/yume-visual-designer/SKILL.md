@@ -159,6 +159,15 @@ Or is one entity using a clashing hue?
 - Does the palette match the GDD's theme statement? (sokoban "warm
   parchment + dark oak + brass" — if you see neon green in the frame,
   off-theme.)
+- **Pure-hue albedo flag (2026-06-12)**: any entity albedo at/near a
+  pure hue (#c8362a fire-truck red, neon green) reads as a TOY
+  regardless of lighting quality; recommend a weathered tone (brick
+  #9e3f35, bone #cfc9bc, olive). Also flag
+  `lighting.adjustments.saturation` > 1.2 — 1.3 grading is candy;
+  1.0-1.1 is the stylized-realistic band. When recommending
+  desaturation, preserve warmth (fog/ambient tint): an autorace
+  desat pass that also cooled went overcast-grey and had to be
+  re-warmed.
 
 **Severity calibration**: clashing color = major. Slightly off-theme
 = minor.
@@ -292,7 +301,7 @@ Without ALL THREE layers, the frame feels exposed:
 | AI-gen meshes sink into ground | Set `visual.y_offset = -bbox.min.y * scale` per entity. validate_mesh_y_offset.py catches this |
 | Sky too plain | Set `lighting.sky.shader: "res://data/lib/shaders/sky_clouds.gdshader"` + shader_params |
 | Far things crisp / no atmosphere | Add `lighting.fog` block with `density 0.003-0.008` + warm `light_color` |
-| Palette feels disjointed | Bump `lighting.adjustments.{contrast 1.10-1.20, saturation 1.30-1.45}` |
+| Palette feels disjointed | Bump `lighting.adjustments.{contrast 1.10-1.20, saturation 1.00-1.10}` (saturation >1.2 reads candy — revised 2026-06-12, autorace anti-cartoon pass) |
 | FOV makes things look small | scene.json camera `fov: 60-65` (Godot default 75 is wide for FPS) |
 | The "trampled circle follows me" | Check ground shader for `VERTEX.xz` use — Godot 4 VERTEX in fragment is VIEW space, needs varying world_pos set in vertex() function |
 

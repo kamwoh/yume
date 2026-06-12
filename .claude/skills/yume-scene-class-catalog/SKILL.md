@@ -188,6 +188,18 @@ decoration or you walk on top of it → set `"collision": "none"` in its
 strategy entry. Tall-thin decorative items (a lone reed) can also be
 `none` to avoid invisible-wall annoyance.
 
+#### Light-bearing classes are REAL lights now (ADR 0072, 2026-06-12)
+
+Lamp / lantern / campfire / window-glow classes used to be fake
+bright meshes; entity defs now carry `visual.light` (omni/spot) +
+emissive head primitives, so the micro-lights density axis (soul.md
+visual-density axis 4) has a real primitive behind it. Don't drop
+light-bearing classes from a catalog as "mere decoration" — in
+dusk/night scenes they CARRY the lighting. Catalog them as normal
+`object_placement`; downstream asset/lighting designers wire the
+light block. Keep gl_compatibility's ~8-omni-per-mesh influence cap
+in mind when setting `expected_count` for dense lamp classes.
+
 Inject the resolved strategy block INTO each class entry. The
 catalog entry now looks like:
 

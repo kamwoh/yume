@@ -144,6 +144,12 @@ wz = (px_cy - image.height / 2) * coord_transform.scale_z_per_px
 wy = 0.0   (floor-anchored)
 ```
 
+`wy` is the mesh's BASE height — meshes are base-anchored (bbox base
+→ y=0), so `0.0` means "standing on the floor". NEVER emit
+y = height/2 (center-pivot semantics): that floats the prop by half
+its height; `validate_center_pivot_y.py` flags it (empirical
+2026-06-12, autorace furniture).
+
 Round to 1 decimal place. Position MUST satisfy:
 - `|wx| <= world_bounds.width / 2`
 - `|wz| <= world_bounds.depth / 2`

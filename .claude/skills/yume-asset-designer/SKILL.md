@@ -679,6 +679,21 @@ Current kits: `house_1f`/`house_2f`/`house_3f` (floor-tiered),
 crenellation merlons), `fountain_kit`. Long-term these primitive
 parts can be swapped for Tripo3D part-meshes on the same recipe.
 
+### Textured prims — three UV traps (2026-06-12, autorace)
+
+1. **BoxMesh UV-maps a dice-style atlas.** An `albedo_texture` on
+   `prim_unit_box` renders as BANDS (each face samples a different
+   atlas cell), not artwork. For signs / banners / billboards use
+   the `prim_unit_banner` kit (full-UV quad pair) from meshes.json.
+2. **Anisotropically scaled prims stretch UVs per instance** — road
+   segments of varying lengths each stretch the texture differently.
+   Set `visual.texture_triplanar: true` (+ `visual.texture_scale`)
+   for world-uniform tiling independent of instance scale.
+3. **Tileable textures**: author LOW-CONTRAST with no landmark
+   features, and verify with a ground-level CLOSE-UP capture — an
+   overview hides the repeat grid (`.claude/rules/visual-qa.md`
+   baseline #10).
+
 ## How to do your job
 
 1. **Read the GDD aesthetics target.** Pixel art? Low-poly 3D? ASCII?
@@ -748,6 +763,18 @@ boundary. Fix: authored `merchant_city_wall_segment_3d` (10m × 4m
 3. If aabb is tiny but the mesh has visual flair (lampposts,
    landmarks), should the mesh be larger than aabb so it READS at
    camera distance? (See "Visual scale must match frustum" below.)
+
+### Top-heavy props collide at the trunk: `from_visual_mesh: "base"` (2026-06-11)
+
+When a physics block derives its box collider from the visual
+(`collision_shape: {type: "box", from_visual_mesh: ...}`): full-bbox
+shrink-wrap (`true`) on a tree turns the canopy span into an
+invisible ground-level wall. Use `from_visual_mesh: "base"` for
+trees / lampposts / signposts — the engine boxes only the
+bottom-quarter footprint (trunk/pole) at full height, derived from
+the .glb vertices. Reserve `true` for crates / walls / solid
+silhouettes. Empirical 2026-06-11 (autorace): scale-8 pines 4.1m off
+the racing line blocked the lane with 5.2m-wide canopy boxes.
 
 ## Visual scale must match camera frustum (added 2026-05-09)
 
@@ -941,6 +968,20 @@ Every dark area gets lights every 8-15m. Lights are FAT (radius
 residential corners. The constellation of small warm dots IS the
 ambient.
 
+**Real lights since ADR 0072 (2026-06-12)** — micro-lights are no
+longer fake bright meshes. Author BOTH halves per lamp def:
+`visual.light` (`{type: omni|spot, color, energy, range, position:
+[local head offset], shadow: false}` — per-light shadows are the
+expensive half, default off; spots add `angle` + `direction`) AND
+`primitives[].emission` (+ `emission_energy`) on the lamp-head
+primitive so the head BLOOMS under glow. Emission-without-light =
+glow that illuminates nothing (anti-soul); light-without-emission =
+head reads "off" at distance. Lights follow their entity — carried
+lanterns and headlights come free. gl_compatibility caps per-mesh
+light influence (~8 omni): dozens of scattered lamps fine, hundreds
+not. Scene-level budget + mood: yume-lighting-designer § ADR
+0071/0072 vocabulary.
+
 ### 5. Object density
 Target ~1 entity per 9-12 m² visible from typical camera frustum.
 A 30×30m plaza area = 50-80 entities. If your level has 20
@@ -1024,6 +1065,16 @@ recolored across 4 districts in pendrel, 2026-05-09.
 least 3 distinct district palettes via per-instance visual.params
 overrides on cottages / props / signs. Single-palette across the
 whole town = "videogame test scene" feel; failing this axis.
+
+**Anti-cartoon albedo discipline (2026-06-12)**: pure-hue albedos
+(#c8362a fire-truck red, neon greens) read as TOYS regardless of
+lighting quality. Stylized-realistic = weathered tones (brick
+#9e3f35, bone #cfc9bc, olive) + saturation grading ~1.0-1.1
+(`lighting.adjustments.saturation`; 1.3 = candy). And grading
+without warmth reads dead: an autorace desaturation pass that also
+cooled fog + ambient went overcast-grey and had to be re-warmed.
+yume-visual-designer now flags pure-hue albedos and grading
+saturation >1.2 at review (its Axis 3).
 
 ### 10. Silhouette readability
 ≥3 distinct silhouette templates per game. Within humanoids:

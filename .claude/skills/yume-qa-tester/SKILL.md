@@ -450,6 +450,19 @@ For each contact rule with `radius: N`:
 If a contact-rule radius is too small for the player to walk into,
 **FAIL with suggested radius**.
 
+**Check C2 — sloppy-path progression test (2026-06-12)**: for any
+contact-driven SEQUENTIAL progression (checkpoints, lap waypoints,
+ordered pickups), drive an intentionally wide-but-legal path (outer
+edge of the lane / corridor, NOT the centerline) and assert
+progression still advances. AI-precise paths passing is not
+evidence — autorace's 2.2m waypoint radius passed every AI lap and
+stalled every human lap (2026-06-11; one missed waypoint stalls a
+sequential odometer forever). ALSO: a correctly-wide radius can
+pre-catch at spawn (autorace: car parked 3.4m from waypoint 0
+pre-advanced the odometer to 1 at tick 1) — scenario assertions must
+tolerate the radius-dependent INITIAL state; assert the documented
+value, don't assume zero.
+
 ### Check D — Spawn-effect override survival test
 
 When a `spawn` effect carries `overrides: {state: {<field>: V}}`:
@@ -484,6 +497,38 @@ gate" even if the cascades work. Surface to user with:
 - A 1-line repro path the user can verify themselves
 
 Do NOT mark a game `accept` until all 5 checks land green.
+
+## Overlap-trigger rules are INVISIBLE to scripted runs (ADR 0070, 2026-06-11)
+
+StepRunner's scripted bursts run sim ticks synchronously WITHOUT
+physics steps — scenario tests and `--capture-input` runs generate
+ZERO `overlap` events (`body_type: "area"` + `trigger: {type:
+"overlap"}`). A non-firing overlap rule in those harnesses is
+EXPECTED, not a bug; verify overlap content live or via a real-time
+capture (no scripted input bursts). Per ADR 0070's doctrine, overlap
+is presentation-grade only — if an overlap rule drives lap / score /
+win-condition / replicated state, FAIL it back to systems-designer
+regardless of what the tests say.
+
+## Capture-timing gotchas (2026-06-12, autorace)
+
+1. **Scripted `--capture-input` bursts run sim ticks synchronously
+   at boot**; the `--capture-after` settle window then COASTS in
+   real time. For before/after motion shots, end the script with a
+   stop action (e.g. brake) or capture immediately — otherwise the
+   subject keeps moving through the settle window and the "after"
+   frame lies.
+2. **At low render fps the sim runs SLOWER than wall-clock** (physics
+   catch-up cap). "The lap should be done by T seconds" wall-clock
+   assertions are wrong on weak hardware — use headless scenario
+   TICK counts for timing truth; wall-clock only for human feel
+   notes.
+3. **Judge color/exposure by PIXEL SAMPLING, not preview squinting.**
+   Read-tool previews of captures can render washed/downscaled. Crop
+   + average with PIL (`Image.open(p).crop(box)` → per-channel mean)
+   before declaring a frame too dark / washed / tinted. A healthy
+   autorace frame was nearly mis-diagnosed twice in one session from
+   preview appearance alone.
 
 ## What you DON'T do
 

@@ -485,6 +485,44 @@ visual now describe the same wall.
 matching meshes are precisely the "I-don't-see-the-wall" complaint.
 Audit them first.
 
+### Top-heavy props: `collision_shape.from_visual_mesh: "base"` (2026-06-11)
+
+For physics-block colliders derived from the visual mesh
+(`collision_shape: {type: "box", from_visual_mesh: ...}`), the value
+`true` shrink-wraps the FULL bbox — which turns a tree canopy into an
+invisible ground-level wall spanning the whole crown. Use `"base"`
+for top-heavy props (trees, lampposts, signposts): the engine boxes
+only the bottom-quarter footprint (trunk/pole) at full height,
+derived from the .glb vertices. Reserve `true` for crates / walls /
+solid bodies whose full silhouette IS the obstacle.
+
+Empirical 2026-06-11 (autorace): scale-8 pines 4.1m off the racing
+line blocked the lane with 5.2m-wide canopy collider boxes until
+switched to `"base"`.
+
+### Authored instance y is the BASE height (2026-06-12)
+
+Every visual is base-anchored (.glb bbox base normalized to y=0;
+prim kits bake base-at-0): `position[1]` is where the mesh's BOTTOM
+sits — y=0 means standing on the floor. Never author y = height/2
+(raw-Godot center-pivot habit) — that floats the prop by half its
+height. Gate: `validate_center_pivot_y.py` flags y ≈ 0.5 × scaled
+height. Empirical 2026-06-12 (autorace): a whole demo's furniture
+was center-pivot authored — grandstand +2.25m, gantry posts +2.7m,
+flag poles +1.6m, cones +0.28m, all floating. Full rule:
+`.claude/rules/data-demo.md` § authored y is the BASE height.
+
+### 3D world-unit demos: `renderer.position_scale: 1.0` (2026-06-12)
+
+Hand-authored 3D demos (world-unit positions) MUST have scene.json
+`"renderer": {"position_scale": 1.0}` — the renderer default is 0.05
+(2D pixel convention) and silently compresses every position 20×
+into an origin blob (correct entity count, zero errors). Gate:
+`validate_position_scale.py`. Empirical 2026-06-12 (demo_lightlab):
+±10m of instances spawned within ±0.5m of origin; cost three probe
+captures. scene.json is asset-designer's file — flag the missing key
+in your handoff rather than editing it yourself.
+
 ### Mesh scale must match camera frustum
 
 A 0.05m-radius lamp head is invisible in an isometric ortho_size 24

@@ -198,6 +198,32 @@ Numerical starting points (asphalt, normal mode):
 Engine units (Yume convention): Vector2/Vector3 magnitude, world
 units per second.
 
+### Step 2b — The deceleration triad (REQUIRED, 2026-06-11)
+
+Throttle-only physics ships a car that feels broken in three specific
+ways. Autorace shipped all three (empirical 2026-06-11): no coast
+drag (release W → constant speed forever), no reverse (brake clamped
+at 0 → nose-into-obstacle = permanently stuck), and a throttle-state
+speedo (read COMMANDED speed; showed 50 km/h while wedged motionless
+against a tree). Every vehicle profile MUST specify all three:
+
+1. **Coast drag toward zero** each tick when no throttle:
+   `speed - clamp(speed, -d, d)` — the clamp form never overshoots
+   past zero regardless of d vs |speed|, in either direction.
+2. **Brake continues past zero into capped reverse** (cap ~25-40% of
+   top speed). Without reverse, any head-on obstacle contact is a
+   soft-lock.
+3. **HUD speed MEASURED from per-tick position delta**, never the
+   commanded state — plus an impact scrub: snap commanded speed to
+   measured when measured < ~30% of commanded, guarded above ~1 m/s
+   so launch-from-standstill isn't scrubbed (measured lags one tick;
+   at launch measured is legitimately 0 while commanded is already
+   positive).
+
+Falsifiable sign-off checks: release W at top speed → car visibly
+coasts to rest; drive nose-first into a wall and hold S → car backs
+out; speedo reads ~0 while pinned against the wall.
+
 ### Step 3 — Steering model
 
 The trick: steering rate must DECREASE at high speed, otherwise the
@@ -306,6 +332,32 @@ Width considerations:
 - 2-3 car widths: combat-friendly (mascot kart racer)
 - 4-5 car widths: open chaos (arcade crash-racer)
 
+### Step 7b — Checkpoint / lap radii fit HUMAN lines (REQUIRED, 2026-06-11)
+
+A lap counter is typically a sequential waypoint odometer — and a
+sequential odometer fails HARD: ONE missed waypoint stalls lap
+progress forever. Size waypoint contact radii for the sloppiest
+LEGAL racing line, not the AI's centerline:
+
+- **Floor = lane half-width.** A human apexes wide, brakes late,
+  rides the outside curb — every legal line must catch.
+- **Ceiling = half the closest approach between two NON-ADJACENT
+  track sections** (measure it from the layout); beyond that, a
+  waypoint catches cars on a different part of the circuit.
+- Document both numbers in racing-design.md next to the lap-count
+  spec, with the measured closest-approach distance.
+
+Empirical 2026-06-11 (autorace): waypoint radius 2.2m was tuned for
+AI threading the centerline; human lines passed >2.2m off-center,
+the sequence stalled at one missed waypoint, laps never advanced.
+Fix: lane-width 4.5m; measured ceiling 12.7m.
+
+**Spawn pre-catch**: a lane-width radius can already contain a car
+parked on the grid (autorace: 3.4m from waypoint 0 → odometer
+pre-advanced to 1 at tick 1). State the expected radius-dependent
+initial odometer value so qa-tester's scenarios assert it instead of
+assuming zero.
+
 ### Step 8 — AI design
 
 AI cars need:
@@ -324,6 +376,16 @@ AI cars need:
 
 Pick based on aesthetic intent. Casual mascot kart racer = strong RB;
 serious anti-grav racer = weak; time-attack purist = none.
+
+**AI/player input parity (2026-06-11)**: author AI through the input
+layer — the AI presses the same virtual actions a human does
+(`queue_input_for_actor`), gated on a per-car `ai` state flag. Then
+possession/takeover is pure data (mute the flag + `actors.json`
+routing the keyboard via `starting_entity_tag`), and AI laps are
+recordable/replayable through the same pipeline as human laps.
+Direct-state AI (writing steering/throttle fields) forks the verb set
+the moment a human takes over. Full pattern: yume-systems-designer §
+Discrete-controller discipline, invariant 3.
 
 ### Step 9 — Power-ups (if applicable)
 

@@ -53,6 +53,12 @@ description: Goal-condition + flow-progression designer for Yume games. Per ADR 
 > If your task is "write a rule that fires when X happens" — go to
 > yume-systems-designer. If your task is "declare WHEN the game ends" —
 > stay here.
+>
+> One landmine worth carrying even in the shrunken scope (2026-06-11):
+> `show_toast` text is LITERAL — no formula interpolation; a toast
+> naming the entity needs one rule per variant, and simultaneous
+> toasts overlap at one anchor. Full rule:
+> `.claude/rules/data-demo.md` § show_toast.
 
 You are the **game-rules designer** for Yume — the layer between
 world physics (what the world IS) and gameplay goals (what the

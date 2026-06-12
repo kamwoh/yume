@@ -110,6 +110,15 @@ godot --path <template> scenes/<name>_3d.tscn --rendering-driver opengl3 \
 PNG lands under `~/.../app_userdata/Yume Framework/_named.png` (or
 the local user:// resolved path).
 
+**Capture-timing note (2026-06-12, autorace)**: scripted
+`--capture-input` bursts run sim ticks synchronously at boot; the
+`--capture-after` settle window then COASTS in real time. For motion
+before/after shots, end the script with a stop action (brake) or
+capture immediately — otherwise the subject keeps moving through the
+settle window and the "after" frame lies. Related: at low render fps
+the sim runs slower than wall-clock (physics catch-up cap) — don't
+write wall-clock timing assertions; use headless scenario ticks.
+
 ### Step 2 — Read the PNG with a CONTEXT-SPECIFIC prompt
 
 `Read(/path.png)` then ask Claude with:
@@ -131,6 +140,14 @@ The question SHAPES what Claude looks at. Generic "does it look ok?"
 misses bugs the focused question catches. Aim for **3-5 falsifiable
 criteria + 2-3 specific fail flags** per VQA. If you can't write a
 fail flag, you don't know what you're checking.
+
+**Pixel-sample, don't squint (2026-06-12)**: Read-tool previews of
+captures can render washed/downscaled. Before any exposure/color
+verdict (too dark, washed out, wrong tint), sample pixels — PIL crop
++ per-channel mean over the region in question — and judge the
+numbers, not the preview. Empirical: a healthy autorace frame was
+nearly mis-diagnosed as broken twice in one session from preview
+appearance alone.
 
 ## Baseline environmental checks (MANDATORY, runs first)
 

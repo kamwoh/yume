@@ -198,6 +198,23 @@ These effect types must exist in api-manifest.json. If the engine
 doesn't support `time_scale` yet, that's a primitive ADR (engine
 work, not designer work) — surface it.
 
+### Shaped trigger volumes — overlap (ADR 0070, 2026-06-11)
+
+`body_type: "area"` + `trigger: {type: "overlap", change: "enter"|
+"exit"}` gives juice REAL SHAPES: a thin finish-line strip, a
+doorway, a boost pad, a pit-lane corridor — places a contact circle
+either over-catches or needs a chain of circles for. Bindings mirror
+contact (`a` = area, `b` = body); edge-triggered, so enter/exit
+stings fire ONCE instead of every tick in range.
+
+Doctrine (ADR 0070): overlap is presentation-grade ONLY. Wire
+toasts / stings / flashes / particles to it freely; NEVER lap /
+score / win-condition / replicated state (those stay on contact/tick
+— yume-systems-designer § overlap doctrine). Verification caveat:
+scenario tests and `--capture-input` runs produce ZERO overlap
+events (scripted bursts skip physics steps) — verify overlap juice
+live (yume-qa-tester § overlap).
+
 ## Sample juice profiles per genre
 
 ### Sokoban / puzzle (low-juice)

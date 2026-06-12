@@ -177,6 +177,21 @@ calls for tower-and-enemy choke moments to support the Challenge
 aesthetic" is good. "wp_2 at (-3, 0, -7) because that's a position"
 is bad.
 
+#### Coordinate conventions (2026-06-12)
+
+- **y is the BASE height.** Meshes are base-anchored (bbox base →
+  y=0); a placement's y means "where the bottom sits", never the
+  center. y = height/2 floats the prop by half its height —
+  `validate_center_pivot_y.py` flags it. Empirical 2026-06-12
+  (autorace): grandstand / gantry posts / flag poles / cones all
+  center-pivot authored, all floating until corrected.
+- **3D world-unit maps need scene.json `renderer.position_scale:
+  1.0`** (asset-designer's file — flag the requirement in your
+  handoff). The default 0.05 compresses the whole layout 20× into an
+  origin blob. `validate_position_scale.py` enforces. Empirical
+  2026-06-12 (demo_lightlab — ±10m of layout rendered as one
+  origin cluster).
+
 ### Step 4 — Pacing notes
 
 - Compute traversal time at enemy speed

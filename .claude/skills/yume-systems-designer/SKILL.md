@@ -241,6 +241,19 @@ sat behind on the straight, swung to IN FRONT after steering;
 two wrong bridge constants shipped back-to-back, each "verified" on
 the straight.
 
+**3. AI/player input parity — the takeover pattern (2026-06-11).**
+AI actors should press the SAME virtual input actions a human does
+(`queue_input_for_actor`), gated on a per-entity `ai` state flag —
+NOT mutate steering/throttle state directly. Then possession is pure
+data: mute the entity's `ai` flag + route the keyboard via
+`actors.json` (`starting_entity_tag`). `actors.json` is REQUIRED for
+keyboard control of any entity not tagged `player`. Games wanting
+takeover-able / recordable / replayable actors get all three free
+from this layout; direct-state AI forks the verb set the moment a
+human takes over. Empirical 2026-06-11 (autorace): possession =
+`ai: 0` on the player's car + a 10-line actors.json — zero rule
+changes.
+
 ## Movement-feel reference (REQUIRED for any game with player avatar)
 
 Every player-controlled entity must declare `properties.speed_base`
@@ -281,6 +294,55 @@ If outside [5, 10] window, flag for adjustment.
 `speed_multiplier` field on player state with sprint magnitude
 (usually 1.5×-2.0× base) and the input action that activates it.
 
+**Vehicles** (cars / karts): movement feel additionally REQUIRES the
+deceleration triad — coast drag toward zero, brake-into-reverse, and
+a MEASURED (not commanded) HUD speed. Spec lives at
+yume-racing-designer § "The deceleration triad" (2026-06-11);
+cross-check it before sketching any vehicle motion rules.
+
+## Per-tick opposing forces vs held input — safe since ADR 0069 (2026-06-11)
+
+Per-tick opposing forces (drag, decay, regen) against HELD input are
+now safe to author: ADR 0069 moved the input poll to the physics
+clock, so a held key fires once per sim tick at ANY render fps.
+History for debugging older branches: before ADR 0069, input polled
+per render frame — drag at 0.05/tick (60/s) vs presses at 8-19/s on
+weak hardware made W/S mathematically unable to win (autorace W/S
+dead at 8 fps, 2026-06-11). If a held key seems "too weak only on
+slow machines" on a pre-0069 build, this is the class.
+
+## Overlap trigger (ADR 0070) — presentation-grade ONLY (2026-06-11)
+
+`body_type: "area"` + `trigger: {type: "overlap", change: "enter"|
+"exit"}` exposes Godot Area3D overlap with real shapes (thin
+finish-line strip, doorway, boost pad — things a contact circle
+either over-catches or needs a chain of circles for). Bindings
+mirror contact: `a` = the area, `b` = the body, `self` = `a`.
+Edge-triggered (enter/exit), not level-triggered.
+
+**Doctrine**: the event origin is Godot physics broadphase — NOT
+deterministic across runs/machines. Overlap rules may drive
+presentation only (toasts, stings, flashes, ambient triggers — see
+yume-juice-designer § shaped trigger volumes). They MUST NOT drive
+lap / score / win-condition / replicated state — those stay on
+contact/tick rules, whose answers the sim owns. Any overlap rule
+mutating a field named in net.json `replicate` or read by goal/win
+rules is a defect (ADR 0070 §Decision 5).
+
+**Test caveat**: StepRunner's scripted bursts skip physics steps —
+scenario tests and `--capture-input` runs generate ZERO overlap
+events (yume-qa-tester § overlap). Don't read "overlap rule never
+fired in scenarios" as a bug; don't gate progression on it either.
+
+## `show_toast` text is literal — one rule per variant (2026-06-11)
+
+`show_toast` does NOT formula-interpolate its text (deliberate; full
+rule + empirical case at `.claude/rules/data-demo.md` § show_toast).
+A toast that names the entity needs one rule per variant
+(query-narrowed per entity/def). And ScreenFlow renders all toasts at
+ONE anchor — two toasts in the same second overlap illegibly; stagger
+or merge simultaneous toast beats when sketching rule timings.
+
 ## Contact-radius vs entity-scale rule (REQUIRED check)
 
 For every contact rule (`trigger.type == "contact"`) the rule's
@@ -312,6 +374,35 @@ Scales: player AABB ~0.6m, customer AABB ~0.6m
 If radius needs to be larger (e.g. ranged interaction like
 "customer waves you down from across the room"), state the design
 intent explicitly so reviewers don't flag it as a feel bug.
+
+### Progression contacts size to the SLOPPIEST legal input (2026-06-12)
+
+The rule above bounds FEEL contacts (interaction reads as touching).
+Contact-driven PROGRESSION (checkpoints, lap waypoints, pickups along
+a route, zone triggers) inverts the question: the radius must catch
+the sloppiest input that should still count, not the cleanest.
+
+- **Floor**: the legal corridor's half-width (a racing lane, a
+  doorway, the walkable path past a pickup).
+- **Ceiling**: half the closest approach between two NON-ADJACENT
+  progression points (measure it from the layout) — beyond that, one
+  trigger catches the player on a different part of the route.
+- **Sequential odometers fail HARD**: one missed waypoint stalls the
+  whole sequence forever. Show the floor/ceiling math in the sketch,
+  same as the feel-contact template above.
+
+**Empirical 2026-06-11 (autorace)**: lap counting was a sequential
+waypoint odometer with radius 2.2m, tuned for AI threading the
+centerline. Human racing lines pass >2.2m off-center → one missed
+waypoint → laps never advanced. Fix: lane-width 4.5m; ceiling
+measured at 12.7m (half the closest non-adjacent track approach).
+qa-tester now has a sloppy-path gate (its Check C2) for this class.
+
+**Spawn pre-catch corollary**: a correctly-wide radius can already
+contain an entity at spawn (autorace: car parked 3.4m from waypoint 0
+pre-advanced the odometer to 1 at tick 1). Document the expected
+radius-dependent initial state so scenario assertions test against
+it instead of assuming the zero state.
 
 ## 2-binding `{a, b, radius}` queries are CONTACT-only (REQUIRED check)
 

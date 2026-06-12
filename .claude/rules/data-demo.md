@@ -51,6 +51,36 @@ at origin (inside a building), rendering as solid dark brown for ~2
 hours of debugging. Lesson: when auto-gen looks wrong, diff JSON
 against a working demo field-by-field BEFORE iterating on theories.
 
+## Authored instance y is the BASE height, never the center
+
+The engine base-anchors EVERY visual (normalized .glb maps the bbox
+base to y=0; `prim_unit_*` kits bake base-at-0). An instance's
+`position[1]` therefore means "where the mesh's BOTTOM sits" — y=0 is
+standing on the floor. Authoring y = height/2 (raw-Godot center-pivot
+habit) floats the prop by exactly half its height.
+
+**Gate**: `validate_center_pivot_y.py` flags y ≈ 0.5 × scaled height.
+
+**Empirical 2026-06-12** (autorace): a whole demo's furniture was
+center-pivot authored — grandstand floated 2.25m, gantry posts 2.7m,
+flag poles 1.6m, tire stacks 0.5m, cones 0.28m.
+
+## 3D world-unit demos MUST set `renderer.position_scale: 1.0`
+
+The renderer's exported default is 0.05 (the 2D pixel convention:
+200 px → 10 world units). A hand-authored 3D demo with world-unit
+positions that omits scene.json `"renderer": {"position_scale": 1.0}`
+compresses every position 20× into an origin blob — correct entity
+count, zero errors, one overlapping cluster on screen.
+
+**Gate**: `validate_position_scale.py` (sync-time) flags 3D scenes
+(lighting block present) with far-flung instances and no key.
+compose_world output writes the key; hand-authored demos forget it.
+
+**Empirical 2026-06-12** (demo_lightlab): 9 instances spread ±10m all
+spawned within ±0.5m of origin; cost three probe captures before the
+missing key was suspected.
+
 ## No per-def escape hatches from automated derivation (INVARIANT)
 
 Anything the engine can DERIVE — colliders from mesh bbox × scale,
@@ -207,7 +237,7 @@ pattern with `tags_all` + `state` filter), not `require`.
 **Gate**: `validate_rules.py` flags `require:` keys not populated
 by the trigger.
 
-## `state_set` / `show_toast` values: human text vs formulas
+## `state_set` values: human text vs formulas
 
 `_value()` routes strings through `Formula.looks_like_formula()` →
 `evaluate()` if it looks formula-shaped. Heuristic: requires a
@@ -221,6 +251,22 @@ Treated as formula: `"world.gold"`, `"signal.sale_price"`,
 `"a.state.hp + 10"`.
 
 To make formula-shaped text literal, prefix with capital or `→`.
+
+## `show_toast` text is LITERAL — no formula interpolation (2026-06-11)
+
+`show_toast` resolves `text` via `EffectResolution.value_text()`:
+literal pass-through OR exact context-binding-name lookup. NO formula
+evaluation — deliberate (display prose with spaces tripped
+`looks_like_formula`; the caabe39-era post-mortem on that heuristic).
+`"Checkpoint: a.properties.display_name"` renders those characters
+verbatim. A rule wanting per-entity names in a toast needs ONE RULE
+PER VARIANT (query-narrowed per entity/def).
+
+Also: ScreenFlow renders all toasts at ONE anchor — two toasts in the
+same second overlap illegibly. Design beats so simultaneous toasts
+can't collide (stagger rule intervals, or merge into one message).
+Empirical 2026-06-11 (autorace): lap + checkpoint toasts fired the
+same tick and overdrew each other.
 
 ## Bindings in payload values are BARE, not `{...}`
 

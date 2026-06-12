@@ -43,7 +43,9 @@ entities with deliberate density): 10 authoring-density axes:
 1. Layered ground variation (no monochrome floors)
 2. Edge transitions (no hard borders)
 3. Vertical depth (raised foundations, sunken pits, steps)
-4. Micro-lights every 8-15m (lamps, window glow, campfires)
+4. Micro-lights every 8-15m (lamps, window glow, campfires) — real
+   per-entity lights since ADR 0072 (`visual.light` + emissive head;
+   no longer fake bright meshes — see yume-lighting-designer)
 5. Object density ~1 entity per 9-12 m² in viewport
 6. Diagonal accents (rotate every 4-6 entities by 5-30°)
 7. Background framing (foreground tree clusters / walls / cliffs)

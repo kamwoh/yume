@@ -129,7 +129,9 @@ omitting them keeps engine defaults.)
     "enabled": true,
     "brightness": 1.0,
     "contrast": 1.15,
-    "saturation": 1.40             // 1.0=neutral; >1 = pop, <1 = muted
+    "saturation": 1.05             // 1.0-1.1 = stylized-realistic;
+                                   // >1.2 reads candy/cartoon (2026-06-12,
+                                   // autorace anti-cartoon pass)
   },
   "ssao": {                        // ambient occlusion contact shadows
     "enabled": true,
@@ -168,6 +170,80 @@ omitting them keeps engine defaults.)
   }
 }
 ```
+
+## Render + shadows + LUT + probes + entity lights (ADR 0071/0072, 2026-06-12)
+
+The autorace graphics pass (2026-06-11/12) exposed a second
+vocabulary tier. All of it is JSON — AUTHOR it; do not report these
+as engine gaps:
+
+### Top-level `render` block (sibling of `lighting` in scene.json)
+
+```jsonc
+"render": {
+  "msaa_3d": "2x",            // disabled | 2x | 4x | 8x
+  "screen_space_aa": "fxaa",  // fxaa | smaa — SMAA is Forward+/Mobile
+                              // ONLY; warns in gl_compatibility (the
+                              // shipping renderer). Use fxaa.
+  "use_taa": false,           // Forward+ only — SILENT no-op elsewhere
+  "scaling_3d_mode": "fsr",   // bilinear | fsr | fsr2 (fsr2: Forward+ only)
+  "scaling_3d_scale": 0.75    // the cheapest perf lever on iGPU hardware
+}
+```
+
+### `lighting.directional_light.shadow`
+
+```jsonc
+"shadow": {"mode": "2_splits",  // orthogonal | 2_splits | 4_splits
+           "blur": 1.4, "max_distance": 130, "atlas_size": 4096}
+```
+
+4_splits is Godot's SLOWEST default — `2_splits` halves shadow cost
+with little visible loss at game cameras. Bound `max_distance` to the
+dressed area.
+
+### `lighting.adjustments.color_correction` — SHARP TOOL
+
+`{"texture": "<path>.tres"}` or `{"gradient": ["#0a0c14", "#7e6a4a",
+"#fff3dc"]}`. Godot samples the LUT in LINEAR domain: stops authored
+as an sRGB-diagonal compress the visible range into the dark end and
+crush the frame to near-black — empirical 2026-06-12, autorace's
+first warm-film gradient did exactly this. Author stops against
+linear luminance (dense at the low end), VERIFY WITH A CAPTURE, and
+prefer ACES tonemap + brightness/contrast/saturation for film looks
+(autorace ships its look that way).
+
+### `lighting.reflection_probes`
+
+```jsonc
+"reflection_probes": [{"position": [0, 8, 0], "size": [140, 30, 110],
+                       "intensity": 1.0, "update_mode": "once"}]
+```
+
+In gl_compatibility there is NO SSR — a baked probe (`"once"`,
+near-free at runtime) is the ONLY way metallic materials reflect
+anything (empirical: autorace car paint reflected flat ambient until
+a probe landed). `"always"` is the expensive variant.
+
+### Per-entity lights (`visual.light`, ADR 0072)
+
+Entity defs carry their own omni/spot lights: `{type, color, energy,
+range, position (local offset), shadow (default false — the
+expensive half), angle + direction for spot}`. Lights follow their
+entity — carried lanterns and headlights come free. The per-def
+block is asset-designer's (see its § Micro-lights, incl. the
+mandatory `primitives[].emission` pairing); YOU own the scene's
+light budget + mood: gl_compatibility caps per-mesh light influence
+(~8 omni) — dozens of scattered lamps fine, hundreds not.
+
+### Time-of-day is a lighting STAGE
+
+`directional_light.binds_to: "world.time_of_day"` + a pin in
+`world/state.json` (`{"state": {"time_of_day": 15.7}}`) stages the
+whole scene: golden hour (~15.7) for drama; dusk/night (19+) makes
+entity lights carry the scene (autorace races at 15.7). Ambient is
+ANIMATED by time-of-day (night lerps ambient toward ~0) — don't
+fight it with the ambient knob; move the clock instead.
 
 ## How to tune (5-step recipe)
 
@@ -266,9 +342,12 @@ Match these to the GDD's narrative arc.
 - ❌ Implement engine changes. lighting_director.gd is the contract;
   if you need a new feature (point lights, volumetric fog), file an
   ADR through yume-tech-director.
-- ❌ Edit per-entity light sources. fire_pit_glow follows a tag; if
-  the game needs OTHER glowing things, propose a primitive expansion
-  (e.g. `lighting.glow_emitters[].source_tag`).
+- ❌ ~~Edit per-entity light sources. fire_pit_glow follows a tag; if
+  the game needs OTHER glowing things, propose a primitive expansion~~
+  **Outdated as of 2026-06-12** — per-entity lights exist
+  (`visual.light`, ADR 0072). The per-def block is asset-designer's;
+  you own the scene-level light budget + mood coordination (see
+  § Render + shadows + LUT + probes + entity lights).
 - ❌ Author particle effects (sun rays, dust motes). That's juice-
   designer.
 - ❌ Pick screen palette (UI colors). That's asset-designer.
