@@ -57,6 +57,14 @@ Godot ships OmniLight3D / SpotLight3D and material emission; per ADR
 - Carried lights (lantern in hand, headlights) come free — the light
   is a child of the entity's renderer and follows it.
 
+## Addendum (2026-06-12) — camera-attached light
+
+`scene.json camera.light` (same schema as `visual.light`) mounts a
+light as a CHILD of the Camera3D via CameraDirector — a headlamp that
+follows the view with zero lag in every camera mode. Spot type aims
+down the camera forward (-Z), i.e. where the player looks. First use:
+the lightlab free-cam torch.
+
 ## Alternatives considered
 
 - **Scene-level `lighting.point_lights` array**: placements would

@@ -76,6 +76,42 @@ func bind_cameras(world: Node) -> void:
 		_camera3d = _world.get_node_or_null("Camera3D")
 
 
+## ADR 0072 addendum — camera-attached light ("headlamp"). scene.json
+## camera.light mounts an OmniLight3D / SpotLight3D as a CHILD of the
+## Camera3D, so it follows the view with zero lag in EVERY camera mode
+## (free-cam torch, first-person headlamp, chase-cam underglow). Same
+## schema as visual.light; spot aims down the camera's forward (-Z) by
+## default. Mounted once, lazily, from update_follow.
+var _camera_light_mounted: bool = false
+
+
+func _ensure_camera_light(cam_cfg: Dictionary) -> void:
+	if _camera_light_mounted or _camera3d == null:
+		return
+	var cfg = cam_cfg.get("light", null)
+	if not (cfg is Dictionary):
+		return
+	_camera_light_mounted = true
+	var light: Light3D
+	if str((cfg as Dictionary).get("type", "omni")).to_lower() == "spot":
+		var spot := SpotLight3D.new()
+		spot.spot_range = float((cfg as Dictionary).get("range", 10.0))
+		spot.spot_angle = float((cfg as Dictionary).get("angle", 35.0))
+		light = spot  # SpotLight3D's -Z == camera forward → aims where you look
+	else:
+		var omni := OmniLight3D.new()
+		omni.omni_range = float((cfg as Dictionary).get("range", 10.0))
+		light = omni
+	light.name = "CameraLight"
+	light.light_color = Color(str((cfg as Dictionary).get("color", "#ffffff")))
+	light.light_energy = float((cfg as Dictionary).get("energy", 1.0))
+	light.shadow_enabled = bool((cfg as Dictionary).get("shadow", false))
+	var off = (cfg as Dictionary).get("offset", [0, 0, 0])
+	if off is Array and (off as Array).size() >= 3:
+		light.position = Vector3(float(off[0]), float(off[1]), float(off[2]))
+	_camera3d.add_child(light)
+
+
 ## Set shake parameters. Called from GameShell._drain_shell_events when
 ## a "shake" event drains. Pick stronger of new vs in-progress (intensity ×
 ## remaining frames is the priority key).
@@ -97,6 +133,7 @@ func update_follow(scene_cfg: Dictionary) -> void:
 	var cam_cfg: Dictionary = scene_cfg.get("camera", {}) as Dictionary
 	if cam_cfg.is_empty():
 		return
+	_ensure_camera_light(cam_cfg)
 	# Standard FPS-game ESC behavior (2026-05-20). Three-state flow:
 	#   1st ESC press → release cursor (mouse becomes a normal pointer)
 	#   2nd ESC press while released → quit the game
