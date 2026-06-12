@@ -181,10 +181,11 @@ as engine gaps:
 
 ```jsonc
 "render": {
-  "msaa_3d": "2x",            // disabled | 2x | 4x | 8x
-  "screen_space_aa: Forward+/Mobile ONLY in Godot 4.6 (BOTH fxaa and smaa warn + no-op in gl_compatibility — empirical 2026-06-12); on the shipping renderer use `msaa_3d` only
-                              // ONLY; warns in gl_compatibility (the
-                              // shipping renderer). Use fxaa.
+  "msaa_3d": "2x",            // disabled | 2x | 4x | 8x — the ONLY AA
+                              // gl_compatibility runs (hardware MSAA)
+  "screen_space_aa": "fxaa",  // disabled | fxaa | smaa — Forward+/Mobile
+                              // ONLY: BOTH variants warn + no-op in
+                              // gl_compatibility (empirical 2026-06-12)
   "use_taa": false,           // Forward+ only — SILENT no-op elsewhere
   "scaling_3d_mode": "fsr",   // bilinear | fsr | fsr2 (fsr2: Forward+ only)
   "scaling_3d_scale": 0.75    // the cheapest perf lever on iGPU hardware
