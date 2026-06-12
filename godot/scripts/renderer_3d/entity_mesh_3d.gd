@@ -200,6 +200,15 @@ func _mount_light(cfg: Dictionary) -> void:
 	if pos is Array and (pos as Array).size() >= 3:
 		light.position = Vector3(float(pos[0]), float(pos[1]), float(pos[2]))
 	add_child(light)
+	# ADR 0072 addendum — rule-DRIVEN lights: optional state bindings.
+	#   "energy_binds": "<state field>"  → light_energy follows the field
+	#   "color_binds":  "<state field>"  → light_color follows (hex string)
+	# Rules mutate the state; the renderer reads it per frame (the same
+	# state-read contract as position/yaw/scale). Enables flicker,
+	# day-gated lamps, dimmer switches — all pure JSON rules.
+	_light_ref = light
+	_light_energy_field = str(cfg.get("energy_binds", ""))
+	_light_color_field = str(cfg.get("color_binds", ""))
 	if light is SpotLight3D:
 		var dir = cfg.get("direction", [0, -1, 0])
 		if dir is Array and (dir as Array).size() >= 3:
@@ -207,6 +216,26 @@ func _mount_light(cfg: Dictionary) -> void:
 			if v.length() > 0.5:
 				var up := Vector3.UP if absf(v.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT
 				light.look_at(light.global_position + v, up)
+
+
+var _light_ref: Light3D = null
+var _light_energy_field: String = ""
+var _light_color_field: String = ""
+
+
+## Per-frame state→light sync (only when bindings declared — zero cost
+## for static lights).
+func _sync_light() -> void:
+	if _light_ref == null or _entity_ref == null:
+		return
+	if _light_energy_field != "":
+		var e = _entity_ref.get_state(_light_energy_field, null)
+		if e != null:
+			_light_ref.light_energy = maxf(0.0, float(e))
+	if _light_color_field != "":
+		var c = _entity_ref.get_state(_light_color_field, null)
+		if c != null:
+			_light_ref.light_color = _parse_color(c)
 
 
 # ============================================================
@@ -530,6 +559,7 @@ func _process(_dt: float) -> void:
 	_sync_position()
 	_sync_yaw()
 	_sync_scale()
+	_sync_light()
 	# ADR 0035 — animate addressable mesh pieces per-frame.
 	if _animation_director != null:
 		_animation_director.tick(Time.get_ticks_msec() / 1000.0)

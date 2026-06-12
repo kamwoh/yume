@@ -9166,8 +9166,25 @@ func test_entity_light_mount() -> void:
 		expect(
 			absf((light2 as SpotLight3D).spot_angle - 30.0) < 0.001, "spot angle applied"
 		)
+	# 3. rule-driven binding: light_energy follows a state field
+	var def3: Dictionary = def.duplicate(true)
+	def3["visual"]["light"]["energy_binds"] = "flame"
+	def3["state_init"]["flame"] = 2.0
+	var ent3 := Entity.create(def3, "lamp3", {})
+	add_child(ent3)
+	var renderer3 := EntityMesh3D.new()
+	ent3.add_child(renderer3)
+	var light3 := renderer3.get_node_or_null("EntityLight")
+	expect(light3 is OmniLight3D, "energy_binds: light still mounts")
+	ent3.state["flame"] = 0.5
+	renderer3._sync_light()
+	expect(
+		absf((light3 as OmniLight3D).light_energy - 0.5) < 0.001,
+		"energy_binds: light_energy follows state.flame after sync"
+	)
 	ent.free()
 	ent2.free()
+	ent3.free()
 
 
 # ============================================================
