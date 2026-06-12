@@ -37,7 +37,7 @@ config surfaces, all applied once at boot:
 ```jsonc
 "render": {
   "msaa_3d": "2x",              // disabled | 2x | 4x | 8x
-  "screen_space_aa": "smaa",    // disabled | fxaa | smaa
+  "screen_space_aa": "smaa",    // disabled | fxaa | smaa — Forward+/Mobile ONLY (both warn+no-op in gl_compatibility, empirical 2026-06-12)
   "use_taa": false,              // Forward+ only (no-op elsewhere)
   "scaling_3d_mode": "fsr",     // bilinear | fsr | fsr2 | nearest
   "scaling_3d_scale": 0.75,
