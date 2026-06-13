@@ -88,6 +88,7 @@ func _ready() -> void:
 	test_overlap_dispatch()
 	test_entity_light_mount()
 	test_render_block_mappings()
+	test_scene_preview()
 	test_toast_without_screens()
 	test_lockstep()
 	test_grid_snap()
@@ -9223,6 +9224,47 @@ func test_entity_light_mount() -> void:
 	ent2.free()
 	ent3.free()
 	ent4.free()
+
+
+# ============================================================
+# ADR 0073 — editor scene preview (read-only)
+# ============================================================
+
+
+## Builds the preview against real demo_lightlab JSON and asserts it
+## produces entity nodes, all owner=null (never serialized). Exercises
+## the glob/merge/placement slice headlessly (is_editor_hint is false
+## here, so _ready won't auto-build — we call _rebuild directly).
+func test_scene_preview() -> void:
+	_section("editor scene preview (ADR 0073)")
+	var preview = load("res://scripts/engine/editor/yume_scene_preview.gd").new()
+	preview.data_root_override = "res://data/demo_lightlab"
+	add_child(preview)
+	preview._rebuild()
+	var holder = preview.get_node_or_null("_PreviewRoot")
+	expect(holder != null, "preview built a _PreviewRoot container")
+	if holder != null:
+		var entity_nodes := 0
+		var all_owner_null := true
+		for c in holder.get_children():
+			if c.owner != null:
+				all_owner_null = false
+			if (
+				c is Node3D
+				and not (c is DirectionalLight3D)
+				and not (c is WorldEnvironment)
+				and not (c is MeshInstance3D)
+			):
+				entity_nodes += 1
+		expect(entity_nodes >= 5, "preview built entity nodes from JSON (got %d)" % entity_nodes)
+		expect(all_owner_null, "every preview node has owner=null (never serialized)")
+		preview._rebuild()
+		var holders := 0
+		for c in preview.get_children():
+			if c.name == "_PreviewRoot":
+				holders += 1
+		expect_eq(holders, 1, "rebuild replaces the preview (no accumulation)")
+	preview.free()
 
 
 # ============================================================
