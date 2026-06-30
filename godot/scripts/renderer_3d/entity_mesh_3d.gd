@@ -321,6 +321,14 @@ func _load_glb_mesh(path: String, visual: Dictionary, ent: Entity) -> void:
 	if overrides is Dictionary:
 		_apply_material_overrides(imported, overrides as Dictionary)
 
+	# ADR 0052 / stylization: `visual.shader` applies to .glb meshes too,
+	# not just code-draw prims — so a toon/cel shader can re-style imported
+	# (e.g. Infinigen) geometry. _paint_shader_recursive walks every
+	# MeshInstance3D, so it covers the glb's surfaces. The shader reads the
+	# surface's existing albedo (texture/color) when it samples ALBEDO_TEX.
+	if visual.has("shader"):
+		_apply_shader_to_primitives(str(visual["shader"]), visual.get("shader_params", {}))
+
 	# Locate the embedded AnimationPlayer. Godot's GLTF importer puts it
 	# directly under the scene root and names it "AnimationPlayer".
 	var ap: AnimationPlayer = _find_imported_animation_player(imported)
@@ -900,6 +908,20 @@ func _paint_shader_recursive(node: Node, shader: Shader, params: Dictionary) -> 
 		var mi: MeshInstance3D = node
 		var sm := ShaderMaterial.new()
 		sm.shader = shader
+		# Carry the SOURCE material's albedo (texture + color) into the
+		# shader so a re-styling shader (toon/cel) keeps the mesh's real
+		# look and only changes the lighting model. Only fills uniforms the
+		# shader actually declares, and never clobbers an author-supplied
+		# shader_param. Reads material_override first, else surface 0.
+		var src: Material = mi.material_override
+		if src == null and mi.mesh != null and mi.mesh.get_surface_count() > 0:
+			src = mi.get_active_material(0)
+		if src is BaseMaterial3D:  # StandardMaterial3D AND ORMMaterial3D (glb)
+			var std := src as BaseMaterial3D
+			if not params.has("albedo_texture") and std.albedo_texture != null:
+				sm.set_shader_parameter("albedo_texture", std.albedo_texture)
+			if not params.has("albedo_color"):
+				sm.set_shader_parameter("albedo_color", std.albedo_color)
 		for k in params:
 			sm.set_shader_parameter(str(k), params[k])
 		mi.material_override = sm

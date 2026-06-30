@@ -73,6 +73,18 @@ def scan_game(game_dir: Path) -> list[str]:
         for d in doc.get("definitions", []) or []:
             if isinstance(d, dict) and "id" in d:
                 defs[d["id"]] = d
+    # A TERRAIN ground voids the flat-ground (y=0) premise: assets sit at the
+    # terrain's SURFACE height, so a non-zero y is legitimate and can't be told
+    # apart from a center-pivot offset. Skip the check when a terrain is present
+    # — a non-normalized ground mesh or a `terrain`-tagged def (ADR 0074 C2).
+    # Empirical 2026-06-20: Infinigen terrain + ecological scatter flagged 19
+    # correctly-placed assets whose surface-height y coincidentally ≈ height/2.
+    has_terrain = any(
+        ("terrain" in (d.get("tags") or []))
+        or (isinstance(d.get("visual"), dict) and d["visual"].get("normalize") is False)
+        for d in defs.values())
+    if has_terrain:
+        return []
     for path, doc in docs:
         rel = path.relative_to(REPO_ROOT)
         for i, inst in enumerate(doc.get("initial_instances", []) or []):
