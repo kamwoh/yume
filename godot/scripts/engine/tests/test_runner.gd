@@ -52,6 +52,7 @@ func _ready() -> void:
 	test_control_factory()
 	test_ui_list_element()
 	test_rule_once()
+	test_level_subroutine()
 	test_save_state()
 	test_overlay_effects()
 	test_spatial_lod()
@@ -2492,6 +2493,140 @@ func test_transition_level_fade() -> void:
 
 ## Spot-check ControlFactory builds correct Godot Control types for each
 ## element kind. Free nodes after to avoid ObjectDB leaks.
+## ADR 0077 — level subroutines. The test suite builds env dicts rather than
+## a live World (tests.md: no scene tree), so this covers the effect side of
+## the contract: what level_call / level_return write into world state and
+## env, which is exactly what LevelTransitionCoordinator.process_pending
+## reads back. The swap itself is ADR 0006 machinery already covered by
+## test_transition_level_fade.
+func test_level_subroutine() -> void:
+	_section("level_subroutine (ADR 0077)")
+
+	var env: Dictionary = {
+		"entities": {},
+		"defs": {},
+		"relations": RelationStore.new(),
+		"world": {"current_level": "town"},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+
+	# ---------- 1. level_call pushes a frame + queues the swap ----------
+	EffectApply.apply(
+		{
+			"type": "level_call",
+			"level": "minigame_forge",
+			"return_signal": "training_done",
+			"args": {"difficulty": 3}
+		},
+		env,
+		{}
+	)
+	expect_eq(str(env.get("_pending_level_call", "")), "minigame_forge", "level_call queues the swap")
+	expect(
+		not env.has("_pending_level_transition")
+		or str(env.get("_pending_level_transition", "")) == "",
+		"level_call does NOT use the plain transition path (sub-levels are off-progression)"
+	)
+	var ws: Dictionary = env["world"]
+	var stack: Array = ws.get("_level_call_stack", [])
+	expect_eq(stack.size(), 1, "call stack has one frame")
+	expect_eq(str((stack[0] as Dictionary).get("level", "")), "town", "frame records the caller level")
+	expect_eq(
+		str((stack[0] as Dictionary).get("return_signal", "")),
+		"training_done",
+		"frame records the return signal"
+	)
+	expect_eq(
+		int((ws.get("_call_args", {}) as Dictionary).get("difficulty", -1)),
+		3,
+		"args land in world state for the sub-level to read"
+	)
+
+	# ---------- 2. nesting: the stack unwinds in order ----------
+	ws["current_level"] = "minigame_forge"
+	EffectApply.apply(
+		{"type": "level_call", "level": "sub_sub", "return_signal": "inner_done"}, env, {}
+	)
+	stack = ws.get("_level_call_stack", [])
+	expect_eq(stack.size(), 2, "nested level_call pushes a second frame")
+
+	ws["current_level"] = "sub_sub"
+	EffectApply.apply({"type": "level_return", "result": {"score": 82}}, env, {})
+	var ret1 = env.get("_pending_level_return", null)
+	expect(ret1 is Dictionary, "level_return queues a return")
+	if ret1 is Dictionary:
+		expect_eq(
+			str((ret1 as Dictionary).get("level", "")),
+			"minigame_forge",
+			"inner return targets the inner caller (LIFO)"
+		)
+		expect_eq(
+			str((ret1 as Dictionary).get("return_signal", "")), "inner_done", "inner return signal"
+		)
+		expect_eq(
+			int(((ret1 as Dictionary).get("result", {}) as Dictionary).get("score", -1)),
+			82,
+			"result payload rides along"
+		)
+	expect_eq((ws.get("_level_call_stack", []) as Array).size(), 1, "inner frame popped")
+
+	# ---------- 3. outer return unwinds to the original caller ----------
+	env["_pending_level_return"] = null
+	EffectApply.apply({"type": "level_return", "result": {"passed": 1}}, env, {})
+	var ret2 = env.get("_pending_level_return", null)
+	if ret2 is Dictionary:
+		expect_eq(
+			str((ret2 as Dictionary).get("level", "")), "town", "outer return reaches the town"
+		)
+		expect_eq(
+			str((ret2 as Dictionary).get("return_signal", "")),
+			"training_done",
+			"outer return uses the outer frame's signal"
+		)
+	expect_eq((ws.get("_level_call_stack", []) as Array).size(), 0, "stack fully unwound")
+
+	# ---------- 4. empty stack is a logged no-op, not a crash ----------
+	env["_pending_level_return"] = null
+	env["error_buffer"] = []
+	EffectApply.apply({"type": "level_return", "result": {}}, env, {})
+	expect(
+		env.get("_pending_level_return", null) == null,
+		"level_return on an empty stack queues nothing"
+	)
+	var codes: Array = []
+	for er in (env.get("error_buffer", []) as Array):
+		codes.append(str((er as Dictionary).get("code", "")))
+	expect(
+		codes.has(EngineError.LEVEL_RETURN_EMPTY_STACK),
+		"level_return on an empty stack raises level.return_empty_stack"
+	)
+
+	# ---------- 5. the stack is world state, so it persists with the save ----------
+	# A player who saves inside a sub-level must return to the right caller.
+	ws["current_level"] = "town"
+	EffectApply.apply({"type": "level_call", "level": "dungeon", "return_signal": "out"}, env, {})
+	var saved: Dictionary = (env["world"] as Dictionary).duplicate(true)
+	var env2: Dictionary = {
+		"entities": {},
+		"defs": {},
+		"relations": RelationStore.new(),
+		"world": saved,
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	(env2["world"] as Dictionary)["current_level"] = "dungeon"
+	EffectApply.apply({"type": "level_return", "result": {}}, env2, {})
+	var ret3 = env2.get("_pending_level_return", null)
+	expect(ret3 is Dictionary, "a restored world state still knows its caller")
+	if ret3 is Dictionary:
+		expect_eq(
+			str((ret3 as Dictionary).get("level", "")),
+			"town",
+			"call stack survives a world-state round-trip"
+		)
+
+
 ## ADR 0080 — `once` / `once_per` quantifiers on rule firing.
 func test_rule_once() -> void:
 	_section("rule_once (ADR 0080)")

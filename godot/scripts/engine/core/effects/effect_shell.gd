@@ -66,6 +66,96 @@ static func transition_level(e: Dictionary, env: Dictionary, ctx: Dictionary) ->
 	env["_pending_level_transition"] = target
 
 
+# ============================================================
+# LEVEL SUBROUTINES (ADR 0077)
+# ============================================================
+
+## World-state keys. Underscore-prefixed: engine bookkeeping, not content
+## vocabulary. They live in world state so they persist with the save — a
+## player who saves inside a sub-level still returns to the right caller.
+const CALL_STACK_KEY: String = "_level_call_stack"
+const CALL_ARGS_KEY: String = "_call_args"
+
+
+## DESTRUCTIVE — must be LAST in its effect chain (same rule as
+## transition_level). Anything queued after is dropped at the swap.
+##
+## Push the current level + the caller's return_signal onto the call stack,
+## then swap to `level`. `args` land in world state under `_call_args` for
+## the sub-level's rules to read.
+##
+## Sub-levels are OFF-PROGRESSION: the target is not required to be in
+## level_order, so `transition_level "next"` can never walk into one.
+static func level_call(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var target := str(EffectResolution.value(e.get("level", ""), ctx, env))
+	if target == "":
+		return
+	var ws = env.get("world", null)
+	if not (ws is Dictionary):
+		return
+	var world: Dictionary = ws
+	var stack_v = world.get(CALL_STACK_KEY, [])
+	var stack: Array = stack_v if stack_v is Array else []
+	(
+		stack
+		. append(
+			{
+				"level": str(world.get("current_level", "")),
+				"return_signal": str(e.get("return_signal", "")),
+			}
+		)
+	)
+	world[CALL_STACK_KEY] = stack
+	var args = e.get("args", {})
+	world[CALL_ARGS_KEY] = (args as Dictionary).duplicate(true) if args is Dictionary else {}
+	env["_pending_level_call"] = target
+
+
+## DESTRUCTIVE — must be LAST in its effect chain.
+##
+## Pop the call stack, swap back to the caller's level, and emit the caller's
+## return_signal with `result` as the payload AFTER the swap (the caller's
+## rules are not registered until its level loads, so emitting before would
+## fall on an empty bucket — LevelTransitionCoordinator does the emit).
+##
+## Empty stack is a logged no-op, not a crash: a sub-level reached directly
+## (debug, a test, a save made inside one) can still run this harmlessly.
+static func level_return(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var ws = env.get("world", null)
+	if not (ws is Dictionary):
+		return
+	var world: Dictionary = ws
+	var stack_v = world.get(CALL_STACK_KEY, [])
+	var stack: Array = stack_v if stack_v is Array else []
+	if stack.is_empty():
+		(
+			EngineError
+			. raise(
+				env,
+				EngineError.LEVEL_RETURN_EMPTY_STACK,
+				"level_return with an empty call stack — no caller to return to",
+				{"rule_id": str(ctx.get("_rule_id", ""))},
+				(
+					"This level was entered directly rather than via level_call."
+					+ " Use transition_level to leave it, or enter it with level_call."
+				),
+				"warning"
+			)
+		)
+		return
+	var frame = stack.pop_back()
+	world[CALL_STACK_KEY] = stack
+	var result = e.get("result", {})
+	var payload: Dictionary = (
+		(result as Dictionary).duplicate(true) if result is Dictionary else {}
+	)
+	env["_pending_level_return"] = {
+		"level": str((frame as Dictionary).get("level", "")),
+		"return_signal": str((frame as Dictionary).get("return_signal", "")),
+		"result": payload,
+	}
+
+
 ## Tween the screen-fade overlay's alpha to a target value over `duration`
 ## seconds. GameShell owns the overlay (lives on a CanvasLayer above the
 ## HUD) and the per-frame lerp. duration=0 → instant.

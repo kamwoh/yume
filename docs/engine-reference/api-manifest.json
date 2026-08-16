@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-08-16T18:30:57+00:00",
+  "generated_at": "2026-08-16T18:36:01+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -78,6 +78,14 @@
     },
     {
       "type": "transfer_relation",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "level_call",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "level_return",
       "source": "effect_apply.gd"
     },
     {
@@ -444,6 +452,14 @@
     {
       "constant": "SCHEDULER_TOPO_CYCLE",
       "code": "scheduler.topo_cycle"
+    },
+    {
+      "constant": "LEVEL_RETURN_EMPTY_STACK",
+      "code": "level.return_empty_stack"
+    },
+    {
+      "constant": "LEVEL_RETURN_ORPHANED",
+      "code": "level.return_orphaned"
     },
     {
       "constant": "ANIMATION_NO_DEFAULT",

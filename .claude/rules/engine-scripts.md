@@ -183,9 +183,28 @@ that touch screen / scene / save lifecycle:
 
 - `transition_screen`, `transition_level`, `reload_scene`,
   `scene_change`
+- `level_call`, `level_return` (ADR 0077 — sub-level swaps)
 - `save_state`, `load_state`
 - `quit_app`
 - Anything that reloads, destroys, or replaces the active scene
+
+**Two levels of destruction** (2026-08-16 — conflating them produces
+false positives on chains that are actually correct):
+
+| Level | Effects | What survives after it |
+|---|---|---|
+| **Scene-destroying** | `reload_scene`, `scene_change`, `quit_app` | nothing — the whole node tree, ScreenFlow included, is gone |
+| **World-swapping** | `transition_level`, `level_call`, `level_return`, `load_state`, `reset_world` | the node tree survives; only effects resolving against the OLD entities are dropped. Shell-tier effects (`transition_screen`, `screen_fade`, `show_toast`, `show_overlay`, `save_state`, audio/input) still land. |
+
+So `[reset_world, transition_screen]` — the standard "New Game" button —
+is CORRECT. `[reset_world, state_set target=player_1]` is a real bug.
+
+**Gate**: `tools/validators/validate_effect_chains.py` (added 2026-08-16
+alongside ADR 0077). Walks every effect chain in `world/rules/*.json`,
+`game/goals.json`, `tutorial.json`, `screens.json`, and `hud.json` and
+enforces the table above. Until then this rule had been prose-only since
+ADR 0010 — documented but never machine-checked, which is exactly how the
+`[reload_scene, transition_screen]` bug reached a user.
 
 `screen_fade` is non-destructive (tweens an overlay alpha) — safe
 anywhere in a chain. `transition_level` with `fade_duration > 0`

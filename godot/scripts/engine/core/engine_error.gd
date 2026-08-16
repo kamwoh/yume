@@ -62,6 +62,9 @@ const MESH_FILE_MISSING := "mesh.file_missing"
 const MESH_INVALID_JSON := "mesh.invalid_json"
 
 const SCHEDULER_TOPO_CYCLE := "scheduler.topo_cycle"
+## ADR 0077 — level subroutines.
+const LEVEL_RETURN_EMPTY_STACK := "level.return_empty_stack"
+const LEVEL_RETURN_ORPHANED := "level.return_orphaned"
 
 const ANIMATION_NO_DEFAULT := "animation.no_default"
 

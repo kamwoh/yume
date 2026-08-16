@@ -44,6 +44,66 @@ func process_pending(env: Dictionary) -> void:
 	if str(pending) != "":
 		env["_pending_level_transition"] = ""
 		do_transition(str(pending))
+		return
+
+	# ADR 0077 — level subroutines. Both bypass the level_order membership
+	# check: a sub-level is deliberately OFF-PROGRESSION so `transition_level
+	# "next"` can never walk into it.
+	var call_target = env.get("_pending_level_call", "")
+	if str(call_target) != "":
+		env["_pending_level_call"] = ""
+		do_transition(str(call_target), true)
+		return
+
+	var ret = env.get("_pending_level_return", null)
+	if ret is Dictionary:
+		env["_pending_level_return"] = null
+		_do_return(env, ret as Dictionary)
+
+
+## Return to a caller level, then emit its return_signal with the result.
+##
+## The emit happens AFTER the swap on purpose: the caller's rules are not
+## registered until its level loads, so a signal emitted beforehand would
+## fall on an empty bucket and the result would vanish.
+func _do_return(env: Dictionary, frame: Dictionary) -> void:
+	var target := str(frame.get("level", ""))
+	if target == "" or not _world.level_order.has(target):
+		# The caller no longer exists (renamed level, edited progression, a
+		# save from an older build). Falling back to the progression's first
+		# level is recoverable; leaving the player stranded in a sub-level
+		# with no exit is not.
+		var fallback := str(_world.level_order[0]) if not _world.level_order.is_empty() else ""
+		(
+			EngineError
+			. raise(
+				env,
+				EngineError.LEVEL_RETURN_ORPHANED,
+				"level_return caller '%s' is not a known level — falling back to '%s'" % [target, fallback],
+				{"got": target},
+				"Check that the calling level still exists in progression.levels.",
+				"warning"
+			)
+		)
+		if fallback == "":
+			return
+		target = fallback
+	do_transition(target, true)
+
+	var sig := str(frame.get("return_signal", ""))
+	if sig == "":
+		return
+	var buf_v = env.get("signal_buffer", null)
+	var buf: Array
+	if buf_v is Array:
+		buf = buf_v
+	else:
+		buf = []
+		env["signal_buffer"] = buf
+	var payload = frame.get("result", {})
+	var ev: Dictionary = (payload as Dictionary).duplicate(true) if payload is Dictionary else {}
+	ev["name"] = sig
+	buf.append(ev)
 
 
 ## Execute a level swap. Removes non-persistent entities, clears
@@ -53,7 +113,10 @@ func process_pending(env: Dictionary) -> void:
 ##
 ## Special target "next" resolves to the next level in progression
 ## (level_order); past the last level sets world_state.all_levels_complete=1.
-func do_transition(target: String) -> void:
+## `off_progression` (ADR 0077) skips the level_order membership check, for
+## sub-levels entered via level_call. Those are deliberately absent from the
+## progression so "next" can't reach them.
+func do_transition(target: String, off_progression: bool = false) -> void:
 	# Resolve "next" shorthand against progression order.
 	if target == "next":
 		var idx: int = _world.level_order.find(_world.current_level)
@@ -66,7 +129,7 @@ func do_transition(target: String) -> void:
 			if _world.verbose:
 				print("[World] all levels complete: ", _world.on_all_complete_msg)
 			return
-	if not _world.level_order.has(target):
+	if not off_progression and not _world.level_order.has(target):
 		push_warning("[World] transition_level target '%s' not in progression.levels" % target)
 		return
 	# ADR 0024: tear down old level's navigation region BEFORE removing
