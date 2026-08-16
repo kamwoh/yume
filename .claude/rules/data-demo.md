@@ -200,6 +200,48 @@ error). Caught during the merchant build at ~30-50 occurrences each:
 | `state_mul` | `amount` | ❌ `factor` / `delta` |
 | `spawn` | `template` | ❌ `def` |
 | `state_clamp` | `min`/`max` | (correct) |
+| `relation_add` | `relation` + `field` + `amount` | ❌ `type` / `delta` |
+| `relation_set` | `relation` + `field` + `value` | ❌ `type` |
+| `relation_clamp` | `relation` + `field` + `min`/`max` | ❌ `type` |
+
+## Relation edge state — put pair-scoped numbers on the EDGE (ADR 0075)
+
+A number that belongs to an ordered PAIR — relationship strength, stack
+quantity, per-market price, per-route travel cost — goes on the edge, not
+in either endpoint's state:
+
+```json
+{"type": "relate", "relation": "held_by", "from": "potion", "to": "player",
+ "state": {"qty": 3}}
+{"type": "relation_add", "relation": "knows", "from": "actor", "to": "target",
+ "field": "trust", "amount": 5}
+```
+
+Query it with the reserved `_edge` key; it constrains the same edge the
+nested entity query matches:
+
+```json
+{"relations": {"knows": {"_edge": {"trust_gte": 60}, "tags_all": ["merchant"]}}}
+```
+
+❌ **Don't mirror it into entity state** (`state.trust_<other_id>`). That
+blob is O(N²), it is UNQUERYABLE (the field name isn't known until
+runtime, so no `state:` filter can express it), and it desyncs on despawn —
+`clear_entity` drops the edge but leaves the mirrored field behind.
+
+⚠️ **The edge's TARGET must exist as an entity.** `Query._check_single_relation`
+resolves each edge's `to` id through `env.entities` and SKIPS ids it can't
+resolve — so a `relations` clause pointing at a despawned or never-spawned
+entity silently matches nothing, with no error.
+
+**Gate**: `validate_rules.py` — `check_schema_field_landmines` (field names
+above) + `check_edge_state_clause` (`_edge` must be a dict; a non-dict is
+silently ignored and the filter vanishes, widening the match).
+
+**Empirical 2026-08-16**: relationship weight, stack quantity, and
+per-location price each had no home on the Relation primitive; all three
+were being faked in entity state. Same session, the test for the new query
+filter returned 0 matches until the edge target was spawned as an entity.
 
 `validate_rules.py` checks the common ones.
 

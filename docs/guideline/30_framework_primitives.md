@@ -426,6 +426,41 @@ and `(type, to)` for O(1) lookup in both directions.
 {"relations": {"on_square": {"properties": {"color": "white"}}}}
 ```
 
+**Edge state** (ADR 0075). Every edge carries an optional `state` dict — the
+fourth state scope, alongside `entity.state`, `zone.state` (ADR 0031), and
+`world_state` (ADR 0047). It makes a weighted graph expressible: a
+relationship strength, a stack quantity, a per-pair price or distance.
+
+```json
+{"type": "relate", "relation": "knows", "from": "a", "to": "b",
+ "state": {"trust": 10}}
+```
+
+Re-relating an existing edge MERGES `state` instead of no-op'ing, so an edge
+can be created and seeded in either order. Edge state dies with its edge and
+travels with it through `transfer_relation`.
+
+Three effects mutate it, named and shaped identically to the `state_*` and
+`zone_state_*` families (`amount`, never `delta`; `min`/`max`):
+
+```json
+{"type": "relation_set",   "relation": "knows", "from": "a", "to": "b", "field": "trust", "value": 50}
+{"type": "relation_add",   "relation": "knows", "from": "a", "to": "b", "field": "trust", "amount": 15}
+{"type": "relation_clamp", "relation": "knows", "from": "a", "to": "b", "field": "trust", "min": 0, "max": 100}
+```
+
+All three are no-ops on a missing edge — they never create graph structure.
+Creation stays `relate`'s job.
+
+Queries filter on it via the reserved `_edge` key inside the dict form. `_edge`
+constrains the EDGE; every other key stays the nested entity query:
+
+```json
+{"relations": {"knows": {"_edge": {"trust_gte": 60}, "tags_all": ["merchant"]}}}
+```
+
+Both must hold for the SAME edge. Absent `_edge`, behaviour is unchanged.
+
 **Effect integration.** Three new effect types:
 
 | Effect | Does |

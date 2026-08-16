@@ -360,7 +360,10 @@ static func relate(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
 	if type == "" or from_id == "" or to_id == "":
 		return
-	store.relate(type, from_id, to_id)
+	# ADR 0075 — optional edge state. Re-relating merges, so this doubles as
+	# "seed these fields on the edge, creating it if absent".
+	var seed = e.get("state", {})
+	store.relate(type, from_id, to_id, (seed as Dictionary) if seed is Dictionary else {})
 
 
 static func unrelate(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
@@ -389,6 +392,75 @@ static func transfer_relation(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 		store.transfer_to(type, from_id, to_id, EffectResolution.resolve_id(e["new_to"], ctx))
 	elif e.has("new_from"):
 		store.transfer_from(type, from_id, EffectResolution.resolve_id(e["new_from"], ctx), to_id)
+
+
+# ============================================================
+# RELATION STATE EFFECTS (ADR 0075)
+# ============================================================
+#
+# The fourth state scope. Field names mirror the state_* / zone_state_*
+# families exactly — `amount` (never `delta`), `min`/`max` — so authors
+# transfer knowledge between scopes instead of memorising three dialects.
+#
+# All three are no-ops on a missing edge: they never CREATE graph structure,
+# so a typo'd `relation` can't silently manufacture an edge. Creation stays
+# `relate`'s job.
+
+
+## Resolve the (type, from, to) triple these three effects share. Returns an
+## empty type when any part is unresolvable, which the callers treat as "skip".
+static func _relation_triple(e: Dictionary, ctx: Dictionary) -> Array:
+	var type := str(e.get("relation", ""))
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	if type == "" or from_id == "" or to_id == "":
+		return ["", "", ""]
+	return [type, from_id, to_id]
+
+
+static func relation_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var store: RelationStore = env.get("relations", null)
+	if store == null:
+		return
+	var t: Array = _relation_triple(e, ctx)
+	if t[0] == "":
+		return
+	store.set_edge_field(
+		t[0], t[1], t[2], str(e.get("field", "")), EffectResolution.value(e.get("value"), ctx, env)
+	)
+
+
+static func relation_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var store: RelationStore = env.get("relations", null)
+	if store == null:
+		return
+	var t: Array = _relation_triple(e, ctx)
+	if t[0] == "":
+		return
+	store.add_edge_field(
+		t[0],
+		t[1],
+		t[2],
+		str(e.get("field", "")),
+		float(EffectResolution.value(e.get("amount"), ctx, env))
+	)
+
+
+static func relation_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var store: RelationStore = env.get("relations", null)
+	if store == null:
+		return
+	var t: Array = _relation_triple(e, ctx)
+	if t[0] == "":
+		return
+	store.clamp_edge_field(
+		t[0],
+		t[1],
+		t[2],
+		str(e.get("field", "")),
+		float(e.get("min", -INF)),
+		float(e.get("max", INF))
+	)
 
 
 # ============================================================

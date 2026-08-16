@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-06-06T23:39:30+00:00_
+_Generated: 2026-08-16T18:04:06+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -18,11 +18,11 @@ should reference this file instead of hand-edited markdown.
 
 Valid `rule.trigger.type` strings:
 
-`tick`, `frame_tick`, `contact`, `signal`, `input`, `spawn`, `despawn`, `relation_changed`, `scheduled`
+`tick`, `frame_tick`, `contact`, `signal`, `input`, `spawn`, `despawn`, `relation_changed`, `scheduled`, `overlap`
 
 ## Effect types
 
-59 effect types (used as `rule.effect[].type`):
+62 effect types (used as `rule.effect[].type`):
 
 - `state_set` — `effect_apply.gd`
 - `state_add` — `effect_apply.gd`
@@ -37,6 +37,9 @@ Valid `rule.trigger.type` strings:
 - `relate` — `effect_apply.gd`
 - `unrelate` — `effect_apply.gd`
 - `transfer_relation` — `effect_apply.gd`
+- `relation_set` — `effect_apply.gd`
+- `relation_add` — `effect_apply.gd`
+- `relation_clamp` — `effect_apply.gd`
 - `tag_add` — `effect_apply.gd`
 - `tag_remove` — `effect_apply.gd`
 - `velocity_set` — `effect_apply.gd`

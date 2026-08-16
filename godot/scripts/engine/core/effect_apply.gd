@@ -67,6 +67,12 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 			EffectCore.unrelate(effect, env, context)
 		"transfer_relation":
 			EffectCore.transfer_relation(effect, env, context)
+		"relation_set":
+			EffectCore.relation_set(effect, env, context)
+		"relation_add":
+			EffectCore.relation_add(effect, env, context)
+		"relation_clamp":
+			EffectCore.relation_clamp(effect, env, context)
 		"tag_add":
 			EffectCore.tag_add(effect, env, context)
 		"tag_remove":
@@ -171,7 +177,8 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 				(
 					"Use one of: state_set, state_add, state_mul, state_clamp,"
 					+ " zone_state_set, zone_state_add, zone_state_clamp, spawn, remove,"
-					+ " transform, relate, unrelate, transfer_relation, tag_add, tag_remove,"
+					+ " transform, relate, unrelate, transfer_relation,"
+					+ " relation_set, relation_add, relation_clamp, tag_add, tag_remove,"
 					+ " velocity_set, velocity_lerp, velocity_set_relative,"
 					+ " velocity_add_relative, pathfind_to, raycast_hit, transition_level,"
 					+ " emit, array_set_at, array_insert_first_empty,"

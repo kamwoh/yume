@@ -48,6 +48,11 @@ const OPERATOR_SUFFIXES: Array = [
 # (ADR 0040, where target is array) are handled as separate suffix branches
 # in _match_fields rather than via the scalar-comparison loop above.
 
+## ADR 0075 — reserved key inside a `relations` dict target. Filters the
+## EDGE's state rather than the related entity's. The `_` prefix marks the
+## engine-reserved namespace inside a query dict, matching `_comment`.
+const EDGE_STATE_KEY: String = "_edge"
+
 # ============================================================
 # PUBLIC
 # ============================================================
@@ -284,13 +289,30 @@ static func _check_single_relation(
 			return false
 		return store.has_edge(rel_type, entity.instance_id, target_id)
 	# Dict target: nested query — does SOME related entity match?
+	#
+	# ADR 0075: the reserved `_edge` key filters the EDGE's own state with the
+	# standard operator suffixes; every OTHER key stays the nested entity query
+	# it has always been. Both must hold for the SAME edge, which is why the
+	# edge check lives inside this loop rather than beside it.
 	if target is Dictionary:
 		var entities: Dictionary = env.get("entities", {})
+		var edge_spec: Dictionary = {}
+		var entity_spec: Dictionary = target
+		if target.has(EDGE_STATE_KEY):
+			var raw = target[EDGE_STATE_KEY]
+			edge_spec = (raw as Dictionary) if raw is Dictionary else {}
+			entity_spec = target.duplicate()
+			entity_spec.erase(EDGE_STATE_KEY)
 		for cid in store.targets(rel_type, entity.instance_id):
 			if not entities.has(cid):
 				continue
+			if not edge_spec.is_empty():
+				if not _match_fields(
+					store.edge_state(rel_type, entity.instance_id, str(cid)), edge_spec
+				):
+					continue
 			var candidate = entities[cid]
-			if candidate is Entity and matches(candidate, target, env, context):
+			if candidate is Entity and matches(candidate, entity_spec, env, context):
 				return true
 		return false
 	return false

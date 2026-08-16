@@ -444,6 +444,67 @@ def check_schema_field_landmines(rule, errors):
                     "spawn effect uses `def` — engine reads `template`. "
                     "Rename `def` → `template`.",
                 ))
+        # ADR 0075 — relation state. Same landmine class as state_add: the
+        # engine reads `amount`, and a `delta` silently applies nothing.
+        # `relation` (not `type`/`rel`) names the edge type, matching the
+        # existing relate/unrelate/transfer_relation effects.
+        elif t in ("relation_set", "relation_add", "relation_clamp"):
+            if "relation" not in eff:
+                wrong = next((k for k in ("type_name", "rel", "relation_type") if k in eff), None)
+                hint = f" Rename `{wrong}` → `relation`." if wrong else ""
+                errors.append((
+                    rule_id, f"effect[{i}]",
+                    f"{t} effect has no `relation` field — engine reads `relation` "
+                    f"to name the edge type (same as relate/unrelate).{hint}",
+                ))
+            if "field" not in eff:
+                errors.append((
+                    rule_id, f"effect[{i}]",
+                    f"{t} effect has no `field` — nothing on the edge would be written.",
+                ))
+            if t == "relation_add" and "amount" not in eff and "delta" in eff:
+                errors.append((
+                    rule_id, f"effect[{i}]",
+                    "relation_add effect uses `delta` — engine reads `amount`. "
+                    "Rename `delta` → `amount`.",
+                ))
+            if t == "relation_clamp" and "min" not in eff and "max" not in eff:
+                errors.append((
+                    rule_id, f"effect[{i}]",
+                    "relation_clamp effect has neither `min` nor `max` — it is a no-op.",
+                ))
+
+
+def check_edge_state_clause(rule, errors):
+    """ADR 0075 — the reserved `_edge` key inside a `relations` query clause
+    must be a dict of field filters. A non-dict `_edge` is silently ignored by
+    Query._check_single_relation, so the rule matches MORE entities than the
+    author intended (the edge filter just vanishes) — exactly the silent-widen
+    failure mode this validator bank exists to catch.
+    """
+    rule_id = rule.get("id", "<unnamed>")
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            rels = node.get("relations")
+            if isinstance(rels, dict):
+                for rel_type, target in rels.items():
+                    if isinstance(target, dict) and "_edge" in target:
+                        if not isinstance(target["_edge"], dict):
+                            errors.append((
+                                rule_id, f"{path}.relations.{rel_type}._edge",
+                                "`_edge` must be a dict of field filters "
+                                "(e.g. {\"trust_gte\": 60}); a non-dict is "
+                                "silently ignored and the edge filter vanishes.",
+                            ))
+            for k, v in node.items():
+                walk(v, f"{path}.{k}")
+        elif isinstance(node, list):
+            for idx, v in enumerate(node):
+                walk(v, f"{path}[{idx}]")
+
+    walk(rule.get("query"), "query")
+    walk(rule.get("require"), "require")
 
 
 # ============================================================
@@ -624,6 +685,7 @@ def validate_game(game_dir):
             check_schema_field_landmines(rule, r_errors)
             check_effect_read_after_write(rule, r_errors)
             check_emit_signal_fields(rule, r_errors)
+            check_edge_state_clause(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

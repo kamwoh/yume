@@ -24,6 +24,7 @@ func _ready() -> void:
 	test_rule()
 	test_frame_tick()
 	test_relation_store()
+	test_relation_state()
 	test_query()
 	test_effect_apply()
 	test_schema_validator()
@@ -405,6 +406,221 @@ func test_relation_store() -> void:
 	s2.restore(snap)
 	expect(s2.has_edge("ally", "alice", "bob"), "restore preserves edge")
 	expect(s2.has_edge("held_by", "shield", "alice"), "restore preserves multiple types")
+
+
+## ADR 0075 — edge-scoped state store. Relation is the fourth state scope
+## (entity.state / zone.state / world_state / relation.state).
+func test_relation_state() -> void:
+	_section("relation_state (ADR 0075)")
+
+	# ---------- 1. relate carries initial state ----------
+	var s := RelationStore.new()
+	s.relate("knows", "a", "b", {"trust": 10, "met_on": 3})
+	expect_eq(int(s.edge_state("knows", "a", "b").get("trust", -1)), 10, "relate seeds edge state")
+	expect_eq(int(s.edge_state("knows", "a", "b").get("met_on", -1)), 3, "relate seeds all fields")
+
+	# ---------- 2. re-relate MERGES instead of no-op'ing ----------
+	s.relate("knows", "a", "b", {"trust": 50})
+	expect_eq(int(s.edge_state("knows", "a", "b").get("trust", -1)), 50, "re-relate overwrites field")
+	expect_eq(int(s.edge_state("knows", "a", "b").get("met_on", -1)), 3, "re-relate keeps other fields")
+	expect_eq(s.count("knows"), 1, "re-relate still dedups the edge itself")
+
+	# ---------- 3. field mutators ----------
+	expect(s.add_edge_field("knows", "a", "b", "trust", 15), "add_edge_field reports success")
+	expect_eq(int(s.edge_state("knows", "a", "b").get("trust", -1)), 65, "add_edge_field accumulates")
+	expect(s.set_edge_field("knows", "a", "b", "trust", 200), "set_edge_field reports success")
+	expect(s.clamp_edge_field("knows", "a", "b", "trust", 0, 100), "clamp_edge_field reports success")
+	expect_eq(int(s.edge_state("knows", "a", "b").get("trust", -1)), 100, "clamp_edge_field caps high")
+
+	# ---------- 4. mutators never CREATE an edge ----------
+	expect(not s.add_edge_field("knows", "a", "ghost", "trust", 5), "add on missing edge fails")
+	expect(not s.has_edge("knows", "a", "ghost"), "failed add created no edge")
+	expect(s.edge_state("knows", "a", "ghost").is_empty(), "missing edge has empty state")
+
+	# ---------- 5. state dies with the edge ----------
+	s.unrelate("knows", "a", "b")
+	expect(s.edge_state("knows", "a", "b").is_empty(), "unrelate drops edge state")
+	s.relate("knows", "a", "b", {"trust": 7})
+	s.clear_entity("a")
+	expect(s.edge_state("knows", "a", "b").is_empty(), "clear_entity drops edge state")
+
+	# ---------- 6. snapshot / restore round-trip ----------
+	var s3 := RelationStore.new()
+	s3.relate("knows", "a", "b", {"trust": 65})
+	s3.relate("ally", "a", "c")  # stateless edge
+	var snap: Array = s3.snapshot()
+	var s4 := RelationStore.new()
+	s4.restore(snap)
+	expect_eq(int(s4.edge_state("knows", "a", "b").get("trust", -1)), 65, "restore preserves edge state")
+	expect(s4.has_edge("ally", "a", "c"), "restore preserves stateless edge")
+	expect(s4.edge_state("ally", "a", "c").is_empty(), "stateless edge restores with empty state")
+
+	# ---------- 7. legacy snapshots (no `state` key) still load ----------
+	var s5 := RelationStore.new()
+	s5.restore([{"type": "knows", "from": "x", "to": "y"}])
+	expect(s5.has_edge("knows", "x", "y"), "legacy snapshot element restores the edge")
+	expect(s5.edge_state("knows", "x", "y").is_empty(), "legacy snapshot element yields empty state")
+
+	# ---------- 8. query `_edge` sub-filter ----------
+	var defs := {
+		"npc": {"id": "npc", "tags": ["npc"], "state_init": {}},
+		"merchant": {"id": "merchant", "tags": ["npc", "merchant"], "state_init": {}},
+		"player": {"id": "player", "tags": ["player"], "state_init": {}},
+	}
+	var entities := {}
+	var na := Entity.create(defs.merchant, "npc_a")
+	var nb := Entity.create(defs.npc, "npc_b")
+	var nc := Entity.create(defs.merchant, "npc_c")
+	# The relation walk resolves each edge's TARGET id through env.entities and
+	# skips ids it can't resolve — so the edge target must exist as an entity or
+	# every `relations` clause silently matches nothing.
+	var pl := Entity.create(defs.player, "player")
+	entities["npc_a"] = na
+	entities["npc_b"] = nb
+	entities["npc_c"] = nc
+	entities["player"] = pl
+	var rs := RelationStore.new()
+	rs.relate("knows", "npc_a", "player", {"trust": 80})
+	rs.relate("knows", "npc_b", "player", {"trust": 20})
+	rs.relate("knows", "npc_c", "player", {"trust": 30})
+	var qenv := {"entities": entities, "relations": rs}
+
+	var q_all := QueryLib.run({"relations": {"knows": {}}}, qenv)
+	expect_eq(q_all.size(), 3, "relations clause without _edge is unchanged (back-compat)")
+
+	var q_hi := QueryLib.run({"relations": {"knows": {"_edge": {"trust_gte": 60}}}}, qenv)
+	expect_eq(q_hi.size(), 1, "_edge trust_gte 60 narrows to one")
+	expect_eq((q_hi[0] as Entity).instance_id, "npc_a", "_edge picks the high-trust edge")
+
+	var q_mid := QueryLib.run({"relations": {"knows": {"_edge": {"trust_gte": 25}}}}, qenv)
+	expect_eq(q_mid.size(), 2, "_edge trust_gte 25 matches two")
+
+	# The nested dict describes the edge's TARGET (what you know), while the
+	# outer clauses describe the matched entity (who knows it). Both must hold
+	# for the SAME edge as the `_edge` filter.
+	var q_both := QueryLib.run(
+		{
+			"tags_all": ["merchant"],
+			"relations": {"knows": {"_edge": {"trust_gte": 25}, "tags_all": ["player"]}}
+		},
+		qenv
+	)
+	expect_eq(q_both.size(), 2, "_edge composes with the nested entity query")
+
+	var q_wrong_target := QueryLib.run(
+		{"relations": {"knows": {"_edge": {"trust_gte": 25}, "tags_all": ["merchant"]}}}, qenv
+	)
+	expect_eq(q_wrong_target.size(), 0, "nested query constrains the edge TARGET, not the matched entity")
+
+	var q_none := QueryLib.run(
+		{"relations": {"knows": {"_edge": {"trust_gte": 90}}}}, qenv
+	)
+	expect_eq(q_none.size(), 0, "_edge with no satisfying edge matches nothing")
+
+	# Strict-missing semantics: unknown edge field never matches.
+	var q_missing := QueryLib.run({"relations": {"knows": {"_edge": {"nonexistent_gte": 0}}}}, qenv)
+	expect_eq(q_missing.size(), 0, "_edge missing field = no match (strict)")
+
+	# ---------- 9. effect dispatch arms ----------
+	var eenv := {"entities": entities, "relations": rs, "world": {}}
+	EffectApply.apply(
+		{
+			"type": "relation_add",
+			"relation": "knows",
+			"from": "npc_b",
+			"to": "player",
+			"field": "trust",
+			"amount": 45
+		},
+		eenv,
+		{}
+	)
+	expect_eq(
+		int(rs.edge_state("knows", "npc_b", "player").get("trust", -1)),
+		65,
+		"relation_add effect mutates the edge"
+	)
+	EffectApply.apply(
+		{
+			"type": "relation_set",
+			"relation": "knows",
+			"from": "npc_b",
+			"to": "player",
+			"field": "trust",
+			"value": 130
+		},
+		eenv,
+		{}
+	)
+	expect_eq(
+		int(rs.edge_state("knows", "npc_b", "player").get("trust", -1)),
+		130,
+		"relation_set effect writes the edge"
+	)
+	EffectApply.apply(
+		{
+			"type": "relation_clamp",
+			"relation": "knows",
+			"from": "npc_b",
+			"to": "player",
+			"field": "trust",
+			"min": 0,
+			"max": 100
+		},
+		eenv,
+		{}
+	)
+	expect_eq(
+		int(rs.edge_state("knows", "npc_b", "player").get("trust", -1)),
+		100,
+		"relation_clamp effect caps the edge"
+	)
+
+	# Effects resolve `from`/`to` through context bindings, like relate does.
+	# The engine binds `self` to an id STRING (phase_scheduler.gd:612 —
+	# `ctx["self"] = ent.instance_id`, with the Entity itself under
+	# `self_entity`), so resolve_id does a plain dict lookup. Passing an Entity
+	# here would stringify to <Entity#...> and silently resolve to nothing.
+	EffectApply.apply(
+		{
+			"type": "relation_add",
+			"relation": "knows",
+			"from": "self",
+			"to": "player",
+			"field": "trust",
+			"amount": 5
+		},
+		eenv,
+		{"self": "npc_a"}
+	)
+	expect_eq(
+		int(rs.edge_state("knows", "npc_a", "player").get("trust", -1)),
+		85,
+		"relation effects resolve `self` binding for from/to"
+	)
+
+	# `relate` effect seeds state through the same dispatch path.
+	EffectApply.apply(
+		{
+			"type": "relate",
+			"relation": "rivals",
+			"from": "npc_a",
+			"to": "npc_c",
+			"state": {"tension": 12}
+		},
+		eenv,
+		{}
+	)
+	expect_eq(
+		int(rs.edge_state("rivals", "npc_a", "npc_c").get("tension", -1)),
+		12,
+		"relate effect seeds edge state"
+	)
+
+	na.free()
+	nb.free()
+	nc.free()
+	pl.free()
 
 
 # ============================================================

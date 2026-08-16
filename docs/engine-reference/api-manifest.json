@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-06-06T23:39:30+00:00",
+  "generated_at": "2026-08-16T18:04:06+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -24,7 +24,8 @@
     "spawn",
     "despawn",
     "relation_changed",
-    "scheduled"
+    "scheduled",
+    "overlap"
   ],
   "effects": [
     {
@@ -77,6 +78,18 @@
     },
     {
       "type": "transfer_relation",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "relation_set",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "relation_add",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "relation_clamp",
       "source": "effect_apply.gd"
     },
     {
