@@ -434,3 +434,9 @@ func load_grid_cfg() -> void:
 	var cfg: Dictionary = json.data
 	if cfg.get("grid", null) is Dictionary:
 		_world._grid_cfg = cfg["grid"]
+	# ADR 0079 — simulation tiers. `simulation.embodied_radius` is the
+	# distance inside which entities are `embodied`. Absent or <= 0 means
+	# every entity is embodied, i.e. the pre-0079 behaviour.
+	if cfg.get("simulation", null) is Dictionary and _world.scheduler != null:
+		var sim: Dictionary = cfg["simulation"]
+		_world.scheduler.env["embodied_radius"] = float(sim.get("embodied_radius", 0.0))

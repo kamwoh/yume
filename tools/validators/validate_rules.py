@@ -511,6 +511,56 @@ def check_once_fields(rule, errors):
             ))
 
 
+def check_scope_vs_presentation(rule, errors):
+    """ADR 0079 — a rule scoped `abstract` must not use presentation effects.
+
+    An abstract-tier entity is defined as one that does not need a body.
+    Driving `velocity_*` / `pathfind_to` / `raycast_hit` on it is therefore
+    incoherent, and it fails QUIETLY: the effect applies to state nothing is
+    reading, so the author sees no movement and no error.
+
+    Also catches an unrecognised `scope` value, which falls back to firing on
+    both tiers — i.e. the author intends a tier filter and silently gets none.
+    """
+    rule_id = rule.get("id", "<unnamed>")
+    scope = str(rule.get("scope", "") or "")
+    if not scope:
+        return
+    if scope not in ("abstract", "embodied"):
+        errors.append((
+            rule_id, "scope",
+            f"`scope: {scope}` is not a tier — use \"abstract\" or \"embodied\". "
+            f"An unrecognised value falls back to firing on BOTH tiers, so the "
+            f"filter the author intended silently does nothing.",
+        ))
+        return
+    if scope != "abstract":
+        return
+
+    presentation = {
+        "velocity_set", "velocity_lerp", "velocity_set_relative",
+        "velocity_add_relative", "pathfind_to", "raycast_hit",
+    }
+    effects = rule.get("effect", [])
+    if isinstance(effects, dict):
+        effects = [effects]
+    if not isinstance(effects, list):
+        return
+    for i, eff in enumerate(effects):
+        if not isinstance(eff, dict):
+            continue
+        t = str(eff.get("type", ""))
+        if t in presentation:
+            errors.append((
+                rule_id, f"effect[{i}]",
+                f"`{t}` is a presentation effect but this rule is "
+                f"`scope: \"abstract\"` — abstract-tier entities are defined as "
+                f"not needing a body, so this applies to state nothing reads and "
+                f"fails silently. Scope it \"embodied\", or express the movement "
+                f"as a state change.",
+            ))
+
+
 def check_edge_state_clause(rule, errors):
     """ADR 0075 — the reserved `_edge` key inside a `relations` query clause
     must be a dict of field filters. A non-dict `_edge` is silently ignored by
@@ -723,6 +773,7 @@ def validate_game(game_dir):
             check_emit_signal_fields(rule, r_errors)
             check_edge_state_clause(rule, r_errors)
             check_once_fields(rule, r_errors)
+            check_scope_vs_presentation(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

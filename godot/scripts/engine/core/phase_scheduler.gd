@@ -630,6 +630,11 @@ func _fire_scan_rule(rule: Rule) -> void:
 			# for tick_slowed fallback mode.
 			if rule.lod is Dictionary and not _lod_should_fire(rule, ent):
 				continue
+			# ADR 0079: simulation-tier filter. Complements the per-rule LOD
+			# above — `lod` refines ONE rule's cadence; `scope` says which
+			# tier of entity this rule is about at all.
+			if not _scope_allows(rule, ent as Entity):
+				continue
 			var ctx := base_ctx.duplicate()
 			ctx["self"] = (ent as Entity).instance_id
 			ctx["self_entity"] = ent
@@ -820,6 +825,53 @@ func _compute_lod_anchor() -> void:
 			anchor = (ent as Entity).get_planar_position()
 			break
 	env["lod_anchor_position"] = anchor
+
+
+# ============================================================
+# SIMULATION TIERS (ADR 0079)
+# ============================================================
+
+## Tier vocabulary. `""` on a rule means "both" — every pre-0079 rule.
+const TIER_EMBODIED: String = "embodied"
+const TIER_ABSTRACT: String = "abstract"
+
+## Per-entity hysteresis latch so an entity pacing the boundary doesn't
+## flicker between tiers. entity_id → bool (currently embodied).
+var _tier_state: Dictionary = {}
+
+## Fraction of embodied_radius added before an embodied entity demotes.
+const TIER_HYSTERESIS: float = 1.10
+
+
+## Derive an entity's simulation tier. DERIVED, never authored — there is
+## deliberately no per-def override (no-escape-hatch invariant): an override
+## would let one def opt out of the derivation and silently drift.
+##
+## No radius configured, or no anchor (no active actor), means everything is
+## embodied — i.e. exactly the pre-0079 behaviour.
+func _entity_tier(ent: Entity) -> String:
+	var radius := float(env.get("embodied_radius", 0.0))
+	if radius <= 0.0:
+		return TIER_EMBODIED
+	var anchor = env.get("lod_anchor_position", null)
+	if anchor == null:
+		return TIER_EMBODIED
+	var d := (ent.get_planar_position() as Vector2).distance_to(anchor as Vector2)
+	var was_embodied: bool = bool(_tier_state.get(ent.instance_id, true))
+	# Hysteresis: promote at the radius, demote only past the wider band.
+	var now_embodied: bool = d <= (radius * TIER_HYSTERESIS) if was_embodied else d <= radius
+	_tier_state[ent.instance_id] = now_embodied
+	return TIER_EMBODIED if now_embodied else TIER_ABSTRACT
+
+
+## Does this rule's `scope` admit this entity's tier?
+## Unset scope = both tiers = every rule written before ADR 0079.
+func _scope_allows(rule: Rule, ent: Entity) -> bool:
+	if rule.scope == "":
+		return true
+	if rule.scope != TIER_EMBODIED and rule.scope != TIER_ABSTRACT:
+		return true  # unknown value — don't silently drop the rule
+	return rule.scope == _entity_tier(ent)
 
 
 ## Decide if an LOD-tagged rule should fire on the given entity this tick.

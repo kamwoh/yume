@@ -54,6 +54,7 @@ func _ready() -> void:
 	test_rule_once()
 	test_level_subroutine()
 	test_calendar_clock()
+	test_sim_tiers()
 	test_save_state()
 	test_overlay_effects()
 	test_spatial_lod()
@@ -2494,6 +2495,182 @@ func test_transition_level_fade() -> void:
 
 ## Spot-check ControlFactory builds correct Godot Control types for each
 ## element kind. Free nodes after to avoid ObjectDB leaks.
+## ADR 0079 — simulation tiers. Tier is DERIVED from distance to the LOD
+## anchor; `Rule.scope` (previously a dead field) selects which tier a rule
+## applies to. Phase 1 = dispatch filtering; presentation detach is Phase 2.
+func test_sim_tiers() -> void:
+	_section("sim_tiers (ADR 0079)")
+
+	var defs := {
+		"player": {"id": "player", "tags": ["player"], "state_init": {}},
+		"npc": {"id": "npc", "tags": ["npc"], "state_init": {"near": 0, "far": 0, "both": 0}},
+	}
+
+	# player at origin; near npc at 5 units, far npc at 500.
+	var ents := {}
+	var pl := Entity.create(defs.player, "pl")
+	pl.set_position(Vector2(0, 0))
+	var near := Entity.create(defs.npc, "near_npc")
+	near.set_position(Vector2(5, 0))
+	var far := Entity.create(defs.npc, "far_npc")
+	far.set_position(Vector2(500, 0))
+	ents["pl"] = pl
+	ents["near_npc"] = near
+	ents["far_npc"] = far
+
+	var env: Dictionary = {
+		"entities": ents,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+		"embodied_radius": 50.0,
+	}
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "near_only",
+					"scope": "embodied",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["npc"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "near", "amount": 1}]
+				}
+			),
+			Rule.from_dict(
+				{
+					"id": "far_only",
+					"scope": "abstract",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["npc"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "far", "amount": 1}]
+				}
+			),
+			Rule.from_dict(
+				{
+					"id": "unscoped",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["npc"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "both", "amount": 1}]
+				}
+			),
+		]
+	)
+
+	sched.tick()
+
+	# ---------- 1. scope routes rules by derived tier ----------
+	expect_eq(int(near.get_state("near", -1)), 1, "embodied-scoped rule fires on the near entity")
+	expect_eq(int(near.get_state("far", -1)), 0, "abstract-scoped rule skips the near entity")
+	expect_eq(int(far.get_state("far", -1)), 1, "abstract-scoped rule fires on the far entity")
+	expect_eq(int(far.get_state("near", -1)), 0, "embodied-scoped rule skips the far entity")
+
+	# ---------- 2. unset scope = both tiers (every pre-0079 rule) ----------
+	expect_eq(int(near.get_state("both", -1)), 1, "unscoped rule fires on the near entity")
+	expect_eq(int(far.get_state("both", -1)), 1, "unscoped rule fires on the far entity too")
+
+	# ---------- 3. no radius configured → everything embodied ----------
+	# This is the back-compat path: every existing demo omits `simulation`,
+	# so no entity may be treated as abstract.
+	var ents2 := {}
+	var pl2 := Entity.create(defs.player, "pl")
+	pl2.set_position(Vector2(0, 0))
+	var far2 := Entity.create(defs.npc, "far_npc")
+	far2.set_position(Vector2(9999, 0))
+	ents2["pl"] = pl2
+	ents2["far_npc"] = far2
+	var env2: Dictionary = {
+		"entities": ents2,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched2 := PhaseScheduler.new(env2)
+	sched2.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "near_only",
+					"scope": "embodied",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["npc"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "near", "amount": 1}]
+				}
+			)
+		]
+	)
+	sched2.tick()
+	expect_eq(
+		int(far2.get_state("near", -1)),
+		1,
+		"no embodied_radius → every entity is embodied (pre-0079 behaviour)"
+	)
+
+	# ---------- 4. hysteresis: no flicker at the boundary ----------
+	# An entity just past the radius but inside the widened band stays
+	# embodied; only past the band does it demote.
+	near.set_position(Vector2(52, 0))  # > 50, < 55
+	sched.tick()
+	expect_eq(
+		int(near.get_state("near", -1)), 2, "just past the radius, an embodied entity stays embodied"
+	)
+	near.set_position(Vector2(80, 0))  # past the band
+	sched.tick()
+	expect_eq(int(near.get_state("near", -1)), 2, "past the hysteresis band it demotes to abstract")
+	expect_eq(int(near.get_state("far", -1)), 1, "...and abstract-scoped rules pick it up")
+
+	# ---------- 5. an unknown scope value never silently drops the rule ----------
+	var ents3 := {}
+	var pl3 := Entity.create(defs.player, "pl")
+	pl3.set_position(Vector2(0, 0))
+	var n3 := Entity.create(defs.npc, "n3")
+	n3.set_position(Vector2(1000, 0))
+	ents3["pl"] = pl3
+	ents3["n3"] = n3
+	var env3: Dictionary = {
+		"entities": ents3,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+		"embodied_radius": 50.0,
+	}
+	var sched3 := PhaseScheduler.new(env3)
+	sched3.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "typo_scope",
+					"scope": "embodyed",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["npc"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "both", "amount": 1}]
+				}
+			)
+		]
+	)
+	sched3.tick()
+	expect_eq(
+		int(n3.get_state("both", -1)), 1, "an unrecognised scope value falls back to firing, not silence"
+	)
+
+	pl.free()
+	near.free()
+	far.free()
+	pl2.free()
+	far2.free()
+	pl3.free()
+	n3.free()
+
+
 ## ADR 0078 — the calendar clock. A SECOND clock with no real-time duration,
 ## advanced only by `advance_time`. The 60Hz heartbeat is untouched.
 func test_calendar_clock() -> void:
