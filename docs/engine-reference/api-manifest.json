@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-08-16T18:25:20+00:00",
+  "generated_at": "2026-08-16T18:30:57+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -372,6 +372,10 @@
     {
       "constant": "RULE_CHANCE_OUT_OF_RANGE",
       "code": "rule.chance_out_of_range"
+    },
+    {
+      "constant": "RULE_ONCE_CONFLICT",
+      "code": "rule.once_conflict"
     },
     {
       "constant": "EFFECT_UNKNOWN_TYPE",

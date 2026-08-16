@@ -37,6 +37,9 @@ const RULE_EFFECT_EMPTY := "rule.effect_empty"
 const RULE_EFFECT_NOT_DICT := "rule.effect_not_dict"
 const RULE_EFFECT_MISSING_TYPE := "rule.effect_missing_type"
 const RULE_CHANCE_OUT_OF_RANGE := "rule.chance_out_of_range"
+## ADR 0080 — `once` and `once_per` are different quantifiers over the same
+## rule; combining them has no coherent meaning.
+const RULE_ONCE_CONFLICT := "rule.once_conflict"
 
 const EFFECT_UNKNOWN_TYPE := "effect.unknown_type"
 const EFFECT_SPAWN_NO_DEF := "effect.spawn_no_def"

@@ -475,6 +475,42 @@ def check_schema_field_landmines(rule, errors):
                 ))
 
 
+def check_once_fields(rule, errors):
+    """ADR 0080 — the one-shot quantifiers.
+
+    (a) `once` + `once_per` together is meaningless; the engine raises
+        rule.once_conflict at load, and catching it here moves the failure
+        to author time.
+    (b) `once_per` must name a binding the TRIGGER actually populates. If it
+        doesn't, `_claim_once` finds an empty subject and degrades to
+        always-fire — i.e. the author writes a one-shot rule and silently
+        gets an every-tick rule. Same binding table the formula check uses.
+    """
+    rule_id = rule.get("id", "<unnamed>")
+    once = bool(rule.get("once", False))
+    once_per = str(rule.get("once_per", "") or "")
+
+    if once and once_per:
+        errors.append((
+            rule_id, "once_per",
+            "rule has both `once` and `once_per` — pick one. `once` = at most "
+            "once per world lifetime; `once_per: <binding>` = at most once per "
+            "distinct entity bound to that name.",
+        ))
+        return
+
+    if once_per:
+        available = compute_context_bindings(rule)
+        if once_per not in available:
+            errors.append((
+                rule_id, "once_per",
+                f"`once_per: {once_per}` names a binding this trigger never "
+                f"populates (available: {sorted(available)}). The engine finds "
+                f"no subject and falls back to firing EVERY time — the rule "
+                f"silently stops being one-shot.",
+            ))
+
+
 def check_edge_state_clause(rule, errors):
     """ADR 0075 — the reserved `_edge` key inside a `relations` query clause
     must be a dict of field filters. A non-dict `_edge` is silently ignored by
@@ -686,6 +722,7 @@ def validate_game(game_dir):
             check_effect_read_after_write(rule, r_errors)
             check_emit_signal_fields(rule, r_errors)
             check_edge_state_clause(rule, r_errors)
+            check_once_fields(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

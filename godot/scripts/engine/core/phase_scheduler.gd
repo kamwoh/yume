@@ -22,6 +22,12 @@ class_name PhaseScheduler
 
 const PHASES: Array[String] = ["input", "decide", "commit", "react"]
 
+## ADR 0080 — world-state key holding the one-shot ledger.
+##   {rule_id: true}                       for `once`
+##   {rule_id: {entity_id: true, ...}}     for `once_per`
+## Underscore-prefixed: engine bookkeeping, not content vocabulary.
+const FIRED_RULES_KEY: String = "_fired_rules"
+
 # ============================================================
 # STATE
 # ============================================================
@@ -376,8 +382,7 @@ func _phase_react() -> void:
 					var octx := {"a": a_id, "b": b_id, "self": a_id, "_phase": "react"}
 					if orule.require is Dictionary and not _require_ok(orule.require, octx):
 						continue
-					for oe in orule.effects:
-						_enqueue(oe, octx, orule.id)
+					_fire_effects(orule, octx)
 
 	# Drain relation_changed events that occurred since last drain.
 	if not _relation_changes.is_empty():
@@ -468,8 +473,7 @@ func _fire_contact_rule(rule: Rule) -> void:
 			}
 			if rule.require is Dictionary and not _require_ok(rule.require, ctx):
 				continue
-			for e in rule.effects:
-				_enqueue(e, ctx, rule.id)
+			_fire_effects(rule, ctx)
 			if once_per_a:
 				fired_for_a = true
 				break
@@ -563,13 +567,11 @@ func _fire_scan_rule(rule: Rule) -> void:
 			ctx["self_entity"] = ent
 			if rule.require is Dictionary and not _require_ok(rule.require, ctx):
 				continue
-			for e in rule.effects:
-				_enqueue(e, ctx, rule.id)
+			_fire_effects(rule, ctx)
 	else:
 		if rule.require is Dictionary and not _require_ok(rule.require, base_ctx):
 			return
-		for e in rule.effects:
-			_enqueue(e, base_ctx, rule.id)
+		_fire_effects(rule, base_ctx)
 
 
 ## Fire a rule whose context is supplied by an event payload (input, signal,
@@ -594,11 +596,9 @@ func _fire_payload_rule(rule: Rule, payload: Dictionary, phase: String) -> void:
 			var ctx := base_ctx.duplicate()
 			ctx["self"] = (ent as Entity).instance_id
 			ctx["self_entity"] = ent
-			for e in rule.effects:
-				_enqueue(e, ctx, rule.id)
+			_fire_effects(rule, ctx)
 	else:
-		for e in rule.effects:
-			_enqueue(e, base_ctx, rule.id)
+		_fire_effects(rule, base_ctx)
 
 
 ## Fire a lifecycle rule (spawn/despawn) — the rule's `self` is the
@@ -622,8 +622,7 @@ func _fire_lifecycle_rule(rule: Rule, entity_id: String, phase: String) -> void:
 	if rule.chance < 1.0 and randf() > rule.chance:
 		return
 
-	for e in rule.effects:
-		_enqueue(e, ctx, rule.id)
+	_fire_effects(rule, ctx)
 
 
 ## Validate every named context entity against its require-spec.
@@ -647,6 +646,58 @@ func _require_ok(req: Dictionary, ctx: Dictionary) -> bool:
 # ============================================================
 # EFFECT BUFFER
 # ============================================================
+
+
+## ADR 0080 — the single seam where a rule COMMITS its effects.
+##
+## Every firing path funnels here, which is what makes `once` / `once_per`
+## a one-line concept instead of seven duplicated checks. It is also why the
+## mark is written here rather than at match time: `chance` has already been
+## rolled by the caller, so a `chance: 0.1, once: true` rule burns its shot on
+## the roll that SUCCEEDS, not on the first roll that fails.
+func _fire_effects(rule: Rule, ctx: Dictionary) -> void:
+	if not _claim_once(rule, ctx):
+		return
+	for e in rule.effects:
+		_enqueue(e, ctx, rule.id)
+
+
+## Check-and-mark the one-shot ledger. Returns false when this rule (or this
+## rule/entity pair) has already fired.
+##
+## The ledger lives in world state so it persists through save/load for free
+## (ADR 0047) — reloading a save must not replay a story beat the player has
+## already seen. `reset_world` clears world state, so a new run sees them again.
+func _claim_once(rule: Rule, ctx: Dictionary) -> bool:
+	if not rule.once and rule.once_per == "":
+		return true
+	var world = env.get("world", null)
+	if not (world is Dictionary):
+		return true  # no world state to record in — degrade to always-fire
+	var ledger: Dictionary = world.get(FIRED_RULES_KEY, {})
+	if not (ledger is Dictionary):
+		ledger = {}
+	if rule.once:
+		if ledger.has(rule.id):
+			return false
+		ledger[rule.id] = true
+		world[FIRED_RULES_KEY] = ledger
+		return true
+	# once_per: at most once per distinct entity bound to that name.
+	var subject := str(ctx.get(rule.once_per, ""))
+	if subject == "":
+		# The trigger never populated that binding — firing unbounded would be
+		# worse than not firing, and the validator flags this at author time.
+		return true
+	var per: Dictionary = ledger.get(rule.id, {})
+	if not (per is Dictionary):
+		per = {}
+	if per.has(subject):
+		return false
+	per[subject] = true
+	ledger[rule.id] = per
+	world[FIRED_RULES_KEY] = ledger
+	return true
 
 
 func _enqueue(effect: Dictionary, ctx: Dictionary, from_rule: String) -> void:

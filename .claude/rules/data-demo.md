@@ -204,6 +204,34 @@ error). Caught during the merchant build at ~30-50 occurrences each:
 | `relation_set` | `relation` + `field` + `value` | ❌ `type` |
 | `relation_clamp` | `relation` + `field` + `min`/`max` | ❌ `type` |
 
+## One-shot rules — use `once`, not a sentinel field (ADR 0080)
+
+A rule that must fire at most once no longer needs the three-part
+sentinel pattern (`state_init` flag + query filter + extra `state_set`):
+
+```json
+{"id": "first_arrival", "once": true, "trigger": {...}, "effect": [...]}
+{"id": "greet_each", "once_per": "self", "trigger": {...}, "effect": [...]}
+```
+
+- `once` — at most once per world lifetime.
+- `once_per: "<binding>"` — at most once per distinct entity bound to
+  that name. Must be a binding the TRIGGER populates (see the trigger
+  binding table above).
+- Both together = `[rule.once_conflict]` at load.
+- The mark is written when the rule COMMITS its effects, so
+  `chance: 0.1, once: true` burns its shot on the roll that SUCCEEDS.
+- The ledger lives in world state (`_fired_rules`), so it persists with
+  the save — loading a save does not replay a beat the player has seen.
+  `reset_world` clears it.
+
+⚠️ **`once_per` naming a binding the trigger doesn't populate degrades to
+firing EVERY time** — the engine finds no subject, so the rule silently
+stops being one-shot.
+
+**Gate**: `validate_rules.py` — `check_once_fields` rejects both-set and
+checks `once_per` against the same binding table the formula check uses.
+
 ## Relation edge state — put pair-scoped numbers on the EDGE (ADR 0075)
 
 A number that belongs to an ordered PAIR — relationship strength, stack

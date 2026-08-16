@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-08-16T18:25:20+00:00_
+_Generated: 2026-08-16T18:30:57+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -119,7 +119,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 
 ## Error codes (Tier 2.6a)
 
-48 stable codes for matching in retry loops:
+49 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -135,6 +135,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `rule.effect_not_dict` | `EngineError.RULE_EFFECT_NOT_DICT` |
 | `rule.effect_missing_type` | `EngineError.RULE_EFFECT_MISSING_TYPE` |
 | `rule.chance_out_of_range` | `EngineError.RULE_CHANCE_OUT_OF_RANGE` |
+| `rule.once_conflict` | `EngineError.RULE_ONCE_CONFLICT` |
 | `effect.unknown_type` | `EngineError.EFFECT_UNKNOWN_TYPE` |
 | `effect.spawn_no_def` | `EngineError.EFFECT_SPAWN_NO_DEF` |
 | `effect.transform_no_def` | `EngineError.EFFECT_TRANSFORM_NO_DEF` |

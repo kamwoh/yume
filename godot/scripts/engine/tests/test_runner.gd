@@ -51,6 +51,7 @@ func _ready() -> void:
 	test_transition_level_fade()
 	test_control_factory()
 	test_ui_list_element()
+	test_rule_once()
 	test_save_state()
 	test_overlay_effects()
 	test_spatial_lod()
@@ -2491,6 +2492,188 @@ func test_transition_level_fade() -> void:
 
 ## Spot-check ControlFactory builds correct Godot Control types for each
 ## element kind. Free nodes after to avoid ObjectDB leaks.
+## ADR 0080 — `once` / `once_per` quantifiers on rule firing.
+func test_rule_once() -> void:
+	_section("rule_once (ADR 0080)")
+
+	var defs := {
+		"villager": {"id": "villager", "tags": ["villager"], "state_init": {"greeted": 0}},
+	}
+
+	# ---------- 1. `once` fires exactly once across many ticks ----------
+	var ents1 := {}
+	var v1 := Entity.create(defs.villager, "v1")
+	ents1["v1"] = v1
+	var env1: Dictionary = {
+		"entities": ents1,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched1 := PhaseScheduler.new(env1)
+	sched1.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "first_beat",
+					"once": true,
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["villager"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "greeted", "amount": 1}]
+				}
+			)
+		]
+	)
+	for i in range(5):
+		sched1.tick()
+	expect_eq(int(v1.get_state("greeted", -1)), 1, "`once` rule fires exactly once over 5 ticks")
+	expect(
+		(env1["world"] as Dictionary).has("_fired_rules"),
+		"`once` records into world state (so it persists with the save)"
+	)
+
+	# ---------- 2. `once_per` fires once per distinct entity ----------
+	var ents2 := {}
+	var a2 := Entity.create(defs.villager, "a")
+	var b2 := Entity.create(defs.villager, "b")
+	var c2 := Entity.create(defs.villager, "c")
+	ents2["a"] = a2
+	ents2["b"] = b2
+	ents2["c"] = c2
+	var env2: Dictionary = {
+		"entities": ents2,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched2 := PhaseScheduler.new(env2)
+	sched2.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "greet_each",
+					"once_per": "self",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["villager"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "greeted", "amount": 1}]
+				}
+			)
+		]
+	)
+	for i in range(4):
+		sched2.tick()
+	expect_eq(int(a2.get_state("greeted", -1)), 1, "once_per fired once for a")
+	expect_eq(int(b2.get_state("greeted", -1)), 1, "once_per fired once for b")
+	expect_eq(int(c2.get_state("greeted", -1)), 1, "once_per fired once for c")
+
+	# A newcomer still gets its own shot — the ledger is per (rule, entity).
+	var d2 := Entity.create(defs.villager, "d")
+	ents2["d"] = d2
+	sched2.tick()
+	expect_eq(int(d2.get_state("greeted", -1)), 1, "once_per still fires for an entity seen later")
+	expect_eq(int(a2.get_state("greeted", -1)), 1, "...without re-firing for the earlier ones")
+
+	# ---------- 3. the ledger survives a world-state round-trip ----------
+	# Persistence is what stops a save/load from replaying a story beat. The
+	# ledger lives in world state (ADR 0047), which the save system already
+	# serialises, so restoring it must suppress a re-fire.
+	var ents3 := {}
+	var v3 := Entity.create(defs.villager, "v3")
+	ents3["v3"] = v3
+	var carried: Dictionary = (env1["world"] as Dictionary).duplicate(true)
+	var env3: Dictionary = {
+		"entities": ents3,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": carried,
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched3 := PhaseScheduler.new(env3)
+	sched3.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "first_beat",
+					"once": true,
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["villager"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "greeted", "amount": 1}]
+				}
+			)
+		]
+	)
+	for i in range(3):
+		sched3.tick()
+	expect_eq(
+		int(v3.get_state("greeted", -1)),
+		0,
+		"a restored ledger suppresses the re-fire (no replayed story beats on load)"
+	)
+
+	# ---------- 4. ordinary rules are untouched ----------
+	var ents4 := {}
+	var v4 := Entity.create(defs.villager, "v4")
+	ents4["v4"] = v4
+	var env4: Dictionary = {
+		"entities": ents4,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched4 := PhaseScheduler.new(env4)
+	sched4.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "every_tick",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["villager"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "greeted", "amount": 1}]
+				}
+			)
+		]
+	)
+	for i in range(5):
+		sched4.tick()
+	expect_eq(int(v4.get_state("greeted", -1)), 5, "a rule without `once` still fires every tick")
+
+	# ---------- 5. `once` + `once_per` together is a load-time error ----------
+	var conflict := Rule.from_dict(
+		{
+			"id": "bad",
+			"once": true,
+			"once_per": "self",
+			"trigger": {"type": "tick"},
+			"effect": [{"type": "state_set", "field": "x", "value": 1}]
+		}
+	)
+	var errs: Array = Rule.validate_all([conflict])
+	var found := false
+	for e in errs:
+		if str((e as Dictionary).get("code", "")) == EngineError.RULE_ONCE_CONFLICT:
+			found = true
+	expect(found, "`once` + `once_per` together raises rule.once_conflict at load")
+
+	v1.free()
+	a2.free()
+	b2.free()
+	c2.free()
+	d2.free()
+	v3.free()
+	v4.free()
+
+
 ## ADR 0076 — the `list` element makes Query (primitive #6) a UI data source.
 func test_ui_list_element() -> void:
 	_section("ui_list_element (ADR 0076)")

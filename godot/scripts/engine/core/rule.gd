@@ -43,6 +43,14 @@ var effects: Array = []  # always an Array of effect dicts (singleton normalized
 var before_hints: Array[String] = []
 var after_hints: Array[String] = []
 var scope: String = ""
+## ADR 0080 — fire at most once per world lifetime. The mark is written when
+## the rule COMMITS its effects, not when it matches, so `once` + `chance`
+## means "burn the shot on the roll that succeeds" rather than "one roll ever".
+var once: bool = false
+## ADR 0080 — fire at most once per distinct entity bound to this name.
+## Any binding the trigger populates (`self`, `a`, `b`, `actor`, `target`, …).
+## Mutually exclusive with `once`.
+var once_per: String = ""
 ## ADR 0017 — spatial-LOD scheduling. null = no LOD (run on all entities,
 ## current behavior). Otherwise:
 ##   {anchor: "active_actor"|"camera"|"<tag>",
@@ -72,6 +80,9 @@ static func from_dict(d: Dictionary) -> Rule:
 	r.before_hints = _as_string_array(d.get("before", []))
 	r.after_hints = _as_string_array(d.get("after", []))
 	r.scope = str(d.get("scope", ""))
+	# ADR 0080 — one-shot quantifiers.
+	r.once = bool(d.get("once", false))
+	r.once_per = str(d.get("once_per", ""))
 	if d.has("lod") and d["lod"] is Dictionary:
 		r.lod = _normalize_lod(d["lod"] as Dictionary)
 	return r
@@ -330,6 +341,24 @@ static func validate_all(rules: Array) -> Array[Dictionary]:
 					"Rule '%s': chance %.2f out of [0.0, 1.0]" % [rule.id, rule.chance],
 					{"rule_id": rule.id, "field": "chance", "got": rule.chance},
 					"Set 'chance' to a value between 0.0 and 1.0 (default 1.0)."
+				)
+			)
+
+		# ADR 0080 — the two one-shot quantifiers are mutually exclusive.
+		if rule.once and rule.once_per != "":
+			errors.append(
+				EngineError.make(
+					EngineError.RULE_ONCE_CONFLICT,
+					(
+						"Rule '%s': has both 'once' and 'once_per: %s'"
+						% [rule.id, rule.once_per]
+					),
+					{"rule_id": rule.id, "field": "once_per", "got": rule.once_per},
+					(
+						"Pick one. 'once' = at most once per world lifetime;"
+						+ " 'once_per: <binding>' = at most once per distinct"
+						+ " entity bound to that name."
+					)
 				)
 			)
 	return errors
