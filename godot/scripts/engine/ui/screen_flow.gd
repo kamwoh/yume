@@ -188,6 +188,16 @@ func _push_screen(screen_id: String, as_modal: bool) -> void:
 	# leaves them as empty VBoxes; we walk the schema + populate per-setting
 	# UI here, where we have access to the SettingsManager sibling.
 	_populate_settings_renderers(root, dispatcher)
+	# Give the first interactive control focus so the screen is reachable by
+	# KEYBOARD and gamepad, not only by mouse. Godot activates a focused
+	# Button on ui_accept for free; without an initial focus holder there is
+	# nothing to activate, so a title screen with two buttons is a dead end
+	# for anyone not using a mouse.
+	#
+	# Empirical 2026-08-16: found while scripting a capture through a title
+	# screen — ui_accept did nothing, in EVERY demo, because ControlFactory
+	# never calls grab_focus and nothing else did either.
+	_focus_first_interactive(root)
 	# Push entry
 	_stack.append({"id": screen_id, "spec": spec, "layer": layer, "bound": bound})
 	# Update world_state
@@ -225,6 +235,22 @@ func _pop_screen() -> void:
 ## global_inputs action. Call after any stack mutation so the on_press
 ## edge detector doesn't fire spuriously on the SAME frame the filter
 ## starts matching. Symmetric: push (above) inlines the same loop.
+## Depth-first search for the first control that can take focus, and give it
+## focus. Returns true once something was focused.
+##
+## Deliberately generic: any Control with focus_mode != FOCUS_NONE qualifies,
+## so buttons, sliders, checkboxes and option-buttons all work without this
+## function knowing the element vocabulary.
+func _focus_first_interactive(node: Node) -> bool:
+	for child in node.get_children():
+		if child is Control and (child as Control).focus_mode != Control.FOCUS_NONE:
+			(child as Control).grab_focus()
+			return true
+		if _focus_first_interactive(child):
+			return true
+	return false
+
+
 func _sync_global_input_edge_state() -> void:
 	for g in _cfg.get("global_inputs", []):
 		if not (g is Dictionary):

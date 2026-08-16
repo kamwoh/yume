@@ -102,6 +102,12 @@ func load_entities_path(root: String) -> void:
 				_world._spawn_manager.spawn(inst)
 		for rel in d.get("initial_relations", []):
 			if rel is Dictionary:
+				# ADR 0075 — carry the authored `state` block onto the edge.
+				# Without this, edge state is reachable from RULES but not
+				# from authored initial content: the edge loads with empty
+				# state, and any `_edge` query filter over it fails the
+				# strict-missing check and silently matches nothing.
+				var rel_state = (rel as Dictionary).get("state", {})
 				(
 					_world
 					. relations
@@ -109,6 +115,7 @@ func load_entities_path(root: String) -> void:
 						str(rel.get("type", "")),
 						str(rel.get("from", "")),
 						str(rel.get("to", "")),
+						(rel_state as Dictionary) if rel_state is Dictionary else {},
 					)
 				)
 

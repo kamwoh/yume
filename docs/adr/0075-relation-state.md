@@ -151,7 +151,24 @@ words.
 - Code: `godot/scripts/engine/stores/relation_store.gd`,
   `godot/scripts/engine/core/query.gd` (`_check_single_relation`),
   `godot/scripts/engine/core/effects/effect_core.gd` (relation effects),
-  `godot/scripts/engine/core/effect_apply.gd` (dispatch)
+  `godot/scripts/engine/core/effect_apply.gd` (dispatch),
+  `godot/scripts/engine/coordinators/world_loader.gd` (`initial_relations`)
+
+**Follow-up 2026-08-16 — authored `initial_relations` dropped their
+state.** The first content to use this ADR found that `state` was
+reachable from RULES but not from authored initial content: the loader
+called `relations.relate(type, from, to)` with three arguments, so an
+authored `{"type": "knows", "from": ..., "to": ..., "state": {"trust":
+25}}` loaded as a stateless edge. Any `_edge` filter over it then failed
+the strict-missing check and silently matched nothing — the symptom was
+a roster screen reading "you know nobody" with the relation visibly
+loaded. Fixed; the call-site audit found `party_join` to be the only
+other creator, and it legitimately makes stateless edges.
+
+The generalisable lesson (post-mortem step 3a): when a primitive gains
+an optional payload, the effect path is only one of its entry points.
+**Audit every constructor** — loader, save-restore, and each effect that
+creates the primitive — before calling the ADR done.
 - Tests: `godot/scripts/engine/tests/test_runner.gd` → `test_relation_state`
 - Gate: `tools/validators/validate_rules.py` — field-name landmines for
   the three new effects, and `_edge` must be a Dictionary
