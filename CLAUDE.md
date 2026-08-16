@@ -44,8 +44,10 @@ yume/
 │   │   └── sounds.json                 (procedural SFX library)
 │   ├── data/demo_<name>/               (per-game content — NOT TRACKED, gitignored)
 │   │   ├── entities/                   (definitions + initial instances)
-│   │   ├── world/rules.json          (world physics rules — ADR 0009)
-│   │   ├── game/goals.json             (game logic — win/score/transition)
+│   │   ├── world/rules/*.json          (ALL rules — globbed + merged; ADR 0009 rev 2026-05-16)
+│   │   │                               (legacy single-file `world/rules.json` +
+│   │   │                                `game/goals.json` still load — 2 demos use them —
+│   │   │                                but the directory form is canonical for new games)
 │   │   ├── game/flow.json              (multi-level progression — ADR 0006)
 │   │   ├── levels/<n>/                 (per-level entities + rules)
 │   │   ├── world/state.json            (initial _engine entity state — ADR 0047)
@@ -102,16 +104,47 @@ capabilities through JSON-declarative primitives. Each new capability
 is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
 0010 for FileAccess+JSON, future ADR 0022 for PhysicsServer3D).
 
-## Tick rate is the engine's heartbeat (2026-05-16)
+## Two clocks: the heartbeat and the calendar (2026-05-16, amended 2026-08-16)
+
+The engine has **two** clocks. They are syntactically distinct so a rule
+can never ambiguously belong to both — `interval` on `tick`, `every` on
+`scheduled`. Picking the wrong one fails quietly (the rule fires at the
+wrong rate rather than erroring), so pick deliberately.
+
+**1. The heartbeat — `trigger: tick`, counted in ticks.**
 
 **The tick is the engine's clock — never change it as a balance knob.**
 - Default `tick_seconds = 0.0167` (60Hz, matches Godot `physics_fps`).
   Override only per-genre + deliberately (sokoban 10Hz, shooter 120Hz),
   never per-bug.
 - Too fast/slow? Scale the rule's `interval`, NOT the tick. `interval`
-  is in ticks: "every second" at 60Hz = 60; "every in-game hour"
-  (1hr=40s) = 2400. Changing `tick_seconds` silently rescales what every
-  `interval` MEANS in real time.
+  is in ticks: "every second" at 60Hz = 60. Changing `tick_seconds`
+  silently rescales what every `interval` MEANS in real time.
+
+Use it for anything that must feel continuous: movement, collision,
+input, animation, camera.
+
+**2. The calendar — `trigger: scheduled`, counted in calendar units
+(ADR 0078).**
+
+Calendar units have **no real-time duration**. They advance only when an
+`advance_time {units: N}` effect says so, which runs the `scheduled`
+bucket N times synchronously — the world genuinely simulates those units
+while the player waits a fraction of a real second.
+
+```jsonc
+{"trigger": {"type": "scheduled", "every": 30}}   // every 30th unit
+{"type": "advance_time", "units": 6}              // travel costs 6 days
+```
+
+`advance_time` does NOT run the `tick` bucket. What a unit MEANS (a day,
+a turn, a production cycle) is content's decision — the engine has no
+idea. Use it for action-cost time: travel, training, resting, and
+long-horizon world simulation.
+
+Do NOT express calendar time on the heartbeat. At 60Hz an in-game day is
+`interval: 57600`, and there is no `interval` value at all that can say
+"advance six days now".
 
 **Press vs hold** = input INTENT, not genre (every game has both):
 `edge: "press"` fires once on key-down (menu, use, restart);
@@ -323,58 +356,24 @@ When editing files matching certain globs, **read the corresponding rule first**
 
 See `.claude/rules/README.md` for the index.
 
-## Soul workflow (5-layer cross-skill check)
+**These rule files are injected in FULL every turn — do not summarise them
+here.** CLAUDE.md is the index; `.claude/rules/` is the content. A summary
+in both places doubles the context cost and drifts. (2026-08-16: the
+post-mortem, soul, and visual-gate sections were duplicated here in
+abbreviated form; removed in favour of the pointers below.)
 
-If the GDD targets Fellowship / Narrative / Submission / Discovery /
-Sensation, soul is REQUIRED — layered density across 5 channels; skip one
-= a soul-shaped hole. For each signature beat, verify ALL FIVE are wired
-AND pull the same emotional direction (gruff dialogue + celebratory flash
-= anti-soul).
+## Always-on rules (full text in `.claude/rules/`)
 
-| Layer | Owner |
+| Rule | One-line essence |
 |---|---|
-| 1. Writing | yume-flavor-writer |
-| 2. Visual identity | yume-asset-designer + engine |
-| 3. Audio | yume-audio-designer |
-| 4. Kinetic juice | yume-juice-designer |
-| 5. Reactive density | yume-game-rules-designer + tutorial |
-
-Full checklist + reinforcement-check + empirical case: `.claude/rules/soul.md`.
-
-## Post-mortem ritual (ALWAYS-ON — every bug must harden a skill)
-
-User invariant: **whenever a bug appears, find WHO is responsible and
-improve the skill so it can't recur.** When the user surfaces ANY bug
-("doesn't work" / a trace / "why didn't this…"), don't just fix it — run
-the 4-step ritual (full version + empirical precedents:
-`.claude/rules/post-mortem.md`):
-
-1. **Fix** the bug.
-2. **Identify the owner** — the specific skill/rule/validator/test that
-   should have caught it. No gate for this class → flag + create one.
-3. **Harden the gate** — an *enforceable* check (checklist item, grep,
-   validator, reviewer axis), not "be careful". Must make this exact bug
-   class impossible to recur. The gate update is **not optional**.
-4. **Commit both** (fix + gate) together, citing the empirical case + date.
-
-**Step 3a**: ask "what OTHER call sites hit this class?" — fix the
-underlying primitive, not just the symptom site. When the user asks **"who
-is responsible?"** they're running this ritual on you — name the skill,
-explain the missing gate, harden it before moving on.
-
-**Visual validation gate** — when modifying rendering primitives
-(control_factory, screen_flow, overlay, renderer_2d/*, renderer_3d/*,
-game_shell HUD/camera sections), run `--capture` + `yume-visual-designer`
-review BEFORE committing. "I'll fix it next pass" is not a merge
-condition. Details: `.claude/rules/engine-scripts.md` § visual gate.
-Tech-director enforces at merge gate.
-
-**Effect-chain validation gate** — when adding/modifying effects that
-touch screen / scene / save lifecycle (`transition_screen`,
-`transition_level`, `reload_scene`, `save_state`, `load_state`,
-`quit_app`), trace every on_click/on_press chain end-to-end. Destructive
-effects must be LAST in their chain — anything queued after is silently
-dropped. Details: `.claude/rules/engine-scripts.md` § effect-chain gate.
+| `post-mortem.md` | Every user-found bug: fix → name the gate that should have caught it → harden that gate (enforceable check, not "be careful") → commit both. **The gate is not optional.** |
+| `soul.md` | Games targeting Fellowship / Narrative / Submission / Discovery / Sensation need all 5 layers (writing, visual, audio, juice, reactive) on every signature beat, all pulling the same direction. |
+| `visual-qa.md` | Any change to what the player SEES: frame the feature, capture, read with 3-5 falsifiable criteria. "Tests pass" is correctness, not playability. |
+| `engine-scripts.md` | No semantic effects, no entity subclasses, no genre code. Plus the visual gate and the effect-chain gate (destructive effects LAST). |
+| `data-demo.md` | Schema discipline: field-name landmines, formula bindings per trigger, no per-def escape hatches. |
+| `pipeline-stability.md` | 2D HUD/screen pipelines are LOCKED (ADR to modify). 3D map/world pipelines are active. |
+| `tests.md` | Tests ship with the phase; no third-party framework; never disable a failing test. |
+| `docs.md` | The contract doc is ADR-gated. Date living docs. |
 
 ## Godot API reference (pinned)
 
