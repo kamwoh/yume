@@ -643,6 +643,13 @@ func _read_json_file_in_data(rel_path: String) -> Dictionary:
 	return json.data
 
 
+## Resolve a binding root: TAG first, then instance id.
+##
+## ADR 0076 — the id fallback lets a binding address ONE specific entity
+## rather than "the first entity carrying this tag". A list row needs that
+## (each row binds to its own entity), and so does any HUD that wants a
+## named singleton without inventing a unique tag for it. Tag wins on a
+## collision, so every pre-0076 binding resolves exactly as before.
 func _find_entity_by_tag(tag: String) -> Object:
 	if _world == null:
 		return null
@@ -652,6 +659,9 @@ func _find_entity_by_tag(tag: String) -> Object:
 	for ent in entities.values():
 		if ent != null and ent.has_method("has_tag") and ent.has_tag(tag):
 			return ent
+	var by_id = entities.get(tag, null)
+	if by_id != null and by_id.has_method("get_state"):
+		return by_id
 	return null
 
 

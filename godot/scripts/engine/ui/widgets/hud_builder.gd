@@ -300,6 +300,16 @@ func _build_element(parent: Container, cfg: Dictionary, center_h: bool = false) 
 			var sg := ControlFactory._build_slot_grid(cfg)
 			parent.add_child(sg)
 			_bound_elements.append({"node": sg, "cfg": cfg})
+		"list":
+			# ADR 0076 — query-bound repeated UI. Same builder modal screens
+			# use. Rows carrying `binds` register into _bound_elements through
+			# the array passed in, so they re-resolve per frame exactly like a
+			# hand-authored HUD element. HUD rows are non-interactive, so the
+			# dispatcher is a no-op.
+			var lst := ControlFactory._build_list(
+				cfg, func(_effects, _ctx): pass, _bound_elements
+			)
+			parent.add_child(lst)
 
 
 func _apply_label_style(lbl: Label, font_size: int, color: Color) -> void:

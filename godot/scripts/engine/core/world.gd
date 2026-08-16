@@ -47,6 +47,15 @@ class_name World
 @export var variant_override: String = ""
 
 # ============================================================
+# SIGNALS
+# ============================================================
+
+## ADR 0076 — emitted at the end of every `load_data()`: once at boot and
+## again after each level transition. Consumers that cache a view of the
+## entity set (query-bound UI, editors, debug overlays) rebuild on this.
+signal world_loaded
+
+# ============================================================
 # STATE — engine-shared services (env-exposed)
 # ============================================================
 
@@ -342,6 +351,12 @@ func load_data() -> void:
 	# sequences. ADR 0058 audit follow-up (2026-05-23).
 	_apply_world_seed_from_scene()
 	WorldBoot.new(self).run()
+	# ADR 0076 — the entity set has just been (re)populated. Query-bound UI
+	# must re-run its query now: at boot the UI is built BEFORE this point
+	# (directors' _ready runs before load_data), and on every level
+	# transition the entity set is swapped out from under any open list.
+	# Frame-counting hacks can't cover either case; this signal does both.
+	world_loaded.emit()
 
 
 func _apply_world_seed_from_scene() -> void:

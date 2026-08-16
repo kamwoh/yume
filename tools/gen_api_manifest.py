@@ -122,7 +122,25 @@ HUD_ELEMENTS: list[dict] = [
         },
         "source": "control_factory.gd _build_slot_grid",
     },
+    {
+        "type": "list",
+        "fields": "see LIST_ELEMENT_FIELDS below — same primitive, used in both",
+        "source": "control_factory.gd _build_list (ADR 0076)",
+    },
 ]
+
+# ADR 0076 — query-bound repeated UI. Shared by hud.json and screens.json.
+LIST_ELEMENT_FIELDS = {
+    "from": "Query spec (REQUIRED) — any clause Query.run accepts: tags_all/tags_any/tags_none/id/ids/properties/state/relations/radius/order_by/limit",
+    "item": "element dict (REQUIRED) — instantiated once per match; recurses through the normal element builders",
+    "bind": "binding name used inside `item` (default 'row')",
+    "edge_of": "{relation, to} or {relation, from} — exposes `<bind>_edge.<field>` from the relation edge's state (ADR 0075)",
+    "limit": "int, positive (default 50). Truncation emits a push_warning — never silent.",
+    "empty": "element dict rendered when the query matches nothing",
+    "separation": "px between rows (default 4)",
+    "_substitution": "`<bind>` and `<bind>.id` → the entity's instance id; `<bind>.properties.X` → literal (properties are static); `<bind>.state.X` under a `binds` key → '<instance_id>.X' (stays live); `<bind>.state.X` elsewhere → literal snapshot",
+    "_cadence": "query runs at build time AND on every World.world_loaded (boot + each level transition). NOT per frame.",
+}
 
 
 HUD_ANCHORS: list[str] = [
@@ -282,6 +300,11 @@ SCREEN_ELEMENTS: list[dict] = [
         "type": "slot_grid",
         "fields": "see hud_elements[slot_grid] — same primitive, used in both",
         "source": "control_factory.gd _build_slot_grid",
+    },
+    {
+        "type": "list",
+        "fields": LIST_ELEMENT_FIELDS,
+        "source": "control_factory.gd _build_list (ADR 0076)",
     },
     {
         "type": "minimap",

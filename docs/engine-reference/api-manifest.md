@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-08-16T18:04:06+00:00_
+_Generated: 2026-08-16T18:25:20+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.

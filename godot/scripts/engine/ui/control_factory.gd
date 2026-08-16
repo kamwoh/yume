@@ -81,6 +81,11 @@ static func build(
 		# same primitive, different parameterization (columns, cell_size).
 		"slot_grid":
 			node = _build_slot_grid(spec)
+		# ADR 0076 — query-bound repeated UI. Runs a Query and instantiates
+		# the `item` template once per match, so Query (primitive #6) becomes
+		# a UI data source. No new primitive.
+		"list":
+			node = _build_list(spec, dispatcher, bound_elements)
 		# Map / minimap widget (#104, 2026-05-16). HudBuilder previously
 		# owned this. Adding to ControlFactory lets modal screens embed
 		# the minimap (e.g. the map screen). bind_world via the Engine
@@ -295,6 +300,208 @@ static func _build_option_button(spec: Dictionary, dispatcher: Callable) -> Opti
 # Each cell PanelContainer has meta `slot_index: int` for later updates.
 # Update path: _update_slot_grid(node, cfg, resolver) — resolver is a
 # Callable that maps a binding path string to its current value.
+
+
+# ============================================================
+# LIST — QUERY-BOUND REPEATED UI (ADR 0076)
+# ============================================================
+#
+# Substitution principle: STATIC data becomes a literal at build time,
+# DYNAMIC data becomes a live binding.
+#   `row.properties.X` → literal (properties never change, by contract §1)
+#   `row.state.X` under `binds` → "<instance_id>.X" (re-resolves per frame)
+#   `row.state.X` elsewhere     → literal snapshot
+#   `row` / `row.id`            → the instance id (so effects can target it)
+#   `row_edge.X`                → literal edge-state value (ADR 0075)
+
+## Rows rendered when `limit` is absent. A cap always exists — an uncapped
+## list over a large roster would allocate a Control per entity.
+const LIST_DEFAULT_LIMIT: int = 50
+
+
+## `env_override` lets a caller supply the simulation env directly instead of
+## going through the Engine meta. Used by unit tests, which build raw specs
+## with no World in the tree. Empty (the default) means "resolve the live
+## world" — a real env is never empty, so there is no ambiguity.
+static func _build_list(
+	spec: Dictionary, dispatcher: Callable, bound_elements: Array, env_override: Dictionary = {}
+) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", int(spec.get("separation", 4)))
+
+	var item_tpl = spec.get("item", null)
+	var from_spec = spec.get("from", null)
+	if not (item_tpl is Dictionary) or not (from_spec is Dictionary):
+		push_warning(
+			"ControlFactory.list: needs both `from` (a query spec) and `item`"
+			+ " (an element template); rendering nothing."
+		)
+		return box
+
+	var env: Dictionary = env_override if not env_override.is_empty() else _world_env()
+	_populate_list(box, spec, dispatcher, bound_elements, env)
+
+	# Re-run the query on every world load. Two distinct cases need this and
+	# neither is fixable by counting frames:
+	#   - BOOT: the directors' _ready (which builds screens + HUD) runs before
+	#     World.load_data, so this first populate sees zero entities.
+	#   - LEVEL TRANSITION: load_data runs again and swaps the entity set out
+	#     from under any already-open list.
+	# An env_override means a caller supplied its own env (unit tests); there
+	# is no world to listen to and nothing to refresh.
+	#
+	# Empirical 2026-08-16: caught by the ADR 0076 visual gate. A probe list
+	# over a 30-entity level rendered "no boxes matched"; instrumenting showed
+	# world.entities=0 at frame 0, with `[World] loaded: 30 entities` printing
+	# afterwards. A deferred-call retry was tried first and fired too early too.
+	if env_override.is_empty():
+		var w = Engine.get_meta("yume_world") if Engine.has_meta("yume_world") else null
+		if w != null and w.has_signal("world_loaded"):
+			var refresh := func():
+				if is_instance_valid(box):
+					_populate_list(box, spec, dispatcher, bound_elements, _world_env())
+			w.world_loaded.connect(refresh)
+			# The lambda has no owning object, so Godot won't auto-disconnect
+			# when the box dies. Drop it explicitly or connections accumulate
+			# one per screen open.
+			box.tree_exiting.connect(
+				func():
+					if is_instance_valid(w) and w.world_loaded.is_connected(refresh):
+						w.world_loaded.disconnect(refresh)
+			)
+	return box
+
+
+## Fill (or refill) a list box from `env`. Separate from _build_list so the
+## deferred boot retry above can reuse it without rebuilding the container.
+static func _populate_list(
+	box: Control, spec: Dictionary, dispatcher: Callable, bound_elements: Array, env: Dictionary
+) -> void:
+	for c in box.get_children():
+		box.remove_child(c)
+		c.queue_free()
+
+	var item_tpl = spec.get("item", null)
+	var from_spec = spec.get("from", null)
+	var matches: Array = []
+	if not env.is_empty():
+		matches = QueryLib.run(from_spec, env, {})
+
+	# Truncation is NEVER silent — a list that quietly drops rows reads as
+	# "that's everything" when it isn't.
+	var limit: int = int(spec.get("limit", LIST_DEFAULT_LIMIT))
+	if limit > 0 and matches.size() > limit:
+		push_warning(
+			(
+				"ControlFactory.list: query matched %d entities, rendering %d"
+				+ " (limit). Raise `limit` or narrow `from`."
+			)
+			% [matches.size(), limit]
+		)
+		matches = matches.slice(0, limit)
+
+	if matches.is_empty():
+		var empty_spec = spec.get("empty", null)
+		if empty_spec is Dictionary:
+			build(empty_spec, box, dispatcher, bound_elements)
+		return
+
+	var bind := str(spec.get("bind", "row"))
+	var edge_of = spec.get("edge_of", null)
+	for ent in matches:
+		if not (ent is Entity):
+			continue
+		var row_spec = _substitute_row(item_tpl, bind, ent as Entity, env, edge_of, false)
+		if row_spec is Dictionary:
+			build(row_spec as Dictionary, box, dispatcher, bound_elements)
+
+
+## The live simulation env, via the same Engine meta ControlFactory already
+## uses to wire MinimapWidget. Empty dict when there is no world (unit tests
+## building raw specs) — a `list` then renders `empty`, never errors.
+static func _world_env() -> Dictionary:
+	if not Engine.has_meta("yume_world"):
+		return {}
+	var w = Engine.get_meta("yume_world")
+	if w == null:
+		return {}
+	var sched = w.get("scheduler")
+	if sched == null:
+		return {}
+	var e = sched.get("env")
+	return e if e is Dictionary else {}
+
+
+## Deep-copy `node`, rewriting every `<bind>...` string for this row.
+## `under_binds` is true while descending the value of a `binds` key, which
+## is what selects live-binding rewriting over literal snapshotting.
+static func _substitute_row(
+	node, bind: String, ent: Entity, env: Dictionary, edge_of, under_binds: bool
+):
+	if node is Dictionary:
+		var out: Dictionary = {}
+		for k in (node as Dictionary):
+			var ks := str(k)
+			out[ks] = _substitute_row(
+				(node as Dictionary)[k], bind, ent, env, edge_of, ks == "binds"
+			)
+		return out
+	if node is Array:
+		var arr: Array = []
+		for v in (node as Array):
+			arr.append(_substitute_row(v, bind, ent, env, edge_of, under_binds))
+		return arr
+	if node is String:
+		return _substitute_row_string(str(node), bind, ent, env, edge_of, under_binds)
+	return node
+
+
+static func _substitute_row_string(
+	s: String, bind: String, ent: Entity, env: Dictionary, edge_of, under_binds: bool
+):
+	var id: String = ent.instance_id
+	if s == bind or s == bind + ".id":
+		return id
+	var edge_prefix := bind + "_edge."
+	if s.begins_with(edge_prefix):
+		return _row_edge_value(s.substr(edge_prefix.length()), ent, env, edge_of)
+	var prop_prefix := bind + ".properties."
+	if s.begins_with(prop_prefix):
+		return ent.get_property(s.substr(prop_prefix.length()), "")
+	var state_prefix := bind + ".state."
+	if s.begins_with(state_prefix):
+		var field := s.substr(state_prefix.length())
+		if under_binds:
+			# Live: the binding resolver takes "<root>.<field>" and resolves
+			# root as a tag, then as an instance id (game_shell fallback).
+			return id + "." + field
+		return ent.get_state(field, "")
+	return s
+
+
+## Read one field of the row's relation edge (ADR 0075 deferred read access).
+##   edge_of {relation, to}   → the edge row → to
+##   edge_of {relation, from} → the edge from → row
+static func _row_edge_value(field: String, ent: Entity, env: Dictionary, edge_of):
+	if not (edge_of is Dictionary):
+		return ""
+	var cfg: Dictionary = edge_of
+	var store = env.get("relations", null)
+	if store == null or not store.has_method("edge_state"):
+		return ""
+	var rel := str(cfg.get("relation", ""))
+	if rel == "":
+		return ""
+	var from_id: String = ent.instance_id
+	var to_id: String = ""
+	if cfg.has("to"):
+		to_id = str(cfg["to"])
+	elif cfg.has("from"):
+		from_id = str(cfg["from"])
+		to_id = ent.instance_id
+	else:
+		return ""
+	return (store.edge_state(rel, from_id, to_id) as Dictionary).get(field, "")
 
 
 static func _build_slot_grid(spec: Dictionary) -> Control:

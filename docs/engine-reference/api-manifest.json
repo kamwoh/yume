@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-08-16T18:04:06+00:00",
+  "generated_at": "2026-08-16T18:25:20+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -609,6 +609,11 @@
         "default_icon_color": "hex (item_icon fallback)"
       },
       "source": "control_factory.gd _build_slot_grid"
+    },
+    {
+      "type": "list",
+      "fields": "see LIST_ELEMENT_FIELDS below \u2014 same primitive, used in both",
+      "source": "control_factory.gd _build_list (ADR 0076)"
     }
   ],
   "hud_anchors": [
@@ -811,6 +816,21 @@
       "type": "slot_grid",
       "fields": "see hud_elements[slot_grid] \u2014 same primitive, used in both",
       "source": "control_factory.gd _build_slot_grid"
+    },
+    {
+      "type": "list",
+      "fields": {
+        "from": "Query spec (REQUIRED) \u2014 any clause Query.run accepts: tags_all/tags_any/tags_none/id/ids/properties/state/relations/radius/order_by/limit",
+        "item": "element dict (REQUIRED) \u2014 instantiated once per match; recurses through the normal element builders",
+        "bind": "binding name used inside `item` (default 'row')",
+        "edge_of": "{relation, to} or {relation, from} \u2014 exposes `<bind>_edge.<field>` from the relation edge's state (ADR 0075)",
+        "limit": "int, positive (default 50). Truncation emits a push_warning \u2014 never silent.",
+        "empty": "element dict rendered when the query matches nothing",
+        "separation": "px between rows (default 4)",
+        "_substitution": "`<bind>` and `<bind>.id` \u2192 the entity's instance id; `<bind>.properties.X` \u2192 literal (properties are static); `<bind>.state.X` under a `binds` key \u2192 '<instance_id>.X' (stays live); `<bind>.state.X` elsewhere \u2192 literal snapshot",
+        "_cadence": "query runs at build time AND on every World.world_loaded (boot + each level transition). NOT per frame."
+      },
+      "source": "control_factory.gd _build_list (ADR 0076)"
     },
     {
       "type": "minimap",

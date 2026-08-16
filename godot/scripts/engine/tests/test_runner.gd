@@ -50,6 +50,7 @@ func _ready() -> void:
 	test_scene_change_dispatches()
 	test_transition_level_fade()
 	test_control_factory()
+	test_ui_list_element()
 	test_save_state()
 	test_overlay_effects()
 	test_spatial_lod()
@@ -2490,6 +2491,230 @@ func test_transition_level_fade() -> void:
 
 ## Spot-check ControlFactory builds correct Godot Control types for each
 ## element kind. Free nodes after to avoid ObjectDB leaks.
+## ADR 0076 — the `list` element makes Query (primitive #6) a UI data source.
+func test_ui_list_element() -> void:
+	_section("ui_list_element (ADR 0076)")
+
+	var defs := {
+		"npc":
+		{
+			"id": "npc",
+			"tags": ["npc"],
+			"properties": {"display_name": "Someone"},
+			"state_init": {"rank": 0}
+		},
+	}
+	var entities := {}
+	var rs := RelationStore.new()
+	var ids := ["n1", "n2", "n3"]
+	var made: Array = []
+	for i in range(ids.size()):
+		var e := Entity.create(defs.npc, ids[i])
+		e.properties["display_name"] = "Name%d" % i
+		e.set_state("rank", i)
+		entities[ids[i]] = e
+		made.append(e)
+		rs.relate("knows", ids[i], "player", {"trust": 10 * (i + 1)})
+	var pl := Entity.create({"id": "p", "tags": ["player"], "state_init": {}}, "player")
+	entities["player"] = pl
+	made.append(pl)
+	var env := {"entities": entities, "relations": rs}
+
+	var parent := Control.new()
+	var bound: Array = []
+	var dispatcher := func(_a, _b): pass
+
+	# ---------- 1. one row per match ----------
+	var lst := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["npc"]},
+			"item": {"type": "button", "text": "row.properties.display_name"}
+		},
+		dispatcher,
+		bound,
+		env
+	)
+	expect(lst is VBoxContainer, "list → VBoxContainer")
+	expect_eq(lst.get_child_count(), 3, "one row per matched entity")
+
+	# ---------- 2. properties substitute as literals ----------
+	var texts: Array = []
+	for c in lst.get_children():
+		if c is Button:
+			texts.append((c as Button).text)
+	texts.sort()
+	expect_eq(texts, ["Name0", "Name1", "Name2"], "row.properties.X substitutes per row")
+
+	# ---------- 3. limit truncates (and is not silent — warns) ----------
+	var lst_lim := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["npc"]},
+			"limit": 2,
+			"item": {"type": "label", "text": "row.properties.display_name"}
+		},
+		dispatcher,
+		bound,
+		env
+	)
+	expect_eq(lst_lim.get_child_count(), 2, "limit caps rendered rows")
+
+	# ---------- 4. empty branch ----------
+	var lst_empty := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["nonexistent_tag"]},
+			"item": {"type": "label", "text": "row.id"},
+			"empty": {"type": "label", "text": "Nobody here."}
+		},
+		dispatcher,
+		bound,
+		env
+	)
+	expect_eq(lst_empty.get_child_count(), 1, "empty query renders the `empty` element")
+	if lst_empty.get_child_count() == 1 and lst_empty.get_child(0) is Label:
+		expect_eq(
+			(lst_empty.get_child(0) as Label).text, "Nobody here.", "empty element text preserved"
+		)
+
+	# No `empty` authored → renders nothing, does not error.
+	var lst_bare := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["nonexistent_tag"]},
+			"item": {"type": "label", "text": "row.id"}
+		},
+		dispatcher,
+		bound,
+		env
+	)
+	expect_eq(lst_bare.get_child_count(), 0, "empty query with no `empty` renders nothing")
+
+	# ---------- 5. `row` substitutes into on_click effect payloads ----------
+	var captured: Array = []
+	var capturing := func(effects, _ctx): captured.append(effects)
+	var lst_click := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["npc"], "state": {"rank_eq": 1}},
+			"item":
+			{
+				"type": "button",
+				"text": "row.properties.display_name",
+				"on_click": [{"type": "emit", "signal": "talk_to", "target": "row"}]
+			}
+		},
+		dispatcher,
+		bound,
+		env
+	)
+	expect_eq(lst_click.get_child_count(), 1, "query state filter narrows the list")
+	# Rebuild with the capturing dispatcher so the press is observable.
+	var lst_click2 := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["npc"], "state": {"rank_eq": 1}},
+			"item":
+			{
+				"type": "button",
+				"text": "x",
+				"on_click": [{"type": "emit", "signal": "talk_to", "target": "row"}]
+			}
+		},
+		capturing,
+		bound,
+		env
+	)
+	if lst_click2.get_child_count() == 1 and lst_click2.get_child(0) is Button:
+		(lst_click2.get_child(0) as Button).pressed.emit()
+	expect_eq(captured.size(), 1, "row button dispatches its on_click chain")
+	if captured.size() == 1:
+		expect_eq(
+			(captured[0] as Array)[0]["target"],
+			"n2",
+			"`row` in an effect payload resolves to that row's entity id"
+		)
+
+	# ---------- 6. state under `binds` stays LIVE, elsewhere is a snapshot ----------
+	var lst_bind := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["npc"], "state": {"rank_eq": 2}},
+			"item": {"type": "label", "binds": "row.state.rank", "text": "row.state.rank"}
+		},
+		dispatcher,
+		bound,
+		env
+	)
+	var row_cfg: Dictionary = {}
+	for b in bound:
+		if str((b["cfg"] as Dictionary).get("binds", "")).begins_with("n3."):
+			row_cfg = b["cfg"]
+	expect_eq(row_cfg.get("binds", ""), "n3.rank", "row.state.X under `binds` becomes <id>.<field>")
+	expect_eq(str(row_cfg.get("text", "")), "2", "row.state.X outside `binds` is a literal snapshot")
+
+	# ---------- 7. edge_of exposes relation edge state (ADR 0075 read access) ----------
+	var lst_edge := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["npc"], "state": {"rank_eq": 0}},
+			"edge_of": {"relation": "knows", "to": "player"},
+			"item": {"type": "label", "text": "row_edge.trust"}
+		},
+		dispatcher,
+		bound,
+		env
+	)
+	if lst_edge.get_child_count() == 1 and lst_edge.get_child(0) is Label:
+		expect_eq(
+			(lst_edge.get_child(0) as Label).text, "10", "row_edge.X reads the relation edge state"
+		)
+
+	# ---------- 8. malformed spec degrades, never crashes ----------
+	var lst_bad := ControlFactory._build_list(
+		{"type": "list", "item": {"type": "label", "text": "x"}}, dispatcher, bound, env
+	)
+	expect_eq(lst_bad.get_child_count(), 0, "list without `from` renders nothing instead of erroring")
+	var lst_bad2 := ControlFactory._build_list(
+		{"type": "list", "from": {"tags_all": ["npc"]}}, dispatcher, bound, env
+	)
+	expect_eq(lst_bad2.get_child_count(), 0, "list without `item` renders nothing instead of erroring")
+
+	# ---------- 9. no world at all → renders `empty`, never errors ----------
+	# With no world in the tree there is nothing to query and no world_loaded
+	# signal to wait for, so `empty` is the correct terminal state. In a REAL
+	# boot the same first populate also sees zero entities (the UI directors'
+	# _ready runs before World.load_data) — but there the list subscribes to
+	# world_loaded and repopulates, which the sokoban visual probe verified.
+	var lst_noenv := ControlFactory._build_list(
+		{
+			"type": "list",
+			"from": {"tags_all": ["npc"]},
+			"item": {"type": "label", "text": "row.id"},
+			"empty": {"type": "label", "text": "None"}
+		},
+		dispatcher,
+		bound
+	)
+	expect_eq(lst_noenv.get_child_count(), 1, "no world available → renders `empty`, does not error")
+
+	lst.free()
+	lst_lim.free()
+	lst_empty.free()
+	lst_bare.free()
+	lst_click.free()
+	lst_click2.free()
+	lst_bind.free()
+	lst_edge.free()
+	lst_bad.free()
+	lst_bad2.free()
+	lst_noenv.free()
+	parent.free()
+	for e in made:
+		e.free()
+
+
 func test_control_factory() -> void:
 	_section("control_factory (ADR 0011)")
 	var parent := Control.new()
