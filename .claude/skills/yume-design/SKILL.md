@@ -284,8 +284,9 @@ Match keywords from the one-line pitch:
 | **shooter** | "shooter", "fps", "doom", "arena shooter", "twin-stick", "first-person" | `yume-shooter-designer` | `yume-shooter-reviewer` |
 | **merchant** | "merchant", "shopkeeper", "item shop", "an item-shop merchant game", "trader", "a merchant-adventurer game" | `yume-merchant-designer` | `yume-merchant-reviewer` |
 | **racing** | "racing", "kart", "drift", "lap", "time-attack", "combat racer" | `yume-racing-designer` | (future: yume-racing-reviewer) |
+| **lifesim** | "life sim", "career", "sandbox rpg", "become anything", "rise from nothing", "open-ended", "many professions", "make your own story", "pick a job in a living world" | `yume-lifesim-designer` | `yume-lifesim-reviewer` |
 | **td** | "tower defense", "td", "lane defense", "wave defense" | (future: yume-td-designer) | (future: yume-td-reviewer) |
-| **sim** | "sim", "ecology", "farming", "life sim", "harvest" | (future) | (future) |
+| **sim** | "sim", "ecology", "farming", "harvest" (NOT "life sim" — that is lifesim above) | (future) | (future) |
 | **puzzle** | "puzzle", "sokoban", "match", "block-push", "tile" | (future) | (future) |
 | **roguelike** | "roguelike", "dungeon crawler", "rogue-lite" | (future) | (future) |
 | _(no match)_ | fallback | `yume-game-designer` only | `yume-game-reviewer` only |
@@ -308,6 +309,7 @@ If no genre matches, only generic skills run.
    - Shooter: `Skill(skill="yume-shooter-designer", args=<prose + name>)`
    - Merchant: `Skill(skill="yume-merchant-designer", args=<prose + name>)`
    - Racing: `Skill(skill="yume-racing-designer", args=<prose + name>)`
+   - Lifesim: `Skill(skill="yume-lifesim-designer", args=<prose + name>)`
    - TD/sim/puzzle/roguelike (when those skills land): same shape
    - No genre: `Skill(skill="yume-game-designer", args=<prose + name>)`
 6. Specialist designers PRODUCE the full GDD (generic MDA scaffolding
