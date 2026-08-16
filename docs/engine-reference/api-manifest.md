@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-08-16T18:36:01+00:00_
+_Generated: 2026-08-16T18:39:42+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -22,7 +22,7 @@ Valid `rule.trigger.type` strings:
 
 ## Effect types
 
-64 effect types (used as `rule.effect[].type`):
+65 effect types (used as `rule.effect[].type`):
 
 - `state_set` — `effect_apply.gd`
 - `state_add` — `effect_apply.gd`
@@ -37,6 +37,7 @@ Valid `rule.trigger.type` strings:
 - `relate` — `effect_apply.gd`
 - `unrelate` — `effect_apply.gd`
 - `transfer_relation` — `effect_apply.gd`
+- `advance_time` — `effect_apply.gd`
 - `level_call` — `effect_apply.gd`
 - `level_return` — `effect_apply.gd`
 - `relation_set` — `effect_apply.gd`
@@ -121,7 +122,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 
 ## Error codes (Tier 2.6a)
 
-51 stable codes for matching in retry loops:
+52 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -157,6 +158,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `scheduler.topo_cycle` | `EngineError.SCHEDULER_TOPO_CYCLE` |
 | `level.return_empty_stack` | `EngineError.LEVEL_RETURN_EMPTY_STACK` |
 | `level.return_orphaned` | `EngineError.LEVEL_RETURN_ORPHANED` |
+| `time.reentrant_advance` | `EngineError.TIME_REENTRANT_ADVANCE` |
 | `animation.no_default` | `EngineError.ANIMATION_NO_DEFAULT` |
 | `class.switch_no_def` | `EngineError.CLASS_SWITCH_NO_DEF` |
 | `class.switch_cooldown` | `EngineError.CLASS_SWITCH_COOLDOWN` |

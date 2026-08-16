@@ -69,6 +69,9 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 			EffectCore.transfer_relation(effect, env, context)
 		# ADR 0077 — level subroutines. DESTRUCTIVE, like transition_level:
 		# must be LAST in their effect chain.
+		# ADR 0078 — the calendar clock. Not destructive.
+		"advance_time":
+			EffectShell.advance_time(effect, env, context)
 		"level_call":
 			EffectShell.level_call(effect, env, context)
 		"level_return":
@@ -187,7 +190,7 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 					+ " relation_set, relation_add, relation_clamp, tag_add, tag_remove,"
 					+ " velocity_set, velocity_lerp, velocity_set_relative,"
 					+ " velocity_add_relative, pathfind_to, raycast_hit, transition_level,"
-					+ " level_call, level_return,"
+					+ " level_call, level_return, advance_time,"
 					+ " emit, array_set_at, array_insert_first_empty,"
 					+ " array_sync_to_field, array_count_matching,"
 					+ " emit_shell_event, transition_screen, quit_app, show_toast,"

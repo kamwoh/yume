@@ -72,11 +72,79 @@ func _init(environment: Dictionary) -> void:
 	# this synchronously so spawn-rules see the new entity and despawn-rules
 	# see the dying entity *before* it's gone from env.entities.
 	env["dispatch_lifecycle"] = Callable(self, "_dispatch_lifecycle_inline")
+	# ADR 0078 — the calendar clock's entry point. Exposed as a Callable
+	# (same pattern as dispatch_lifecycle) rather than putting `self` into
+	# env, which would make a reference cycle with the env dict we hold.
+	env["advance_calendar"] = Callable(self, "advance_calendar")
 	# Subscribe to relation_changed events from the relation store, if present.
 	var rs = env.get("relations", null)
 	if rs != null and rs.has_signal("relation_added"):
 		rs.relation_added.connect(_on_relation_added)
 		rs.relation_removed.connect(_on_relation_removed)
+
+
+# ============================================================
+# CALENDAR CLOCK (ADR 0078)
+# ============================================================
+
+## World-state key holding the calendar counter. Content may bind to it.
+const CALENDAR_UNITS_KEY: String = "calendar_units"
+
+## Re-entrancy guard. An advance_time reached from inside a `scheduled`
+## rule would recurse until the stack blew.
+var _advancing_calendar: bool = false
+
+
+## Step the calendar N units. This is the SECOND clock (ADR 0078) — it has
+## no real-time duration and advances only when something calls this. The
+## 60Hz heartbeat is untouched: the `tick` bucket does NOT run here.
+##
+## Effects flush after each unit, so unit k+1's rules observe unit k's
+## results — the same ordering guarantee the heartbeat gives.
+func advance_calendar(units: int) -> void:
+	if units <= 0:
+		return
+	if _advancing_calendar:
+		(
+			EngineError
+			. raise(
+				env,
+				EngineError.TIME_REENTRANT_ADVANCE,
+				"advance_time called from inside a scheduled rule — ignored",
+				{"got": units},
+				(
+					"A `scheduled` rule must not advance the calendar; that"
+					+ " recurses. Emit a signal and advance from the handler."
+				),
+				"warning"
+			)
+		)
+		return
+	_advancing_calendar = true
+	var world = env.get("world", null)
+	var scheduled_rules: Array = rules_by_trigger.get("scheduled", [])
+	for _i in range(units):
+		var now: int = 0
+		if world is Dictionary:
+			now = int((world as Dictionary).get(CALENDAR_UNITS_KEY, 0)) + 1
+			(world as Dictionary)[CALENDAR_UNITS_KEY] = now
+		else:
+			now = _i + 1
+		for r in scheduled_rules:
+			var rule: Rule = r
+			var every: int = int(rule.trigger_param("every", 1))
+			if every <= 0:
+				continue
+			if now % every != 0:
+				continue
+			_fire_scan_rule(rule)
+		flush_effects()
+	_advancing_calendar = false
+	# One signal for the whole advance, not one per unit — content that
+	# reacts to "time passed" wants the span, not a burst.
+	var buf_v = env.get("signal_buffer", null)
+	if buf_v is Array:
+		(buf_v as Array).append({"name": "time_advanced", "units": units})
 
 
 func _dispatch_lifecycle_inline(kind: String, entity_id: String) -> void:

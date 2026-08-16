@@ -156,6 +156,23 @@ static func level_return(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 	}
 
 
+## ADR 0078 — step the CALENDAR clock N units, synchronously, inside this
+## effect chain. Does NOT touch the 60Hz heartbeat: the `tick` bucket does
+## not run, `tick_seconds` is not a balance knob, and `interval` still means
+## ticks. `units` is counted in calendar units — the engine has no idea what
+## a "day" is; that mapping is content's, exactly like `hp` or `gold`.
+##
+## NOT destructive: it mutates state but replaces neither the entity set nor
+## the scene, so effects may follow it in a chain.
+static func advance_time(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var units := int(EffectResolution.value(e.get("units", 1), ctx, env))
+	if units <= 0:
+		return
+	var cb = env.get("advance_calendar", null)
+	if cb is Callable:
+		(cb as Callable).call(units)
+
+
 ## Tween the screen-fade overlay's alpha to a target value over `duration`
 ## seconds. GameShell owns the overlay (lives on a CanvasLayer above the
 ## HUD) and the per-frame lerp. duration=0 → instant.

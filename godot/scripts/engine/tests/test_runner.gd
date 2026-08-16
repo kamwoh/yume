@@ -53,6 +53,7 @@ func _ready() -> void:
 	test_ui_list_element()
 	test_rule_once()
 	test_level_subroutine()
+	test_calendar_clock()
 	test_save_state()
 	test_overlay_effects()
 	test_spatial_lod()
@@ -2493,6 +2494,182 @@ func test_transition_level_fade() -> void:
 
 ## Spot-check ControlFactory builds correct Godot Control types for each
 ## element kind. Free nodes after to avoid ObjectDB leaks.
+## ADR 0078 — the calendar clock. A SECOND clock with no real-time duration,
+## advanced only by `advance_time`. The 60Hz heartbeat is untouched.
+func test_calendar_clock() -> void:
+	_section("calendar_clock (ADR 0078)")
+
+	var defs := {
+		"town": {"id": "town", "tags": ["town"], "state_init": {"upkeep": 0, "beats": 0}},
+	}
+
+	var ents := {}
+	var t1 := Entity.create(defs.town, "t1")
+	ents["t1"] = t1
+	var env: Dictionary = {
+		"entities": ents,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "daily",
+					"trigger": {"type": "scheduled", "every": 1},
+					"query": {"tags_all": ["town"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "upkeep", "amount": 1}]
+				}
+			),
+			Rule.from_dict(
+				{
+					"id": "biweekly",
+					"trigger": {"type": "scheduled", "every": 2},
+					"query": {"tags_all": ["town"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "beats", "amount": 1}]
+				}
+			),
+		]
+	)
+
+	# ---------- 1. the `scheduled` bucket actually dispatches ----------
+	# It was in VALID_TRIGGERS with no dispatcher: such rules registered,
+	# validated, and never fired, silently. This assertion is the regression.
+	sched.advance_calendar(6)
+	expect_eq(int(t1.get_state("upkeep", -1)), 6, "`every: 1` fires once per calendar unit")
+	expect_eq(int(t1.get_state("beats", -1)), 3, "`every: 2` fires every second unit")
+	expect_eq(
+		int((env["world"] as Dictionary).get("calendar_units", -1)),
+		6,
+		"the calendar counter lives in world state (persists with the save)"
+	)
+
+	# ---------- 2. advancing does NOT run the heartbeat ----------
+	var ents2 := {}
+	var t2 := Entity.create(defs.town, "t2")
+	ents2["t2"] = t2
+	var env2: Dictionary = {
+		"entities": ents2,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched2 := PhaseScheduler.new(env2)
+	sched2.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "heartbeat_only",
+					"trigger": {"type": "tick", "interval": 1},
+					"query": {"tags_all": ["town"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "upkeep", "amount": 1}]
+				}
+			)
+		]
+	)
+	sched2.advance_calendar(10)
+	expect_eq(
+		int(t2.get_state("upkeep", -1)),
+		0,
+		"advance_time does NOT run the tick bucket — the heartbeat is untouched"
+	)
+	sched2.tick()
+	expect_eq(int(t2.get_state("upkeep", -1)), 1, "the tick bucket still works normally")
+
+	# ---------- 3. effects flush between units ----------
+	# Unit k+1's rules must observe unit k's results, or a compounding rule
+	# (interest, growth, decay) silently computes off a stale value.
+	var ents3 := {}
+	var t3 := Entity.create(defs.town, "t3")
+	t3.set_state("upkeep", 1)
+	ents3["t3"] = t3
+	var env3: Dictionary = {
+		"entities": ents3,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched3 := PhaseScheduler.new(env3)
+	sched3.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "doubling",
+					"trigger": {"type": "scheduled", "every": 1},
+					"query": {"tags_all": ["town"]},
+					"effect":
+					[{"type": "state_mul", "target": "self", "field": "upkeep", "amount": 2}]
+				}
+			)
+		]
+	)
+	sched3.advance_calendar(4)
+	expect_eq(
+		int(t3.get_state("upkeep", -1)), 16, "effects flush per unit (1*2^4), not once at the end"
+	)
+
+	# ---------- 4. the advance emits one signal for the whole span ----------
+	var found_advance := 0
+	var span := -1
+	for s in (env3.get("signal_buffer", []) as Array):
+		if str((s as Dictionary).get("name", "")) == "time_advanced":
+			found_advance += 1
+			span = int((s as Dictionary).get("units", -1))
+	expect_eq(found_advance, 1, "one time_advanced signal per advance, not one per unit")
+	expect_eq(span, 4, "time_advanced carries the span")
+
+	# ---------- 5. non-positive units is a no-op ----------
+	var before := int(t3.get_state("upkeep", -1))
+	sched3.advance_calendar(0)
+	sched3.advance_calendar(-3)
+	expect_eq(int(t3.get_state("upkeep", -1)), before, "advance of 0 or negative units is a no-op")
+
+	# ---------- 6. the effect verb reaches the scheduler through env ----------
+	var ents4 := {}
+	var t4 := Entity.create(defs.town, "t4")
+	ents4["t4"] = t4
+	var env4: Dictionary = {
+		"entities": ents4,
+		"defs": defs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var sched4 := PhaseScheduler.new(env4)
+	sched4.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "daily",
+					"trigger": {"type": "scheduled", "every": 1},
+					"query": {"tags_all": ["town"]},
+					"effect": [{"type": "state_add", "target": "self", "field": "upkeep", "amount": 1}]
+				}
+			)
+		]
+	)
+	EffectApply.apply({"type": "advance_time", "units": 3}, env4, {})
+	expect_eq(int(t4.get_state("upkeep", -1)), 3, "the advance_time effect drives the calendar")
+
+	t1.free()
+	t2.free()
+	t3.free()
+	t4.free()
+
+
 ## ADR 0077 — level subroutines. The test suite builds env dicts rather than
 ## a live World (tests.md: no scene tree), so this covers the effect side of
 ## the contract: what level_call / level_return write into world state and
