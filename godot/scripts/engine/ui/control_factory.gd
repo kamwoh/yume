@@ -124,7 +124,7 @@ static func build(
 
 static func _build_label(spec: Dictionary) -> Label:
 	var lbl := Label.new()
-	lbl.text = _resolve_text(spec.get("text", ""))
+	lbl.text = _apply_format(_resolve_text(spec.get("text", "")), spec.get("format", null))
 	if spec.has("font_size"):
 		lbl.add_theme_font_size_override("font_size", int(spec["font_size"]))
 	if spec.has("color"):
@@ -532,6 +532,19 @@ static func _substitute_row(
 			out[ks] = _substitute_row(
 				(node as Dictionary)[k], bind, ent, env, edge_of, ks == "binds"
 			)
+		# Row-scope every `id` in the template. A list stamps its item template
+		# once per match, so an id authored inside it is N controls sharing one
+		# name — the rows become mutually indistinguishable to anything that
+		# addresses a control by id: focus, scenario `click`, any future
+		# automation. Suffixing with the row entity makes each row addressable
+		# as `btn_take__contract_copy_roll` while an author still writes one id.
+		#
+		# Empirical 2026-08-17: a contract board's three Take buttons all read
+		# `btn_take`, and the scenario runner correctly refused the click as
+		# ambiguous rather than picking one — the ONLY reason the accept path's
+		# silence was noticed at all.
+		if out.has("id") and out["id"] is String and ent != null:
+			out["id"] = "%s__%s" % [str(out["id"]), ent.instance_id]
 		return out
 	if node is Array:
 		var arr: Array = []
@@ -993,6 +1006,29 @@ static func _size_flag(s: String) -> int:
 ##
 ## Empirical 2026-08-17: a menu-driven game whose whole presentation is screens
 ## rendered "Day 0.0 / 120.0 coin / Debt 3000.0 / trust 25.0".
+## Apply a `format` template to an already-resolved label value.
+##
+## `format` was a HUD-only feature, applied where a label re-reads a live
+## binding each frame. A `list` row resolves its value ONCE at build time, so a
+## row label carrying a format template silently ignored it and rendered the
+## bare number — "3" where the author wrote "还需 {v} 天工". Handling it here, in
+## the label builder, covers every label in the engine rather than teaching
+## rows a second copy of the rule.
+##
+## The template itself may be an `@strings.*` ref so the surrounding words
+## localise; `{v}` is the placeholder for the value.
+##
+## Empirical 2026-08-17: a contract board rendered as four unlabelled columns
+## of digits — the numbers were right, and meaningless.
+static func _apply_format(text: String, fmt_v) -> String:
+	if fmt_v == null:
+		return text
+	var fmt := _resolve_text(fmt_v)
+	if fmt == "" or not fmt.contains("{v}"):
+		return text
+	return fmt.replace("{v}", text)
+
+
 static func format_bound_value(v) -> String:
 	if v is float:
 		return "%d" % int(v)

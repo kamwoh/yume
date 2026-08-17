@@ -513,7 +513,7 @@ static func learn_from_master(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 	# rules that already have a master id in context).
 	var master_id := ""
 	if e.has("master_id"):
-		master_id = EffectResolution.resolve_id(e.get("master_id"), ctx)
+		master_id = EffectResolution.resolve_id(e.get("master_id"), ctx, env)
 	var max_per_call: int = int(EffectResolution.value(e.get("max_per_call", 1), ctx, env))
 	var awarded: String = ttd.call(
 		"learn_from_master", env, apprentice_id, tree_id, master_id, relation, max_per_call
@@ -624,8 +624,8 @@ static func transfer_inventory(e: Dictionary, env: Dictionary, ctx: Dictionary) 
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "count": 0}
-	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx)
-	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx, env)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx, env)
 	var n: int = int(dd.call("transfer_inventory", env, from_id, to_id))
 	return {"ok": n > 0, "count": n, "from": from_id, "to": to_id}
 
@@ -648,8 +648,8 @@ static func transfer_reputation(e: Dictionary, env: Dictionary, ctx: Dictionary)
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "count": 0}
-	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx)
-	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx, env)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx, env)
 	var n: int = int(dd.call("transfer_reputation", env, from_id, to_id))
 	return {"ok": n > 0, "count": n, "from": from_id, "to": to_id}
 
@@ -674,8 +674,8 @@ static func transfer_techs(e: Dictionary, env: Dictionary, ctx: Dictionary) -> D
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "transferred": []}
-	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx)
-	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", ""), ctx, env)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx, env)
 	var filter := str(EffectResolution.value(e.get("filter", "core_only"), ctx, env))
 	var transferred: Array = dd.call("transfer_techs", env, from_id, to_id, filter)
 	return {
@@ -716,7 +716,7 @@ static func transition_player_to(e: Dictionary, env: Dictionary, ctx: Dictionary
 			"warning"
 		)
 		return {"ok": false, "reason": "no_manager", "target": ""}
-	var target_id := EffectResolution.resolve_id(e.get("target", ""), ctx)
+	var target_id := EffectResolution.resolve_id(e.get("target", ""), ctx, env)
 	if target_id == "":
 		# Some authors put the target in `target_id` (mirroring switch_actor).
 		target_id = str(EffectResolution.value(e.get("target_id", ""), ctx, env))

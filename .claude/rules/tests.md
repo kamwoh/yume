@@ -83,3 +83,29 @@ Output should end with `passed: NN  failed: 0  total: NN`.
 3. **Don't disable tests** to "fix later." Disabled tests rot.
 4. If the test itself was wrong, fix it AND add a comment explaining
    why the original was wrong.
+
+## Scenario steps that advance the simulation must settle the screen layer
+
+`step_runner`'s `tick` and `wait` both run sim ticks. Only `wait` drained
+ScreenFlow's screen-event buffer, so a screen change emitted by a RULE
+(`refresh_screen`, `transition_screen`, `show_toast` from a rule effect)
+was invisible to every scenario — they all use `tick`.
+
+The gap hid itself: button-driven transitions still worked, because
+ScreenFlow dispatches a button's `on_click` chain directly rather than
+through the buffer. Screens therefore looked well covered while the
+entire rule→screen direction was untested.
+
+**Rule**: any new step verb that calls `_advance(world)` MUST also call
+`_tick_screen_flow(world)` before returning. If a verb deliberately does
+not (a raw-sim probe), say so in a comment.
+
+**Gate**: `demo_thousandgate`'s four `contract_*` scenarios exercise
+rule-emitted `refresh_screen` end-to-end — accept a contract, assert the
+board rebuilt without it. They fail if the drain is removed from either
+verb.
+
+**Empirical 2026-08-17**: a contract board's accept rule ended in
+`refresh_screen`. The rebuild was correct and the re-query matched, but
+it drained after the whole scenario finished; four scenarios failed
+pointing at contract state while the defect was in the harness.

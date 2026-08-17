@@ -356,8 +356,8 @@ static func relate(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	if store == null:
 		return
 	var type := str(e.get("relation", ""))
-	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
-	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx, env)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx, env)
 	if type == "" or from_id == "" or to_id == "":
 		return
 	# ADR 0075 — optional edge state. Re-relating merges, so this doubles as
@@ -371,8 +371,8 @@ static func unrelate(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	if store == null:
 		return
 	var type := str(e.get("relation", ""))
-	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
-	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx, env)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx, env)
 	if type == "" or from_id == "" or to_id == "":
 		return
 	store.unrelate(type, from_id, to_id)
@@ -386,12 +386,12 @@ static func transfer_relation(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 	if store == null:
 		return
 	var type := str(e.get("relation", ""))
-	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
-	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx, env)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx, env)
 	if e.has("new_to"):
-		store.transfer_to(type, from_id, to_id, EffectResolution.resolve_id(e["new_to"], ctx))
+		store.transfer_to(type, from_id, to_id, EffectResolution.resolve_id(e["new_to"], ctx, env))
 	elif e.has("new_from"):
-		store.transfer_from(type, from_id, EffectResolution.resolve_id(e["new_from"], ctx), to_id)
+		store.transfer_from(type, from_id, EffectResolution.resolve_id(e["new_from"], ctx, env), to_id)
 
 
 # ============================================================
@@ -409,10 +409,10 @@ static func transfer_relation(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 
 ## Resolve the (type, from, to) triple these three effects share. Returns an
 ## empty type when any part is unresolvable, which the callers treat as "skip".
-static func _relation_triple(e: Dictionary, ctx: Dictionary) -> Array:
+static func _relation_triple(e: Dictionary, ctx: Dictionary, env: Dictionary = {}) -> Array:
 	var type := str(e.get("relation", ""))
-	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx)
-	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx)
+	var from_id := EffectResolution.resolve_id(e.get("from", "self"), ctx, env)
+	var to_id := EffectResolution.resolve_id(e.get("to", ""), ctx, env)
 	if type == "" or from_id == "" or to_id == "":
 		return ["", "", ""]
 	return [type, from_id, to_id]
@@ -422,7 +422,7 @@ static func relation_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 	var store: RelationStore = env.get("relations", null)
 	if store == null:
 		return
-	var t: Array = _relation_triple(e, ctx)
+	var t: Array = _relation_triple(e, ctx, env)
 	if t[0] == "":
 		return
 	store.set_edge_field(
@@ -434,7 +434,7 @@ static func relation_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 	var store: RelationStore = env.get("relations", null)
 	if store == null:
 		return
-	var t: Array = _relation_triple(e, ctx)
+	var t: Array = _relation_triple(e, ctx, env)
 	if t[0] == "":
 		return
 	store.add_edge_field(
@@ -450,7 +450,7 @@ static func relation_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> v
 	var store: RelationStore = env.get("relations", null)
 	if store == null:
 		return
-	var t: Array = _relation_triple(e, ctx)
+	var t: Array = _relation_triple(e, ctx, env)
 	if t[0] == "":
 		return
 	store.clamp_edge_field(

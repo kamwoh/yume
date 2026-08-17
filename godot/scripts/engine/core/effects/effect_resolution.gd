@@ -44,9 +44,45 @@ class_name EffectResolution
 const WORLD_STATE_ALIAS: String = "_engine"
 
 
+## Resolve a string to an entity id — the ONE place that decides what an
+## entity reference in JSON means. `target`, `resolve_id`, and therefore every
+## effect that addresses an entity all route through here, so the three forms
+## below are available uniformly instead of per-effect.
+##
+##   "actor" / "row" / "self"     context binding  → the bound id
+##   "self.properties.poster"     dotted path      → follow it, use the result
+##   "npc_sera_vance"             anything else    → literal id
+##
+## ADR 0081. The dotted form is INDIRECTION: address the entity a field names
+## rather than one the rule hardcodes. Without it, "reward the NPC who posted
+## this contract" is inexpressible — a rule can only name a poster literally,
+## so N posters means N copies of the same rule, and adding the N+1th silently
+## does nothing until someone notices the missing copy.
+##
+## WHY A DOT IS THE DISAMBIGUATOR: entity ids never contain one, so no existing
+## literal can be reinterpreted by this change. That precision is the whole
+## point. Routing every id string through Formula.evaluate instead would reopen
+## the caabe39 bug class — `looks_like_formula` accepts any lowercase-leading
+## string, so plain ids like `npc_sera_vance` would parse as expressions. The
+## path is evaluated ONLY when it contains a dot AND its head is a live context
+## binding; a dotted string rooted at nothing stays a literal.
+static func entity_id(v, ctx: Dictionary, env: Dictionary = {}) -> String:
+	if not (v is String):
+		return ""
+	var s := str(v)
+	if ctx.has(s):
+		return str(ctx[s])
+	var dot := s.find(".")
+	if dot > 0 and ctx.has(s.substr(0, dot)):
+		var resolved = value(s, ctx, env)
+		if resolved == null:
+			return ""
+		return str(resolved)
+	return s
+
+
 static func target(effect: Dictionary, env: Dictionary, ctx: Dictionary) -> Entity:
-	var key := str(effect.get("target", "self"))
-	var id := str(ctx.get(key, key))
+	var id := entity_id(effect.get("target", "self"), ctx, env)
 	var all: Dictionary = env.get("entities", {})
 	if id == "world" and not all.has(id):
 		id = WORLD_STATE_ALIAS
@@ -57,14 +93,10 @@ static func target(effect: Dictionary, env: Dictionary, ctx: Dictionary) -> Enti
 
 
 ## Resolve an id reference (for relation from/to fields).
-## Same policy: context binding first, literal fallback.
-static func resolve_id(v, ctx: Dictionary) -> String:
-	if v is String:
-		var s := str(v)
-		if ctx.has(s):
-			return str(ctx[s])
-		return s
-	return ""
+## Thin alias for `entity_id` — kept because 19 call sites read better as
+## "resolve_id" and because `env` is optional there.
+static func resolve_id(v, ctx: Dictionary, env: Dictionary = {}) -> String:
+	return entity_id(v, ctx, env)
 
 
 ## Resolve a value: literal pass-through, context lookup for bare names,

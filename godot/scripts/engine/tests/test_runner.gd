@@ -56,6 +56,7 @@ func _ready() -> void:
 	test_calendar_clock()
 	test_sim_tiers()
 	test_world_state_alias()
+	test_entity_id_indirection()
 	test_edge_filter_in_require()
 	test_save_state()
 	test_overlay_effects()
@@ -2558,6 +2559,86 @@ func test_edge_filter_in_require() -> void:
 ## such effect was a SILENT NO-OP — exactly the failure the ADR was written to
 ## eliminate. `.claude/rules/data-demo.md` documented the broken form as
 ## working, so content authored against the docs did nothing.
+func test_entity_id_indirection() -> void:
+	_section("entity_id indirection (ADR 0081)")
+
+	# A contract entity naming its poster in a property — the shape the rule
+	# wants to follow: "reward whoever posted this", not "reward npc_sera".
+	var contract := Entity.new()
+	contract.instance_id = "contract_1"
+	contract.def_id = "contract_1"
+	contract.tags = ["contract"]
+	contract.properties = {"poster": "npc_sera"}
+	contract.state = {"reward_coin": 180}
+
+	var poster := Entity.new()
+	poster.instance_id = "npc_sera"
+	poster.def_id = "npc"
+	poster.tags = ["named_npc"]
+	poster.state = {"favours_owed": 0}
+
+	var player := Entity.new()
+	player.instance_id = "player_1"
+	player.def_id = "player"
+	player.tags = ["player"]
+	player.state = {"coin": 0}
+
+	var entities: Dictionary = {
+		"contract_1": contract, "npc_sera": poster, "player_1": player
+	}
+	var rs := RelationStore.new()
+	var env: Dictionary = {
+		"entities": entities, "defs": {}, "relations": rs,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+	var ctx: Dictionary = {"self": "contract_1", "actor": "player_1"}
+
+	# --- the three resolution forms, at the resolver itself ---
+	expect_eq(
+		EffectResolution.entity_id("actor", ctx, env), "player_1",
+		"a bare context binding resolves to the bound id"
+	)
+	expect_eq(
+		EffectResolution.entity_id("npc_sera", ctx, env), "npc_sera",
+		"a bare non-binding string stays a literal id"
+	)
+	expect_eq(
+		EffectResolution.entity_id("self.properties.poster", ctx, env), "npc_sera",
+		"a dotted path rooted at a binding follows to the named entity"
+	)
+
+	# The safety property this design rests on: a dotted string whose head is
+	# NOT a live binding must stay literal, never reach the formula parser.
+	expect_eq(
+		EffectResolution.entity_id("some.unbound.thing", ctx, env), "some.unbound.thing",
+		"a dotted path rooted at nothing stays a literal (no formula parse)"
+	)
+
+	# --- and through the effects that actually use it ---
+	EffectApply.apply(
+		{"type": "state_add", "target": "self.properties.poster",
+		 "field": "favours_owed", "amount": 1},
+		env, ctx
+	)
+	expect_eq(
+		int(poster.state.get("favours_owed", -1)), 1,
+		"state_add reaches the entity a property NAMES, not one the rule hardcodes"
+	)
+
+	EffectApply.apply(
+		{"type": "relate", "relation": "owes", "from": "self.properties.poster",
+		 "to": "actor", "state": {"amount": 3}},
+		env, ctx
+	)
+	expect_eq(
+		int(rs.edge_state("owes", "npc_sera", "player_1").get("amount", -1)), 3,
+		"relate resolves BOTH endpoints through the same resolver"
+	)
+
+	for e in [contract, poster, player]:
+		e.free()
+
+
 func test_world_state_alias() -> void:
 	_section("world_state_alias (ADR 0047)")
 

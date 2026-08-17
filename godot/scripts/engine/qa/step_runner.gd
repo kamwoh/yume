@@ -472,6 +472,20 @@ static func _do_tick(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 		return
 	for i in range(n):
 		_advance(world)
+	# Same drain `wait` does, and for the same reason — a step that advances the
+	# simulation must also settle the screen layer, or a scenario reads a UI
+	# frozen at whatever state it was in before the rules ran.
+	#
+	# `wait` had this and `tick` did not, which made the gap invisible: every
+	# scenario in the suite uses `tick`, so NO scenario could observe a screen
+	# event a RULE emitted. Button-driven transitions still worked (ScreenFlow
+	# dispatches those directly), so screens appeared thoroughly covered.
+	#
+	# Empirical 2026-08-17: a contract board's accept rule ended in
+	# `refresh_screen`; the rebuild was correct and the re-query matched, but it
+	# drained after the whole scenario finished. Four scenarios failed pointing
+	# at contract state, and the actual defect was in the harness.
+	_tick_screen_flow(world)
 
 
 static func _do_screenshot(step: Dictionary, world: World, ctx: Dictionary):
@@ -603,6 +617,8 @@ static func _check_one(a: Dictionary, world: World, ctx: Dictionary) -> void:
 	#   1) Old shape:  {"entity_field": {query, field, op, value}}
 	#                   {"entity_count": {query, op, value}}
 	#                   {"world_field": {field, op, value}}
+	#                   {"relation_field": {relation, from_query, to_query,
+	#                                       field, op, value}}
 	#                   {"ui_present": "<text or {id|text|screen}>"}
 	#                   {"ui_hidden": ...}
 	#                   {"screen_active": "title"}
@@ -614,6 +630,8 @@ static func _check_one(a: Dictionary, world: World, ctx: Dictionary) -> void:
 		_assert_entity_count(a["entity_count"], world, ctx)
 	elif a.has("world_field"):
 		_assert_world_field(a["world_field"], world, ctx)
+	elif a.has("relation_field"):
+		_assert_relation_field(a["relation_field"], world, ctx)
 	elif a.has("ui_present"):
 		_assert_ui(a["ui_present"], true, world, ctx)
 	elif a.has("ui_hidden"):
@@ -694,6 +712,69 @@ static func _assert_world_field(spec: Dictionary, world: World, ctx: Dictionary)
 		_pass(ctx, "world_field %s %s %s (got %s)" % [field, op, str(expected), str(got)])
 	else:
 		_fail(ctx, "world_field %s: expected %s %s, got %s" % [field, op, str(expected), str(got)])
+
+
+## Assert on RELATION EDGE STATE (ADR 0075) — the fourth state scope, and
+## until now the only one with no scenario assertion. Entity, world, and zone
+## state could all be asserted; a value living on an edge could not, so any
+## content built on edge state (trust, debt, loyalty, ownership) was testable
+## only through whatever entity field happened to shadow it.
+##
+## Endpoints are QUERIES rather than ids on purpose. A scenario that hardcodes
+## `from: "player_1"` breaks when an id changes and, worse, passes for the
+## wrong reason if two entities could match — the same discipline that makes
+## `entity_field` take a query.
+static func _assert_relation_field(spec: Dictionary, world: World, ctx: Dictionary) -> void:
+	var rel := str(spec.get("relation", ""))
+	var field := str(spec.get("field", ""))
+	var op := str(spec.get("op", "=="))
+	var expected = spec.get("value", 0)
+
+	var from_q: Dictionary = spec.get("from_query", {})
+	var to_q: Dictionary = spec.get("to_query", {})
+	var from_m := _query_entities(world, from_q)
+	var to_m := _query_entities(world, to_q)
+	if from_m.is_empty() or to_m.is_empty():
+		var which := "from" if from_m.is_empty() else "to"
+		_fail(
+			ctx,
+			(
+				"relation_field %s: %s_query %s matched no entities"
+				% [rel, which, _summarize_query(from_q if which == "from" else to_q)]
+			)
+		)
+		return
+
+	var store = world.env.get("relations", null)
+	if store == null:
+		_fail(ctx, "relation_field %s: no relation store" % rel)
+		return
+
+	var from_id: String = (from_m[0] as Entity).instance_id
+	var to_id: String = (to_m[0] as Entity).instance_id
+	var edge: Dictionary = store.edge_state(rel, from_id, to_id)
+	var label := "%s(%s -> %s).%s" % [rel, from_id, to_id, field]
+
+	# A missing edge and an edge missing the field are DIFFERENT failures, and
+	# saying which one saves the next reader from re-deriving it.
+	if not store.has_edge(rel, from_id, to_id):
+		_fail(ctx, "relation_field %s: no such relation edge exists" % label)
+		return
+	if not edge.has(field):
+		_fail(
+			ctx, "relation_field %s: edge exists but carries no such field (has %s)"
+			% [label, str(edge.keys())]
+		)
+		return
+
+	var got = edge[field]
+	if _cmp(got, op, expected):
+		_pass(ctx, "relation_field %s %s %s (got %s)" % [label, op, str(expected), str(got)])
+	else:
+		_fail(
+			ctx, "relation_field %s: expected %s %s, got %s"
+			% [label, op, str(expected), str(got)]
+		)
 
 
 static func _assert_ui(selector_v, expect_present: bool, world: World, ctx: Dictionary) -> void:

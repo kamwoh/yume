@@ -102,7 +102,7 @@ static func party_join(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var member: Entity = EffectResolution.target(e, env, ctx)
 	if member == null:
 		return
-	var leader_id := EffectResolution.resolve_id(e.get("leader", "player"), ctx)
+	var leader_id := EffectResolution.resolve_id(e.get("leader", "player"), ctx, env)
 	if leader_id == "":
 		return
 	var entities: Dictionary = env.get("entities", {})
