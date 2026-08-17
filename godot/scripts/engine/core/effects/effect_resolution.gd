@@ -27,10 +27,29 @@ class_name EffectResolution
 
 ## Resolve the target entity for an effect.
 ## Per contract: context binding first (e.g. "self"), fall back to literal id.
+## ADR 0047 promises "One store, two names": `state_set target=world` and
+## `state_set target=_engine` write the same data, matching the read-side
+## `world.X` HUD binding. Only `_engine` was ever implemented — `target=world`
+## resolved to no entity and every such effect was a SILENT NO-OP, which is
+## precisely the failure ADR 0047 was written to eliminate (its Context calls
+## out "writing state_set target=world, field=gold succeeds silently").
+##
+## `.claude/rules/data-demo.md` documented `target=world` as working, so
+## content authored against the docs did nothing at all.
+##
+## Empirical 2026-08-17: a career life-sim's entire progression — rank,
+## objective text, debt — was written with target="world" and none of it
+## landed. Boot was clean, all 31 validators passed, and 9 of 10 scenario
+## assertions passed; only the one asserting a world field caught it.
+const WORLD_STATE_ALIAS: String = "_engine"
+
+
 static func target(effect: Dictionary, env: Dictionary, ctx: Dictionary) -> Entity:
 	var key := str(effect.get("target", "self"))
 	var id := str(ctx.get(key, key))
 	var all: Dictionary = env.get("entities", {})
+	if id == "world" and not all.has(id):
+		id = WORLD_STATE_ALIAS
 	if not all.has(id):
 		return null
 	var ent = all[id]

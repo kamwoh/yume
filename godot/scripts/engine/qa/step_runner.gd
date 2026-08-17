@@ -391,7 +391,17 @@ static func _do_click(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 		sel = selector_v
 	else:
 		sel = {"text": str(selector_v)}
-	var screen_flow := world.get_node_or_null("/root/ScreenFlow")
+	# Use the proper lookup, NOT an absolute path. WorldBoot mounts ScreenFlow
+	# as a CHILD of World, so "/root/ScreenFlow" resolves to null in every real
+	# scene. That made _find_controls fall through to its whole-tree fallback
+	# (so a click appeared to work) while `screen_flow.drain()` below silently
+	# never ran — meaning any on_click chain containing transition_screen did
+	# nothing, and every following click in the scenario missed its target.
+	#
+	# Empirical 2026-08-17: a menu-driven game's scenarios could click "New
+	# Life" but never reached the screen it opens; 9 of 10 assertions failed
+	# with the game itself behaving correctly in live play.
+	var screen_flow := _find_screen_flow(world)
 	# Walk the screen + overlay stacks for matching Controls.
 	var matches := _find_controls(screen_flow, sel)
 	if matches.is_empty():
@@ -687,7 +697,11 @@ static func _assert_world_field(spec: Dictionary, world: World, ctx: Dictionary)
 
 
 static func _assert_ui(selector_v, expect_present: bool, world: World, ctx: Dictionary) -> void:
-	var screen_flow := world.get_node_or_null("/root/ScreenFlow")
+	# Same absolute-path bug as _do_click: without a real ScreenFlow, the
+	# selector search silently widened to the entire scene tree, so a
+	# ui_present assertion could pass on a Control belonging to a screen that
+	# was not open.
+	var screen_flow := _find_screen_flow(world)
 	var sel: Dictionary = selector_v if selector_v is Dictionary else {"text": str(selector_v)}
 	var matches := _find_controls(screen_flow, sel)
 	var present := not matches.is_empty()

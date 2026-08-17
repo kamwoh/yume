@@ -93,6 +93,12 @@ func do_reset() -> void:
 	# 5. Refresh active_actor_id mirror (ActorManager state untouched).
 	if _world.actor_manager != null:
 		_world.world_state["active_actor_id"] = _world.actor_manager.active_actor_id
+	# 6. ADR 0076 — the entity set was just replaced, so query-bound UI must
+	# re-run its queries. This is the third content (re)load alongside boot and
+	# level transition; without it a `list` built before the reset keeps
+	# rendering rows for entities that no longer exist, or misses rows for the
+	# ones that replaced them.
+	_world.world_loaded.emit()
 	_world.scheduler.flush_effects()
 	if _world.verbose:
 		print("[World] reset_world complete (level: %s)" % _world.current_level)

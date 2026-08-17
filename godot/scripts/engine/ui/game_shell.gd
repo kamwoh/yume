@@ -616,8 +616,77 @@ func _load_strings_cache() -> void:
 	_strings_cache_loaded = true
 	# ADR 0009 Phase 2c: ui/strings.json is the localization layer.
 	# Schema is freeform nested dict; @strings.x.y.z walks the path.
-	# Future: ui/strings.<lang>.json for locale switching.
+	#
+	# LOCALE SWITCHING (2026-08-17). `ui/strings.json` is the base language and
+	# is ALWAYS loaded; a per-locale `ui/strings.<lang>.json` is then merged
+	# OVER it. The merge is recursive and PER KEY, which is the whole point: a
+	# half-finished translation falls back key-by-key to the base language
+	# instead of the game reverting wholesale or showing blank labels. Adding a
+	# language is one new file and no code, and no content needs touching.
+	#
+	# Language resolution, first hit wins:
+	#   1. `--lang=xx` on the command line (how tests + captures pin a locale)
+	#   2. world_state["language"] (so a settings screen can switch at runtime
+	#      via `state_set target=world, field=language` — ADR 0013 settings)
+	#   3. OS.get_locale_language() (the player's system language)
 	_strings_cache = _read_json_file_in_data("ui/strings.json")
+	var lang := _resolve_language()
+	if lang == "":
+		return
+	var loc := _read_json_file_in_data("ui/strings.%s.json" % lang)
+	if not loc.is_empty():
+		_merge_strings(_strings_cache, loc)
+
+
+## Language code (e.g. "zh", "ja"), or "" for the base language only.
+func _resolve_language() -> String:
+	for arg in OS.get_cmdline_user_args():
+		var s := str(arg)
+		if s.begins_with("--lang="):
+			return s.substr(7).strip_edges()
+	if _world != null:
+		var ws = _world.get("world_state")
+		if ws is Dictionary and (ws as Dictionary).has("language"):
+			var v := str((ws as Dictionary)["language"]).strip_edges()
+			if v != "":
+				return v
+	# Read world/state.json from DISK as well, because this must not depend on
+	# load order. The UI directors' _ready builds screens BEFORE
+	# World.load_data populates world_state, so the first @strings resolve —
+	# which populates and freezes the cache — would otherwise always miss the
+	# authored language and fall through to the OS locale.
+	#
+	# Empirical 2026-08-17: a Chinese game rendered its bound `format` labels in
+	# Chinese (resolved per frame, after load) and its static `text` labels in
+	# English (resolved once, during _ready, before load).
+	var authored := _read_json_file_in_data("world/state.json")
+	var st = authored.get("state", null)
+	if st is Dictionary and (st as Dictionary).has("language"):
+		var av := str((st as Dictionary)["language"]).strip_edges()
+		if av != "":
+			return av
+	var sys := OS.get_locale_language()
+	return sys if sys != null else ""
+
+
+## Drop the strings cache so the next @strings resolve re-reads with the
+## current language. Called on world_loaded (content just (re)loaded) and by a
+## settings screen after writing world_state.language.
+func invalidate_strings_cache() -> void:
+	_strings_cache_loaded = false
+	_strings_cache = {}
+
+
+## Recursively merge `over` into `base`, in place. Nested dicts merge rather
+## than replace, so a locale file may translate `hud.day` without having to
+## restate every other key under `hud`.
+static func _merge_strings(base: Dictionary, over: Dictionary) -> void:
+	for k in over:
+		var ov = over[k]
+		if ov is Dictionary and base.get(k, null) is Dictionary:
+			_merge_strings(base[k] as Dictionary, ov as Dictionary)
+		else:
+			base[k] = ov
 
 
 ## Read a JSON file under data_root. Returns {} on any failure

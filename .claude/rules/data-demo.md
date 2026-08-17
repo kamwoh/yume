@@ -447,8 +447,12 @@ all global fields in `state_init`. Rules query via
 `target: "<entity_id>"`.
 
 HUD bindings work BOTH ways but for different stores:
-- `world.X` reads `env.world_state` dict (set by
-  `state_set target=world`)
+- `world.X` reads `env.world_state` dict. Per ADR 0047 that dict IS the
+  `_engine` singleton entity's state, so it is written with
+  `state_set target=world` OR `state_set target=_engine` — one store,
+  two names. (Both were promised by ADR 0047; only `_engine` was
+  implemented until 2026-08-17, so every `target=world` was a SILENT
+  no-op. Unit-tested now: `test_world_state_alias`.)
 - `<entity_tag>.X` reads the first entity with that tag
 
 Pick ONE source-of-truth per piece of state — mixing means
@@ -535,3 +539,27 @@ When adding a demo, verify:
 3. Formulas parse
 4. Demo runs in both 2D and 3D scenes (if applicable)
 5. Goal-state cascade reaches expected end state in soak test
+
+## Every user-facing string is `@strings.*` — never inline (2026-08-17)
+
+`ui/strings.json` is the base language and is ALWAYS loaded;
+`ui/strings.<lang>.json` merges over it **per key**, so a partial
+translation falls back key-by-key instead of reverting wholesale.
+Adding a language is one file and zero code.
+
+Language resolution, first hit wins: `--lang=xx` → `world_state.language`
+→ the authored `world/state.json` value → the OS locale. The
+authored-file step exists because the UI directors build screens BEFORE
+`World.load_data` populates world_state — without it, static `text`
+labels resolve against the wrong language while per-frame `format`
+labels resolve correctly.
+
+Externalise ALL of it: screen/HUD `text` AND `format`, `show_toast` text,
+objective strings written by rules, and entity `properties.display_name`
+/ `role`. A bound value that IS an `@strings` ref resolves at display.
+
+⚠️ **Scenario `click` selectors must use `id`, never `text`.** Rendered
+text is localised, so a text selector breaks the moment a translation
+lands. Give clickable buttons a stable `id` and select on it.
+**Empirical 2026-08-17**: adding Chinese took a game's scenarios from
+12/12 to 1/12, purely from text selectors.

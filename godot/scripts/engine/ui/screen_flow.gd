@@ -452,7 +452,25 @@ func _update_bound_elements() -> void:
 			if binding != "":
 				var value = shell.call("_resolve_binding", binding)
 				if value != null:
+					# ADR 0009 Phase 2c keeps @-refs unevaluated so the CONSUMER
+					# resolves them. A label is the consumer: world state holding
+					# "@strings.x.y" (e.g. an objective written by a rule, which
+					# must be localisable like any other text) would otherwise
+					# render the raw key on screen.
+					if value is String and str(value).begins_with("@"):
+						var rv := str(shell.call("_resolve_at_ref", str(value)))
+						if rv != "":
+							value = rv
 					var fmt := str(cfg.get("format", "{}"))
+					# ADR 0009 Phase 2c — a `format` is user-facing text and so
+					# must resolve @strings.* like `text` does. HudBuilder has
+					# always resolved it; ScreenFlow never did, so a localised
+					# screen label rendered the literal "@strings.town.fmt.day".
+					# Same asymmetry class as the number formatting below.
+					if fmt.begins_with("@"):
+						var resolved := str(shell.call("_resolve_at_ref", fmt))
+						if resolved != "":
+							fmt = resolved
 					# Shared with HudBuilder — JSON numbers are all floats, so
 					# without this every screen label renders "120.0".
 					(node as Label).text = fmt.replace(
@@ -565,6 +583,20 @@ func _resolve_at_ref(ref: String) -> String:
 	var ns: String = rest.substr(0, dot)
 	var key: String = rest.substr(dot + 1)
 	if ns == "strings":
+		# Delegate to GameShell — it owns the ONE strings loader, including
+		# locale merging (ui/strings.<lang>.json over ui/strings.json). ScreenFlow
+		# used to carry its own duplicate loader + cache reading only the base
+		# file, so `text` (resolved through this path) stayed in the base
+		# language while `format` (resolved through GameShell) localised
+		# correctly. Two implementations of one thing; the drift WAS the bug.
+		#
+		# Empirical 2026-08-17: a Chinese game rendered every bound number label
+		# in Chinese and every static text label in English.
+		var shell = _world.get_node_or_null("GameShell") if _world != null else null
+		if shell != null and shell.has_method("_resolve_at_ref"):
+			return str(shell.call("_resolve_at_ref", ref))
+		# No GameShell mounted (sim-only scene): fall back to the local reader,
+		# which is base-language only but better than an empty string.
 		if not _strings_loaded:
 			_load_strings()
 		return _resolve_dotted(_strings_cache, key)

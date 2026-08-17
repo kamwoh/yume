@@ -104,7 +104,20 @@ func _spawn_engine_entity() -> void:
 	ent.name = "_engine"
 	ent.def_id = "_engine"
 	ent.instance_id = "_engine"
-	ent.tags = ["_engine"]
+	# `persistent` is load-bearing, not decoration. Both the level-transition
+	# and world-reset despawn loops remove every entity WITHOUT that tag, and
+	# neither re-spawns `_engine` (only WorldBoot.run does). Without the tag,
+	# the entity backing world_state is destroyed on the first level change or
+	# New Game — after which `state_set target=world` / `target=_engine`
+	# resolves to no entity and SILENTLY NO-OPS for the rest of the session.
+	#
+	# ADR 0047 postdates those loops and nobody reconciled them.
+	#
+	# Empirical 2026-08-17: a New Game button ran reset_world, and from that
+	# point the game's rank, objective text and debt writes all vanished with
+	# a clean log. world_state itself survives (do_reset clears the dict in
+	# place, keeping the shared reference) — it is the ENTITY that went away.
+	ent.tags = ["_engine", "persistent"]
 	# Share the dict by REFERENCE — writes via either name update the
 	# same data. PhaseScheduler captured env.world before this point;
 	# we mutate the existing dict in place, not replace it.

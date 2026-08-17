@@ -55,6 +55,8 @@ func _ready() -> void:
 	test_level_subroutine()
 	test_calendar_clock()
 	test_sim_tiers()
+	test_world_state_alias()
+	test_edge_filter_in_require()
 	test_save_state()
 	test_overlay_effects()
 	test_spatial_lod()
@@ -2495,6 +2497,126 @@ func test_transition_level_fade() -> void:
 
 ## Spot-check ControlFactory builds correct Godot Control types for each
 ## element kind. Free nodes after to avoid ObjectDB leaks.
+## ADR 0075 — the `_edge` filter must work through Query.matches (the
+## single-entity path used by `require:`), not only Query.run (the scan path).
+## A signal rule gating on "this NPC trusts me enough" goes through matches.
+func test_edge_filter_in_require() -> void:
+	_section("edge_filter_in_require (ADR 0075)")
+
+	var defs := {
+		"officer": {"id": "officer", "tags": ["named_npc", "guild_officer"], "state_init": {}},
+		"player": {"id": "player", "tags": ["player"], "state_init": {}},
+	}
+	var sera := Entity.create(defs.officer, "npc_sera")
+	var pl := Entity.create(defs.player, "player_1")
+	var entities := {"npc_sera": sera, "player_1": pl}
+	var rs := RelationStore.new()
+	# Edge direction is npc -> player: the value is how well the NPC knows YOU.
+	rs.relate("knows", "npc_sera", "player_1", {"trust": 31})
+	var env := {"entities": entities, "relations": rs, "world": {}}
+
+	var spec := {
+		"tags_all": ["guild_officer"],
+		"relations": {"knows": {"_edge": {"trust_gte": 30}}}
+	}
+	expect(
+		QueryLib.matches(sera, spec, env, {}),
+		"Query.matches honours the _edge filter (the `require:` path)"
+	)
+
+	var spec_hi := {
+		"tags_all": ["guild_officer"],
+		"relations": {"knows": {"_edge": {"trust_gte": 40}}}
+	}
+	expect(
+		not QueryLib.matches(sera, spec_hi, env, {}),
+		"...and rejects when the edge value is below the threshold"
+	)
+
+	# The mirror-image rule (`trust_lt`) must also work — a design that has a
+	# granted-path and a refused-path needs BOTH to be expressible.
+	var spec_lt := {"relations": {"knows": {"_edge": {"trust_lt": 30}}}}
+	expect(
+		not QueryLib.matches(sera, spec_lt, env, {}),
+		"trust_lt 30 does not match a trust of 31"
+	)
+	rs.set_edge_field("knows", "npc_sera", "player_1", "trust", 25)
+	expect(
+		QueryLib.matches(sera, spec_lt, env, {}),
+		"trust_lt 30 matches once the edge drops to 25"
+	)
+
+	sera.free()
+	pl.free()
+
+
+## ADR 0047 — `state_set target: "world"` must write world_state.
+##
+## ADR 0047 promises "One store, two names": target=world and target=_engine
+## write the same data, matching the read-side `world.X` binding. Only
+## `_engine` was implemented, so `target=world` resolved to no entity and every
+## such effect was a SILENT NO-OP — exactly the failure the ADR was written to
+## eliminate. `.claude/rules/data-demo.md` documented the broken form as
+## working, so content authored against the docs did nothing.
+func test_world_state_alias() -> void:
+	_section("world_state_alias (ADR 0047)")
+
+	# Mirror WorldBoot._spawn_engine_entity: the `_engine` entity's state dict
+	# IS world_state, shared by reference.
+	var world_state: Dictionary = {"gold": 10, "objective": "start"}
+	var eng := Entity.new()
+	eng.instance_id = "_engine"
+	eng.def_id = "_engine"
+	eng.tags = ["_engine"]
+	eng.state = world_state
+	var entities: Dictionary = {"_engine": eng}
+	var env: Dictionary = {
+		"entities": entities,
+		"defs": {},
+		"relations": RelationStore.new(),
+		"world": world_state,
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+
+	EffectApply.apply(
+		{"type": "state_set", "target": "world", "field": "objective", "value": "Go north."},
+		env,
+		{}
+	)
+	expect_eq(
+		str(world_state.get("objective", "")),
+		"Go north.",
+		"state_set target='world' writes world_state (the ADR 0047 alias)"
+	)
+
+	EffectApply.apply(
+		{"type": "state_add", "target": "world", "field": "gold", "amount": 25}, env, {}
+	)
+	expect_eq(int(world_state.get("gold", -1)), 35, "state_add target='world' accumulates")
+
+	# The documented equivalence: both names, one store.
+	EffectApply.apply(
+		{"type": "state_set", "target": "_engine", "field": "gold", "value": 7}, env, {}
+	)
+	expect_eq(int(world_state.get("gold", -1)), 7, "target='_engine' writes the SAME store")
+
+	# A real entity id must still win over the alias, so a game that legitimately
+	# names an entity "world" is not hijacked.
+	var real := Entity.create({"id": "w", "tags": ["thing"], "state_init": {"hp": 1}}, "world")
+	entities["world"] = real
+	EffectApply.apply(
+		{"type": "state_set", "target": "world", "field": "hp", "value": 99}, env, {}
+	)
+	expect_eq(int(real.get_state("hp", -1)), 99, "an actual entity named 'world' takes precedence")
+	expect(
+		not world_state.has("hp"), "...and the alias did not also write world_state"
+	)
+
+	eng.free()
+	real.free()
+
+
 ## ADR 0079 — simulation tiers. Tier is DERIVED from distance to the LOD
 ## anchor; `Rule.scope` (previously a dead field) selects which tier a rule
 ## applies to. Phase 1 = dispatch filtering; presentation detach is Phase 2.
