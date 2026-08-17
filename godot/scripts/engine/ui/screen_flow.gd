@@ -453,7 +453,11 @@ func _update_bound_elements() -> void:
 				var value = shell.call("_resolve_binding", binding)
 				if value != null:
 					var fmt := str(cfg.get("format", "{}"))
-					(node as Label).text = fmt.replace("{}", str(value))
+					# Shared with HudBuilder — JSON numbers are all floats, so
+					# without this every screen label renders "120.0".
+					(node as Label).text = fmt.replace(
+						"{}", ControlFactory.format_bound_value(value)
+					)
 
 
 func _formula_ctx() -> Dictionary:

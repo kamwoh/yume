@@ -390,10 +390,10 @@ func _apply_binding_to_node(node: Node, cfg: Dictionary, value) -> void:
 				pb.modulate = lo.lerp(hi, clamp(v / pb.max_value, 0.0, 1.0))
 
 
+## Delegates to the shared implementation so HUD and screen labels can never
+## drift apart again (they had: screens showed "120.0", HUD showed "120").
 static func _format_value(v) -> String:
-	if v is float:
-		return "%d" % int(v)  # round to int by default for HUD
-	return str(v)
+	return ControlFactory.format_bound_value(v)
 
 
 # ============================================================

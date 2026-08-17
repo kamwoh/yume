@@ -892,7 +892,35 @@ static func _size_flag(s: String) -> int:
 
 ## Resolve @strings.x.y refs same way GameShell does. Falls back to
 ## literal text. Static so we don't need a ScreenFlow instance.
+## Format a bound value for display in a label.
+##
+## Godot's JSON parser produces a float for EVERY number, so an authored
+## `"coin": 120` binds as 120.0 and renders as "120.0" without this. HudBuilder
+## has always rounded for exactly that reason; ScreenFlow did not, so screen
+## labels showed the decimal and HUD labels didn't. Shared here so the two can't
+## diverge again.
+##
+## Semantics are HudBuilder's existing ones, unchanged: floats round to int,
+## because a HUD reading "Stamina 87.3" is noise. Content that genuinely needs a
+## fraction should format it into a string before binding.
+##
+## Empirical 2026-08-17: a menu-driven game whose whole presentation is screens
+## rendered "Day 0.0 / 120.0 coin / Debt 3000.0 / trust 25.0".
+static func format_bound_value(v) -> String:
+	if v is float:
+		return "%d" % int(v)
+	return str(v)
+
+
 static func _resolve_text(v) -> String:
+	# Numbers reach here from ADR 0076 row substitution (`row.state.X`,
+	# `row_edge.X`), and JSON makes every one of them a float — so a trust of
+	# 25 renders "25.0" without this. Formatting happens HERE, at display time,
+	# rather than during substitution: the substituted value also feeds effect
+	# payloads (`"amount": "row.state.X"`), where stringifying it would break
+	# the arithmetic.
+	if v is float or v is int:
+		return format_bound_value(v)
 	var s := str(v)
 	if not s.begins_with("@"):
 		return s
