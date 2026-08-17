@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-08-16T18:43:53+00:00",
+  "generated_at": "2026-08-17T16:59:24+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -78,6 +78,10 @@
     },
     {
       "type": "transfer_relation",
+      "source": "effect_apply.gd"
+    },
+    {
+      "type": "refresh_screen",
       "source": "effect_apply.gd"
     },
     {

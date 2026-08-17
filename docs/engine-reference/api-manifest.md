@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-08-16T18:43:53+00:00_
+_Generated: 2026-08-17T16:59:24+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -22,7 +22,7 @@ Valid `rule.trigger.type` strings:
 
 ## Effect types
 
-65 effect types (used as `rule.effect[].type`):
+66 effect types (used as `rule.effect[].type`):
 
 - `state_set` — `effect_apply.gd`
 - `state_add` — `effect_apply.gd`
@@ -37,6 +37,7 @@ Valid `rule.trigger.type` strings:
 - `relate` — `effect_apply.gd`
 - `unrelate` — `effect_apply.gd`
 - `transfer_relation` — `effect_apply.gd`
+- `refresh_screen` — `effect_apply.gd`
 - `advance_time` — `effect_apply.gd`
 - `level_call` — `effect_apply.gd`
 - `level_return` — `effect_apply.gd`

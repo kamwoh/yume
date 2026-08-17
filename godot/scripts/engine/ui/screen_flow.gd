@@ -37,6 +37,9 @@ var _stack: Array = []
 
 # Toast layer — shared CanvasLayer above all screens for transient labels.
 var _toast_layer: CanvasLayer = null
+## Fade tween of the toast currently on screen. Held so a replacing toast can
+## kill it before freeing the label it captured (see _show_toast).
+var _toast_tween: Tween = null
 
 # Per-screen bound elements with visible_if / enabled_if formulas.
 # Re-evaluated each frame for the active screen only.
@@ -311,6 +314,41 @@ func drain() -> void:
 	_drain_screen_events()
 
 
+## Rebuild the top screen in place, preserving the modal stack beneath it.
+##
+## ADR 0076 gave query-bound `list` elements two rebuild triggers: screen open,
+## and World.world_loaded. This is the third, and it is the one a menu-driven
+## game needs constantly — "an action I took on this screen changed what this
+## screen shows". A conversation box that displays a relationship value and the
+## other party's reply is stale the instant you act, because its rows were built
+## once on open.
+##
+## Cheaper alternatives were rejected: popping and re-pushing flickers and loses
+## the stack position, and re-querying every list per frame is the performance
+## trap ADR 0076 explicitly avoided.
+func _refresh_top_screen() -> void:
+	if _stack.is_empty():
+		return
+	var top: Dictionary = _stack[-1]
+	var screen_id := str(top.get("id", ""))
+	if screen_id == "" or not _screens_by_id.has(screen_id):
+		return
+	# Drop just this entry, then re-push non-modally onto the remaining stack so
+	# the layer below is untouched.
+	# remove_child BEFORE queue_free: queue_free is DEFERRED, so the outgoing
+	# layer would still be in the tree when the replacement is added — two live
+	# copies of the same screen for a frame. That duplicates every Control in it,
+	# which makes a by-id lookup ambiguous and can double-fire input.
+	#
+	# Empirical 2026-08-17: after a refresh, a scenario's click on a button in
+	# the rebuilt screen aborted with "matched 2 controls".
+	var old_layer := top["layer"] as Node
+	remove_child(old_layer)
+	old_layer.queue_free()
+	_stack.pop_back()
+	_push_screen(screen_id, true)
+
+
 ## Drain pending screen events emitted by transition_screen / quit_app /
 ## show_toast / reload_scene effects. Same pattern as GameShell's
 ## shell_event_buffer.
@@ -353,6 +391,8 @@ func _drain_screen_events() -> void:
 				get_tree().quit()
 			"show_toast":
 				_show_toast(str(ev.get("text", "")), float(ev.get("duration", 2.0)))
+			"refresh_screen":
+				_refresh_top_screen()
 			"reload_scene":
 				# DESTRUCTIVE — reload the entire current Godot scene.
 				# Anything queued after this in the same effect chain was
@@ -401,6 +441,15 @@ func _show_toast(text: String, duration: float) -> void:
 	#
 	# Empirical 2026-08-17: two drink-feedback toasts rendered as
 	# "又近了一点— 不过今天大概就到这儿了。" — two messages in one line.
+	# Kill the outgoing toast's fade tween BEFORE freeing its label. The tween's
+	# completion callback captures that label and calls queue_free on it; freeing
+	# the label without killing the tween leaves the callback holding a dangling
+	# capture, which Godot reports as
+	#   "Lambda capture at index 0 was freed. Passed null instead."
+	# followed by "Cannot call method 'queue_free' on a null value".
+	if _toast_tween != null and _toast_tween.is_valid():
+		_toast_tween.kill()
+	_toast_tween = null
 	for old in _toast_layer.get_children():
 		_toast_layer.remove_child(old)
 		old.queue_free()
@@ -417,9 +466,18 @@ func _show_toast(text: String, duration: float) -> void:
 	_toast_layer.add_child(lbl)
 	# Tween fade-out using SceneTree's create_tween
 	var tween := get_tree().create_tween()
+	_toast_tween = tween
 	tween.tween_interval(max(duration - 0.5, 0.1))
 	tween.tween_property(lbl, "modulate:a", 0.0, 0.5)
-	tween.tween_callback(func(): lbl.queue_free())
+	# Validity guard, independent of the kill above. The label can also go away
+	# with the whole layer — screen teardown, reload_scene, world reset — while
+	# this tween is still mid-fade. That crash predates last-writer-wins; it was
+	# simply hard to hit before, because nothing else freed a live toast.
+	tween.tween_callback(
+		func():
+			if is_instance_valid(lbl):
+				lbl.queue_free()
+	)
 
 
 # ============================================================

@@ -173,6 +173,22 @@ static func advance_time(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 		(cb as Callable).call(units)
 
 
+## Rebuild the top screen so its query-bound elements re-run their queries.
+##
+## NOT destructive: the world is untouched and the modal stack below is
+## preserved, so effects may follow this in a chain. Pair it with any action
+## taken FROM a screen that changes what that screen displays.
+static func refresh_screen(_e: Dictionary, env: Dictionary, _ctx: Dictionary) -> void:
+	var buf_v = env.get("screen_event_buffer", null)
+	var buf: Array
+	if buf_v is Array:
+		buf = buf_v
+	else:
+		buf = []
+		env["screen_event_buffer"] = buf
+	buf.append({"event": "refresh_screen"})
+
+
 ## Tween the screen-fade overlay's alpha to a target value over `duration`
 ## seconds. GameShell owns the overlay (lives on a CanvasLayer above the
 ## HUD) and the per-frame lerp. duration=0 → instant.
