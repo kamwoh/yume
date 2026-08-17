@@ -389,6 +389,21 @@ func _show_toast(text: String, duration: float) -> void:
 		resolved = _resolve_at_ref(resolved)
 		if resolved == "":
 			resolved = text
+	# Every toast renders at the SAME anchor, so a second one arriving while the
+	# first is still fading draws two strings through each other — illegible.
+	# `.claude/rules/data-demo.md` used to tell authors to design around this
+	# ("stagger rule intervals, or merge into one message"), which is not a
+	# thing content can reliably do: any two rules reacting to one player action
+	# can collide, and a player can click twice inside the fade.
+	#
+	# A single-anchor toast system has to be last-writer-wins. Clearing the
+	# previous toast makes non-overlap a guarantee instead of a caution.
+	#
+	# Empirical 2026-08-17: two drink-feedback toasts rendered as
+	# "又近了一点— 不过今天大概就到这儿了。" — two messages in one line.
+	for old in _toast_layer.get_children():
+		_toast_layer.remove_child(old)
+		old.queue_free()
 	var lbl := Label.new()
 	lbl.text = resolved
 	lbl.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)

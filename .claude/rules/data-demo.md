@@ -332,11 +332,22 @@ evaluation — deliberate (display prose with spaces tripped
 verbatim. A rule wanting per-entity names in a toast needs ONE RULE
 PER VARIANT (query-narrowed per entity/def).
 
-Also: ScreenFlow renders all toasts at ONE anchor — two toasts in the
-same second overlap illegibly. Design beats so simultaneous toasts
-can't collide (stagger rule intervals, or merge into one message).
-Empirical 2026-06-11 (autorace): lap + checkpoint toasts fired the
-same tick and overdrew each other.
+Also: ScreenFlow renders all toasts at ONE anchor. As of 2026-08-17 a
+new toast CLEARS the previous one (last-writer-wins), so overlap is an
+engine guarantee rather than something content must dodge — the old
+advice to "stagger rule intervals or merge into one message" was not
+reliably followable, since any two rules reacting to one player action
+can collide and a player can click twice inside the fade. Note the
+consequence: a second toast REPLACES the first, so if two messages both
+matter, they must be one message.
+Empirical 2026-06-11 (autorace): lap + checkpoint toasts fired the same
+tick and overdrew each other. 2026-08-17: two drink-feedback toasts
+rendered as one unreadable line.
+
+⚠️ **The toast strip is reserved.** Toasts draw at PRESET_CENTER_BOTTOM,
+occupying **40-80px above the bottom edge, centred**. Keep screen content
+out of it. Empirical 2026-08-17: a modal's bottom-centre "Leave" button at
+y_offset -44 had a toast drawn straight through it.
 
 ## Bindings in payload values are BARE, not `{...}`
 
