@@ -25,6 +25,32 @@ Config (backend_config.openai_images):
     api_key_env: env var name (default OPENAI_API_KEY)
     model: model id override (default gpt-image-2-2026-04-21)
     quality: low / medium / high / auto (default "high")
+    background: "transparent" | "opaque" | "auto" — omit for the model default.
+
+        ⚠ TRANSPARENCY IS MODEL-DEPENDENT (verified 2026-08-17):
+          - gpt-image-2 / gpt-image-2-2026-04-21 → REJECTS "transparent"
+            with HTTP 400 "Transparent background is not supported for this
+            model". It accepts only "auto" or "opaque". This is
+            architectural, not a bug: gpt-image-2 is trained for
+            whole-scene consistency and has no alpha supervision, so it
+            completes a scene rather than cutting a subject out.
+          - gpt-image-1.5 → DOES accept "transparent".
+
+        So for UI sprites / icon sheets, SET model="gpt-image-1.5" and
+        background="transparent". That is the clean path and needs no
+        post-processing.
+
+        Fallbacks when you must stay on gpt-image-2:
+          1. Prompt a flat pure-magenta (#FF00FF) backdrop and chroma-key
+             it. Use a SOFT alpha ramp on (min(R,B) - G), erode 1px, then
+             un-mix the key colour out of the edge pixels — a hard
+             threshold leaves a visible fringe and jagged edges.
+          2. Alpha recovery: render the same prompt twice, once on white
+             and once on black, then solve per-pixel alpha from the two
+             composites. Exact, but doubles the cost and needs the two
+             renders to be identical, which is not guaranteed.
+
+        `output_format` must stay png or webp for transparency to survive.
     default_size: fallback "<W>x<H>" (default "1024x1024")
     timeout: request timeout in seconds (default 120)
 
@@ -182,6 +208,13 @@ class OpenAIImagesBackend(Backend):
             "quality": quality,
             "output_format": "png",
         }
+        # `background: "transparent"` (config passthrough, 2026-08-17). Needed for
+        # any UI sprite / icon sheet: without it the model paints a backdrop and
+        # the pieces cannot be cut out cleanly. Only sent when configured, so
+        # existing texture jobs are byte-identical.
+        background = self.config.get("background", "")
+        if background:
+            body["background"] = str(background)
         return _post_json(
             self.GENERATIONS_URL,
             body,

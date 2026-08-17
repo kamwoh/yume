@@ -148,6 +148,30 @@ static func _build_button(spec: Dictionary, dispatcher: Callable) -> Button:
 	btn.text = _resolve_text(spec.get("text", ""))
 	if spec.has("font_size"):
 		btn.add_theme_font_size_override("font_size", int(spec["font_size"]))
+	# `color` was label-only. A skinned button needs it: pale engine-default text
+	# on a light parchment frame is unreadable, and the whole point of texture
+	# skinning is buttons that match the art.
+	if spec.has("color"):
+		var fc := _color(spec["color"])
+		btn.add_theme_color_override("font_color", fc)
+		btn.add_theme_color_override("font_hover_color", fc)
+		btn.add_theme_color_override("font_pressed_color", fc)
+		btn.add_theme_color_override("font_focus_color", fc)
+	# Themed buttons (2026-08-17). A generated UI sprite sheet is unusable
+	# without this: `image` can show a frame but cannot be clicked, so a themed
+	# clickable control otherwise needs an image plus an invisible button
+	# stacked and hand-aligned.
+	#
+	#   {"texture": "res://.../card_frame.png",
+	#    "texture_pressed": "res://.../card_frame_selected.png",
+	#    "texture_margin": 24}
+	#
+	# `texture_margin` is the NINE-SLICE inset: the frame's corners are kept at
+	# their authored size and only the middle stretches. Without it a 424x472
+	# card squashed into a 132x128 button distorts its corner ornaments. One
+	# frame sprite therefore serves every button size, which is the whole point
+	# of asking the generator for straight edges with ornament only in corners.
+	_apply_button_textures(btn, spec)
 	# Wire pressed → effect dispatch. The dispatcher resolves the effect list
 	# at fire time, not at build time, so live-updating a button's on_click
 	# (rare but possible) works.
@@ -155,6 +179,69 @@ static func _build_button(spec: Dictionary, dispatcher: Callable) -> Button:
 	if on_click != null:
 		btn.pressed.connect(func(): dispatcher.call(on_click, {"_source": "button"}))
 	return btn
+
+
+## Apply optional sprite skins to a Button as StyleBoxTexture overrides.
+##
+## `texture` skins the normal state and is also the fallback for hover/pressed
+## when those are not supplied, so a one-sprite button still looks deliberate.
+## No texture keys at all → untouched, engine theme as before.
+static func _apply_button_textures(btn: Button, spec: Dictionary) -> void:
+	var normal := str(spec.get("texture", ""))
+	if normal == "":
+		return
+	var margin := float(spec.get("texture_margin", 0.0))
+	var states := {
+		"normal": normal,
+		"hover": str(spec.get("texture_hover", normal)),
+		"pressed": str(spec.get("texture_pressed", normal)),
+		"focus": str(spec.get("texture_focus", normal)),
+		"disabled": str(spec.get("texture_disabled", normal)),
+	}
+	for state in states:
+		var path: String = states[state]
+		if path == "" or not ResourceLoader.exists(path):
+			continue
+		var sb := StyleBoxTexture.new()
+		sb.texture = load(path)
+		if margin > 0.0:
+			sb.texture_margin_left = margin
+			sb.texture_margin_right = margin
+			sb.texture_margin_top = margin
+			sb.texture_margin_bottom = margin
+		# `content_margin` is SEPARATE from the nine-slice inset and must be set
+		# explicitly. Left unset, Godot derives the content box from
+		# texture_margin — so a frame that needs a 34px slice inset to protect
+		# its corner ornaments also gets 34px of text padding, which shoves the
+		# label into a corner or out of a small button entirely.
+		#
+		# Empirical 2026-08-17: facility-card labels rendered jammed against the
+		# bottom-left of each card and were nearly invisible.
+		var pad := float(spec.get("content_margin", 4.0))
+		sb.content_margin_left = pad
+		sb.content_margin_right = pad
+		sb.content_margin_top = pad
+		sb.content_margin_bottom = pad
+		btn.add_theme_stylebox_override(state, sb)
+	# A skinned button draws its own edges; the engine's flat focus rectangle on
+	# top of an ornamented frame reads as a rendering fault. Keyboard focus stays
+	# functional — it is shown by the `focus` stylebox above.
+	if spec.has("texture_focus"):
+		btn.add_theme_stylebox_override("focus", _focus_box(spec))
+
+
+static func _focus_box(spec: Dictionary) -> StyleBox:
+	var sb := StyleBoxTexture.new()
+	var path := str(spec.get("texture_focus", ""))
+	if path != "" and ResourceLoader.exists(path):
+		sb.texture = load(path)
+	var margin := float(spec.get("texture_margin", 0.0))
+	if margin > 0.0:
+		sb.texture_margin_left = margin
+		sb.texture_margin_right = margin
+		sb.texture_margin_top = margin
+		sb.texture_margin_bottom = margin
+	return sb
 
 
 static func _build_vbox(
