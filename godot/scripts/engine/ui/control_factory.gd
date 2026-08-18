@@ -1015,8 +1015,14 @@ static func _size_flag(s: String) -> int:
 ## the label builder, covers every label in the engine rather than teaching
 ## rows a second copy of the rule.
 ##
-## The template itself may be an `@strings.*` ref so the surrounding words
-## localise; `{v}` is the placeholder for the value.
+## The template may be an `@strings.*` ref so the surrounding words localise.
+## The placeholder is `{}` — the SAME token HudBuilder uses for bound labels
+## (`format`, default "{}"). This first shipped accepting `{v}`, which quietly
+## created two placeholder conventions in one engine: `{}` for a bound label and
+## `{v}` for a list-row label, differing only by which code path rendered them.
+## Both looked correct because the strings written for each matched the path that
+## read them, so nothing was visibly broken until a string was reused across the
+## two — at which point it renders its own placeholder as literal text.
 ##
 ## Empirical 2026-08-17: a contract board rendered as four unlabelled columns
 ## of digits — the numbers were right, and meaningless.
@@ -1024,9 +1030,9 @@ static func _apply_format(text: String, fmt_v) -> String:
 	if fmt_v == null:
 		return text
 	var fmt := _resolve_text(fmt_v)
-	if fmt == "" or not fmt.contains("{v}"):
+	if fmt == "" or not fmt.contains("{}"):
 		return text
-	return fmt.replace("{v}", text)
+	return fmt.replace("{}", text)
 
 
 static func format_bound_value(v) -> String:

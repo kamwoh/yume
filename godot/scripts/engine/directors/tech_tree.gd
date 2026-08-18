@@ -538,7 +538,7 @@ func _find_tree_for_node(node_id: String) -> String:
 static func _emit_signal(env: Dictionary, name: String, payload: Dictionary) -> void:
 	var buf = env.get("signal_buffer", null)
 	if buf is Array:
-		(buf as Array).append({"name": name, "payload": payload})
+		EffectCore.push_signal(env, name, payload)
 	# else: no signal_buffer (test harness without scheduler) — state
 	# mutations still applied; signal silently dropped. Tests that check
 	# the signal must provide their own buffer.

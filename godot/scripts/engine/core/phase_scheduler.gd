@@ -140,11 +140,15 @@ func advance_calendar(units: int) -> void:
 			_fire_scan_rule(rule)
 		flush_effects()
 	_advancing_calendar = false
-	# One signal for the whole advance, not one per unit — content that
-	# reacts to "time passed" wants the span, not a burst.
-	var buf_v = env.get("signal_buffer", null)
-	if buf_v is Array:
-		(buf_v as Array).append({"name": "time_advanced", "units": units})
+	# One signal for the whole advance, not one per unit — content that reacts to
+	# "time passed" wants the span, not a burst.
+	#
+	# Through push_signal, because this site had `units` FLAT beside `name` and the
+	# drain reads sig["payload"]: a rule listening for time_advanced could fire but
+	# could never read HOW MUCH time passed, which is the only interesting thing
+	# about the signal. Fourth instance of that shape; the constructor now exists
+	# precisely so there is no fifth.
+	EffectCore.push_signal(env, "time_advanced", {"units": units})
 
 
 func _dispatch_lifecycle_inline(kind: String, entity_id: String) -> void:

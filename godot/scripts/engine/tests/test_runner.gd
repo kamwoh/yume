@@ -57,6 +57,7 @@ func _ready() -> void:
 	test_sim_tiers()
 	test_world_state_alias()
 	test_entity_id_indirection()
+	test_level_persistent_tags()
 	test_edge_filter_in_require()
 	test_save_state()
 	test_overlay_effects()
@@ -2559,6 +2560,39 @@ func test_edge_filter_in_require() -> void:
 ## such effect was a SILENT NO-OP — exactly the failure the ADR was written to
 ## eliminate. `.claude/rules/data-demo.md` documented the broken form as
 ## working, so content authored against the docs did nothing.
+func test_level_persistent_tags() -> void:
+	_section("level_persistent_tags (flow.json)")
+
+	# The default must be unchanged for every game that does not declare the key.
+	var w := World.new()
+	expect_eq(
+		str(w.level_persistent_tags), str(["persistent"]),
+		"default keep-set is [persistent] — games not declaring the key are untouched"
+	)
+
+	# And the declared set must actually be adopted. The bug this covers: the
+	# level swap hardcoded the literal tag, so a game declaring
+	# ["player", "persistent"] still lost its player on the first swap, with no
+	# error — the player was simply absent and every rule requiring an actor
+	# quietly stopped matching.
+	var loader := WorldLoader.new(w)
+	var path := "user://_test_flow.json"
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(
+		'{"levels": ["a", "b"], "starting_level": "a",'
+		+ ' "persistent_tags": ["player", "persistent"]}'
+	)
+	f.close()
+	loader.load_progression(path)
+	expect_eq(
+		str(w.level_persistent_tags), str(["player", "persistent"]),
+		"flow.json persistent_tags is adopted by the level layer, not only by chunk streaming"
+	)
+	expect_eq(str(w.current_level), "a", "starting_level is the key the engine reads")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	w.free()
+
+
 func test_entity_id_indirection() -> void:
 	_section("entity_id indirection (ADR 0081)")
 
@@ -3000,14 +3034,24 @@ func test_calendar_clock() -> void:
 	)
 
 	# ---------- 4. the advance emits one signal for the whole span ----------
+	# `units` is read from the entry's PAYLOAD, which is where the dispatcher looks
+	# (`_drain_signals_into` reads sig["payload"]). This assertion previously read
+	# sig["units"] — flat, beside the name — and passed for years while no RULE
+	# could reach the value, because a flat entry hands every rule an empty payload.
+	#
+	# The lesson is in the shape of the test, not just the field: asserting against
+	# the buffer's contents cannot tell whether content can actually READ them. A
+	# signal-payload assertion belongs downstream of a real rule firing, which is
+	# what test_level_subroutine's closing case now does.
 	var found_advance := 0
 	var span := -1
 	for s in (env3.get("signal_buffer", []) as Array):
 		if str((s as Dictionary).get("name", "")) == "time_advanced":
 			found_advance += 1
-			span = int((s as Dictionary).get("units", -1))
+			var pl: Dictionary = (s as Dictionary).get("payload", {})
+			span = int(pl.get("units", -1))
 	expect_eq(found_advance, 1, "one time_advanced signal per advance, not one per unit")
-	expect_eq(span, 4, "time_advanced carries the span")
+	expect_eq(span, 4, "time_advanced carries the span in its payload, where rules can read it")
 
 	# ---------- 5. non-positive units is a no-op ----------
 	var before := int(t3.get_state("upkeep", -1))
@@ -3185,6 +3229,91 @@ func test_level_subroutine() -> void:
 
 
 ## ADR 0080 — `once` / `once_per` quantifiers on rule firing.
+	# ---------- args + result RESOLVE, they are not copied ----------
+	# Both carried author-written payloads straight through `duplicate(true)`, so a
+	# formula arrived as its own source text: args `{"floor": "world.delve_floor"}`
+	# stored the string, and result `{"haul": "self.state.haul"}` reached the caller
+	# as a string that coerced to 0 — a cleared dungeon floor paid nothing, with no
+	# error. `emit` and `spawn` already resolved their payloads; these two were the
+	# ones that missed the step.
+	ws["depth"] = 7.0
+	EffectApply.apply(
+		{
+			"type": "level_call",
+			"level": "minigame_forge",
+			"return_signal": "done",
+			"args": {"floor": "world.depth + 1", "fixed": 3}
+		},
+		env,
+		{}
+	)
+	var res_args: Dictionary = ws.get("_call_args", {})
+	expect_eq(
+		float(res_args.get("floor", -1)), 8.0,
+		"level_call args resolve formulas (world.depth + 1 -> 8), not the source text"
+	)
+	expect_eq(float(res_args.get("fixed", -1)), 3.0, "literal args pass through untouched")
+
+	EffectApply.apply(
+		{"type": "level_return", "result": {"haul": "world.depth * 10", "flat": 2}},
+		env,
+		{}
+	)
+	var ret_frame = env.get("_pending_level_return", null)
+	expect_eq(ret_frame is Dictionary, true, "level_return queues a frame")
+	if ret_frame is Dictionary:
+		var res: Dictionary = (ret_frame as Dictionary).get("result", {})
+		expect_eq(
+			float(res.get("haul", -1)), 70.0,
+			"level_return result resolves formulas — the caller receives a number"
+		)
+		expect_eq(float(res.get("flat", -1)), 2.0, "literal result fields pass through")
+
+
+	# ---------- the result must actually REACH a caller rule ----------
+	# The payload used to be appended FLAT beside "name" while the drain reads
+	# sig["payload"], so ADR 0077's entire return value arrived empty at every
+	# rule — a caller could see that a sub-level had ended but never how it ended.
+	# Asserted through a REAL rule rather than by inspecting the buffer, because
+	# the buffer looked perfectly reasonable while being unreadable.
+	var pdefs: Dictionary = {
+		"purse_def": {"id": "purse_def", "tags": ["purse"], "state_init": {"coin": 0}}
+	}
+	var pents: Dictionary = {}
+	var purse := Entity.create(pdefs["purse_def"], "purse")
+	pents["purse"] = purse
+	var penv: Dictionary = {
+		"entities": pents,
+		"defs": pdefs,
+		"relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(),
+		"world": {},
+		"parent": null,
+		"next_id": {"_": 0},
+	}
+	var psched := PhaseScheduler.new(penv)
+	psched.register_rules(
+		[
+			Rule.from_dict(
+				{
+					"id": "bank_the_haul",
+					"trigger": {"type": "signal", "name": "delve_done"},
+					"query": {"tags_all": ["purse"]},
+					"effect": [
+						{"type": "state_add", "target": "self", "field": "coin", "amount": "haul"}
+					]
+				}
+			)
+		]
+	)
+	EffectCore.push_signal(penv, "delve_done", {"haul": 160})
+	psched.tick()
+	expect_eq(
+		int(purse.get_state("coin", -1)), 160,
+		"a return payload field is readable as a bare binding in the caller's formula"
+	)
+	purse.free()
+
 func test_rule_once() -> void:
 	_section("rule_once (ADR 0080)")
 

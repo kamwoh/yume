@@ -93,17 +93,16 @@ func _do_return(env: Dictionary, frame: Dictionary) -> void:
 	var sig := str(frame.get("return_signal", ""))
 	if sig == "":
 		return
-	var buf_v = env.get("signal_buffer", null)
-	var buf: Array
-	if buf_v is Array:
-		buf = buf_v
-	else:
-		buf = []
-		env["signal_buffer"] = buf
+	# Built through EffectCore.push_signal, not by hand. This site used to append
+	# `{...result fields..., "name": sig}` — the result FLATTENED beside the name —
+	# while the drain reads `sig["payload"]`. So ADR 0077's entire return value,
+	# the reason level_return takes a `result` at all, arrived empty at every rule
+	# and the caller could only ever see that a delve had ended, never how.
+	# Empirical 2026-08-18: a cleared dungeon floor paid 0 coin.
 	var payload = frame.get("result", {})
-	var ev: Dictionary = (payload as Dictionary).duplicate(true) if payload is Dictionary else {}
-	ev["name"] = sig
-	buf.append(ev)
+	EffectCore.push_signal(
+		env, sig, (payload as Dictionary).duplicate(true) if payload is Dictionary else {}
+	)
 
 
 ## Execute a level swap. Removes non-persistent entities, clears
@@ -149,10 +148,24 @@ func do_transition(target: String, off_progression: bool = false) -> void:
 	# 2026-05-12 note: ADR 0044 Session A will add
 	#   PhysicsServer3D.body_free(body_rid)
 	# inside this loop once entities own physics bodies.
+	# Survives if the entity carries ANY of the declared persistent tags
+	# (game/flow.json `persistent_tags`, default ["persistent"]). Hardcoding the
+	# literal "persistent" here is what made that key dead content: a game
+	# declaring ["player", "persistent"] still lost its player on the first swap,
+	# and nothing errored — the player simply was not on the next level, so every
+	# rule requiring one silently stopped matching.
+	var keep_tags: Array = _world.level_persistent_tags
 	var to_remove: Array[String] = []
 	for id in _world.entities.keys():
 		var ent = _world.entities[id]
-		if ent is Entity and not (ent as Entity).has_tag("persistent"):
+		if not (ent is Entity):
+			continue
+		var keep := false
+		for t in keep_tags:
+			if (ent as Entity).has_tag(str(t)):
+				keep = true
+				break
+		if not keep:
 			to_remove.append(str(id))
 	for rid in to_remove:
 		var rent: Entity = _world.entities.get(rid, null)

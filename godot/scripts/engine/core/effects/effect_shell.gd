@@ -106,8 +106,20 @@ static func level_call(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 		)
 	)
 	world[CALL_STACK_KEY] = stack
+	# Resolved, not copied. `args` is authored like every other effect payload, so
+	# `{"floor": "world.delve_floor"}` must arrive as a NUMBER — a raw duplicate
+	# delivers the string "world.delve_floor", which then compares and coerces as
+	# garbage with no error anywhere. EffectResolution.value recurses into dicts
+	# and arrays, so nested args resolve per-element.
+	#
+	# `emit` already resolved its payload this way and `spawn` already resolved its
+	# state overrides (after the same bug: `sin(pitch)*22` survived as a string and
+	# coerced to 0). These two ADR 0077 effects were simply the ones that missed
+	# the step. Empirical 2026-08-18: a delve passed its floor number through args
+	# and the sub-level stored the literal formula text.
 	var args = e.get("args", {})
-	world[CALL_ARGS_KEY] = (args as Dictionary).duplicate(true) if args is Dictionary else {}
+	var resolved_args = EffectResolution.value(args, ctx, env) if args is Dictionary else {}
+	world[CALL_ARGS_KEY] = resolved_args if resolved_args is Dictionary else {}
 	env["_pending_level_call"] = target
 
 
@@ -145,10 +157,14 @@ static func level_return(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 		return
 	var frame = stack.pop_back()
 	world[CALL_STACK_KEY] = stack
+	# Resolved for the same reason as level_call's args, and it matters more here:
+	# the whole point of `result` is handing a COMPUTED outcome back to the caller.
+	# Unresolved, `{"haul": "self.state.haul"}` reached the caller as that literal
+	# string, so `state_add amount: "haul"` coerced it to 0 — the delve paid
+	# nothing, silently. Empirical 2026-08-18.
 	var result = e.get("result", {})
-	var payload: Dictionary = (
-		(result as Dictionary).duplicate(true) if result is Dictionary else {}
-	)
+	var resolved = EffectResolution.value(result, ctx, env) if result is Dictionary else {}
+	var payload: Dictionary = resolved if resolved is Dictionary else {}
 	env["_pending_level_return"] = {
 		"level": str((frame as Dictionary).get("level", "")),
 		"return_signal": str((frame as Dictionary).get("return_signal", "")),

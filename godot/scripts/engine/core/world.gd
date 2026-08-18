@@ -144,6 +144,17 @@ var current_level: String:
 		world_state["current_level"] = value
 
 var level_order: Array = []
+
+## Tags whose entities SURVIVE a level swap, from game/flow.json
+## `persistent_tags`. Defaults to ["persistent"] so every game that does not
+## declare it behaves exactly as before.
+##
+## The key was content-facing and dead: `flow.json` accepted `persistent_tags`
+## and only `chunk_streamer.gd` ever read it, so a game declaring
+## `["player", "persistent"]` had its player deleted by the very first level
+## swap. Same bug class as `state.facing` and `ground.mesh.height_scale` — a
+## value written to a key its apparent consumer does not read.
+var level_persistent_tags: Array = ["persistent"]
 var levels_root: String = ""
 var on_all_complete_msg: String = ""
 

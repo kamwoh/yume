@@ -350,6 +350,9 @@ func load_progression(path: String) -> void:
 		return
 	var p: Dictionary = json.data
 	_world.level_order = p.get("levels", [])
+	var ptags = p.get("persistent_tags", null)
+	if ptags is Array and not (ptags as Array).is_empty():
+		_world.level_persistent_tags = (ptags as Array).duplicate()
 	_world.current_level = str(
 		p.get("starting_level", _world.level_order[0] if _world.level_order.size() > 0 else "")
 	)

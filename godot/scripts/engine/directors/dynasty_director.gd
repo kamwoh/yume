@@ -457,7 +457,7 @@ static func _resolve_inheritance_policy(heir: Entity) -> Dictionary:
 static func _emit_signal(env: Dictionary, name: String, payload: Dictionary) -> void:
 	var buf = env.get("signal_buffer", null)
 	if buf is Array:
-		(buf as Array).append({"name": name, "payload": payload})
+		EffectCore.push_signal(env, name, payload)
 	# else: signal_buffer absent (test harness without scheduler) —
 	# state mutations still applied; signal silently dropped. Tests that
 	# check the signal must provide their own buffer.

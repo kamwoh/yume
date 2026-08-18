@@ -501,6 +501,32 @@ static func tag_remove(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 ##   {event: "shake", intensity: 0.3, duration: 12}
 ##   {event: "flash", color: "#ff0000", duration: 8}
 ##   {event: "hitstop", duration: 4}
+## THE one place a signal-buffer entry is constructed.
+##
+## The buffer's entry shape is `{name, payload}` and `_drain_signals_into` reads
+## `sig["payload"]` — so an entry whose fields sit FLAT beside `name` delivers an
+## empty payload to every rule, silently. Every `require` on it then fails and the
+## rules simply never fire, which looks like a content bug from every angle.
+##
+## This has now bitten three times: twice in authored JSON (`emit` written with
+## its fields at top level instead of under `payload` — see
+## validate_emit_payload.py), and once in the ENGINE, where ADR 0077's
+## `level_return` built its entry by hand and flattened the result. The fix for
+## the third was not to fix that one site but to remove the opportunity: both
+## producers call this, so the shape cannot diverge again.
+static func push_signal(env: Dictionary, name: String, payload: Dictionary) -> void:
+	if name == "":
+		return
+	var buf_v = env.get("signal_buffer", null)
+	var buf: Array
+	if buf_v is Array:
+		buf = buf_v
+	else:
+		buf = []
+		env["signal_buffer"] = buf
+	buf.append({"name": name, "payload": payload})
+
+
 static func emit_shell_event(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var event_name := str(e.get("event", ""))
 	if event_name == "":
@@ -598,12 +624,10 @@ static func array_insert_first_empty(
 	if on_full != null and on_full is Dictionary:
 		var sig_name = str((on_full as Dictionary).get("signal", ""))
 		if sig_name != "":
-			var buf = env.get("signal_buffer", null)
-			if buf != null:
-				var payload: Dictionary = (
-					((on_full as Dictionary).get("payload", {}) as Dictionary).duplicate()
-				)
-				buf.append({"name": sig_name, "payload": payload})
+			var payload: Dictionary = (
+				((on_full as Dictionary).get("payload", {}) as Dictionary).duplicate()
+			)
+			push_signal(env, sig_name, payload)
 
 
 ## Count elements of state[array_field] equal to sentinel; write count to
@@ -667,8 +691,10 @@ static func emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var resolved_payload: Dictionary = {}
 	for k in raw_payload.keys():
 		resolved_payload[k] = EffectResolution.value(raw_payload[k], ctx, env)
-	var buf: Array = env.get("signal_buffer", null)
-	if buf == null:
+	# The missing-buffer case still warns HERE rather than inside push_signal:
+	# an `emit` outside a phase scheduler is a wiring mistake worth reporting,
+	# whereas push_signal's other callers legitimately create the buffer.
+	if env.get("signal_buffer", null) == null:
 		(
 			EngineError
 			. raise(
@@ -681,4 +707,4 @@ static func emit(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 			)
 		)
 		return
-	buf.append({"name": name, "payload": resolved_payload})
+	push_signal(env, name, resolved_payload)

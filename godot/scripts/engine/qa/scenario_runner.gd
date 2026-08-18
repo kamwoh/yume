@@ -225,6 +225,24 @@ func _tick_character_bodies_headless(world: World) -> void:
 func _apply_setup(world: World, setup: Dictionary) -> void:
 	# spawn: extra entities to inject at scenario start.
 	# Schema: [{def: "monster_imp", id: "test_imp", position: [x, y, z]}]
+	# world_state: {field: value, ...} — the fourth setup key, and the one that
+	# was missing. `entity_state` could place a scenario mid-run for anything an
+	# ENTITY owns, but everything gated on WORLD state (a career rank, a calendar
+	# position, a dungeon depth) could only be reached by playing the whole path
+	# to it. That made those scenarios both slow and coupled: a combat test had to
+	# drive the social system first just to be allowed into the fight, so a
+	# regression in either one failed the same assertion.
+	#
+	# Writes INTO the existing dict rather than replacing it: per ADR 0047 that
+	# dict IS the `_engine` entity's state, shared by reference, so swapping it
+	# would silently disconnect every `state_set target=world` from every
+	# `world.X` read.
+	var wsetup: Dictionary = setup.get("world_state", {})
+	if not wsetup.is_empty():
+		var ws: Dictionary = world.scheduler.env.get("world", {})
+		for k in wsetup:
+			ws[str(k)] = wsetup[k]
+
 	var spawns: Array = setup.get("spawn", [])
 	for spec in spawns:
 		if not (spec is Dictionary):
