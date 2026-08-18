@@ -121,6 +121,12 @@ static func level_call(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var resolved_args = EffectResolution.value(args, ctx, env) if args is Dictionary else {}
 	world[CALL_ARGS_KEY] = resolved_args if resolved_args is Dictionary else {}
 	env["_pending_level_call"] = target
+	# A sub-level's UI belongs to the sub-level. Mark the screen depth on the way
+	# in so the way out can restore it: without this, a screen a sub-level pushed
+	# (an encounter board, a minigame face) is STILL ON TOP after level_return —
+	# the player climbs out of the dungeon and is still looking at the fight.
+	# Same call/return discipline the level stack itself uses, applied to screens.
+	_push_screen_event(env, {"event": "screen_mark"})
 
 
 ## DESTRUCTIVE — must be LAST in its effect chain.
@@ -170,6 +176,8 @@ static func level_return(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 		"return_signal": str((frame as Dictionary).get("return_signal", "")),
 		"result": payload,
 	}
+	# Dismiss whatever the sub-level put on screen (see level_call's mark).
+	_push_screen_event(env, {"event": "screen_restore"})
 
 
 ## ADR 0078 — step the CALENDAR clock N units, synchronously, inside this

@@ -151,6 +151,11 @@ func load_entities_file(path: String) -> void:
 	# Initial relations
 	for rel in d.get("initial_relations", []):
 		if rel is Dictionary:
+			# `state` included — ADR 0075 edge state. The load_data path was fixed
+			# for this and load_level was not, so a relation declared in a LEVEL
+			# silently lost its edge state while the identical declaration at the
+			# root kept it. Fixing the one site the bug surfaced at, and not its
+			# twin, is the failure `.claude/rules/post-mortem.md` step 3a is about.
 			(
 				_world
 				. relations
@@ -158,6 +163,7 @@ func load_entities_file(path: String) -> void:
 					str(rel.get("type", "")),
 					str(rel.get("from", "")),
 					str(rel.get("to", "")),
+					(rel.get("state", {}) as Dictionary) if rel.get("state") is Dictionary else {},
 				)
 			)
 

@@ -39,6 +39,8 @@ var _stack: Array = []
 var _toast_layer: CanvasLayer = null
 ## Fade tween of the toast currently on screen. Held so a replacing toast can
 ## kill it before freeing the label it captured (see _show_toast).
+## Screen-stack depths remembered by `screen_mark` (ADR 0077 sub-level UI).
+var _screen_marks: Array = []
 var _toast_tween: Tween = null
 
 # Per-screen bound elements with visible_if / enabled_if formulas.
@@ -159,9 +161,15 @@ func _push_screen(screen_id: String, as_modal: bool) -> void:
 		push_warning("ScreenFlow: unknown screen id '%s'" % screen_id)
 		return
 	if not as_modal:
-		# Replace: tear down full stack first
+		# Replace: tear down full stack first. Detach before freeing, for the same
+		# reason as _pop_screen — a deferred free leaves the layer in the tree and
+		# its controls findable but dead.
 		for entry in _stack:
-			(entry["layer"] as Node).queue_free()
+			var dead := entry["layer"] as Node
+			if dead != null:
+				if dead.get_parent() != null:
+					dead.get_parent().remove_child(dead)
+				dead.queue_free()
 		_stack.clear()
 	# Build new layer + control tree
 	var layer := CanvasLayer.new()
@@ -228,7 +236,23 @@ func _pop_screen() -> void:
 	if _stack.is_empty():
 		return
 	var top: Dictionary = _stack[_stack.size() - 1]
-	(top["layer"] as Node).queue_free()
+	# remove_child BEFORE queue_free. queue_free is DEFERRED, so a layer freed but
+	# left parented stays IN THE TREE until the frame ends — and a headless
+	# scenario run has no frame between steps. Anything that looks a control up by
+	# walking the tree then finds a control belonging to a dead layer, whose
+	# lambda captures are already gone: pressing it produces
+	# "Lambda capture at index 0 was freed" and no dispatch at all, so the click
+	# silently does nothing.
+	#
+	# This is the same defect fixed in _refresh_top_screen on 2026-08-17. That fix
+	# was applied only at the site where it surfaced, so the identical hazard sat
+	# here untouched — `.claude/rules/post-mortem.md` step 3a is exactly about not
+	# doing that. Every teardown path in this file now detaches first.
+	var old_layer := top["layer"] as Node
+	if old_layer != null:
+		if old_layer.get_parent() != null:
+			old_layer.get_parent().remove_child(old_layer)
+		old_layer.queue_free()
 	_stack.pop_back()
 	_apply_active_screen()
 	_sync_global_input_edge_state()
@@ -393,6 +417,20 @@ func _drain_screen_events() -> void:
 				_show_toast(str(ev.get("text", "")), float(ev.get("duration", 2.0)))
 			"refresh_screen":
 				_refresh_top_screen()
+			"screen_mark":
+				# Entering a sub-level: remember how deep the stack is, so whatever
+				# the sub-level pushes can be dismissed wholesale on the way out.
+				_screen_marks.append(_stack.size())
+			"screen_restore":
+				# Leaving a sub-level: pop back to the remembered depth. Popping the
+				# ENTIRE stack instead would close the caller's own base screen —
+				# in a menu-driven game the town view IS a screen, so @root would
+				# leave the player looking at nothing.
+				var want: int = int(_screen_marks.pop_back()) if not _screen_marks.is_empty() else 0
+				var guard := 0
+				while _stack.size() > want and guard < 32:
+					_pop_screen()
+					guard += 1
 			"reload_scene":
 				# DESTRUCTIVE — reload the entire current Godot scene.
 				# Anything queued after this in the same effect chain was

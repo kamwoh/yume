@@ -90,13 +90,21 @@ func spawn(inst: Dictionary) -> void:
 		# a SPAWN POSITION for the persistent. State (HP, inventory, etc.)
 		# survives the swap untouched, but the entity teleports to the new
 		# level's coords. Logged as [PERSIST-TELEPORT] vs [PERSIST-SKIP].
+		# The tag set comes from game/flow.json `persistent_tags` (World
+		# .level_persistent_tags), the SAME list the level swap uses to decide who
+		# survives. Checking the literal "persistent" here while the swap consults
+		# the declared list would split one concept in two: an entity could survive
+		# the swap and then be clobbered back to its state_init by the returning
+		# level's own instance list, which is the harder half of the bug to see.
 		if _world.entities.has(inst_id):
 			var existing = _world.entities[inst_id]
-			if (
-				existing != null
-				and existing.has_method("has_tag")
-				and existing.has_tag("persistent")
-			):
+			var is_persistent := false
+			if existing != null and existing.has_method("has_tag"):
+				for pt in _world.level_persistent_tags:
+					if existing.has_tag(str(pt)):
+						is_persistent = true
+						break
+			if is_persistent:
 				if inst.has("position"):
 					var new_pos = inst["position"]
 					if new_pos is Array and new_pos.size() >= 2:
