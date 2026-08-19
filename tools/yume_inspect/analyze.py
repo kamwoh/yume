@@ -243,26 +243,37 @@ def analyze(game: str) -> dict:
     # Signals a BUTTON emits — a screen is a producer too, and the most common
     # one in a menu-driven game. A signal with only UI producers is normal; one
     # with no consumer at all is the "clicked and nothing happened" bug.
+    # Keyed by the individual CONTROL, not by the file. In a menu-driven game the
+    # buttons ARE the entry points of the whole graph, so collapsing them to
+    # "screens.json" throws away the only layer the player actually touches.
     ui_emits: dict[str, list[str]] = {}
     for name in ("screens.json", "hud.json"):
-        p = game_dir / name
-        if not p.exists():
+        fp = game_dir / name
+        if not fp.exists():
             continue
         try:
-            doc = json.loads(p.read_text(encoding="utf-8"))
+            doc = json.loads(fp.read_text(encoding="utf-8"))
         except Exception:
             continue
 
-        def _scan(node):
+        def _scan(node, screen: str, ctrl: str):
             if isinstance(node, dict):
+                screen = str(node.get("id", screen)) if "elements" in node else screen
+                ctrl = str(node.get("id", ctrl)) if node.get("id") else ctrl
                 if str(node.get("type", "")) == "emit" and node.get("signal"):
-                    ui_emits.setdefault(str(node["signal"]), []).append(name)
+                    label = ctrl or screen or name
+                    if screen and ctrl and screen != ctrl:
+                        label = f"{screen} / {ctrl}"
+                    ui_emits.setdefault(str(node["signal"]), []).append(label)
                 for v in node.values():
-                    _scan(v)
+                    _scan(v, screen, ctrl)
             elif isinstance(node, list):
                 for v in node:
-                    _scan(v)
-        _scan(doc)
+                    _scan(v, screen, ctrl)
+        for sc in doc.get("screens", []):
+            _scan(sc, str(sc.get("id", "")), "")
+        if "screens" not in doc:
+            _scan(doc, name, "")
 
     signals = []
     for s in sorted(set(producers) | set(consumers) | set(ui_emits)):
