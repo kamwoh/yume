@@ -18,7 +18,16 @@ def main() -> int:
                     help="default: docs/games/<name>/blueprint.html")
     ap.add_argument("--stats", action="store_true",
                     help="print the graph summary + findings, write nothing")
+    ap.add_argument("--serve", action="store_true",
+                    help="live server: edit the JSON and the graph redraws")
+    ap.add_argument("--port", type=int, default=8777)
+    ap.add_argument("--open", action="store_true", help="with --serve, open a browser")
     a = ap.parse_args()
+
+    if a.serve:
+        from .server import serve
+        serve(a.game, a.port, a.open)
+        return 0
 
     if a.stats:
         g = build(a.game)

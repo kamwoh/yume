@@ -63,6 +63,8 @@ TEMPLATE = r"""<!doctype html>
   .stats{display:flex; gap:13px; font-family:var(--mono); font-size:11px;
          color:var(--ink-soft); font-variant-numeric:tabular-nums}
   .stats b{color:var(--ink); font-weight:600}
+  .live{font-family:var(--mono); font-size:10px; letter-spacing:.1em; color:var(--signal)}
+  .live.stale{color:var(--flag)}
   .spacer{flex:1}
   .ctl{display:flex; gap:7px; align-items:center; font-size:12px; color:var(--ink-mid)}
   .ctl label{display:flex; gap:5px; align-items:center; cursor:pointer; user-select:none}
@@ -156,8 +158,9 @@ TEMPLATE = r"""<!doctype html>
 <body>
 
 <div class="bar">
-  <h1>__GAME__ <span>耦合蓝图</span></h1>
-  <div class="stats">__STATS__</div>
+  <h1><span id="title">__GAME__</span> <span>耦合蓝图</span></h1>
+  <div class="stats" id="stats">__STATS__</div>
+  <span class="live" id="live" hidden>● 实时</span>
   <div class="spacer"></div>
   <div class="ctl">
     <button class="mini pill" id="fPill" hidden></button>
@@ -184,14 +187,30 @@ TEMPLATE = r"""<!doctype html>
 </div>
 
 <script>
-const G = __DATA__;
+const NS = "http://www.w3.org/2000/svg";
 const KIND = {entry:"按钮 · 玩家入口", signal:"信号 · 总线", rule:"规则",
               state:"实体状态字段", world:"世界状态字段"};
 const NW = {rule:186, signal:150, entry:172, state:132, world:142};
 const NH = 30, COLW = 258, ROWH = 44;
 
+/* Camera survives a reload on purpose: editing a rule file should not throw away
+   where you were looking. */
+let cx = 0, cy = 0, cs = 1, everFit = false;
+let G = null, byId = new Map(), nodeEls = new Map(), edgeEls = [], sel = null;
+const svg = document.getElementById("svg"), stage = document.getElementById("stage"),
+      cam = document.getElementById("cam"), panel = document.getElementById("panel");
+
+function initGraph(data) {
+  G = data;
+  while (cam.firstChild) cam.removeChild(cam.firstChild);
+  nodeEls = new Map(); edgeEls = []; sel = null;
+  document.getElementById("stats").innerHTML =
+    Object.entries(G.stats).map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join("");
+  document.getElementById("title").textContent = (G.game || "").replace("demo_", "");
+
 /* ---- layout: layered by reach, then barycentre-ordered to cut crossings ---- */
-const byId = new Map(G.nodes.map(n => [n.id, n]));
+const byId_ = new Map(G.nodes.map(n => [n.id, n]));
+byId = byId_;
 const nbr = new Map(G.nodes.map(n => [n.id, []]));
 for (const e of G.edges) { nbr.get(e.a).push(e.b); nbr.get(e.b).push(e.a); }
 
@@ -233,8 +252,6 @@ for (const b of bands) {
 const W = 40 + maxCols * COLW + 60, H = yTop + 30;
 
 /* ---- draw ---- */
-const NS = "http://www.w3.org/2000/svg";
-const cam = document.getElementById("cam");
 const el = (t, a) => { const x = document.createElementNS(NS, t);
   for (const k in a) x.setAttribute(k, a[k]); return x; };
 
@@ -263,7 +280,6 @@ for (const b of bands) {
   cam.appendChild(g);
 }
 
-const edgeEls = [];
 const gE = el("g", {}); cam.appendChild(gE);
 for (const e of G.edges) {
   const a = byId.get(e.a), b = byId.get(e.b);
@@ -275,7 +291,6 @@ for (const e of G.edges) {
   gE.appendChild(p); edgeEls.push({p, e});
 }
 
-const nodeEls = new Map();
 const gN = el("g", {}); cam.appendChild(gN);
 for (const n of G.nodes) {
   const g = el("g", {class:`n k-${n.kind}` + (n.flag ? " flagged" : ""), tabindex:"0",
@@ -301,14 +316,18 @@ for (const n of G.nodes) {
   gN.appendChild(g); nodeEls.set(n.id, g);
 }
 
-/* ---- camera ---- */
-const svg = document.getElementById("svg"), stage = document.getElementById("stage");
-let cx = 0, cy = 0, cs = 1;
+  GW = W; GH = H;
+  if (!everFit) { fit(); everFit = true; } else apply();
+  wireFindings();
+}
+
+/* ---- camera (bound once, not per reload) ---- */
+let GW = 1000, GH = 800;
 const apply = () => cam.setAttribute("transform", `translate(${cx},${cy}) scale(${cs})`);
 function fit() {
   const r = stage.getBoundingClientRect();
-  cs = Math.min(r.width / W, r.height / H, 1) * .96;
-  cx = (r.width - W * cs) / 2; cy = (r.height - H * cs) / 2; apply();
+  cs = Math.min(r.width / GW, r.height / GH, 1) * .96;
+  cx = (r.width - GW * cs) / 2; cy = (r.height - GH * cs) / 2; apply();
 }
 document.getElementById("fit").addEventListener("click", fit);
 addEventListener("resize", fit);
@@ -326,7 +345,6 @@ svg.addEventListener("wheel", e => {
 }, {passive:false});
 
 /* ---- selection + focus ---- */
-let sel = null;
 function clearHL() {
   nodeEls.forEach(g => g.classList.remove("dim", "sel"));
   edgeEls.forEach(({p}) => p.classList.remove("hot", "dim"));
@@ -349,7 +367,6 @@ function chips(v) {
   if (!Array.isArray(v)) return esc(v);
   return v.map(x => `<code>${esc(x)}</code>`).join("");
 }
-const panel = document.getElementById("panel");
 function showPanel(n) {
   document.getElementById("pKind").textContent = KIND[n.kind] || n.kind;
   document.getElementById("pName").textContent = n.label;
@@ -382,6 +399,13 @@ document.getElementById("q").addEventListener("input", e => {
 });
 
 /* ---- findings: shown in the panel on load, reopened from the bar ---- */
+function wireFindings() {
+  const pill = document.getElementById("fPill");
+  pill.hidden = !G.findings.length;
+  if (!G.findings.length) { panel.classList.remove("open"); return; }
+  pill.textContent = G.findings.length + " 处断开";
+  showFindings();
+}
 function showFindings() {
   document.getElementById("pKind").textContent = "静态分析";
   document.getElementById("pName").textContent = G.findings.length + " 处断开的边";
@@ -395,29 +419,62 @@ function showFindings() {
     li.addEventListener("click", () => select(li.dataset.n)));
   panel.classList.add("open");
 }
-if (G.findings.length) {
-  const pill = document.getElementById("fPill");
-  pill.hidden = false;
-  pill.textContent = G.findings.length + " 处断开";
-  pill.addEventListener("click", showFindings);
-  showFindings();
-}
-fit();
+document.getElementById("fPill").addEventListener("click", showFindings);
+
+__BOOTSTRAP__
 </script>
 </body>
 </html>
 """
 
 
-def render(game: str, out: Path) -> Path:
-    g = build(game)
-    stats = "".join(f"<span>{k} <b>{v}</b></span>" for k, v in g["stats"].items())
-    html = (TEMPLATE
+# The two bootstraps are the ONLY difference between a baked file and the live
+# server. Everything above — layout, drawing, selection, the panel — is one view,
+# so a change to how the graph reads cannot drift between the two modes.
+BOOT_STATIC = "initGraph(__DATA__);"
+
+BOOT_LIVE = """
+const liveEl = document.getElementById("live");
+liveEl.hidden = false;
+async function load() {
+  try {
+    const r = await fetch("/api/graph?game=" + encodeURIComponent(GAME));
+    initGraph(await r.json());
+    liveEl.classList.remove("stale");
+    liveEl.textContent = "● 实时";
+  } catch (e) {
+    liveEl.classList.add("stale");
+    liveEl.textContent = "● 断开";
+  }
+}
+load();
+// Server-Sent Events, not a WebSocket: this push is one-way (the server says
+// "the files changed"), so the simpler transport is the honest one and it needs
+// no dependency beyond the stdlib on the server side.
+const es = new EventSource("/api/events");
+es.addEventListener("changed", load);
+es.addEventListener("error", () => {
+  liveEl.classList.add("stale");
+  liveEl.textContent = "● 断开";
+});
+"""
+
+
+def page(game: str, data: dict | None) -> str:
+    """One template, two data sources. `data=None` -> live (fetch + SSE)."""
+    stats = "".join(f"<span>{k} <b>{v}</b></span>" for k, v in (data or {}).get("stats", {}).items())
+    boot = (BOOT_STATIC.replace("__DATA__", json.dumps(data, ensure_ascii=False))
+            if data is not None
+            else f"const GAME = {json.dumps(game)};" + BOOT_LIVE)
+    return (TEMPLATE
             .replace("__TITLE__", f"{game} · 耦合蓝图")
             .replace("__GAME__", game.replace("demo_", ""))
             .replace("__STATS__", stats)
-            .replace("__DATA__", json.dumps(g, ensure_ascii=False)))
-    out.write_text(html, encoding="utf-8")
+            .replace("__BOOTSTRAP__", boot))
+
+
+def render(game: str, out: Path) -> Path:
+    out.write_text(page(game, build(game)), encoding="utf-8")
     return out
 
 
