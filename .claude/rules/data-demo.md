@@ -574,3 +574,47 @@ text is localised, so a text selector breaks the moment a translation
 lands. Give clickable buttons a stable `id` and select on it.
 **Empirical 2026-08-17**: adding Chinese took a game's scenarios from
 12/12 to 1/12, purely from text selectors.
+
+## A derived field that GATES an action belongs on the heartbeat, not the calendar
+
+Query filters compare a field to a LITERAL, so any condition over two live
+fields has to be materialised into a third field first. That much is already
+documented above. The clock you materialise it on is the part that bites.
+
+| the derived field… | put it on | why |
+|---|---|---|
+| gates a rule (a query filters on it) | `tick` | it must be fresh at the instant the player acts |
+| only displays (a label binds it) | `scheduled` | nobody is gated on it; per-day is plenty |
+
+A gating field on `scheduled` is stale between calendar units, and stale in the
+PERMISSIVE direction — the gate is simply open. It is not a rare race: any state
+the player's own action changes leaves the derived value one step behind, so the
+gate can always be beaten exactly once.
+
+**Empirical 2026-08-19**: `floor_over_cap` (delve_floor − rank floor cap) was
+derived on `scheduled every 1`. A rank-1 player standing on floor 14 descended
+anyway. Not only a test artefact: clearing floor 10 increments `delve_floor` with
+no calendar unit following it, so in live play the rank cap could always be
+beaten by one floor. `descent_bar_days_left` had the same hole and worse —
+missing a debt installment happens ON a scheduled tick, so whether the bar
+existed at all depended on rule order inside one bucket.
+
+Cost of the fix is a few `state_set`s per tick on one singleton, which is nothing
+next to a gate that does not hold.
+
+## Scenario hygiene: no dead clicks, and never bulk-edit setups
+
+**A click that cannot land is worse than no step.** `[step.click_not_found]`
+printed on every run for weeks because 20 scenarios opened by clicking a
+`btn_new_life` that never existed — the title screen has no buttons and
+`starting_screen` is `town`. Isolation never depended on it (ScenarioRunner
+builds a fresh World per scenario), so it was pure noise, and noise on every run
+is exactly how a real warning gets ignored. When a scenario logs an error, either
+the scenario is wrong or the game is; there is no third case.
+
+**A bulk edit across scenarios will hit the one that tests the opposite.** A
+script that raised `player_rank` to 2 for every scenario descending past floor 10
+also hit `rank_one_cannot_descend_past_floor_ten`, whose entire subject is rank 1
+— it kept passing while asserting nothing. Any scenario whose point is the
+NEGATIVE case should assert the setup value it depends on, so a later sweep
+breaks it loudly instead of hollowing it out.
