@@ -5,8 +5,9 @@ class_name MultiMeshDirector
 ##
 ## Static entities (eligible mesh + no animations + no mutation rules +
 ## not actor/projectile/player + no velocity) are grouped by
-## (mesh_def_id, primitive_index) and rendered as ONE MultiMeshInstance3D
-## per group, regardless of N. This collapses ~3000 draw calls (Aldenmere
+## (mesh_def_id, params) and rendered as ONE MultiMeshInstance3D per baked
+## mesh of the group, regardless of N. ADR 0083: MeshLib.bake() merges the
+## parts by material key, so a group has 1-2 MultiMeshes, not one per part. This collapses ~3000 draw calls (Aldenmere
 ## forest) into ~30.
 ##
 ## Wiring (per ADR 0041):
@@ -90,9 +91,9 @@ func scan_and_batch(env: Dictionary) -> Dictionary:
 	var rules: Array = _gather_rules(env)
 	var disqualified_tags := _scan_disqualified_tag_classes(rules)
 
-	# Group eligible entities by (mesh_def_id, primitive_index, params_key)
-	# where params_key is a stable hash of per-instance material params so
-	# entities with different tints land in different MultiMeshes.
+	# Group eligible entities by (mesh_def_id, params_key) where params_key
+	# is a stable hash of per-instance material params so entities with
+	# different tints land in different MultiMeshes.
 	var groups: Dictionary = {}  # group_key -> Array of entity dicts
 	var managed_ids: Array[String] = []
 
@@ -106,21 +107,13 @@ func scan_and_batch(env: Dictionary) -> Dictionary:
 		var mesh_def: Dictionary = _mesh_def_for(e, defs, env)
 		if mesh_def.is_empty():
 			continue
-		var prims: Array = mesh_def.get("primitives", [])
 		var resolved_params := MeshLib.merge_params(
 			mesh_def, (e.visual as Dictionary).get("params", {})
 		)
-		var params_key := _hash_params(resolved_params)
-		for prim_idx in range(prims.size()):
-			var key := "%s|%d|%s" % [_mesh_id_for(e), prim_idx, params_key]
-			if not groups.has(key):
-				groups[key] = {
-					"mesh_def": mesh_def,
-					"params": resolved_params,
-					"prim_idx": prim_idx,
-					"entities": [],
-				}
-			(groups[key]["entities"] as Array).append(e)
+		var key := "%s|%s" % [_mesh_id_for(e), _hash_params(resolved_params)]
+		if not groups.has(key):
+			groups[key] = {"mesh_def": mesh_def, "params": resolved_params, "entities": []}
+		(groups[key]["entities"] as Array).append(e)
 		managed_ids.append(str(id))
 
 	# Apply managed tag + remove per-entity renderer for each managed
@@ -136,8 +129,8 @@ func scan_and_batch(env: Dictionary) -> Dictionary:
 	for key in groups.keys():
 		var g: Dictionary = groups[key]
 		var built := _build_multimesh_for_group(g)
-		if built != null:
-			_built_nodes.append(built)
+		if not built.is_empty():
+			_built_nodes.append_array(built)
 			total_instances += (g["entities"] as Array).size()
 
 	return {
@@ -341,131 +334,43 @@ func _gather_rules(env: Dictionary) -> Array:
 # ============================================================
 
 
-func _build_multimesh_for_group(g: Dictionary) -> MultiMeshInstance3D:
+## ADR 0083 — one MultiMeshInstance3D per baked mesh of the group (shadow
+## casters and the rest). The baked mesh holds the part transforms, so the
+## instance transform is the entity transform only: position, yaw, scale.
+func _build_multimesh_for_group(g: Dictionary) -> Array:
 	var mesh_def: Dictionary = g["mesh_def"]
-	var params: Dictionary = g["params"]
-	var prim_idx: int = g["prim_idx"]
 	var ents: Array = g["entities"]
+	var out: Array = []
 	if ents.is_empty():
-		return null
-	var prims: Array = mesh_def.get("primitives", [])
-	if prim_idx >= prims.size():
-		return null
-	var prim: Dictionary = prims[prim_idx]
-
-	# Build the primitive's Mesh once (shared across all instances).
-	var mesh := _build_mesh_for_primitive(prim, params)
-	if mesh == null:
-		return null
-
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = mesh
-	mm.instance_count = ents.size()
-
-	# Per-instance transform = entity_transform * primitive_local_transform
-	var prim_pos := _to_vec3(_param_resolve(prim.get("pos", [0, 0, 0]), params))
-	var prim_rot := Vector3.ZERO
-	if prim.has("rotation_deg"):
-		var rd := _to_vec3(prim["rotation_deg"])
-		prim_rot = Vector3(deg_to_rad(rd.x), deg_to_rad(rd.y), deg_to_rad(rd.z))
-
-	for i in range(ents.size()):
-		var e: Entity = ents[i]
-		var ep := _entity_world_pos(e)
-		var sc := _entity_scale(e)
-		var yw := float(e.get_state("yaw", 0.0))
-
-		var t := Transform3D()
-		# Compose: primitive local pos rotated by entity yaw, then translated
-		# by entity world pos, scaled by entity scale.
-		var local_offset := Vector3(prim_pos.x * sc.x, prim_pos.y * sc.y, prim_pos.z * sc.z)
-		# Yaw rotation around Y axis
-		if yw != 0.0:
-			var cs := cos(yw)
-			var sn := sin(yw)
-			local_offset = Vector3(
-				local_offset.x * cs + local_offset.z * sn,
-				local_offset.y,
-				-local_offset.x * sn + local_offset.z * cs,
-			)
-		t.origin = ep + local_offset
-		# Basis: yaw rotation then per-instance scale, plus primitive's own rotation.
-		var b := Basis()
-		if yw != 0.0:
-			b = b.rotated(Vector3.UP, yw)
-		if prim_rot != Vector3.ZERO:
-			b = b * Basis.from_euler(prim_rot)
-		b = b.scaled(sc)
-		t.basis = b
-		mm.set_instance_transform(i, t)
-
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	# Material override applies to all instances of this group.
-	var color = _param_resolve(prim.get("color", "#ffffff"), params)
-	mmi.material_override = MeshLib._make_material(_parse_color(color))
-	# Shadow flag — mesh-def cast_shadow cascades, per-primitive override wins.
-	var mesh_cast := bool(mesh_def.get("cast_shadow", true))
-	var prim_cast := bool(prim.get("cast_shadow", mesh_cast))
-	if not prim_cast:
-		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_world_node.add_child(mmi)
-	return mmi
+		return out
+	var baked := MeshLib.bake(
+		mesh_def.get("primitives", []), g["params"], bool(mesh_def.get("cast_shadow", true)), false
+	)
+	var xforms: Array = []
+	for e in ents:
+		xforms.append(_instance_transform(e))
+	for entry in baked["meshes"]:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = entry["mesh"]
+		mm.instance_count = xforms.size()
+		for i in range(xforms.size()):
+			mm.set_instance_transform(i, xforms[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		if not bool(entry["cast_shadow"]):
+			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_world_node.add_child(mmi)
+		out.append(mmi)
+	return out
 
 
-func _build_mesh_for_primitive(p: Dictionary, params: Dictionary) -> Mesh:
-	var op := str(p.get("op", ""))
-	match op:
-		"box":
-			var size := _to_vec3(_param_resolve(p.get("size", [1, 1, 1]), params))
-			var m := BoxMesh.new()
-			m.size = size
-			return m
-		"sphere":
-			var r := float(_param_resolve(p.get("radius", 0.5), params))
-			var m2 := SphereMesh.new()
-			m2.radius = r
-			m2.height = r * 2.0
-			return m2
-		"cylinder":
-			var r2 := float(_param_resolve(p.get("radius", 0.3), params))
-			var h := float(_param_resolve(p.get("height", 1.0), params))
-			var m3 := CylinderMesh.new()
-			m3.top_radius = r2
-			m3.bottom_radius = r2
-			m3.height = h
-			return m3
-		"capsule":
-			var r3 := float(_param_resolve(p.get("radius", 0.3), params))
-			var h2 := float(_param_resolve(p.get("height", 1.0), params))
-			var m4 := CapsuleMesh.new()
-			m4.radius = r3
-			m4.height = h2
-			return m4
-		"plane":
-			var sz := _to_vec2(_param_resolve(p.get("size", [1, 1]), params))
-			var m5 := PlaneMesh.new()
-			m5.size = sz
-			return m5
-		"prism":
-			var sz2 := _to_vec3(_param_resolve(p.get("size", [1, 1, 1]), params))
-			var m6 := PrismMesh.new()
-			m6.size = sz2
-			return m6
-		"torus":
-			var inner := float(_param_resolve(p.get("inner_radius", 0.3), params))
-			var outer := float(_param_resolve(p.get("outer_radius", 0.5), params))
-			var m7 := TorusMesh.new()
-			m7.inner_radius = inner
-			m7.outer_radius = outer
-			return m7
-		"quad":
-			var sz3 := _to_vec2(_param_resolve(p.get("size", [1, 1]), params))
-			var m8 := QuadMesh.new()
-			m8.size = sz3
-			return m8
-	return null
+## The instance transform of one entity. Same order as a Node3D with
+## rotation.y and scale: R * S, so the scale stays in local space.
+func _instance_transform(e: Entity) -> Transform3D:
+	var yw := float(e.get_state("yaw", 0.0))
+	var b := Basis(Vector3.UP, yw) * Basis.from_scale(_entity_scale(e))
+	return Transform3D(b, _entity_world_pos(e))
 
 
 # ============================================================
@@ -527,7 +432,7 @@ func _remove_entity_renderer(e: Entity) -> void:
 
 
 # ============================================================
-# INTERNAL — math helpers (mirror MeshLib's)
+# INTERNAL — entity transform helpers
 # ============================================================
 
 
@@ -556,45 +461,3 @@ func _entity_scale(e: Entity) -> Vector3:
 		if a.size() == 2:
 			return Vector3(float(a[0]), float(a[0]), float(a[1]))
 	return Vector3.ONE
-
-
-func _param_resolve(v, params: Dictionary):
-	if v is String and (v as String).begins_with("$"):
-		var key := (v as String).substr(1)
-		return params.get(key, v)
-	return v
-
-
-func _to_vec3(v) -> Vector3:
-	if v is Vector3:
-		return v
-	if v is Vector2:
-		return Vector3(v.x, v.y, 0)
-	if v is Array:
-		var a := v as Array
-		if a.size() == 3:
-			return Vector3(float(a[0]), float(a[1]), float(a[2]))
-		if a.size() == 2:
-			return Vector3(float(a[0]), float(a[1]), 0)
-	if v is float or v is int:
-		var f := float(v)
-		return Vector3(f, f, f)
-	return Vector3.ZERO
-
-
-func _to_vec2(v) -> Vector2:
-	if v is Vector2:
-		return v
-	if v is Array:
-		var a := v as Array
-		if a.size() >= 2:
-			return Vector2(float(a[0]), float(a[1]))
-	return Vector2.ZERO
-
-
-func _parse_color(v) -> Color:
-	if v is Color:
-		return v
-	if v is String:
-		return Color(v)
-	return Color.WHITE

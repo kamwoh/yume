@@ -308,3 +308,29 @@ Draw calls, measured on `opengl3` after 240 frames:
 
 `aldenmere_3d` uses mostly AI `.glb` meshes, so the merge does not help
 it. None of the three scenes uses MultiMesh today.
+
+## F2 results (2026-10-15)
+
+F2 shipped `MeshLib.bake()`, the material key, the shared `materials`
+block, the bake cache (512 entries) and per-surface shader paint.
+`mesh_lib.gd` moved to `scripts/renderer_3d/`. All 5 callers use the
+bake. The MultiMesh copy of the shape switch is gone.
+
+Draw calls on `opengl3` after 240 frames:
+
+| Scene | Before | After |
+|---|---|---|
+| `pipeline_v1_3d` | 1362 | 942 (-31%) |
+| `doomarena3d` | 93 | 80 (-14%) |
+
+The first `aldenmere_3d` number (819) came from a template without
+imported `.glb` assets, so it is not a valid baseline.
+
+Visual gate: the old and the new code ran from the same imported
+template, captured at 4 s and 6 s. `pipeline_v1_3d` at 6 s and
+`aldenmere_3d` match (mean pixel difference 0.1 and 1.6 of 255). In
+`doomarena3d` the walls, the pillars and the viewmodel match. Only the
+live enemy differs, because its AI ran differently.
+
+Tests: `test_main` has 1195 passes and 0 failures (1170 before, 25 new).
+The `doomarena3d` (41) and `demo_aldenmere` (19) scenarios pass.

@@ -881,10 +881,9 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 
 ## ADR 0052: replace every primitive's material with a ShaderMaterial
 ## backed by `shader_path`. Uniforms come from `shader_params` (dict
-## of param-name → value). Applied uniformly across all primitives
-## (e.g. river bands all become water). For per-band shaders, use
-## `material_overrides` instead — that path is for .glb meshes; code-
-## drawn primitives don't have material name slots.
+## of param-name → value). Every surface gets the same shader, and each
+## surface keeps its own albedo (ADR 0083). The river bands all become
+## water, each in its own color.
 func _apply_shader_to_primitives(shader_path: String, shader_params: Variant) -> void:
 	if shader_path == "" or not ResourceLoader.exists(shader_path):
 		if shader_path != "":
@@ -906,27 +905,38 @@ func _apply_shader_to_primitives(shader_path: String, shader_params: Variant) ->
 func _paint_shader_recursive(node: Node, shader: Shader, params: Dictionary) -> void:
 	if node is MeshInstance3D:
 		var mi: MeshInstance3D = node
-		var sm := ShaderMaterial.new()
-		sm.shader = shader
-		# Carry the SOURCE material's albedo (texture + color) into the
-		# shader so a re-styling shader (toon/cel) keeps the mesh's real
-		# look and only changes the lighting model. Only fills uniforms the
-		# shader actually declares, and never clobbers an author-supplied
-		# shader_param. Reads material_override first, else surface 0.
-		var src: Material = mi.material_override
-		if src == null and mi.mesh != null and mi.mesh.get_surface_count() > 0:
-			src = mi.get_active_material(0)
-		if src is BaseMaterial3D:  # StandardMaterial3D AND ORMMaterial3D (glb)
-			var std := src as BaseMaterial3D
-			if not params.has("albedo_texture") and std.albedo_texture != null:
-				sm.set_shader_parameter("albedo_texture", std.albedo_texture)
-			if not params.has("albedo_color"):
-				sm.set_shader_parameter("albedo_color", std.albedo_color)
-		for k in params:
-			sm.set_shader_parameter(str(k), params[k])
-		mi.material_override = sm
+		# A node-wide material_override (a separate part, or a bare box)
+		# gets one ShaderMaterial. A baked mesh (ADR 0083) keeps its
+		# materials on the surfaces, so each surface gets its own
+		# ShaderMaterial with that surface's albedo. Empirical case: the
+		# 4-color `river_3d` water would otherwise take one color.
+		if mi.material_override != null or mi.mesh == null:
+			mi.material_override = _shader_material_from(mi.material_override, shader, params)
+		else:
+			for i in mi.mesh.get_surface_count():
+				mi.set_surface_override_material(
+					i, _shader_material_from(mi.get_active_material(i), shader, params)
+				)
 	for child in node.get_children():
 		_paint_shader_recursive(child, shader, params)
+
+
+## Carry the SOURCE material's albedo (texture + color) into the shader so
+## a re-styling shader (toon/cel) keeps the mesh's real look and only
+## changes the lighting model. Only fills uniforms the shader actually
+## declares, and never clobbers an author-supplied shader_param.
+func _shader_material_from(src: Material, shader: Shader, params: Dictionary) -> ShaderMaterial:
+	var sm := ShaderMaterial.new()
+	sm.shader = shader
+	if src is BaseMaterial3D:  # StandardMaterial3D AND ORMMaterial3D (glb)
+		var std := src as BaseMaterial3D
+		if not params.has("albedo_texture") and std.albedo_texture != null:
+			sm.set_shader_parameter("albedo_texture", std.albedo_texture)
+		if not params.has("albedo_color"):
+			sm.set_shader_parameter("albedo_color", std.albedo_color)
+	for k in params:
+		sm.set_shader_parameter(str(k), params[k])
+	return sm
 
 
 # ============================================================

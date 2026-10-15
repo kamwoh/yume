@@ -35,6 +35,7 @@ func _ready() -> void:
 	test_contact_rules()
 	test_formulas()
 	test_mesh_lib()
+	test_mesh_bake()
 	test_renderer_parity()
 	test_shooter_cascade()
 	test_rpg_cascade()
@@ -1370,6 +1371,144 @@ func test_mesh_lib() -> void:
 	var merged := MeshLib.merge_params(tree, instance_params)
 	expect_eq(merged["foliage"], "#abcdef", "instance param overrides default")
 	expect_eq(merged["trunk"], defaults["trunk"], "default param preserved")
+
+
+## ADR 0083 F2 — MeshLib.bake(): merge by material key, shared materials,
+## cache, cache bound, per-surface shader paint, MultiMesh on bake().
+func test_mesh_bake() -> void:
+	_section("mesh bake (ADR 0083 F2)")
+	MeshLib.clear_caches()
+	var saved_named := MeshLib.named_materials
+	MeshLib.named_materials = {"iron": {"color": "#4a4a4f", "roughness": 0.4, "metallic": 0.8}}
+	var prims := [
+		{"op": "box", "pos": [0, 0.5, 0], "size": [1, 1, 1], "color": "$wall"},
+		{"op": "box", "pos": [0, 1.2, 0], "size": [0.2, 0.2, 0.2], "color": "#ff0000"},
+		{"op": "box", "pos": [0.3, 0.2, 0], "size": [0.1, 0.1, 0.1], "color": "$wall"},
+		{"op": "sphere", "pos": [0, 1.5, 0], "radius": 0.1, "color": "$wall",
+		 "emission": "#ffcc66", "emission_energy": 2.0},
+		{"op": "cylinder", "pos": [0.5, 0.5, 0], "radius": 0.05, "height": 1.0,
+		 "material": "iron"},
+	]
+	var params := {"wall": "#808080"}
+	var baked := MeshLib.bake(prims, params)
+	var meshes: Array = baked["meshes"]
+	expect_eq(meshes.size(), 1, "all shadow casters bake into one ArrayMesh")
+	var am: ArrayMesh = meshes[0]["mesh"]
+	# Keys: wall, red, wall+emission, iron. The two plain wall boxes share one.
+	expect_eq(am.get_surface_count(), 4, "one surface per material key (5 parts, 4 keys)")
+	var aabb: AABB = baked["aabb"]
+	expect(absf(aabb.position.y) < 0.001, "baked AABB starts at the part base (y=0)")
+	expect(absf(aabb.end.y - 1.6) < 0.001, "baked AABB covers the top part (y=1.6)")
+	var emissive := 0
+	var metal := 0
+	for i in am.get_surface_count():
+		var m := am.surface_get_material(i) as StandardMaterial3D
+		if m.emission_enabled:
+			emissive += 1
+		if m.metallic > 0.5:
+			metal += 1
+	expect_eq(emissive, 1, "emission is part of the key: only its own surface glows")
+	expect_eq(metal, 1, "a `material` name resolves from the materials block")
+	expect(
+		MeshLib.material_for(prims[0], params) == MeshLib.material_for(prims[2], params),
+		"parts with the same key share one material instance"
+	)
+	# Cache: the same input returns the same result object.
+	var again := MeshLib.bake(prims, params)
+	expect(is_same(again, baked), "second bake with the same input hits the cache")
+	expect_eq(MeshLib.bake_cache_size(), 1, "cache holds one entry")
+	# Inline fields win over the named material.
+	var over := {"op": "box", "material": "iron", "metallic": 0.0}
+	expect(MeshLib.material_key(over, {}).contains("|m0.0|"), "inline metallic overrides the named one")
+	# rotation_deg accepts $param.
+	var rot := MeshLib.part_transform({"rotation_deg": "$r", "pos": [1, 2, 3]}, {"r": [0, 90, 0]})
+	expect((rot.basis.x - Vector3(0, 0, -1)).length() < 0.001, "rotation_deg resolves $param (yaw 90)")
+	expect_eq(rot.origin, Vector3(1, 2, 3), "part_transform keeps pos")
+
+	# Named / pivot parts stay separate unless keep_named is false.
+	var rig := [
+		{"op": "box", "pos": [0, 0.5, 0], "size": [0.4, 1, 0.2], "color": "#3355aa"},
+		{"op": "cylinder", "name": "arm_l", "pivot": "top", "pos": [-0.3, 0.6, 0],
+		 "radius": 0.05, "height": 0.5, "color": "#3355aa"},
+	]
+	var rb := MeshLib.bake(rig, {})
+	expect_eq((rb["separate"] as Array).size(), 1, "a named part stays separate")
+	expect_eq(((rb["meshes"] as Array)[0]["mesh"] as ArrayMesh).get_surface_count(), 1,
+		"the separate part is not in the baked mesh")
+	var rb_all := MeshLib.bake(rig, {}, true, false)
+	expect_eq((rb_all["separate"] as Array).size(), 0, "keep_named=false merges every part")
+
+	# cast_shadow splits the bake into two meshes.
+	var shadow_mix := [
+		{"op": "box", "size": [1, 1, 1], "color": "#00ff00"},
+		{"op": "box", "size": [1, 1, 1], "color": "#00ff00", "cast_shadow": false},
+	]
+	var sb := MeshLib.bake(shadow_mix, {})
+	expect_eq((sb["meshes"] as Array).size(), 2, "cast_shadow splits into two meshes")
+
+	# build_primitives_into: baked meshes + separate nodes; the named part is findable.
+	var host := Node3D.new()
+	MeshLib.build_primitives_into(host, rig, {})
+	expect_eq(host.get_child_count(), 2, "build_primitives_into: 1 baked mesh + 1 separate part")
+	expect(host.find_child("arm_l", true, false) != null, "the named part keeps its name")
+	host.free()
+
+	# Cache bound: least-recently-used entries go first.
+	MeshLib.clear_caches()
+	for i in MeshLib.BAKE_CACHE_MAX + 5:
+		MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(float(i) / 1000.0, 0, 0)})
+	expect_eq(MeshLib.bake_cache_size(), MeshLib.BAKE_CACHE_MAX, "cache stays at BAKE_CACHE_MAX")
+
+	# Per-surface shader paint keeps each surface's albedo (river_3d case).
+	var bands := [
+		{"op": "box", "pos": [0, 0, 0], "size": [1, 0.1, 1], "color": "#112233"},
+		{"op": "box", "pos": [0, 0, 1], "size": [1, 0.1, 1], "color": "#445566"},
+	]
+	var paint_host := EntityMesh3D.new()
+	MeshLib.build_primitives_into(paint_host, bands, {})
+	var shader := Shader.new()
+	shader.code = "shader_type spatial;\nuniform vec4 albedo_color : source_color;\nvoid fragment() { ALBEDO = albedo_color.rgb; }\n"
+	paint_host._paint_shader_recursive(paint_host.get_child(0), shader, {})
+	var pmi := paint_host.get_child(0) as MeshInstance3D
+	var c0: Color = (pmi.get_surface_override_material(0) as ShaderMaterial).get_shader_parameter("albedo_color")
+	var c1: Color = (pmi.get_surface_override_material(1) as ShaderMaterial).get_shader_parameter("albedo_color")
+	expect(c0 != c1, "shader paint gives each baked surface its own albedo")
+	paint_host.free()
+
+	# MultiMesh uses bake(): one MultiMesh per baked mesh, emission kept.
+	var dir := MultiMeshDirector.new()
+	var world := Node.new()
+	dir.configure(world, 1.0)
+	var ents: Array = []
+	for i in 3:
+		var e := Entity.new()
+		e.state = {"yaw": 0.0, "scale": [2.0, 1.0, 1.0]}
+		e.set_position(Vector3(i * 2, 0, 0))
+		ents.append(e)
+	var built: Array = dir._build_multimesh_for_group(
+		{"mesh_def": {"primitives": prims}, "params": params, "entities": ents}
+	)
+	expect_eq(built.size(), 1, "MultiMesh: one node per baked mesh, not one per part")
+	var mm := (built[0] as MultiMeshInstance3D).multimesh
+	expect_eq(mm.instance_count, 3, "MultiMesh: one instance per entity")
+	# The dummy (headless) renderer does not store MultiMesh transforms, so
+	# test the transform function directly.
+	var xf: Transform3D = dir._instance_transform(ents[1])
+	expect_eq(xf.origin, Vector3(2, 0, 0), "instance origin = entity position")
+	ents[1].state["yaw"] = PI / 2.0
+	var xr: Transform3D = dir._instance_transform(ents[1])
+	expect((xr * Vector3(1, 0, 0) - (Vector3(2, 0, 0) + Vector3(0, 0, -2))).length() < 0.001,
+		"local +X scales by 2, then yaws 90 deg (R * S, as a Node3D does)")
+	var mm_glow := false
+	for i in mm.mesh.get_surface_count():
+		if (mm.mesh.surface_get_material(i) as StandardMaterial3D).emission_enabled:
+			mm_glow = true
+	expect(mm_glow, "MultiMesh keeps emission (lost before ADR 0083)")
+	for e in ents:
+		e.free()
+	world.free()
+	MeshLib.named_materials = saved_named
+	MeshLib.clear_caches()
 
 
 # ============================================================
