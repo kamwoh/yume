@@ -104,6 +104,7 @@ var _advancing_calendar: bool = false
 func advance_calendar(units: int) -> void:
 	if units <= 0:
 		return
+	_refresh_cell_size()
 	if _advancing_calendar:
 		(
 			EngineError
@@ -189,6 +190,7 @@ func register_rules(rules: Array) -> void:
 			rules_by_trigger[tt] = []
 		(rules_by_trigger[tt] as Array).append(r)
 	_topo_sort_all()
+	_cell_size_dirty = true
 
 
 ## Append rules to the existing bucket map (used by multi-level loads:
@@ -202,12 +204,32 @@ func append_rules(rules: Array) -> void:
 			rules_by_trigger[tt] = []
 		(rules_by_trigger[tt] as Array).append(r)
 	_topo_sort_all()
+	_cell_size_dirty = true
 
 
 ## Wipe all registered rules. Used by ADR 0006 level transition before
 ## reloading per-level rules + global rules.
 func clear_rules() -> void:
 	rules_by_trigger.clear()
+	_cell_size_dirty = true
+
+
+## ADR 0084: register_rules, append_rules and clear_rules set this. The next
+## tick, frame tick or calendar advance derives the cell size once. A load in
+## several steps (boot plus a level, a transition, a reset, a save load) thus
+## derives it from the complete rule set.
+var _cell_size_dirty := false
+
+
+func _refresh_cell_size() -> void:
+	if not _cell_size_dirty:
+		return
+	_cell_size_dirty = false
+	var sx = env.get("spatial_index", null)
+	if sx is SpatialIndex:
+		(sx as SpatialIndex).set_cell_size(
+			SpatialIndex.derive_cell_size(rules_by_trigger), env.get("entities", {})
+		)
 
 
 ## Find a registered rule by id. Used by variant overlay to apply
@@ -299,6 +321,7 @@ func queue_input(action: String, params: Dictionary = {}) -> void:
 
 
 func tick() -> void:
+	_refresh_cell_size()
 	tick_count += 1
 	var world_state: Dictionary = env.get("world", {})
 	world_state["tick"] = tick_count
@@ -353,6 +376,7 @@ func run_ticks(n: int) -> void:
 ## Frame_tick rules can use the same query / require / chance / effect
 ## machinery as tick rules — only the trigger cadence differs.
 func fire_frame_tick() -> void:
+	_refresh_cell_size()
 	var rules: Array = rules_by_trigger.get("frame_tick", [])
 	if rules.is_empty():
 		return

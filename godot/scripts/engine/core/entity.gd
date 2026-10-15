@@ -49,7 +49,16 @@ var def_id: String = ""  # template definition id from entities.json
 var instance_id: String = ""  # unique per spawn; set by world loader
 var properties: Dictionary = {}  # static
 var state: Dictionary = {}  # dynamic (includes position + velocity)
-var tags: Array[String] = []
+## Counts tag changes on all entities (ADR 0084). QueryLib rebuilds its tag
+## index when this differs from the value it built at. Write tags only
+## through the setter, add_tag or remove_tag. An in-place write such as
+## `tags.append(...)` skips the count. validate_tag_writes.py rejects it.
+static var tag_epoch: int = 0
+
+var tags: Array[String] = []:
+	set(value):
+		tags = value
+		tag_epoch += 1
 var visual: Dictionary = {}
 
 # ============================================================
@@ -84,6 +93,7 @@ static func create(def: Dictionary, inst_id: String, overrides: Dictionary = {})
 		e.state["velocity"] = _normalize_position(e.state["velocity"])
 	if not overrides.is_empty():
 		e._apply_overrides(overrides)
+	tag_epoch += 1
 	return e
 
 
@@ -164,10 +174,13 @@ func has_tag(tag: String) -> bool:
 func add_tag(tag: String) -> void:
 	if not has_tag(tag):
 		tags.append(tag)
+		tag_epoch += 1
 
 
 func remove_tag(tag: String) -> void:
-	tags.erase(tag)
+	if has_tag(tag):
+		tags.erase(tag)
+		tag_epoch += 1
 
 
 # ============================================================

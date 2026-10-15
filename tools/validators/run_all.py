@@ -41,6 +41,7 @@ REPO_WIDE = {
     "validate_tick_override.py",
     "validate_claude_config.py",
     "validate_meshes.py",
+    "validate_tag_writes.py",
 }
 
 

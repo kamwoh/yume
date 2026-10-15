@@ -72,6 +72,7 @@ func _ready() -> void:
 	var spec: Dictionary = _read_json(tests_path)
 	var scenarios: Array = spec.get("scenarios", [])
 	print("=== Yume scenario tests: %s ===" % data_root.get_file())
+	QueryLib.verify_index = true
 	for sc in scenarios:
 		if not (sc is Dictionary):
 			continue
@@ -83,6 +84,11 @@ func _ready() -> void:
 		# tallies before deferred assertions resume, and presses re-fire stale
 		# edges. (Worked before only because StepRunner was synchronous.)
 		await _run_one(sc, data_root)
+	if QueryLib.index_mismatches > 0:
+		_record_fail(
+			"_query_tag_index",
+			"%d tag index results differed from the full scan (ADR 0084)" % QueryLib.index_mismatches
+		)
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [passed, failed, passed + failed])
 	if failed > 0:

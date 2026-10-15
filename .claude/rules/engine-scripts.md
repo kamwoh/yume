@@ -35,6 +35,12 @@ Contract: `docs/guideline/30_framework_primitives.md` invariants #1–#8.
   the material first, then assign the copy. Gate: `test_mesh_bake` paints
   one host and checks that the shared material and a second host do not
   change (2026-10-15).
+- ❌ **Write an entity's `tags` in place** (`ent.tags.append(...)`,
+  `ent.tags.erase(...)`) outside `core/entity.gd` (ADR 0084). QueryLib's
+  tag index rebuilds only when `Entity.tag_epoch` changes. Use
+  `add_tag` / `remove_tag`, or assign a new array. Gates:
+  `validate_tag_writes.py` (static) and `QueryLib.verify_index`, which
+  the test and scenario runners set (2026-10-16).
 
 ## DO
 

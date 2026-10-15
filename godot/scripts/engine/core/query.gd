@@ -53,6 +53,13 @@ const OPERATOR_SUFFIXES: Array = [
 ## engine-reserved namespace inside a query dict, matching `_comment`.
 const EDGE_STATE_KEY: String = "_edge"
 
+## ADR 0084 dynamic gate. When true, each query that uses the tag index also
+## runs the full scan that the index replaces and compares the two ordered
+## results. The test runner and the scenario runner set it, and fail when
+## `index_mismatches` is above 0 at the end.
+static var verify_index: bool = false
+static var index_mismatches: int = 0
+
 # ============================================================
 # PUBLIC
 # ============================================================
@@ -122,7 +129,34 @@ static func matches(
 ## If `spec` includes `radius` and `env.spatial_index` exists, the candidate
 ## set is narrowed via the spatial index (W3.1) — avoids O(n) over all
 ## entities. Without radius, full scan as before.
+##
+## Without radius, a query with `tags_all` or `tags_any` starts from the tag
+## index (ADR 0084). The result keeps the full scan's order: `env.entities`
+## insertion order.
 static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> Array:
+	var out := _run(spec, env, context, true)
+	if verify_index and not spec.has("radius") and _uses_tag_index(spec):
+		var full := _run(spec, env, context, false)
+		if full != out:
+			index_mismatches += 1
+			var msg := (
+				"tag index result %s differs from the full scan %s"
+				% [_ids(out), _ids(full)]
+			)
+			push_error("[query.index_mismatch] %s spec=%s" % [msg, spec])
+			EngineError.raise(
+				env,
+				"query.index_mismatch",
+				msg,
+				{"spec": spec},
+				"A tag changed without Entity.tag_epoch. Write tags only through add_tag, remove_tag or the tags setter."
+			)
+	return out
+
+
+static func _run(
+	spec: Dictionary, env: Dictionary, context: Dictionary, use_index: bool
+) -> Array:
 	var all: Dictionary = env.get("entities", {})
 	var out: Array = []
 	var has_radius: bool = spec.has("radius")
@@ -131,6 +165,7 @@ static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> 
 
 	# Narrow candidate set via spatial index when radius + index present.
 	var candidates: Array = []
+	var from_tag_index := false
 	if has_radius:
 		var sx = env.get("spatial_index", null)
 		if sx != null and sx.has_method("query_radius_ids"):
@@ -141,11 +176,18 @@ static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> 
 		else:
 			# fallback: scan all
 			candidates = all.values()
+	elif use_index and _uses_tag_index(spec):
+		candidates = _tag_candidates(spec, env, all)
+		from_tag_index = true
 	else:
 		candidates = all.values()
 
 	for ent in candidates:
 		if not (ent is Entity):
+			continue
+		# Ids are reused across levels and by forced-id spawns, so check the
+		# identity, not only the id.
+		if from_tag_index and all.get((ent as Entity).instance_id) != ent:
 			continue
 		if not matches(ent, spec, env, context):
 			continue
@@ -183,6 +225,83 @@ static func run(spec: Dictionary, env: Dictionary, context: Dictionary = {}) -> 
 # ============================================================
 # INTERNAL
 # ============================================================
+
+
+static func _uses_tag_index(spec: Dictionary) -> bool:
+	var ta = spec.get("tags_all")
+	var tn = spec.get("tags_any")
+	return (ta is Array and not ta.is_empty()) or (tn is Array and not tn.is_empty())
+
+
+## The candidates for a tag query, in `env.entities` order. `tags_all` takes
+## its smallest tag array. `tags_any` takes the union of its arrays.
+static func _tag_candidates(spec: Dictionary, env: Dictionary, all: Dictionary) -> Array:
+	var idx := _tag_index(env, all)
+	var by_tag: Dictionary = idx["by_tag"]
+	var tags_all = spec.get("tags_all")
+	if tags_all is Array and not tags_all.is_empty():
+		var best: Array = []
+		var best_size := -1
+		for t in tags_all:
+			var arr: Array = by_tag.get(str(t), [])
+			if best_size < 0 or arr.size() < best_size:
+				best = arr
+				best_size = arr.size()
+		return best
+	var tags_any: Array = spec["tags_any"]
+	if tags_any.size() == 1:
+		return by_tag.get(str(tags_any[0]), [])
+	var ord: Dictionary = idx["ord"]
+	var seen := {}
+	var union: Array = []
+	for t in tags_any:
+		for ent in by_tag.get(str(t), []):
+			if not seen.has(ent):
+				seen[ent] = true
+				union.append(ent)
+	union.sort_custom(func(a, b): return ord[a] < ord[b])
+	return union
+
+
+## The lazy tag index in `env["_tag_index"]`. It rebuilds when any tag
+## changed (Entity.tag_epoch), or when the entity dictionary or its size
+## changed (spawn, despawn, level transition, reset).
+static func _tag_index(env: Dictionary, all: Dictionary) -> Dictionary:
+	var idx = env.get("_tag_index", null)
+	if (
+		idx is Dictionary
+		and idx["epoch"] == Entity.tag_epoch
+		and idx["count"] == all.size()
+		and is_same(idx["entities"], all)
+	):
+		return idx
+	var by_tag := {}
+	var ord := {}
+	var i := 0
+	for ent in all.values():
+		if ent is Entity:
+			ord[ent] = i
+			for t in (ent as Entity).tags:
+				var arr: Array = by_tag.get(t, [])
+				if arr.is_empty():
+					by_tag[t] = arr
+				elif arr.back() == ent:
+					continue  # a def that lists a tag twice
+				arr.append(ent)
+		i += 1
+	idx = {
+		"epoch": Entity.tag_epoch,
+		"count": all.size(),
+		"entities": all,
+		"by_tag": by_tag,
+		"ord": ord,
+	}
+	env["_tag_index"] = idx
+	return idx
+
+
+static func _ids(ents: Array) -> Array:
+	return ents.map(func(e): return (e as Entity).instance_id if e is Entity else str(e))
 
 
 ## Match a flat field map against a spec dict of {field_with_op: value, ...}.

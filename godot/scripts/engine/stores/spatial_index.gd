@@ -63,6 +63,46 @@ func clear() -> void:
 	entity_cells.clear()
 
 
+## ADR 0084: the scheduler derives the cell size from the rule radii. A new
+## size re-buckets each id that is already indexed, at its current position
+## in `entities`. It adds no new ids. Without the re-bucket, a static entity
+## stays in a cell of the old size and no radius query finds it again.
+func set_cell_size(size: float, entities: Dictionary) -> void:
+	if is_equal_approx(size, cell_size):
+		return
+	cell_size = size
+	var ids := entity_cells.keys()
+	grid.clear()
+	entity_cells.clear()
+	for id in ids:
+		var ent = entities.get(id)
+		if ent is Entity:
+			update_entity(id, (ent as Entity).get_planar_position())
+
+
+## Twice the median literal `query.radius` of the rules, clamped to 1..64. A
+## contact rule without `radius` counts its default of 1.0. A formula radius
+## does not count. With no literal radius, the size stays 64.
+static func derive_cell_size(rules_by_trigger: Dictionary) -> float:
+	var radii: Array = []
+	for tt in rules_by_trigger:
+		for r in rules_by_trigger[tt]:
+			var q = (r as Rule).query
+			if not (q is Dictionary):
+				continue
+			var rv = (q as Dictionary).get("radius", null)
+			if rv is int or rv is float:
+				radii.append(float(rv))
+			elif rv == null and tt == "contact":
+				radii.append(1.0)
+	if radii.is_empty():
+		return 64.0
+	radii.sort()
+	var n := radii.size()
+	var median: float = radii[n / 2] if n % 2 == 1 else (radii[n / 2 - 1] + radii[n / 2]) / 2.0
+	return clampf(2.0 * median, 1.0, 64.0)
+
+
 # ============================================================
 # QUERY
 # ============================================================
@@ -71,10 +111,21 @@ func clear() -> void:
 ## Return entity ids whose position lies within `radius` of `origin`.
 ## Visits only cells overlapping the bounding box of the circle, then filters
 ## by exact distance.
+##
+## A large radius (such as a 1000 m chase) can span more cells than the grid
+## holds. Then it visits the occupied cells and filters them by the box. The
+## cost is the smaller of the two.
 func query_radius_ids(origin: Vector2, radius: float) -> Array:
 	var min_cell := _cell_of(origin - Vector2(radius, radius))
 	var max_cell := _cell_of(origin + Vector2(radius, radius))
 	var out: Array = []
+	var box_cells := (max_cell.x - min_cell.x + 1) * (max_cell.y - min_cell.y + 1)
+	if box_cells > grid.size():
+		for cell in grid:
+			var c: Vector2i = cell
+			if c.x >= min_cell.x and c.x <= max_cell.x and c.y >= min_cell.y and c.y <= max_cell.y:
+				out.append_array(grid[c] as Array)
+		return out
 	for cx in range(min_cell.x, max_cell.x + 1):
 		for cy in range(min_cell.y, max_cell.y + 1):
 			var cell := Vector2i(cx, cy)

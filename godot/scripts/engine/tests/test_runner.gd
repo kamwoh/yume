@@ -20,6 +20,7 @@ var current_test: String = ""
 
 func _ready() -> void:
 	print("=== Yume engine unit tests ===\n")
+	QueryLib.verify_index = true
 	test_entity()
 	test_rule()
 	test_frame_tick()
@@ -111,6 +112,9 @@ func _ready() -> void:
 	test_animation_translator()
 	test_ground_renderer_rebind()
 	test_ground_heightmap_collider()
+	test_query_tag_index()
+	test_spatial_cell_size()
+	expect_eq(QueryLib.index_mismatches, 0, "ADR 0084: no tag index result differed from the full scan")
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
 	if fail_count > 0:
@@ -12245,3 +12249,164 @@ func test_ground_heightmap_collider() -> void:
 	# Cleanup
 	GroundRenderer._heightmap_img = null
 	GroundRenderer._heightmap_enabled = false
+
+
+## ADR 0084 — the lazy tag index returns the same entities, in the same
+## order, as the full scan, after each kind of entity or tag change.
+func test_query_tag_index() -> void:
+	_section("query_tag_index (ADR 0084)")
+	var defs := {
+		"wolf": {"id": "wolf", "tags": ["animal", "wolf", "animal"]},
+		"deer": {"id": "deer", "tags": ["animal", "deer"]},
+		"rock": {"id": "rock", "tags": ["solid"]},
+	}
+	var entities := {}
+	# An env built by hand, with no index in it yet.
+	var env := {"entities": entities, "relations": RelationStore.new()}
+	var ids := func(spec: Dictionary) -> Array:
+		return QueryLib.run(spec, env).map(func(e): return e.instance_id)
+	var scan := func(spec: Dictionary) -> Array:
+		return QueryLib._run(spec, env, {}, false).map(func(e): return e.instance_id)
+	entities["d1"] = Entity.create(defs.deer, "d1")
+	entities["w1"] = Entity.create(defs.wolf, "w1")
+	entities["r1"] = Entity.create(defs.rock, "r1")
+	entities["d2"] = Entity.create(defs.deer, "d2")
+	expect_eq(ids.call({"tags_all": ["animal"]}), ["d1", "w1", "d2"], "tags_all in insertion order")
+	expect_eq(ids.call({"tags_all": ["wolf"]}), ["w1"], "a def with a duplicate tag gives one result")
+	expect_eq(
+		ids.call({"tags_any": ["solid", "deer", "wolf"]}),
+		["d1", "w1", "r1", "d2"],
+		"tags_any union keeps insertion order"
+	)
+	expect_eq(ids.call({"tags_any": ["animal", "deer"]}), ["d1", "w1", "d2"], "tags_any union has no repeats")
+	expect_eq(ids.call({"tags_all": ["animal", "missing"]}), [], "a tag nobody has gives no result")
+	# Spawn.
+	entities["w2"] = Entity.create(defs.wolf, "w2")
+	expect_eq(ids.call({"tags_all": ["wolf"]}), ["w1", "w2"], "spawn shows in the index")
+	# Despawn.
+	var old_w1: Entity = entities["w1"]
+	entities.erase("w1")
+	expect_eq(ids.call({"tags_all": ["wolf"]}), ["w2"], "despawn leaves the index")
+	# add_tag and remove_tag.
+	(entities["r1"] as Entity).add_tag("animal")
+	expect_eq(ids.call({"tags_all": ["animal"]}), ["d1", "r1", "d2", "w2"], "add_tag shows in the index")
+	(entities["d1"] as Entity).remove_tag("animal")
+	expect_eq(ids.call({"tags_all": ["animal"]}), ["r1", "d2", "w2"], "remove_tag leaves the index")
+	# A repeat add_tag or a remove of an absent tag does not bump the epoch.
+	var epoch := Entity.tag_epoch
+	(entities["r1"] as Entity).add_tag("animal")
+	(entities["r1"] as Entity).remove_tag("never_had")
+	expect_eq(Entity.tag_epoch, epoch, "a repeat add_tag forces no rebuild")
+	# Direct assignment goes through the setter.
+	(entities["d2"] as Entity).tags = ["plant"]
+	expect_eq(ids.call({"tags_all": ["animal"]}), ["r1", "w2"], "tags assignment shows in the index")
+	expect_eq(ids.call({"tags_all": ["plant"]}), ["d2"], "assigned tag is indexed")
+	# Same id, new entity (a forced-id spawn after a despawn, same count).
+	var old_w2: Entity = entities["w2"]
+	entities.erase("w2")
+	entities["w2"] = Entity.create(defs.deer, "w2")
+	expect_eq(ids.call({"tags_all": ["wolf"]}), [], "a reused id does not return the old entity")
+	expect_eq(ids.call({"tags_all": ["deer"]}), ["d1", "w2"], "a reused id returns the new entity")
+	# The index and the scan agree on every shape.
+	for spec in [
+		{"tags_all": ["animal"], "tags_none": ["deer"]},
+		{"tags_any": ["plant", "solid", "animal"]},
+		{"tags_any": ["deer"], "limit": 1},
+	]:
+		expect_eq(ids.call(spec), scan.call(spec), "index equals scan for %s" % spec)
+	# The dynamic gate counts an in-place write that skips the epoch.
+	var before := QueryLib.index_mismatches
+	(entities["d1"] as Entity).tags.append("ghost")
+	QueryLib.run({"tags_all": ["ghost"]}, env)
+	expect_eq(QueryLib.index_mismatches, before + 1, "verify_index counts a stale index")
+	QueryLib.index_mismatches = before
+	for e in entities.values():
+		(e as Entity).free()
+	old_w1.free()
+	old_w2.free()
+
+
+## ADR 0084 part 2 — the cell size comes from the rule radii, and a new size
+## keeps every indexed entity findable.
+func test_spatial_cell_size() -> void:
+	_section("spatial_cell_size (ADR 0084)")
+	var mk := func(tt: String, q) -> Rule:
+		var d := {"id": "r", "trigger": {"type": tt}, "effect": {"type": "emit", "signal": "x"}}
+		if q != null:
+			d["query"] = q
+		return Rule.from_dict(d)
+	var by_tt := func(rules: Array) -> Dictionary:
+		var out := {}
+		for r in rules:
+			var tt: String = (r as Rule).trigger_type()
+			if not out.has(tt):
+				out[tt] = []
+			(out[tt] as Array).append(r)
+		return out
+	expect_eq(SpatialIndex.derive_cell_size({}), 64.0, "no rules keep 64")
+	expect_eq(
+		SpatialIndex.derive_cell_size(by_tt.call([mk.call("tick", {"tags_all": ["a"]})])),
+		64.0,
+		"no literal radius keeps 64"
+	)
+	expect_eq(
+		SpatialIndex.derive_cell_size(by_tt.call([
+			mk.call("tick", {"radius": 2}),
+			mk.call("tick", {"radius": 3.0}),
+			mk.call("tick", {"radius": 50}),
+			mk.call("tick", {"radius": "self.state.reach"}),
+		])),
+		6.0,
+		"twice the median literal radius; a formula radius does not count"
+	)
+	expect_eq(
+		SpatialIndex.derive_cell_size(by_tt.call([
+			mk.call("contact", {"a": {"tags_all": ["p"]}, "b": {"tags_all": ["q"]}}),
+		])),
+		2.0,
+		"a contact rule without radius counts 1.0"
+	)
+	expect_eq(
+		SpatialIndex.derive_cell_size(by_tt.call([mk.call("tick", {"radius": 1000})])),
+		64.0,
+		"clamped to 64"
+	)
+	expect_eq(
+		SpatialIndex.derive_cell_size(by_tt.call([mk.call("tick", {"radius": 0.1})])),
+		1.0,
+		"clamped to 1"
+	)
+	# Re-bucket: a static entity stays findable after the size changes.
+	var sx := SpatialIndex.new()
+	var entities := {}
+	var pit := Entity.create({"id": "pit", "tags": ["fire"]}, "pit")
+	pit.set_position(Vector2(10, -3))
+	entities["pit"] = pit
+	sx.update_entity("pit", pit.get_planar_position())
+	var lone := Entity.create({"id": "lone"}, "lone")
+	lone.set_position(Vector2(-40, 30))
+	entities["lone"] = lone
+	sx.update_entity("lone", lone.get_planar_position())
+	sx.set_cell_size(6.0, entities)
+	expect_eq(sx.cell_size, 6.0, "set_cell_size sets the size")
+	expect(sx.query_radius_ids(Vector2(9, -2), 2.0).has("pit"), "static entity found after re-bucket")
+	expect_eq(sx.entity_count(), 2, "re-bucket adds no new ids")
+	# A large radius visits the occupied cells and finds the same ids.
+	var far := sx.query_radius_ids(Vector2(0, 0), 1000.0)
+	far.sort()
+	expect_eq(far, ["lone", "pit"], "large radius returns every occupied cell in the box")
+	var none := sx.query_radius_ids(Vector2(500, 500), 100.0)
+	expect_eq(none, [], "occupied-cell path filters by the box")
+	# The scheduler derives the size on the next tick after register_rules.
+	var env := {
+		"entities": entities, "relations": RelationStore.new(), "spatial_index": sx,
+		"world": {}, "parent": null, "next_id": {"_": 0},
+	}
+	var sched := PhaseScheduler.new(env)
+	sched.register_rules([mk.call("tick", {"radius": 12})])
+	expect_eq(sx.cell_size, 6.0, "register_rules does not derive at once")
+	sched.tick()
+	expect_eq(sx.cell_size, 24.0, "the next tick derives the size from the complete rule set")
+	expect(sx.query_radius_ids(Vector2(10, -3), 1.0).has("pit"), "static entity found after the scheduler re-bucket")
+	pit.free()
+	lone.free()

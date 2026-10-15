@@ -1,7 +1,7 @@
 # ADR 0084 — Query tag index and a derived spatial cell size
 
 _Date: 2026-10-15_
-_Status: accepted 2026-10-16 (revision 3, after two tech-director reviews)_
+_Status: accepted 2026-10-16, implemented (revision 3, after two tech-director reviews)_
 
 ## Context
 
@@ -165,3 +165,32 @@ know a value that its rules already imply. Rejected: it is an override
 field.
 
 **C. Keep scanning.** Two demos stay near or over the budget at p95.
+
+## Results (2026-10-16)
+
+The batch C harness ran old and new engine scripts in turn, 3 rounds of
+600 ticks per scene. The table gives the median of the 3 runs.
+
+| Scene | Cell size | Median tick | p95 tick |
+|---|---|---|---|
+| `autorace_3d` | 64 → 6.7 | 12.95 → 2.14 ms (-83%) | 24.7 → 3.9 ms |
+| `aldenmere_3d` | 64 → 6.0 | 13.11 → 4.06 ms (-69%) | 28.9 → 7.6 ms |
+| `doomarena3d` | 64 → 2.4 | 5.18 → 3.56 ms (-31%) | 16.1 → 7.2 ms |
+| `sokoban_2d` | 64 → 24 | 0.58 → 0.31 ms (-46%) | 0.87 → 0.67 ms |
+
+The aldenmere runs include the `tag` data fix of commit `60d3f46`.
+
+**Deviations from the decision.**
+
+- The expected size for `doomarena3d` was 16. The real median literal
+  radius is 1.2, so the size is 2.4. Its `radius: 1000` chase rules take
+  the occupied-cell path, so the small size costs nothing.
+- The size is derived on the next tick, frame tick or calendar advance
+  after a rule change, not at each named load site. This covers boot,
+  a level load, a transition, a reset and a save load with one hook.
+
+**Tests.** test_main passes 1269 of 1269 with `verify_index` on. The
+scenario suites pass with no index mismatch: aldenmere 19, autorace 2,
+doomarena3d 41, lightlab 2, sokoban 14, thousandgate 67. canyon fails
+2 of 2 (`flame_animates`) on the old code too, so the failure is older
+than this change.

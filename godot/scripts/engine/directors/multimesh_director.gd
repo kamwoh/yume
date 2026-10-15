@@ -129,8 +129,7 @@ func scan_and_batch(env: Dictionary) -> Dictionary:
 	# entity. (Renderer is already attached at this point — we clean up.)
 	for mid in managed_ids:
 		var me: Entity = entities[mid]
-		if not me.has_tag(MANAGED_TAG):
-			me.tags.append(MANAGED_TAG)
+		me.add_tag(MANAGED_TAG)
 		_remove_entity_renderer(me)
 
 	# Build one MultiMeshInstance3D per group.
@@ -401,7 +400,7 @@ func _apply_promotion(env: Dictionary, entity_id: String) -> void:
 	# (Compaction is too expensive — zero scale renders nothing.)
 	_zero_multimesh_slots_for(e)
 	# Remove the tag so per-entity render can take over.
-	e.tags.erase(MANAGED_TAG)
+	e.remove_tag(MANAGED_TAG)
 	# Re-attach per-entity renderer.
 	var world_node = env.get("parent", null)
 	if world_node != null and world_node.has_method("_attach_renderer"):
