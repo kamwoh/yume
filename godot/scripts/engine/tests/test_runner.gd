@@ -1453,11 +1453,48 @@ func test_mesh_bake() -> void:
 	expect(host.find_child("arm_l", true, false) != null, "the named part keeps its name")
 	host.free()
 
-	# Cache bound: least-recently-used entries go first.
+	# A change to the materials block alone makes a new bake (no stale material).
+	var iron_prims := [{"op": "box", "material": "iron"}]
+	var b_old := MeshLib.bake(iron_prims, {})
+	MeshLib.named_materials = {"iron": {"color": "#ff00ff"}}
+	var b_new := MeshLib.bake(iron_prims, {})
+	var new_mat := ((b_new["meshes"] as Array)[0]["mesh"] as ArrayMesh).surface_get_material(0) as StandardMaterial3D
+	expect(not is_same(b_old, b_new), "a materials-block change misses the cache")
+	expect_eq(new_mat.albedo_color, Color("#ff00ff"), "the new bake uses the new named material")
+
+	# Shared materials stay unchanged when one host is painted.
+	var tex := ImageTexture.create_from_image(Image.create(2, 2, false, Image.FORMAT_RGB8))
+	var host_a := EntityMesh3D.new()
+	var host_b := EntityMesh3D.new()
+	var plain := [{"op": "box", "color": "#123456"}, {"op": "box", "name": "lid", "color": "#123456"}]
+	MeshLib.build_primitives_into(host_a, plain, {})
+	MeshLib.build_primitives_into(host_b, plain, {})
+	for c in host_a.get_children():
+		host_a._paint_albedo_texture_recursive(c, tex)
+	var cached := MeshLib.material_for(plain[0], {})
+	expect(cached.albedo_texture == null, "painting one host leaves the shared material unchanged")
+	var b_lid := host_b.find_child("lid", true, false) as MeshInstance3D
+	expect((b_lid.material_override as StandardMaterial3D).albedo_texture == null,
+		"painting one host leaves the other host's separate part unchanged")
+	var b_mesh := host_b.get_child(0) as MeshInstance3D
+	expect(b_mesh.get_active_material(0) == cached, "the other host's baked surface keeps the shared material")
+	host_a.free()
+	host_b.free()
+
+	# Cache bound: least-recently-used entries go first, not oldest-added.
 	MeshLib.clear_caches()
-	for i in MeshLib.BAKE_CACHE_MAX + 5:
+	var lru_first := MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(0, 0, 0)})
+	var lru_second := MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(0.001, 0, 0)})
+	for i in range(2, MeshLib.BAKE_CACHE_MAX):
 		MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(float(i) / 1000.0, 0, 0)})
+	expect_eq(MeshLib.bake_cache_size(), MeshLib.BAKE_CACHE_MAX, "cache is full at BAKE_CACHE_MAX")
+	MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(0, 0, 0)})  # touch the first entry
+	MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(0.9, 0.9, 0.9)})  # one more: evicts one
 	expect_eq(MeshLib.bake_cache_size(), MeshLib.BAKE_CACHE_MAX, "cache stays at BAKE_CACHE_MAX")
+	expect(is_same(MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(0, 0, 0)}), lru_first),
+		"the recently used first entry survives")
+	expect(not is_same(MeshLib.bake([{"op": "box", "color": "$c"}], {"c": Color(0.001, 0, 0)}), lru_second),
+		"the least recently used entry was evicted")
 
 	# Per-surface shader paint keeps each surface's albedo (river_3d case).
 	var bands := [
@@ -1507,6 +1544,7 @@ func test_mesh_bake() -> void:
 	for e in ents:
 		e.free()
 	world.free()
+	dir.free()
 	MeshLib.named_materials = saved_named
 	MeshLib.clear_caches()
 

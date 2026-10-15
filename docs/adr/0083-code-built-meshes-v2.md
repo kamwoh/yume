@@ -62,8 +62,9 @@ optional later backend. It is not in this ADR.
 ### 1. Bake each mesh once, merged by material key
 
 `MeshLib.bake(mesh_def, params) -> Dictionary` returns the baked meshes,
-the separate parts and the AABB. A cache holds each result, keyed by the
-mesh name and a hash of the resolved params.
+the separate parts and the AABB. A cache holds each result. The key is
+the exact text of the primitives, the resolved params, the flags and the
+`materials` block, so a key never matches two different inputs.
 
 - **Plain parts** (all current ops) merge with
   `SurfaceTool.append_from(mesh, 0, part_transform)`. Each material key

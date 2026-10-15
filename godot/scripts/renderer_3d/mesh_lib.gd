@@ -79,8 +79,10 @@ static func merge_params(mesh_def: Dictionary, instance_params: Dictionary) -> D
 	return out
 
 
-## ADR 0083 — bake cache. Key: hash of the primitives + resolved params +
-## flags. Least-recently-used entries go first when the cache is full.
+## ADR 0083 — bake cache. The key is the exact text of every input: the
+## primitives, the params, the flags and the `materials` block. So a change
+## to any of them makes a new entry, and two inputs never share a key.
+## Least-recently-used entries go first when the cache is full.
 const BAKE_CACHE_MAX := 512
 static var _bake_cache: Dictionary = {}  # key -> bake result
 static var _bake_order: Array = []  # keys, oldest first
@@ -125,7 +127,7 @@ static func bake(
 	primitives: Array, params: Dictionary, cast_shadow_default: bool = true,
 	keep_named: bool = true
 ) -> Dictionary:
-	var key := "%d|%d|%s|%s" % [hash(primitives), hash(params), cast_shadow_default, keep_named]
+	var key := var_to_str([primitives, params, cast_shadow_default, keep_named, named_materials])
 	if _bake_cache.has(key):
 		_bake_order.erase(key)
 		_bake_order.append(key)
@@ -177,7 +179,7 @@ static func bake(
 
 
 ## Drop all baked meshes and shared materials. Tests use it. A meshes.json
-## reload does not need it: the key hashes the primitives themselves.
+## reload does not need it: the key holds the full text of the inputs.
 static func clear_caches() -> void:
 	_bake_cache.clear()
 	_bake_order.clear()
@@ -205,6 +207,8 @@ static func _material_fields(p: Dictionary, params: Dictionary) -> Dictionary:
 	var f: Dictionary = {}
 	var mname = _param_resolve(p.get("material", ""), params)
 	if str(mname) != "":
+		if not named_materials.has(str(mname)):
+			push_warning("mesh_lib: unknown material '%s' (not in the materials block)" % mname)
 		f = (named_materials.get(str(mname), {}) as Dictionary).duplicate()
 	for k in ["color", "roughness", "metallic", "emission", "emission_energy"]:
 		if p.has(k):

@@ -29,6 +29,12 @@ Contract: `docs/guideline/30_framework_primitives.md` invariants #1–#8.
 - ❌ **Renderer code in engine modules**. Engine doesn't import
   Sprite2D / MeshInstance3D / anything visual; renderer modules
   read engine state.
+- ❌ **Write in place to a material that `MeshLib` returns** (ADR 0083).
+  `bake()` and `material_for()` share one material instance per material
+  key across every mesh. A flash, tint or paint effect must `duplicate()`
+  the material first, then assign the copy. Gate: `test_mesh_bake` paints
+  one host and checks that the shared material and a second host do not
+  change (2026-10-15).
 
 ## DO
 
