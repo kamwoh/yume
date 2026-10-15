@@ -786,7 +786,22 @@ func _build_mesh_children() -> void:
 	# for every primitive — per-primitive overrides still win. Used to skip
 	# the shadow pass on grass / clouds / distant decoration where the
 	# shadow contribution costs more than it visually adds.
-	MeshLib.build_primitives_into(self, _mesh_primitives, _mesh_params, _mesh_cast_shadow)
+	MeshLib.build_primitives_into(
+		self, _mesh_primitives, _mesh_params, _mesh_cast_shadow, _on_csg_rebuilt
+	)
+
+
+## ADR 0083 F3 — a CSG group bakes one frame late, and MeshLib then swaps
+## the baked mesh nodes. Paint the new nodes as _ready painted the old ones.
+func _on_csg_rebuilt(nodes: Array) -> void:
+	if _entity_ref == null or not (_entity_ref.visual is Dictionary):
+		return
+	var visual: Dictionary = _entity_ref.visual
+	if visual.has("albedo_texture"):
+		_apply_albedo_texture_to_primitives(str(visual["albedo_texture"]), nodes)
+	if visual.has("shader"):
+		_apply_shader_to_primitives(str(visual["shader"]), visual.get("shader_params", {}), nodes)
+	_apply_shadow_only_if_set(visual)
 
 
 ## Task #117: paint every primitive's material with a shared albedo
@@ -795,7 +810,7 @@ func _build_mesh_children() -> void:
 ## Walks all child MeshInstance3D nodes, duplicates each one's
 ## material, and sets albedo_texture. The flat colors authored in
 ## meshes.json stay as multiplicative tint atop the texture.
-func _apply_albedo_texture_to_primitives(tex_path: String) -> void:
+func _apply_albedo_texture_to_primitives(tex_path: String, nodes: Array = []) -> void:
 	if tex_path == "" or not ResourceLoader.exists(tex_path):
 		if tex_path != "":
 			push_warning(
@@ -817,7 +832,7 @@ func _apply_albedo_texture_to_primitives(tex_path: String) -> void:
 		var vis: Dictionary = _entity_ref.visual
 		_paint_triplanar = bool(vis.get("texture_triplanar", false))
 		_paint_uv_scale = float(vis.get("texture_scale", 1.0))
-	for child in get_children():
+	for child in (nodes if not nodes.is_empty() else get_children()):
 		_paint_albedo_texture_recursive(child, tex)
 
 
@@ -884,7 +899,9 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 ## of param-name → value). Every surface gets the same shader, and each
 ## surface keeps its own albedo (ADR 0083). The river bands all become
 ## water, each in its own color.
-func _apply_shader_to_primitives(shader_path: String, shader_params: Variant) -> void:
+func _apply_shader_to_primitives(
+	shader_path: String, shader_params: Variant, nodes: Array = []
+) -> void:
 	if shader_path == "" or not ResourceLoader.exists(shader_path):
 		if shader_path != "":
 			push_warning(
@@ -898,7 +915,7 @@ func _apply_shader_to_primitives(shader_path: String, shader_params: Variant) ->
 		)
 		return
 	var params: Dictionary = shader_params if shader_params is Dictionary else {}
-	for child in get_children():
+	for child in (nodes if not nodes.is_empty() else get_children()):
 		_paint_shader_recursive(child, shader, params)
 
 

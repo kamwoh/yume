@@ -88,7 +88,10 @@ func _ready() -> void:
 		_holder.rotation.y = deg_to_rad(rotate_y)
 
 	# Auto-fit camera distance from the asset's AABB (unless overridden).
-	await get_tree().process_frame  # let mesh nodes settle into transform
+	# Two frames: the mesh nodes settle, and a CSG group (ADR 0083 F3) bakes
+	# one frame late, so its rebuilt mesh must be in before the AABB.
+	await get_tree().process_frame
+	await get_tree().process_frame
 	var aabb: AABB = _compute_aabb(_holder)
 	var radius: float = aabb.size.length() * 0.5
 	if radius < 0.01:

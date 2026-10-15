@@ -96,6 +96,7 @@ func _ready() -> void:
 	# (total under-counts). Worked before only because StepRunner was
 	# synchronous. Tests below run after it completes.
 	await test_step_runner()
+	await test_mesh_csg()
 	test_overlap_dispatch()
 	test_entity_light_mount()
 	test_render_block_mappings()
@@ -1375,6 +1376,111 @@ func test_mesh_lib() -> void:
 
 ## ADR 0083 F2 — MeshLib.bake(): merge by material key, shared materials,
 ## cache, cache bound, per-surface shader paint, MultiMesh on bake().
+## Every surface of `m` draws all of its vertices: some triangle uses each
+## vertex. Catches a merge that keeps vertices but drops triangles.
+func _all_vertices_drawn(m: Mesh) -> bool:
+	for s in m.get_surface_count():
+		var a := m.surface_get_arrays(s)
+		var n := (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		var idx = a[Mesh.ARRAY_INDEX]
+		if idx == null or (idx as PackedInt32Array).is_empty():
+			continue
+		var used := PackedByteArray()
+		used.resize(n)
+		for i in idx:
+			used[i] = 1
+		if used.count(1) != n:
+			return false
+	return true
+
+
+func _mesh_verts(m: Mesh) -> int:
+	var n := 0
+	for s in m.get_surface_count():
+		n += (m.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	return n
+
+
+## ADR 0083 F3 — CSG ops (lathe, extrude, sweep), CSG groups with cuts,
+## the one-frame warm-up and the deferred rebuild.
+func test_mesh_csg() -> void:
+	_section("mesh CSG ops (ADR 0083 F3)")
+	MeshLib.clear_caches()
+	# Lathe: not baked on the first call, baked after warm().
+	var vase := [{"op": "lathe", "segments": 16, "color": "#aa6633",
+		"profile": [[0.12, 0], [0.15, 0.08], [0.08, 0.3], [0.1, 0.4]]}]
+	var b0 := MeshLib.bake(vase, {})
+	expect_eq((b0["pending"] as Array).size(), 1, "lathe: first bake is pending (CSG is one frame late)")
+	expect_eq(MeshLib.bake_cache_size(), 0, "a pending bake is not cached")
+	await MeshLib.warm(b0["pending"])
+	var b1 := MeshLib.bake(vase, {})
+	expect((b1["pending"] as Array).is_empty(), "lathe: baked after warm()")
+	var va: AABB = b1["aabb"]
+	expect(absf(va.position.y) < 0.001 and absf(va.end.y - 0.4) < 0.001, "lathe spans y 0..0.4")
+	expect(absf(va.size.x - 0.3) < 0.01, "lathe width = 2 x max radius (0.3)")
+	expect(_mesh_verts((b1["meshes"] as Array)[0]["mesh"]) > 0, "lathe has vertices")
+
+	# Extrude: centered on pos along Z (Godot extrudes along -Z).
+	var sign_def := [{"op": "extrude", "depth": 0.2, "color": "#806040",
+		"polygon": [[-0.5, 0], [0.5, 0], [0.5, 0.6], [0, 1], [-0.5, 0.6]]}]
+	await MeshLib.warm(MeshLib.bake(sign_def, {})["pending"])
+	var ea: AABB = MeshLib.bake(sign_def, {})["aabb"]
+	expect(absf(ea.position.z + 0.1) < 0.001 and absf(ea.end.z - 0.1) < 0.001,
+		"extrude is centered on pos (z -0.1..0.1)")
+
+	# Sweep, built out of the tree (F1 tested it only in the tree).
+	var pipe := [{"op": "sweep", "color": "#555555", "path": [[0, 0, 0], [0, 0, -1]],
+		"polygon": [[0.05, 0], [0, 0.05], [-0.05, 0], [0, -0.05]]}]
+	await MeshLib.warm(MeshLib.bake(pipe, {})["pending"])
+	var pb := MeshLib.bake(pipe, {})
+	expect((pb["pending"] as Array).is_empty(), "sweep bakes out of the tree")
+	var pa: AABB = pb["aabb"]
+	expect(absf(pa.size.z - 1.0) < 0.02, "sweep follows its 1 m path")
+
+	# A cut: one surface (the cut takes the base material), more geometry.
+	var wall := [
+		{"op": "box", "group": "w", "pos": [0, 0.5, 0], "size": [1, 1, 0.1], "color": "#8c8a83"},
+		{"op": "box", "group": "w", "csg": "subtract", "pos": [0, 0.6, 0], "size": [0.3, 0.3, 0.2]},
+	]
+	await MeshLib.warm(MeshLib.bake(wall, {})["pending"])
+	var wm: ArrayMesh = (MeshLib.bake(wall, {})["meshes"] as Array)[0]["mesh"]
+	expect_eq(wm.get_surface_count(), 1, "a cut adds no surface (it takes the base material)")
+	expect(_mesh_verts(wm) > 36, "the cut wall has more faces than a plain box (36 verts)")
+
+	# CSG and plain parts with the same material share one surface.
+	var mixed := [
+		{"op": "box", "pos": [0, 0.05, 0], "size": [0.4, 0.1, 0.4], "color": "#aa6633"},
+		vase[0],
+	]
+	var mb := MeshLib.bake(mixed, {})
+	expect((mb["pending"] as Array).is_empty(), "the vase CSG group is already in the cache")
+	var mixed_mesh: ArrayMesh = (mb["meshes"] as Array)[0]["mesh"]
+	expect_eq(mixed_mesh.get_surface_count(), 1,
+		"CSG and plain parts with one material merge into one surface")
+	expect(_all_vertices_drawn(mixed_mesh),
+		"the merged surface draws the CSG triangles too (every vertex is in a triangle)")
+	expect(_all_vertices_drawn(pb["meshes"][0]["mesh"]) and _all_vertices_drawn(wm),
+		"every baked CSG surface draws all of its vertices")
+
+	# Deferred rebuild: plain parts at once, CSG one frame later, then the callback.
+	MeshLib.clear_caches()
+	var host := Node3D.new()
+	add_child(host)
+	var rebuilt := []
+	var two := [{"op": "box", "pos": [0, 0.05, 0], "size": [0.4, 0.1, 0.4], "color": "#223344"}, vase[0]]
+	MeshLib.build_primitives_into(host, two, {}, true, func(nodes): rebuilt.append_array(nodes))
+	expect_eq(host.get_child_count(), 1, "before the warm-up: the plain part shows")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	expect_eq(rebuilt.size(), 1, "after the warm-up: on_rebuilt gets the new mesh node")
+	expect_eq(host.get_child_count(), 1, "the old baked node is gone, the new one is in")
+	if host.get_child_count() == 1:
+		var m := (host.get_child(0) as MeshInstance3D).mesh
+		expect_eq(m.get_surface_count(), 2, "the rebuilt mesh holds the plain and the CSG surface")
+	host.free()
+	MeshLib.clear_caches()
+
+
 func test_mesh_bake() -> void:
 	_section("mesh bake (ADR 0083 F2)")
 	MeshLib.clear_caches()

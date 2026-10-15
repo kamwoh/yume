@@ -90,6 +90,12 @@ static var _bake_order: Array = []  # keys, oldest first
 static var _material_cache: Dictionary = {}  # key -> StandardMaterial3D
 ## ADR 0083 — the `materials` block of the last loaded meshes.json.
 static var named_materials: Dictionary = {}
+## ADR 0083 F3 — ops that only Godot CSG can build.
+const CSG_OPS := ["lathe", "extrude", "sweep"]
+## ADR 0083 F3 — baked CSG groups. Key: exact text of the group's parts,
+## the params and the `materials` block. Oldest entries go first.
+static var _csg_cache: Dictionary = {}  # key -> ArrayMesh
+static var _csg_order: Array = []
 
 
 ## Build the mesh children of `primitives` under `parent`. All 5 build paths
@@ -102,18 +108,116 @@ static var named_materials: Dictionary = {}
 ##
 ## `cast_shadow_default` applies to every primitive unless the primitive
 ## itself has `"cast_shadow": <bool>`.
+##
+## ADR 0083 F3: a CSG group bakes one frame late. Until then the plain parts
+## show. Then the baked mesh nodes change, and `on_rebuilt` (if valid) gets
+## the new MeshInstance3D nodes, so a caller can paint them again.
 static func build_primitives_into(
-	parent: Node3D, primitives: Array, params: Dictionary, cast_shadow_default: bool = true
+	parent: Node3D, primitives: Array, params: Dictionary, cast_shadow_default: bool = true,
+	on_rebuilt: Callable = Callable()
 ) -> void:
 	var baked := bake(primitives, params, cast_shadow_default, true)
+	var nodes := _add_baked_nodes(parent, baked)
+	for p in baked["separate"]:
+		_add_part_node(parent, p, params, cast_shadow_default)
+	if not (baked["pending"] as Array).is_empty():
+		_rebuild_after_warm(parent, nodes, baked["pending"], primitives, params,
+			cast_shadow_default, on_rebuilt)
+
+
+static func _add_baked_nodes(parent: Node3D, baked: Dictionary) -> Array:
+	var nodes: Array = []
 	for entry in baked["meshes"]:
 		var mi := MeshInstance3D.new()
 		mi.mesh = entry["mesh"]
 		if not bool(entry["cast_shadow"]):
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		parent.add_child(mi)
-	for p in baked["separate"]:
-		_add_part_node(parent, p, params, cast_shadow_default)
+		nodes.append(mi)
+	return nodes
+
+
+static func _rebuild_after_warm(
+	parent: Node3D, old_nodes: Array, pending: Array, primitives: Array, params: Dictionary,
+	cast_shadow_default: bool, on_rebuilt: Callable
+) -> void:
+	await warm(pending)
+	if not is_instance_valid(parent):
+		return
+	var full := bake(primitives, params, cast_shadow_default, true)
+	if not (full["pending"] as Array).is_empty():
+		push_warning("mesh_lib: CSG bake failed; the mesh shows its plain parts only")
+		return
+	for n in old_nodes:
+		if is_instance_valid(n):
+			parent.remove_child(n)
+			n.queue_free()
+	var nodes := _add_baked_nodes(parent, full)
+	if on_rebuilt.is_valid():
+		on_rebuilt.call(nodes)
+
+
+## ADR 0083 F3 — bake the CSG groups in `pending` (from bake()["pending"])
+## into the CSG cache. Godot fills a CSG mesh one frame late (F1 spike), so
+## this awaits one process_frame. The CSG nodes stay out of the scene tree.
+static func warm(pending: Array) -> void:
+	var roots: Array = []
+	for g in pending:
+		if not _csg_cache.has(g["key"]):
+			roots.append([g["key"], _build_csg_root(g["parts"], g["params"])])
+	if roots.is_empty():
+		return
+	await (Engine.get_main_loop() as SceneTree).process_frame
+	for r in roots:
+		var root: CSGShape3D = r[1]
+		var m := root.bake_static_mesh()
+		if m != null and m.get_surface_count() > 0:
+			_csg_cache[r[0]] = _indexed(m)
+			_csg_order.append(r[0])
+			if _csg_order.size() > BAKE_CACHE_MAX:
+				_csg_cache.erase(_csg_order.pop_front())
+		root.free()
+
+
+## A copy of `m` with an index array on every surface. bake_static_mesh()
+## returns surfaces without indices, and the Godot primitives have them.
+## SurfaceTool.append_from() keeps only the indexed triangles when the two
+## kinds mix, so an unindexed CSG part in a shared surface did not draw.
+## Empirical case 2026-10-15: a swept pipe merged with an iron base box.
+static func _indexed(m: ArrayMesh) -> ArrayMesh:
+	var out := ArrayMesh.new()
+	for s in m.get_surface_count():
+		var st := SurfaceTool.new()
+		st.create_from(m, s)
+		st.index()
+		st.commit(out)
+		out.surface_set_material(s, m.surface_get_material(s))
+	return out
+
+
+## The CSG groups of a part list: {group name: [parts]}. A group is CSG when
+## a part has `csg` or a CSG op. A CSG op with no `group` is its own group.
+static func csg_groups(primitives: Array) -> Dictionary:
+	var named: Dictionary = {}
+	var out: Dictionary = {}
+	for i in primitives.size():
+		var p = primitives[i]
+		if not (p is Dictionary):
+			continue
+		var g := str(p.get("group", ""))
+		if g == "":
+			if str(p.get("op", "")) in CSG_OPS:
+				out["_part%d" % i] = [p]
+			continue
+		if not named.has(g):
+			named[g] = []
+		(named[g] as Array).append(p)
+	for g in named.keys():
+		for p in named[g]:
+			if p.has("csg") or str(p.get("op", "")) in CSG_OPS:
+				out[g] = named[g]
+				break
+	return out
 
 
 ## ADR 0083 — bake `primitives` into shared ArrayMeshes, merged by material
@@ -136,8 +240,34 @@ static func bake(
 	var tools: Dictionary = {}
 	var group_mats: Dictionary = {}
 	var separate: Array = []
-	for p in primitives:
-		if not (p is Dictionary):
+	var pending: Array = []
+	# Indices of the parts that CSG builds. (Not dict keys: Godot hashes a
+	# Dictionary key by content, so two equal parts would collide.)
+	var in_csg: Dictionary = {}
+	var groups := csg_groups(primitives)
+	for gname in groups.keys():
+		var parts: Array = groups[gname]
+		for i in primitives.size():
+			for p in parts:
+				if is_same(primitives[i], p):
+					in_csg[i] = true
+		var ckey := var_to_str([parts, params, named_materials])
+		if not _csg_cache.has(ckey):
+			pending.append({"key": ckey, "parts": parts, "params": params})
+			continue
+		var cm: ArrayMesh = _csg_cache[ckey]
+		var cs0 := bool((parts[0] as Dictionary).get("cast_shadow", cast_shadow_default))
+		for s in cm.get_surface_count():
+			var smat := cm.surface_get_material(s)
+			var mk = "csg%d" % s if smat == null else smat.get_meta("_mesh_lib_key", "csg%d" % s)
+			var gk := "%s|%s" % [cs0, mk]
+			if not tools.has(gk):
+				tools[gk] = SurfaceTool.new()
+				group_mats[gk] = smat
+			(tools[gk] as SurfaceTool).append_from(cm, s, Transform3D.IDENTITY)
+	for i in primitives.size():
+		var p = primitives[i]
+		if not (p is Dictionary) or in_csg.has(i):
 			continue
 		if keep_named and (p.has("name") or p.has("pivot")):
 			separate.append(p)
@@ -170,7 +300,10 @@ static func bake(
 		meshes.append({"mesh": am, "cast_shadow": cs})
 		aabb = am.get_aabb() if first else aabb.merge(am.get_aabb())
 		first = false
-	var result := {"meshes": meshes, "separate": separate, "aabb": aabb}
+	var result := {"meshes": meshes, "separate": separate, "aabb": aabb, "pending": pending}
+	# A result with pending CSG groups is partial: never cache it.
+	if not pending.is_empty():
+		return result
 	_bake_cache[key] = result
 	_bake_order.append(key)
 	if _bake_order.size() > BAKE_CACHE_MAX:
@@ -184,6 +317,8 @@ static func clear_caches() -> void:
 	_bake_cache.clear()
 	_bake_order.clear()
 	_material_cache.clear()
+	_csg_cache.clear()
+	_csg_order.clear()
 
 
 static func bake_cache_size() -> int:
@@ -243,6 +378,8 @@ static func material_for(p: Dictionary, params: Dictionary) -> StandardMaterial3
 		mat.emission_enabled = true
 		mat.emission = _parse_color(f["emission"])
 		mat.emission_energy_multiplier = float(f.get("emission_energy", 1.0))
+	# Lets bake() find the key of a CSG surface's material.
+	mat.set_meta("_mesh_lib_key", key)
 	_material_cache[key] = mat
 	return mat
 
@@ -290,6 +427,120 @@ static func _primitive_mesh(p: Dictionary, params: Dictionary) -> Mesh:
 			m.size = _to_vec2(_param_resolve(p.get("size", [1, 1]), params))
 			return m
 	return null
+
+
+## ADR 0083 F3 — the CSG tree of one group, out of the scene tree. A cut
+## part takes the material of the group's first part (F1: a cut with no
+## material adds a surface for the faces of the hole).
+static func _build_csg_root(parts: Array, params: Dictionary) -> CSGCombiner3D:
+	var root := CSGCombiner3D.new()
+	var base_mat := material_for(parts[0], params)
+	for i in parts.size():
+		var p: Dictionary = parts[i]
+		var node := _csg_node(p, params, root, i)
+		if node == null:
+			continue
+		node.set("material", base_mat if p.has("csg") else material_for(p, params))
+		match str(p.get("csg", "")):
+			"subtract":
+				node.operation = CSGShape3D.OPERATION_SUBTRACTION
+			"intersect":
+				node.operation = CSGShape3D.OPERATION_INTERSECTION
+		var xf := part_transform(p, params)
+		if str(p.get("op", "")) == "extrude":
+			# Godot extrudes along -Z. Center the depth on `pos`.
+			var depth := float(_param_resolve(p.get("depth", 0.1), params))
+			xf = xf * Transform3D(Basis(), Vector3(0, 0, depth * 0.5))
+		node.transform = xf
+		root.add_child(node)
+		if node is CSGPolygon3D and (node as CSGPolygon3D).mode == CSGPolygon3D.MODE_PATH:
+			(node as CSGPolygon3D).path_node = NodePath("../SweepPath%d" % i)
+	return root
+
+
+static func _csg_node(p: Dictionary, params: Dictionary, root: Node3D, i: int) -> CSGShape3D:
+	var op := str(p.get("op", ""))
+	match op:
+		"box":
+			var n := CSGBox3D.new()
+			n.size = _to_vec3(_param_resolve(p.get("size", [1, 1, 1]), params))
+			return n
+		"sphere":
+			var n := CSGSphere3D.new()
+			n.radius = float(_param_resolve(p.get("radius", 0.5), params))
+			n.radial_segments = 32
+			n.rings = 16
+			return n
+		"cylinder":
+			var n := CSGCylinder3D.new()
+			n.radius = float(_param_resolve(p.get("radius", 0.3), params))
+			n.height = float(_param_resolve(p.get("height", 1.0), params))
+			n.sides = 24
+			return n
+		"torus":
+			var n := CSGTorus3D.new()
+			n.inner_radius = float(_param_resolve(p.get("inner_radius", 0.3), params))
+			n.outer_radius = float(_param_resolve(p.get("outer_radius", 0.5), params))
+			return n
+		"capsule", "prism":
+			var n := CSGMesh3D.new()
+			n.mesh = _primitive_mesh(p, params)
+			return n
+		"lathe":
+			var n := CSGPolygon3D.new()
+			n.mode = CSGPolygon3D.MODE_SPIN
+			n.spin_degrees = 360.0
+			n.spin_sides = maxi(3, int(_param_resolve(p.get("segments", 16), params)))
+			n.polygon = _closed_profile(_param_resolve(p.get("profile", []), params))
+			# A lathe is a curved surface: shade it smooth, as a SphereMesh is.
+			n.smooth_faces = true
+			return n
+		"extrude":
+			var n := CSGPolygon3D.new()
+			n.mode = CSGPolygon3D.MODE_DEPTH
+			n.depth = float(_param_resolve(p.get("depth", 0.1), params))
+			n.polygon = _vec2_array(_param_resolve(p.get("polygon", []), params))
+			return n
+		"sweep":
+			var path := Path3D.new()
+			path.name = "SweepPath%d" % i
+			var curve := Curve3D.new()
+			for pt in _param_resolve(p.get("path", []), params):
+				curve.add_point(_to_vec3(pt))
+			path.curve = curve
+			root.add_child(path)
+			var n := CSGPolygon3D.new()
+			n.mode = CSGPolygon3D.MODE_PATH
+			n.path_rotation = CSGPolygon3D.PATH_ROTATION_PATH_FOLLOW
+			n.path_local = true
+			n.path_interval_type = CSGPolygon3D.PATH_INTERVAL_DISTANCE
+			n.path_interval = float(_param_resolve(p.get("interval", 0.05), params))
+			n.polygon = _vec2_array(_param_resolve(p.get("polygon", []), params))
+			n.smooth_faces = true
+			return n
+	push_warning("mesh_lib: op '%s' cannot be in a CSG group" % op)
+	return null
+
+
+## A lathe profile closed along the Y axis: adds [0, y_first] and
+## [0, y_last] when the ends are off the axis.
+static func _closed_profile(profile) -> PackedVector2Array:
+	var pts := _vec2_array(profile)
+	if pts.is_empty():
+		return pts
+	if pts[0].x != 0.0:
+		pts.insert(0, Vector2(0, pts[0].y))
+	if pts[pts.size() - 1].x != 0.0:
+		pts.append(Vector2(0, pts[pts.size() - 1].y))
+	return pts
+
+
+static func _vec2_array(v) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	if v is Array:
+		for pt in v:
+			out.append(_to_vec2(pt))
+	return out
 
 
 ## One addressable part (`name` and/or `pivot`) as its own node.

@@ -110,6 +110,15 @@ func scan_and_batch(env: Dictionary) -> Dictionary:
 		var resolved_params := MeshLib.merge_params(
 			mesh_def, (e.visual as Dictionary).get("params", {})
 		)
+		# ADR 0083 F3: a CSG group bakes one frame late. Keep the entity on
+		# its own renderer (which rebuilds itself) and warm the cache.
+		var pending: Array = MeshLib.bake(
+			mesh_def.get("primitives", []), resolved_params,
+			bool(mesh_def.get("cast_shadow", true)), false
+		)["pending"]
+		if not pending.is_empty():
+			MeshLib.warm(pending)
+			continue
 		var key := "%s|%s" % [_mesh_id_for(e), _hash_params(resolved_params)]
 		if not groups.has(key):
 			groups[key] = {"mesh_def": mesh_def, "params": resolved_params, "entities": []}

@@ -335,3 +335,40 @@ live enemy differs, because its AI ran differently.
 
 Tests: `test_main` has 1195 passes and 0 failures (1170 before, 25 new).
 The `doomarena3d` (41) and `demo_aldenmere` (19) scenarios pass.
+
+## F3 results (2026-10-15)
+
+F3 shipped `lathe`, `extrude`, `sweep`, CSG groups with `subtract` and
+`intersect`, and `MeshLib.warm()`.
+
+**A change from the plan.** The plan put a `warm()` call in WorldBoot.
+F3 puts it in `build_primitives_into()` instead. A CSG group that is not
+in the cache makes the bake "pending". The plain parts show at once, and
+one frame later the baked mesh nodes change. An `on_rebuilt` callback
+lets `entity_mesh_3d` paint the new nodes again (albedo texture, shader,
+shadow mode). So all 5 callers get CSG with no boot step. The MultiMesh
+director does not batch a group with a pending bake: those entities keep
+their own renderers, which rebuild themselves.
+
+**A bug found in the visual check.** A swept pipe and its base box shared
+one material, so they merged into one surface. The pipe did not draw.
+`bake_static_mesh()` returns surfaces without indices, and
+`SurfaceTool.append_from()` kept only the indexed triangles of the box.
+The fix: `warm()` indexes each CSG mesh before it caches it. The gate:
+`_all_vertices_drawn()` in `test_mesh_csg` checks that each vertex of a
+baked surface is in a triangle. Without the fix, the test fails.
+
+Other findings:
+
+- CSG gives outward normals for both polygon windings, in all 3 modes.
+- `sweep` built out of the tree works (`path_local`, a relative
+  `path_node`).
+- `lathe` and `sweep` set `smooth_faces`. Without it the vase looked
+  faceted.
+
+`asset_preview` captured three samples from temporary entries. They were
+a vase (lathe), an arched wall (a box minus a box and a cylinder), and a
+bent pipe (sweep). All three render as expected.
+
+Tests: `test_main` has 1222 passes and 0 failures (19 new). The
+`doomarena3d` (41) and `demo_aldenmere` (19) scenarios pass.
