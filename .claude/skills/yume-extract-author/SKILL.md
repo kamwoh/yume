@@ -28,7 +28,7 @@ the final `extracted.json` that drives the rest of the pipeline.
 > lighting/.tscn) so a map generator never decides how you view or
 > control the world. Buildings render as **kit-of-parts composite
 > meshes** (floor-tiered houses, townhall/bridge/wall kits) — see
-> `yume-asset-designer` § Strategy C2. New classes = new JSON entries
+> `yume-asset-designer` `reference/asset-strategies.md` § Strategy C2. New classes = new JSON entries
 > in `extraction_strategies.json` (no code). Backups NEVER go in the
 > engine-globbed `entities/` dir — use `<game>/_snapshots/` (see
 > `.claude/rules/data-demo.md`). This skill remains the reference for

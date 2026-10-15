@@ -60,7 +60,7 @@ entities with deliberate density): 10 authoring-density axes:
 9. Palette discipline per district (4-5 base + 1-2 accent)
 10. Silhouette readability (≥3 distinct humanoid templates)
 
-Full vocabulary: `yume-asset-designer` SKILL § Visual density.
+Full vocabulary: `.claude/skills/yume-asset-designer/reference/visual-density.md`.
 
 **3. Audio** (`yume-audio-designer`) — three sub-layers:
 - **BGM** per-level mood + per-mode (haggle / combat / ambient)

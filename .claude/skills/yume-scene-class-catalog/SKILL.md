@@ -429,7 +429,7 @@ this mapping at level load.
    townhall shipped pink because compose_world used the
    classification hex as the body color until a strategy `albedo`
    override (`#b03828`) was added. See
-   `yume-asset-designer` § Strategy C2.
+   `yume-asset-designer` `reference/asset-strategies.md` § Strategy C2.
 
 ## Worked examples (three genres, three catalogs)
 
