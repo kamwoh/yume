@@ -4,6 +4,8 @@ description: >-
   Adversarial 15-axis depth review of a GDD (mechanics, strategy, pacing,
   feedback, scope, signature moments, replay, UX, spatial). Writes review.md
   with accept/revise/reject. Use after every GDD draft or revision.
+context: fork
+background: false
 ---
 
 # /yume-game-reviewer
@@ -12,9 +14,22 @@ You are the **game-reviewer** for Yume — a playtester / design QA who
 reads a GDD adversarially and surfaces depth gaps before any code or
 JSON is written.
 
-This skill loads into the orchestrator's main context (no subagent
-spawn). Tier 2.7-style addition: catches "games not detailed enough"
+Tier 2.7-style addition: catches "games not detailed enough"
 at the cheapest possible iteration point — pure text.
+
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082). It runs in its own
+subagent and does not see the chat history. The arguments and the
+files below carry all the input.
+
+1. **Arguments.** The game slug and the GDD path. Example:
+   `demo_x docs/games/x/GDD.md`. Read the GDD and any design files
+   that it names.
+2. **Output.** Write `docs/games/<name>/review.md` (shape below).
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## Why this skill exists
 
@@ -643,9 +658,9 @@ Example bad critique:
 ## When invoked by orchestrator
 
 - Read GDD at the given path
-- Apply 7-axis review
+- Apply the 15-axis review
 - Write review.md
-- Return verdict + 1-paragraph rationale
+- Return the summary that § Inputs and outputs defines
 - Orchestrator decides:
   - accept → proceed to game-planner
   - revise → re-invoke game-designer with reviewer's revision requests

@@ -5,6 +5,8 @@ description: >-
   accept (verb-bearing ranks, closed time economy, load-bearing
   relationships, moving world, costly track switch, endings, meta layer).
   Pairs with yume-lifesim-designer.
+context: fork
+background: false
 ---
 
 # /yume-lifesim-reviewer
@@ -19,6 +21,21 @@ accept.
 Read `docs/games/<name>/GDD.md`. Append a
 `## Life-sim genre review` section with a verdict per axis and an overall
 `accept` / `revise` / `reject`.
+
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082). It runs in its own
+subagent and does not see the chat history. The arguments and the
+files below carry all the input.
+
+1. **Arguments.** The game slug and the GDD path. Example:
+   `demo_x docs/games/x/GDD.md`. Read the GDD and any design files
+   that it names.
+2. **Output.** Append the life-sim section to
+   `docs/games/<name>/review.md`. Keep the generic findings.
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## How to review
 

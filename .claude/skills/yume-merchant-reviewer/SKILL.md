@@ -5,6 +5,8 @@ description: >-
   accept (customer variety, class-gear coverage, cycle pacing, haggle UX,
   debt curve, reputation, inventory readability). Pairs with
   yume-merchant-designer.
+context: fork
+background: false
 ---
 
 # /yume-merchant-reviewer
@@ -15,8 +17,20 @@ the generic 15-axis `yume-game-reviewer` accepts; you apply the
 8-axis merchant-strict review that catches concerns the generic
 reviewer can't see.
 
-This skill loads into the orchestrator's main context (Tier 2.6 — no
-subagent spawn).
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082). It runs in its own
+subagent and does not see the chat history. The arguments and the
+files below carry all the input.
+
+1. **Arguments.** The game slug and the GDD path. Example:
+   `demo_x docs/games/x/GDD.md`. Read the GDD and any design files
+   that it names.
+2. **Output.** Append the merchant-genre section to
+   `docs/games/<name>/review.md`. Keep the generic findings.
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## Why this skill exists
 
@@ -394,9 +408,9 @@ Same as generic reviewer:
 
 ## When invoked by orchestrator
 
-After yume-game-reviewer (generic 15-axis) accepts. Skill runs
-on the GDD; produces appended review section; returns verdict +
-1-paragraph rationale.
+Run after yume-game-reviewer (generic 15-axis) accepts. Review the GDD.
+Append the review section. Return the summary that § Inputs and outputs
+defines.
 
 Orchestrator decides per verdict — same flow as generic reviewer
 (accept / revise / reject; max 3 cycles).

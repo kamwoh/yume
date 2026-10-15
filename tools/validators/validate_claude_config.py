@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """validate_claude_config.py — check that Claude Code loads .claude/ as we expect.
 
-This validator is repo-wide. It takes no game argument. It checks two things:
+This validator is repo-wide. It takes no game argument. It checks three things:
 
 1. Each `.claude/skills/<dir>/SKILL.md` starts with YAML frontmatter. The
    frontmatter must parse strictly. It must have `name: <dir>` and a
@@ -11,6 +11,11 @@ This validator is repo-wide. It takes no game argument. It checks two things:
 2. Each `.claude/rules/*.md` has no frontmatter (always-on), or it sets
    its scope with a `paths:` list. `globs:` is the Cursor field. Claude
    Code ignores it and loads the rule on EVERY turn.
+3. Each skill with `context: fork` has a `## Inputs and outputs` section
+   (ADR 0082) with the labels Arguments, Output and Return. A forked
+   skill sees no chat history. Without that
+   section, the caller does not know which arguments to pass, and the
+   skill does not know which file to write.
 
 Empirical case 2026-10-15: all 5 path-scoped rules used `globs:`. That
 cost about 11k tokens on each turn. 14 of 42 skills had a fault: no
@@ -28,6 +33,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 DESC_MIN, DESC_MAX = 30, 300
+FORK_LABELS = ("**Arguments.**", "**Output.**", "**Return.**")
 
 
 def _frontmatter(text: str):
@@ -46,13 +52,23 @@ def _frontmatter(text: str):
     return data, None
 
 
+def _check_fork_contract(where: str, text: str) -> list[str]:
+    head = "\n## Inputs and outputs\n"
+    if head not in text:
+        return [f"{where}: `context: fork` needs a `## Inputs and outputs` section (ADR 0082)"]
+    body = text.split(head, 1)[1].split("\n## ", 1)[0]
+    return [f"{where}: § Inputs and outputs has no {label}"
+            for label in FORK_LABELS if label not in body]
+
+
 def check_skills() -> list[str]:
     issues: list[str] = []
     for d in sorted((ROOT / ".claude" / "skills").iterdir()):
         f = d / "SKILL.md"
         if not d.is_dir() or not f.exists():
             continue
-        fm, err = _frontmatter(f.read_text(encoding="utf-8"))
+        text = f.read_text(encoding="utf-8")
+        fm, err = _frontmatter(text)
         where = f"skills/{d.name}"
         if err:
             issues.append(f"{where}: {err}")
@@ -66,6 +82,8 @@ def check_skills() -> list[str]:
         if not (DESC_MIN <= len(desc) <= DESC_MAX):
             issues.append(f"{where}: description is {len(desc)} chars "
                           f"(need {DESC_MIN}-{DESC_MAX})")
+        if fm.get("context") == "fork":
+            issues += _check_fork_contract(where, text)
     return issues
 
 

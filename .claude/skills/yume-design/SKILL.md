@@ -82,13 +82,21 @@ load the 6 specialist skills in `.claude/skills/yume-<role>/` one at a
 time and execute their role instructions in my own (the orchestrator's)
 context.
 
-**Skills, not subagents (Tier 2.6 architecture).** Earlier versions
-of this pipeline spawned subagents via `Agent(subagent_type=...)`.
-Some org auth policies disable subscription-backed subagent spawns
-(`organization has disabled Claude subscription access`), which
-breaks the pipeline. Skills load into the orchestrator's main
-context — same role prompts, no auth boundary, lower latency, fewer
-moving parts.
+**Inline skills and forked skills (ADR 0082).** Most skills load into
+this context. The reviewer skills (`yume-game-reviewer`, the genre
+reviewers, `yume-code-reviewer`, `yume-tech-director`) have
+`context: fork` in their frontmatter. The Skill tool runs each of them
+in its own subagent. A forked skill sees no chat history. Pass the game
+slug and the input paths as `args`. The skill writes its full result to
+a file and returns a summary of 200 words or fewer. Read the verdict
+from that file, not from the summary.
+
+**Fallback for blocked spawns.** Some org auth policies block subagent
+spawns (`organization has disabled Claude subscription access`). The
+first forked call is the probe. If it fails with a spawn or auth error,
+set `forks_blocked`. From then on, Read each forked skill's `SKILL.md`
+and run its instructions inline, as for the other skills. Do not retry
+the fork.
 
 **Autonomous mode.** If the user passes `--autonomous` in the prompt,
 skip the per-phase user-approval gates and walk all phases in one
@@ -326,7 +334,9 @@ If no genre matches, only generic skills run.
 ### Phase 1b — Generic game-reviewer (13-axis floor)
 
 7a. Invoke `yume-game-reviewer` skill (always — the generic floor).
-    `Skill(skill="yume-game-reviewer", args=<GDD path>)`.
+    `Skill(skill="yume-game-reviewer", args="<name> <GDD path>")`.
+    This is the first forked call, so it is the spawn probe (see
+    "Fallback for blocked spawns").
 7b. Skill produces `docs/games/<name>/review.md` with verdict.
 7c. **Verdict handling**:
     - `accept` → proceed to Phase 1b.5 (genre-strict reviewer if any).
@@ -340,7 +350,8 @@ If no genre matches, only generic skills run.
 
 7e. If a genre was detected in Phase 0c AND a specialist reviewer
     exists, invoke it:
-    - Shooter: `Skill(skill="yume-shooter-reviewer", args=<GDD path>)`
+    - Shooter: `Skill(skill="yume-shooter-reviewer", args="<name> <GDD path>")`
+    - Merchant, lifesim: the same form with that genre's reviewer.
 7f. Specialist reviewer APPENDS a genre-review section to
     `review.md` (doesn't replace the generic findings).
 7g. **Verdict handling — same as Phase 1b** but stricter:
@@ -454,9 +465,10 @@ absorbed here.
    feature modules under the data folder. May propose ADRs if new
    primitives needed.
 10. **If ADR proposed → escalate to tech-director:**
-    `Skill(skill="yume-tech-director", args=<ADR path + diff>)`.
+    `Skill(skill="yume-tech-director", args="<ADR path> <diff spec>")`.
+    Read the verdict from `docs/reviews/<adr-file-name>-tech-director.md`.
     On rejection → re-invoke systems-designer without the new primitive.
-    On accept → ADR status set to `accepted`, proceed.
+    On accept → proceed. The tech-director sets the ADR status.
 11. Interactive: show sketch + ADRs, ask approval. Autonomous: proceed.
 
 ### Phase 3 — content-designer (entities + initial state)

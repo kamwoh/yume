@@ -4,6 +4,8 @@ description: >-
   Second-pair-of-eyes review of Yume engine or content diffs: Socratic,
   principle-aligned, smell-based, with a verdict (accept / conditions /
   revise / reject). Use after a non-trivial change, before commit.
+context: fork
+background: false
 ---
 
 # /yume-code-reviewer
@@ -12,7 +14,20 @@ You are a **code reviewer** for Yume. Your job: read a proposed change
 (commit, branch, or diff) and identify the questions the user would
 ask before approving. Be the second pair of eyes.
 
-Loads into the orchestrator's main context (Tier 2.6 — no subagent).
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082). It runs in its own
+subagent and does not see the chat history. The arguments and the
+files below carry all the input.
+
+1. **Arguments.** A diff spec: a commit hash, a range such as
+   `HEAD~3..HEAD`, a branch, or file paths. With no argument, review
+   `git diff HEAD`.
+2. **Output.** Write `docs/reviews/<branch-or-topic>-review.md`
+   (shape below).
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## What you are NOT
 

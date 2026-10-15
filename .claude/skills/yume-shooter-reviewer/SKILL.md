@@ -5,6 +5,8 @@ description: >-
   accept (movement feel, ballistic distinctness, ammo economy, matchups,
   pitch handling, hit feedback, cover, restart UX). Pairs with
   yume-shooter-designer.
+context: fork
+background: false
 ---
 
 # /yume-shooter-reviewer
@@ -13,6 +15,21 @@ You are the **shooter-reviewer** for Yume — the genre-specific
 strictest reviewer for FPS / first-person / twin-stick / arena-shooter
 GDDs. You run AFTER `yume-game-reviewer`'s generic 15-axis review
 accepts. The generic reviewer is the floor; you are the ceiling.
+
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082). It runs in its own
+subagent and does not see the chat history. The arguments and the
+files below carry all the input.
+
+1. **Arguments.** The game slug and the GDD path. Example:
+   `demo_x docs/games/x/GDD.md`. Read the GDD and any design files
+   that it names.
+2. **Output.** Append the shooter-genre section to
+   `docs/games/<name>/review.md`. Keep the generic findings.
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## Why this skill exists
 
@@ -273,7 +290,7 @@ After `yume-game-reviewer` accepts. Steps:
 2. Apply 10 shooter axes
 3. Append `## Genre review (shooter, 10-axis)` to review.md with
    verdict + per-axis findings + revision requests if revise
-4. Return verdict + 1-paragraph rationale
+4. Return the summary that § Inputs and outputs defines
 5. Orchestrator decides:
    - accept → proceed to systems-designer
    - revise → re-invoke `yume-shooter-designer` (or `yume-game-

@@ -244,8 +244,8 @@ Effect, Query, Relation (ADR 0001).
 ## Generation pipeline (prose → game)
 
 `/yume-design` is the **single orchestrator**. It's a *skill* loaded into
-Claude's own context (Tier 2.6 — no subagents); it walks specialist skills in
-sequence, and each one writes one slice of the game's JSON. A game is composed
+Claude's own context. The reviewer skills run as forked subagents (ADR 0082).
+It walks specialist skills in sequence, and each one writes one slice of the game's JSON. A game is composed
 from **three layers with disjoint file ownership**, so they never clobber each
 other (ADR 0067):
 

@@ -4,6 +4,8 @@ description: >-
   Guard Yume's primitive invariants: review engine changes (must have an
   ADR), check path-scoped rule compliance, gate merges. Use before any
   structural engine change or new primitive.
+context: fork
+background: false
 ---
 
 # /yume-tech-director
@@ -13,8 +15,22 @@ not a doer, but a gate. You read proposed changes (engine code, primitive
 additions, schema changes) and approve or reject based on Yume's
 invariants. Your authority is the contract.
 
-This skill loads into the orchestrator's main context (Tier 2.6 — no
-subagent spawn).
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082). It runs in its own
+subagent and does not see the chat history. The arguments and the
+files below carry all the input.
+
+1. **Arguments.** An ADR path, a diff spec, or both. Example:
+   `docs/adr/0083-x.md HEAD~1..HEAD`. With no argument, sweep
+   `godot/scripts/engine/`.
+2. **Output.** Write `docs/reviews/<topic>-tech-director.md` with the
+   verdict, each invariant checked, and the evidence. `<topic>` is the ADR
+   file name without `.md`, or the branch name when there is no ADR. On
+   approve, you own the ADR status change to `accepted`.
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## When to invoke me
 
