@@ -82,7 +82,7 @@ After a run, the def becomes:
       "sampler": "Euler a",
       "steps": 25
     },
-    "tripo3d": {"api_key_env": "TRIPO3D_API_KEY"}
+    "tripo3d": {"api_key_env": "TRIPO_API_KEY"}
   },
   "style": {
     "global_prefix": "low-poly cartoon, soft lighting, ",
@@ -106,7 +106,7 @@ After a run, the def becomes:
 |------|---------|---------|-------|
 | `mock` | ✓ | ✓ | No external calls. Emits deterministic prompt-hash gradient PNGs + cube `.glb`s. Use for smoke testing + visual layout before art ships. Forced via `--backend mock`. |
 | `nanobanana` (alias `gemini_image`) | ✓ | ✗ | **Gemini 2.5 Flash Image** via Google's Generative Language API. Needs `GEMINI_API_KEY`. Accepts text + optional reference images. |
-| `tripo3d` | ✗ | ✓ | **Tripo3D** text→3D + image→3D mesh generation. Async (polls task status). Output `.glb` has baked-in materials. Needs `TRIPO_API_KEY`. |
+| `tripo3d` | ✗ | ✓ | **Tripo3D** text→3D + image→3D mesh generation, Tripo API V3 (`openapi.tripo3d.ai/v3`). Async (polls task status). `model_version` defaults to `v2.5-20250123`. Output `.glb` has baked-in materials. Needs `TRIPO_API_KEY`. |
 
 To add a new backend: subclass `Backend` in
 `tools/yume_assetgen/backends/<name>.py`, implement
@@ -115,8 +115,10 @@ To add a new backend: subclass `Backend` in
 
 ### Paid-call ledger
 
-Every successful nanobanana or tripo3d call is recorded in
-`data/<game>/.assetgen_ledger.json` (auto-managed). On the next run
+Every successful call to a paid backend (nanobanana, imagen,
+openai_images, tripo3d) is recorded in
+`data/<game>/.assetgen_ledger.json` (auto-managed). The ledger saves
+after each call, with an atomic write. On the next run
 the pipeline checks `(backend, kind, sha256(assembled_prompt))`
 against the ledger BEFORE dispatching; a hit logs `[ledg]` and skips,
 even if the output file was deleted or moved.
@@ -129,6 +131,16 @@ To force regen for a single entity: delete its entry from the JSON
 file (or change its prompt — prompt hash will miss). To force regen
 for the whole project: delete `.assetgen_ledger.json`. Mock-backend
 runs are NOT tracked.
+
+**Pending tasks (tripo3d).** Tripo charges at submit. The ledger
+records the task id as a `"status": "pending"` entry before the first
+poll. After a poll error, a timeout or a crash, the next run resumes
+that task and does not pay again. A task that ends `failed` or
+`cancelled` is dropped, because Tripo refunds it.
+
+**Retries.** A backend raises `BackendHTTPError` with the HTTP status.
+Callers retry only 429 and 5xx. A 4xx fails the same way again, and a
+timeout can mean the call ran and was charged, so neither is retried.
 
 ### Output naming + iteration
 

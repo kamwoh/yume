@@ -40,7 +40,7 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-from .base import Backend
+from .base import Backend, http_error
 
 
 class NanobananaBackend(Backend):
@@ -198,11 +198,4 @@ def _post_json(url: str, body: dict, *, timeout: float = 120) -> dict:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as e:
-        err_body = ""
-        try:
-            err_body = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            pass
-        raise RuntimeError(
-            f"nanobanana: HTTP {e.code} {e.reason} — {err_body[:500]}"
-        ) from e
+        raise http_error("nanobanana", e) from e

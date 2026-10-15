@@ -446,14 +446,21 @@ def run_pipeline(
                             f"upstream backend likely failed)"
                         )
                     continue
-                if ref is not None and ref.exists():
-                    backend.generate_mesh(
-                        item.assembled_prompt,
-                        item.out_path,
-                        reference_image=ref,
+                # A paid async backend records its task id in the ledger
+                # at submit, so a crash or poll error never pays twice.
+                slot = None
+                if is_paid_backend(backend_name):
+                    slot = ledger.slot(
+                        backend=backend_name, kind=item.kind,
+                        entity_id=item.entity_id,
+                        prompt=item.assembled_prompt, p_hash=p_hash,
                     )
-                else:
-                    backend.generate_mesh(item.assembled_prompt, item.out_path)
+                backend.generate_mesh(
+                    item.assembled_prompt,
+                    item.out_path,
+                    reference_image=ref if ref is not None and ref.exists() else None,
+                    task_slot=slot,
+                )
             summary["generated"] += 1
             rec["status"] = "generated"
             # Record paid API calls so a later run doesn't re-pay if

@@ -259,6 +259,7 @@ class MockBackend(Backend):
         prompt: str,
         out_path: Path,
         reference_image: Path | None = None,
+        task_slot=None,
     ) -> Path:
         # Mock backend ignores reference_image — there's no real
         # image-to-mesh path in stdlib. Hue is just prompt-determined.

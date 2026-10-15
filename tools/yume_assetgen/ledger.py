@@ -19,10 +19,19 @@ since prompt_hash changes.
 
 Mock backend writes are NOT tracked — they're free and the smoke
 test re-runs them.
+
+Pending tasks (2026-10-16, batch B). An async backend (tripo3d) charges
+at submit, then returns a task id. The ledger records that id as a
+`"status": "pending"` entry and saves at once, before the first poll.
+A poll error, a timeout or a crash then leaves the pending entry, and
+the next run resumes that task instead of paying again. A task that
+ends `failed` or `cancelled` is dropped, because the provider refunds
+it. `TaskSlot` wraps one pending key for a backend.
 """
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,7 +41,20 @@ LEDGER_FILENAME = ".assetgen_ledger.json"
 
 # Backends whose calls cost real money / quota and should be tracked.
 # `gemini_image` is the alias for nanobanana in the registry.
-PAID_BACKENDS = frozenset({"nanobanana", "gemini_image", "tripo3d"})
+PAID_BACKENDS = frozenset({
+    "nanobanana", "gemini_image", "imagen", "openai_images", "gpt_image", "tripo3d",
+})
+
+# Registry aliases of one API. A call recorded under one name also hits
+# under the other.
+_ALIASES = ({"nanobanana", "gemini_image"}, {"openai_images", "gpt_image"})
+
+
+def _match_set(backend: str) -> set:
+    for group in _ALIASES:
+        if backend in group:
+            return group
+    return {backend}
 
 
 def is_paid_backend(name: str) -> bool:
@@ -77,19 +99,59 @@ class Ledger:
         retarget. A None discriminator only matches entries that ALSO
         have no discriminator (i.e. existing pre-animation entries).
         """
-        # Treat nanobanana ↔ gemini_image as equivalent so a prior
-        # call recorded under one alias still hits under the other.
-        equivalents = {"nanobanana", "gemini_image"}
-        match_set = equivalents if backend in equivalents else {backend}
-        for e in self.entries:
-            if (
-                e.get("backend") in match_set
-                and e.get("kind") == kind
-                and e.get("prompt_hash") == p_hash
-                and e.get("discriminator") == discriminator
-            ):
+        for e in self._matches(backend, kind, p_hash, discriminator):
+            if e.get("status") != "pending":
                 return e
         return None
+
+    def pending(
+        self, backend: str, kind: str, p_hash: str, *, discriminator: str | None = None
+    ) -> dict | None:
+        """Return the pending (submitted, not finished) entry for this key."""
+        for e in self._matches(backend, kind, p_hash, discriminator):
+            if e.get("status") == "pending":
+                return e
+        return None
+
+    def add_pending(
+        self, *, backend: str, kind: str, entity_id: str, prompt: str, p_hash: str,
+        task_id: str, discriminator: str | None = None,
+    ) -> None:
+        """Record a submitted task. add() saves at once."""
+        self.drop_pending(backend, kind, p_hash, discriminator=discriminator)
+        self.add(
+            backend=backend, kind=kind, entity_id=entity_id, prompt=prompt,
+            p_hash=p_hash, out_path="", discriminator=discriminator,
+            extra={"status": "pending", "task_id": task_id},
+        )
+
+    def drop_pending(
+        self, backend: str, kind: str, p_hash: str, *, discriminator: str | None = None
+    ) -> None:
+        keep = [
+            e for e in self.entries
+            if not (e.get("status") == "pending"
+                    and e in self._matches(backend, kind, p_hash, discriminator))
+        ]
+        if len(keep) != len(self.entries):
+            self.entries = keep
+            self._dirty = True
+
+    def slot(
+        self, *, backend: str, kind: str, entity_id: str, prompt: str, p_hash: str,
+        discriminator: str | None = None,
+    ) -> "TaskSlot":
+        return TaskSlot(self, backend, kind, entity_id, prompt, p_hash, discriminator)
+
+    def _matches(self, backend, kind, p_hash, discriminator) -> list[dict]:
+        names = _match_set(backend)
+        return [
+            e for e in self.entries
+            if e.get("backend") in names
+            and e.get("kind") == kind
+            and e.get("prompt_hash") == p_hash
+            and e.get("discriminator") == discriminator
+        ]
 
     def add(
         self,
@@ -116,8 +178,14 @@ class Ledger:
             entry["discriminator"] = discriminator
         if extra:
             entry.update(extra)
+        if entry.get("status") != "pending":
+            self.drop_pending(backend, kind, p_hash, discriminator=discriminator)
         self.entries.append(entry)
         self._dirty = True
+        # Save per call. A crash later in a batch must not lose the record
+        # of a paid call. Before batch B (2026-10-16), callers saved only
+        # at the end of a batch.
+        self.save()
 
     def save(self) -> None:
         if not self._dirty:
@@ -125,7 +193,7 @@ class Ledger:
         doc = {
             "_comment": (
                 "Auto-managed by tools.yume_assetgen. Tracks paid API "
-                "calls (nanobanana, tripo3d) so re-runs don't regenerate. "
+                "calls (all paid backends) so re-runs don't regenerate. "
                 "To force regen: delete the matching entry (or this "
                 "whole file). Editing the prompt also triggers regen "
                 "since prompt_hash changes."
@@ -134,11 +202,47 @@ class Ledger:
             "entries": self.entries,
         }
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(doc, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        # Write a temp file, then rename it, so a crash mid-write never
+        # leaves a cut ledger (load_ledger reads a broken file as empty).
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        tmp.write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(tmp, self.path)
         self._dirty = False
+
+
+@dataclass
+class TaskSlot:
+    """One pending-task key in the ledger, for an async paid backend.
+
+    get() returns the task id of an earlier submit, or None. put() records
+    a new submit and saves. drop() deletes the pending entry (the task
+    ended failed or cancelled, so the provider refunded it)."""
+
+    ledger: Ledger
+    backend: str
+    kind: str
+    entity_id: str
+    prompt: str
+    p_hash: str
+    discriminator: str | None = None
+
+    def get(self) -> str | None:
+        e = self.ledger.pending(self.backend, self.kind, self.p_hash,
+                                discriminator=self.discriminator)
+        return e.get("task_id") if e else None
+
+    def put(self, task_id: str) -> str:
+        self.ledger.add_pending(
+            backend=self.backend, kind=self.kind, entity_id=self.entity_id,
+            prompt=self.prompt, p_hash=self.p_hash, task_id=task_id,
+            discriminator=self.discriminator,
+        )
+        return task_id
+
+    def drop(self) -> None:
+        self.ledger.drop_pending(self.backend, self.kind, self.p_hash,
+                                 discriminator=self.discriminator)
+        self.ledger.save()
 
 
 def load_ledger(game_dir: Path) -> Ledger:

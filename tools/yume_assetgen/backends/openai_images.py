@@ -67,7 +67,7 @@ import uuid
 from pathlib import Path
 from typing import Iterable
 
-from .base import Backend
+from .base import Backend, http_error
 
 
 # gpt-image-2 accepts these exact size strings.
@@ -271,14 +271,7 @@ class OpenAIImagesBackend(Backend):
             with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.load(resp)
         except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8", errors="replace")
-            except Exception:
-                pass
-            raise RuntimeError(
-                f"openai_images: HTTP {e.code} {e.reason} on /edits — {err_body[:500]}"
-            ) from e
+            raise http_error("openai_images", e, "/edits") from e
 
     # ------------------------------------------------------------
     # Helpers
@@ -316,14 +309,7 @@ def _post_json(
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as e:
-        err_body = ""
-        try:
-            err_body = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            pass
-        raise RuntimeError(
-            f"openai_images: HTTP {e.code} {e.reason} — {err_body[:500]}"
-        ) from e
+        raise http_error("openai_images", e) from e
 
 
 def _build_multipart(

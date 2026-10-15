@@ -31,6 +31,7 @@ import argparse
 import hashlib
 import json
 import subprocess
+import time
 import sys
 from pathlib import Path
 
@@ -38,6 +39,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DATA_ROOT = ROOT / "godot" / "data"
 sys.path.insert(0, str(ROOT))
 
+from tools.yume_assetgen.backends.base import is_retryable  # noqa: E402
 from tools.yume_assetgen.backends.openai_images import OpenAIImagesBackend  # noqa: E402
 
 _OPENAI = {"model": "gpt-image-2-2026-04-21", "quality": "high", "timeout": 420}
@@ -259,8 +261,14 @@ def _gen(backend, prompt: str, out: Path, refs: list[Path] | None,
                   + (f" (conditioned on {refs[0].name})" if refs else ""))
             return
         except Exception as e:  # noqa: BLE001
+            # Retry only a 429 / 5xx answer. A 4xx fails the same way
+            # again, and a timeout can mean the call ran and was charged
+            # (batch B, 2026-10-16: this loop retried every error 3 times).
             last = e
+            if not is_retryable(e) or attempt == 2:
+                break
             print(f"  [retry {attempt + 1}] {out.name}: {e}")
+            time.sleep(4.0 * (attempt + 1))
     raise SystemExit(f"compose_scene: gen failed for {out.name}: {last}")
 
 

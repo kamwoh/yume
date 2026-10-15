@@ -1,67 +1,60 @@
 """
-tripo3d.py — Tripo3D text-to-3D + image-to-3D backend.
+tripo3d.py — Tripo3D text-to-3D + image-to-3D backend (Tripo API V3).
 
 Tripo3D is an async generation service: submit a task, get a task_id,
 poll until success/failure, then download the resulting .glb from a
-signed URL.
+signed URL (valid about 24 h).
 
-API spec (current as of 2026-05, v2 openapi):
-    Submit task:
-        POST https://api.tripo3d.ai/v2/openapi/task
-        Authorization: Bearer <API_KEY>
-        Body:
-          {"type": "text_to_model", "prompt": "..."}
-          or
-          {"type": "image_to_model", "file": {"file_token": "..."}, "prompt": "..."}
+API spec: V3. The move from V2 was on 2026-10-16, because Tripo is
+closing V2. Source: the developers.tripo3d.com tripo-v2-to-v3-migration
+guide.
+    Base:   https://openapi.tripo3d.ai/v3   Authorization: Bearer <API_KEY>
+    Submit: POST /generation/text-to-model   {"prompt", "model_version", ...}
+            POST /generation/image-to-model  {"file": {"type", "file_token"}, ...}
+            POST /animations/rig-check       {"original_model_task_id"}
+            POST /animations/rig             {"original_model_task_id", "rig_type", ...}
+            POST /animations/retarget        {"original_model_task_id", "animation", ...}
+            → {"code": 0, "data": {"task_id": "..."}}
+    Poll:   GET /tasks/<task_id>
+            → {"data": {"status": "queued"|"running"|"success"|"failed"|"cancelled",
+                        "output": {"model_url": "<url>", "riggable": bool},
+                        "error_code", "error_message"}}
+    Upload: POST /files (multipart, field `file`) → {"data": {"file_token": "file_..."}}
 
-    Poll task:
-        GET https://api.tripo3d.ai/v2/openapi/task/<task_id>
-        Authorization: Bearer <API_KEY>
-        Response: {"data": {"status": "queued"|"running"|"success"|"failed",
-                            "output": {"pbr_model": "<url>"}, ...}}
-
-    Image upload (for image_to_model):
-        POST https://api.tripo3d.ai/v2/openapi/upload/sts
-        Authorization: Bearer <API_KEY>
-        multipart/form-data with `file` field
-        Response: {"data": {"file_token": "..."}}
+V3 differences that matter here:
+- No `type` field. Each task type has its own endpoint.
+- `model_version` is REQUIRED for 3D generation.
+- The upload token key is `file_token`.
+- The model URL is `output.model_url`.
+- `banned` and `expired` are now `failed`, with `error_code` 2008 or 2018.
 
 Config (backend_config.tripo3d):
     api_key_env:   env var name (default TRIPO_API_KEY)
     poll_interval: seconds between status checks (default 5)
     timeout:       total seconds to wait for completion (default 600)
-    model_version: optional Tripo model version override (see below)
+    model_version: 3D model version (default v2.5-20250123, the V2 server
+                   default). V3 allows v3.1-20260211, v3.0-20250812,
+                   v2.5-20250123 and P1-20260311.
     style:         optional style preset
     texture:       bool — include PBR textures in the .glb (default true)
     pbr:           bool — generate PBR materials (default true)
+    rig_model_version: rig version (default v1.0-20240301, or v2.5-20260210)
+
+Paid-work protection (2026-10-16, batch B):
+- `task_slot` (a ledger.TaskSlot) records the task id right after
+  submit. A later run resumes that task instead of paying again.
+- A poll retries network errors and 429 / 5xx until the deadline. Only a
+  task that ENDS failed or cancelled raises TripoTaskFailed. Tripo
+  refunds those, so the caller drops the pending entry.
+- A submit retries only 429 / 5xx answers. A submit that times out is
+  never retried, because Tripo can have created (and charged) the task.
 
 Pure stdlib via urllib.request — no `requests` dep.
 
-## model_version + pricing (verified 2026-05-17)
+## Pricing (verified 2026-05-17)
 
-Available model_version strings (from official ComfyUI-Tripo node
-+ Tripo OpenAPI docs):
-
-  v1.4-20240625    legacy
-  v2.0-20240919    legacy; seed param became deterministic from here
-  v2.5-20250123    Tripo API DEFAULT if model_version omitted
-  v3.0-20250812    sharper geometry, sculpture-level detail
-  v3.1-20260211    current latest stable (recommended drop-in upgrade)
-  P1-20260311      low-poly specialist for game assets (premium)
-
-Tripo OpenAPI pricing (separate from Tripo Studio subscription):
-  $0.01 per credit, 100-credit minimum top-up, 2000 free credits
-  per first API-key generation.
-
-Per-mesh credit cost (image-to-3D + texture + pbr):
-  v2.5 / v3.0 / v3.1:  ~40 credits  = $0.40 / mesh
-  P1:                  ~100 credits = $1.00 / mesh
-
-Switching versions: drop `"model_version": "v3.1-20260211"` (or
-similar) into backend_config.tripo3d. The ledger gates regen by
-prompt_hash, NOT by model_version — switching alone won't force
-regen of existing entries; nudge the prompt or remove specific
-ledger entries to re-run.
+$0.01 per credit. Image-to-3D + texture + pbr: about 40 credits
+($0.40) for v2.5 / v3.0 / v3.1, about 100 credits ($1.00) for P1.
 """
 
 import json
@@ -73,15 +66,22 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from .base import Backend
+from .base import Backend, http_error, is_retryable
+
+
+class TripoTaskFailed(RuntimeError):
+    """The task ended `failed` or `cancelled`. Tripo refunds its credits,
+    so a new submit does not pay twice."""
 
 
 class Tripo3DBackend(Backend):
     """Tripo3D text/image → .glb mesh generator (async, polling)."""
 
-    API_BASE = "https://api.tripo3d.ai/v2/openapi"
+    API_BASE = "https://openapi.tripo3d.ai/v3"
+    DEFAULT_MODEL_VERSION = "v2.5-20250123"
     DEFAULT_POLL_INTERVAL = 5
     DEFAULT_TIMEOUT = 600  # 10 minutes; mesh gen routinely takes 2-5 min
+    SUBMIT_ATTEMPTS = 3
 
     def name(self) -> str:
         return "tripo3d"
@@ -134,6 +134,7 @@ class Tripo3DBackend(Backend):
         prompt: str,
         out_path: Path,
         reference_image: Path | None = None,
+        task_slot=None,
     ) -> Path:
         """Generate a .glb from the prompt.
 
@@ -142,143 +143,69 @@ class Tripo3DBackend(Backend):
         text-to-model mode.
         """
         api_key = self._get_api_key()
-        if reference_image is not None and Path(reference_image).exists():
-            file_token = self._upload_image(Path(reference_image), api_key)
-            task_id = self._submit_image_to_model(file_token, prompt, api_key)
-        else:
-            task_id = self._submit_text_to_model(prompt, api_key)
-        result_url = self._poll_until_done(task_id, api_key)
+
+        def submit() -> str:
+            if reference_image is not None and Path(reference_image).exists():
+                file_token = self._upload_image(Path(reference_image), api_key)
+                return self._submit_image_to_model(
+                    file_token, prompt, api_key, image_type(Path(reference_image))
+                )
+            return self._submit_text_to_model(prompt, api_key)
+
+        task_id = self.run_task(submit, task_slot)
+        result_url = self._wait(task_id, api_key, task_slot, self._model_url)
         self._download(result_url, out_path)
         return out_path
 
-    def generate_animated_mesh(
-        self,
-        prompt: str,
-        out_dir: Path,
-        rig_type: str,
-        animation_clips: list[str],
-        reference_image: Path | None = None,
-    ) -> dict:
-        """Run the full animation pipeline: image_to_model → prerigcheck →
-        rig → N×retarget. Returns a dict describing per-stage outputs
-        (caller is responsible for merging via glb_merge.py + ledger
-        caching of intermediate task_ids).
+    def run_task(self, submit, task_slot=None) -> str:
+        """Return the task id from `task_slot`, or submit a new task and
+        record its id in the slot before any poll."""
+        if task_slot is not None:
+            task_id = task_slot.get()
+            if task_id:
+                return task_id
+        task_id = submit()
+        if task_slot is not None:
+            task_slot.put(task_id)
+        return task_id
 
-        ADR 0053. This method makes paid API calls for every stage that
-        isn't cached by the caller. Caller must consult
-        tools/yume_assetgen/ledger.py before invoking.
+    def wait_url(self, task_id: str, api_key: str, task_slot=None) -> str:
+        """Poll a model-producing task to success, return its model URL."""
+        return self._wait(task_id, api_key, task_slot, self._model_url)
 
-        Returns:
-            {
-              "base_glb": Path,              # image_to_model output
-              "base_task_id": str,
-              "rig_task_id": str | None,     # None if prerigcheck failed
-              "rig_glb": Path | None,
-              "retarget_glbs": {              # clip_id → Path
-                  "preset:walk": Path(...),
-                  "preset:idle": Path(...),
-              },
-              "retarget_task_ids": {clip_id: str, ...},
-              "riggable": bool,
-            }
-
-        Raises RuntimeError on submit/poll failure of base mesh stage.
-        Failures in later stages (prerigcheck reject, rig reject) are
-        returned as a partial dict with `riggable: False`; caller decides
-        whether to fall back to static mesh or surface to user.
-        """
-        if rig_type not in self.RIG_TYPES:
-            raise ValueError(
-                f"tripo3d: rig_type={rig_type!r} not in {self.RIG_TYPES}"
-            )
-        api_key = self._get_api_key()
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        # Stage 1: base mesh (image_to_model preferred; falls back to text_to_model)
-        if reference_image is not None and Path(reference_image).exists():
-            file_token = self._upload_image(Path(reference_image), api_key)
-            base_task_id = self._submit_image_to_model(file_token, prompt, api_key)
-        else:
-            base_task_id = self._submit_text_to_model(prompt, api_key)
-        base_url = self._poll_until_done(base_task_id, api_key)
-        base_glb = out_dir / f"{base_task_id}_base.glb"
-        self._download(base_url, base_glb)
-
-        result: dict = {
-            "base_glb": base_glb,
-            "base_task_id": base_task_id,
-            "rig_task_id": None,
-            "rig_glb": None,
-            "retarget_glbs": {},
-            "retarget_task_ids": {},
-            "riggable": False,
-        }
-
-        # Stage 2: prerigcheck
-        pre_task = self._submit_prerigcheck(base_task_id, api_key)
-        pre_out = self._poll_for_status_dict(pre_task, api_key)
-        riggable = bool(pre_out.get("riggable", False))
-        result["riggable"] = riggable
-        if not riggable:
-            return result  # caller treats as "stay static, log + cache"
-
-        # Stage 3: rig
-        rig_task_id = self._submit_rig(base_task_id, rig_type, api_key)
-        rig_url = self._poll_until_done(rig_task_id, api_key)
-        rig_glb = out_dir / f"{rig_task_id}_rig.glb"
-        self._download(rig_url, rig_glb)
-        result["rig_task_id"] = rig_task_id
-        result["rig_glb"] = rig_glb
-
-        # Stage 4: retargets (per clip)
-        for clip in animation_clips:
-            re_task = self._submit_retarget(rig_task_id, clip, api_key)
-            re_url = self._poll_until_done(re_task, api_key)
-            safe_clip = clip.replace(":", "_")
-            re_glb = out_dir / f"{rig_task_id}_{safe_clip}.glb"
-            self._download(re_url, re_glb)
-            result["retarget_glbs"][clip] = re_glb
-            result["retarget_task_ids"][clip] = re_task
-
-        return result
+    def wait_output(self, task_id: str, api_key: str, task_slot=None) -> dict:
+        """Poll a task to success, return its `output` dict (rig-check)."""
+        return self._wait(task_id, api_key, task_slot, lambda blob: blob.get("output", {}))
 
     # ------------------------------------------------------------
     # Submit tasks
     # ------------------------------------------------------------
 
     def _submit_text_to_model(self, prompt: str, api_key: str) -> str:
-        body = self._base_submit_body("text_to_model")
+        body = self._generation_body()
         body["prompt"] = prompt
-        return self._submit(body, api_key)
+        return self._submit("/generation/text-to-model", body, api_key)
 
     def _submit_image_to_model(
-        self, file_token: str, prompt: str, api_key: str
+        self, file_token: str, prompt: str, api_key: str, file_type: str = "png"
     ) -> str:
-        # Confirmed via live test 2026-05-17: Tripo3D OpenAPI v2 expects
-        # file as a dict with both `type` (lowercase, "png"/"jpg") and
-        # `file_token` (returned from /upload's data.image_token or
-        # data.file_token field). The bare-string + "image_token" top-
-        # level shapes are rejected with 400.
-        body = self._base_submit_body("image_to_model")
-        body["file"] = {"type": "png", "file_token": file_token}
-        if prompt:
-            body["prompt"] = prompt
-        return self._submit(body, api_key)
+        # V3 keeps the V2 file object: {"type", "file_token"}. The token
+        # comes from POST /files (`file_<uuid>`). image-to-model takes no
+        # `prompt` field (migration guide A.2), so the prompt is unused.
+        body = self._generation_body()
+        body["file"] = {"type": file_type, "file_token": file_token}
+        return self._submit("/generation/image-to-model", body, api_key)
 
-    # Animation pipeline (ADR 0053, 2026-05-18) — three task types chain
-    # after image_to_model to produce a rigged + animated GLB:
-    #   prerigcheck → rig → retarget(per-clip)
-    # Each task is its own paid call. The orchestrator (generate_animated_mesh
-    # below) wires them into a single pipeline that ledger.is_paid_backend()
-    # respects + the ledger caches per task at the pipeline level (not here).
+    # Animation pipeline (ADR 0053, 2026-05-18). Three task types follow
+    # image-to-model and make a rigged, animated GLB:
+    #   rig-check → rig → retarget (one per clip)
+    # Each task is its own paid call. animate_smoke.py runs the chain and
+    # gives each stage its own ledger TaskSlot.
 
     def _submit_prerigcheck(self, model_task_id: str, api_key: str) -> str:
         """Submit a riggability check. Returns task_id; poll separately."""
-        body = {
-            "type": "animate_prerigcheck",
-            "original_model_task_id": model_task_id,
-        }
-        return self._submit(body, api_key)
+        body = {"original_model_task_id": model_task_id}
+        return self._submit("/animations/rig-check", body, api_key)
 
     def _submit_rig(
         self,
@@ -288,18 +215,16 @@ class Tripo3DBackend(Backend):
     ) -> str:
         """Submit a rig task. rig_type ∈ {biped, quadruped, hexapod, octopod,
         avian, serpentine, aquatic, others} per the official SDK's RigType."""
+        if rig_type not in self.RIG_TYPES:
+            raise ValueError(f"tripo3d: rig_type={rig_type!r} not in {self.RIG_TYPES}")
         body: dict = {
-            "type": "animate_rig",
             "original_model_task_id": model_task_id,
             "rig_type": rig_type,
             "spec": self.config.get("rig_spec", "tripo"),
             "out_format": "glb",
+            "model_version": self.config.get("rig_model_version", "v1.0-20240301"),
         }
-        # Default rig model version per the SDK; override via config.
-        rig_version = self.config.get("rig_model_version", "v1.0-20240301")
-        if rig_version:
-            body["model_version"] = rig_version
-        return self._submit(body, api_key)
+        return self._submit("/animations/rig", body, api_key)
 
     def _submit_retarget(
         self,
@@ -325,53 +250,18 @@ class Tripo3DBackend(Backend):
         motion baked in (fixed by flipping this default to True).
         """
         body = {
-            "type": "animate_retarget",
             "original_model_task_id": rig_task_id,
             "animation": animation,
             "bake_animation": True,
             "animate_in_place": animate_in_place,
             "out_format": "glb",
         }
-        return self._submit(body, api_key)
+        return self._submit("/animations/retarget", body, api_key)
 
-    def _poll_for_status_dict(self, task_id: str, api_key: str) -> dict:
-        """Like _poll_until_done but returns the full success blob's
-        output dict rather than a URL. Used for prerigcheck (no URL,
-        only a `riggable` boolean) and rig tasks (need both URL + extra
-        metadata like joint count if Tripo exposes it)."""
-        interval = float(self.config.get("poll_interval", self.DEFAULT_POLL_INTERVAL))
-        timeout = float(self.config.get("timeout", self.DEFAULT_TIMEOUT))
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            req = urllib.request.Request(
-                f"{self.API_BASE}/task/{task_id}",
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            try:
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    data = json.load(resp)
-            except urllib.error.HTTPError as e:
-                raise RuntimeError(
-                    f"tripo3d poll: HTTP {e.code} {e.reason} (task {task_id})"
-                ) from e
-            blob = data.get("data", data)
-            status = str(blob.get("status", "")).lower()
-            if status == "success":
-                return blob.get("output", {})
-            if status in ("failed", "cancelled", "expired", "banned"):
-                err = blob.get("error", blob.get("message", "no detail"))
-                raise RuntimeError(
-                    f"tripo3d: task {task_id} ended status={status} — {err}"
-                )
-            time.sleep(interval)
-        raise RuntimeError(
-            f"tripo3d: task {task_id} did not complete within {timeout}s"
-        )
-
-    def _base_submit_body(self, task_type: str) -> dict:
-        body: dict = {"type": task_type}
-        if "model_version" in self.config:
-            body["model_version"] = self.config["model_version"]
+    def _generation_body(self) -> dict:
+        body: dict = {
+            "model_version": self.config.get("model_version", self.DEFAULT_MODEL_VERSION),
+        }
         if "style" in self.config:
             body["style"] = self.config["style"]
         if "texture" in self.config:
@@ -380,122 +270,121 @@ class Tripo3DBackend(Backend):
             body["pbr"] = bool(self.config["pbr"])
         return body
 
-    def _submit(self, body: dict, api_key: str) -> str:
-        data = _post_json(
-            f"{self.API_BASE}/task",
-            body,
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=60,
-        )
-        task_id = (
-            data.get("data", {}).get("task_id")
-            or data.get("task_id")  # API has had both shapes
-        )
+    def _submit(self, path: str, body: dict, api_key: str) -> str:
+        """POST a task. Retries only a 429 / 5xx answer, with backoff."""
+        for attempt in range(self.SUBMIT_ATTEMPTS):
+            try:
+                data = _post_json(
+                    f"{self.API_BASE}{path}",
+                    body,
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    timeout=60,
+                )
+                break
+            except Exception as e:
+                if not is_retryable(e) or attempt == self.SUBMIT_ATTEMPTS - 1:
+                    raise
+                time.sleep(2.0 * (attempt + 1))
+        task_id = (data.get("data") or {}).get("task_id")
         if not task_id:
             raise RuntimeError(f"tripo3d: submit failed: {data}")
         return task_id
 
     # ------------------------------------------------------------
-    # Upload image (for image_to_model)
+    # Upload image (for image-to-model)
     # ------------------------------------------------------------
 
     def _upload_image(self, path: Path, api_key: str) -> str:
-        """Upload `path` to Tripo3D's upload endpoint, return file_token.
-        Uses stdlib multipart encoding — no `requests` dep.
-
-        Confirmed via live test 2026-05-17: the endpoint is
-        /v2/openapi/upload (NOT /upload/sts as the spec page name
-        suggests — STS is the internal storage backend, but the
-        public endpoint is /upload). Response shape:
-            {"code": 0, "data": {"image_token": "<uuid>"}}
-        Older docs use "file_token"; we accept either."""
-        url = f"{self.API_BASE}/upload"
+        """Upload `path` to POST /files, return its `file_token`.
+        Uses stdlib multipart encoding — no `requests` dep. Uploads cost
+        nothing, so a 429 (V3 allows about 10 uploads per minute) retries."""
         ctype, _ = mimetypes.guess_type(path.name)
         ctype = ctype or "application/octet-stream"
         body, content_type = _encode_multipart(
             "file", path.name, ctype, path.read_bytes()
         )
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": content_type,
-            },
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                data = json.load(resp)
-        except urllib.error.HTTPError as e:
-            err = ""
+        for attempt in range(self.SUBMIT_ATTEMPTS):
+            req = urllib.request.Request(
+                f"{self.API_BASE}/files",
+                data=body,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": content_type,
+                },
+            )
             try:
-                err = e.read().decode("utf-8", errors="replace")
-            except Exception:
-                pass
-            raise RuntimeError(
-                f"tripo3d upload: HTTP {e.code} {e.reason} — {err[:500]}"
-            ) from e
-        # Tripo3D returns the upload token as either `image_token`
-        # (v2.5+) or `file_token` (older). Accept both.
-        ddata = data.get("data", {}) or {}
-        file_token = (
-            ddata.get("image_token")
-            or ddata.get("file_token")
-            or data.get("image_token")
-            or data.get("file_token")
-        )
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    data = json.load(resp)
+                break
+            except urllib.error.HTTPError as e:
+                err = http_error("tripo3d", e, "/files")
+                if not err.retryable or attempt == self.SUBMIT_ATTEMPTS - 1:
+                    raise err from e
+                time.sleep(6.0 * (attempt + 1))
+        file_token = (data.get("data") or {}).get("file_token")
         if not file_token:
-            raise RuntimeError(f"tripo3d: upload returned no token: {data}")
+            raise RuntimeError(f"tripo3d: upload returned no file_token: {data}")
         return file_token
 
     # ------------------------------------------------------------
     # Poll + download
     # ------------------------------------------------------------
 
-    def _poll_until_done(self, task_id: str, api_key: str) -> str:
+    @staticmethod
+    def _model_url(blob: dict) -> str:
+        url = (blob.get("output") or {}).get("model_url")
+        if not url:
+            raise RuntimeError(f"tripo3d: success status but no output.model_url: {blob}")
+        return url
+
+    def _wait(self, task_id: str, api_key: str, task_slot, on_success):
+        """Poll until a terminal status. A transient error (network, 429,
+        5xx) waits and polls again. A failed or cancelled task drops the
+        slot and raises TripoTaskFailed. A timeout keeps the slot, so the
+        next run resumes the same task."""
         interval = float(self.config.get("poll_interval", self.DEFAULT_POLL_INTERVAL))
         timeout = float(self.config.get("timeout", self.DEFAULT_TIMEOUT))
         deadline = time.time() + timeout
         last_status = ""
+        last_error = ""
         while time.time() < deadline:
-            req = urllib.request.Request(
-                f"{self.API_BASE}/task/{task_id}",
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
             try:
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    data = json.load(resp)
-            except urllib.error.HTTPError as e:
-                raise RuntimeError(
-                    f"tripo3d poll: HTTP {e.code} {e.reason} (task {task_id})"
-                ) from e
-            blob = data.get("data", data)
-            status = str(blob.get("status", "")).lower()
-            if status != last_status:
-                last_status = status
-            if status == "success":
-                output = blob.get("output", {})
-                # Prefer pbr_model (textured), fall back to base model.
-                url = (
-                    output.get("pbr_model")
-                    or output.get("model")
-                    or output.get("rendered_image")
-                )
-                if not url:
-                    raise RuntimeError(
-                        f"tripo3d: success status but no model URL: {blob}"
-                    )
-                return url
-            if status in ("failed", "cancelled", "expired", "banned"):
-                err = blob.get("error", blob.get("message", "no detail"))
-                raise RuntimeError(
-                    f"tripo3d: task {task_id} ended status={status} — {err}"
+                blob = self._get_task(task_id, api_key)
+            except Exception as e:
+                if not (is_retryable(e) or isinstance(e, (urllib.error.URLError, TimeoutError))):
+                    raise
+                last_error = str(e)
+                time.sleep(interval)
+                continue
+            last_status = str(blob.get("status", "")).lower()
+            if last_status == "success":
+                return on_success(blob)
+            if last_status not in ("queued", "running"):
+                # V3 has 5 states. Any other value counts as failed.
+                if task_slot is not None:
+                    task_slot.drop()
+                raise TripoTaskFailed(
+                    f"tripo3d: task {task_id} ended status={last_status} "
+                    f"error_code={blob.get('error_code')} — {blob.get('error_message', 'no detail')}"
                 )
             time.sleep(interval)
         raise RuntimeError(
             f"tripo3d: task {task_id} did not complete within {timeout}s "
-            f"(last status: {last_status})"
+            f"(last status: {last_status or '?'}; last error: {last_error or 'none'}). "
+            f"The ledger keeps the task id, so the next run resumes it."
         )
+
+    def _get_task(self, task_id: str, api_key: str) -> dict:
+        req = urllib.request.Request(
+            f"{self.API_BASE}/tasks/{task_id}",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.load(resp)
+        except urllib.error.HTTPError as e:
+            raise http_error("tripo3d", e, f"/tasks/{task_id}") from e
+        return data.get("data", data)
 
     def _download(self, url: str, out_path: Path) -> None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -503,9 +392,7 @@ class Tripo3DBackend(Backend):
             with urllib.request.urlopen(url, timeout=300) as resp:
                 data = resp.read()
         except urllib.error.HTTPError as e:
-            raise RuntimeError(
-                f"tripo3d download: HTTP {e.code} {e.reason} for {url}"
-            ) from e
+            raise http_error("tripo3d", e, "download") from e
         out_path.write_bytes(data)
 
     # ------------------------------------------------------------
@@ -528,6 +415,17 @@ class Tripo3DBackend(Backend):
 # ============================================================
 
 
+def image_type(path: Path) -> str:
+    """The `file.type` of an image from its magic bytes, not its name.
+    Gemini can write JPEG bytes to a `.png` name (memory note)."""
+    head = path.read_bytes()[:12]
+    if head.startswith(b"\xff\xd8"):
+        return "jpg"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "webp"
+    return "png"
+
+
 def _post_json(
     url: str,
     body: dict,
@@ -535,7 +433,7 @@ def _post_json(
     headers: dict | None = None,
     timeout: float = 60,
 ) -> dict:
-    """POST a JSON body, parse JSON response. Surfaces error body."""
+    """POST a JSON body, parse JSON response. Raises BackendHTTPError."""
     h = {"Content-Type": "application/json"}
     if headers:
         h.update(headers)
@@ -546,14 +444,7 @@ def _post_json(
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as e:
-        err = ""
-        try:
-            err = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            pass
-        raise RuntimeError(
-            f"tripo3d: HTTP {e.code} {e.reason} — {err[:500]}"
-        ) from e
+        raise http_error("tripo3d", e, url.rsplit("/v3", 1)[-1]) from e
 
 
 def _encode_multipart(

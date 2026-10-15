@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from tools.yume_assetgen.backends.nanobanana import NanobananaBackend  # noqa: E402
-from tools.yume_assetgen.backends.tripo3d import Tripo3DBackend  # noqa: E402
+from tools.yume_assetgen.backends.tripo3d import Tripo3DBackend, image_type  # noqa: E402
 from tools.yume_assetgen.glb_merge import merge as glb_merge  # noqa: E402
 from tools.yume_assetgen.ledger import (  # noqa: E402
     load_ledger,
@@ -217,6 +217,14 @@ def main() -> int:
     ledger = load_ledger(game_dir)
     p_hash = prompt_hash(full_body_mesh_prompt)
 
+    def _slot(kind: str, disc: str | None):
+        # Each paid stage records its task id at submit (batch B,
+        # 2026-10-16), so a poll error or crash resumes, not re-pays.
+        return ledger.slot(
+            backend="tripo3d", kind=kind, entity_id=entity_id,
+            prompt=full_body_mesh_prompt, p_hash=p_hash, discriminator=disc,
+        )
+
     print(f"[smoke] target: {GAME}/{entity_id}")
     print(f"[smoke] rig_type: {rig_type}, clips: {clips}")
     print(f"[smoke] prompt: {full_body_mesh_prompt[:80]}...")
@@ -235,19 +243,20 @@ def main() -> int:
         base_glb = game_dir / base_hit.get("out_path", "")
     else:
         api_key = backend._get_api_key()
-        if concept_path is not None and concept_path.exists():
-            file_token = backend._upload_image(concept_path, api_key)
-            print(f"[smoke] image uploaded, file_token={file_token[:8]}...")
-            base_task_id = backend._submit_image_to_model(
-                file_token, full_body_mesh_prompt, api_key
-            )
-            print(f"[smoke] image_to_model submitted, task_id={base_task_id}")
-        else:
-            base_task_id = backend._submit_text_to_model(
-                full_body_mesh_prompt, api_key
-            )
-            print(f"[smoke] text_to_model submitted, task_id={base_task_id}")
-        base_url = backend._poll_until_done(base_task_id, api_key)
+
+        def submit_base() -> str:
+            if concept_path is not None and concept_path.exists():
+                file_token = backend._upload_image(concept_path, api_key)
+                print(f"[smoke] image uploaded, file_token={file_token[:8]}...")
+                return backend._submit_image_to_model(
+                    file_token, full_body_mesh_prompt, api_key, image_type(concept_path)
+                )
+            return backend._submit_text_to_model(full_body_mesh_prompt, api_key)
+
+        base_slot = _slot("tripo3d_base", None)
+        base_task_id = backend.run_task(submit_base, base_slot)
+        print(f"[smoke] base task_id={base_task_id}")
+        base_url = backend.wait_url(base_task_id, api_key, base_slot)
         base_glb = out_dir / f"{entity_id}_base_{base_task_id[:8]}.glb"
         backend._download(base_url, base_glb)
         print(f"[smoke] base mesh downloaded → {base_glb.name}")
@@ -273,9 +282,12 @@ def main() -> int:
         print(f"[smoke] (ledger cached) riggable={riggable}")
     else:
         api_key = backend._get_api_key()
-        pre_task = backend._submit_prerigcheck(base_task_id, api_key)
-        print(f"[smoke] prerigcheck submitted, task_id={pre_task}")
-        pre_out = backend._poll_for_status_dict(pre_task, api_key)
+        pre_slot = _slot("tripo3d_prerigcheck", pre_disc)
+        pre_task = backend.run_task(
+            lambda: backend._submit_prerigcheck(base_task_id, api_key), pre_slot
+        )
+        print(f"[smoke] prerigcheck task_id={pre_task}")
+        pre_out = backend.wait_output(pre_task, api_key, pre_slot)
         riggable = bool(pre_out.get("riggable", False))
         print(f"[smoke] prerigcheck result: riggable={riggable}, output={pre_out}")
         ledger.add(
@@ -308,9 +320,12 @@ def main() -> int:
         print(f"[smoke] (ledger cached) rig_task_id={rig_task_id}")
     else:
         api_key = backend._get_api_key()
-        rig_task_id = backend._submit_rig(base_task_id, rig_type, api_key)
-        print(f"[smoke] rig submitted, task_id={rig_task_id}")
-        rig_url = backend._poll_until_done(rig_task_id, api_key)
+        rig_slot = _slot("tripo3d_rig", rig_disc)
+        rig_task_id = backend.run_task(
+            lambda: backend._submit_rig(base_task_id, rig_type, api_key), rig_slot
+        )
+        print(f"[smoke] rig task_id={rig_task_id}")
+        rig_url = backend.wait_url(rig_task_id, api_key, rig_slot)
         rig_glb = out_dir / f"{entity_id}_rig_{rig_task_id[:8]}.glb"
         backend._download(rig_url, rig_glb)
         print(f"[smoke] rigged mesh downloaded → {rig_glb.name}")
@@ -346,9 +361,12 @@ def main() -> int:
             print(f"[smoke] (ledger cached) retarget '{clip}' → {rt_glb.name}")
             continue
         api_key = backend._get_api_key()
-        rt_task = backend._submit_retarget(rig_task_id, clip, api_key)
-        print(f"[smoke] retarget '{clip}' submitted, task_id={rt_task}")
-        rt_url = backend._poll_until_done(rt_task, api_key)
+        rt_slot = _slot("tripo3d_retarget", rt_disc)
+        rt_task = backend.run_task(
+            lambda: backend._submit_retarget(rig_task_id, clip, api_key), rt_slot
+        )
+        print(f"[smoke] retarget '{clip}' task_id={rt_task}")
+        rt_url = backend.wait_url(rt_task, api_key, rt_slot)
         safe_clip = clip.replace(":", "_")
         rt_glb = out_dir / f"{entity_id}_{safe_clip}_{rt_task[:8]}.glb"
         backend._download(rt_url, rt_glb)

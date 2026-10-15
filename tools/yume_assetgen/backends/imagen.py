@@ -55,7 +55,7 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-from .base import Backend
+from .base import Backend, http_error
 
 
 # Imagen 3 accepts exactly these aspect ratios. Map `size=(W, H)` we
@@ -176,11 +176,4 @@ def _post_json(url: str, body: dict, *, timeout: float = 120) -> dict:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.load(resp)
     except urllib.error.HTTPError as e:
-        body_text = ""
-        try:
-            body_text = e.read().decode("utf-8", errors="replace")
-        except Exception:
-            pass
-        raise RuntimeError(
-            f"imagen: HTTP {e.code} {e.reason}\n  {body_text[:600]}"
-        ) from e
+        raise http_error("imagen", e) from e
