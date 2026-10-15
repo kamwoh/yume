@@ -1,3 +1,10 @@
+---
+description: The 5-layer soul workflow for games with aesthetic targets. Loads when you work on a game design or game content.
+paths:
+  - "docs/games/**"
+  - "godot/data/demo_*/**"
+---
+
 # Soul — the layered workflow for "this game feels alive"
 
 Soul isn't one thing you author — it's **layered density** across 5

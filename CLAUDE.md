@@ -9,33 +9,32 @@ are pure JSON.
 ## Quick Start
 
 This repo ships the **framework** (engine, skills, scaffolding scenes,
-shared engine libraries) but NOT specific game demos. Demos live at
-`godot/data/demo_<name>/` and are gitignored — generate locally via the
-pipeline below or copy from another working tree.
-
-To generate a new game from a prose pitch:
+shared engine libraries). It does NOT ship game demos. Demos live at
+`godot/data/demo_<name>/` and are gitignored.
 
 ```
-/yume-design "a roguelike where vampires steal HP from light sources" --autonomous
-```
-
-The `/yume-design` skill orchestrates text → GDD → world plan → level
-design → rules → JSON → assets → QA. Output lands at
-`godot/data/demo_<slug>/`.
-
-To run a locally-generated demo:
-
-```bash
-./scripts/play.sh <name>            # falls back to scenes/play.tscn --game=<name>
+/yume-design "<prose pitch>" [--scene] [--with-assets] [--style=] [--name=<slug>] [--autonomous]
+./scripts/play.sh <name>            # run a demo (falls back to scenes/play.tscn --game=<name>)
 ./scripts/play.sh <name> --capture  # auto-capture for visual QA
 ```
+
+`/yume-design` is the single entry point (ADR 0067). It composes a game from
+three layers with disjoint file ownership: **World** (`--scene`,
+`compose_world`), **Game** (always, the game skills), and **Assets**
+(`--with-assets`, `yume_assetgen`). A flag whose API key is missing degrades
+to the key-free code-drawn game. The layer/file ownership table lives in the
+`yume-design` skill.
+
+Do NOT run `/yume-create-scene` on a `/yume-design` game folder. Its shell
+overwrites the game's mechanics. Use `/yume-design --scene` to get a world
+for a game.
 
 ## Framework structure
 
 ```
 yume/
 ├── .claude/                            ← Skills + rules + settings
-│   ├── skills/yume-*/SKILL.md          (41 specialist skills, Tier 2.6)
+│   ├── skills/yume-*/SKILL.md          (42 specialist skills, Tier 2.6)
 │   └── rules/                          (path-scoped invariants)
 ├── godot/    ← Godot project (engine + scaffolding; demos gitignored)
 │   ├── data/                           ← shared engine libraries (TRACKED)
@@ -66,9 +65,7 @@ yume/
 │   │   └── scenario_test.tscn          (per-game scenario test runner)
 │   └── project.godot
 ├── docs/                               ← Documentation (active)
-│   ├── 30_framework_primitives.md      (the contract — invariant-bearing)
-│   ├── 31_text_to_game_pipeline.md     (Tier 2.5 strategic plan)
-│   ├── 32_mda_for_yume.md              (Mechanics → Dynamics → Aesthetics)
+│   ├── guideline/                      (30 contract · 31 pipeline plan · 32 MDA · 33 architecture)
 │   ├── adr/NNNN-*.md                   (architecture decisions)
 │   ├── engine-reference/               (api manifest, Godot pinning)
 │   ├── games/<name>/                   (per-game GDDs, plans, reviews)
@@ -181,121 +178,21 @@ LightingDirector; floor plane comes from `scene.json`'s ground.mesh
 block via GroundRenderer. A .tscn just pins `data_root` + picks
 `renderer_script` + places a Camera.
 
-## Generation pipelines — one orchestrator, three layers (ADR 0067)
-
-`/yume-design` is the single entry point. A game is composed from **three
-layers with disjoint file ownership**, so they never clobber each other:
-
-| Layer | `/yume-design` flag | Owns (writes only these) | Tool |
-|---|---|---|---|
-| **World** (the 3D stage) | `--scene` | `scene.json`, `game/flow.json`, `world/state.json`, `levels/level_default/entities.json`, `entities/auto_gen.json`, `assets/{layouts,textures}/` | `compose_world` |
-| **Game** (the play) | (always) | `world/rules/*.json`, `game/goals.json`, `entities/<slug>.json` (player + dynamic defs + instances), `hud.json`, `audio/`, `screens.json`, `ui/` | the game skills |
-| **Assets** (the look) | `--with-assets` | `asset_gen.json`, `assets/generated/`, in-place `visual.*` patches | `tools.yume_assetgen` |
-
-```
-/yume-design "<pitch>"  [--scene]  [--with-assets]  [--style=] [--name=] [--autonomous]
-```
-
-- **No flags** → key-free code-drawn single-player game (the default — this
-  is also the no-API-key fallback; the gen flags below DEGRADE to it).
-- **`--scene`** → run `compose_world` FIRST as the World layer; the game's
-  mechanics layer ONTO that world. The engine globs `entities/*.json` +
-  `world/rules/*.json` and merges by id, so the game's `entities/<slug>.json`
-  + `world/rules/*.json` spawn into the world's level for free — provided the
-  Game layer does NOT overwrite the World-owned files above (it doesn't; the
-  `/yume-design` SKILL enforces this per-phase). Needs image-gen keys.
-- **`--with-assets`** → after the game is built, auto-run `yume_assetgen` to
-  replace code-draw visuals with generated textures + meshes. Needs keys.
-
-**No API keys?** `--scene` (needs `OPENAI_API_KEY`) and `--with-assets` (needs
-an image key + `TRIPO_API_KEY`) are best-effort: `/yume-design` Phase 0
-prechecks env and DROPS a flag whose key is missing — degrading to the
-key-free code-draw game with a warning, never a crash.
-
-**`compose_shell` is NOT run inside `/yume-design`** — the game provides the
-player, movement, and camera. `/yume-create-scene` (`compose_world` +
-`compose_shell`) remains the standalone tool for a scene-only *walkable
-diorama* (it DOES emit a walk/jump/sprint shell). Don't run
-`/yume-create-scene` on a `/yume-design` game folder — that's the one
-remaining clobber (its shell overwrites the game's mechanics); use
-`/yume-design --scene` to get a world for a game.
-
-## Creating a new game
-
-```
-/yume-design "<prose pitch>" --name=<slug> --autonomous
-```
-
-This orchestrates:
-1. yume-game-designer → GDD
-2. yume-game-reviewer → 13-axis depth review
-3. yume-game-planner → world plan (named NPCs, items, events)
-4. yume-level-designer → spatial layout with coordinates
-5. yume-systems-designer → world physics rule sketches
-6. yume-game-rules-designer → win/lose/scoring rules
-7. yume-content-designer → JSON content
-8. yume-asset-designer → visual + audio fields
-9. yume-qa-tester → headless cascade verification + visual capture
-
-For "complete game" tier (shell, save, tutorial, settings, audio,
-juice), additional skills compose: yume-screen-flow-designer,
-yume-save-policy-designer, yume-tutorial-designer, yume-audio-designer,
-yume-juice-designer.
-
-## Running Godot (tests / scenarios / captures)
-
-`scripts/play.sh` is the single source of truth for `GODOT_BIN` and
-`TEMPLATE_DST`. Both are env-overridable: `YUME_GODOT_BIN`,
-`YUME_TEMPLATE_DST`. Source them in any other workflow:
+## Running Godot (full procedure: `docs/engine-reference/running-godot.md`)
 
 ```bash
 eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
-# Now $GODOT_BIN and $TEMPLATE_DST are set.
-```
-
-### Standard 3-step workflow
-
-```bash
-eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
-
-# 1. Sync framework to template (orchestrator-only per parallel-execution discipline)
-cp -r godot/. "$TEMPLATE_DST/"
-
-# 2. cd INTO the template, then use `--path .`. The Windows Godot.exe CANNOT
-#    resolve a `/mnt/c/...` path passed to `--path` from a /home CWD — it
-#    aborts with "Invalid project path specified ... aborting" and prints NO
-#    test output. play.sh + tools/yume_env/oracle.py both cd + `--path .` for
-#    exactly this reason. NEVER use `--path "$TEMPLATE_DST"` (absolute).
-cd "$TEMPLATE_DST"
-
-# 3. Rebuild class cache if a NEW `class_name X` GDScript was added (otherwise skip)
-"$GODOT_BIN" --path . --headless --import 2>&1 | tail -5
-
-# 4. Run tests / scenarios / captures (always tee; direct stdout from the
-#    Windows .exe through WSL pipes is unreliable)
+cp -r godot/. "$TEMPLATE_DST/" && cd "$TEMPLATE_DST"
+"$GODOT_BIN" --path . --headless --import          # only after a NEW class_name or new assets
 "$GODOT_BIN" --path . --headless scenes/test_main.tscn 2>&1 | tee /tmp/test_out.log
 "$GODOT_BIN" --path . --headless scenes/scenario_test.tscn -- --game=demo_<name> 2>&1 | tee /tmp/scen_out.log
-"$GODOT_BIN" --path . --rendering-driver opengl3 scenes/<name>_3d.tscn -- --capture-after=4 --capture-output='user://x.png' 2>&1 | tee /tmp/cap.log
 ```
 
-> **Invalid-project-path trap (2026-05-30).** If a run prints
-> `Invalid project path specified: "/mnt/c/..." aborting` and **no
-> RESULTS line**, you used the absolute `--path` form — the run never
-> executed. "No output" is NOT a pass. A real run ALWAYS ends with
-> `passed: NN  failed: N  total: NN`. Re-run with `cd "$TEMPLATE_DST"`
-> + `--path .`. (Empirical: this silently masked an `instance_patterns`
-> parse error for an hour — every "verification" aborted, read as clean.)
-
-Unit tests should report `passed: NN  failed: 0  total: NN`. Test source:
-`godot/scripts/engine/tests/test_runner.gd`; per-game scenarios in
-`godot/data/demo_<name>/tests.json`. Gotchas:
-
-- **Long runs**: test_main.tscn takes 60-120s — bump `timeout` to ≥240 or
-  run in background + Monitor (`until grep -qE "passed:|RESULTS|ERROR" /tmp/f; do sleep 2; done`).
-- **New `class_name X`**: run `--import` once before the test scene (else
-  `Identifier "X" not declared`); verify in `.godot/global_script_class_cache.cfg`.
-- **Capture path**: `user://X.png` → `/mnt/c/Users/.../AppData/Roaming/Godot/app_userdata/<project>/X.png`
-  (`find /mnt/c -path "*/app_userdata/*" -name "X.png"`); Read it as a normal PNG.
+- ALWAYS `cd "$TEMPLATE_DST"` and use `--path .`. An absolute `--path` aborts
+  with "Invalid project path" and prints no test output.
+- A real run ALWAYS ends with `passed: NN  failed: N  total: NN`. No output
+  is NOT a pass.
+- `test_main.tscn` takes 60-120 s. Use a timeout of 240 s or more.
 
 ## Yume design principles
 
@@ -343,40 +240,27 @@ When making non-trivial changes, follow **Question → Options → Decision → 
 Skip 1-3 for trivial edits (typo, single-line fix). New primitives,
 deletions, schema changes, infra moves require all five.
 
-## Path-scoped rules
+## Rules (`.claude/rules/`, index: `.claude/RULES_INDEX.md`)
 
-When editing files matching certain globs, **read the corresponding rule first**:
+Only `post-mortem.md` loads on every turn. The other rules load in FULL
+when you work on a file that matches their `paths:` frontmatter. The
+one-line essences below exist so that you know a rule applies before
+its files load. Do not copy rule content into this file.
 
-| File pattern | Rule file |
-|---|---|
-| `godot/scripts/engine/**` | `.claude/rules/engine-scripts.md` |
-| `godot/data/**` | `.claude/rules/data-demo.md` |
-| `docs/**` | `.claude/rules/docs.md` |
-| `godot/scripts/engine/tests/**` | `.claude/rules/tests.md` |
+| Rule | Loads for | One-line essence |
+|---|---|---|
+| `post-mortem.md` | every turn | Every user-found bug: fix → name the gate that should have caught it → harden that gate (enforceable check, not "be careful") → commit both. **The gate is not optional.** |
+| `soul.md` | `docs/games/**`, demo data | Games targeting Fellowship / Narrative / Submission / Discovery / Sensation need all 5 layers (writing, visual, audio, juice, reactive) on every signature beat, all pulling the same direction. |
+| `visual-qa.md` | content, scenes, renderers, UI, asset/layout tools | Any change to what the player SEES: frame the feature, capture, read with 3-5 falsifiable criteria. "Tests pass" is correctness, not playability. |
+| `engine-scripts.md` | `godot/scripts/engine/**` | No semantic effects, no entity subclasses, no genre code. Plus the visual gate and the effect-chain gate (destructive effects LAST). |
+| `data-demo.md` | `godot/data/**` | Schema discipline: field-name landmines, formula bindings per trigger, no per-def escape hatches. |
+| `pipeline-stability.md` | `tools/visual_layout/**` + HUD/screen/map author skills | 2D HUD/screen pipelines are LOCKED (ADR to modify). 3D map/world pipelines are active. |
+| `tests.md` | `godot/scripts/engine/tests/**` | Tests ship with the phase; no third-party framework; never disable a failing test. |
+| `docs.md` | `docs/**` | The contract doc is ADR-gated. Date living docs. |
 
-See `.claude/RULES_INDEX.md` for the index (kept outside `rules/` so it is not auto-loaded every turn).
-
-**Path-scoped rules load in FULL when a matching file is touched (their
-`paths:` frontmatter); the rest load every turn — do not summarise them
-here.** CLAUDE.md is the index; `.claude/rules/` is the content.
-(2026-10-15: the frontmatter used `globs:`, which Claude Code ignores, so
-every rule loaded on every turn — ~11k tokens of waste per turn.) A summary
-in both places doubles the context cost and drifts. (2026-08-16: the
-post-mortem, soul, and visual-gate sections were duplicated here in
-abbreviated form; removed in favour of the pointers below.)
-
-## Always-on rules (full text in `.claude/rules/`)
-
-| Rule | One-line essence |
-|---|---|
-| `post-mortem.md` | Every user-found bug: fix → name the gate that should have caught it → harden that gate (enforceable check, not "be careful") → commit both. **The gate is not optional.** |
-| `soul.md` | Games targeting Fellowship / Narrative / Submission / Discovery / Sensation need all 5 layers (writing, visual, audio, juice, reactive) on every signature beat, all pulling the same direction. |
-| `visual-qa.md` | Any change to what the player SEES: frame the feature, capture, read with 3-5 falsifiable criteria. "Tests pass" is correctness, not playability. |
-| `engine-scripts.md` | No semantic effects, no entity subclasses, no genre code. Plus the visual gate and the effect-chain gate (destructive effects LAST). |
-| `data-demo.md` | Schema discipline: field-name landmines, formula bindings per trigger, no per-def escape hatches. |
-| `pipeline-stability.md` | 2D HUD/screen pipelines are LOCKED (ADR to modify). 3D map/world pipelines are active. |
-| `tests.md` | Tests ship with the phase; no third-party framework; never disable a failing test. |
-| `docs.md` | The contract doc is ADR-gated. Date living docs. |
+`tools/validators/validate_claude_config.py` fails if a rule uses `globs:`
+(Claude Code ignores it). Empirical case 2026-10-15: all rules used
+`globs:`, so all 9 files loaded on every turn.
 
 ## Godot API reference (pinned)
 

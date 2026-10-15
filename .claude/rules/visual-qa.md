@@ -1,3 +1,20 @@
+---
+description: The visual QA gate. Loads when you change content, scenes, renderers, UI, or asset and layout tools.
+paths:
+  - "godot/data/**"
+  - "godot/scenes/**"
+  - "godot/scripts/renderer_2d/**"
+  - "godot/scripts/renderer_3d/**"
+  - "godot/scripts/engine/ui/**"
+  - "godot/scripts/engine/directors/lighting_director.gd"
+  - "godot/scripts/engine/directors/multimesh_director.gd"
+  - "godot/scripts/engine/directors/animation_director.gd"
+  - "godot/scripts/engine/coordinators/ground_renderer.gd"
+  - "tools/yume_assetgen/**"
+  - "tools/visual_layout/**"
+  - "tools/visual_qa/**"
+---
+
 # Visual QA — mandatory gate for visual-touching changes
 
 Any change affecting what the player SEES must be visually verified
@@ -197,22 +214,22 @@ plane (sky's gradient was mistaken for floor) — only the user noticed.
 3. Camera over content (not at origin when entities are at 1500,2400)
 4. No pink-fallback / grey-box visible
 
-### Reference-template comparison check
+### Scene-stub check (replaces the old reference-template check, 2026-10-15)
 
-If your change creates/modifies a `.tscn`: compare node-list against
-the canonical reference for the renderer mode.
-- 3D scenes: vs `godot/scenes/doomarena3d.tscn` (or `towerdef3d.tscn`).
-  Must have: World, WorldEnvironment, DirectionalLight3D (Sun), Ground
-  (MeshInstance3D + PlaneMesh + Material), GameShell, ScreenFlow,
-  OverlayManager, SettingsManager, LightingDirector, Camera3D.
-- 2D scenes: vs `godot/scenes/play.tscn`. Must have: World, GameShell,
-  ScreenFlow, OverlayManager, SettingsManager, Camera2D.
+A per-game `.tscn` is a thin stub: a `World` node (with `data_root`) and a
+camera. Do NOT add WorldEnvironment, Sun, or Ground nodes to it. WorldBoot
+mounts the directors. LightingDirector builds sky, sun and environment from
+the `scene.json` `lighting` block. GroundRenderer builds the floor from
+`scene.json` `ground.mesh`.
 
-VQA prompt: *"Compare X_3d.tscn node structure to doomarena3d.tscn.
-List any required-node-types absent. FAIL if any missing, even if
-the capture renders something plausible."*
+So for a 3D scene, check the DATA, not the node list:
+1. `scene.json` has a `lighting` block and a `ground` block.
+2. `validate_scene_directors.py <game> --strict` passes.
+3. The capture passes baseline criteria 1-3 (ground, sky, lighting).
 
-Catches merchant-no-floor at frame 1, not session 3.
+The old check compared node lists against `doomarena3d.tscn` and a
+`towerdef3d.tscn`. The first has only World + Camera3D, and the second
+does not exist. Thus the old check failed every correct scene.
 
 ## Context-specific prompt examples (compose your own from these)
 
