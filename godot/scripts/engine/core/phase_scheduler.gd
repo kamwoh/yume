@@ -501,6 +501,10 @@ func _overlap_pair_matches(rule: Rule, a_id: String, b_id: String) -> bool:
 ## Optimization: spatial index narrows the per-`a` lookup. Without index,
 ## falls back to O(n²) pair scan.
 func _fire_contact_rule(rule: Rule) -> void:
+	# A contact rule rolls `chance` once per pair below. Skip early only when
+	# it rolls nothing, so the random sequence stays the same.
+	if rule.chance >= 1.0 and _once_spent(rule):
+		return
 	var query = rule.query
 	if not (query is Dictionary):
 		return
@@ -622,6 +626,8 @@ func _apply_motion() -> void:
 func _fire_scan_rule(rule: Rule) -> void:
 	if rule.chance < 1.0 and randf() > rule.chance:
 		return
+	if _once_spent(rule):
+		return
 	var base_ctx: Dictionary = {"_phase": "decide"}
 
 	if rule.query is Dictionary:
@@ -658,6 +664,8 @@ func _fire_scan_rule(rule: Rule) -> void:
 ## payload-driven rules but allowed).
 func _fire_payload_rule(rule: Rule, payload: Dictionary, phase: String) -> void:
 	if rule.chance < 1.0 and randf() > rule.chance:
+		return
+	if _once_spent(rule):
 		return
 	var base_ctx: Dictionary = payload.duplicate()
 	base_ctx["_phase"] = phase
@@ -737,6 +745,21 @@ func _fire_effects(rule: Rule, ctx: Dictionary) -> void:
 		return
 	for e in rule.effects:
 		_enqueue(e, ctx, rule.id)
+
+
+## True when a `once` rule has already fired, so its query can be skipped.
+## Batch C (2026-10-15): a spent `once` rule still ran its query every tick.
+## The callers check this AFTER the `chance` roll, so the random sequence
+## stays the same as before (seeded runs and determinism hashes).
+## `once_per` cannot skip early: a new entity can still match.
+func _once_spent(rule: Rule) -> bool:
+	if not rule.once:
+		return false
+	var world = env.get("world", null)
+	if not (world is Dictionary):
+		return false
+	var ledger = (world as Dictionary).get(FIRED_RULES_KEY, {})
+	return ledger is Dictionary and (ledger as Dictionary).has(rule.id)
 
 
 ## Check-and-mark the one-shot ledger. Returns false when this rule (or this

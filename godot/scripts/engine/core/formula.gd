@@ -50,6 +50,21 @@ static var _last_error: String = ""  # for diagnostics
 ##
 ## 2.6a: pass `env` to capture parse / exec failures as structured records
 ## in `env.error_buffer`. Without env, errors only hit the dev console.
+## One compiled RegEx per root name: `root.path.segment` (one or more dotted
+## parts after the root). Compiling it on every call cost more than the
+## match itself (batch C profile 2026-10-15).
+static var _root_regex_cache: Dictionary = {}
+
+
+static func _root_regex(root: String) -> RegEx:
+	var rx: RegEx = _root_regex_cache.get(root)
+	if rx == null:
+		rx = RegEx.new()
+		rx.compile("\\b" + root + "(\\.[A-Za-z_][A-Za-z0-9_]*)+")
+		_root_regex_cache[root] = rx
+	return rx
+
+
 static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	# Pass-through for non-string
 	if not (formula is String):
@@ -66,12 +81,13 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	# Sort longest-first so "self_entity" matches before "self"
 	roots.sort_custom(func(a, b): return str(a).length() > str(b).length())
 
-	var regex := RegEx.new()
 	for root_v in roots:
 		var root := str(root_v)
-		# Match `root.path.segment` (one or more dotted parts after root)
-		regex.compile("\\b" + root + "(\\.[A-Za-z_][A-Za-z0-9_]*)+")
-		var matches = regex.search_all(rewritten)
+		# Most roots do not appear in a given formula. Skip them before any
+		# regex work (batch C profile 2026-10-15).
+		if not rewritten.contains(root):
+			continue
+		var matches = _root_regex(root).search_all(rewritten)
 		# Process from rightmost to leftmost so offset shifts don't break indices
 		for i in range(matches.size() - 1, -1, -1):
 			var m = matches[i]

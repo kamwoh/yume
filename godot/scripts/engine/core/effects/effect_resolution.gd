@@ -135,7 +135,7 @@ static func value(v, ctx: Dictionary, env: Dictionary = {}):
 			return s
 		# Formula? Evaluate with entity-object context.
 		if Formula.looks_like_formula(s):
-			var fctx := formula_context(ctx, env)
+			var fctx := formula_context(ctx, env, s)
 			# Carry rule attribution into formula context for 2.6a error reporting.
 			if ctx.has("_rule_id"):
 				fctx["_rule_id"] = ctx["_rule_id"]
@@ -161,8 +161,17 @@ static func value_text(v, ctx: Dictionary) -> String:
 ## Build a formula-friendly context from the rule's bare-id context.
 ##   ctx.self → context["self"] is an entity_id string. Formula context wants
 ##   Entity object so `self.state.hp` resolves. Look up entity from env.entities.
-static func formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
+##
+## `formula` (optional) is the text that will use this context. The zone and
+## faction snapshots each scan the world, so they are built only when the
+## text names `zone` or `faction` (a plain substring test, so it errs toward
+## building). Formula.evaluate binds only roots that appear in the text, so
+## the result is the same. Batch C profile 2026-10-15: these snapshots were
+## 38% of the tick in autorace (0.57 ms per formula).
+static func formula_context(ctx: Dictionary, env: Dictionary, formula: String = "") -> Dictionary:
 	var out: Dictionary = {}
+	var want_zone := formula == "" or formula.contains("zone")
+	var want_faction := formula == "" or formula.contains("faction")
 	var entities: Dictionary = env.get("entities", {})
 	# Common entity bindings: id string → Entity object. `from`/`to` are
 	# typically set by relation_changed dispatch (W2.4) and signal payloads
@@ -180,7 +189,7 @@ static func formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 	# ADR 0031: zone state available as `zone.<id>.<field>`. The
 	# snapshot is a flat {zone_id: state_dict} — Formula._resolve_path
 	# walks the dotted path: root=zone → state_dict → field value.
-	var zs = env.get("zone_store", null)
+	var zs = env.get("zone_store", null) if want_zone else null
 	if zs != null and zs.has_method("binding_snapshot"):
 		out["zone"] = zs.binding_snapshot()
 	else:
@@ -189,7 +198,7 @@ static func formula_context(ctx: Dictionary, env: Dictionary) -> Dictionary:
 	# entry contains member_count + leader + tension_with.<other> +
 	# stance_with.<other> + controls_zone (and the def's metadata).
 	# FactionDirector is a Node sibling under World — locate via env.parent.
-	var fd_parent = env.get("parent", null)
+	var fd_parent = env.get("parent", null) if want_faction else null
 	if fd_parent is Node:
 		var fd_node = (fd_parent as Node).get_node_or_null("FactionDirector")
 		if fd_node != null and fd_node.has_method("binding_snapshot"):

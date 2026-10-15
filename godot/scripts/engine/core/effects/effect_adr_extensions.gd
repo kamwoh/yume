@@ -318,7 +318,7 @@ static func _resolve_faction_id(v, ctx: Dictionary, env: Dictionary) -> String:
 		if ctx.has(s):
 			return str(ctx[s])
 		if Formula.looks_like_formula(s):
-			var fctx := EffectResolution.formula_context(ctx, env)
+			var fctx := EffectResolution.formula_context(ctx, env, s)
 			if ctx.has("_rule_id"):
 				fctx["_rule_id"] = ctx["_rule_id"]
 			var resolved = Formula.evaluate(s, fctx, env)

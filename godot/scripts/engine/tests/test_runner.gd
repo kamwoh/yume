@@ -53,6 +53,7 @@ func _ready() -> void:
 	test_control_factory()
 	test_ui_list_element()
 	test_rule_once()
+	test_batch_c_tick_cost()
 	test_level_subroutine()
 	test_calendar_clock()
 	test_sim_tiers()
@@ -3596,6 +3597,61 @@ func test_level_subroutine() -> void:
 		"a return payload field is readable as a bare binding in the caller's formula"
 	)
 	purse.free()
+
+## Batch C (2026-10-15) — tick-cost fixes keep their results: lazy zone and
+## faction snapshots, the RegEx cache, and the early exit for spent `once`.
+func test_batch_c_tick_cost() -> void:
+	_section("batch C tick cost (2026-10-15)")
+	var zenv := _make_zone_env()
+	var fc_plain := EffectResolution.formula_context({}, zenv, "world.depth + 1")
+	expect((fc_plain["zone"] as Dictionary).is_empty(), "a formula without `zone` skips the zone snapshot")
+	var fc_zone := EffectResolution.formula_context({}, zenv, "zone.city_pendrel.population")
+	expect(not (fc_zone["zone"] as Dictionary).is_empty(), "a formula with `zone` gets the snapshot")
+	var fc_all := EffectResolution.formula_context({}, zenv)
+	expect(not (fc_all["zone"] as Dictionary).is_empty(), "no formula text: build every snapshot, as before")
+	expect_eq(
+		float(EffectResolution.value("zone.city_pendrel.population + 1", {}, zenv)), 1201.0,
+		"a zone formula still resolves through value() (lazy snapshot, same result)"
+	)
+	expect_eq(Formula.evaluate("cfg.rate * 2", {"cfg": {"rate": 4}, "unused_root": {}}), 8, "formula result unchanged")
+	expect(Formula._root_regex_cache.has("cfg"), "the root's RegEx is compiled once and cached")
+	expect(not Formula._root_regex_cache.has("unused_root"), "a root that is not in the text compiles no RegEx")
+
+	# A spent `once` rule skips its query; `once_per` never skips early.
+	var defs := {"v": {"id": "v", "tags": ["v"], "state_init": {"n": 0}}}
+	var ents := {"v1": Entity.create(defs.v, "v1")}
+	var env: Dictionary = {
+		"entities": ents, "defs": defs, "relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(), "world": {}, "parent": null, "next_id": {"_": 0},
+	}
+	var sched := PhaseScheduler.new(env)
+	var once_rule := Rule.from_dict({
+		"id": "c_once", "once": true, "trigger": {"type": "tick", "interval": 1},
+		"query": {"tags_all": ["v"]},
+		"effect": [{"type": "state_add", "target": "self", "field": "n", "amount": 1}]})
+	var per_rule := Rule.from_dict({
+		"id": "c_per", "once_per": "self", "trigger": {"type": "tick", "interval": 1},
+		"query": {"tags_all": ["v"]}, "effect": []})
+	sched.register_rules([once_rule, per_rule])
+	expect(not sched._once_spent(once_rule), "a `once` rule is not spent before it fires")
+	sched.tick()
+	expect(sched._once_spent(once_rule), "a `once` rule is spent after it fires")
+	expect(not sched._once_spent(per_rule), "`once_per` is never spent early (a new entity can match)")
+	sched.tick()
+	expect_eq(int((ents["v1"] as Entity).get_state("n", -1)), 1, "the spent rule still fires exactly once")
+	# The early exit comes after the `chance` roll: a spent rule with
+	# chance < 1 consumes the same random numbers as before.
+	var chancy := Rule.from_dict({
+		"id": "c_chance", "once": true, "chance": 0.5, "trigger": {"type": "tick", "interval": 1},
+		"query": {"tags_all": ["v"]}, "effect": []})
+	(env["world"]["_fired_rules"] as Dictionary)["c_chance"] = true
+	seed(1234)
+	sched._fire_scan_rule(chancy)
+	var after_spent := randf()
+	seed(1234)
+	randf()
+	expect_eq(after_spent, randf(), "a spent rule with chance < 1 still rolls once (random sequence kept)")
+
 
 func test_rule_once() -> void:
 	_section("rule_once (ADR 0080)")
