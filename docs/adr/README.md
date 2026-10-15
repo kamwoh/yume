@@ -110,6 +110,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0066](./0066-record-replay-smooth-render.md) | Record-then-replay for smooth offline net video | accepted | 2026-06-04 |
 | [0067](./0067-unified-generation-pipeline.md) | Unified generation pipeline (World / Game / Assets — disjoint-ownership layers) | accepted | 2026-06-06 |
 | [0082](./0082-forked-skills-for-isolated-phases.md) | Forked skills for isolated pipeline phases (reviewers run in subagents) | accepted | 2026-10-15 |
+| [0083](./0083-code-built-meshes-v2.md) | Code-built meshes v2 (baked parts, CSG ops, shared materials) | accepted | 2026-10-15 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 
