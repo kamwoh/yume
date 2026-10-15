@@ -612,7 +612,19 @@ static func _walk_match(node: Node, sel: Dictionary, out: Array) -> void:
 # ============================================================
 
 
+## Every assertion must record exactly one pass or fail. A script error
+## inside an assertion stops it before it records anything, and the suite
+## then reports a pass count that skips it. Empirical 2026-10-16:
+## relation_field read `world.env`, which World does not have, so 2
+## thousandgate checks never ran while the suite said 67 of 67.
 static func _check_one(a: Dictionary, world: World, ctx: Dictionary) -> void:
+	var before := int(ctx["passed"]) + int(ctx["failed"])
+	_check_one_inner(a, world, ctx)
+	if int(ctx["passed"]) + int(ctx["failed"]) == before:
+		_fail(ctx, "expect %s recorded no result (a script error stopped it)" % str(a))
+
+
+static func _check_one_inner(a: Dictionary, world: World, ctx: Dictionary) -> void:
 	# Two forms:
 	#   1) Old shape:  {"entity_field": {query, field, op, value}}
 	#                   {"entity_count": {query, op, value}}
@@ -745,7 +757,7 @@ static func _assert_relation_field(spec: Dictionary, world: World, ctx: Dictiona
 		)
 		return
 
-	var store = world.env.get("relations", null)
+	var store = world.scheduler.env.get("relations", null)
 	if store == null:
 		_fail(ctx, "relation_field %s: no relation store" % rel)
 		return

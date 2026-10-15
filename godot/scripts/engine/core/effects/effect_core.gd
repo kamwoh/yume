@@ -425,9 +425,10 @@ static func relation_set(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 	var t: Array = _relation_triple(e, ctx, env)
 	if t[0] == "":
 		return
-	store.set_edge_field(
+	if not store.set_edge_field(
 		t[0], t[1], t[2], str(e.get("field", "")), EffectResolution.value(e.get("value"), ctx, env)
-	)
+	):
+		_warn_no_edge(t, e, env, ctx)
 
 
 static func relation_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
@@ -437,12 +438,32 @@ static func relation_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> voi
 	var t: Array = _relation_triple(e, ctx, env)
 	if t[0] == "":
 		return
-	store.add_edge_field(
+	if not store.add_edge_field(
 		t[0],
 		t[1],
 		t[2],
 		str(e.get("field", "")),
 		float(EffectResolution.value(e.get("amount"), ctx, env))
+	):
+		_warn_no_edge(t, e, env, ctx)
+
+
+## relation_set / relation_add / relation_clamp change an edge that exists.
+## Without the edge they do nothing, by design (ADR 0075). Say so: on
+## 2026-10-16 two thousandgate rules wrote player -> npc while the game
+## stores trust on npc -> player edges, and the trust reward silently did
+## nothing.
+static func _warn_no_edge(t: Array, e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
+	var store: RelationStore = env.get("relations", null)
+	if store != null and store.has_edge(t[0], t[1], t[2]):
+		return  # the edge exists, the field was missing or empty
+	EngineError.raise(
+		env,
+		"relation.no_edge",
+		"%s: no %s edge %s -> %s" % [e.get("type", ""), t[0], t[1], t[2]],
+		{"rule_id": ctx.get("_rule_id", ""), "relation": t[0], "from": t[1], "to": t[2]},
+		"Create the edge first (relate or initial_relations), or check the from/to direction.",
+		"warning"
 	)
 
 
@@ -453,14 +474,15 @@ static func relation_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> v
 	var t: Array = _relation_triple(e, ctx, env)
 	if t[0] == "":
 		return
-	store.clamp_edge_field(
+	if not store.clamp_edge_field(
 		t[0],
 		t[1],
 		t[2],
 		str(e.get("field", "")),
 		float(e.get("min", -INF)),
 		float(e.get("max", INF))
-	)
+	):
+		_warn_no_edge(t, e, env, ctx)
 
 
 # ============================================================

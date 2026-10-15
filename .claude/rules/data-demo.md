@@ -264,6 +264,16 @@ blob is O(N²), it is UNQUERYABLE (the field name isn't known until
 runtime, so no `state:` filter can express it), and it desyncs on despawn —
 `clear_entity` drops the edge but leaves the mirrored field behind.
 
+⚠️ **`relation_set` / `relation_add` / `relation_clamp` change only an
+edge that EXISTS, in the direction you write.** They never create one. So
+`from`/`to` must match the direction that `relate` or `initial_relations`
+used. Since 2026-10-16 a missing edge raises `relation.no_edge` (a
+warning). Empirical 2026-10-16: two thousandgate contract rules wrote
+trust on player -> npc, but the game stores it on npc -> player. The
+trust reward did nothing, and a `relation_field` check that hit a script
+error hid it. Gate: StepRunner now fails an assertion that records no
+result.
+
 ⚠️ **The edge's TARGET must exist as an entity.** `Query._check_single_relation`
 resolves each edge's `to` id through `env.entities` and SKIPS ids it can't
 resolve — so a `relations` clause pointing at a despawned or never-spawned

@@ -607,6 +607,20 @@ func test_relation_state() -> void:
 		"relation effects resolve `self` binding for from/to"
 	)
 
+	# The reverse direction has no edge: nothing changes, and the effect
+	# raises relation.no_edge instead of a silent no-op (2026-10-16).
+	var no_edge_env: Dictionary = eenv.duplicate()
+	no_edge_env["error_buffer"] = []
+	EffectApply.apply(
+		{"type": "relation_add", "relation": "knows", "from": "player", "to": "npc_a",
+		 "field": "trust", "amount": 3},
+		no_edge_env,
+		{}
+	)
+	expect(not rs.has_edge("knows", "player", "npc_a"), "relation_add creates no edge")
+	var no_edge_codes: Array = (no_edge_env["error_buffer"] as Array).map(func(r): return str(r.code))
+	expect(no_edge_codes.has("relation.no_edge"), "relation_add on a missing edge raises relation.no_edge")
+
 	# `relate` effect seeds state through the same dispatch path.
 	EffectApply.apply(
 		{
