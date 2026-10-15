@@ -40,6 +40,7 @@ REPO_WIDE = {
     "validate_no_stray_scripts.py",
     "validate_tick_override.py",
     "validate_claude_config.py",
+    "validate_meshes.py",
 }
 
 

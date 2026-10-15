@@ -1,7 +1,7 @@
 # ADR 0083 — Code-built meshes v2: baked parts, CSG ops, shared materials
 
 _Date: 2026-10-15_
-_Status: accepted 2026-10-15 (revision 3: tech-director accept with conditions, all applied. User approved.)_
+_Status: accepted 2026-10-15 (revision 3: tech-director accept with conditions, all applied. User approved.) Section 4 amended in F4._
 
 ## Context
 
@@ -151,6 +151,13 @@ Existing `color` and `$param` entries keep their meaning. `rotation_deg`
 also accepts `$param` values.
 
 ### 4. Construction convention and gates
+
+> **Amended 2026-10-15 (F4, user decision).** The user rejected the strict
+> base rule: "I think this is very game specific and shouldn't be strict
+> like this". The base height and the facing of a mesh are content
+> choices. `validate_meshes.py` checks only the schema. The data fixes of
+> the 33 meshes and the demo-offset check below are withdrawn. See
+> "F4 results".
 
 The convention applies to every mesh in `meshes.json`, with no
 exemption field:
@@ -372,3 +379,29 @@ bent pipe (sweep). All three render as expected.
 
 Tests: `test_main` has 1222 passes and 0 failures (19 new). The
 `doomarena3d` (41) and `demo_aldenmere` (19) scenarios pass.
+
+## F4 results (2026-10-15)
+
+The F4 report found 31 of 117 meshes with a base off y = 0 (the review's
+rough count was 33). They fall into two groups:
+
+- 13 meshes float: `person`, `imp_3d`, `demon_3d`, `grunt_3d`,
+  `ranger_3d`, 5 merchant NPCs, 3 merchant chests and
+  `merchant_portal_3d` (+1.35).
+- 18 meshes sink or use a center pivot: buried rocks and bushes,
+  projectiles, the 3 viewmodels, `cloud_3d`, `floor_grate`, `bird_3d`.
+
+A strict rule would make many of these wrong. A portal hovers, a rock
+sinks, a projectile is centered on its flight point. The user decided
+that the base is game specific and dropped the rule.
+
+So F4 shipped `tools/validators/validate_meshes.py` with schema checks
+only. It is in `run_all` as a repo-wide validator. It checks known ops
+and the required fields of each op. Each `$param` needs a value, and each
+`material` needs a known name. It also checks the lathe rules, and that
+no CSG group holds a `quad` or a `plane`. `--report` prints the unit-space AABB of each mesh, with
+rotation, as information. A floating entity stays a visual bug, owned by
+the visual QA gate and `validate_center_pivot_y.py`.
+
+No mesh data changed. `imp_3d` and `ranger_3d` still face +Z. The F5
+turntable shows the facing of a mesh, but no gate requires -Z.
