@@ -1,6 +1,10 @@
 ---
 name: yume-design
-description: Run the Yume text-to-game pipeline. Orchestrates 7 specialist skills (yume-game-designer → game-planner → systems-designer → content-designer → asset-designer → qa-tester, plus tech-director on demand) with optional user-approval gates. Skills load into orchestrator context (no subagent spawn — Tier 2.6 architecture). Flags - `--autonomous` skips approval gates and runs end-to-end. `--plan-only` stops after the planning phases (GDD + world-plan) so the user can review before any JSON is committed. `--with-assets` invokes AI-gen pipeline. `--style=pixel-art|low-poly-3d|ascii` art-style hint. `--name=<slug>` game folder name.
+description: >-
+  Run the full text-to-game pipeline: GDD -> review -> world plan -> levels
+  -> rules -> JSON -> assets -> QA. Flags: --autonomous, --plan-only,
+  --scene, --with-assets, --style=, --name=. Use when the user wants a new
+  game from a prose pitch.
 ---
 
 # /yume-design — text-to-game pipeline

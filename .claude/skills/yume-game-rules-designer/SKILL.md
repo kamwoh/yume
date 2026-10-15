@@ -1,6 +1,9 @@
 ---
 name: yume-game-rules-designer
-description: Goal-condition + flow-progression designer for Yume games. Per ADR 0009 revision (2026-05-16), scope NARROWED — rule authoring (scoring + transitions + objectives + tutorial overlays) folded into yume-systems-designer (writes world/rules/*.json). This skill now owns (a) declarative win:/lose: blocks in hud.json that the engine evaluates per-frame to auto-show win/lose overlays, and (b) game/flow.json for multi-level progression. When in doubt: rule authoring → systems-designer. Declarative HUD condition → this skill.
+description: >-
+  Author declarative win/lose blocks in hud.json and multi-level progression
+  in game/flow.json. Rule authoring itself belongs to yume-systems-designer.
+  Use when a game needs end conditions or level flow.
 ---
 
 > **Revision 2026-05-16 (task #110).** Previous versions of this skill

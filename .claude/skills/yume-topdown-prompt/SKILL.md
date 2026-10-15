@@ -1,6 +1,9 @@
 ---
 name: yume-topdown-prompt
-description: Generate a structured text-to-image prompt for orthographic top-down map renders (town / city / region / dungeon / level overview). Used right before calling openai_images / imagen / nanobanana with a "show me the whole map from above" intent. Produces a multi-section prompt (scene → perimeter → style refs → camera requirements → visual style → lighting → keywords) that reliably yields TRUE 90° orthographic views — not the angled cinematic shots image models default to. Empirical case: 2026-05-25 medieval-town render via gpt-image-2-2026-04-21 (194s, 2.7MB) succeeded end-to-end with this exact template.
+description: >-
+  Build a structured text-to-image prompt that yields a true 90-degree
+  orthographic top-down map (town, city, region, dungeon). Use right before
+  an image-gen call that should show the whole map from above.
 ---
 
 # /yume-topdown-prompt

@@ -11,6 +11,6 @@ Or run the full bank with:
 `scripts/play.sh` invokes the bank automatically before launching a
 demo. Pass `SKIP_VALIDATE=1` to bypass.
 
-See `.claude/rules/README.md` § Static validators for the per-script
+See `.claude/RULES_INDEX.md` § Static validators for the per-script
 intent + the rule each validator enforces.
 """

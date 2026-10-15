@@ -1,6 +1,9 @@
 ---
 name: yume-hud-author
-description: Fit-fit HUD authoring from a wireframe image. Reads the per-game context from tools/visual_layout/wireframe_to_hud.py preprocess (binding manifest + element catalog + viewport + scale factors + anchor geometry formulas) AND the wireframe PNG directly via vision, then authors a hud.json where every panel's geometry is DERIVED from its wireframe bbox (not chosen freely) and every element type comes from the engine catalog. Replaces the CV-based yume-hud-layout pipeline — the LLM IS the parser. Tier 2.7v (2026-05-19).
+description: >-
+  Author hud.json from a wireframe image: every panel's geometry is derived
+  from its wireframe bbox and every element comes from the engine catalog.
+  Use when the user supplies or wants a HUD wireframe.
 ---
 
 # /yume-hud-author

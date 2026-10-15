@@ -6,9 +6,15 @@ Usage:
     python3 tools/validators/run_all.py demo_aldenmere   # one game
     python3 tools/validators/run_all.py demo_aldenmere --strict
 
-`--strict` is forwarded to each validator that supports it; under
-strict, the runner exits 1 if ANY validator fails. Without `--strict`,
-the runner always exits 0 — individual validators print warnings.
+Every validator always runs with `--strict`, so its exit code says
+whether it found anything. Without `--strict` the runner still exits 0
+(play.sh launches anyway) but names each validator that found issues.
+With `--strict` it exits 1 on any finding.
+
+Why always-strict (2026-10-15): most validators exit 0 in non-strict
+mode even when they print violations. The runner then printed "all 33
+validators passed" over 15 real rule violations in demo_aldenmere, so
+every play.sh launch showed a false green line.
 
 `scripts/play.sh` historically called each validator by hand. This
 runner consolidates that into one invocation:
@@ -33,6 +39,7 @@ HERE = Path(__file__).resolve().parent
 REPO_WIDE = {
     "validate_no_stray_scripts.py",
     "validate_tick_override.py",
+    "validate_claude_config.py",
 }
 
 
@@ -43,8 +50,8 @@ def main() -> int:
                          "Omit to scan every demo_* folder where "
                          "the validator supports it.")
     ap.add_argument("--strict", action="store_true",
-                    help="Forward --strict to validators; exit 1 on "
-                         "any failure.")
+                    help="Exit 1 on any finding (validators always "
+                         "run strict; this only sets the runner's exit code).")
     args = ap.parse_args()
 
     scripts = sorted(p for p in HERE.glob("validate_*.py"))
@@ -58,8 +65,7 @@ def main() -> int:
         cmd: list[str] = [sys.executable, str(s)]
         if s.name not in REPO_WIDE and args.game:
             cmd.append(args.game)
-        if args.strict:
-            cmd.append("--strict")
+        cmd.append("--strict")
 
         label = s.stem.removeprefix("validate_")
         print(f"\n=== {label} ===", flush=True)
@@ -69,7 +75,8 @@ def main() -> int:
 
     print()
     if failed:
-        print(f"[run_all] {len(failed)} validator(s) reported failure: "
+        verdict = "FAILED" if args.strict else "reported issues (non-strict: continuing)"
+        print(f"[run_all] {len(failed)} of {len(scripts)} validator(s) {verdict}: "
               f"{', '.join(failed)}")
         return 1 if args.strict else 0
     print(f"[run_all] all {len(scripts)} validators passed")

@@ -1,6 +1,9 @@
 ---
 name: yume-save-policy-designer
-description: Designer for save_policy.json — declares what persists across sessions, autosave triggers, slot count, schema versioning. Per ADR 0010, the engine has one save/load implementation; per-game variation lives in this JSON. The skill answers: which world_state keys persist, which entity tags survive (persistent NPCs vs transient mobs), what causes an autosave, how many manual save slots, what version is the save schema. Distinct from save-state-designer (which is this skill renamed) — this is the policy author.
+description: >-
+  Write save_policy.json: which world_state keys and entity tags persist,
+  autosave triggers, slot count, schema version. Use when a game needs
+  save/load or its persistent state changes.
 ---
 
 # /yume-save-policy-designer

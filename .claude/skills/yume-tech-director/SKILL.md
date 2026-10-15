@@ -1,6 +1,9 @@
 ---
 name: yume-tech-director
-description: Guards Yume's primitive invariants. Reviews proposed engine changes (must come with ADR), verifies path-scoped rule compliance, gates merges. Cross-cutting reviewer that other Yume agents defer to before structural changes.
+description: >-
+  Guard Yume's primitive invariants: review engine changes (must have an
+  ADR), check path-scoped rule compliance, gate merges. Use before any
+  structural engine change or new primitive.
 ---
 
 # /yume-tech-director

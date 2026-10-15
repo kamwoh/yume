@@ -1,6 +1,10 @@
 ---
 name: yume-shooter-designer
-description: Genre-specific GDD writer for shooter / FPS / arena-shooter games. Extends yume-game-designer's generic MDA framework with FPS-specific required sections — movement profile (numbers, drag, diagonal), weapon arsenal table (≥2 weapons with full ballistic specs), enemy roster with weapon-matchup, ammo economy (math-checked), Y-axis policy, projectile-obstacle interaction, hit/kill feedback, restart UX. Pairs with yume-shooter-reviewer (10-axis FPS-strict review). Use when the prose pitch claims "shooter", "fps", "doom-style", "arena shooter", or similar.
+description: >-
+  Write a GDD for a shooter / FPS / arena game: movement profile, weapon
+  table with ballistics, enemy roster and matchups, ammo economy, Y-axis
+  policy, projectile-obstacle rules, hit feedback, restart UX. Use for
+  shooter pitches.
 ---
 
 # /yume-shooter-designer
@@ -49,8 +53,8 @@ ALL of the following:
 | Aspect | Value | Rationale |
 |---|---|---|
 | Top speed | 3.0 m/s (equilibrium) | Marine pace — slower than imps (3.5 m/s) so they catch up; faster than rangers (2.0 m/s) so player can outrun |
-| Acceleration | velocity_add_relative + drag | Inputs ADD per tick, drag decelerates — feels weighty, allows diagonal |
-| Drag | 8.0 (player.state.drag) | Reaches equilibrium in ~3 ticks under sustained input |
+| Acceleration | velocity_add_relative (per-tick add = top speed) | Engine auto-resets velocity while a key is held, so the add IS the speed; allows diagonal |
+| Stop | `lib_wasd_stop` (from the wasd_with_fp_variant bundle) | Snap to zero on release. `state.drag` is DEAD since ADR 0044 — never spec it |
 | Diagonal handling | W+A both fire each tick → forward + strafe sum | √2-factor diagonal slightly slower than cardinal — standard FPS feel |
 | Y-axis | locked at 0 (planar combat) OR free pitch aim | Pick one and document |
 | Air control | n/a (no jump) OR full mid-air control | Pick one |

@@ -1,3 +1,10 @@
+---
+name: yume-playtest
+description: >-
+  End-to-end playtest gate: fires real click chains, captures frames,
+  catches dangling screen refs and runtime warnings that unit and scenario
+  tests miss. Use as the last gate before declaring a game shippable.
+---
 # /yume-playtest
 
 You are the **playtest harness** for Yume — the gate that turns "tests

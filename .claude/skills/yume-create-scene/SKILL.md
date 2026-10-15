@@ -1,6 +1,10 @@
 ---
 name: yume-create-scene
-description: One-command text-to-3D-world pipeline. From a prose scene pitch, produces a runnable Yume scene end-to-end — hero reference → hero-conditioned orthographic → semantic + heightmap → extract → map (compose_world) → presentation shell (compose_shell) → optional Tripo assets. The catalog is the single LLM-authored input; tools.visual_layout.compose_scene drives the rest deterministically. Invoke when the user wants a whole new 3D scene/level from a description (NOT for HUD/screen authoring, single assets, or GDScript-game generation).
+description: >-
+  One-command text-to-3D-scene pipeline (hero image -> ortho -> semantic map
+  + heightmap -> extract -> compose_world + compose_shell -> optional
+  assets). Use for a standalone walkable 3D diorama, NOT on a /yume-design
+  game folder.
 ---
 
 # /yume-create-scene

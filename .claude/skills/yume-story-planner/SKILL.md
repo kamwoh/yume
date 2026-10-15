@@ -1,6 +1,10 @@
 ---
 name: yume-story-planner
-description: Narrative arc + event scheduling + character progression designer for Yume games. Translates the GDD's narrative intent into a story-design.md with named beats, trigger conditions, character arc curves, branching/non-branching structure, and Yume primitive mapping (signals + world_state flags + level transitions). Distinct from yume-level-designer (which is spatial). Use for any game with a story arc, scripted events, named NPCs that change over time, or campaigns. Works for tightly-scripted (a classic JRPG, the raised-AI life-sim anime arc) AND emergent-narrative (an emergent-narrative sim, a grand-strategy sim) games.
+description: >-
+  Design the narrative arc: named beats, trigger conditions, character arcs,
+  branching structure, mapped to signals, world_state flags and level
+  transitions. Writes story-design.md. Use for any game with a story or
+  scripted events.
 ---
 
 # /yume-story-planner

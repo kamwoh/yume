@@ -1,6 +1,7 @@
 ---
 description: Path-scoped rules for Yume documentation
-globs: docs/**
+paths:
+  - "docs/**"
 ---
 
 # Documentation — discipline

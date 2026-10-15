@@ -1,6 +1,9 @@
 ---
 name: yume-qa-tester
-description: Loads generated Yume JSON into the engine headless, runs N ticks, reports cascade outcomes vs GDD intent. Identifies bugs, dead entities, missing rules, runaway feedback loops. Final gate before declaring a game complete.
+description: >-
+  Load a game's JSON headless, run N ticks, and report cascade outcomes
+  against GDD intent (dead entities, missing rules, runaway loops) plus
+  visual captures. Use as the QA phase of /yume-design.
 ---
 
 # /yume-qa-tester

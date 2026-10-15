@@ -1,6 +1,10 @@
 ---
 name: yume-lifesim-designer
-description: Genre-specific GDD writer for open-ended career / life-simulation sandbox games — the shape where you play ONE PERSON in a persistent world, pick a career track, climb it, and may abandon it for another at any time. Extends yume-game-designer's generic MDA framework with the eight sections this genre needs and the generic skill leaves thin — career-ladder table (≥2 tracks × ≥4 ranks, each rank unlocking a VERB), calendar + action-cost + stamina economy, relationship-graph spec, two-layer stat/skill growth, autonomous background world, track-switch policy, per-track endings, and the meta/collection layer. Pairs with yume-lifesim-reviewer (8-axis strict review). Use when the prose pitch claims "life sim", "career", "sandbox RPG", "become anything", "make your own story", "rise from nothing", "open-ended", "many professions", or describes picking a job in a living world.
+description: >-
+  Write a GDD for a career / life-sim sandbox: career ladders with
+  verb-bearing ranks, calendar + stamina economy, relationship graph,
+  two-layer growth, autonomous world, track switching, per-track endings.
+  Use for 'life sim' or 'become anything' pitches.
 ---
 
 # /yume-lifesim-designer

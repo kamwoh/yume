@@ -1,6 +1,9 @@
 ---
 name: yume-game-planner
-description: Translates the abstract GDD (from yume-game-designer) into a concrete world bible — named NPCs with schedules, named items with purposes, named plants with growth properties, named events with triggers, town layout. Bridges design philosophy and content authoring.
+description: >-
+  Turn an accepted GDD into a concrete world bible: named NPCs with
+  schedules, items, plants, events with triggers, town layout. Use after the
+  GDD review and before level and content design.
 ---
 
 # /yume-game-planner

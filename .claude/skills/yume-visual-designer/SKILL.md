@@ -1,6 +1,10 @@
 ---
 name: yume-visual-designer
-description: Visual / art-direction critic for built Yume games. Runs the game (or reads existing captures), examines frames for aesthetic quality across 7 axes (readability, contrast, color harmony, layout balance, visual hierarchy, HUD integration, theme coherence), and produces a visual-review.md with prioritized JSON edits to improve how the game looks. Distinct from yume-qa-tester (which checks correctness) and visual-qa (frame-diff automation) — this skill is the LLM art director that makes the game pretty after it works. Output is actionable specific edits (color hex changes, size tweaks, position adjustments), not vague aesthetic opinions.
+description: >-
+  Art-direction critique of a built game across 7 axes (readability,
+  contrast, color harmony, layout balance, hierarchy, HUD integration,
+  theme) with prioritized concrete JSON edits. Use after a game works, to
+  make it look good.
 ---
 
 # /yume-visual-designer

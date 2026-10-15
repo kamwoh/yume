@@ -1,6 +1,10 @@
 ---
 name: yume-combining-logic-designer
-description: Compositional / recipe-system designer for Yume games. Translates GDD intent for crafting / alchemy / breeding / key-combos / chemistry / spell-combinations into a concrete combining-design.md — recipe table, discovery model, yield rules, failure modes, Yume primitive mapping. Universal pattern (NOT magic-specific) — the underlying shape is "input set + combination rule → output", which appears in dozens of genres.
+description: >-
+  Design recipe / combination systems (crafting, alchemy, breeding,
+  key-combos, spell combos): recipe table, discovery model, yields,
+  failures, primitive mapping. Use when a GDD has 'input set + rule ->
+  output' mechanics.
 ---
 
 # /yume-combining-logic-designer

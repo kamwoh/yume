@@ -1,6 +1,10 @@
 ---
 name: yume-economy-designer
-description: Numeric balance + resource flow designer for Yume games. Reads GDD + world plan (+ optional combining-design.md) and produces economy-design.md with explicit sources/sinks per resource, conversion ratios, currency design, pricing curves, pacing math, and adversarial balance checks. Owns the question "do the numbers work?" — catches degenerate strategies, money pumps, and progression cliffs at design time instead of QA time. Applies to TD economies, RPG XP/gold/loot, merchant games, factory chains, civilization-style city economies.
+description: >-
+  Balance numbers and resource flow: sources/sinks, conversion ratios,
+  pricing curves, pacing math, adversarial money-pump checks. Writes
+  economy-design.md. Use for any game with currency, XP, loot or production
+  chains.
 ---
 
 # /yume-economy-designer

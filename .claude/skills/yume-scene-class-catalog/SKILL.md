@@ -1,6 +1,10 @@
 ---
 name: yume-scene-class-catalog
-description: Stage 2 of the text-to-world pipeline (2026-05-25). Reads a scene brief + reference photoreal aerial and produces a fully-dynamic per-scene class catalog plus the stage-3/4/5 prompts. Class count is dynamic 6-32; classes named freely per genre (medieval town vs sci-fi colony vs dungeon vs alien world all get entirely different catalogs). data/lib/semantic_palette.json provides palette conventions; data/lib/extraction_strategies.json provides per-class extraction strategies (extraction_method + rotation_rule + y_anchor + primitive + canonical size) that the catalog injects into each object_placement entry so stage-5 lib_extract can dispatch by name lookup. Outputs class_catalog.json, semantic_map_prompt.txt, heightmap_prompt.txt, and scene_biome_mapping.json (for ADR 0055 engine wiring).
+description: >-
+  Stage 2 of the text-to-world pipeline: from a scene brief + reference
+  aerial, write a dynamic class catalog (6-32 classes) plus the
+  semantic-map, heightmap and biome-mapping prompts. Use inside
+  /yume-create-scene.
 ---
 
 # /yume-scene-class-catalog

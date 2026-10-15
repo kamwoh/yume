@@ -1,6 +1,9 @@
 ---
 name: yume-level-designer
-description: Spatial layout designer for Yume games. Reads GDD + world plan, produces level-design.md with concrete coordinates for every placement plus a design rationale per element. Genre-aware patterns (TD paths with chokepoints, shooter arenas with cover, sim zones with density falloff). Output is the single source of truth for content-designer's placement work.
+description: >-
+  Produce level-design.md with concrete coordinates and a rationale for
+  every placement, using genre patterns (TD paths, arena cover, sim density
+  falloff). Use after the world plan, before content placement.
 ---
 
 # /yume-level-designer

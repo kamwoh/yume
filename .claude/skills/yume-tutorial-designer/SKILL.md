@@ -1,6 +1,9 @@
 ---
 name: yume-tutorial-designer
-description: Designer for tutorial.json — the rule-chain that walks players through onboarding. Per ADR 0012, tutorial steps are JUST RULES with show_overlay/dismiss_overlay effects + signal sequencing. Skill owns: step sequence, advance conditions (action / signal / timer), highlight design (which entity to glow), pacing (don't overwhelm), skippable + replay flow. Outputs tutorial.json (rules in the same shape as world/rules/*.json feature modules — game/goals.json was removed per ADR 0009 revision 2026-05-16) + tutorial-design.md.
+description: >-
+  Design tutorial.json: onboarding steps as rules with
+  show_overlay/dismiss_overlay, advance conditions, highlights, pacing, skip
+  and replay. Writes tutorial-design.md. Use when a game needs onboarding.
 ---
 
 # /yume-tutorial-designer

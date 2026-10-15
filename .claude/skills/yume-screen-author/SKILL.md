@@ -1,6 +1,10 @@
 ---
 name: yume-screen-author
-description: Fit-fit SCREEN authoring from a wireframe image — for modal/full-cover UIs declared in screens.json (inventory, pause, settings, title menu, ending screens, ...). Sibling of yume-hud-author. Reads the per-game context from tools/visual_layout/wireframe_to_screen.py preprocess (broader 13-element catalog including interactive button/slider/checkbox + transition_screen target allow-list + effect allow-list) AND the wireframe PNG directly via vision, then authors a screen dict where every element's geometry is DERIVED from its wireframe bbox, every element type comes from the engine catalog, every `binds` is manifest-approved, every `transition_screen` target resolves, and every effect chain obeys destructive-last ordering. Tier 2.7v (2026-05-20).
+description: >-
+  Author modal / full-cover screens in screens.json (inventory, pause,
+  settings, title, endings) from a wireframe image, with geometry derived
+  from the wireframe. Use when the user supplies or wants a screen
+  wireframe.
 ---
 
 # /yume-screen-author

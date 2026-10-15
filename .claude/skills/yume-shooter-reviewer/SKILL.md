@@ -1,6 +1,10 @@
 ---
 name: yume-shooter-reviewer
-description: Genre-specific reviewer for shooter / FPS / arena-shooter GDDs. Strictest layer — runs AFTER yume-game-reviewer's generic 15-axis accept, applies 10 FPS-specific axes that catch genre concerns the generic reviewer can't see (movement feel, ballistic distinctness, ammo economy, projectile-obstacle policy, weapon-enemy matchup, Y-axis pitch handling, hit/kill feedback, sightline/cover interaction, threat differentiation, restart UX). Empirically built after doomarena3d v2.5 needed reactive fixes (walk speed tune, diagonal motion, blocks_motion bug, weapons added) that an FPS-aware reviewer would have caught at GDD review.
+description: >-
+  Strict 10-axis review of a shooter GDD, run after the generic 15-axis
+  accept (movement feel, ballistic distinctness, ammo economy, matchups,
+  pitch handling, hit feedback, cover, restart UX). Pairs with
+  yume-shooter-designer.
 ---
 
 # /yume-shooter-reviewer
@@ -249,8 +253,8 @@ feel like a real shooter, not to flex genre expertise.
 - Frame issues as "to support [stated aesthetic / FPS feel]
   expectation, suggest adding/changing X."
 - Quote the GDD when poking holes.
-- Be SPECIFIC: not "movement feels off" but "GDD says drag=8.0 with
-  no top-speed target — add a 'top speed: 3 m/s equilibrium' line so
+- Be SPECIFIC: not "movement feels off" but "GDD gives a per-tick
+  forward add with no top-speed target — add a 'top speed: 3 m/s equilibrium' line so
   content-designer can verify the tune."
 
 ## What you DON'T do

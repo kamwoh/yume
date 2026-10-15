@@ -1,6 +1,10 @@
 ---
 name: yume-infinigen-scene
-description: Generate a realistic 3D World layer for a Yume game using the Infinigen procedural backend (ADR 0074). Produces a walkable native-scale terrain (mountain/canyon/coast/desert/...) plus an ecologically-scattered asset library (rocks, plants, leafy trees) — all real Infinigen geometry baked to glb, no engine change. Invoke when the user wants a realistic procedural natural environment (terrain + foliage + rocks) as the World layer a game is built onto, as opposed to yume-create-scene (the openai/Tripo hero-image pipeline) or yume-map-author (2D semantic-map level authoring). Requires the external Infinigen env (YUME_INFINIGEN_PYTHON / YUME_INFINIGEN_REPO); degrades to a clear error if absent.
+description: >-
+  Generate a realistic procedural World layer (terrain + rocks + plants +
+  trees baked to glb) with the Infinigen backend. Use when the user wants a
+  natural environment as the world a game is built onto. Needs the Infinigen
+  env.
 ---
 
 # /yume-infinigen-scene

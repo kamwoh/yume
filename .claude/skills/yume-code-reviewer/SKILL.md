@@ -1,6 +1,9 @@
 ---
 name: yume-code-reviewer
-description: Second-pair-of-eyes for Yume engine + content changes. Socratic, principle-aligned, smell-based. Reviews diffs / files / sessions and produces a tight verdict (accept / accept-with-conditions / revise / reject). NOT the invariant gate — that's yume-tech-director. NOT a designer — those are the domain skills. This is the "code reviewer" who asks the questions the user would.
+description: >-
+  Second-pair-of-eyes review of Yume engine or content diffs: Socratic,
+  principle-aligned, smell-based, with a verdict (accept / conditions /
+  revise / reject). Use after a non-trivial change, before commit.
 ---
 
 # /yume-code-reviewer

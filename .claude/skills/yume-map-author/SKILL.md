@@ -1,6 +1,10 @@
 ---
 name: yume-map-author
-description: Fit-fit LEVEL/MAP authoring from a semantic top-down map image. Third sibling of yume-hud-author / yume-screen-author. Reads the per-game context from tools/visual_layout/wireframe_to_map.py preprocess (entity catalog with tags + asset_resolution anchor/zone hints + scatter_presets + world bounds + pixel→world coord transform) AND the map PNG via vision. Authors a level entities.json fragment where every initial_instance.def + pattern.def exists in the game's entity catalog (manifest-only, no invented def_ids), every position is computed deterministically from pixel bbox via the coord transform AND validated in-bounds, every pattern picks a scatter_preset and respects density+cap. Replaces the CV-based compile_map pipeline. Tier 2.7v (2026-05-20).
+description: >-
+  Author a level's entities.json fragment from a semantic top-down map
+  image: only catalog defs, positions from pixel bbox via the coord
+  transform, patterns from scatter presets. Use to add or edit a level from
+  a map sketch.
 ---
 
 # /yume-map-author

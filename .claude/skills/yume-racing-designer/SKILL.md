@@ -1,6 +1,9 @@
 ---
 name: yume-racing-designer
-description: Genre-specific designer for arcade racing games — kart racers (mascot-style kart racer), high-speed (futuristic anti-grav racer), top-down (top-down arcade / top-down combat racer), time-attack (precision time-attack racer), checkpoint runners (arcade crash-racer). Owns the tuning discipline that makes a car FEEL like a car: vehicle profile, steering rate vs speed, drift mechanic, lateral-grip scrubbing, surface variety, AI rubber-banding, power-up taxonomy, race structure, camera. Archetype-driven — every design decision benchmarks against a named racing archetype. Does NOT cover sim racing (dedicated racing simulators) — that needs continuous physics out of Yume's scope.
+description: >-
+  Design arcade racing games (kart, anti-grav, top-down, time-attack,
+  checkpoint): vehicle profile, steering vs speed, drift, grip, surfaces, AI
+  rubber-banding, power-ups, race structure, camera. Not for sim racing.
 ---
 
 # /yume-racing-designer

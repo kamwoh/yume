@@ -1,5 +1,9 @@
 ---
-description: Convert a markdown design doc (GDD, milestone, ADR, etc.) into a self-contained HTML page. Splits into multiple pages with prev/next nav + index when the doc is long. Use whenever the user asks to "view as HTML", "convert to HTML", "render this doc", or wants a more readable / shareable format than raw markdown.
+name: md-to-html
+description: >-
+  Convert a markdown design doc (GDD, ADR, milestone) into a self-contained
+  HTML page, split into linked pages when long. Use when the user asks to
+  view, render or convert a doc as HTML.
 allowed-tools: Bash, Read
 ---
 

@@ -1,6 +1,10 @@
 ---
 description: Stability tiers for Yume's three text-to-X generation pipelines under tools/visual_layout/
-globs: tools/visual_layout/**, .claude/skills/yume-hud-author/**, .claude/skills/yume-screen-author/**, .claude/skills/yume-map-author/**
+paths:
+  - "tools/visual_layout/**"
+  - ".claude/skills/yume-hud-author/**"
+  - ".claude/skills/yume-screen-author/**"
+  - ".claude/skills/yume-map-author/**"
 ---
 
 # Pipeline stability — what's locked vs active

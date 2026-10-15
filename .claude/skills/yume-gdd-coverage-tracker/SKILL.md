@@ -1,3 +1,10 @@
+---
+name: yume-gdd-coverage-tracker
+description: >-
+  Measure how much of a GDD is actually built and reachable, as a percentage
+  with a gap list. Use after QA and before declaring a game complete, so
+  'tests pass' is not mistaken for 'game delivered'.
+---
 # /yume-gdd-coverage-tracker
 
 You are the **GDD coverage tracker** for Yume — the gauge that

@@ -354,10 +354,13 @@ When editing files matching certain globs, **read the corresponding rule first**
 | `docs/**` | `.claude/rules/docs.md` |
 | `godot/scripts/engine/tests/**` | `.claude/rules/tests.md` |
 
-See `.claude/rules/README.md` for the index.
+See `.claude/RULES_INDEX.md` for the index (kept outside `rules/` so it is not auto-loaded every turn).
 
-**These rule files are injected in FULL every turn — do not summarise them
-here.** CLAUDE.md is the index; `.claude/rules/` is the content. A summary
+**Path-scoped rules load in FULL when a matching file is touched (their
+`paths:` frontmatter); the rest load every turn — do not summarise them
+here.** CLAUDE.md is the index; `.claude/rules/` is the content.
+(2026-10-15: the frontmatter used `globs:`, which Claude Code ignores, so
+every rule loaded on every turn — ~11k tokens of waste per turn.) A summary
 in both places doubles the context cost and drifts. (2026-08-16: the
 post-mortem, soul, and visual-gate sections were duplicated here in
 abbreviated form; removed in favour of the pointers below.)

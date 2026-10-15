@@ -1,6 +1,9 @@
 ---
 name: yume-juice-designer
-description: Designer for "game feel" — the polish layer of particles, screen shake, hit-pause, flash, camera kicks, and timing curves that make actions feel impactful. Distinct from yume-asset-designer (which picks visuals) and yume-visual-designer (which judges aesthetics) — this skill owns the kinetic micro-feedback per signal/event. Outputs juice-design.md + extends rules with juice effects (camera_shake, particle_emit, time_scale, flash_overlay) tied to game signals.
+description: >-
+  Design game feel per signal: particles, screen shake, hit-pause, flash,
+  camera kicks, time-scale dips. Writes juice-design.md and juice rules. Use
+  for every signature interaction in a soul-bearing game.
 ---
 
 # /yume-juice-designer

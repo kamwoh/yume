@@ -54,6 +54,7 @@ run_all.py <game> [--strict]`.
 
 | Validator | What it catches | Sources |
 |---|---|---|
+| `validate_claude_config.py` | repo-wide: every skill has strict-YAML frontmatter with `name` = dir and a 30-300 char description; every rule file scopes with `paths:` (not the ignored `globs:`) or is always-on | empirical 2026-10-15 |
 | `validate_no_stray_scripts.py` | `.gd` files under `data/` that shadow engine classes (e.g. stale `effect_apply.gd` after a rename) | `.claude/rules/data-demo.md` § no stray .gd |
 | `validate_lib_refs.py` | broken `@lib.X.Y` references — every ref must resolve through `data/lib/manifest.json` | ADR 0027 |
 | `validate_input_universal.py` | every demo's `ui/input.json` must `$include @lib.input.universal.actions` or WASD silently no-ops | ADR 0043 |

@@ -1,6 +1,9 @@
 ---
 name: yume-game-designer
-description: First-line designer for Yume games. Takes a prose description of a game and produces a structured GDD using MDA decomposition (Mechanics → Dynamics → Aesthetics). Output feeds yume-systems-designer.
+description: >-
+  Turn a prose game pitch into a structured GDD with MDA decomposition
+  (mechanics -> dynamics -> aesthetics). Use as the first step of
+  /yume-design or when the user wants a design doc for a new game idea.
 ---
 
 # /yume-game-designer

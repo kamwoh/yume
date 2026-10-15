@@ -1,6 +1,10 @@
 ---
 name: yume-systems-designer
-description: Rules designer for Yume games. Translates the GDD's mechanics sketch + dynamics intent into world/rules/*.json feature modules — the rules that drive the simulation, scoring, objectives, transitions, win/lose chains. Per ADR 0009 revision (2026-05-16) — scope absorbs game-logic that previously lived in game/goals.json. Declarative win/lose conditions still live in hud.json. Also writes rule-sketch document for review before authoring; identifies if a new engine primitive is needed and proposes an ADR.
+description: >-
+  Author world/rules/*.json feature modules from the GDD: simulation,
+  scoring, objectives, transitions, win/lose chains. Writes a rule sketch
+  first and proposes an ADR when a primitive is missing. Use in the rules
+  phase of /yume-design.
 ---
 
 # /yume-systems-designer

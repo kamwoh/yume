@@ -1,6 +1,10 @@
 ---
 name: yume-lifesim-reviewer
-description: Genre-specific strict reviewer for open-ended career / life-simulation sandbox GDDs. Runs AFTER yume-game-reviewer's generic 15-axis accept and applies 8 lifesim-specific axes the generic reviewer cannot see — verb-bearing ranks, closed time economy, load-bearing relationships, two-layer growth, a world that visibly moves on its own, a non-free track switch, per-track endings, and a meta layer that changes rather than shortens run 2. Pairs with yume-lifesim-designer. Verdict accept / revise / reject.
+description: >-
+  Strict 8-axis review of a life-sim GDD, run after the generic 15-axis
+  accept (verb-bearing ranks, closed time economy, load-bearing
+  relationships, moving world, costly track switch, endings, meta layer).
+  Pairs with yume-lifesim-designer.
 ---
 
 # /yume-lifesim-reviewer

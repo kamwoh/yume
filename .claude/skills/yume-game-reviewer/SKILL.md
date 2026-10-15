@@ -1,6 +1,9 @@
 ---
 name: yume-game-reviewer
-description: Adversarial reviewer for Yume GDDs. Reads docs/games/<name>/GDD.md and applies critical-but-fair scrutiny across 15 depth axes (mechanical/strategic/pacing/feedback/aesthetic/scope/adversarial + total content scope, signature moments, theme/identity, replay value, real-UX, spatial-design/level-layout). Outputs review.md with verdict (accept/revise/reject) and concrete revision requests. Catches shallow designs at the text/idea level — cheap to iterate vs. discovering depth gaps after JSON + scenes are built. Round 2+ MUST run ripple-analysis: when a revision adds structural primitives (multi-level, persistent state, new modes), prior-round axis acceptance does NOT carry over to axes those primitives ripple into — re-interpret under the new design frame.
+description: >-
+  Adversarial 15-axis depth review of a GDD (mechanics, strategy, pacing,
+  feedback, scope, signature moments, replay, UX, spatial). Writes review.md
+  with accept/revise/reject. Use after every GDD draft or revision.
 ---
 
 # /yume-game-reviewer

@@ -1,6 +1,10 @@
 ---
 name: yume-screen-flow-designer
-description: Designer for screens.json — the JSON-declared Godot Control hierarchy that defines a game's title menu, pause overlay, settings menu, save-slot picker, game-over screen, and any other shell-tier UI. Per ADR 0011 (refactored under ADR 0021), screens are JSON descriptions of Godot Control nodes (Button, Label, VBoxContainer, etc.) with on_click/on_change effect chains. The skill owns: which screens exist, their layout, navigation between them, button-click effects, modal vs replace semantics, freeze_world toggling. Distinct from yume-asset-designer (which writes hud.json and visual styling) — this skill owns the SHELL screens that wrap the gameplay.
+description: >-
+  Design screens.json: which shell screens exist (title, pause, settings,
+  save slots, game over), their layout, navigation, on_click effect chains,
+  modal vs replace, freeze_world. Use when a game needs or changes its UI
+  shell.
 ---
 
 # /yume-screen-flow-designer

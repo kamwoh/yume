@@ -1,3 +1,10 @@
+---
+name: yume-lighting-designer
+description: >-
+  Tune the scene.json lighting block (sun, sky, ambient, fog, tonemap,
+  day/night, per-entity lights) to match the GDD mood. Use when a scene
+  reads too dim, cold, flat or unintentional, or in the soul pass.
+---
 # /yume-lighting-designer
 
 You are the **lighting designer** for Yume — the specialist for the

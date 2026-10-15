@@ -1,6 +1,10 @@
 ---
 name: yume-extract-author
-description: Stage 5 of the text-to-world pipeline (2026-05-25). Reads a semantic map (PNG) + class catalog (JSON from stage 2) + optional heightmap (PNG from stage 4), and writes a per-scene Python extraction script that emits extracted.json — the sparse tile-map output containing per-class biome masks (terrain_shader), per-instance positions+rotations+sizes (object_placement), and a heightmap reference (terrain_displacement). LLM-as-script-author pattern: the script is custom per catalog (because every scene has different colors and class roles), but uses tools/visual_layout/lib_extract.py as the generic-helpers library so the per-scene part stays thin (~40-60 lines). Output extracted.json drives stage 6 (asset prompts) and stage 7 (engine wiring).
+description: >-
+  Stage 5 of the text-to-world pipeline: write a per-scene Python script (on
+  lib_extract.py) that turns a semantic map + class catalog + heightmap into
+  extracted.json. Use inside /yume-create-scene after the semantic map
+  exists.
 ---
 
 # /yume-extract-author

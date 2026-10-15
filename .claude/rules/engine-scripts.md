@@ -1,6 +1,7 @@
 ---
 description: Path-scoped rules for Yume engine code
-globs: godot/scripts/engine/**
+paths:
+  - "godot/scripts/engine/**"
 ---
 
 # Engine scripts — invariants

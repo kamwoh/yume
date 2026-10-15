@@ -1,6 +1,10 @@
 ---
 name: yume-merchant-reviewer
-description: Genre-specific reviewer for merchant / shopkeeping / item-shop GDDs. Strictest layer — runs AFTER yume-game-reviewer's generic 15-axis accept, applies 8 merchant-specific axes that catch genre concerns the generic reviewer can't see (customer-archetype variety, class-gear coverage, daily-cycle pacing balance, haggle UX clarity, debt-tension curve shape, reputation depth, inventory readability, anti-pattern poke). Pairs with yume-merchant-designer. Built proactively as part of #96 merchant game (first complete game) so generic + genre review run before any JSON authoring.
+description: >-
+  Strict 8-axis review of a merchant GDD, run after the generic 15-axis
+  accept (customer variety, class-gear coverage, cycle pacing, haggle UX,
+  debt curve, reputation, inventory readability). Pairs with
+  yume-merchant-designer.
 ---
 
 # /yume-merchant-reviewer

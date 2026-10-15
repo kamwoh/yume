@@ -210,7 +210,7 @@ def main() -> int:
     args = ap.parse_args()
 
     name = args.game if args.game.startswith("demo_") else f"demo_{args.game}"
-    game_dir = Path("godot/data") / name
+    game_dir = Path(__file__).resolve().parents[2] / "godot" / "data" / name
     if not game_dir.exists():
         print(f"[validate_entity_state_fields] game dir not found: {game_dir}",
               file=sys.stderr)

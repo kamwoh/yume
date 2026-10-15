@@ -1,6 +1,10 @@
 ---
 name: yume-audio-designer
-description: Designer for music + soundtrack architecture across a Yume game — distinct from yume-asset-designer (which writes audio/cues.json mapping signals to one-shot SFX). This skill owns: BGM selection per screen/level/state, dynamic intensity layers (calm/explore/combat/boss), bus design (composes ADR 0013's set_audio_bus_volume), looping + crossfade transitions, ambient layers, and stinger/jingle moments. Outputs audio-design.md + extends data/<game>/audio/cues.json with music-bed entries.
+description: >-
+  Design the music layer: BGM per screen/level/state, intensity layers,
+  buses, loops, crossfades, ambience and stingers. Writes audio-design.md
+  and music entries in audio/cues.json. Use for any soul-bearing game's
+  audio pass.
 ---
 
 # /yume-audio-designer

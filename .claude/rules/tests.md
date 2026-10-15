@@ -1,6 +1,7 @@
 ---
 description: Path-scoped rules for Yume engine tests
-globs: godot/scripts/engine/tests/**
+paths:
+  - "godot/scripts/engine/tests/**"
 ---
 
 # Tests — ship-with-phase invariant

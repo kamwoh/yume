@@ -1,6 +1,9 @@
 ---
 name: yume-content-designer
-description: Entities + initial state designer for Yume games. Translates GDD + world plan into entity definitions (entities/*.json), initial placements (per-level entities.json), and world initial state (world/state.json). Picks tag names, state field names, default values, positions. Per ADR 0009 — narrowed scope: rules are NOT this skill's job. World physics rules go to yume-systems-designer; game rules go to yume-game-rules-designer. This skill owns the entity vocabulary and where things are at level start.
+description: >-
+  Write entity definitions (entities/*.json), per-level initial placements
+  and world/state.json from the GDD and world plan. Owns tag and state-field
+  vocabulary, not rules. Use in the content phase of /yume-design.
 ---
 
 # /yume-content-designer
@@ -536,18 +539,17 @@ for a def, check the active camera mode and reject specks.
 
 When world/rules/*.json (or legacy single-file world/rules.json) $includes a WASD lib bundle that uses
 `velocity_add_relative` (isometric_3d or first_person_3d camera
-modes), the player's `state_init` MUST include either
-`zero_velocity_pretick: true` or `drag > 0`. Without one of these,
-mouse-turning mid-walk produces the **facing-lag "pulling" bug**
-(velocity accumulates in OLD facing direction; this tick's add in
-NEW facing direction; clamp lands between them; player feels
-something is pulling them back from where the camera is pointing).
+modes), the player MUST get a stop rule, or it glides forever after
+key release. `state.drag` and `state.zero_velocity_pretick` are DEAD
+(no engine code reads them since ADR 0044) — do NOT author them.
 
-| Scene's camera_mode | Required player state_init |
+| Scene's camera_mode | Required stop mechanism |
 |---|---|
-| `top_down_3d`, `third_person_3d` | n/a (velocity_set per-axis is fine) |
-| `isometric_3d` | `zero_velocity_pretick: true` (recommended) OR `drag > 0` |
-| `first_person_3d` | `zero_velocity_pretick: true` (tight FPS feel) OR `drag > 0` (momentum feel) |
+| `top_down_3d`, `third_person_3d` | n/a (per-axis `stop_x`/`stop_y` from the world-frame bundle) |
+| `isometric_3d`, `first_person_3d` | `$include @lib.input_bundles.wasd_with_fp_variant.rules` (ships `lib_wasd_stop`), OR a hand-authored `input: stop` rule doing `velocity_set x:0 y:0` |
+
+The player's `velocity` must be `[x, z]` (Vector2) so the stop rule
+zeroes both planar axes.
 
 Full rule + empirical case 2026-05-10 at
 `.claude/rules/data-demo.md` § "velocity_add_relative requires

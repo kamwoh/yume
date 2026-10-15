@@ -1,6 +1,7 @@
 ---
 description: Path-scoped rules for Yume demo data folders
-globs: godot/data/**
+paths:
+  - "godot/data/**"
 ---
 
 # Demo data — schema discipline

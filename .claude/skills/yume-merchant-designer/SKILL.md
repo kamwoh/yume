@@ -1,6 +1,9 @@
 ---
 name: yume-merchant-designer
-description: Genre-specific GDD writer for merchant / shopkeeping / item-shop games. Extends yume-game-designer's generic MDA framework with merchant-required sections — adventurer-class table (≥3 classes × ≥3 gear types each), daily cycle phase table (morning/adventure/shop/sleep durations + transitions), haggle mechanic spec (exchange shape, accept/reject rules), debt-pacing curve, reputation effects matrix, inventory UX. Pairs with yume-merchant-reviewer (8-axis strict review). Use when the prose pitch claims "merchant", "shopkeeper", "item shop", "merchant-shaped", "trader", or similar.
+description: >-
+  Write a GDD for a merchant / shopkeeping game: adventurer classes x gear,
+  daily cycle phases, haggle spec, debt curve, reputation matrix, inventory
+  UX. Use for 'merchant', 'shopkeeper' or 'item shop' pitches.
 ---
 
 # /yume-merchant-designer

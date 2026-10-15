@@ -1,6 +1,9 @@
 ---
 name: yume-visual-tester
-description: Auto-generates a visual_test_plan.json for a given game + level. Reads the GDD's aesthetic targets, the level's entities.json, the session's git diff, the assertion library, and the priors library — emits a concrete list of 10-15 visual tests that the ADR 0056 runner can execute. Distinct from yume-visual-designer (which is a subjective rubric reviewer) — this skill produces objective binary pass/fail assertions specific to the game's actual contents. Phase B of ADR 0056 / 0057.
+description: >-
+  Generate visual_test_plan.json: 10-15 objective pass/fail visual tests for
+  a game + level from the GDD, entities and session diff, for the ADR 0056
+  runner. Use to turn visual QA into binary assertions.
 ---
 
 # /yume-visual-tester

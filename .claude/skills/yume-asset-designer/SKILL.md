@@ -1,6 +1,10 @@
 ---
 name: yume-asset-designer
-description: Visual + audio + UI-style designer for Yume games. Picks ONE consistent strategy per project (library lookup / AI-gen prompt / code-draw shape) for visuals; writes audio cue mappings and localized strings. Per ADR 0009 — owns audio/cues.json (semantic event → sound name) and ui/strings.json (localizable HUD text), in addition to entity visual/audio fields and scene/hud config. Doesn't generate raw asset files (.png/.glb/.ogg) — that's the offline `yume assets generate` tool.
+description: >-
+  Pick one visual strategy per game (library mesh, code-draw, or AI-gen
+  prompt) and write entity visual/audio fields, audio/cues.json,
+  ui/strings.json and scene/hud config. Use in the asset phase of
+  /yume-design or when a game's look or SFX mapping changes.
 ---
 
 # /yume-asset-designer
@@ -824,10 +828,12 @@ shows that as diagonal up-left. User feedback led to swapping to
 **Cross-reference required** — when picking `isometric_3d` or
 `first_person_3d` (or any future mode using `velocity_add_relative`),
 the asset-designer's output MUST FLAG to the downstream
-yume-content-designer that the player's `state_init` needs a
-deceleration mechanism (either `zero_velocity_pretick: true` or
-`drag > 0`). Without it the player suffers the **facing-lag
-"pulling" bug** when mouse-turning mid-walk.
+yume-content-designer that the player needs a stop rule (the
+`lib_wasd_stop` rule from `@lib.input_bundles.wasd_with_fp_variant`,
+or a hand-authored `input: stop` -> `velocity_set x:0 y:0`). Without
+it the player glides after key release. `state.drag` and
+`state.zero_velocity_pretick` are DEAD since ADR 0044 — never author
+them.
 
 Full rule + empirical case 2026-05-10 at
 `.claude/rules/data-demo.md` § "velocity_add_relative requires
@@ -837,9 +843,9 @@ downstream.
 
 **Empirical case (2026-05-10)**: Aldenmere FP rollout. Asset-designer
 picked `first_person_3d` camera but the content-designer's player
-shipped with `drag: 0` + no `zero_velocity_pretick`. User reported
-"something pulling" on mouse-turn-mid-walk. Both skills' gates now
-cross-reference the path-scoped rule.
+had no deceleration. User reported "something pulling" on
+mouse-turn-mid-walk. (The 2026-05 fix used `drag`; that field went
+dead in ADR 0044 — 2026-06-06 doomarena3d glided with `drag: 8`.)
 
 **Empirical case (2026-05-10)**: Aldenmere shipped iso_top_down with
 the world-frame WASD bundle — pressing W produced screen-up-RIGHT
