@@ -775,6 +775,17 @@ func test_effect_apply() -> void:
 	expect(ent.has_tag("burning"), "tag_add")
 	EffectApply.apply({"type": "tag_remove", "target": "self", "tag": "burning"}, env, ctx)
 	expect(not ent.has_tag("burning"), "tag_remove")
+	# A tag effect with `tags` (not `tag`) adds no "" tag and raises an error.
+	var tag_err_env: Dictionary = env.duplicate()
+	tag_err_env["error_buffer"] = []
+	var tags_before := ent.tags.size()
+	EffectApply.apply({"type": "tag_add", "target": "self", "tags": ["burning"]}, tag_err_env, ctx)
+	expect_eq(ent.tags.size(), tags_before, "tag_add without `tag` adds no tag")
+	expect_eq(
+		str((tag_err_env["error_buffer"] as Array)[0].code) if not (tag_err_env["error_buffer"] as Array).is_empty() else "",
+		"effect.tag_missing",
+		"tag_add without `tag` raises effect.tag_missing"
+	)
 	# Target as literal id (not context name) — fallback path
 	EffectApply.apply(
 		{"type": "state_set", "target": "thing_1", "field": "hp", "value": 77}, env, ctx

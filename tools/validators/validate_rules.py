@@ -32,6 +32,10 @@ Checks implemented in v1:
       `amount` (not `delta` / `factor`). `spawn` must use `template`
       (not `def`). Engine silently no-ops on the wrong field name.
 
+  (9) REQUIRED EFFECT FIELDS — `tag_add` / `tag_remove` need `tag`,
+      `state_*` need `field` (and `amount`), `spawn` needs `template`.
+      Empirical 2026-10-16: aldenmere used `"tags": [...]`.
+
 Future v2 additions (deferred per data-demo.md):
   - Destructive effect-chain ordering (transition_level / reload_scene
     must be LAST in chain).
@@ -475,6 +479,50 @@ def check_schema_field_landmines(rule, errors):
                 ))
 
 
+# (9) Fields without which an effect does nothing. The engine reads one
+# name only, so another name (or a list form) is a silent no-op.
+# Empirical 2026-10-16: 12 aldenmere tag_add/tag_remove effects used
+# `"tags": [...]`. The engine reads `tag`, so the warmth, fire and
+# building chains never changed a tag.
+REQUIRED_EFFECT_FIELDS = {
+    "tag_add": ("tag",),
+    "tag_remove": ("tag",),
+    "state_set": ("field",),
+    "state_add": ("field", "amount"),
+    "state_mul": ("field", "amount"),
+    "spawn": ("template",),
+}
+WRONG_FIELD_NAMES = {"tag": ("tags",), "amount": ("delta", "factor"), "template": ("def",)}
+
+
+def check_required_effect_fields(rule, errors):
+    """(9) Each effect type in REQUIRED_EFFECT_FIELDS has its fields."""
+    rule_id = rule.get("id", "<unnamed>")
+    effects = rule.get("effect", [])
+    if isinstance(effects, dict):
+        effects = [effects]
+    if not isinstance(effects, list):
+        return
+    for i, eff in enumerate(effects):
+        if not isinstance(eff, dict):
+            continue
+        t = str(eff.get("type", ""))
+        for field in REQUIRED_EFFECT_FIELDS.get(t, ()):
+            if field in eff:
+                continue
+            wrong = next((w for w in WRONG_FIELD_NAMES.get(field, ()) if w in eff), None)
+            if wrong is not None and t in ("state_add", "state_mul", "spawn"):
+                continue  # check (8) already reports this rename
+            hint = f" Rename `{wrong}` to `{field}`." if wrong else ""
+            if wrong == "tags":
+                hint = " Use one effect per tag, each with one `tag` string."
+            errors.append((
+                rule_id, f"effect[{i}]",
+                f"{t} effect has no `{field}`. The engine reads `{field}`, "
+                f"so the effect does nothing.{hint}",
+            ))
+
+
 def check_once_fields(rule, errors):
     """ADR 0080 — the one-shot quantifiers.
 
@@ -769,6 +817,7 @@ def validate_game(game_dir):
             check_require_bindings(rule, r_errors)
             check_2binding_non_contact(rule, r_errors)
             check_schema_field_landmines(rule, r_errors)
+            check_required_effect_fields(rule, r_errors)
             check_effect_read_after_write(rule, r_errors)
             check_emit_signal_fields(rule, r_errors)
             check_edge_state_clause(rule, r_errors)

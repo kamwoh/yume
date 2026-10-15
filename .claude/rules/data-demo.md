@@ -204,6 +204,12 @@ error). Caught during the merchant build at ~30-50 occurrences each:
 | `relation_add` | `relation` + `field` + `amount` | ❌ `type` / `delta` |
 | `relation_set` | `relation` + `field` + `value` | ❌ `type` |
 | `relation_clamp` | `relation` + `field` + `min`/`max` | ❌ `type` |
+| `tag_add` / `tag_remove` | one `tag` string | ❌ `tags: [...]` (use one effect per tag) |
+
+Gate: `validate_rules.py` check (9), `check_required_effect_fields`. At
+runtime, a tag effect without `tag` raises `effect.tag_missing`.
+Empirical 2026-10-16: 12 aldenmere tag effects used `tags`, so the
+warmth, fire and building chains never changed a tag.
 
 ## One-shot rules — use `once`, not a sentinel field (ADR 0080)
 

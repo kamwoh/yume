@@ -470,16 +470,34 @@ static func relation_clamp(e: Dictionary, env: Dictionary, ctx: Dictionary) -> v
 
 static func tag_add(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var ent: Entity = EffectResolution.target(e, env, ctx)
-	if ent == null:
+	var tag := _tag_field(e, env, ctx)
+	if ent == null or tag == "":
 		return
-	ent.add_tag(str(e.get("tag", "")))
+	ent.add_tag(tag)
 
 
 static func tag_remove(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var ent: Entity = EffectResolution.target(e, env, ctx)
-	if ent == null:
+	var tag := _tag_field(e, env, ctx)
+	if ent == null or tag == "":
 		return
-	ent.remove_tag(str(e.get("tag", "")))
+	ent.remove_tag(tag)
+
+
+## The engine reads one `tag` string. An effect with no `tag` (for example
+## `"tags": [...]`) did nothing before 2026-10-16, with no message.
+static func _tag_field(e: Dictionary, env: Dictionary, ctx: Dictionary) -> String:
+	var tag := str(e.get("tag", ""))
+	if tag == "":
+		EngineError.raise(
+			env,
+			"effect.tag_missing",
+			"%s: no `tag` field" % e.get("type", ""),
+			{"rule_id": ctx.get("_rule_id", ""), "field": "tag", "keys": e.keys()},
+			"Give the effect one `tag` string. Use one effect per tag.",
+			"warning"
+		)
+	return tag
 
 
 # ============================================================
