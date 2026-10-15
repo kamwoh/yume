@@ -177,7 +177,7 @@ flowchart TD
 
     LAUNCH --> BOOT["WorldBoot (world_boot.gd)"]
 
-    BOOT --> DIR["auto-mount 14 Director nodes:<br/>GameShell · ScreenFlow · OverlayManager ·<br/>SettingsManager · LightingDirector ·<br/>PartyDirector · ScheduleDirector ·<br/>LifecycleDirector · ClassManager ·<br/>FactionDirector · TechTreeDirector ·<br/>DynastyDirector · NameplateRenderer ·<br/>ScreenSmokeRunner"]
+    BOOT --> DIR["auto-mount 9 Director nodes:<br/>GameShell · ScreenFlow · OverlayManager ·<br/>SettingsManager · LightingDirector ·<br/>ScheduleDirector · LifecycleDirector ·<br/>NameplateRenderer · ScreenSmokeRunner"]
 
     BOOT --> AM["ActorManager.load_or_synthesize<br/>(actors.json or default_player)<br/>→ active_actor_id"]
 

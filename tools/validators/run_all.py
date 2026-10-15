@@ -42,6 +42,7 @@ REPO_WIDE = {
     "validate_claude_config.py",
     "validate_meshes.py",
     "validate_tag_writes.py",
+    "validate_engine_wiring.py",
 }
 
 

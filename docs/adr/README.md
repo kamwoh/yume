@@ -67,18 +67,18 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | 0023 | _(unused — slot reserved during sequencing; no decision needed)_ | — | — |
 | [0024](./0024-npc-pathfinding.md) | NPC pathfinding via NavigationServer3D | accepted (shipped) | 2026-05-07 |
 | [0025](./0025-day-night-cycle.md) | Day/night cycle exposed via scene.json lighting block | accepted (shipped) | 2026-05-07 |
-| [0026](./0026-party-member-primitive.md) | Party-member primitive (leashed NPCs) | accepted (shipped) | 2026-05-07 |
+| [0026](./0026-party-member-primitive.md) | Party-member primitive (leashed NPCs) | superseded by 0085 | 2026-05-07 |
 | [0027](./0027-cross-game-json-reuse-system.md) | Cross-game JSON reuse (`@lib.X` + `$extends`) | accepted (conditions addressed) | 2026-05-08 |
 | [0028](./0028-cross-game-parameterized-templates.md) | Cross-game parameterized templates (`$params`) | proposed — deferred until first dependent game | 2026-05-08 |
 | [0029](./0029-schedule-primitive.md) | Schedule primitive (NPC daily routines at scale) | proposed — Aldenmere Phase 1 BLOCKING | 2026-05-09 |
-| [0030](./0030-class-primitive.md) | Occupation/class primitive (switchable, per-class HUD/verbs) | proposed — Aldenmere Phase 2 unlocks | 2026-05-09 |
-| [0031](./0031-zone-state-primitive.md) | Aggregated zone-state primitive (macro-economy substrate) | proposed — Aldenmere Phase 3 unlocks | 2026-05-09 |
-| [0032](./0032-faction-primitive.md) | Faction primitive (politics, alliances, war) | proposed — Aldenmere Phase 3 unlocks | 2026-05-09 |
-| [0033](./0033-tech-tree-primitive.md) | Technology-tree primitive (knowledge accumulation across NPCs + generations) | proposed — Aldenmere Phase 4 unlocks | 2026-05-09 |
-| [0034](./0034-dynasty-primitive.md) | Dynasty / heir succession (player ages, dies, heir takes over) | proposed — Aldenmere Phase 4 unlocks | 2026-05-09 |
+| [0030](./0030-class-primitive.md) | Occupation/class primitive (switchable, per-class HUD/verbs) | superseded by 0085 | 2026-05-09 |
+| [0031](./0031-zone-state-primitive.md) | Aggregated zone-state primitive (macro-economy substrate) | accepted (corrected 2026-10-16) | 2026-05-09 |
+| [0032](./0032-faction-primitive.md) | Faction primitive (politics, alliances, war) | superseded by 0085 | 2026-05-09 |
+| [0033](./0033-tech-tree-primitive.md) | Technology-tree primitive (knowledge accumulation across NPCs + generations) | superseded by 0085 | 2026-05-09 |
+| [0034](./0034-dynasty-primitive.md) | Dynasty / heir succession (player ages, dies, heir takes over) | superseded by 0085 | 2026-05-09 |
 | [0035](./0035-animation-primitive.md) | Animation primitive (declarative skeletal/piece-level mesh animation) | accepted — implementation realigned by ADR 0046 (2026-05-17) | 2026-05-09 |
 | [0036](./0036-lifecycle-aging.md) | Lifecycle / aging primitive (every entity born → grows → ages → dies) | proposed — Aldenmere schema in Phase 1, mechanics Phase 2 | 2026-05-09 |
-| [0037](./0037-dynamic-structure-placement.md) | Dynamic structure placement (player/NPC builds shelter; collision-validated) | proposed — Aldenmere Phase 1 BLOCKING | 2026-05-09 |
+| [0037](./0037-dynamic-structure-placement.md) | Dynamic structure placement (player/NPC builds shelter; collision-validated) | superseded by 0085 | 2026-05-09 |
 | [0038](./0038-grid-based-placement.md) | Grid-based structure placement | accepted | 2026-05-09 |
 | [0039](./0039-step-runner-scenario-tests.md) | StepRunner-based scenario tests | accepted | 2026-05-10 |
 | [0040](./0040-camera-relative-wasd.md) | Camera-relative WASD movement | accepted | 2026-05-10 |

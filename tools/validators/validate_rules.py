@@ -72,7 +72,6 @@ from pathlib import Path
 GLOBAL_ROOTS = {
     "world",        # env.world_state dict
     "zone",         # ADR 0031 zone snapshot
-    "faction",      # ADR 0032 faction snapshot
     "signal",       # legacy/payload alias for signal-rule payload (some rules use it)
     "_phase",       # phase scheduler tag
     "_rule_id",     # rule attribution

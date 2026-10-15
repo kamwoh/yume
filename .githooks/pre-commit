@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Yume pre-commit hook (ADR 0085). It runs the repo-wide validators in
+# strict mode and blocks the commit when one fails. Turn it on once per
+# clone:  git config core.hooksPath .githooks
+set -u
+ROOT="$(git rev-parse --show-toplevel)"
+PY="${ROOT}/venv/bin/python"
+[ -x "$PY" ] || PY="python3"
+failed=0
+for v in validate_engine_wiring validate_tag_writes validate_claude_config \
+         validate_meshes validate_no_stray_scripts validate_tick_override; do
+  if ! out="$("$PY" "${ROOT}/tools/validators/${v}.py" --strict 2>&1)"; then
+    echo "[pre-commit] ${v} failed:"
+    echo "$out" | sed 's/^/  /'
+    failed=1
+  fi
+done
+if [ "$failed" -ne 0 ]; then
+  echo "[pre-commit] Commit blocked. Fix the findings above."
+  exit 1
+fi

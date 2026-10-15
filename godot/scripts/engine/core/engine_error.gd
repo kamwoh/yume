@@ -45,9 +45,6 @@ const EFFECT_UNKNOWN_TYPE := "effect.unknown_type"
 const EFFECT_SPAWN_NO_DEF := "effect.spawn_no_def"
 const EFFECT_TRANSFORM_NO_DEF := "effect.transform_no_def"
 const EFFECT_EMIT_NO_BUFFER := "effect.emit_no_buffer"
-const EFFECT_BUILD_PLACE_NO_DEF := "effect.build_place_no_def"
-const EFFECT_BUILD_PLACE_INVALID := "effect.build_place_invalid"
-const EFFECT_BUILD_PLACE_NO_SOURCE := "effect.build_place_no_source"
 
 const FORMULA_PARSE_FAILED := "formula.parse_failed"
 const FORMULA_EXEC_FAILED := "formula.exec_failed"
@@ -70,21 +67,6 @@ const TIME_REENTRANT_ADVANCE := "time.reentrant_advance"
 
 const ANIMATION_NO_DEFAULT := "animation.no_default"
 
-# ADR 0030 — class primitive
-const CLASS_SWITCH_NO_DEF := "class.switch_no_def"
-const CLASS_SWITCH_COOLDOWN := "class.switch_cooldown"
-const CLASS_MISSING_ID := "class.missing_id"
-const CLASS_INVALID_JSON := "class.invalid_json"
-
-# ADR 0032 — faction primitive
-const FACTION_NO_DEF := "faction.no_def"
-const FACTION_INVALID_STANCE := "faction.invalid_stance"
-
-# ADR 0033 — tech-tree primitive
-const TECH_NO_TREE := "tech.no_tree"
-const TECH_PREREQ_MISSING := "tech.prereq_missing"
-const TECH_PREREQ_CYCLE := "tech.prereq_cycle"
-
 # ADR 0039 — Playwright-style scenario steps
 const STEP_UNKNOWN_VERB := "step.unknown_verb"
 const STEP_UNKNOWN_ACTION := "step.unknown_action"
@@ -93,10 +75,6 @@ const STEP_CLICK_AMBIGUOUS := "step.click_ambiguous"
 const STEP_EXPECT_FAILED := "step.expect_failed"
 const STEP_RELEASE_NOT_HELD := "step.release_not_held"
 const STEP_INVALID_DURATION := "step.invalid_duration"
-
-# ADR 0034 — dynasty / heir succession primitive
-const DYNASTY_NO_HEIR := "dynasty.no_heir"
-const DYNASTY_EXTINCT := "dynasty.extinct"
 
 # ============================================================
 # CONSTRUCTORS

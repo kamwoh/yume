@@ -184,10 +184,10 @@ Hand off to `yume-lifesim-reviewer` for the strict pass, then to
 
 | Design concept | Yume primitive |
 |---|---|
-| Career track + rank | ADR 0030 class primitive (`switch_class`, `class_progress`) |
-| Skills | ADR 0033 tech tree (`learn_from_master`, `known_techs`) |
+| Career track + rank | state fields (`state_set` / `state_add` on a `rank` or `career` field), as `demo_thousandgate` does |
+| Skills | numeric state fields per skill, or an array field with the `array_*` effects |
 | Relationship weight | ADR 0075 relation edge state + `_edge` query filter |
-| Employer / faction standing | ADR 0032 factions (stance + tension, `swear_loyalty`) |
+| Employer / faction standing | ADR 0075 relation edge state toward a faction entity (`relation_add` on a `standing` field) |
 | Calendar + action cost | ADR 0078 `scheduled` trigger + `advance_time` |
 | Offscreen world simulation | ADR 0079 `scope: "abstract"` rules |
 | Menu-driven UI (people, goods, tasks) | ADR 0076 `list` element over a Query |

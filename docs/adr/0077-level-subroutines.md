@@ -1,7 +1,7 @@
 # ADR 0077 — Level subroutines (`level_call` / `level_return`)
 
 _Date: 2026-08-16_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 under ADR 0085: level_call and level_return (commit dc130c4) shipped, and demos use them)._
 
 ## Context
 

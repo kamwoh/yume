@@ -815,7 +815,7 @@ func count_relations_of(type: String) -> int:
 ## register/apply call once World finishes loading. Columns:
 ##   [0] node_name      — name of the sibling Node in the scene tree
 ##   [1] method_name    — method to invoke (verified via has_method)
-##   [2] args_pattern   — "none" / "env" / "root_env"
+##   [2] args_pattern   — "none" / "env"
 ##
 ## Each row is optional at runtime — absence of the Node is
 ## backward-compat for games not using that ADR's capability. To add
@@ -829,14 +829,10 @@ const _BOOT_DIRECTORS: Array = [
 	["ScheduleDirector", "register_schedules_from_env", "env"],
 	# ADR 0036 — lifecycle stage tables per entity def's `lifecycle`.
 	["LifecycleDirector", "register_lifecycles_from_env", "env"],
-	# ADR 0030 — class defs from <root>/classes/*.json.
-	["ClassManager", "register_classes_from_data_root", "root_env"],
-	# ADR 0033 — tech tree defs from <root>/tech_trees.json.
-	["TechTreeDirector", "register_trees_from_data_root", "root_env"],
 ]
 
 
-func _mount_boot_directors(root: String) -> void:
+func _mount_boot_directors(_root: String) -> void:
 	for entry in _BOOT_DIRECTORS:
 		var node_name: String = entry[0]
 		var method_name: String = entry[1]
@@ -849,8 +845,6 @@ func _mount_boot_directors(root: String) -> void:
 				dir.call(method_name)
 			"env":
 				dir.call(method_name, scheduler.env)
-			"root_env":
-				dir.call(method_name, root, scheduler.env)
 
 
 # ============================================================

@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-08-18T12:58:22+00:00",
+  "generated_at": "2026-10-15T17:23:18+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -227,70 +227,6 @@
     {
       "type": "reset_world",
       "source": "effect_apply.gd"
-    },
-    {
-      "type": "party_join",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "party_leave",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "party_ko",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "build_place",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "switch_class",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "declare_war",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "sign_treaty",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "propose_alliance",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "swear_loyalty",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "try_discover_tech",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "learn_from_master",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "pass_to_apprentice",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "transfer_inventory",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "transfer_reputation",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "transfer_techs",
-      "source": "effect_apply.gd"
-    },
-    {
-      "type": "transition_player_to",
-      "source": "effect_apply.gd"
     }
   ],
   "query_clauses": [
@@ -410,18 +346,6 @@
       "code": "effect.emit_no_buffer"
     },
     {
-      "constant": "EFFECT_BUILD_PLACE_NO_DEF",
-      "code": "effect.build_place_no_def"
-    },
-    {
-      "constant": "EFFECT_BUILD_PLACE_INVALID",
-      "code": "effect.build_place_invalid"
-    },
-    {
-      "constant": "EFFECT_BUILD_PLACE_NO_SOURCE",
-      "code": "effect.build_place_no_source"
-    },
-    {
       "constant": "FORMULA_PARSE_FAILED",
       "code": "formula.parse_failed"
     },
@@ -478,42 +402,6 @@
       "code": "animation.no_default"
     },
     {
-      "constant": "CLASS_SWITCH_NO_DEF",
-      "code": "class.switch_no_def"
-    },
-    {
-      "constant": "CLASS_SWITCH_COOLDOWN",
-      "code": "class.switch_cooldown"
-    },
-    {
-      "constant": "CLASS_MISSING_ID",
-      "code": "class.missing_id"
-    },
-    {
-      "constant": "CLASS_INVALID_JSON",
-      "code": "class.invalid_json"
-    },
-    {
-      "constant": "FACTION_NO_DEF",
-      "code": "faction.no_def"
-    },
-    {
-      "constant": "FACTION_INVALID_STANCE",
-      "code": "faction.invalid_stance"
-    },
-    {
-      "constant": "TECH_NO_TREE",
-      "code": "tech.no_tree"
-    },
-    {
-      "constant": "TECH_PREREQ_MISSING",
-      "code": "tech.prereq_missing"
-    },
-    {
-      "constant": "TECH_PREREQ_CYCLE",
-      "code": "tech.prereq_cycle"
-    },
-    {
       "constant": "STEP_UNKNOWN_VERB",
       "code": "step.unknown_verb"
     },
@@ -540,14 +428,6 @@
     {
       "constant": "STEP_INVALID_DURATION",
       "code": "step.invalid_duration"
-    },
-    {
-      "constant": "DYNASTY_NO_HEIR",
-      "code": "dynasty.no_heir"
-    },
-    {
-      "constant": "DYNASTY_EXTINCT",
-      "code": "dynasty.extinct"
     }
   ],
   "reserved_state_fields": [

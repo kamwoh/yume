@@ -362,7 +362,6 @@ io (input/output bridges) → qa.**
 | `effects/effect_motion.gd` | Motion + spatial verbs: `velocity_set`, `velocity_add_relative`, queries. |
 | `effects/effect_actor.gd` | Actor-control + party verbs (switch actor, etc.). |
 | `effects/effect_shell.gd` | Engine↔shell boundary verbs: `transition_level/screen`, `save/load_state`, toasts. |
-| `effects/effect_adr_extensions.gd` | Later-ADR primitives (build/place, tech, zones, …). |
 | `effects/effect_resolution.gd` | Shared target/value resolution for effect handlers. |
 | `formula.gd` | Evaluates `"a.state.x + 10"`-style formula strings (whitelisted math). |
 | `world.gd` | **Top-level orchestrator.** Owns canonical state; runs `_process` (live) + `advance_one_tick`. |

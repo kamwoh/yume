@@ -21,7 +21,7 @@ class_name LifecycleDirector
 ##
 ## Wiring: LifecycleDirector expects to be a child of a Node whose script
 ## is `World`. Sibling of GameShell + ScreenFlow + LightingDirector +
-## ScheduleDirector + PartyDirector. World.start() calls
+## ScheduleDirector. World.start() calls
 ## `register_lifecycles_from_env(env)` AFTER entity load (same hook
 ## ScheduleDirector uses); `tick(env)` is called by the World per-frame
 ## process loop OR explicitly by tests. No-op when no entity def carries

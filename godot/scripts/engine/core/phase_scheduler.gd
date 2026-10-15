@@ -415,7 +415,7 @@ func _phase_decide() -> void:
 	# active slot BEFORE tick-rules fire — so consumer rules in this
 	# same decide phase read the just-resolved current_verb /
 	# current_target. Director writes state directly (same pattern as
-	# LightingDirector / PartyDirector); transition signals queue into
+	# LightingDirector); transition signals queue into
 	# env.signal_buffer for next-phase drain.
 	var parent_node = env.get("parent", null)
 	if parent_node != null:

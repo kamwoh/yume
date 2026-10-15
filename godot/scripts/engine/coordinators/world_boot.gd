@@ -7,12 +7,11 @@ class_name WorldBoot
 ##
 ## Phases are deliberately NOT data-driven — order is load-bearing and
 ## many phases depend on state established by earlier ones (e.g. zones
-## load AFTER entities so error reports can reach env.error_buffer;
-## factions load AFTER entities so member_count bindings resolve).
+## load AFTER entities so error reports can reach env.error_buffer).
 ##
 ## Most phases no-op when the relevant ADR-introduced file is absent
 ## (game/flow.json, macros.json, actors.json, zones.json, chunks/,
-## factions.json, etc.) — backward-compat for games that don't use
+## etc.) — backward-compat for games that don't use
 ## that capability.
 
 var _world: Node = null  # World back-ref
@@ -35,13 +34,8 @@ const _DEFAULT_DIRECTORS: Array = [
 	["OverlayManager", "res://scripts/engine/ui/overlay.gd"],
 	["SettingsManager", "res://scripts/engine/ui/settings_manager.gd"],
 	["LightingDirector", "res://scripts/engine/directors/lighting_director.gd"],
-	["PartyDirector", "res://scripts/engine/directors/party_director.gd"],
 	["ScheduleDirector", "res://scripts/engine/directors/schedule_director.gd"],
 	["LifecycleDirector", "res://scripts/engine/directors/lifecycle_director.gd"],
-	["ClassManager", "res://scripts/engine/directors/class_manager.gd"],
-	["FactionDirector", "res://scripts/engine/directors/faction_director.gd"],
-	["TechTreeDirector", "res://scripts/engine/directors/tech_tree.gd"],
-	["DynastyDirector", "res://scripts/engine/directors/dynasty_director.gd"],
 	["NameplateRenderer", "res://scripts/engine/ui/nameplate_renderer.gd"],
 	["ScreenSmokeRunner", "res://scripts/engine/qa/screen_smoke_runner.gd"],
 ]
@@ -72,7 +66,6 @@ func run() -> void:
 	_apply_variant_overlay()
 	_load_save_policy()
 	_mount_directors()
-	_load_factions()
 	_build_ground_mesh()
 	_world.scheduler.flush_effects()
 	_world._run_multimesh_director()
@@ -320,23 +313,10 @@ func _load_save_policy() -> void:
 	_world.world_state["has_save"] = 1 if SaveState.has_any_save(game, slots) else 0
 
 
-## Mount sibling Director nodes placed by the per-game .tscn. Five-row
-## table in world.gd::_BOOT_DIRECTORS — one row per ADR director. Each
-## is optional; absence = backward-compat for games not using that ADR.
-## DynastyDirector is the odd one out (no method call, just verbose log).
+## Run the boot hook of each Director in world.gd::_BOOT_DIRECTORS (one
+## row per ADR director). A missing Director is skipped.
 func _mount_directors() -> void:
 	_world._mount_boot_directors(_root)
-	if _world.get_node_or_null("DynastyDirector") != null and _world.verbose:
-		# ADR 0034: heir state lives on actor entities; the four
-		# succession effects detect the director at fire-time.
-		print("[World] DynastyDirector mounted (ADR 0034)")
-
-
-## ADR 0032 — factions.json (optional). Loads AFTER entities so
-## member_count bindings resolve against the live entity set on first
-## tick. No-op for games without politics.
-func _load_factions() -> void:
-	_world._loader.load_factions_file(_root + "/factions.json")
 
 
 ## Build the visual floor plane from scene.json's `ground.mesh` block

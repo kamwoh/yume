@@ -3,19 +3,15 @@
 Static validator for per-game scene director nodes.
 
 Yume's engine ships several "director" Node scripts (ScheduleDirector,
-PartyDirector, FactionDirector, etc.) that the engine calls each tick
-or at world load. Each director drains its subsystem's state from JSON
-content (schedule blocks, party_member tags, faction defs, etc.).
+LightingDirector, etc.) that the engine calls each tick or at world
+load. Each director drains its subsystem's state from JSON content
+(schedule blocks, the scene lighting block, etc.).
 
 If a game's content REFERENCES a subsystem but the director Node isn't
 mounted in the game's per-game `.tscn`, the engine silently no-ops:
 
 - Entity defs with `schedule:` blocks but no ScheduleDirector → NPCs sit
   motionless; engine never sets current_verb.
-- Entities tagged `party_member` but no PartyDirector → followers don't
-  leash behind the leader.
-- factions.json present but no FactionDirector → faction bindings
-  resolve to empty.
 
 These bugs surface as "everything looks correct in the JSON but
 nothing happens at runtime." This validator catches them at sync time.
@@ -45,10 +41,10 @@ import re
 # for whether the game uses that subsystem. Each detection rule:
 #   - "entity_state_key": entity def has this key in its dict (e.g.,
 #     defs with a "schedule" block use ScheduleDirector)
-#   - "entity_tag": entity def has this tag in its tags array (e.g.,
-#     a "party_member" tag implies PartyDirector)
+#   - "entity_tag": entity def has this tag in its tags array
 #   - "file_present": a file at the given relative path triggers the
-#     director (e.g., factions.json implies FactionDirector)
+#     director
+#   - "scene_key": scene.json has this key
 DIRECTOR_RULES = {
     "ScheduleDirector": {
         "entity_state_key": "schedule",
@@ -56,23 +52,6 @@ DIRECTOR_RULES = {
                   "without ScheduleDirector mounted, the engine never resolves "
                   "slots → current_verb / current_target stay empty → NPCs sit "
                   "motionless.",
-    },
-    "PartyDirector": {
-        "entity_tag": "party_member",
-        "reason": "entity def(s) tagged `party_member` (ADR 0026) — "
-                  "without PartyDirector mounted, followers won't leash behind "
-                  "the leader.",
-    },
-    "FactionDirector": {
-        "file_present": "factions.json",
-        "reason": "factions.json exists (ADR 0032) — without FactionDirector "
-                  "mounted, faction bindings resolve to empty.",
-    },
-    "DynastyDirector": {
-        "entity_state_key": "lineage_id",
-        "reason": "entity def(s) declare a `lineage_id` (ADR 0034) — "
-                  "without DynastyDirector mounted, dynasty heirs / lineage "
-                  "transitions never fire.",
     },
     "LightingDirector": {
         "scene_key": "lighting",
@@ -173,27 +152,20 @@ def detect_uses(game_dir, rule):
 
 
 # Directors WorldBoot auto-mounts via its _DEFAULT_DIRECTORS list. These
-# don't need to appear in a per-game .tscn — WorldBoot adds them at world
-# load. Keep in sync with godot/scripts/engine/coordinators/world_boot.gd
-# § _DEFAULT_DIRECTORS. Empirical case 2026-05-17: validator warned that
-# aldenmere_3d.tscn was missing LightingDirector, but WorldBoot mounts it
-# automatically since the Phase 3 auto-mount commit (2026-05-13).
-AUTO_MOUNTED_DIRECTORS = {
-    "GameShell",
-    "ScreenFlow",
-    "OverlayManager",
-    "SettingsManager",
-    "LightingDirector",
-    "PartyDirector",
-    "ScheduleDirector",
-    "LifecycleDirector",
-    "ClassManager",
-    "FactionDirector",
-    "TechTreeDirector",
-    "DynastyDirector",
-    "NameplateRenderer",
-    "ScreenSmokeRunner",
-}
+# don't need to appear in a per-game .tscn. The set is read from
+# world_boot.gd, so it cannot drift from the engine. Empirical case
+# 2026-05-17: a hand-kept copy warned that aldenmere_3d.tscn was missing
+# LightingDirector, which WorldBoot mounts. ADR 0085 (2026-10-16) deleted 5
+# directors, and the hand copy needed the same edit again.
+def _auto_mounted_directors() -> set:
+    boot = (Path(__file__).resolve().parents[2] / "godot" / "scripts" / "engine"
+            / "coordinators" / "world_boot.gd").read_text(encoding="utf-8")
+    block = boot[boot.index("const _DEFAULT_DIRECTORS"):]
+    block = block[:block.index("]\n\n")]
+    return set(re.findall(r'\["(\w+)", "res://', block))
+
+
+AUTO_MOUNTED_DIRECTORS = _auto_mounted_directors()
 
 
 def validate_game(game_dir, repo_root, strict=False):

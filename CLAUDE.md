@@ -169,10 +169,9 @@ share the physics clock so they can never skew under load. Don't mix.
 | Asset-gen pipeline | `tools/yume_assetgen/` (textures + meshes via Backend) |
 
 Per-game `.tscn` files are intentionally minimal (~12 lines). WorldBoot
-auto-mounts 14 sibling Director Nodes (GameShell, ScreenFlow,
-OverlayManager, SettingsManager, LightingDirector, PartyDirector,
-ScheduleDirector, LifecycleDirector, ClassManager, FactionDirector,
-TechTreeDirector, DynastyDirector, NameplateRenderer, ScreenSmokeRunner).
+auto-mounts 9 sibling Director Nodes (GameShell, ScreenFlow,
+OverlayManager, SettingsManager, LightingDirector, ScheduleDirector,
+LifecycleDirector, NameplateRenderer, ScreenSmokeRunner).
 Sky/Sun/WorldEnvironment come from `scene.json`'s lighting block via
 LightingDirector; floor plane comes from `scene.json`'s ground.mesh
 block via GroundRenderer. A .tscn just pins `data_root` + picks

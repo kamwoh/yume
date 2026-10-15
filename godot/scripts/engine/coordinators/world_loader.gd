@@ -4,13 +4,13 @@ class_name WorldLoader
 ## Boot-time JSON parsers — extracted from world.gd on 2026-05-12.
 ##
 ## Consolidates 9 file-reading utilities that load per-game JSON at
-## boot (entities, rules, world state, zones, factions, progression,
+## boot (entities, rules, world state, zones, progression,
 ## scene config). Each method is a thin parser + dispatcher:
 ##   - Opens the file (no-op if missing)
 ##   - Parses JSON (warns on malformed)
 ##   - Resolves @lib / $include refs via LibResolver (where applicable)
 ##   - Hands the dict to the appropriate target (scheduler / defs /
-##     world_state / zone_store / faction_director / spawn_manager)
+##     world_state / zone_store / spawn_manager)
 ##
 ## Pattern: RefCounted, per-World instance, world reference for state
 ## access. The CACHE flags for ground/grid scene.json reads live HERE
@@ -305,39 +305,6 @@ func load_zones_file(path: String) -> void:
 				% [_world.zone_store.count(), errors.size()]
 			)
 		)
-
-
-## ADR 0032 — load factions.json into FactionDirector.
-## Optional file; absent = no-op (FactionDirector keeps an empty registry).
-func load_factions_file(path: String) -> void:
-	var fd := _world.get_node_or_null("FactionDirector")
-	if fd == null or not fd.has_method("register_factions"):
-		return
-	if not FileAccess.file_exists(path):
-		return
-	var f := FileAccess.open(path, FileAccess.READ)
-	if f == null:
-		return
-	var raw := f.get_as_text()
-	f.close()
-	var data = JSON.parse_string(raw)
-	if not (data is Dictionary):
-		EngineError.raise(
-			_world._build_env(),
-			"faction.invalid_json",
-			"factions.json is not a JSON object",
-			{"file": path},
-			'The top-level value must be a dict like {"factions": [...], "relationships": [...]}.',
-			"warning"
-		)
-		return
-	var errors = fd.call("register_factions", data, _world._build_env())
-	if _world.verbose:
-		var errs_size: int = (errors as Array).size() if errors is Array else 0
-		var known_count: int = 0
-		if fd.has_method("known_faction_ids"):
-			known_count = (fd.call("known_faction_ids") as Array).size()
-		print("[World] faction_director loaded: %d factions, %d errors" % [known_count, errs_size])
 
 
 # ============================================================

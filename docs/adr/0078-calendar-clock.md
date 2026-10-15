@@ -1,7 +1,7 @@
 # ADR 0078 — The calendar clock (`scheduled` trigger + `advance_time`)
 
 _Date: 2026-08-16_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 under ADR 0085: the scheduled trigger and advance_time (commit 149deda) shipped, and demos use them)._
 
 ## Context
 

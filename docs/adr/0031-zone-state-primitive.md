@@ -1,7 +1,7 @@
 # ADR 0031 — Aggregated zone-state primitive
 
 _Date: 2026-05-09_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 under ADR 0085: zone_store.gd and the zone_state_* effects shipped, and demos use them)._
 
 ## Context
 

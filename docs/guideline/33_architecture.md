@@ -230,7 +230,7 @@ relevant ADR's JSON file is absent, so mounting everything is safe.
 ```mermaid
 flowchart TB
     START["scene .tscn loads<br/>World node enters tree"] --> RESOLVE["resolve data_root<br/>from cmdline / export var"]
-    RESOLVE --> MOUNT["_mount_default_directors()<br/>auto-create 14 sibling Nodes"]
+    RESOLVE --> MOUNT["_mount_default_directors()<br/>auto-create 9 sibling Nodes"]
     MOUNT --> LOAD["world_loader.load()<br/>glob entities/*.json + rules/*.json<br/>merge defs by id (last wins)"]
     LOAD --> SEED["_apply_world_seed_from_scene<br/>(deterministic RNG seed)"]
     SEED --> SPAWN["spawn_manager<br/>instantiate initial_instances<br/>+ apply pattern scatter"]
@@ -238,7 +238,7 @@ flowchart TB
     REG --> FLUSH["flush_effects()<br/>initial spawns/relations commit"]
     FLUSH --> READY["World.start()<br/>tick loop begins"]
 
-    MOUNT -.creates.-> DIRS["GameShell · ScreenFlow · OverlayManager<br/>SettingsManager · LightingDirector<br/>PartyDirector · ScheduleDirector<br/>LifecycleDirector · ClassManager<br/>FactionDirector · TechTreeDirector<br/>DynastyDirector · NameplateRenderer<br/>ScreenSmokeRunner"]
+    MOUNT -.creates.-> DIRS["GameShell · ScreenFlow · OverlayManager<br/>SettingsManager · LightingDirector<br/>ScheduleDirector · LifecycleDirector<br/>NameplateRenderer · ScreenSmokeRunner"]
 
     classDef e fill:#fff4e6,stroke:#f59e0b,color:#000
     classDef d fill:#ffe8e8,stroke:#ef4444,color:#000
@@ -356,17 +356,16 @@ flowchart LR
 
     DISPATCH --> CORE["effect_core<br/>state_set · state_add · state_mul<br/>state_clamp · spawn · remove · relate"]
     DISPATCH --> MOTION["effect_motion<br/>velocity_set · velocity_add<br/>velocity_add_relative · teleport"]
-    DISPATCH --> ACTOR["effect_actor<br/>switch_actor · switch_class<br/>set_policy"]
+    DISPATCH --> ACTOR["effect_actor<br/>switch_actor · queue_input_for_actor<br/>reset_world"]
     DISPATCH --> SHELL["effect_shell<br/>transition_screen · transition_level<br/>save_state · screen_fade · show_toast"]
-    DISPATCH --> ADR["effect_adr_extensions<br/>zone ops · faction · dynasty · tech"]
 
     CORE & MOTION & ACTOR --> BUF["write buffer<br/>(applied on flush)"]
     SHELL --> DIRS["→ Directors / UI<br/>(GameShell, ScreenFlow)"]
-    ADR --> STORES2["→ stores (Zone/Relation)"]
+    CORE --> STORES2["→ stores (Zone/Relation)"]
     BUF --> ENT["entities dict<br/>state mutated"]
 
     classDef e fill:#fff4e6,stroke:#f59e0b,color:#000
-    class RULE,RESOLVE,DISPATCH,CORE,MOTION,ACTOR,SHELL,ADR,BUF,ENT,DIRS,STORES2 e
+    class RULE,RESOLVE,DISPATCH,CORE,MOTION,ACTOR,SHELL,BUF,ENT,DIRS,STORES2 e
 ```
 
 ---

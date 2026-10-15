@@ -1,7 +1,7 @@
 # ADR 0076 — Query-bound repeated UI (`list` element)
 
 _Date: 2026-08-16_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 under ADR 0085: refresh_screen and the array_* effects (commit 8e9583f) shipped, and demos use them)._
 
 ## Context
 

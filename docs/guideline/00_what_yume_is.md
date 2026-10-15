@@ -252,16 +252,18 @@ code follows.
 When an ADR proposes a new effect type, trigger, or query operator
 — or a new "director" Node that exposes a Godot subsystem (party,
 faction, dynasty, schedule, etc.) — it MUST satisfy the following
-gate before merge. This applies to every ADR-numbered extension
-under `effect_adr_extensions.gd`, every new director under
-`directors/`, and every new entry to the engine's effect dispatch
-table in `effect_apply.gd`.
+gate before merge. This applies to every new director under
+`directors/` and every new entry to the engine's effect dispatch
+table in `effect_apply.gd`. Since ADR 0085 (2026-10-16), each such
+entry also needs a line in `tools/validators/engine_vocabulary.json`
+that names its accepted ADR.
 
 ### Gate 1 — Composition citation
 
 Every new effect type MUST name the primitives it composes. The
 ADR's "Decision" section names them; the GDScript implementation
-implements via them. Example, ADR 0026's `party_join`:
+implements via them. Example, the former `party_join` of ADR 0026
+(ADR 0085 deleted it, because no game used it):
 
 ```gdscript
 func party_join(...):

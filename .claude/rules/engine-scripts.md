@@ -65,7 +65,17 @@ grep -rE 'type[":]?\s*[":]?(damage|need_decay|need_restore|gain_xp|heal|attack|a
   godot/scripts/engine/
 ```
 
-Zero matches required.
+Zero matches required. This grep is a blocklist, so it only catches the
+names it lists. The main gate is the allowlist below.
+
+**Vocabulary allowlist (ADR 0085, 2026-10-16).** Each effect type, each
+auto-mounted director and each formula root has a line in
+`tools/validators/engine_vocabulary.json`. The line names the accepted
+ADR that added the item, and that ADR names it. `validate_engine_wiring.py`
+check C fails on any difference, and `.githooks/pre-commit` runs it
+(`git config core.hooksPath .githooks`). Empirical case: 16 genre effects
+(`declare_war`, `learn_from_master`, ...) shipped under ADRs that stayed
+"proposed". The blocklist missed them, and no game used them.
 
 ## Yaw-from-velocity chirality (one formula, everywhere)
 

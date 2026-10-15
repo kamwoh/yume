@@ -3,6 +3,8 @@
 _Date: 2026-05-10_
 _Status: accept-with-conditions (2026-05-10) — three conditions resolved in revision below; ready for engine session_
 
+_Note 2026-10-16: ADR 0085 deleted `build_place` (ADR 0037). The grid snap at spawn (`GridSnap`) stays. The text below about runtime `build_place` and the build preview no longer applies._
+
 ## Context
 
 Empirical case (2026-05-10, Aldenmere Phase 1 playtest): the user

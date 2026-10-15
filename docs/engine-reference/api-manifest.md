@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-08-18T12:58:22+00:00_
+_Generated: 2026-10-15T17:23:18+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -22,7 +22,7 @@ Valid `rule.trigger.type` strings:
 
 ## Effect types
 
-66 effect types (used as `rule.effect[].type`):
+50 effect types (used as `rule.effect[].type`):
 
 - `state_set` — `effect_apply.gd`
 - `state_add` — `effect_apply.gd`
@@ -74,22 +74,6 @@ Valid `rule.trigger.type` strings:
 - `switch_actor` — `effect_apply.gd`
 - `queue_input_for_actor` — `effect_apply.gd`
 - `reset_world` — `effect_apply.gd`
-- `party_join` — `effect_apply.gd`
-- `party_leave` — `effect_apply.gd`
-- `party_ko` — `effect_apply.gd`
-- `build_place` — `effect_apply.gd`
-- `switch_class` — `effect_apply.gd`
-- `declare_war` — `effect_apply.gd`
-- `sign_treaty` — `effect_apply.gd`
-- `propose_alliance` — `effect_apply.gd`
-- `swear_loyalty` — `effect_apply.gd`
-- `try_discover_tech` — `effect_apply.gd`
-- `learn_from_master` — `effect_apply.gd`
-- `pass_to_apprentice` — `effect_apply.gd`
-- `transfer_inventory` — `effect_apply.gd`
-- `transfer_reputation` — `effect_apply.gd`
-- `transfer_techs` — `effect_apply.gd`
-- `transition_player_to` — `effect_apply.gd`
 
 ## Query clauses
 
@@ -123,7 +107,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 
 ## Error codes (Tier 2.6a)
 
-52 stable codes for matching in retry loops:
+38 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -144,9 +128,6 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `effect.spawn_no_def` | `EngineError.EFFECT_SPAWN_NO_DEF` |
 | `effect.transform_no_def` | `EngineError.EFFECT_TRANSFORM_NO_DEF` |
 | `effect.emit_no_buffer` | `EngineError.EFFECT_EMIT_NO_BUFFER` |
-| `effect.build_place_no_def` | `EngineError.EFFECT_BUILD_PLACE_NO_DEF` |
-| `effect.build_place_invalid` | `EngineError.EFFECT_BUILD_PLACE_INVALID` |
-| `effect.build_place_no_source` | `EngineError.EFFECT_BUILD_PLACE_NO_SOURCE` |
 | `formula.parse_failed` | `EngineError.FORMULA_PARSE_FAILED` |
 | `formula.exec_failed` | `EngineError.FORMULA_EXEC_FAILED` |
 | `world.entities_missing` | `EngineError.WORLD_ENTITIES_MISSING` |
@@ -161,15 +142,6 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `level.return_orphaned` | `EngineError.LEVEL_RETURN_ORPHANED` |
 | `time.reentrant_advance` | `EngineError.TIME_REENTRANT_ADVANCE` |
 | `animation.no_default` | `EngineError.ANIMATION_NO_DEFAULT` |
-| `class.switch_no_def` | `EngineError.CLASS_SWITCH_NO_DEF` |
-| `class.switch_cooldown` | `EngineError.CLASS_SWITCH_COOLDOWN` |
-| `class.missing_id` | `EngineError.CLASS_MISSING_ID` |
-| `class.invalid_json` | `EngineError.CLASS_INVALID_JSON` |
-| `faction.no_def` | `EngineError.FACTION_NO_DEF` |
-| `faction.invalid_stance` | `EngineError.FACTION_INVALID_STANCE` |
-| `tech.no_tree` | `EngineError.TECH_NO_TREE` |
-| `tech.prereq_missing` | `EngineError.TECH_PREREQ_MISSING` |
-| `tech.prereq_cycle` | `EngineError.TECH_PREREQ_CYCLE` |
 | `step.unknown_verb` | `EngineError.STEP_UNKNOWN_VERB` |
 | `step.unknown_action` | `EngineError.STEP_UNKNOWN_ACTION` |
 | `step.click_not_found` | `EngineError.STEP_CLICK_NOT_FOUND` |
@@ -177,8 +149,6 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `step.expect_failed` | `EngineError.STEP_EXPECT_FAILED` |
 | `step.release_not_held` | `EngineError.STEP_RELEASE_NOT_HELD` |
 | `step.invalid_duration` | `EngineError.STEP_INVALID_DURATION` |
-| `dynasty.no_heir` | `EngineError.DYNASTY_NO_HEIR` |
-| `dynasty.extinct` | `EngineError.DYNASTY_EXTINCT` |
 
 ## Reserved state fields
 

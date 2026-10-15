@@ -1,7 +1,7 @@
 # ADR 0034 — Dynasty / heir succession primitive
 
 _Date: 2026-05-09_
-_Status: proposed_
+_Status: superseded by ADR 0085 (2026-10-16). No demo used it, so its code and tests are deleted. The text stays as a record._
 
 ## Context
 

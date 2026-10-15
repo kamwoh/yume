@@ -144,67 +144,13 @@ static func apply(effect: Dictionary, env: Dictionary, context: Dictionary) -> D
 			EffectActor.queue_input_for_actor(effect, env, context)
 		"reset_world":
 			EffectActor.reset_world(effect, env, context)
-		"party_join":
-			EffectActor.party_join(effect, env, context)
-		"party_leave":
-			EffectActor.party_leave(effect, env, context)
-		"party_ko":
-			EffectActor.party_ko(effect, env, context)
-		"build_place":
-			return EffectAdrExtensions.build_place(effect, env, context)
-		"switch_class":
-			return EffectAdrExtensions.switch_class(effect, env, context)
-		# ADR 0032 — faction primitive
-		"declare_war":
-			return EffectAdrExtensions.declare_war(effect, env, context)
-		"sign_treaty":
-			return EffectAdrExtensions.sign_treaty(effect, env, context)
-		"propose_alliance":
-			return EffectAdrExtensions.propose_alliance(effect, env, context)
-		"swear_loyalty":
-			return EffectAdrExtensions.swear_loyalty(effect, env, context)
-		# ADR 0033 — tech-tree primitive
-		"try_discover_tech":
-			return EffectAdrExtensions.try_discover_tech(effect, env, context)
-		"learn_from_master":
-			return EffectAdrExtensions.learn_from_master(effect, env, context)
-		"pass_to_apprentice":
-			return EffectAdrExtensions.pass_to_apprentice(effect, env, context)
-		# ADR 0034 — dynasty / heir succession primitive
-		"transfer_inventory":
-			return EffectAdrExtensions.transfer_inventory(effect, env, context)
-		"transfer_reputation":
-			return EffectAdrExtensions.transfer_reputation(effect, env, context)
-		"transfer_techs":
-			return EffectAdrExtensions.transfer_techs(effect, env, context)
-		"transition_player_to":
-			return EffectAdrExtensions.transition_player_to(effect, env, context)
 		_:
 			EngineError.raise(
 				env,
 				EngineError.EFFECT_UNKNOWN_TYPE,
 				"Unknown effect type: '%s'" % type,
 				{"rule_id": context.get("_rule_id", ""), "field": "effect.type", "got": type},
-				(
-					"Use one of: state_set, state_add, state_mul, state_clamp,"
-					+ " zone_state_set, zone_state_add, zone_state_clamp, spawn, remove,"
-					+ " transform, relate, unrelate, transfer_relation,"
-					+ " relation_set, relation_add, relation_clamp, tag_add, tag_remove,"
-					+ " velocity_set, velocity_lerp, velocity_set_relative,"
-					+ " velocity_add_relative, pathfind_to, raycast_hit, transition_level,"
-					+ " level_call, level_return, advance_time, refresh_screen,"
-					+ " emit, array_set_at, array_insert_first_empty,"
-					+ " array_sync_to_field, array_count_matching,"
-					+ " emit_shell_event, transition_screen, quit_app, show_toast,"
-					+ " reload_scene, scene_change, screen_fade, save_state, load_state,"
-					+ " show_overlay, dismiss_overlay, set_audio_bus_volume,"
-					+ " set_input_mapping, switch_actor, queue_input_for_actor, reset_world,"
-					+ " party_join, party_leave, party_ko, build_place, switch_class,"
-					+ " declare_war, sign_treaty, propose_alliance, swear_loyalty,"
-					+ " try_discover_tech, learn_from_master, pass_to_apprentice,"
-					+ " transfer_inventory, transfer_reputation, transfer_techs,"
-					+ " transition_player_to."
-				),
+				"Use an effect type from docs/engine-reference/api-manifest.json (generated from this dispatcher).",
 				"warning"
 			)
 	return {}

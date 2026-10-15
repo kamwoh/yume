@@ -6,8 +6,7 @@
 ;   godot --path . scenes/play.tscn -- --game=demo_sokoban
 ;
 ; All directors (GameShell, ScreenFlow, OverlayManager, SettingsManager,
-; LightingDirector, PartyDirector, ScheduleDirector, LifecycleDirector,
-; ClassManager, FactionDirector, TechTreeDirector, DynastyDirector,
+; LightingDirector, ScheduleDirector, LifecycleDirector,
 ; NameplateRenderer, ScreenSmokeRunner) auto-mount via WorldBoot.
 ; Per-game data lives entirely under res://data/<game>/.
 

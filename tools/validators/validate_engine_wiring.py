@@ -30,6 +30,17 @@ Checks:
      OR the trigger is dispatched by name through the lifecycle path.
   B. Every field assigned in Rule.from_dict is read somewhere in
      scripts/engine outside rule.gd itself.
+  C. ADR 0085 vocabulary allowlist (2026-10-16). Each effect type in
+     effect_apply.gd, each director that world_boot.gd mounts and each
+     formula root in formula_context is in engine_vocabulary.json, and
+     the reverse. Each entry names an ADR whose status is accepted and
+     whose text names the item, or it is "legacy". The legacy set can
+     only shrink.
+
+     Empirical case: 16 genre effects (declare_war, learn_from_master,
+     ...) and 5 directors shipped under ADRs that stayed "proposed", and
+     no demo ever used them. The no-genre-leak grep missed them, because
+     it is a blocklist of other names. ADR 0085 deleted them.
 
 Usage:
     python3 tools/validators/validate_engine_wiring.py
@@ -39,9 +50,13 @@ Takes no game argument — it validates the engine. run_all.py passes a game
 name to every validator, so extra positional args are ignored.
 """
 
+import json
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from gen_api_manifest import parse_effects  # noqa: E402
 
 # Triggers dispatched by NAME through _dispatch_lifecycle_inline rather than
 # by a literal rules_by_trigger.get("<name>") call.
@@ -56,6 +71,72 @@ REFLECTION_READ: dict[str, str] = {
     "before_hints": "read by runs_after during topo sort",
     "after_hints": "read by runs_after during topo sort",
 }
+
+
+# Items from before ADR 0085 that no accepted ADR names. Frozen: an item
+# can leave this set (give it an ADR, or delete it), but a new one cannot
+# join, so every new vocabulary item needs an accepted ADR.
+LEGACY_BASELINE = frozenset({
+    "LightingDirector", "NameplateRenderer", "ScreenSmokeRunner", "SettingsManager",
+    "array_count_matching", "array_insert_first_empty", "array_set_at",
+    "from_sq", "refresh_screen", "scene_change", "screen_fade", "state_mul",
+    "to_sq", "velocity_lerp",
+})
+
+
+def engine_vocabulary(engine: Path) -> dict[str, list[str]]:
+    """The effect types, auto-mounted directors and formula roots that the
+    engine has today, read from its sources."""
+    effects = [e["type"] for e in parse_effects((engine / "core" / "effect_apply.gd").read_text())]
+    boot = (engine / "coordinators" / "world_boot.gd").read_text()
+    block = boot[boot.index("const _DEFAULT_DIRECTORS"):]
+    directors = re.findall(r'\["(\w+)", "res://', block[:block.index("]\n\n")])
+    res = (engine / "core" / "effects" / "effect_resolution.gd").read_text()
+    fc = res[res.index("static func formula_context"):]
+    fc = fc[:fc.index("\nstatic func", 10)]
+    roles = re.search(r"entity_roles: Array\[String\] = \[(.*?)\]", fc, re.S).group(1)
+    roots = set(re.findall(r'out\["(\w+)"\]', fc)) | set(re.findall(r'"(\w+)"', roles))
+    return {"effects": effects, "directors": directors, "formula_roots": sorted(roots)}
+
+
+def _accepted(status: str) -> bool:
+    st = status.replace("*", "").strip().lower()
+    return st.startswith(("accepted", "accept-with", "accept with"))
+
+
+def check_vocabulary(repo: Path, engine: Path) -> list[str]:
+    errors: list[str] = []
+    allow = json.loads((repo / "tools" / "validators" / "engine_vocabulary.json").read_text())
+    have = engine_vocabulary(engine)
+    for kind, items in have.items():
+        listed = allow.get(kind, {})
+        for item in items:
+            if item not in listed:
+                errors.append(
+                    f"{kind}: `{item}` is in the engine but not in engine_vocabulary.json. "
+                    f"Add it with the accepted ADR that names it (ADR 0085)."
+                )
+        for item, adr in listed.items():
+            if item not in items:
+                errors.append(f"{kind}: engine_vocabulary.json lists `{item}`, which the engine no longer has.")
+                continue
+            if adr == "legacy":
+                if item not in LEGACY_BASELINE:
+                    errors.append(
+                        f"{kind}: `{item}` is a new legacy entry. New vocabulary needs an accepted ADR."
+                    )
+                continue
+            files = sorted((repo / "docs" / "adr").glob(f"{adr}-*.md"))
+            if not files:
+                errors.append(f"{kind}: `{item}` names ADR {adr}, which has no file in docs/adr/.")
+                continue
+            text = files[0].read_text()
+            m = re.search(r"^_?\**Status:?\**:?\s*(.*)$", text, re.M)
+            if not m or not _accepted(m.group(1)):
+                errors.append(f"{kind}: `{item}` names ADR {adr}, whose status is not accepted.")
+            if not re.search(r"[`\"']" + re.escape(item) + r"[`\"'(]", text):
+                errors.append(f"{kind}: `{item}` names ADR {adr}, but that ADR does not name it.")
+    return errors
 
 
 def main() -> int:
@@ -115,10 +196,13 @@ def main() -> int:
             f"silence. Either consume it or delete it."
         )
 
+    # ---------- C. ADR 0085 vocabulary allowlist ----------
+    errors += check_vocabulary(repo, engine)
+
     if not errors:
         print(
             f"[validate_engine_wiring] ok — {len(triggers)} trigger(s) dispatched, "
-            f"{len(fields)} rule field(s) consumed"
+            f"{len(fields)} rule field(s) consumed, vocabulary matches the allowlist"
         )
         return 0
 

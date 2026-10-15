@@ -14,8 +14,8 @@ class_name ScheduleDirector
 ## interpreter; nothing about WHAT NPCs do moves into engine code.
 ##
 ## Wiring: ScheduleDirector expects to be a child of a Node whose script
-## is `World`. Sibling of GameShell + ScreenFlow + LightingDirector +
-## PartyDirector. PhaseScheduler calls `tick(env)` at the START of decide
+## is `World`. Sibling of GameShell + ScreenFlow + LightingDirector.
+## PhaseScheduler calls `tick(env)` at the START of decide
 ## phase (before tick-rules fire) so AI rules in the SAME tick read the
 ## just-resolved `current_verb` / `current_target`.
 ##
@@ -191,7 +191,7 @@ func tick(env: Dictionary) -> void:
 				(cache["last_resolved_target_for_slot"] as Dictionary).get(slot_index, "")
 			)
 		# 5. Apply state mutations directly. Same pattern as
-		#    LightingDirector / PartyDirector — direct state writes,
+		#    LightingDirector — direct state writes,
 		#    not via effect_apply. This keeps the "schedule resolves
 		#    BEFORE tick-rules in the same decide phase" semantics
 		#    crisp (writes are immediately visible to subsequent rules).
