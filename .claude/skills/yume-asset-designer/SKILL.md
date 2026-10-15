@@ -230,7 +230,7 @@ schema, the examples and the known traps for each strategy.
 | B — AI-gen prompts | A bespoke style with API keys | `*_prompt` fields, `asset_gen.json` |
 | A2 — `.glb` skinned meshes | Rigged characters with clips | `visual.mesh` = `.glb`, `material_overrides` |
 | C — code-draw (default) | Every game with no keys | `visual.shape` from `shapes.json` / `meshes.json` |
-| C2 — kit-of-parts meshes | 3D buildings and props from primitives | `meshes.json` kits, `$param` colors, `state.scale` |
+| C2 — kit-of-parts meshes | 3D buildings and props from primitives. Author each new mesh with `/yume-mesh-author` (ADR 0083). | `meshes.json` kits, `$param` colors, `state.scale` |
 
 Textured primitives have three UV traps. The reference file lists them.
 In short: a box maps a dice atlas, so use `prim_unit_banner` for signs.

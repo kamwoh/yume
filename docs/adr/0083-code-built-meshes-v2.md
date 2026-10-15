@@ -405,3 +405,37 @@ the visual QA gate and `validate_center_pivot_y.py`.
 
 No mesh data changed. `imp_3d` and `ranger_3d` still face +Z. The F5
 turntable shows the facing of a mesh, but no gate requires -Z.
+
+## F5 results (2026-10-15)
+
+F5 shipped the turntable and the `yume-mesh-author` skill.
+
+- `asset_preview.gd` gets `--turntable=N` (N views in one sheet, frame 0
+  from -Z), `--turntable-output=` and `--lib=` (a draft mesh file on top
+  of the library).
+- **Studio light for the turntable.** The default preview light lit the
+  top faces to white and left the front faces in shade. A calibration
+  with `#808080`, `#b03020` and `#9a968c` boxes set a white key light of
+  0.2 from the camera side and an ambient of 0.1. The three colors then
+  render within 6/255 of their authored values. This also explains the
+  white stone arch in F3.
+- `validate_meshes.py --file=` checks a draft. The validator now also
+  rejects `name` or `pivot` on a part in a CSG group.
+- `.claude/skills/yume-mesh-author/` is a forked skill with a 5-item
+  review (silhouette, proportions, connection, color, front) and up to 3
+  rounds. Its `reference/mesh-ops.md` lists every op and holds 3 worked
+  examples.
+
+Test run: the skill made `lamp_post_3d` from a text brief in 3 rounds
+(18 parts, a swept arm, a 4-segment lathe roof, an amber glow). Only the
+color check failed in rounds 1 and 2: the glow clipped to white. The
+caller read the final sheet and agrees with the accept.
+
+Two changes from the plan:
+
+- The samples (vase, arched wall, lamp post) stay as worked examples in
+  the skill reference. They do not go into `meshes.json`, because no game
+  uses them yet. A game adds one when it needs it.
+- The facing rule ("the front faces -Z") is a recommendation, like the
+  base (see the F4 amendment). The turntable shows the front, and the
+  skill records the front of each mesh in its note.

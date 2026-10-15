@@ -404,6 +404,12 @@ Convention: art is drawn facing right; flip happens when moving west.
 
 ### Strategy C2: Kit-of-parts composite meshes (3D buildings, 2026-05-27)
 
+> **2026-10-15 (ADR 0083).** Author each new kit with the forked skill
+> `/yume-mesh-author`. It plans the parts, validates them, renders a
+> calibrated turntable and fixes up to 3 rounds. Kits can now use
+> `lathe`, `extrude`, `sweep`, CSG cuts and a shared `materials` block.
+> See `.claude/skills/yume-mesh-author/reference/mesh-ops.md`.
+
 A `data/meshes.json` entry can compose MANY primitives into one
 recognizable object — a "kit". Each primitive is
 `{op, pos, size|radius|height, color}` in UNIT space (y 0..1);

@@ -6,7 +6,8 @@ each part of each mesh. Each part has a known `op` and the fields that
 the op needs. Each `$param` has a value in the mesh's `params`. Each
 `material` name is in the top-level `materials` block. A `lathe` has
 `segments` of 3 or more and no negative radius. A `quad` or `plane` is
-not in a CSG group, because CSG needs closed (manifold) shapes.
+not in a CSG group, because CSG needs closed (manifold) shapes. A part
+in a CSG group has no `name` or `pivot`, because CSG merges it.
 
 It does not check the base height or the facing of a mesh. Those are
 content choices that change per game: a portal hovers, a rock sinks, a
@@ -16,7 +17,10 @@ A floating entity is a visual bug, and the visual QA gate and
 `validate_center_pivot_y.py` own it.
 
 Usage:
-    python3 tools/validators/validate_meshes.py [--strict] [--report]
+    python3 tools/validators/validate_meshes.py [--strict] [--report] [--file=PATH]
+
+`--file=PATH` checks a draft file in the meshes.json shape instead of the
+library. The draft may use the library's materials (yume-mesh-author).
 
 `--report` also prints the unit-space AABB (base and top) of every mesh,
 as information. It never fails on it.
@@ -213,15 +217,22 @@ def check_schema(name, entry, materials):
             for q in parts:
                 if q.get("op") in NON_MANIFOLD:
                     issues.append(f"{name}: group {g!r} is CSG but has a non-manifold {q['op']!r}")
+                if "name" in q or "pivot" in q:
+                    issues.append(f"{name}: group {g!r} is CSG, so its parts cannot have `name` or `pivot`")
     return issues
 
 
 def main() -> int:
     strict = "--strict" in sys.argv
     report = "--report" in sys.argv
-    doc = json.loads(MESHES.read_text(encoding="utf-8"))
+    path = MESHES
+    for a in sys.argv[1:]:
+        if a.startswith("--file="):
+            path = Path(a[len("--file="):])
+    doc = json.loads(path.read_text(encoding="utf-8"))
     lib = doc.get("meshes", {})
-    materials = doc.get("materials", {})
+    materials = dict(json.loads(MESHES.read_text(encoding="utf-8")).get("materials", {}))
+    materials.update(doc.get("materials", {}))
     issues = []
     for name, entry in lib.items():
         issues += check_schema(name, entry, materials)
@@ -232,7 +243,7 @@ def main() -> int:
     for i in issues:
         print(f"  [meshes] {i}")
     if not issues:
-        print(f"[ok] meshes.json ({len(lib)} meshes)")
+        print(f"[ok] {path.name} ({len(lib)} meshes)")
         return 0
     return 1 if strict else 0
 
