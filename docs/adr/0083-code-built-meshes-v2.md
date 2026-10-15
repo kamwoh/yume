@@ -120,9 +120,9 @@ CSG group is a validator error.
 **The CSG bake is asynchronous. A warm-up hides that from the callers.**
 
 - `MeshLib.warm(mesh_names) -> Signal`: it builds the CSG trees of all
-  the named meshes under one hidden node in the scene tree. It awaits
-  one `process_frame`, then calls `bake_static_mesh()` on each, fills
-  the cache and frees the nodes.
+  the named meshes out of the scene tree. It awaits one `process_frame`,
+  then calls `bake_static_mesh()` on each, fills the cache and frees the
+  nodes. (F1 showed that the tree is not needed, but the frame is.)
 - WorldBoot calls `warm()` with every mesh that the level's entity defs
   reference. It awaits the signal before the renderers attach. The
   callers then read the cache synchronously, as in part 1.
@@ -275,3 +275,36 @@ project rules forbid. Rejected.
 **E. Keep the current path and add AI meshes for the rest.** This keeps
 the per-asset offsets and the per-mesh cost. It is against the user's
 priority.
+
+## F1 results (2026-10-15)
+
+The spike ran on Godot 4.6.1, headless and on `opengl3`
+(`gl_compatibility`). Both gave the same numbers.
+
+| Case | Result |
+|---|---|
+| `bake_static_mesh()` at once, in or out of the tree | `null` |
+| `bake_static_mesh()` after one `process_frame`, in or out of the tree | Works. A wall with a hole has 96 vertices. |
+| `lathe`, `extrude`, `sweep` after one frame | Work. 384, 48 and 132 vertices. |
+| A parent at (100, 50, 100) | Does not leak into the mesh. |
+| `extrude` with `depth` 0.2 | The AABB runs from z = -0.2 to 0, so the `+depth/2` shift is needed. |
+| `SurfaceTool.append_from` + `commit(existing)` | One surface, then two. |
+
+Changes to the plan:
+
+- `warm()` needs no node in the scene tree. It builds the CSG trees out
+  of the tree, awaits one `process_frame` and bakes. One frame is still
+  required.
+- A cut part with no material adds a surface for the faces of the hole.
+  F3 gives each cut part the material of the first part in its group.
+
+Draw calls, measured on `opengl3` after 240 frames:
+
+| Scene | Mesh nodes | After merge (estimate) | Draw calls now |
+|---|---|---|---|
+| `pipeline_v1_3d` | 1998 | 1193 (-40%) | 1362 |
+| `doomarena3d` | 37 | 27 (-27%) | 93 |
+| `aldenmere_3d` | 297 | 297 (0%) | 819 |
+
+`aldenmere_3d` uses mostly AI `.glb` meshes, so the merge does not help
+it. None of the three scenes uses MultiMesh today.
