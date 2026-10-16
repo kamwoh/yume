@@ -1,64 +1,70 @@
 # Yume (夢)
 
-**Yume is a programmable, explicit _world model_** — built on Godot 4.6.1.
-A world's entities and rules are written as **pure JSON**; a small interpreter
-advances that world tick by tick; Godot *projects* the resulting state to pixels,
-audio, HUD, or text. The engine ships a fixed set of **primitives + interpreter**
-— no game-specific GDScript; you describe a world, never edit the engine
-(Invariant #1 / #8; ADR 0021). **Games are one use of this — not the only one.**
+**Yume is a programmable, explicit _world model_ built on Godot 4.6.1.**
+You write a world's entities and rules as **pure JSON**. A small
+interpreter advances that world tick by tick. Godot then *projects* the
+state to pixels, audio, HUD or text.
 
-> **Why "Yume"?** 夢 (_yume_) is Japanese for **"dream."** You describe a world
-> in plain language and it materializes into something runnable — imagine it,
-> and it exists — without writing any per-world code. The name captures that
-> declarative "dream it into being" quality.
+The engine ships a fixed set of **primitives and an interpreter**. It has
+no game-specific GDScript. You describe a world, and you never edit the
+engine (Invariants #1 and #8, ADR 0021). **Games are one use of Yume, not
+the only one.**
+
+> **Why "Yume"?** 夢 (_yume_) is Japanese for **"dream."** You describe a
+> world in plain language, and it becomes something you can run, with no
+> code for that world. Imagine it, and it exists.
 
 > ## 🤖 Built by Claude, for Claude
-> This repository was written **entirely by Claude** (Anthropic's AI) and is
-> **designed to be read and operated by Claude** — its conventions, build steps,
-> and run workflow live in `CLAUDE.md` and `.claude/` for exactly that purpose.
+> Claude (Anthropic's AI) wrote **all of this repository**. Claude is also
+> **the intended operator**. The conventions, build steps and run workflow
+> are in `CLAUDE.md` and `.claude/` for that reason.
 >
-> **The recommended way to use Yume is to open it in [Claude Code](https://claude.com/claude-code)
-> and ask, in plain English, for what you want** — "generate a game about X",
-> "run the tests", "record a headless multiplayer video". Claude knows the
-> fiddly invocation details (syncing, `--path .`, asset imports, the visual-QA
-> gate). You *can* run the commands yourself, but it's easy to get them wrong;
-> letting Claude drive is the intended, lower-friction path. See
-> **[INSTALLATION.md](INSTALLATION.md)** to set up.
+> **The recommended way to use Yume: open it in
+> [Claude Code](https://claude.com/claude-code) and ask in plain English.**
+> For example: "generate a game about X", "run the tests", or "record a
+> headless multiplayer video". Claude knows the invocation details
+> (syncing, `--path .`, asset imports, the visual-QA gate). You *can* run
+> the commands yourself, but they are easy to get wrong. To set up, see
+> **[INSTALLATION.md](INSTALLATION.md)**.
 
-_Status: **pre-1.0 / experimental** (`0.x` — the 7 primitives + JSON schema
-aren't frozen yet; `1.0` will freeze the contract). Last updated: 2026-06-06._
+_Status: **pre-1.0, experimental** (`0.x`). The 7 primitives and the JSON
+schema are not frozen yet. `1.0` will freeze the contract. Last updated:
+2026-10-16._
 
 ---
 
 ## Demos
 
-Describe a world in plain English → an LLM writes the JSON → a fixed engine runs
-it on Godot. A few things built (or rendered) this way:
+You describe a world in plain English. An LLM writes the JSON. A fixed
+engine runs it on Godot. These examples came out of that process:
 
-### 🔫 `doomarena3d` — a first-person arena shooter
+### 🔫 `doomarena3d`: a first-person arena shooter
 ![doomarena3d — first-person arena shooter](docs/media/doomarena.gif)
 
-Movement, shooting, enemies, deaths — all JSON rules. No game-specific engine code.
+Movement, shooting, enemies and deaths are all JSON rules. The engine has
+no code for this game.
 
-### 🏎️ An arcade racer, generated end-to-end from a prose pitch
+### 🏎️ An arcade racer, generated end to end from a prose pitch
 ![arcade racer generated via /yume-design](docs/media/racing.gif)
 
-`/yume-design "<pitch>"` — code-drawn, no asset generation needed.
+Made with `/yume-design "<pitch>"`. It is code-drawn, so it needs no asset
+generation.
 
-### 🌲 A walkable 3D scene — the text → 3D world pipeline
+### 🌲 A walkable 3D scene, from the text-to-3D-world pipeline
 ![walkable 3D forest scene](docs/media/forest_scene.gif)
 
-Built with `/yume-create-scene`.
+Made with `/yume-create-scene`.
 
 ### 🗿 Scene-generation algorithm (experimental)
 ![scene-generation algorithm — text to placed 3D world](docs/media/scene_gen.gif)
 
-Text → semantic map → placed 3D world. Rough, but end-to-end — an active research direction.
+Text, then a semantic map, then a placed 3D world. It is rough, but it
+works end to end. This is an active research direction.
 
-### 🧩 Sokoban — a committed 2D demo (runs on a fresh clone, no API keys)
+### 🧩 Sokoban: a committed 2D demo (runs on a fresh clone, no API keys)
 ![sokoban 2D puzzle demo](docs/media/sokoban.gif)
 
-### 🎥 Camera-orbit trajectory — the 3D rendering / camera system
+### 🎥 Camera-orbit trajectory: the 3D rendering and camera system
 ![camera orbit trajectory](docs/media/camera_orbit.gif)
 
 ### 🌐 Server-authoritative multiplayer (in development)
@@ -68,186 +74,182 @@ Text → semantic map → placed 3D world. Rough, but end-to-end — an active r
 
 ## What Yume is for
 
-Yume is a **programmable explicit world model**, not just a game engine. A world
-model is a transition function `f(state, action) → next_state`; Yume lets you
-**write `f` as JSON** and run it:
-
-- **JSON is the world-spec language** — entities (the state) + rules
-  (`{trigger, query, effect}`, the transition function).
-- **The runtime is the interpreter** — it executes that spec, ticking state forward.
-- **Godot is the projection function** — state → pixels / audio / HUD / text.
-  (Per ADR 0021: *expose Godot, don't reimplement it.*)
-
-**Games are one downstream consumer.** The same substrate serves:
-
-| Use | How |
-|---|---|
-| 🎮 **Games** | the Godot projection — a playable build |
-| 🤖 **RL / agent-evaluation testbeds** | deterministic, seedable, gym-like stepping (ADR 0060) |
-| 🏞️ **Scene / world generation** | prose → 3D scene pipelines (`/yume-create-scene`) |
-| 🧠 **Training-data for neural world models** | roll a JSON world out, record `(state, action, next_state)` trajectories, train an implicit model (Dreamer/Genie-style) that approximates the same `f` at scale |
-
-That last row is the thesis: Yume aims to be the **clean, authorable *explicit*
-substrate** that bridges to the *implicit* (neural) world-model world — interpret
-it directly, *and* use it as a faucet of reproducible training data. The seven
-primitives (Entity / Tag / Rule / Trigger / Effect / Query / Relation) are the
-**minimal universal vocabulary** for describing discrete-time worlds — which is
-why the engine refuses game-specific verbs (no `damage` / `heal` / `attack`;
-those are *content*, expressed by composing primitives).
-
-📖 **Full vision:** [`docs/guideline/00_what_yume_is.md`](docs/guideline/00_what_yume_is.md).
-
----
-
-## Vision — a programmable, explicit world model
-
 > *"Everything is a world model if you squint hard enough."*
 > — [Zihan "Zenus" Wang (@wzenus)](https://x.com/wzenus/status/2002092055884124297)
 
+A world model is a transition function `f(state, action) → next_state`.
+Yume lets you **write `f` as JSON** and run it:
+
+- **JSON is the world-spec language.** Entities are the state. Rules
+  (`{trigger, query, effect}`) are the transition function.
+- **The runtime is the interpreter.** It runs the spec and moves the
+  state forward one tick at a time.
+- **Godot is the projection function.** It turns state into pixels,
+  audio, HUD or text. (ADR 0021: *expose Godot, do not reimplement it.*)
+
+**Games are one consumer.** The same substrate serves other uses:
+
+| Use | How |
+|---|---|
+| 🎮 **Games** | the Godot projection: a playable build |
+| 🤖 **RL and agent-evaluation testbeds** | deterministic, seedable, gym-like stepping (ADR 0060) |
+| 🏞️ **Scene and world generation** | prose-to-3D-scene pipelines (`/yume-create-scene`) |
+| 🧠 **Training data for neural world models** | roll out a JSON world, record `(state, action, next_state)` trajectories, and train an implicit model (Dreamer-style or Genie-style) that approximates the same `f` at scale |
+
+The last row is the thesis. Yume aims to be a **clean, authorable,
+*explicit* substrate** that connects to *implicit* (neural) world models.
+You can interpret a JSON world directly. You can also use it as a source
+of reproducible training data.
+
+The seven primitives (Entity, Tag, Rule, Trigger, Effect, Query,
+Relation) are the **minimal vocabulary** for discrete-time worlds. That
+is why the engine refuses game-specific verbs. There is no `damage`,
+`heal` or `attack` effect. Those are *content*, and you build them from
+primitives.
+
+### Why a programmable world model
+
 Two trends motivate Yume:
 
-1. **Programming is becoming unstructured.** With LLMs (and VLMs like Qwen) you
-   increasingly describe *what you want* in natural language and the model writes
-   the code. The interface to software is shifting from syntax to intent.
-2. **World-model research is accelerating.** Neural world models
-   ([Genie](https://arxiv.org/abs/2402.15391)-style
-   generative-interactive-environment models,
-   [Dreamer](https://arxiv.org/abs/2301.04104)-style latent models) are
-   trained on large action-labelled trajectory datasets — frames paired with the
-   actions that produced them. That data is expensive: studios pay annotators to
-   play games and label frames, or assemble reference→video corpora by hand.
+1. **Programming is becoming unstructured.** With LLMs (and VLMs such as
+   Qwen), you describe *what you want* in natural language, and the model
+   writes the code. The interface to software moves from syntax to intent.
+2. **World-model research is moving fast.** Neural world models
+   ([Genie](https://arxiv.org/abs/2402.15391)-style generative interactive
+   environments and [Dreamer](https://arxiv.org/abs/2301.04104)-style
+   latent models) train on large datasets of action-labelled
+   trajectories. These are frames paired with the actions that produced
+   them. That data is expensive. Studios pay annotators to play games and label
+   frames, or they build reference-to-video corpora by hand.
 
-Yume sits at the convergence: a **programmable** world model. Instead of *learning*
-a world's dynamics implicitly from millions of frames, you **author them
-explicitly** — set the physics, the rules, the goal — the way you'd program a game
-(or, in a robotics framing, set up the sensors and a goal). The catch is that "just
-write it in prose" is too unstructured to execute, so Yume's substrate is
-structured **JSON**, and an LLM (Claude) is the compiler from **prose → JSON**. That
-makes the world model *programmable* (authorable in language) **and** *explicit*
-(it's code + a deterministic game engine you can read, seed, and diff — not opaque
-weights).
+Yume sits where these two trends meet. A neural model *learns* a world's
+dynamics from millions of frames. In Yume, you **write the dynamics
+explicitly**: the physics, the rules, the goal. This is the way you
+program a game, or the way you set up sensors and a goal for a robot.
 
-> *Why "explicit"?* Because Yume's transition function `f(state, action) →
-> next_state` is literally code on a deterministic engine. (Half-joking,
-> half-serious: our own universe runs a small set of fixed physical laws,
-> deterministic given initial conditions — a lot like a game engine. Yume just
-> makes that analogy authorable.)
+Plain prose is too unstructured to run. So Yume's substrate is structured
+**JSON**, and an LLM (Claude) compiles prose into JSON. The world model is
+then *programmable*, because you write it in language. It is also
+*explicit*, because it is code on a deterministic engine that you can
+read, seed and diff, not opaque weights.
 
-The two world-model worlds are complementary, not rival:
+> *Why "explicit"?* Because Yume's transition function
+> `f(state, action) → next_state` is literally code on a deterministic
+> engine. (Half joking, half serious: our own universe runs a small set of
+> fixed physical laws, deterministic from its initial conditions, much
+> like a game engine. Yume makes that analogy authorable.)
 
-- **Explicit (Yume)** — clean, authorable, deterministic; cheap to roll out and to
-  *label* (every transition is exact, by construction).
-- **Implicit (neural)** — scales to messy, photoreal, open-ended dynamics no one
-  wants to hand-author.
+The two kinds of world model complement each other:
 
-Yume aims to be the explicit substrate that **bridges** to the implicit one:
-interpret a JSON world directly **and** use it as a reproducible faucet of
-`(state, action, next_state)` training data.
+- **Explicit (Yume):** clean, authorable and deterministic. It is cheap to
+  roll out and cheap to *label*, because every transition is exact.
+- **Implicit (neural):** it scales to messy, photoreal, open-ended
+  dynamics that nobody wants to write by hand.
+
+📖 **Full vision:** [`docs/guideline/00_what_yume_is.md`](docs/guideline/00_what_yume_is.md).
 
 ### Research directions
 
-Yume is built to assist game development *and* to give the research community a
-concrete substrate to push on. Open questions it lets you probe:
+Yume helps game development. It also gives researchers a concrete
+substrate. It lets you probe these open questions:
 
-1. **Does an LLM need to generate a whole game — or just the world rules?** Most
-   "AI makes a game" systems generate per-game *engine code*. Yume's bet — borne
-   out so far — is that the LLM only needs to **understand the framework + the
-   world's rules** and emit JSON; the fixed interpreter does the rest. Less to get
-   wrong, far more to verify.
-2. **LLM-authored 3D structure.** Some of Yume's Claude-authored meshes /
-   kit-of-parts composites already look good. With more training data — and tooling
-   like Blender's MCP bridge, or models that emit *procedural-generation code*
-   (cf. [**3DCodeBench**](https://arxiv.org/abs/2606.01057)) — Claude may
-   eventually generate solid 3D structure directly, or excel at procedural
-   generation. Yume is a place to try.
-3. **Scene generation.** `/yume-create-scene` is an end-to-end
-   text→concept→semantic-map→placement→assets pipeline. It runs, but it is **not
-   robust yet** and has **no aesthetic sense** — a genuinely open research
-   direction (it's harnessed, not solved). A strong text→3D-world API (cf.
-   [**WorldGen**](https://arxiv.org/abs/2511.16825)) dropped into this slot would,
-   I believe, *complete* the framework.
-4. **Assist, don't replace.** Yume is not trying to replace game studios. Gameplay
-   is art; 3D is art; scene composition is art; story is art. A studio with
-   resources can plug in its *own* aesthetic (scene generation needn't be
-   Claude's), and a non-programmer can realize a game from a single strong idea in
-   any **one** of those dimensions — without ever touching engine internals.
-5. **A research substrate, broadly.** Because a world is explicit JSON + a
-   deterministic engine, one artifact serves world-model training-data generation,
-   3D / scene / audio generation research, and game-AI (the
-   [ADR 0020](docs/adr/0020-external-agent-ipc.md) external-agent IPC seam + the
-   [ADR 0060](docs/adr/0060-deterministic-pomdp-pluggable-io.md) gym-like env). As
-   scene / 3D / asset-generation APIs mature, the framework's remaining gaps close
-   from the outside in.
+1. **Does an LLM need to generate a whole game, or only the world rules?**
+   Most "AI makes a game" systems generate engine code for each game.
+   Yume's bet, which holds so far, is that the LLM only needs to
+   **understand the framework and the world's rules** and emit JSON. The
+   fixed interpreter does the rest. There is less to get wrong and much
+   more to check.
+2. **LLM-authored 3D structure.** Some of Claude's meshes and kit-of-parts
+   composites in Yume already look good. More training data could help.
+   So could tools such as Blender's MCP bridge, or models that write
+   *procedural-generation code* (see
+   [**3DCodeBench**](https://arxiv.org/abs/2606.01057)). With them,
+   Claude may eventually generate solid 3D structure directly. It may also excel at
+   procedural generation. Yume is a place to try this.
+3. **Scene generation.** `/yume-create-scene` is an end-to-end pipeline:
+   text, concept, semantic map, placement, assets. It runs, but it is
+   **not reliable yet**, and it has **no aesthetic sense**. This direction
+   is open: the pipeline has a harness, but the problem is not solved. A
+   strong text-to-3D-world API (see
+   [**WorldGen**](https://arxiv.org/abs/2511.16825)) in this slot would, I
+   believe, *complete* the framework.
+4. **Assist, do not replace.** Yume does not try to replace game studios.
+   Gameplay is art. 3D is art. Scene composition is art. Story is art. A
+   studio can plug in its *own* aesthetic, and its scene generation does
+   not need to be Claude's. A non-programmer can make a game from one
+   strong idea in any **one** of those areas, with no engine work.
+5. **A research substrate, broadly.** A world is explicit JSON on a
+   deterministic engine. So one artifact serves several research areas:
+   world-model training data, 3D, scene and audio generation, and game
+   AI. For game AI, Yume has the
+   [ADR 0020](docs/adr/0020-external-agent-ipc.md) external-agent IPC
+   seam and the
+   [ADR 0060](docs/adr/0060-deterministic-pomdp-pluggable-io.md) gym-like
+   env. As scene, 3D and asset-generation APIs mature, the framework's
+   remaining gaps close from the outside in.
 
-> This framework was written **entirely by Claude**; the author reviewed the code
-> but freely admits an LLM now manages a codebase this size faster than they could
-> alone. In the end the *ideas* matter most — Yume is a bet on where they point.
-
----
-
-## Features
-
-What the framework can do today — JSON-authored unless noted; most rows map to
-an ADR under `docs/adr/`.
-
-| Area | Capabilities |
-|---|---|
-| **Core engine** (primitives + interpreter — ADR 0001, 0021) | 7 primitives (Entity / Tag / Rule / Trigger / Effect / Query / Relation); 8 trigger types (`tick`, `contact`, `signal`, `input`, `spawn`, `despawn`, `relation_changed`, `frame_tick`); ~60 effect verbs (`state_set/add/mul/clamp`, `spawn`/`remove`/`transform`, relations, tags, velocity ×4, arrays, `pathfind_to`, `raycast_hit`, zones, shell-lifecycle); formula evaluator (whitelisted math); deterministic fixed-rate tick + phase-flush scheduler; `@lib`/`$include` cross-game reuse (ADR 0027); rule macros; deterministic scatter/ring/grid placement. |
-| **Rendering & world** | 2D + 3D renderers; 8 camera modes (top-down / side-scroll / isometric / third- / first-person / fixed / free-cam, 2D & 3D); GLB meshes, kit-of-parts composites, MultiMesh decoration, trimesh static world; shaders-as-JSON; multi-biome ground from a semantic map; water surface; day/night; fog + procedural sky. |
-| **Gameplay system primitives** (opt-in directors — mounted only if used) | party, schedule, class/occupation, zones, faction, tech-tree, dynasty, lifecycle/aging, vehicles, multi-actor + scripted-policy AI, pathfinding, procedural generation, grid/dynamic placement, animation. |
-| **"Complete game" layer** | declarative screens/modals, save/load, tutorial overlays, settings schema, HUD-from-JSON, event→SFX audio, juice (shake/flash/particles). |
-| **Physics** | Godot PhysicsServer + CharacterBody motion, AABB blockers, camera-relative WASD. |
-| **Generation pipelines** (LLM-in-the-loop) | `/yume-design` is the single orchestrator — prose → full game, with `--scene` (generate a 3D world to play in) + `--with-assets` (AI textures/meshes) composing as **three disjoint-ownership layers** (World / Game / Assets — ADR 0067). With no flags, the game is key-free code-draw. Plus standalone authors: `/yume-create-scene`, `/yume-hud-author`, `/yume-screen-author`, `/yume-map-author`. **40 specialist skills**. Optional codegen + AI assetgen (textures via OpenAI/Gemini, meshes + rig via Tripo3D, shaders). See [§ Generation pipeline](#generation-pipeline-prose--game). |
-| **Networking & I/O** (ADR 0060–0066) | deterministic gym-like stepping env (Python) + determinism oracle; lockstep; **client-server (server-authoritative)** with data-driven `net.json` replication; synced animation; **record-then-replay smooth headless video** of N-player synced sessions (`scripts/net_video.py` — normal window / `--linux` headless, GPU, grid, 60 fps). |
-| **Tooling & QA** | 25 static validators (sync gate); Playwright-style scenario tests; visual QA (Gemini + Claude vision); tech-director invariant gate. |
+> Claude wrote **all of this framework**. The author reviewed the code,
+> but freely admits that an LLM now manages a codebase of this size faster
+> than they could alone. In the end, the *ideas* matter most. Yume is a
+> bet on where they point.
 
 ---
 
 ## Quick start
 
-Set up once via **[INSTALLATION.md](INSTALLATION.md)** (Godot 4.6.1 + a Python
-venv). Then — **recommended** — open the repo in **Claude Code** and just ask:
+Set up once with **[INSTALLATION.md](INSTALLATION.md)** (Godot 4.6.1 and a
+Python venv). Then open the repo in **Claude Code** and ask:
 
 > *"Generate a game: a roguelike where vampires steal HP from light sources."*
 > *"Run the engine tests."*  ·  *"Record a 4-player headless multiplayer video."*
 
 Claude runs the right pipeline and handles the invocation details.
 
-**Or drive it yourself** (manual fallback — demos are gitignored, generate or
-copy a `demo_<name>/` first):
+**To run it yourself:** most demos are gitignored. Generate one, or use a
+committed example (`sokoban`, `doomarena3d`, `lanterns`).
 
 ```bash
 /yume-design "<your prose pitch>" --autonomous   # prose → full game
-./scripts/play.sh <name>                         # play / capture (Windows binary)
+./scripts/play.sh <name>                         # play (Windows binary)
 ./scripts/play.sh <name> --capture               # render a frame for visual QA
 ```
 
-⚠️ Manual runs have sharp edges (the `cd "$TEMPLATE_DST" && --path .` trap, asset
-`--import`, …) — see `CLAUDE.md` § "Running Godot". This is why letting Claude
-drive is recommended.
+⚠️ Manual runs have traps: the `cd "$TEMPLATE_DST" && --path .` rule, the
+asset `--import` step, and more. See `CLAUDE.md` § "Running Godot". This
+is why we recommend that Claude runs the commands.
 
 ---
 
-## The model in one paragraph
+## How it works
 
-A **game** is a folder of JSON under `godot/data/demo_<name>/`. The engine loads
-it into **entities** (dicts with tags/properties/state/position) and **rules**
-(`{trigger, query, effect}`). Each tick, the engine fires rules whose trigger
-matches (a tick elapsed, a contact happened, an input arrived, a signal fired),
-runs the rule's query to pick entities, and applies the effect (a primitive verb
-like `state_set` / `velocity_set` / `spawn`). The renderer is a separate read-only
-layer that draws entity state. **Seven primitives**: Entity, Tag, Rule, Trigger,
-Effect, Query, Relation (ADR 0001).
+A **game** is a folder of JSON under `godot/data/demo_<name>/`. The engine
+loads it into **entities** (dicts with tags, properties, state and
+position) and **rules** (`{trigger, query, effect}`).
+
+On each tick, the engine finds the rules whose trigger matches: a tick
+passed, a contact happened, an input arrived, or a signal fired. It runs
+each rule's query to pick entities, and it applies the rule's effect (a
+primitive verb such as `state_set`, `velocity_set` or `spawn`). The
+renderer is a separate, read-only layer that draws entity state.
+
+**Seven primitives:** Entity, Tag, Rule, Trigger, Effect, Query, Relation
+(ADR 0001).
+
+The [engine tour](docs/engine-reference/engine-tour.md) explains the rest.
+It covers the repository layout, the engine file map, the boot, frame
+and tick flows, the input flow, the runtimes and the data layer.
 
 ---
 
 ## Generation pipeline (prose → game)
 
-`/yume-design` is the **single orchestrator**. It's a *skill* loaded into
-Claude's own context. The reviewer skills run as forked subagents (ADR 0082).
-It walks specialist skills in sequence, and each one writes one slice of the game's JSON. A game is composed
-from **three layers with disjoint file ownership**, so they never clobber each
-other (ADR 0067):
+`/yume-design` is the **single orchestrator**. It is a *skill* that loads
+into Claude's own context. It calls specialist skills in order, and each
+one writes one part of the game's JSON. The reviewer and QA skills run as
+forked subagents, so their logs stay out of the main context (ADR 0082).
+
+A game has **three layers with separate file ownership**, so no layer
+overwrites another (ADR 0067):
 
 ```
 /yume-design "<pitch>"  [--scene]  [--with-assets]  [--autonomous]
@@ -269,422 +271,186 @@ other (ADR 0067):
  on demand                  tech-director  (gates engine / new-primitive / ADR changes)
 ```
 
-`*` conditional — those run only if the GDD signals crafting, an economy, or a
-story. **Genre detection** swaps in strict specialists where they exist
-(`shooter` / `merchant` / `racing` designers + their reviewers) on top of the
-generic `game-designer` / `game-reviewer` floor.
+`*` These run only when the GDD has crafting, an economy or a story.
+**Genre detection** adds strict specialists where they exist (`shooter`,
+`merchant` and `racing` designers, with their reviewers). The generic
+`game-designer` and `game-reviewer` are the base.
 
-**How the layers stay disjoint** — World writes `scene.json`,
-`entities/auto_gen.json`, `assets/`; Game writes `entities/<slug>.json`,
-`world/rules/*.json`, `hud.json`, goals; Assets patches `visual.*` on existing
-defs. The engine globs `entities/*.json` + `world/rules/*.json` and merges by
-id, so the layers compose with no merge code. **No flags = a key-free,
-code-drawn single-player game** (and the graceful-degrade target when API keys
-are absent).
+**How the layers stay separate:**
+
+- World writes `scene.json`, `entities/auto_gen.json` and `assets/`.
+- Game writes `entities/<slug>.json`, `world/rules/*.json` and `hud.json`.
+- Assets changes `visual.*` on existing defs.
+
+The engine loads every `entities/*.json` and `world/rules/*.json` file and
+merges them by id. So the layers combine with no merge code. **With no
+flags, you get a code-drawn single-player game that needs no API keys.**
+This is also the fallback when a key is missing.
 
 ### Standalone authoring pipelines (outside `/yume-design`)
 
 | Slash command | Makes | Driver script(s) |
 |---|---|---|
-| `/yume-create-scene` | a walkable 3D scene / diorama (scene **+** walk shell) | `compose_scene` → `compose_world` + `compose_shell` (+ `compare_semantic` QA) |
-| `/yume-hud-author` | `hud.json` fit to a wireframe | `wireframe_to_hud` (preprocess/postprocess) |
-| `/yume-screen-author` | `screens.json` fit to a wireframe | `wireframe_to_screen` |
-| `/yume-map-author` | a level's instances/patterns from a 2D sketch | `compose_map` + `wireframe_to_map` |
+| `/yume-create-scene` | a walkable 3D scene or diorama (scene **and** walk shell) | `compose_scene` → `compose_world` + `compose_shell` (+ `compare_semantic` QA) |
+| `/yume-hud-author` | `hud.json` that fits a wireframe | `wireframe_to_hud` (preprocess/postprocess) |
+| `/yume-screen-author` | `screens.json` that fits a wireframe | `wireframe_to_screen` |
+| `/yume-map-author` | a level's instances and patterns from a 2D sketch | `compose_map` + `wireframe_to_map` |
 
-### Which skill drives which script
+---
 
-Most skills only **write JSON** — the orchestrator does the single sync + Godot
-run. The skills that actually invoke a script:
+## Features
 
-| Skill | Script(s) it runs |
+This is what the framework does today. Content is JSON unless a row says
+otherwise. Most rows map to an ADR under `docs/adr/`.
+
+| Area | Capabilities |
 |---|---|
-| `yume-design` | `compose_scene --no-shell` (World), `tools.yume_assetgen` (Assets), `scripts/play.sh` (QA capture) |
-| `yume-create-scene` | `compose_scene` → `compose_world` + `compose_shell`, `tools.yume_assetgen`, `compare_semantic` |
-| `yume-scene-class-catalog` | authors the catalog `compose_world` consumes (no run) |
-| `yume-asset-designer` | `tools.yume_assetgen`, `tools/validators/run_all.py` |
-| `yume-hud-author` / `screen-author` / `map-author` | `wireframe_to_{hud,screen,map}` |
-| `yume-qa-tester` · `playtest` · `visual-designer` · `lighting-designer` | `scripts/play.sh` (run + `--capture`), `tools/visual_qa/` (playtest Gate 6b) |
-| `yume-tech-director` | invariant greps + the unit suite (gate, no content) |
-| _all other designers_ | write JSON only — no scripts |
-
-Pipeline-stability tiers live in `.claude/rules/pipeline-stability.md`: the 2D
-HUD/screen pipelines are **locked** (ADR required to change the harness); the 3D
-scene/world + level/map pipelines are **active**.
+| **Core engine** (primitives + interpreter, ADR 0001 and 0021) | 7 primitives. 10 trigger types (`tick`, `frame_tick`, `contact`, `signal`, `input`, `spawn`, `despawn`, `relation_changed`, `scheduled`, `overlap`). 50 effect verbs. They cover state, spawn and remove, transform, relations and relation state, tags, velocity, arrays, `pathfind_to` and `raycast_hit`. They also cover zones, the calendar clock, level subroutines and the shell lifecycle. A formula evaluator with whitelisted math. A fixed-rate tick on the physics clock and a phase-flush scheduler. `@lib` and `$include` reuse across games (ADR 0027). Rule macros. Deterministic scatter, ring and grid placement. |
+| **Rendering and world** | 2D and 3D renderers. 8 camera modes (top-down, side-scroll, isometric, third-person, first-person, fixed and free-cam, in 2D and 3D). GLB meshes, kit-of-parts composites, code-built meshes, MultiMesh decoration and trimesh static worlds. Shaders as JSON. Multi-biome ground from a semantic map. Water, day and night, fog and a procedural sky. |
+| **System primitives** | Schedules, lifecycle and aging, zones and relation state. The calendar clock (`advance_time`), level subroutines, one-shot rules and simulation tiers. Vehicles, multi-actor control with scripted-policy AI, pathfinding, procedural generation, grid placement and animation. |
+| **"Complete game" layer** | declarative screens and modals, save and load, tutorial overlays, a settings schema, HUD from JSON, event-to-SFX audio, juice (shake, flash, particles). |
+| **Physics** | Godot PhysicsServer and CharacterBody motion, AABB blockers, camera-relative WASD. |
+| **Generation pipelines** (LLM in the loop) | `/yume-design` turns prose into a full game. `--scene` generates a 3D world to play in, and `--with-assets` adds AI textures and meshes. The three layers (World, Game, Assets) own separate files (ADR 0067). Standalone authors: `/yume-create-scene`, `/yume-hud-author`, `/yume-screen-author`, `/yume-map-author`. **40 specialist skills**. Optional codegen and AI assetgen (textures with OpenAI or Gemini, meshes and rigs with Tripo3D, shaders). See [§ Generation pipeline](#generation-pipeline-prose--game). |
+| **Networking and I/O** (ADR 0060–0066) | A deterministic, gym-like stepping env (Python) with a determinism oracle. Lockstep. **Client-server (server-authoritative)** play with data-driven `net.json` replication. Synced animation. **Record-then-replay headless video** of synced sessions with N players (`scripts/net_video.py`: a normal window or `--linux` headless, GPU, grid, 60 fps). |
+| **Tooling and QA** | 37 static validators. GitHub Actions CI (the validators, the engine unit tests and the scenario tests of the committed examples) and a pre-commit hook. Playwright-style scenario tests. Visual QA (Gemini and Claude vision). A tech-director invariant gate. |
 
 ---
 
-## Repository layout
+## Known gaps
 
-```
-yume/
-├── godot/                         ← the Godot project (engine + scaffolding)
-│   ├── project.godot              ← autoloads: CaptureRunner, AudioBus, StdioStepDriver
-│   ├── scenes/                    ← TRACKED scaffolding scenes only
-│   │   ├── play.tscn              ← universal launcher (--game=<name>)
-│   │   ├── test_main.tscn         ← engine unit tests
-│   │   └── scenario_test.tscn     ← per-game scenario test runner
-│   ├── scripts/engine/            ← THE ENGINE (see file map below)
-│   ├── scripts/renderer_2d/       ← 2D entity renderer (read-only view)
-│   ├── scripts/renderer_3d/       ← 3D entity renderer (read-only view)
-│   └── data/
-│       ├── lib/                   ← shared JSON libs (shapes, meshes, input, shaders) — TRACKED
-│       └── demo_<name>/           ← per-game content — GITIGNORED, regenerated
-├── scripts/
-│   ├── play.sh                    ← run via the WINDOWS Godot binary (play/capture/tests)
-│   └── run_linux.sh               ← run via the LINUX binary (headless tests + the stdio env)
-├── tools/
-│   ├── yume_env/                  ← ADR 0060 env: oracle.py, env.py (gym-like), test_env.py
-│   ├── yume_codegen/ yume_assetgen/  ← optional authoring-time emitters
-│   └── visual_layout/             ← text→2D/3D layout pipelines (HUD/screen/map)
-├── docs/                          ← guideline/ (contract 30_*, architecture), adr/NNNN-*, per-game design
-├── .claude/                       ← skills (yume-*) + path-scoped rules + plan/
-└── CLAUDE.md                      ← full project instructions (read this for conventions)
-```
-
----
-
-## Engine file map (`godot/scripts/engine/`)
-
-The engine is organized into layers. **Read top-to-bottom for a mental model:
-core primitives → stores → the tick scheduler → effects → coordinators (boot +
-per-frame subsystems) → directors (optional gameplay primitives) → ui →
-io (input/output bridges) → qa.**
-
-### `core/` — the seven primitives + the interpreter
-| File | Role |
-|---|---|
-| `entity.gd` | **Primitive #1 Entity** — id, tags, properties (static), state (dynamic), position. |
-| `rule.gd` | **Primitive #3 Rule** — `{trigger, query, effect}`; `from_dict` parses + validates JSON. |
-| `query.gd` | **Primitive #6 Query** — declarative entity matcher (tags/state/relations/`id`/radius). |
-| `phase_scheduler.gd` | **The tick loop** — 4 phases (input → decide → react) + the effect write-buffer + flushes. |
-| `effect_apply.gd` | **Primitive #5 Effect** — dispatches an effect dict to a handler in `effects/`. |
-| `effects/effect_core.gd` | Foundational verbs: `state_set/add/mul/clamp`, `spawn`, `remove`, `relate`, … |
-| `effects/effect_motion.gd` | Motion + spatial verbs: `velocity_set`, `velocity_add_relative`, queries. |
-| `effects/effect_actor.gd` | Actor-control + party verbs (switch actor, etc.). |
-| `effects/effect_shell.gd` | Engine↔shell boundary verbs: `transition_level/screen`, `save/load_state`, toasts. |
-| `effects/effect_resolution.gd` | Shared target/value resolution for effect handlers. |
-| `formula.gd` | Evaluates `"a.state.x + 10"`-style formula strings (whitelisted math). |
-| `world.gd` | **Top-level orchestrator.** Owns canonical state; runs `_process` (live) + `advance_one_tick`. |
-| `engine_error.gd` · `scripted_policy.gd` | Structured engine errors · in-process scripted-JSON actor AI (ADR 0018). |
-
-### `stores/` — indices the query/relation system reads
-`relation_store.gd` (**Primitive #7 Relation** — typed directed edges) ·
-`spatial_index.gd` (grid-bucket hash for radius queries) ·
-`zone_store.gd` (aggregated zone state, ADR 0031).
-
-### `coordinators/` — boot + per-frame subsystems (extracted from world.gd)
-`world_boot.gd` (the boot sequence `load_data()` runs — mounts directors, loads
-JSON) · `world_loader.gd` (boot-time JSON parsers) · `spawn_manager.gd` (entity
-spawn pipeline) · `physics_body_builder.gd` (builds CharacterBody3D etc. from a
-def) · `character_body_runner.gd` (per-entity motion: velocity→position) ·
-`ground_constraint.gd` / `ground_renderer.gd` / `grass_renderer.gd` (floor +
-biome ground) · `actor_manager.gd` (which entity receives input, ADR 0016) ·
-`level_transition_coordinator.gd` / `save_load_coordinator.gd` /
-`world_reset_coordinator.gd` (the "pending" pipelines GameShell drains) ·
-`variant_overlay.gd` (per-scenario variant overlays).
-
-### `directors/` — optional gameplay primitives (mounted only if content uses them)
-animation, lifecycle/aging, schedule, party, faction, class/occupation,
-tech-tree, dynasty, chunk-streaming, lighting (day/night), multimesh batching.
-Each is one ADR; each is a no-op when no content references it.
-
-### `ui/` — Godot UI built from JSON (reads `hud.json` / `screens.json`)
-`game_shell.gd` (the per-frame game-loop host: drives camera, HUD, **and the
-pending pipelines** in live play) · `screen_flow.gd` (declarative screen/modal
-stack; sets `screen_freeze_world`) · `control_factory.gd` (JSON→Godot Control
-tree) · `overlay.gd` (tutorial overlays) · `settings_manager.gd` ·
-`widgets/` (`hud_builder`, `camera_director`, `minimap_widget`,
-`viewmodel_director`, `win_lose_widget`, `nameplate_renderer`, `bounds_renderer`).
-
-### `io/` — input/output bridges (where the outside world meets the engine)
-| File | Role |
-|---|---|
-| `input_registrar.gd` | Registers `ui/input.json` actions into Godot's InputMap; **`poll()`** reads action state → `scheduler.queue_input`. The one input seam. |
-| `capture_runner.gd` | Autoload — `--capture-*`: render a frame / run a step-script, save PNG, quit. |
-| `stdio_step_driver.gd` | Autoload — `--stdio-step`: the ADR 0060 env. stdin actions → 1 tick → stdout state (+ optional frame file). |
-| `determinism_hash.gd` | `canonical_state_hash` — SHA-256 of canonical world state (the determinism contract). |
-| `save_state.gd` · `audio_bus.gd` | Persistence (ADR 0010) · procedural SFX bus. |
-
-### `qa/` — test/automation drivers (all share one execution path)
-| File | Role |
-|---|---|
-| `step_runner.gd` | **The canonical scenario engine.** Interprets `steps[]` verbs (press/hold/click/wait/tick/expect/…). Used by scenario tests, captures, AND the env. |
-| `scenario_runner.gd` | `scenes/scenario_test.tscn` entry — loads `tests.json`, runs each scenario through StepRunner. |
-| `screen_smoke_runner.gd` | Per-screen headless playability smoke. |
-
-### `libs/` + `util/`
-`lib_resolver.gd` (`@lib.*` / `$include` cross-game JSON reuse, ADR 0027) ·
-`macro_expander.gd` (rule macros) · `shape_lib`/`mesh_lib` (code-draw libraries) ·
-`instance_patterns.gd` (declarative scatter/ring/grid placement — deterministic
-per-pattern RNG) · `grid_snap` · `pathfinding` · `build_validators` · `vec3_util`.
-
-### `renderer_2d/` + `renderer_3d/`
-`entity_sprite_2d.gd` / `entity_mesh_3d.gd` — **read-only** views: each reads an
-entity's `state.position` + `visual` block and draws it. Three-tier fallback
-(authored mesh/sprite → shape-lib primitive → colored box). The renderer never
-writes engine state.
-
----
-
-## How a game runs — the flows
-
-### Boot
-```
-scenes/play.tscn (or <game>_3d.tscn)  →  World._ready()
-  → (auto_start) start() → load_data()
-      → world_boot.run():  mount directors · register ui/input.json actions
-        · load entities/ + world/rules/ + scene.json + screens.json
-        · spawn initial_instances (+ expand instance_patterns)
-  → GameShell + ScreenFlow + 12 other directors mounted as siblings of World
-```
-
-### Per frame (live play) — `world.gd::_process(delta)`
-```
-_poll_input()                  → InputRegistrar.poll → queue this frame's input
-_ground_constraint.apply()
-scheduler.fire_frame_tick()    → ADR 0050 per-frame content rules
-if _tick_due(delta):           → drain the real-time accumulator (fixed sim rate)
-    advance_one_tick()
-GameShell (separate _process)  → drains pending pipelines (level/save/reset) + camera + HUD
-```
-
-### Per tick — `world.gd::advance_one_tick()`  (the canonical tick body)
-```
-_tick_count++                              (ws._tick — read by velocity auto-reset)
-actor_manager.tick_policies()              AI (ADR 0018), if an actor_manager exists
-scheduler.tick()                           ← the 4-phase rule loop (below)
-lifecycle/chunk directors
-trajectory + determinism-hash log          (opt-in)
-```
-
-### The phase loop — `phase_scheduler.gd::tick()`
-```
-input  phase: fire rules whose trigger == {input, action} for queued actions → flush
-decide phase: fire tick rules (interval) → flush
-react  phase: fire signal/contact rules → flush
-```
-Effects don't mutate state directly; they go to a write-buffer that **flushes**
-at phase boundaries, so a later phase sees the earlier phase's results (the
-blocker-pattern guarantee, tech-director Invariant #9).
-
----
-
-## The input flow (live vs scripted vs Python env)
-
-**All three input sources converge at the *polled action state* → `InputRegistrar.poll`
-→ `scheduler.queue_input`.** They are NOT unified as synthesized `InputEvent`s —
-the seam is one level below events (the `Input.is_action_pressed` / `_just_pressed`
-state that real keys *and* `Input.action_press()` both set). See ADR 0060 Phase 1
-notes for why (`parse_input_event` needs fragile frame-timing in the synchronous
-stepping loop; `action_press` is immediate).
-
-```
- (A) LIVE PLAYER
-   physical key ──► Godot InputEventKey ──► updates ┐
-                                                     │
- (B) SCENARIO / CAPTURE  (StepRunner)                │   ┌───────────────────────┐
-   {press/hold:"X"} → Input.action_press("X") ───────┼──►│ Godot action STATE     │
-                                                     │   │ is_action_pressed /    │
- (C) PYTHON ENV  (stdio_step_driver)                 │   │ is_action_just_pressed │
-   stdin {"actions":["X"]} → Input.action_press("X")─┘   └──────────┬────────────┘
-                                                                     ▼
-   world.gd::_poll_input() [live]  /  StepRunner._drive_poll() [B,C]
-        → InputRegistrar.poll(scheduler, actor_id, press_list, hold_list, …)
-              press-edge action → is_action_just_pressed     hold action → is_action_pressed
-                                                                     ▼
-        scheduler.queue_input("X", {"actor": <resolved actor id>})   (deduped per tick)
-                                                                     ▼
-   scheduler.tick() input phase: rules with trigger {input, action:"X"} fire
-                                                                     ▼
-        rule.query picks entities (binds self/actor) → rule.effect runs
-                                                                     ▼
-        e.g. velocity_set(self, …)  →  character_body_runner integrates velocity→position
-```
-
-**Two JSON maps make this game-agnostic:**
-- `data/<game>/ui/input.json` — **key → action name** (+ `edge: press|hold`).
-  `InputRegistrar` registers these into Godot's InputMap and into the engine's
-  `input_actions_press` / `input_actions_hold` poll lists.
-- `data/<game>/world/rules*.json` — **action → effect**, via a rule
-  `{trigger:{type:"input", action:"X"}, query:{…}, effect:[…]}`.
-
-So the engine is the interpreter: it never knows what "move_north" *means* — it
-just routes the action to whatever rule the JSON wired to it.
-
-**Why three drivers, one seam:** live play drives ticks from `_process` (per
-frame); scenario/capture/env disable `_process` and drive ticks themselves
-(sole driver), so they set the action state via `action_press()` and call the
-same `poll()`. Below the poll seam, a scripted key is identical to a real one.
-(Caveat: scripted input does *not* flow through Godot's `_input`/`_gui_input`
-event pipeline — UI buttons are driven by StepRunner's `click` verb instead.)
-
----
-
-## The three runtimes
-
-| Runtime | Binary | Used for |
-|---|---|---|
-| **`scripts/play.sh`** | Windows Godot (`.exe` via WSL) | play, captures, unit/scenario tests — the authoritative path |
-| **`scripts/run_linux.sh`** | native Linux Godot | fast headless tests + the env; no `/mnt/c` round-trip, no WSL-pipe flakiness |
-| **`tools/yume_env/env.py`** | native Linux Godot | the ADR 0060 stepping env (Python orchestrator) |
-
-Both binaries are the same build (`14d19694e`); the Linux one exists because
-Windows-via-WSL can't do reliable stdin/stdout piping or `/dev/fd`. See CLAUDE.md
-for the exact invocation (always `cd "$TEMPLATE_DST"` + `--path .`, never an
-absolute `--path`, which silently aborts).
-
-### The Python env (ADR 0060)
-```python
-from tools.yume_env.env import YumeEnv
-env = YumeEnv("demo_sokoban")          # or frames=True for pixel observations
-env.reset()
-obs = env.step(["move_north"])         # {"tick","hash","state"} (+ "frame" if frames=True)
-env.close()
-```
-One stdin JSON line = exactly one tick = one stdout state line. Two **separate**
-observe channels: **state** (JSON + canonical hash, on stdout — the evaluator's
-"ground truth") and **frame** (raw RGBA8 to a file, opt-in — a future pixel
-agent's "eyes"). Determinism is verifiable: `tools/yume_env/oracle.py` runs a
-demo twice and diffs per-tick hashes.
-
----
-
-## Data layer (per game, `godot/data/demo_<name>/`)
-
-```
-entities/*.json     definitions (tags/properties/state_init/visual) + initial_instances
-world/rules*.json   the mechanics — {trigger, query, effect} rules
-world/state.json    initial _engine/world_state singletons
-game/goals.json     win/lose/score · game/flow.json multi-level progression
-scene.json          camera + lighting + ground + tick_seconds
-ui/input.json       key→action map      hud.json   HUD layout      screens.json  menus/modals
-audio/cues.json     event→SFX           tests.json scenario tests (steps[])
-```
-`data/lib/` holds shared, TRACKED JSON (`shapes.json`, `meshes.json`,
-`input/universal.json`, shaders) that games `$include` via `@lib.*` (ADR 0027).
-
----
-
-## Known gaps / what's lacking
-
-An honest list of where the framework is thin or demo-grade.
+This is an honest list of where the framework is thin or demo-grade.
 
 | Area | Gap |
 |---|---|
-| **Networking** (newest, most demo-grade) | Pure server-authoritative → **no client-side prediction** (your own character has round-trip input latency), no lag compensation. **LAN/localhost only** — no NAT/relay/matchmaking, no reconnection, no persistence of multiplayer state. Only the **walk-shell** is networked; the real genre games (merchant, shooter, …) aren't net-tested. |
-| **Headless-render fidelity** | The truly-windowless `--headless-render` path is a custom Godot patch on **4.7-beta**, so it can't load our **4.6.1** assets (renders boxes) — needs porting to 4.6.1. The Xvfb path works (real meshes, no window) but is GPU-readback-bound in WSL (fast on a native-GPU Linux box). |
-| **Animation** | No validator that a declared `animation_clip` exists in the mesh (mismatch silently falls back → "laggy"; bit us in `tiny_village`). `anim_phase` is fixed-cadence, not speed-proportional → foot-sliding at speed. No blend trees, IK, or root motion. |
-| **Formula / query** | Ternary `a if c else b` is **broken** in Godot 4.6.1's Expression. `self.nearest({…})` is **not implemented** — no spatial query inside formulas (use a `contact` trigger instead). |
-| **Pipelines** | The 3 generation layers no longer clobber (ADR 0067 — `/yume-design --scene` reuses `compose_world` cleanly). Remaining: re-running `compose_world`/`compose_shell` regenerates the World/shell files, so hand-edits to those (not the game's own `entities/<slug>.json` / `world/rules/`) are overwritten; and `/yume-create-scene`'s walk-shell still conflicts if run on a `/yume-design` game folder (use `--scene` instead). |
-| **Authoring / UX** | No in-engine visual editor (everything is JSON + skills); input is keyboard/mouse/gamepad — **no touch/mobile** path. |
-| **AI / audio** | LLM-driven NPC behavior (ADR 0020 external-agent IPC) is a seam, not a shipped feature; audio is procedural SFX + cues — music/BGM is thin. |
+| **Networking** (newest, most demo-grade) | It is purely server-authoritative, so there is **no client-side prediction**. Your own character has round-trip input latency, and there is no lag compensation. It works on **LAN or localhost only**: no NAT, relay or matchmaking, no reconnection, and no saved multiplayer state. Only the **walk shell** is networked. The genre games (merchant, shooter, ...) have no network tests. |
+| **Headless-render fidelity** | The truly windowless `--headless-render` path is a custom Godot patch on **4.7-beta**. It cannot load our **4.6.1** assets, so it renders boxes. It needs a port to 4.6.1. The Xvfb path works (real meshes, no window), but WSL limits it to GPU-readback speed. A Linux machine with a native GPU runs it fast. |
+| **Animation** | No validator checks that a declared `animation_clip` exists in the mesh. A mismatch falls back silently and looks laggy (this happened in `tiny_village`). `anim_phase` has a fixed cadence, not one that follows speed, so feet slide at speed. There are no blend trees, no IK and no root motion. |
+| **Formula and query** | Formulas have no ternary: Godot 4.6.1's Expression does not support it, so the engine rejects `a if c else b`. Write `b + (a - b) * float(c)`. `self.nearest({…})` is **not implemented**, so a formula cannot run a spatial query. Use a `contact` trigger instead. |
+| **Pipelines** | The 3 generation layers no longer overwrite each other (ADR 0067). One problem remains. A new run of `compose_world` or `compose_shell` regenerates the World and shell files, so it overwrites hand edits to them. The game's own `entities/<slug>.json` and `world/rules/` are safe. `/yume-create-scene`'s walk shell still conflicts with a `/yume-design` game folder. Use `--scene` instead. |
+| **QA tooling** | The objective visual test plans (`tools/visual_qa/run_plan.py`) support 3D games only. |
+| **Authoring and UX** | There is no visual editor in the engine. Everything is JSON and skills. Input is keyboard, mouse and gamepad. There is **no touch or mobile** path. |
+| **AI and audio** | LLM-driven NPC behavior (the ADR 0020 external-agent IPC) is a seam, not a shipped feature. Audio is procedural SFX and cues. Music is thin. |
 
 ---
 
 ## Roadmap
 
-Direction, not a promise — only **Now** is version-pinned (`0.1.x`); the buckets
-below are **priority tiers, not version numbers** (what lands in `0.2` vs later
-isn't decided yet, deliberately). Several *Later* items are the *Known gaps* above,
-sequenced.
+This is a direction, not a promise. Only **Now** has a version (`0.1.x`).
+The other groups are **priority tiers, not version numbers**. We have not
+decided what goes into `0.2`, on purpose. Several *Later* items are the
+*Known gaps* above, in order.
 
-- **Now (`0.1.x` — polish):** convex-hull colliders for terrain props (today's box
-  is mesh-fit but can clip on steep slopes —
-  [ADR 0067](docs/adr/0067-unified-generation-pipeline.md) § colliders) ·
-  scatter-count gate (`compose_world`'s `scatter_in_mask` should cap at the
-  catalog's `expected_count`, enforced in code, not prose) · **CI** (a GitHub
-  Action running the engine unit suite on push).
-- **Next (recording · reuse · RL ergonomics):** **auto game recording** (a full
-  single-player session → video, no manual stepping) · **multiplayer-recording
-  hardening** (the server-authoritative path + `net_video.py` replay are
-  *implemented but need more testing* + real-GPU validation — see Development
-  environment below) · **play-mode inheritance** — lift the walk/jump/sprint/camera
-  shell into `data/lib/play_modes/<mode>/` so a same-type game is *just* assets +
-  scene + a few rules ([ADR 0027](docs/adr/0027-cross-game-json-reuse-system.md) /
-  [ADR 0043](docs/adr/0043-universal-input-via-lib.md)) · **`gym.Env`
-  first-class** ([ADR 0060](docs/adr/0060-deterministic-pomdp-pluggable-io.md):
-  Spaces, batching, in-process `reset()`) · **animation fidelity** (validate a
-  declared `animation_clip` exists; speed-proportional `anim_phase`).
-- **Later:** multiplayer hardening (client-side prediction, lag compensation,
-  NAT/relay/matchmaking, reconnection, persistence) · headless-render fidelity
-  (port the windowless `--headless-render` path to 4.6.1) · audio depth (music/BGM
-  beyond procedural SFX + cues). *(See Known gaps above for the why.)*
-- **Someday:** in-engine visual editor (everything is JSON + skills today) ·
-  touch / mobile input · LLM-driven NPC behavior as a shipped feature
-  ([ADR 0020](docs/adr/0020-external-agent-ipc.md) IPC seam exists).
-- **`1.0` (the stability promise):** freeze the 7 primitives + the JSON schema.
-  Until then, expect schema churn between minor versions — that's why we're
-  honestly `0.x`.
+- **Now (`0.1.x`, polish):**
+  - Convex-hull colliders for terrain props. Today's box fits the mesh,
+    but it can clip on steep slopes
+    ([ADR 0067](docs/adr/0067-unified-generation-pipeline.md) § colliders).
+  - A scatter-count gate. `compose_world`'s `scatter_in_mask` should cap
+    at the catalog's `expected_count`, and code should enforce it.
+- **Next (recording, reuse, RL ergonomics):**
+  - **Automatic game recording:** a full single-player session to video,
+    with no manual stepping.
+  - **Harder multiplayer recording:** the server-authoritative path and
+    the `net_video.py` replay work, but they need more tests and
+    validation on a real GPU (see Development environment).
+  - **Play-mode inheritance:** move the walk, jump, sprint and camera
+    shell into `data/lib/play_modes/<mode>/`. A game of the same type is
+    then only assets, a scene and a few rules
+    ([ADR 0027](docs/adr/0027-cross-game-json-reuse-system.md),
+    [ADR 0043](docs/adr/0043-universal-input-via-lib.md)).
+  - **A first-class `gym.Env`**
+    ([ADR 0060](docs/adr/0060-deterministic-pomdp-pluggable-io.md)):
+    spaces, batching and an in-process `reset()`.
+  - **Animation fidelity:** check that a declared `animation_clip` exists,
+    and make `anim_phase` follow speed.
+- **Later** (the *Known gaps* above give the reasons):
+  - Harder multiplayer: client-side prediction, lag compensation, NAT,
+    relay, matchmaking, reconnection and saved state.
+  - Headless-render fidelity: port the windowless `--headless-render`
+    path to 4.6.1.
+  - Deeper audio: music beyond procedural SFX and cues.
+- **Someday:**
+  - A visual editor in the engine.
+  - Touch and mobile input.
+  - LLM-driven NPC behavior as a shipped feature (the
+    [ADR 0020](docs/adr/0020-external-agent-ipc.md) IPC seam exists).
+- **`1.0` (the stability promise):** freeze the 7 primitives and the JSON
+  schema. Until then, expect schema changes between minor versions. That
+  is why we stay honestly at `0.x`.
 
 ---
 
-## Prior art & acknowledgments
+## Prior art and acknowledgments
 
-Yume **studied these two projects closely** and used them as references while
-shaping its own design:
+Yume **studied these two projects closely** and used them as references
+for its own design:
 
-- [Donchitos/Claude-Code-Game-Studios](https://github.com/Donchitos/Claude-Code-Game-Studios)
-  — a Claude-Code "studio" of specialist agents organized with path-scoped rules
-  and automated quality gates. Yume's `.claude/rules/` + `.claude/skills/`
-  architecture comes directly from studying it.
-- [htdt/godogen](https://github.com/htdt/godogen) — an autonomous game generator
-  (Godot / Bevy / Babylon.js, driven by Claude Code / Codex, iterating on
-  screenshots). It showed the autonomous generate → run → screenshot → fix loop
-  works in practice.
+- [Donchitos/Claude-Code-Game-Studios](https://github.com/Donchitos/Claude-Code-Game-Studios):
+  a Claude Code "studio" of specialist agents, with path-scoped rules and
+  automated quality gates. Yume's `.claude/rules/` and `.claude/skills/`
+  architecture comes directly from it.
+- [htdt/godogen](https://github.com/htdt/godogen): an autonomous game
+  generator for Godot, Bevy and Babylon.js. Claude Code or Codex drives
+  it, and it iterates on screenshots. It showed that the autonomous loop
+  (generate, run, screenshot, fix) works in practice.
 
-Thanks to both — they showed LLM-driven game generation is real, and Yume stands
-on what they figured out.
+Thanks to both. They showed that LLM-driven game generation is real, and
+Yume builds on what they found.
 
-**How Yume is different.** Both of those — and most "AI game" systems — generate
-**per-game engine code** for a mainstream engine (C# / GDScript, scene trees,
-scripts) and then iterate on that code. Yume takes the opposite stance:
+**How Yume is different.** Those two projects, and most "AI game"
+systems, generate **engine code for each game** in a mainstream engine
+(C# or GDScript, scene trees, scripts). Then they iterate on that code.
+Yume does the opposite:
 
-- **The engine is fixed; the game is data.** A primitives-+-interpreter engine
-  ships once ([ADR 0001](docs/adr/0001-seven-primitives.md) /
-  [ADR 0021](docs/adr/0021-yume-as-json-layer-over-platform.md)); the LLM emits
-  **JSON world rules, never engine code**
-  ([Invariant #1/#8](docs/guideline/30_framework_primitives.md)). Nothing per-game
-  is compiled — which is exactly what makes research direction #1 (above) testable.
-- **It's a world model, not just a game maker.** Games are one projection of the
-  substrate; RL testbeds, scene generation, and neural-world-model training data
-  are equal first-class uses.
-- **Research-first.** The explicit + deterministic design exists to *advance*
-  world-model, 3D-generation, scene-generation, audio-generation, and game-AI
-  research — not only to ship a finished title.
+- **The engine is fixed. The game is data.** A primitives-and-interpreter
+  engine ships once
+  ([ADR 0001](docs/adr/0001-seven-primitives.md),
+  [ADR 0021](docs/adr/0021-yume-as-json-layer-over-platform.md)). The LLM
+  writes **JSON world rules, never engine code**
+  ([Invariants #1 and #8](docs/guideline/30_framework_primitives.md)).
+  Nothing is compiled per game. This is what makes research direction #1
+  testable.
+- **It is a world model, not only a game maker.** Games are one
+  projection of the substrate. RL testbeds, scene generation and training
+  data for neural world models are equal uses.
+- **Research first.** The explicit, deterministic design exists to
+  *advance* research, not only to ship a finished title. The fields are
+  world models, 3D, scene and audio generation, and game AI.
 
 ## References
 
-- **WorldGen: From Text to Traversable and Interactive 3D Worlds** — Wang et al.,
-  2025. [arXiv:2511.16825](https://arxiv.org/abs/2511.16825). The kind of
-  text→3D-world API that would slot directly into Yume's scene-generation stage
-  (research direction #3).
-- **3DCodeBench: Benchmarking Agentic Procedural 3D Modeling via Code** — Gao et
-  al., 2026. [arXiv:2606.01057](https://arxiv.org/abs/2606.01057). Benchmarks VLMs
-  emitting procedural-3D *code* — the path toward LLM-authored 3D structure
-  (research direction #2).
-- Neural world models for context —
+- **WorldGen: From Text to Traversable and Interactive 3D Worlds**, Wang
+  et al., 2025. [arXiv:2511.16825](https://arxiv.org/abs/2511.16825).
+  This kind of text-to-3D-world API would fit directly into Yume's
+  scene-generation stage (research direction #3).
+- **3DCodeBench: Benchmarking Agentic Procedural 3D Modeling via Code**,
+  Gao et al., 2026. [arXiv:2606.01057](https://arxiv.org/abs/2606.01057).
+  It benchmarks VLMs that write procedural-3D *code*, a path toward
+  LLM-authored 3D structure (research direction #2).
+- Neural world models, for context:
   [**Genie**](https://arxiv.org/abs/2402.15391) (generative interactive
-  environments) and [**Dreamer**](https://arxiv.org/abs/2301.04104) (latent world
-  models): the *implicit* counterpart that Yume's *explicit* substrate is designed
-  to bridge to.
+  environments) and [**Dreamer**](https://arxiv.org/abs/2301.04104)
+  (latent world models). They are the *implicit* counterpart that Yume's
+  *explicit* substrate aims to connect to.
 
 ## Development environment
 
-Yume was developed on a **Dell XPS 15 7590** laptop with **no dedicated GPU
-available for testing**. GPU-bound paths — windowless headless rendering and
-multi-player video capture — are therefore **untested at scale**; under WSL they're
-GPU-readback-bound and should run substantially faster on a native-GPU Linux box.
-If you have real GPU hardware, the recording / render paths are where you'll see
-the biggest speedup, and where help validating performance is most welcome.
+Yume was developed on a **Dell XPS 15 7590** laptop with **no dedicated
+GPU for testing**. So the GPU-bound paths (windowless headless rendering
+and multi-player video capture) are **untested at scale**. Under WSL,
+GPU readback limits them, and they should run much faster on a Linux
+machine with a native GPU. If you have real GPU hardware, the recording
+and render paths are where you will see the biggest speedup. Help with
+validating their performance is most welcome.
 
 ---
 
 ## Where to read more
 
-- [`docs/guideline/30_framework_primitives.md`](docs/guideline/30_framework_primitives.md) — the engine contract (invariant-bearing)
-- [`docs/adr/`](docs/adr/) — architectural decisions (e.g.
-  [ADR 0021](docs/adr/0021-yume-as-json-layer-over-platform.md) expose-don't-reimplement,
-  [ADR 0039](docs/adr/0039-playwright-style-scenario-steps.md) step-runner,
-  [ADR 0060](docs/adr/0060-deterministic-pomdp-pluggable-io.md) deterministic I/O + env)
-- [`.claude/rules/`](.claude/rules/) — path-scoped invariants (engine-scripts, data-demo, …)
-- [`CLAUDE.md`](CLAUDE.md) — conventions, the run workflow, the post-mortem ritual
+- [`docs/engine-reference/engine-tour.md`](docs/engine-reference/engine-tour.md): how the engine is built and how a game runs
+- [`docs/guideline/30_framework_primitives.md`](docs/guideline/30_framework_primitives.md): the engine contract (invariant-bearing)
+- [`docs/adr/`](docs/adr/): architectural decisions. Start with
+  [ADR 0021](docs/adr/0021-yume-as-json-layer-over-platform.md) (expose, do not reimplement),
+  [ADR 0039](docs/adr/0039-playwright-style-scenario-steps.md) (the step runner) and
+  [ADR 0060](docs/adr/0060-deterministic-pomdp-pluggable-io.md) (deterministic I/O and the env)
+- [`.claude/rules/`](.claude/rules/): path-scoped invariants (engine-scripts, data-demo, ...)
+- [`CLAUDE.md`](CLAUDE.md): conventions, the run workflow, the post-mortem ritual
