@@ -57,6 +57,42 @@ def _has_visual_mesh(def_entry: dict) -> bool:
     return bool(vis.get("mesh") or vis.get("model_3d"))
 
 
+def _shader_surface(game_dir: Path):
+    """Return f(x, z) -> ground surface height when scene.json's ground mesh
+    displaces by a heightmap (ground_biome_displace.gdshader), else None.
+    The shader samples uv = ((x, z) + plane/2) / plane and lifts each vertex
+    by (heightmap.r + height_offset) * height_scale.
+
+    Empirical 2026-10-16: demo_lanterns props sit on a shader-displaced
+    terrain. Their y (0.46 to 0.71) is the surface height plus 0.012, but
+    the flat-ground check read it as a half-height float and flagged 11."""
+    try:
+        mesh = json.loads((game_dir / "scene.json").read_text())["ground"]["mesh"]
+        sp = mesh["shader_params"]
+        hm = Path(str(sp["heightmap"]).replace("res://", str(REPO_ROOT / "godot") + "/"))
+        from PIL import Image
+        img = Image.open(hm).convert("L")
+    except (OSError, KeyError, TypeError, ValueError, ImportError, json.JSONDecodeError):
+        return None
+    plane = float(sp.get("plane_size", mesh.get("plane_size", 80.0)))
+    scale = float(sp.get("height_scale", 3.0))
+    offset = float(sp.get("height_offset", -0.5))
+    w, h = img.size
+    px = img.load()
+
+    def surface(x: float, z: float) -> float:
+        fx = min(w - 1.0, max(0.0, (x + plane / 2) / plane * (w - 1)))
+        fz = min(h - 1.0, max(0.0, (z + plane / 2) / plane * (h - 1)))
+        x0, z0 = int(fx), int(fz)
+        x1, z1 = min(w - 1, x0 + 1), min(h - 1, z0 + 1)
+        tx, tz = fx - x0, fz - z0
+        top = px[x0, z0] * (1 - tx) + px[x1, z0] * tx
+        bottom = px[x0, z1] * (1 - tx) + px[x1, z1] * tx
+        return ((top * (1 - tz) + bottom * tz) / 255.0 + offset) * scale
+
+    return surface
+
+
 def scan_game(game_dir: Path) -> list[str]:
     findings: list[str] = []
     defs: dict[str, dict] = {}
@@ -85,6 +121,8 @@ def scan_game(game_dir: Path) -> list[str]:
         for d in defs.values())
     if has_terrain:
         return []
+    # A heightmap ground: measure each prop's height ABOVE the surface.
+    surface = _shader_surface(game_dir)
     for path, doc in docs:
         rel = path.relative_to(REPO_ROOT)
         for i, inst in enumerate(doc.get("initial_instances", []) or []):
@@ -94,6 +132,8 @@ def scan_game(game_dir: Path) -> list[str]:
             if not (isinstance(pos, list) and len(pos) >= 3):
                 continue
             y = float(pos[1])
+            if surface is not None:
+                y -= surface(float(pos[0]), float(pos[2]))
             if y <= MIN_SUSPECT_Y:
                 continue
             de = defs.get(str(inst.get("def", "")))
@@ -106,7 +146,7 @@ def scan_game(game_dir: Path) -> list[str]:
             if abs(y - half) <= half * REL_TOLERANCE:
                 findings.append(
                     f"{rel}[{i}] (def={inst.get('def')}, id={inst.get('id', '?')}): "
-                    f"y={y} ≈ height/2 ({half:.2f}) — center-pivot authoring on a "
+                    f"y={y:.3f} (above the ground) ≈ height/2 ({half:.2f}) — center-pivot authoring on a "
                     f"base-anchored mesh; the prop floats {y:.2f}m. Engine anchors "
                     f"every visual base-on-ground: y is the BASE height, use y=0 "
                     f"for floor-standing props. (Deliberate elevation, e.g. a "

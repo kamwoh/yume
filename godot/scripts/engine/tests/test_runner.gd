@@ -8520,14 +8520,15 @@ func test_entity_light_mount() -> void:
 # ============================================================
 
 
-## Builds the preview against real demo_lightlab JSON and asserts it
+## Builds the preview against real demo_doomarena3d JSON (a committed
+## example, so a fresh clone has it) and asserts it
 ## produces entity nodes, all owner=null (never serialized). Exercises
 ## the glob/merge/placement slice headlessly (is_editor_hint is false
 ## here, so _ready won't auto-build — we call _rebuild directly).
 func test_scene_preview() -> void:
 	_section("editor scene preview (ADR 0073)")
 	var preview = load("res://scripts/engine/editor/yume_scene_preview.gd").new()
-	preview.data_root_override = "res://data/demo_lightlab"
+	preview.data_root_override = "res://data/demo_doomarena3d"
 	add_child(preview)
 	preview._rebuild()
 	var holder = preview.get_node_or_null("_PreviewRoot")

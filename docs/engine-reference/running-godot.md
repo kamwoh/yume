@@ -1,6 +1,6 @@
 # Running Godot — tests, scenarios, captures
 
-_Last updated: 2026-10-15_ (moved out of CLAUDE.md to cut always-on context)
+_Last updated: 2026-10-16_ (CI section added. Moved out of CLAUDE.md on 2026-10-15)
 
 
 `scripts/play.sh` is the single source of truth for `GODOT_BIN` and
@@ -56,3 +56,18 @@ Unit tests should report `passed: NN  failed: 0  total: NN`. Test source:
 - **Capture path**: `user://X.png` → `/mnt/c/Users/.../AppData/Roaming/Godot/app_userdata/<project>/X.png`
   (`find /mnt/c -path "*/app_userdata/*" -name "X.png"`); Read it as a normal PNG.
 
+
+## CI (2026-10-16)
+
+`.github/workflows/ci.yml` runs on each push and pull request:
+
+- **python:** `scripts/ci_checks.sh` runs the repo-wide validators,
+  `check_examples.py --strict`, the validator tests and the asset-gen
+  tests. Run it locally with `./scripts/ci_checks.sh`.
+- **godot:** the Linux build of Godot 4.6.1 runs `--import`, the unit
+  tests and the scenario tests of the committed examples (`demo_sokoban`,
+  `demo_doomarena3d`, `demo_lanterns`).
+
+CI has only the committed examples. An engine test that reads another
+demo passes on your machine and fails in CI.
+`tests/test_committed_demo_refs.py` rejects such a test.

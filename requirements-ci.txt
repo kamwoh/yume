@@ -1,0 +1,7 @@
+# Python deps for CI (scripts/ci_checks.sh): the validators, their tests and
+# the asset-gen tests. A subset of requirements.txt plus test-only tools.
+pillow>=10
+numpy>=1.26
+pyyaml>=6
+pygltflib>=1.16
+pytest>=8

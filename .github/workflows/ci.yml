@@ -1,0 +1,50 @@
+# Yume CI (batch G, 2026-10-16).
+# - python: the repo-wide validators, the committed examples
+#   (check_examples), the validator tests and the asset-gen tests, through
+#   scripts/ci_checks.sh.
+# - godot: the engine unit tests and the scenario tests of the committed
+#   example demos, headless, on the pinned Godot 4.6.1.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-ci.txt
+      - run: PYTHON=python ./scripts/ci_checks.sh
+
+  godot:
+    runs-on: ubuntu-latest
+    env:
+      GODOT_ZIP: https://github.com/godotengine/godot/releases/download/4.6.1-stable/Godot_v4.6.1-stable_linux.x86_64.zip
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot 4.6.1
+        run: |
+          curl -sSL -o godot.zip "$GODOT_ZIP"
+          unzip -q godot.zip -d "$HOME/godot"
+          echo "GODOT=$HOME/godot/Godot_v4.6.1-stable_linux.x86_64" >> "$GITHUB_ENV"
+      - name: Import
+        working-directory: godot
+        run: timeout 300 "$GODOT" --headless --path . --import
+      - name: Unit tests
+        working-directory: godot
+        run: |
+          timeout 600 "$GODOT" --headless --path . scenes/test_main.tscn 2>&1 | tee test.log
+          grep -qE "passed: [0-9]+  failed: 0 " test.log
+      - name: Scenario tests (committed examples)
+        working-directory: godot
+        run: |
+          for g in demo_sokoban demo_doomarena3d demo_lanterns; do
+            timeout 600 "$GODOT" --headless --path . scenes/scenario_test.tscn -- --game=$g 2>&1 | tee "scen_$g.log"
+            grep -q "no tests.json" "scen_$g.log" && continue
+            grep -qE "passed: [0-9]+  failed: 0 " "scen_$g.log" || { echo "$g failed or crashed"; exit 1; }
+          done
