@@ -31,6 +31,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import content  # noqa: E402
+
 
 def _load(path):
     try:
@@ -58,29 +61,9 @@ def _defs(game_dir):
     return out
 
 
-def _rule_files(game_dir):
-    out = []
-    for c in [game_dir / "world" / "rules.json", game_dir / "game" / "goals.json"]:
-        if c.exists():
-            out.append(c)
-    wr = game_dir / "world" / "rules"
-    if wr.exists():
-        out += sorted(wr.glob("*.json"))
-    lv = game_dir / "levels"
-    if lv.exists():
-        for d in sorted(lv.iterdir()):
-            if d.is_dir():
-                out += list(d.glob("rules.json"))
-    return out
-
-
 def _rules(game_dir):
-    out = []
-    for f in _rule_files(game_dir):
-        d = _load(f)
-        if isinstance(d, dict):
-            out += [r for r in d.get("rules", []) if isinstance(r, dict)]
-    return out
+    # Every rule the engine loads, with @lib refs resolved (content.py).
+    return [r for _, r in content.iter_rules(game_dir)]
 
 
 def _effects(rule):

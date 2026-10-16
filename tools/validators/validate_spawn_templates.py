@@ -33,6 +33,9 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import content  # noqa: E402
+
 
 def find_spawn_templates(node, path):
     """Recursively yield (template_value, json_path) for every `spawn` effect
@@ -88,27 +91,8 @@ def collect_def_ids(game_dir):
 
 def collect_rule_files(game_dir):
     """Files that may contain `spawn` effects."""
-    out = []
-    candidates = [
-        game_dir / "world" / "rules.json",
-        game_dir / "game" / "goals.json",
-    ]
-    for c in candidates:
-        if c.exists():
-            out.append(c)
-    levels_dir = game_dir / "levels"
-    if levels_dir.exists():
-        for level in sorted(levels_dir.iterdir()):
-            if level.is_dir():
-                r = level / "rules.json"
-                if r.exists():
-                    out.append(r)
-    # Staged authoring files
-    game_subdir = game_dir / "game"
-    if game_subdir.exists():
-        for staged in sorted(game_subdir.glob("*_staged.json")):
-            out.append(staged)
-    return out
+    # Every rule file the engine loads (content.py), plus staged authoring files.
+    return content.rule_files(game_dir) + content.staged_files(game_dir)
 
 
 def validate_game(game_dir, strict=False):
@@ -123,7 +107,7 @@ def validate_game(game_dir, strict=False):
 
     for path in collect_rule_files(game_dir):
         try:
-            doc = json.loads(path.read_text())
+            doc = content.resolver().resolve(json.loads(path.read_text()))
         except json.JSONDecodeError as e:
             errors.append((str(path), "<root>", "", f"JSON parse error: {e}"))
             continue

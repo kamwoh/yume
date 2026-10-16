@@ -64,6 +64,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from content import resolver, rule_files  # noqa: E402
+
 # ============================================================
 # CONTEXT BINDING RESOLUTION — what bindings does each trigger expose?
 # ============================================================
@@ -742,51 +745,8 @@ def check_input_actions(input_json, errors):
 
 
 def find_rule_files(game_dir):
-    """Yield every rules.json / goals.json the game ships.
-
-    Mirrors WorldLoader.load_rules_files_for (#109): directory form
-    (world/rules/*.json) wins over single-file form (world/rules.json)
-    when present. Validator must check the same set of files the engine
-    will actually load.
-    """
-    game_dir = Path(game_dir)
-    base_paths = [
-        game_dir / "world" / "rules.json",
-        game_dir / "world" / "physics.json",  # legacy name
-        game_dir / "game" / "goals.json",
-        game_dir / "game" / "rules.json",  # legacy name
-    ]
-    for p in base_paths:
-        # Directory form: world/rules.json → world/rules/
-        dir_form = p.parent / p.stem
-        if dir_form.is_dir():
-            for child in sorted(dir_form.glob("*.json")):
-                yield child
-        elif p.exists():
-            yield p
-    levels_dir = game_dir / "levels"
-    if levels_dir.exists():
-        for level_dir in levels_dir.iterdir():
-            if level_dir.is_dir():
-                p = level_dir / "rules.json"
-                p_dir = level_dir / "rules"
-                if p_dir.is_dir():
-                    for child in sorted(p_dir.glob("*.json")):
-                        yield child
-                elif p.exists():
-                    yield p
-
-
-def expand_includes(node):
-    """The engine's LibResolver expands @lib.X.Y refs at load. The
-    validator doesn't follow them — referenced rules live in data/lib/
-    and are validated separately. Skip rules that are pure `$include`
-    placeholders or `$extends` references."""
-    if not isinstance(node, dict):
-        return False
-    if "$include" in node or "$extends" in node:
-        return True
-    return False
+    """The rule files the engine loads (content.rule_files)."""
+    return rule_files(game_dir)
 
 
 def validate_game(game_dir):
@@ -802,14 +762,14 @@ def validate_game(game_dir):
             errors.append((str(rules_file), "<root>", "json",
                            f"parse error: {e}"))
             continue
-        rules = doc.get("rules", [])
+        # Resolve @lib refs as the engine does, so bundle rules are checked
+        # in the game's context (batch G, 2026-10-16).
+        rules = resolver().resolve(doc.get("rules", []))
         if not isinstance(rules, list):
             continue
         for rule in rules:
             if not isinstance(rule, dict):
                 continue
-            if expand_includes(rule):
-                continue  # $include / $extends — validated separately in lib
             r_errors = []
             check_formula_bindings(rule, r_errors)
             check_empty_effects(rule, r_errors)

@@ -53,6 +53,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import content  # noqa: E402
+
 SCENE_DESTROYING = {
     "reload_scene",
     "scene_change",
@@ -134,9 +137,9 @@ def _walk(node, path, errors):
 
 
 def _files(game_dir: Path):
-    yield from sorted(game_dir.glob("world/rules/*.json"))
-    for name in ("world/rules.json", "game/goals.json", "tutorial.json",
-                 "screens.json", "hud.json"):
+    # The rule files the engine loads (content.py), plus the UI chains.
+    yield from content.rule_files(game_dir)
+    for name in ("screens.json", "hud.json"):
         f = game_dir / name
         if f.is_file():
             yield f
@@ -150,7 +153,7 @@ def validate_game(game_dir: Path, repo: Path):
         except Exception as exc:
             errors.append((str(f.relative_to(repo)), f"JSON parse error: {exc}"))
             continue
-        _walk(doc, f.name + "$", errors)
+        _walk(content.resolver().resolve(doc), f.name + "$", errors)
     return errors
 
 

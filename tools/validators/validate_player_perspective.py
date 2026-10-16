@@ -34,6 +34,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import content  # noqa: E402
+
 GAME_ARG = sys.argv[1] if len(sys.argv) > 1 else None
 STRICT = "--strict" in sys.argv
 
@@ -105,19 +108,11 @@ if inputs and hud:
             for x in d:
                 collect_rule_input_actions(x)
 
-    for path in [
-        GAME_DIR / "world" / "rules.json",
-        GAME_DIR / "game" / "goals.json",
-    ]:
-        rj = load_json(path)
+    # Every rule file the engine loads, with @lib refs resolved (content.py).
+    for path in content.rule_files(GAME_DIR):
+        rj = content.load_resolved(path)
         if rj:
             collect_rule_input_actions(rj)
-    for lvl_dir in (GAME_DIR / "levels").glob("level_*"):
-        p = lvl_dir / "rules.json"
-        if p.exists():
-            rj = load_json(p)
-            if rj:
-                collect_rule_input_actions(rj)
     # screens.json global_inputs (action-driven on_press chains)
     sj = load_json(GAME_DIR / "screens.json")
     if sj and isinstance(sj.get("global_inputs"), list):
@@ -176,16 +171,11 @@ def collect_objective_texts(d, out):
 
 
 objectives = []
-for rules_path in (GAME_DIR / "game/goals.json",):
-    rj = load_json(rules_path)
+# Every rule file the engine loads, with @lib refs resolved (content.py).
+for rules_path in content.rule_files(GAME_DIR):
+    rj = content.load_resolved(rules_path)
     if rj:
         collect_objective_texts(rj, objectives)
-for lvl_dir in (GAME_DIR / "levels").glob("level_*"):
-    lvl_rules = lvl_dir / "rules.json"
-    if lvl_rules.exists():
-        rj = load_json(lvl_rules)
-        if rj:
-            collect_objective_texts(rj, objectives)
 
 
 # Collect all named_npc display_names across entity defs

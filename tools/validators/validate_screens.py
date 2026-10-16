@@ -31,6 +31,9 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import content  # noqa: E402
+
 VALID_SPECIAL = {"@previous", "@root"}  # add new sentinels here as engine grows
 
 
@@ -79,28 +82,15 @@ def validate_game(game_dir, strict=False):
     #   game/goals.json (rule effects)
     #   levels/*/rules.json (per-level rules — when ADR 0006 multi-level)
     #   any *_staged.json siblings (catch bugs before they're spliced)
-    targets_to_scan = [
-        screens_path,
-        game_dir / "game" / "goals.json",
-    ]
-    levels_dir = game_dir / "levels"
-    if levels_dir.exists():
-        for level_dir in levels_dir.iterdir():
-            if level_dir.is_dir():
-                rules = level_dir / "rules.json"
-                if rules.exists():
-                    targets_to_scan.append(rules)
-    # Staged files (active authoring): also scan
-    game_subdir = game_dir / "game"
-    if game_subdir.exists():
-        for staged in game_subdir.glob("*_staged.json"):
-            targets_to_scan.append(staged)
+    # screens.json, every rule file the engine loads (content.py), and the
+    # staged authoring files.
+    targets_to_scan = [screens_path] + content.rule_files(game_dir) + content.staged_files(game_dir)
 
     for path in targets_to_scan:
         if not path.exists():
             continue
         try:
-            doc = json.loads(path.read_text())
+            doc = content.resolver().resolve(json.loads(path.read_text()))
         except json.JSONDecodeError as e:
             errors.append((str(path), "<root>", "", f"JSON parse error: {e}"))
             continue

@@ -47,6 +47,9 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import content  # noqa: E402
+
 
 STATE_MUTATION_EFFECTS = {
     "state_set", "state_add", "state_mul", "state_clamp",
@@ -65,7 +68,7 @@ def gather_rules_from_file(path):
         doc = json.loads(path.read_text())
     except json.JSONDecodeError:
         return []
-    rules = doc.get("rules", [])
+    rules = content.resolver().resolve(doc.get("rules", []))
     return [(r, str(path)) for r in rules if isinstance(r, dict)]
 
 
@@ -130,22 +133,19 @@ def _is_level_rule_file(path_str):
 
 
 def collect_rule_files(game_dir):
-    """All world/rules.json + game/goals.json + tutorial.json + level rules."""
-    out = []
-    candidates = [
-        game_dir / "world" / "rules.json",
-        game_dir / "game" / "goals.json",
-        game_dir / "tutorial.json",
-    ]
-    for c in candidates:
-        if c.exists(): out.append(c)
-    levels = game_dir / "levels"
-    if levels.exists():
-        for level_dir in sorted(levels.iterdir()):
-            if level_dir.is_dir():
-                r = level_dir / "rules.json"
-                if r.exists(): out.append(r)
-    return out
+    """Every rule file the engine loads (content.py)."""
+    return content.rule_files(game_dir)
+
+
+def _layer(path_str, game_dir):
+    """The authoring layer of a rule file: world, game, tutorial or one
+    level. The check looks for a clash BETWEEN layers. The folder form
+    splits one layer into many files (world/rules/*.json), and two of those
+    files are still one layer (batch G, 2026-10-16)."""
+    rel = Path(path_str).resolve().relative_to(Path(game_dir).resolve()).parts
+    if rel[0] == "levels":
+        return "level:" + rel[1]
+    return rel[0] if rel[0] in ("world", "game") else rel[0].removesuffix(".json")
 
 
 def validate_game(game_dir, repo_root, strict=False):
@@ -166,9 +166,9 @@ def validate_game(game_dir, repo_root, strict=False):
     issues = []
     for (tags, mk), entries in groups.items():
         if len(entries) < 2: continue
-        # CROSS-FILE check: are the entries split across files?
-        files_seen = {e[0] for e in entries}
-        if len(files_seen) < 2: continue  # same-file is intentional pattern
+        # CROSS-LAYER check: are the entries split across layers?
+        layers_seen = {_layer(e[0], game_dir) for e in entries}
+        if len(layers_seen) < 2: continue  # one layer is an intentional pattern
         types = {e[2] for e in entries}
         # SUPPRESS reset+modify (cooldown/timer): a state_set (reset on fire/
         # spawn) coexisting with a state_add/state_mul (per-tick decrement) on
