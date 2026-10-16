@@ -29,6 +29,9 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from content import asset_file  # noqa: E402
+
 HERE = Path(__file__).resolve()
 REPO_ROOT = HERE.parents[2]
 DATA_ROOT = REPO_ROOT / "godot" / "data"
@@ -69,7 +72,7 @@ def _shader_surface(game_dir: Path):
     try:
         mesh = json.loads((game_dir / "scene.json").read_text())["ground"]["mesh"]
         sp = mesh["shader_params"]
-        hm = Path(str(sp["heightmap"]).replace("res://", str(REPO_ROOT / "godot") + "/"))
+        hm = asset_file(str(sp["heightmap"]), game_dir)
         from PIL import Image
         img = Image.open(hm).convert("L")
     except (OSError, KeyError, TypeError, ValueError, ImportError, json.JSONDecodeError):

@@ -44,8 +44,8 @@ Schema:
 }
 
 When `patch_entities=true`, the pipeline adds:
-    visual.albedo_texture = "res://data/<game>/assets/textures/<entity>.png"
-    visual.mesh           = "res://data/<game>/assets/meshes/<entity>.glb"
+    visual.albedo_texture = "assets/textures/<entity>.png"
+    visual.mesh           = "assets/meshes/<entity>.glb"
 next to the existing *_prompt fields (preserved for re-runs).
 """
 
@@ -95,15 +95,6 @@ class AssetGenConfig:
 
     def concept_dir_abs(self, game_dir: Path) -> Path:
         return game_dir / self.outputs.get("concept_dir", "assets/concepts")
-
-    def texture_ref(self, game_dir_rel_to_res: str, entity_id: str) -> str:
-        """Build the `res://...` reference for a generated texture."""
-        d = self.outputs.get("texture_dir", "assets/textures")
-        return f"res://{game_dir_rel_to_res}/{d}/{entity_id}.png"
-
-    def mesh_ref(self, game_dir_rel_to_res: str, entity_id: str) -> str:
-        d = self.outputs.get("mesh_dir", "assets/meshes")
-        return f"res://{game_dir_rel_to_res}/{d}/{entity_id}.glb"
 
     def backend_for(self, kind: str) -> str:
         """Resolve the backend name for a given asset kind.

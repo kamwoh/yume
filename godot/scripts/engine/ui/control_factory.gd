@@ -162,8 +162,8 @@ static func _build_button(spec: Dictionary, dispatcher: Callable) -> Button:
 	# clickable control otherwise needs an image plus an invisible button
 	# stacked and hand-aligned.
 	#
-	#   {"texture": "res://.../card_frame.png",
-	#    "texture_pressed": "res://.../card_frame_selected.png",
+	#   {"texture": "assets/ui/card_frame.png",
+	#    "texture_pressed": "assets/ui/card_frame_selected.png",
 	#    "texture_margin": 24}
 	#
 	# `texture_margin` is the NINE-SLICE inset: the frame's corners are kept at
@@ -199,11 +199,11 @@ static func _apply_button_textures(btn: Button, spec: Dictionary) -> void:
 		"disabled": str(spec.get("texture_disabled", normal)),
 	}
 	for state in states:
-		var path: String = states[state]
-		if path == "" or not ResourceLoader.exists(path):
+		var tex := AssetPath.load_asset(states[state])
+		if tex == null:
 			continue
 		var sb := StyleBoxTexture.new()
-		sb.texture = load(path)
+		sb.texture = tex
 		if margin > 0.0:
 			sb.texture_margin_left = margin
 			sb.texture_margin_right = margin
@@ -232,9 +232,9 @@ static func _apply_button_textures(btn: Button, spec: Dictionary) -> void:
 
 static func _focus_box(spec: Dictionary) -> StyleBox:
 	var sb := StyleBoxTexture.new()
-	var path := str(spec.get("texture_focus", ""))
-	if path != "" and ResourceLoader.exists(path):
-		sb.texture = load(path)
+	var tex := AssetPath.load_asset(str(spec.get("texture_focus", "")))
+	if tex != null:
+		sb.texture = tex
 	var margin := float(spec.get("texture_margin", 0.0))
 	if margin > 0.0:
 		sb.texture_margin_left = margin
@@ -286,9 +286,9 @@ static func _build_spacer(spec: Dictionary) -> Control:
 
 static func _build_image(spec: Dictionary) -> TextureRect:
 	var tr := TextureRect.new()
-	var path := str(spec.get("texture", ""))
-	if path != "" and ResourceLoader.exists(path):
-		tr.texture = load(path)
+	var tex := AssetPath.load_asset(str(spec.get("texture", "")))
+	if tex != null:
+		tr.texture = tex
 	tr.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	return tr
 

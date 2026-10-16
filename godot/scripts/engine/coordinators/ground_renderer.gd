@@ -166,7 +166,7 @@ func build() -> void:
 	# Optional albedo texture (multiplied by albedo_color). Tiles via uv1_scale.
 	var albedo_path: String = str(cfg.get("albedo_texture", "")).strip_edges()
 	if albedo_path != "":
-		var tex = load(albedo_path)
+		var tex = AssetPath.load_asset(albedo_path)
 		if tex is Texture2D:
 			smat.albedo_texture = tex
 		else:
@@ -175,7 +175,7 @@ func build() -> void:
 	# Optional normal map. Tiles with the same uv1_scale.
 	var normal_path: String = str(cfg.get("normal_texture", "")).strip_edges()
 	if normal_path != "":
-		var ntex = load(normal_path)
+		var ntex = AssetPath.load_asset(normal_path)
 		if ntex is Texture2D:
 			smat.normal_enabled = true
 			smat.normal_texture = ntex
@@ -196,17 +196,17 @@ func build() -> void:
 	# Used for the multi-biome ground (composition pass 2026-05-17).
 	var shader_path: String = str(cfg.get("shader", "")).strip_edges()
 	if shader_path != "":
-		var shader_res = load(shader_path)
+		var shader_res = AssetPath.load_asset(shader_path)
 		if shader_res is Shader:
 			var sm := ShaderMaterial.new()
 			sm.shader = shader_res
 			var params: Dictionary = cfg.get("shader_params", {})
 			for k in params:
 				var v = params[k]
-				# Auto-load Texture2D from res:// strings — handy
-				# so authors don't have to pre-load textures in JSON
-				if v is String and (v as String).begins_with("res://"):
-					var loaded = load(v)
+				# Auto-load a Texture2D from an asset path, so that
+				# authors don't have to pre-load textures in JSON.
+				if AssetPath.is_asset(v):
+					var loaded = AssetPath.load_asset(v)
 					if loaded is Texture2D:
 						v = loaded
 				else:
@@ -226,15 +226,13 @@ func build() -> void:
 			var hm_val = params.get("heightmap", null)
 			var h_scale := float(params.get("height_scale", 0.0))
 			if hm_val is String and h_scale != 0.0:
-				var hm_path: String = hm_val as String
-				if ResourceLoader.exists(hm_path):
-					var hm_tex = load(hm_path)
-					if hm_tex is Texture2D:
-						_heightmap_img = (hm_tex as Texture2D).get_image()
-						_heightmap_strength = h_scale
-						_heightmap_offset = float(params.get("height_offset", -0.5))
-						_heightmap_plane_size = max(w, d)
-						_heightmap_enabled = true
+				var hm_tex = AssetPath.load_asset(hm_val as String)
+				if hm_tex is Texture2D:
+					_heightmap_img = (hm_tex as Texture2D).get_image()
+					_heightmap_strength = h_scale
+					_heightmap_offset = float(params.get("height_offset", -0.5))
+					_heightmap_plane_size = max(w, d)
+					_heightmap_enabled = true
 			# Cache for per-level rebind (ADR 0055, 2026-05-20).
 			# The game-level params dict is the baseline; per-level
 			# overrides merge over it on transition.
@@ -377,7 +375,7 @@ func build_water() -> void:
 	if shader_path == "":
 		push_warning("ground_renderer: water.mesh has no `shader` — skipping")
 		return
-	var shader_res = load(shader_path)
+	var shader_res = AssetPath.load_asset(shader_path)
 	if not (shader_res is Shader):
 		push_warning("ground_renderer: water shader failed to load: " + shader_path)
 		return
@@ -387,8 +385,8 @@ func build_water() -> void:
 	var params: Dictionary = cfg.get("shader_params", {})
 	for k in params:
 		var v = params[k]
-		if v is String and (v as String).begins_with("res://"):
-			var loaded = load(v)
+		if AssetPath.is_asset(v):
+			var loaded = AssetPath.load_asset(v)
 			if loaded is Texture2D:
 				v = loaded
 		sm.set_shader_parameter(str(k), v)
@@ -512,15 +510,15 @@ static func rebind_shader_params(level_id: String) -> void:
 	_apply_params(merged)
 
 
-## Apply a shader_params dict to the cached ShaderMaterial. Auto-loads
-## Texture2D for any `res://` string value (matches build()'s logic).
+## Apply a shader_params dict to the cached ShaderMaterial. Auto-loads a
+## Texture2D for any asset path value (matches build()'s logic).
 static func _apply_params(params: Dictionary) -> void:
 	if _shader_material == null:
 		return
 	for k in params:
 		var v = params[k]
-		if v is String and (v as String).begins_with("res://"):
-			var loaded = load(v as String)
+		if AssetPath.is_asset(v):
+			var loaded = AssetPath.load_asset(v)
 			if loaded is Texture2D:
 				v = loaded
 		_shader_material.set_shader_parameter(str(k), v)

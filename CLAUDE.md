@@ -283,7 +283,8 @@ hand-authoring freely):
   = smoke test.
 - **`tools/yume_assetgen/`** — AI texture+mesh pipeline; reads
   `data/<game>/asset_gen.json`, scans `*_prompt` fields, dispatches to a
-  backend (openai_images / tripo3d / …), patches defs with `res://` paths.
+  backend (openai_images / tripo3d / …), patches defs with asset paths
+  relative to the game folder (ADR 0087).
   `python3 -m tools.yume_assetgen <game> [--dry-run|--init]`.
 
 Engine support: `entity_mesh_3d.gd` reads `visual.albedo_texture` +

@@ -11,7 +11,7 @@ Runs the pipeline with the mock backend (no network), verifies:
     - .glb generated for each mesh prompt
     - Generated PNGs are valid PNGs (sig check)
     - Generated .glbs are valid (parsed by inspect_glb)
-    - Entity defs patched with res:// references
+    - Entity defs patched with paths relative to the game (ADR 0087)
     - Re-run with skip_existing skips work
 
 Usage:
@@ -209,14 +209,13 @@ def test_patch_entity_def(game_dir):
     wheat = next(d for d in doc["definitions"] if d["id"] == "wheat_seed")
     fails += _check(
         "wheat.visual.albedo_texture patched",
-        wheat["visual"].get("albedo_texture", "").startswith("res://data/demo_assetgen_smoke/"),
+        wheat["visual"].get("albedo_texture", "").startswith("assets/textures/"),
     )
     # New naming: <entity_id>_<8char-hash>.glb; check the prefix.
     fails += _check(
         "wheat.visual.mesh patched to a wheat_seed_*.glb",
-        wheat["visual"].get("mesh", "").startswith(
-            "res://data/demo_assetgen_smoke/"
-        ) and "wheat_seed_" in wheat["visual"].get("mesh", "")
+        wheat["visual"].get("mesh", "").startswith("assets/meshes/")
+          and "wheat_seed_" in wheat["visual"].get("mesh", "")
           and wheat["visual"].get("mesh", "").endswith(".glb"),
     )
     fails += _check(

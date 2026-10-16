@@ -28,6 +28,16 @@ within a globbed set.
 backup re-declared `fountain` etc. with old `prim_unit_*` meshes →
 fountain rendered as a magenta sphere instead of `fountain_kit`.
 
+## Asset paths are relative to the game folder (ADR 0087)
+
+Write `"mesh": "assets/meshes/hero.glb"` or
+`"shader": "@lib/shaders/toon.gdshader"`. Never write `res://`, `user://`,
+`..` or a leading `/`. A game must not point into another game's folder.
+Copy the file into this game instead. `AssetPath.resolve()` rejects any
+other form at load, and `validate_host_neutral.py` (pre-commit and CI)
+fails on it. Empirical case 2026-10-17: 201 `res://` references, 15 of
+them into other demos.
+
 ## Top-level `position` clobbers `state.position` in initial_instances
 
 `entity._apply_overrides` runs the `state` block first then applies
@@ -538,7 +548,7 @@ mutations on one store don't show up reading the other.
       "tags": ["plant", "crop", "seed"],     // membership
       "properties": {"material": "wheat", "max_growth": 100},  // STATIC
       "state_init": {"growth": 0, "wet": 0.0},                  // DYNAMIC
-      "visual": {"sprite_2d": "res://...", "shape": "tree",
+      "visual": {"sprite_2d": "assets/sprites/wheat.png", "shape": "tree",
                  "color": "#a0c050"}
     }
   ],

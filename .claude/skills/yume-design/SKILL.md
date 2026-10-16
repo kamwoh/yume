@@ -536,8 +536,8 @@ python3 -m tools.yume_assetgen <name>          # reads data/demo_<name>/asset_ge
 - Generates textures (gpt-image-2 / nanobanana) + meshes (tripo3d) per
   the manifest, writes them under `assets/generated/`, and patches each
   def's `visual.albedo_texture` / `visual.model_3d` to the new
-  `res://…` paths. (`--dry-run` to preview the plan; `--init` to scaffold
-  a manifest.) See `tools/yume_assetgen/README.md`.
+  asset paths relative to the game folder (ADR 0087). `--dry-run` previews
+  the plan, and `--init` scaffolds a manifest. See `tools/yume_assetgen/README.md`.
 - Generated assets use **versioned filenames** and are **never deleted
   or committed** (gitignored, paid artifacts — memory:
   never-delete / never-commit). Iterate by adding a variant suffix.

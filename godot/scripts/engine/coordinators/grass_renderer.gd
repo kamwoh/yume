@@ -202,10 +202,7 @@ func _grass_key(sp: Dictionary, grass_idx: int) -> Vector3:
 
 
 func _load_image(path_v) -> Image:
-	var path := str(path_v).strip_edges()
-	if path == "" or not ResourceLoader.exists(path):
-		return null
-	var tex = load(path)
+	var tex = AssetPath.load_asset(str(path_v))
 	return (tex as Texture2D).get_image() if tex is Texture2D else null
 
 

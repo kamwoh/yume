@@ -141,7 +141,7 @@ def _generate_terrain_into_game(py: Path, repo: Path, args) -> int:
         sc = tmp_glb.with_suffix(".json")
         meta = json.loads(sc.read_text()) if sc.exists() else {}
         (asset_dir / "terrain.glb").write_bytes(tmp_glb.read_bytes())
-    mesh_res = f"res://data/{args.game}/assets/infinigen/terrain.glb"
+    mesh_res = "assets/infinigen/terrain.glb"  # ADR 0087: relative to the game
     defs_path = game_dir / "entities" / "infinigen_terrain.json"
     doc = json.loads(defs_path.read_text(), object_pairs_hook=OrderedDict) if defs_path.exists() \
         else OrderedDict([("definitions", []), ("initial_instances", [])])
@@ -290,7 +290,7 @@ def main(argv=None) -> int:
             slug = f"{slug_base}_{seed}"
             dest = asset_dir / f"{slug}.glb"
             dest.write_bytes((Path(td) / f"{slug}.glb").read_bytes())
-            mesh_res = f"res://data/{args.game}/assets/infinigen/{slug}.glb"
+            mesh_res = f"assets/infinigen/{slug}.glb"
             edef = _entity_def(slug, args.factory, mesh_res, float(meta.get("height_m", 1.0)), collider)
             by_id[slug] = edef  # replace-or-add
             made += 1

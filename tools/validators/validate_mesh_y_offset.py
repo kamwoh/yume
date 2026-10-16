@@ -40,6 +40,9 @@ import struct
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from content import asset_file  # noqa: E402
+
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_ROOT = ROOT / "godot" / "data"
@@ -117,12 +120,10 @@ def check_game(game_dir: Path, strict: bool) -> int:
                 continue
             visual = d.get("visual") or {}
             mesh_ref = visual.get("mesh", "")
-            if not (isinstance(mesh_ref, str)
-                    and mesh_ref.startswith("res://")
-                    and mesh_ref.endswith(".glb")):
+            if not (isinstance(mesh_ref, str) and mesh_ref.endswith(".glb")):
                 continue
-            disk = ROOT / "godot" / mesh_ref.removeprefix("res://")
-            if not disk.exists():
+            disk = asset_file(mesh_ref, game_dir)
+            if disk is None or not disk.exists():
                 continue
             min_y = glb_bbox_min_y(disk)
             if min_y is None or min_y >= -0.05:

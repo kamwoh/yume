@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Static validator: a tripo-class entity def whose generated .glb is on
-disk must reference it — `visual.mesh` must be the `res://...glb`, not a
+disk must reference it — `visual.mesh` must be the `.glb` path, not a
 kit/primitive fallback.
 
 Empirical case 2026-06-08: `compose_world` re-emits every entity def from
 scratch on each run (`auto_gen.json` is fully overwritten). For an
 `asset_source:tripo` class it writes the kit FALLBACK mesh + a
-`mesh_prompt` — WIPING the `res://....glb` path that `yume_assetgen`
+`mesh_prompt` — WIPING the `.glb` path that `yume_assetgen`
 previously patched in. The generated `.glb` survives on disk (it's never
 deleted), but the def now points at the kit primitive, so the scene
 silently renders fallback boxes instead of the paid meshes. No error, no
@@ -20,7 +20,7 @@ validator is the GATE: if the revert ever ships un-repatched, it fails.
 Detection (per entity-def file under entities/, same scope assetgen scans):
   A def has `visual.mesh_prompt` (so it's a tripo class meant to resolve
   to a generated mesh) AND a matching `<id>*.glb` exists under the mesh
-  output dir, BUT `visual.mesh` is NOT a `res://...glb` →
+  output dir, BUT `visual.mesh` is NOT a `.glb` path →
   ERROR (the generated asset exists but the def reverted to a fallback).
 
 Remediation printed with the finding: run the patch-only pass.
@@ -76,7 +76,7 @@ def validate_game(game_dir: Path) -> list[dict]:
             if not entity_id or not _has_generated_glb(game_dir, entity_id):
                 continue  # nothing generated yet → kit fallback is correct
             mesh = str(visual.get("mesh", ""))
-            resolved = mesh.startswith("res://") and mesh.endswith(".glb")
+            resolved = mesh.endswith(".glb")
             if not resolved:
                 findings.append({
                     "severity": "error",
@@ -84,7 +84,7 @@ def validate_game(game_dir: Path) -> list[dict]:
                     "message": (
                         f"a generated .glb exists under {MESH_DIR}/ for "
                         f"'{entity_id}' but visual.mesh='{mesh}' is a kit/"
-                        f"primitive fallback, not the res://...glb. The mesh "
+                        f"primitive fallback, not the .glb. The mesh "
                         f"renders as a fallback. A compose_world re-run likely "
                         f"reverted it — re-resolve with: python3 -m "
                         f"tools.yume_assetgen {game_dir.name} --patch-only"

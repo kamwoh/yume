@@ -401,7 +401,7 @@ def main() -> int:
 
     # --- Stage 6: patch entity def
     print(f"\n[smoke] === Stage 6: patch entity def ===")
-    rel_mesh = f"res://data/{GAME}/assets/meshes/{merged_path.name}"
+    rel_mesh = f"assets/meshes/{merged_path.name}"  # ADR 0087: relative to the game
     visual["mesh"] = rel_mesh
     visual["mesh_reference_prompt"] = full_body_ref_prompt
     visual["mesh_prompt"] = full_body_mesh_prompt

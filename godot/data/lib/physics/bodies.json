@@ -6,7 +6,7 @@
   "standard_character_player": {
     "_comment": "ADR 0045 — player CharacterBody3D. Capsule dimensions derived from primitive_humanoid_capsule.glb (bbox 0.30 × 1.0 × 0.30 → radius 0.15, height 1.0). state.scale brings it to final size (player at scale=1.7 → 0.255m radius × 1.7m tall — thin human silhouette).",
     "body_type": "character",
-    "collision_shape": {"type": "capsule", "mesh": "res://data/lib/assets/meshes/primitive_humanoid_capsule.glb"},
+    "collision_shape": {"type": "capsule", "mesh": "@lib/assets/meshes/primitive_humanoid_capsule.glb"},
     "collision_layer": ["player"],
     "collision_mask": ["wall", "floor", "ceiling", "npc", "enemy", "animal", "pickup", "trigger"]
   },
@@ -14,7 +14,7 @@
   "standard_character_npc": {
     "_comment": "ADR 0045 — NPC CharacterBody3D. Same humanoid capsule primitive as the player; differs only in collision layer/mask.",
     "body_type": "character",
-    "collision_shape": {"type": "capsule", "mesh": "res://data/lib/assets/meshes/primitive_humanoid_capsule.glb"},
+    "collision_shape": {"type": "capsule", "mesh": "@lib/assets/meshes/primitive_humanoid_capsule.glb"},
     "collision_layer": ["npc"],
     "collision_mask": ["wall", "floor", "player", "npc", "enemy", "animal"]
   },
@@ -22,7 +22,7 @@
   "standard_character_animal": {
     "_comment": "ADR 0045 — animal CharacterBody3D. Reuses the humanoid capsule primitive — works because quadrupeds happen to fit a tall thin capsule when bbox-derived from a normalized 1m-tall Tripo3D mesh + state.scale (rabbit=0.35, deer=1.6, wolf=1.0). If a specific animal needs different proportions, add another primitive .glb to lib/assets/meshes/ and reference it here — DON'T author manual radius/height.",
     "body_type": "character",
-    "collision_shape": {"type": "capsule", "mesh": "res://data/lib/assets/meshes/primitive_humanoid_capsule.glb"},
+    "collision_shape": {"type": "capsule", "mesh": "@lib/assets/meshes/primitive_humanoid_capsule.glb"},
     "collision_layer": ["animal"],
     "collision_mask": ["wall", "floor", "player", "npc", "animal"]
   },

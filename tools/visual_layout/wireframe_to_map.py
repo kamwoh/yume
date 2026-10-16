@@ -259,6 +259,9 @@ def cmd_preprocess(args) -> int:
         "level_id": args.level_id,
         "map": {
             "path": str(map_path.relative_to(ROOT)) if map_path.is_relative_to(ROOT) else str(map_path),
+            # The form a scene.json field uses: relative to the game folder (ADR 0087).
+            "asset_path": (map_path.resolve().relative_to(game_dir.resolve()).as_posix()
+                           if map_path.resolve().is_relative_to(game_dir.resolve()) else ""),
             "width": img_w,
             "height": img_h,
         },

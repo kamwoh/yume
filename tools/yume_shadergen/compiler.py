@@ -348,7 +348,7 @@ def _spec_type(value: Any) -> str:
         return "list<unknown>"
     if isinstance(value, str):
         # Heuristic: looks-like-texture-path → sampler2D
-        if value.endswith((".png", ".jpg", ".jpeg", ".gltf", ".glb")) or value.startswith("res://"):
+        if value.endswith((".png", ".jpg", ".jpeg", ".gltf", ".glb")):
             return "sampler2D"
         return "string"
     return "unknown"

@@ -22,7 +22,8 @@ config over a single GDScript engine. No genre-specific engine code.
 >   configured backend (mock today; OpenAI Images / Stable Diffusion
 >   / Tripo3D planned), writes output to
 >   `data/<game>/assets/textures/` + `.../meshes/`, then patches the
->   entity def with the resolved `res://` path.
+>   entity def with the resolved asset path. An asset path is relative
+>   to the game folder, or starts with `@lib/` (ADR 0087).
 >
 > Both are emitters of canonical JSON / asset files; the engine
 > never sees Python. Hand-authoring keeps working unchanged.

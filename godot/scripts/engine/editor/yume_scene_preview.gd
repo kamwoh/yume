@@ -53,6 +53,9 @@ func _ready() -> void:
 func _rebuild() -> void:
 	_clear_preview()
 	var root_path := _resolve_data_root()
+	# World's data_root setter does not run in the editor (World is not a
+	# @tool script), so point AssetPath at the game folder here.
+	AssetPath.game_root = root_path
 	if root_path == "":
 		push_warning("[YumeScenePreview] no data_root (set data_root_override or add a World parent)")
 		return
@@ -216,7 +219,7 @@ func _build_instance(inst: Dictionary, defs: Dictionary) -> Node3D:
 	var mesh_field := str(visual.get("mesh", visual.get("shape", "")))
 	var normalized_glb := false
 	if mesh_field.ends_with(".glb") or mesh_field.ends_with(".gltf"):
-		normalized_glb = _build_glb(node, mesh_field)
+		normalized_glb = _build_glb(node, AssetPath.resolve(mesh_field))
 	elif mesh_field != "":
 		var lib := _get_lib()
 		if lib != null and lib.has(mesh_field):

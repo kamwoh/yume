@@ -43,6 +43,9 @@ import struct
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from content import asset_file  # noqa: E402
+
 
 HERE = Path(__file__).resolve()
 REPO_ROOT = HERE.parents[2]
@@ -86,14 +89,6 @@ def parse_glb_bbox(path: Path) -> tuple[list[float], list[float]] | None:
     if bbox_min[0] == float("inf"):
         return None
     return bbox_min, bbox_max
-
-
-def resolve_res_path(res_path: str) -> Path | None:
-    """`res://data/<game>/path/to/file.glb` → filesystem Path."""
-    if not res_path.startswith("res://"):
-        return None
-    rel = res_path[len("res://"):]
-    return REPO_ROOT / "godot" / rel
 
 
 def expected_aabb_extents(
@@ -227,7 +222,7 @@ def scan_game(game_dir: Path, tolerance: float, apply_fix: bool
                 collision_mesh_path = cm
             use_collision_mesh = bool(collision_mesh_path)
             glb_path = collision_mesh_path if use_collision_mesh else visual_glb_path
-            res_fs = resolve_res_path(glb_path)
+            res_fs = asset_file(glb_path, game_dir)
             if res_fs is None or not res_fs.is_file():
                 continue
             bbox = parse_glb_bbox(res_fs)

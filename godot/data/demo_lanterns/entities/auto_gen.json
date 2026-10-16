@@ -16,7 +16,7 @@
         ]
       },
       "visual": {
-        "mesh": "res://data/demo_lanterns/assets/meshes/large_house_86304e2a.glb",
+        "mesh": "assets/meshes/large_house_86304e2a.glb",
         "params": {
           "albedo": "#c86040"
         },
@@ -56,7 +56,7 @@
         ]
       },
       "visual": {
-        "mesh": "res://data/demo_lanterns/assets/meshes/rock_833dfd1c.glb",
+        "mesh": "assets/meshes/rock_833dfd1c.glb",
         "params": {
           "albedo": "#8a8278"
         },
@@ -96,7 +96,7 @@
         ]
       },
       "visual": {
-        "mesh": "res://data/demo_lanterns/assets/meshes/tree_b9f9bb97.glb",
+        "mesh": "assets/meshes/tree_b9f9bb97.glb",
         "params": {
           "albedo": "#3a8f44"
         },
@@ -174,7 +174,7 @@
         ]
       },
       "visual": {
-        "mesh": "res://data/demo_lanterns/assets/meshes/wooden_fence_527f0325.glb",
+        "mesh": "assets/meshes/wooden_fence_527f0325.glb",
         "params": {
           "albedo": "#8a5a30"
         },

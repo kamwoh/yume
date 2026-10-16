@@ -33,6 +33,9 @@ import sys
 from pathlib import Path
 from statistics import mean
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from content import asset_file  # noqa: E402
+
 try:
     from PIL import Image
 except ImportError:
@@ -94,15 +97,8 @@ def scan_game(game_dir: Path) -> list[tuple[str, Path, float]]:
         if not key.startswith("albedo_") or not isinstance(val, str):
             continue
         biome = key[len("albedo_"):]
-        if not val.startswith("res://"):
-            continue
-        # res://data/<game>/path → repo_root/godot/data/<game>/path
-        rel = val[len("res://"):]
-        fp = game_dir.parent.parent / rel
-        # godot/ root prefix
-        if not fp.exists():
-            fp = REPO_ROOT / "godot" / rel
-        if not fp.is_file():
+        fp = asset_file(val, game_dir)
+        if fp is None or not fp.is_file():
             continue
         diff = measure_radial_concentration(fp)
         if diff > RADIAL_DIFF_THRESHOLD:

@@ -37,7 +37,7 @@ To use in an entity def's visual block, copy material names verbatim
 into material_overrides and clip names into animation_state_rules:
 
     "visual": {
-      "mesh": "res://data/test_assets/villager.glb",
+      "mesh": "assets/meshes/villager.glb",
       "animation_state_rules": [
         {"if_velocity_gt": 0.1, "state": "walk", "clip_alias": "Walking"},
         {"default": "idle", "clip_alias": "Idle"}

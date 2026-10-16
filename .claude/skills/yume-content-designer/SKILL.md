@@ -610,7 +610,7 @@ the per-skill checklist.
 
 ## AI-gen .glb entity fields (added 2026-05-18)
 
-When `visual.mesh` is a `res://...glb` (Tripo3D output, not a
+When `visual.mesh` is a `.glb` path such as `assets/meshes/x.glb` (Tripo3D output, not a
 `@lib.meshes.X` code-drawn name), these additional `visual` fields
 are typically required:
 

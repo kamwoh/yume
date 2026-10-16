@@ -79,22 +79,21 @@ def compile_shader(mesh: dict, primitives: dict) -> str:
 
 def write_shader(game: str, source: str) -> tuple[Path, str]:
     """Write to data/<game>/assets/shaders/ground.gdshader. Returns
-    (filesystem path, res:// path)."""
+    (filesystem path, asset path relative to the game, ADR 0087)."""
     shaders_dir = DATA_ROOT / game / "assets" / "shaders"
     shaders_dir.mkdir(parents=True, exist_ok=True)
     fp = shaders_dir / "ground.gdshader"
     fp.write_text(source)
-    res_path = f"res://data/{game}/assets/shaders/ground.gdshader"
-    return fp, res_path
+    return fp, "assets/shaders/ground.gdshader"
 
 
-def patch_scene(scene_path: Path, res_path: str) -> bool:
+def patch_scene(scene_path: Path, asset_path: str) -> bool:
     scene = json.loads(scene_path.read_text())
     mesh = scene["ground"]["mesh"]
     prior = mesh.get("shader", "")
-    if prior == res_path:
+    if prior == asset_path:
         return False
-    mesh["shader"] = res_path
+    mesh["shader"] = asset_path
     scene_path.write_text(json.dumps(scene, indent=2) + "\n")
     return True
 
@@ -161,11 +160,11 @@ def main() -> int:
         sys.stdout.write(rendered)
         return 0
 
-    fp, res_path = write_shader(args.game, rendered)
-    patched = patch_scene(scene_path, res_path)
+    fp, asset_path = write_shader(args.game, rendered)
+    patched = patch_scene(scene_path, asset_path)
     print(f"[{args.game}] wrote {fp.relative_to(REPO_ROOT)} ({len(rendered)} bytes)")
     if patched:
-        print(f"[{args.game}] patched scene.json shader → {res_path}")
+        print(f"[{args.game}] patched scene.json shader → {asset_path}")
     return 0
 
 

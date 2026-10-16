@@ -33,7 +33,7 @@ def main(argv=None):
     ap.add_argument("--only-textures", action="store_true")
     ap.add_argument("--only-meshes", action="store_true")
     ap.add_argument("--patch-only", action="store_true",
-                    help="generate nothing; re-apply resolved res:// paths to "
+                    help="generate nothing; re-apply resolved asset paths to "
                          "entity defs for assets already on disk (key-free). "
                          "Use after an upstream re-run reset visual.mesh.")
     ap.add_argument("--init", action="store_true",

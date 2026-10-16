@@ -134,7 +134,7 @@ def visual(
     For code-drawn meshes: set `mesh` to a name from meshes.json or
     `shape` for 2D shapes.json.
     For .glb-backed meshes (ADR 0046 Phase B): set `mesh` to
-    `"res://path/to/foo.glb"` (suffix detection routes to the
+    `"assets/meshes/foo.glb"` (suffix detection routes to the
     .glb loader) + add `animation_state_rules` with
     `clip_alias` entries to map state names to .glb clip names.
     """

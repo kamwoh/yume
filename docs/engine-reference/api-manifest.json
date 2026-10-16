@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-16T09:15:56+00:00",
+  "generated_at": "2026-10-16T17:21:46+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -911,11 +911,11 @@
         "height": "px or '%'",
         "on_click": "effect chain \u2014 list of effect dicts to fire on press",
         "color": "hex #RRGGBB \u2014 font colour for all states (skinned buttons on light frames need this; engine-default text is pale)",
-        "texture": "res:// path \u2014 StyleBoxTexture skin for the normal state, and the fallback for the others",
-        "texture_hover": "res:// path (defaults to `texture`)",
-        "texture_pressed": "res:// path (defaults to `texture`)",
-        "texture_focus": "res:// path (defaults to `texture`)",
-        "texture_disabled": "res:// path (defaults to `texture`)",
+        "texture": "asset path (ADR 0087) \u2014 StyleBoxTexture skin for the normal state, and the fallback for the others",
+        "texture_hover": "asset path (defaults to `texture`)",
+        "texture_pressed": "asset path (defaults to `texture`)",
+        "texture_focus": "asset path (defaults to `texture`)",
+        "texture_disabled": "asset path (defaults to `texture`)",
         "texture_margin": "px nine-slice inset \u2014 keeps a frame's corner ornament unstretched at any button size. Author sprites with ornament in the CORNERS ONLY and straight edges, and one frame serves every size.",
         "content_margin": "px text padding (default 4). MUST be set separately: with it unset Godot derives the content box from texture_margin, so a 34px slice inset also becomes 34px of text padding and shoves the label out of a small button.",
         "visible_if": "formula \u2014 set node.visible each frame",
@@ -975,7 +975,7 @@
     {
       "type": "image",
       "fields": {
-        "texture": "res:// path",
+        "texture": "asset path, relative to the game folder or @lib/ (ADR 0087)",
         "anchor": "anchor name",
         "x_offset": "px",
         "y_offset": "px",

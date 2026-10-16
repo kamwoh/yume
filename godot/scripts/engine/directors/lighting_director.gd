@@ -231,7 +231,7 @@ func _attach_lighting_nodes() -> void:
 		var sky_cfg: Dictionary = _config.get("sky", {})
 		var shader_path: String = str(sky_cfg.get("shader", "")).strip_edges()
 		if shader_path != "":
-			var sh_res = load(shader_path)
+			var sh_res = AssetPath.load_asset(shader_path)
 			if sh_res is Shader:
 				var shader_mat := ShaderMaterial.new()
 				shader_mat.shader = sh_res
@@ -572,8 +572,8 @@ func _apply_adjustments(env_obj: Environment, cfg: Dictionary) -> void:
 	if cc is Dictionary:
 		var tex: Texture = null
 		var tex_path := str((cc as Dictionary).get("texture", ""))
-		if tex_path != "" and ResourceLoader.exists(tex_path):
-			var loaded = load(tex_path)
+		if tex_path != "":
+			var loaded = AssetPath.load_asset(tex_path)
 			if loaded is Texture:
 				tex = loaded
 		elif (cc as Dictionary).get("gradient", null) is Array:

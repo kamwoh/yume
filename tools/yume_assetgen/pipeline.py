@@ -69,7 +69,7 @@ class PromptItem:
     raw_prompt: str
     assembled_prompt: str
     out_path: Path
-    res_ref: str  # the res:// path entity_def will reference (empty for concept)
+    asset_ref: str  # the path entity_def will reference, relative to the game (ADR 0087). Empty for concept.
     source_file: Path  # the entity .json file (for in-place patching)
     visual_key: str  # visual field to patch ("albedo_texture" | "mesh" | "")
     # When set, this mesh prompt consumes a concept image generated
@@ -98,10 +98,6 @@ def scan_prompts(
     entities_dir = game_dir / "entities"
     if not entities_dir.exists():
         return iter([])
-
-    # Compute the res:// game-rel prefix (data/<game> portion).
-    # Works for both godot/data/<game> and absolute paths.
-    repo_data_prefix = "data/" + game_dir.name
 
     items = []
     for f in sorted(entities_dir.rglob("*.json")):
@@ -141,7 +137,7 @@ def scan_prompts(
                     raw_prompt=str(visual["albedo_texture_prompt"]),
                     assembled_prompt=assembled,
                     out_path=cfg.texture_dir_abs(game_dir) / fname,
-                    res_ref=f"res://{repo_data_prefix}/{tex_dir}/{fname}",
+                    asset_ref=f"{tex_dir}/{fname}",
                     source_file=f,
                     visual_key="albedo_texture",
                 ))
@@ -164,7 +160,7 @@ def scan_prompts(
                     raw_prompt=str(visual["mesh_reference_prompt"]),
                     assembled_prompt=assembled,
                     out_path=concept_path,
-                    res_ref="",
+                    asset_ref="",
                     source_file=f,
                     visual_key="",
                     intermediate=True,
@@ -182,7 +178,7 @@ def scan_prompts(
                     raw_prompt=str(visual["mesh_prompt"]),
                     assembled_prompt=assembled,
                     out_path=cfg.mesh_dir_abs(game_dir) / fname,
-                    res_ref=f"res://{repo_data_prefix}/{mesh_dir}/{fname}",
+                    asset_ref=f"{mesh_dir}/{fname}",
                     source_file=f,
                     visual_key="mesh",
                     reference_image_path=concept_path,
@@ -206,7 +202,7 @@ def _assemble(cfg: AssetGenConfig, raw: str, kind: str) -> str:
 
 def _patch_entity_file(item: PromptItem) -> bool:
     """Patch the entity-def JSON file in place: add `<visual_key>:
-    <res_ref>` to the matching entity's visual block. Preserves
+    <asset_ref>` to the matching entity's visual block. Preserves
     `*_prompt` fields so re-runs see them again. Returns True if a
     write happened, False if the field already had the same value
     (idempotent / no-op)."""
@@ -221,9 +217,9 @@ def _patch_entity_file(item: PromptItem) -> bool:
         visual = d.get("visual")
         if not isinstance(visual, dict):
             continue
-        if visual.get(item.visual_key) == item.res_ref:
+        if visual.get(item.visual_key) == item.asset_ref:
             continue
-        visual[item.visual_key] = item.res_ref
+        visual[item.visual_key] = item.asset_ref
         changed = True
     if changed:
         item.source_file.write_text(
@@ -254,7 +250,7 @@ def run_pipeline(
 
     `patch_only=True` (CLI flag --patch-only) generates NOTHING — for
     every scanned prompt whose output `.glb`/texture already exists on
-    disk, it just re-applies the resolved `res://` path to the entity
+    disk, it just re-applies the resolved asset path to the entity
     def. This is the idempotent re-resolution an upstream re-run needs
     (e.g. `compose_world` re-emits a tripo class's kit FALLBACK +
     mesh_prompt, resetting visual.mesh; patch_only re-points it at the

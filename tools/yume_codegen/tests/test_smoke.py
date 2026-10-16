@@ -27,7 +27,7 @@ from tools.yume_codegen import (
     state_set, state_add, state_clamp, spawn, remove, tag_add, emit,
     transition_screen, show_toast, array_insert_first_empty, array_set_at,
     entity, instance, state_init, visual, physics,
-    screen, label, panel, progress_bar, slot_grid, button, global_input,
+    screen, label, panel, progress_bar, slot_grid, button, global_input, image,
     lib_ref, include_lib, cue_ref, string_ref,
     save, save_rules, save_entities, save_screens, load_json,
 )
@@ -142,7 +142,7 @@ def test_entity_builders():
             inventory_empty_count=4,
         ),
         visual=visual(
-            mesh="res://data/test_assets/cube_anim.glb",
+            mesh="assets/meshes/cube_anim.glb",
             animation_state_rules=[
                 {"if_velocity_gt": 0.1, "state": "walk", "clip_alias": "Walking"},
                 {"default": "idle", "clip_alias": "Idle"},
@@ -196,6 +196,10 @@ def test_screen_builders():
     fails += _assert_eq("screen freeze_world", s["freeze_world"], True)
     fails += _assert_eq("3rd element type", s["elements"][2]["type"], "progress_bar")
     fails += _assert_eq("button on_click target", s["elements"][3]["on_click"][0]["target"], "@previous")
+    # control_factory.gd _build_image reads `texture` (2026-10-17: the
+    # builder wrote `path`, so the image was empty).
+    fails += _assert_eq("image path goes to texture",
+                        image("assets/ui/frame.png").get("texture"), "assets/ui/frame.png")
 
     gi = global_input(
         action="open_inventory",

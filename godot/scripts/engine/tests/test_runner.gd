@@ -103,6 +103,7 @@ func _ready() -> void:
 	test_array_primitives()
 	test_animation_translator()
 	test_ground_renderer_rebind()
+	test_asset_path()
 	test_ground_heightmap_collider()
 	test_query_tag_index()
 	test_spatial_cell_size()
@@ -6291,7 +6292,8 @@ func test_collider_matches_mesh() -> void:
 	var def := {
 		"id": "test_prop", "tags": ["prop"], "properties": {},
 		"state_init": {"scale": [1.0, 2.0, 1.0], "yaw": 0.5},
-		"visual": {"mesh": glb},
+		# The spec form of the same file (ADR 0087).
+		"visual": {"mesh": "@lib/assets/meshes/primitive_humanoid_capsule.glb"},
 	}
 	var ent := Entity.create(def, "test_prop_1")
 	# Deliberately WRONG fallback size — the shrink-wrap MUST override it.
@@ -9694,6 +9696,38 @@ func test_animation_translator() -> void:
 # test pins the answer in code.
 
 
+# ADR 0087 — asset paths in game JSON are relative to the game folder or
+# start with @lib/. AssetPath.resolve() is the only place that turns them
+# into res:// paths. Empirical case 2026-10-17: 201 res:// references in
+# game JSON, which a second interpreter cannot read.
+func test_asset_path() -> void:
+	_section("AssetPath.resolve — host-neutral asset paths (ADR 0087)")
+	var saved := AssetPath.game_root
+	AssetPath.game_root = "res://data/test_game"
+	expect_eq(AssetPath.resolve("assets/meshes/hero.glb"),
+		"res://data/test_game/assets/meshes/hero.glb", "relative path → game folder")
+	expect_eq(AssetPath.resolve("@lib/shaders/toon.gdshader"),
+		"res://data/lib/shaders/toon.gdshader", "@lib/ path → shared library")
+	expect_eq(AssetPath.resolve(""), "", "empty path → empty")
+	expect_eq(AssetPath.resolve("res://data/test_game/x.glb"), "", "res:// path is rejected")
+	expect_eq(AssetPath.resolve("../demo_other/x.glb"), "", "a .. segment is rejected")
+	expect_eq(AssetPath.resolve("/x.glb"), "", "a leading / is rejected")
+	expect(AssetPath.is_asset("a/b.PNG"), "is_asset ignores case")
+	expect(not AssetPath.is_asset("scene.json"), "a .json file is not an asset")
+	# World.data_root's setter points AssetPath at the game folder.
+	var w := World.new()
+	w.data_root = "res://data/demo_sokoban/"
+	expect_eq(AssetPath.game_root, "res://data/demo_sokoban", "World.data_root sets AssetPath.game_root")
+	w.free()
+	AssetPath.game_root = "res://data/test_game"
+	expect(AssetPath.load_asset("assets/meshes/primitive_humanoid_capsule.glb") == null,
+		"load_asset returns null for a missing file")
+	AssetPath.game_root = "res://data/lib"
+	expect(AssetPath.load_asset("assets/meshes/primitive_humanoid_capsule.glb") is PackedScene,
+		"load_asset loads an existing file")
+	AssetPath.game_root = saved
+
+
 func test_ground_renderer_rebind() -> void:
 	_section("ground_renderer.rebind_shader_params — sparse override")
 	# Build a tiny temp data root with one level + a sparse scene.json
@@ -9706,7 +9740,7 @@ func test_ground_renderer_rebind() -> void:
 		"ground": {
 			"mesh": {
 				"shader_params": {
-					"biome_map": "fake://overridden_map.png",
+					"biome_map": "assets/no_such_overridden_map.png",
 					"blend_softness": 0.99,
 				}
 			}
@@ -9722,7 +9756,7 @@ func test_ground_renderer_rebind() -> void:
 	GroundRenderer._shader_material = sm
 	GroundRenderer._cached_data_root = tmp.replace("user://", OS.get_user_data_dir() + "/")
 	GroundRenderer._game_shader_params = {
-		"biome_map":          "fake://baseline_map.png",
+		"biome_map":          "assets/no_such_baseline_map.png",
 		"biome_color_grass":  [0.5, 0.5, 0.5, 1.0],
 		"uv_tile":            30.0,
 		"blend_softness":     0.18,
@@ -9733,7 +9767,7 @@ func test_ground_renderer_rebind() -> void:
 
 	# Sanity: baseline applied
 	expect_eq(
-		str(sm.get_shader_parameter("biome_map")), "fake://baseline_map.png",
+		str(sm.get_shader_parameter("biome_map")), "assets/no_such_baseline_map.png",
 		"baseline biome_map applied"
 	)
 
@@ -9742,7 +9776,7 @@ func test_ground_renderer_rebind() -> void:
 
 	# Declared keys in the override → new values
 	expect_eq(
-		str(sm.get_shader_parameter("biome_map")), "fake://overridden_map.png",
+		str(sm.get_shader_parameter("biome_map")), "assets/no_such_overridden_map.png",
 		"override: biome_map replaced",
 	)
 	expect_eq(
@@ -9771,7 +9805,7 @@ func test_ground_renderer_rebind() -> void:
 	# back to a level without an override" carry-over behavior.
 	GroundRenderer.rebind_shader_params("level_no_override")
 	expect_eq(
-		str(sm.get_shader_parameter("biome_map")), "fake://baseline_map.png",
+		str(sm.get_shader_parameter("biome_map")), "assets/no_such_baseline_map.png",
 		"absent level scene.json → baseline restored",
 	)
 

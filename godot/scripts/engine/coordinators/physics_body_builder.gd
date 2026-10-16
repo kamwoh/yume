@@ -383,6 +383,7 @@ static func _shrinkwrap_box_to_visual(shape_cfg: Dictionary, entity) -> Dictiona
 	var mesh_path := str((vis as Dictionary).get("mesh", ""))
 	if not (mesh_path.ends_with(".glb") or mesh_path.ends_with(".gltf")):
 		return shape_cfg  # kit/primitive — keep the cfg's fallback size
+	mesh_path = AssetPath.resolve(mesh_path)
 	var bb: AABB = _glb_bbox(mesh_path)
 	if bb.size.y <= 0.0001:
 		return shape_cfg
@@ -503,7 +504,7 @@ static func _build_collision_shape_node(shape_cfg: Dictionary) -> CollisionShape
 	var has_mesh_bbox := false
 	var mesh_path = shape_cfg.get("mesh", null)
 	if mesh_path is String and mesh_path != "":
-		mesh_bbox = _glb_bbox(mesh_path)
+		mesh_bbox = _glb_bbox(AssetPath.resolve(mesh_path))
 		has_mesh_bbox = mesh_bbox.size.length() > 0.0
 	var shape: Shape3D = null
 	var auto_lift_y := 0.0  # default: no auto-lift
@@ -732,7 +733,7 @@ static func _create_shape_3d(shape_cfg: Dictionary) -> RID:
 			# the glb's NATIVE local space, so the entity must render the same
 			# .glb with `visual.normalize: false` + scale 1 to align 1:1.
 			# Concave shapes are static/kinematic-only (never rigid). ADR 0062.
-			var mesh_path := str(shape_cfg.get("mesh", ""))
+			var mesh_path := AssetPath.resolve(str(shape_cfg.get("mesh", "")))
 			var tris := _glb_trimesh_faces(mesh_path)
 			if tris.size() >= 3:
 				shape = PhysicsServer3D.concave_polygon_shape_create()

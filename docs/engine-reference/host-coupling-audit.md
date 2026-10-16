@@ -20,17 +20,16 @@ tracked library, the three tracked demos and the local demos.
 | Asset file formats | Meshes are glTF (`.glb`), images are PNG, and sounds are OGG. These are open formats. |
 | Shader DAG | ADR 0058 describes shaders as a JSON graph of primitives. A compiler emits `.gdshader` today, and it could emit other shader languages. |
 | Calendar clock | `scheduled` and `advance_time` (ADR 0078) have no host meaning. |
+| Asset and save paths | ADR 0087 (phase 1): a path is relative to the game folder or starts with `@lib/`. `validate_host_neutral.py` rejects `res://` and `user://`. |
 
 ## Tied to Godot
 
 | # | Area | Today | Count | Neutral form | Phase |
 |---|---|---|---|---|---|
-| 1 | Asset paths | `"mesh": "res://data/demo_x/assets/meshes/hero.glb"` | 201 references in 38 files (14 in 5 tracked files) | A path relative to the game folder or to `data/lib`. The interpreter resolves it. | 1 |
-| 2 | Save paths | `user://` in one local `tests.json` | 1 file | A save slot name only. The interpreter picks the storage. | 1 |
 | 3 | Formula language | Godot `Expression` parses every formula. No function list is enforced. | 14 documented helpers. Rules also call `atan2`. | A grammar, a function list and number rules in the contract document. The validator rejects other functions. | 2 |
 | 4 | Number rules | Integer and float behavior follows Godot. JSON numbers load as floats, and formula literals keep their own type. | Every formula | The spec states the result of division, comparison and rounding. | 2 |
-| 5 | Shaders | `"shader": "res://.../x.gdshader"` with `shader_params` | 17 references, 6 tracked `.gdshader` files | The ADR 0058 shader DAG. Hand-written `.gdshader` files become a Godot-only extension. | 3 |
-| 6 | Godot resources | `"water_normal_tex": "res://.../water_normal.tres"` | 1 reference, 1 tracked `.tres` | A PNG, or a declared procedural texture. | 3 |
+| 5 | Shaders | `"shader": "@lib/shaders/x.gdshader"` with `shader_params` | 17 references, 6 tracked `.gdshader` files | The ADR 0058 shader DAG. Hand-written `.gdshader` files become a Godot-only extension. | 3 |
+| 6 | Godot resources | `"water_normal_tex": "@lib/textures/water_normal.tres"` | 1 reference, 1 tracked `.tres` | A PNG, or a declared procedural texture. | 3 |
 | 7 | Key names | `"key": "Ctrl"`, parsed by `OS.find_keycode_from_string` | 85 `key` fields | A key-name list in the spec. Each interpreter maps the list to its host. | 4 |
 | 8 | Audio buses | `set_audio_bus_volume` with `"bus": "Master"` or `"Music"` | 2 references | A fixed set of channels in the spec (for example, master, music, sfx). | 4 |
 | 9 | Lighting and sky | `scene.json` fields such as `sky_top_color`, `aerial_perspective`, `sun_scatter`, `energy_noon`, fog `density` | About 60 field names | Define each field by its visible result. Mark the exact look as host-defined. | 4 |

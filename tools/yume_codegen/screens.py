@@ -332,11 +332,15 @@ def image(
     height=None,
     comment: str | None = None,
 ) -> dict:
-    """2D image (texture). `path` is a `res://` resource path."""
+    """2D image. `path` is an asset path relative to the game folder, or
+    `@lib/<path>` (ADR 0087). It goes into the `texture` field, which
+    control_factory.gd _build_image reads. Empirical case 2026-10-17: this
+    builder wrote `path`, which the engine never read, so the image was
+    empty."""
     return _strip_none({
         "_comment": comment,
         "type": "image",
-        "path": path,
+        "texture": path,
         "anchor": anchor,
         "x_offset": x_offset,
         "y_offset": y_offset,

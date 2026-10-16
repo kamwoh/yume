@@ -12,15 +12,15 @@
       ],
       "color": "#a0d870",
       "subdivide": 64,
-      "shader": "res://data/lib/shaders/ground_biome_displace.gdshader",
+      "shader": "@lib/shaders/ground_biome_displace.gdshader",
       "plane_size": 156.0,
       "shader_params": {
         "height_scale": 3.0,
         "height_offset": -0.5,
         "blend_softness": 0.12,
         "noise_amount": 0.12,
-        "biome_map": "res://data/demo_lanterns/assets/layouts/terrain_splatmap.png",
-        "heightmap": "res://data/demo_lanterns/assets/textures/heightmap_carved.png",
+        "biome_map": "assets/layouts/terrain_splatmap.png",
+        "heightmap": "assets/textures/heightmap_carved.png",
         "biome_count": 2,
         "biome_key": [
           [
@@ -51,7 +51,7 @@
           0.92
         ],
         "grass_biome_index": 0,
-        "grass_detail": "res://data/lib/textures/grass_detail.png"
+        "grass_detail": "@lib/textures/grass_detail.png"
       }
     },
     "grass_blades": {
@@ -103,7 +103,7 @@
       "energy": 0.35
     },
     "sky": {
-      "shader": "res://data/lib/shaders/sky_clouds.gdshader",
+      "shader": "@lib/shaders/sky_clouds.gdshader",
       "shader_params": {
         "sky_top_color": [
           0.22,

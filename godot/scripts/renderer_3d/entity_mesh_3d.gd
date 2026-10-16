@@ -71,7 +71,7 @@ func _ready() -> void:
 				_mount_light(lc)
 
 	# Tier 1 — real model file
-	var model_path := str(visual.get("model_3d", ""))
+	var model_path := AssetPath.resolve(str(visual.get("model_3d", "")))
 	if model_path != "" and ResourceLoader.exists(model_path):
 		var packed = load(model_path)
 		if packed is PackedScene:
@@ -94,7 +94,7 @@ func _ready() -> void:
 	#
 	# Authoring contract:
 	#   visual: {
-	#     "mesh": "res://path/to/foo.glb",
+	#     "mesh": "assets/meshes/foo.glb",
 	#     "animation_state_rules": [
 	#       {"if_velocity_gt": 0.1, "state": "walk", "clip_alias": "Walking"},
 	#       {"default": "idle", "clip_alias": "Idle"}
@@ -108,7 +108,7 @@ func _ready() -> void:
 	# track names). Falls back to the state name verbatim if no alias.
 	var mesh_field := str(visual.get("mesh", ""))
 	if mesh_field.ends_with(".glb") or mesh_field.ends_with(".gltf"):
-		_load_glb_mesh(mesh_field, visual, ent)
+		_load_glb_mesh(AssetPath.resolve(mesh_field), visual, ent)
 		return
 
 	# Tier 2 — mesh from library (compose primitives). Falls back to
@@ -510,7 +510,7 @@ func _apply_override_patch(dup: StandardMaterial3D, override) -> void:
 	if od.has("albedo_color"):
 		dup.albedo_color = _parse_color(od["albedo_color"])
 	if od.has("albedo_texture"):
-		var tex_path := str(od["albedo_texture"])
+		var tex_path := AssetPath.resolve(str(od["albedo_texture"]))
 		if tex_path != "" and ResourceLoader.exists(tex_path):
 			var tex = load(tex_path)
 			if tex is Texture2D:
@@ -520,7 +520,7 @@ func _apply_override_patch(dup: StandardMaterial3D, override) -> void:
 				"material_overrides: albedo_texture not found: %s" % tex_path
 			)
 	if od.has("normal_texture"):
-		var npath := str(od["normal_texture"])
+		var npath := AssetPath.resolve(str(od["normal_texture"]))
 		if npath != "" and ResourceLoader.exists(npath):
 			var ntex = load(npath)
 			if ntex is Texture2D:
@@ -811,6 +811,7 @@ func _on_csg_rebuilt(nodes: Array) -> void:
 ## material, and sets albedo_texture. The flat colors authored in
 ## meshes.json stay as multiplicative tint atop the texture.
 func _apply_albedo_texture_to_primitives(tex_path: String, nodes: Array = []) -> void:
+	tex_path = AssetPath.resolve(tex_path)
 	if tex_path == "" or not ResourceLoader.exists(tex_path):
 		if tex_path != "":
 			push_warning(
@@ -902,6 +903,7 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 func _apply_shader_to_primitives(
 	shader_path: String, shader_params: Variant, nodes: Array = []
 ) -> void:
+	shader_path = AssetPath.resolve(shader_path)
 	if shader_path == "" or not ResourceLoader.exists(shader_path):
 		if shader_path != "":
 			push_warning(

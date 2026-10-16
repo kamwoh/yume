@@ -13,7 +13,7 @@ asset paths.
 {
   "matchers": [
     {"match": {"tags_all": ["plant", "crop"]},
-     "sprite_2d": "res://assets/lib/kenney/farm/wheat.png"}
+     "sprite_2d": "assets/sprites/wheat.png"}
   ]
 }
 ```
@@ -130,7 +130,7 @@ machinery the code-drawn meshes use, and re-skins surfaces via
 {
   "id": "villager_glb",
   "visual": {
-    "mesh": "res://data/test_assets/cube_anim.glb",
+    "mesh": "assets/meshes/cube_anim.glb",
     "animation_state_rules": [
       {"if_velocity_gt": 0.1, "state": "walk", "clip_alias": "Walking"},
       {"default": "idle", "clip_alias": "Idle"}
@@ -256,8 +256,8 @@ albedo_color):
 "material_overrides": {
   "tripo_material_<uuid>": {
     "albedo_color":   "#9a6840",
-    "albedo_texture": "res://.../foo.png",   // optional
-    "normal_texture": "res://.../foo_n.png", // optional
+    "albedo_texture": "assets/textures/foo.png",   // optional
+    "normal_texture": "assets/textures/foo_n.png", // optional
     "roughness":      0.92,                  // 0=mirror, 1=matte
     "metallic":       0.0                    // 0=dielectric, 1=metal
   }
@@ -305,7 +305,7 @@ multi-clip animated GLB instead of a static mesh.
 
 ```jsonc
 "visual": {
-  "mesh": "res://...player_marken_animated_<hash>.glb",  // auto-set after gen
+  "mesh": "assets/meshes/player_marken_animated_<hash>.glb",  // auto-set after gen
   "animate": true,
   "rig_type": "biped",                                    // REQUIRED when animate=true
   "animation_clips": ["idle", "walk"],                    // optional; default

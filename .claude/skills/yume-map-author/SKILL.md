@@ -253,17 +253,17 @@ Write to `/tmp/_map_draft.json`. Shape:
       "mesh": {
         "shader": "<context.biome_shader_path>",
         "shader_params": {
-          "biome_map": "res://<map.path>",       // THIS level's map
+          "biome_map": "<map.asset_path>",       // THIS level's map
           "biome_color_dirt":   [r,g,b,1.0],     // from context.biome_config.<name>.color_uniform
           "biome_color_grass":  [r,g,b,1.0],
           "biome_color_water":  [r,g,b,1.0],
           "biome_color_path":   [r,g,b,1.0],
           "biome_color_forest": [r,g,b,1.0],
-          "albedo_dirt":   "res://...",          // from context.biome_config.<name>.albedo
-          "albedo_grass":  "res://...",
-          "albedo_water":  "res://...",
-          "albedo_path":   "res://...",
-          "albedo_forest": "res://...",
+          "albedo_dirt":   "assets/...",         // from context.biome_config.<name>.albedo
+          "albedo_grass":  "assets/...",
+          "albedo_water":  "assets/...",
+          "albedo_path":   "assets/...",
+          "albedo_forest": "assets/...",
           "uv_tile": 30.0,
           "blend_softness": 0.5
         }
@@ -290,7 +290,9 @@ If `context.biome_config` is **non-empty**:
 3. For each slot, set `albedo_<slot>` to either:
    - the `albedo` path from biome_config (if present), OR
    - the dirt slot's albedo (for unused slots)
-4. Set `biome_map` to `res://<map.path>` (this level's semantic map).
+4. Set `biome_map` to `map.asset_path` (this level's semantic map). Asset
+   paths are relative to the game folder, or start with `@lib/` (ADR 0087).
+   `validate_host_neutral.py` rejects `res://`.
 5. Use `biome_shader_path` from context as the `shader` field.
 
 **Why all 5 slots must be set**: the shader has 5 uniform slots; an

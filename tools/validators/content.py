@@ -18,6 +18,8 @@ This module mirrors the engine:
   splices, from `godot/data/lib/**.json`.
 - `iter_rules(game_dir)` yields `(path, rule)` for every rule after lib
   resolution. A rule from a bundle carries `_origin`.
+- `asset_file(path, game_dir)` ports `util/asset_path.gd` (ADR 0087): it
+  turns a host-neutral asset path into the file it names.
 """
 
 from __future__ import annotations
@@ -29,6 +31,41 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "godot" / "data"
 MAX_DEPTH = 8
+
+
+# ADR 0087 asset paths. Keep these the same as util/asset_path.gd.
+LIB_PREFIX = "@lib/"
+ASSET_EXTENSIONS = (
+    ".glb", ".gltf", ".png", ".jpg", ".jpeg", ".webp", ".svg",
+    ".exr", ".hdr", ".ogg", ".wav", ".mp3", ".gdshader", ".tres",
+)
+
+
+def is_asset(value) -> bool:
+    """True when `value` is a string that names an asset file."""
+    return isinstance(value, str) and value.lower().endswith(ASSET_EXTENSIONS)
+
+
+def asset_problem(path: str) -> str:
+    """Why `path` is not a host-neutral asset path, or "" when it is one."""
+    if "://" in path:
+        return "it has a scheme"
+    if path.startswith("/"):
+        return "it starts with /"
+    if ".." in path.split("/"):
+        return "it has a .. segment"
+    return ""
+
+
+def asset_file(path: str, game_dir: Path | None) -> Path | None:
+    """The file that a host-neutral asset path names. None when the path is
+    not neutral, or when a relative path has no game folder."""
+    path = path.strip()
+    if not path or asset_problem(path):
+        return None
+    if path.startswith(LIB_PREFIX):
+        return DATA / "lib" / path[len(LIB_PREFIX):]
+    return Path(game_dir) / path if game_dir is not None else None
 
 
 def load_json(path: Path):

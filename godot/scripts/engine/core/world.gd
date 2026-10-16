@@ -14,7 +14,12 @@ class_name World
 ## that reads state.position. Same script powers world_2d.tscn and
 ## world_3d.tscn.
 
-@export_dir var data_root: String = ""  # e.g. "res://data/demo_aldenmere/"
+## e.g. "res://data/demo_aldenmere/". Each write also points AssetPath at
+## this game folder, so asset paths in the game's JSON resolve (ADR 0087).
+@export_dir var data_root: String = "":
+	set(v):
+		data_root = v
+		AssetPath.game_root = v.rstrip("/")
 @export var auto_start: bool = true
 @export var tick_seconds: float = 0.0167  # 60Hz — matches Godot's physics_fps default. Override per-game only with a documented reason (see CLAUDE.md § "Tick rate is the engine's heartbeat").
 @export var verbose: bool = false

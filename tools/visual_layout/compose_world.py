@@ -1106,17 +1106,17 @@ def compose(
     # step. Bypasses biome classification entirely.
     if albedo_image is not None and (semantic_dest or heightmap_dest):
         scene["ground"]["mesh"]["shader"] = (
-            "res://data/lib/shaders/ground_ortho_displace.gdshader"
+            "@lib/shaders/ground_ortho_displace.gdshader"
         )
         scene["ground"]["mesh"]["plane_size"] = float(world_w)
         ortho_params: dict = {
             "height_scale": float(height_scale),
             "height_offset": float(height_offset),
-            "ortho_albedo": f"res://data/{game_name}/{albedo_image}",
+            "ortho_albedo": str(albedo_image),
         }
         if heightmap_dest:
             ortho_params["heightmap"] = (
-                f"res://data/{game_name}/assets/textures/{heightmap_dest.name}"
+                f"assets/textures/{heightmap_dest.name}"
             )
         scene["ground"]["mesh"]["shader_params"] = ortho_params
         # Flowers still pretty on top of the painted floor.
@@ -1130,7 +1130,7 @@ def compose(
         }
     elif semantic_dest or heightmap_dest:
         scene["ground"]["mesh"]["shader"] = (
-            "res://data/lib/shaders/ground_biome_displace.gdshader"
+            "@lib/shaders/ground_biome_displace.gdshader"
         )
         scene["ground"]["mesh"]["plane_size"] = float(world_w)
         # ground_renderer.gd only forwards `shader_params` (+ auto-sets
@@ -1147,15 +1147,15 @@ def compose(
         # wall/etc. footprints don't bleed into the ground.
         if terrain_splat_dest is not None:
             shader_params["biome_map"] = (
-                f"res://data/{game_name}/assets/layouts/{terrain_splat_dest.name}"
+                f"assets/layouts/{terrain_splat_dest.name}"
             )
         elif semantic_dest:
             shader_params["biome_map"] = (
-                f"res://data/{game_name}/assets/layouts/{semantic_dest.name}"
+                f"assets/layouts/{semantic_dest.name}"
             )
         if heightmap_dest:
             shader_params["heightmap"] = (
-                f"res://data/{game_name}/assets/textures/{heightmap_dest.name}"
+                f"assets/textures/{heightmap_dest.name}"
             )
         # Build the biome arrays from terrain_shader classes. biome_key
         # is the splatmap color (sRGB 0..1, matches the raw-sampled map);
@@ -1179,7 +1179,7 @@ def compose(
             terrain_ordered.index("grass") if "grass" in terrain_ordered else -1)
         grass_tex = DATA_ROOT / "lib" / "textures" / "grass_detail.png"
         if shader_params["grass_biome_index"] >= 0 and grass_tex.exists():
-            shader_params["grass_detail"] = "res://data/lib/textures/grass_detail.png"
+            shader_params["grass_detail"] = "@lib/textures/grass_detail.png"
         scene["ground"]["mesh"]["shader_params"] = shader_params
 
         # Real grass blades (MultiMesh, GrassRenderer) — OPT-IN, default OFF.
@@ -1266,14 +1266,14 @@ def compose(
                 "size": [world_w, world_h],
                 "level": float(level),
                 "box_depth": 8.0,
-                "shader": "res://data/lib/shaders/water_stylized.gdshader",
+                "shader": "@lib/shaders/water_stylized.gdshader",
                 "shader_params": {
                     # Stylized water — box-mesh aware. Uniform names match
                     # water_stylized.gdshader (2026-05-28).
                     "deep_color": [0.03, 0.10, 0.20, 1.0],
                     "shallow_color": [0.30, 0.62, 0.74, 0.85],
                     "foam_color": [0.97, 0.99, 1.0, 1.0],
-                    "water_normal_tex": "res://data/lib/textures/water_normal.tres",
+                    "water_normal_tex": "@lib/textures/water_normal.tres",
                     "normal_tile_m": 6.0,
                     "ripple_strength": 0.85,
                     "flow_dir": [0.72, 0.32],
@@ -1287,7 +1287,7 @@ def compose(
                     "use_water_mask": True,
                     "plane_size": float(world_w),
                     "water_mask": (
-                        f"res://data/{game_name}/assets/layouts/"
+                        f"assets/layouts/"
                         f"{water_mask_dest.name}"
                     ),
                 },
@@ -1426,7 +1426,7 @@ def compose(
     # Re-apply any previously-generated .glb / texture paths (ADR 0067
     # Assets layer). The write_text above re-emitted tripo classes with
     # their kit FALLBACK mesh + mesh_prompt — wiping the assetgen-resolved
-    # res:// paths. The Assets layer owns that resolution, so we ASK it to
+    # asset paths. The Assets layer owns that resolution, so we ASK it to
     # re-resolve rather than reading our own prior output (compose_world
     # stays a pure function of its inputs). patch_only generates nothing
     # and needs no API key; it's a no-op when no assets were ever generated

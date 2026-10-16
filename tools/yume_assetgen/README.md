@@ -46,7 +46,8 @@ The pipeline:
 3. Dispatches to the configured backend.
 4. Writes output to `assets/textures/<entity_id>.png` and
    `assets/meshes/<entity_id>.glb` (paths configurable).
-5. Patches the entity def in place with the resolved `res://` path,
+5. Patches the entity def in place with the path relative to the game
+   folder (ADR 0087),
    leaving the prompt field untouched so re-runs find it again.
 
 After a run, the def becomes:
@@ -58,9 +59,9 @@ After a run, the def becomes:
   "visual": {
     "color": "#a0c0e0",
     "albedo_texture_prompt": "weather-worn villager body, soft cel-shaded",
-    "albedo_texture": "res://data/demo_mygame/assets/textures/villager_marken.png",
+    "albedo_texture": "assets/textures/villager_marken.png",
     "mesh_prompt": "low-poly humanoid villager, T-pose, clean topology",
-    "mesh": "res://data/demo_mygame/assets/meshes/villager_marken.glb"
+    "mesh": "assets/meshes/villager_marken.glb"
   }
 }
 ```
@@ -197,7 +198,7 @@ When an entity declares BOTH `mesh_reference_prompt` AND
    the entity def).
 2. Calls Tripo3D with `mesh_prompt` + that PNG as `reference_image`
    (image-to-3D mode) → saves `.glb` to `assets/meshes/<entity>.glb`.
-3. Patches `visual.mesh = "res://.../assets/meshes/<entity>.glb"`.
+3. Patches `visual.mesh = "assets/meshes/<entity>.glb"`.
 
 ```jsonc
 "visual": {

@@ -35,7 +35,7 @@
         "$extends": "@lib.physics.bodies.standard_character_player"
       },
       "visual": {
-        "mesh": "res://data/demo_lanterns/assets/meshes/player_marken_animated_0b249fa7.glb",
+        "mesh": "assets/meshes/player_marken_animated_0b249fa7.glb",
         "animation_clips": [
           "idle",
           "walk",

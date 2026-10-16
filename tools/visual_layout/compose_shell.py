@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -95,7 +96,7 @@ def _lighting_block() -> dict:
         },
         "ambient": {"color": "#aebccf", "energy": 0.35},
         "sky": {
-            "shader": "res://data/lib/shaders/sky_clouds.gdshader",
+            "shader": "@lib/shaders/sky_clouds.gdshader",
             "shader_params": {
                 "sky_top_color": [0.22, 0.45, 0.82],
                 "sky_horizon_color": [0.80, 0.87, 0.93],
@@ -137,12 +138,32 @@ def _lighting_block() -> dict:
     }
 
 
-def _player_def(gravity: float = 18.0) -> dict:
+# The stand-in avatar comes from aldenmere. A game may not point into another
+# game's folder (ADR 0087), so _place_avatar() copies the file into the new
+# game. Without aldenmere, the player uses the library capsule.
+AVATAR_SRC = DATA_ROOT / "demo_aldenmere" / "assets" / "meshes" / "player_marken_animated_0b249fa7.glb"
+AVATAR_REF = "assets/meshes/" + AVATAR_SRC.name
+CAPSULE_REF = "@lib/assets/meshes/primitive_humanoid_capsule.glb"
+
+
+def _place_avatar(game_dir: Path) -> str:
+    """Copy the stand-in avatar into the game and return its asset path.
+    Returns the library capsule when the avatar source is absent."""
+    dst = game_dir / AVATAR_REF
+    if not dst.exists():
+        if not AVATAR_SRC.exists():
+            print(f"[compose_shell] no {AVATAR_SRC.name}: the player uses the capsule")
+            return CAPSULE_REF
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(AVATAR_SRC, dst)
+    return AVATAR_REF
+
+
+def _player_def(gravity: float = 18.0, mesh: str = AVATAR_REF) -> dict:
     # Walkable third-person player. Vector2 velocity [x,y]→world(x,0,y)
     # per data-demo.md; drag=0 for snappy feel; mesh_yaw_offset π/2
-    # because Tripo character meshes face +Z. NOTE: borrows aldenmere's
-    # player .glb as a stand-in avatar (per-game player mesh is future
-    # work) — a cross-demo asset reference, fine for the shell layer.
+    # because Tripo character meshes face +Z. `mesh` comes from
+    # _place_avatar() (a per-game player mesh is future work).
     return {
         "_comment": "Walkable player. Third-person camera follows tag 'player'.",
         "definitions": [
@@ -170,7 +191,7 @@ def _player_def(gravity: float = 18.0) -> dict:
                 },
                 "physics": {"$extends": "@lib.physics.bodies.standard_character_player"},
                 "visual": {
-                    "mesh": "res://data/demo_aldenmere/assets/meshes/player_marken_animated_0b249fa7.glb",
+                    "mesh": mesh,
                     "animation_clips": ["idle", "walk", "run", "jump"],
                     # First-match-wins, default last. jump = airborne
                     # (on_floor==0); run = sprint speed (walk≈3.0, sprint≈5.4).
@@ -591,7 +612,8 @@ def compose_shell(game_name: str,
     # 2. Shell entity defs.
     (game_dir / "entities").mkdir(exist_ok=True)
     (game_dir / "entities" / "player.json").write_text(
-        json.dumps(_player_def(gravity=cfg.shell.gravity), indent=2))
+        json.dumps(_player_def(gravity=cfg.shell.gravity,
+                               mesh=_place_avatar(game_dir)), indent=2))
     (game_dir / "entities" / "world_clock.json").write_text(
         json.dumps(_world_clock_def(cfg.player.camera_mode), indent=2))
     (game_dir / "entities" / "cameras.json").write_text(

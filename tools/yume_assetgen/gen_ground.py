@@ -118,9 +118,8 @@ def run(game: str, strength: float = 4.0) -> int:
     backend = get_backend(backend_name, backend_config)
     tex_dir = game_dir / cfg.outputs.get("texture_dir", "assets/textures")
     tex_dir.mkdir(parents=True, exist_ok=True)
-    repo_data_prefix = "data/" + game_dir.name
-    res_tex_dir = "res://" + repo_data_prefix + "/" + cfg.outputs.get(
-        "texture_dir", "assets/textures")
+    # ADR 0087: the ref is relative to the game folder.
+    ref_dir = cfg.outputs.get("texture_dir", "assets/textures")
 
     summary = {
         "game": game,
@@ -201,12 +200,12 @@ def run(game: str, strength: float = 4.0) -> int:
     # Patch scene.json's ground.mesh with the resolved paths.
     changed = False
     if albedo_filename:
-        ref = f"{res_tex_dir}/{albedo_filename}"
+        ref = f"{ref_dir}/{albedo_filename}"
         if mesh_cfg.get("albedo_texture") != ref:
             mesh_cfg["albedo_texture"] = ref
             changed = True
     if normal_filename:
-        ref = f"{res_tex_dir}/{normal_filename}"
+        ref = f"{ref_dir}/{normal_filename}"
         if mesh_cfg.get("normal_texture") != ref:
             mesh_cfg["normal_texture"] = ref
             changed = True
@@ -298,7 +297,7 @@ def run_biomes(game: str) -> int:
     """Generate seamless albedo textures for each biome in
     data/<game>/visual_layout/asset_resolution.json's `biomes`
     section. Patches asset_resolution.biomes.<name>.albedo with the
-    resolved res:// path.
+    path relative to the game folder (ADR 0087).
     """
     game_dir = DATA_ROOT / game
     if not game_dir.exists():
@@ -324,9 +323,8 @@ def run_biomes(game: str) -> int:
     backend = get_backend(backend_name, backend_config)
     tex_dir = game_dir / cfg.outputs.get("texture_dir", "assets/textures")
     tex_dir.mkdir(parents=True, exist_ok=True)
-    repo_data_prefix = "data/" + game_dir.name
-    res_tex_dir = "res://" + repo_data_prefix + "/" + cfg.outputs.get(
-        "texture_dir", "assets/textures")
+    # ADR 0087: the ref is relative to the game folder.
+    ref_dir = cfg.outputs.get("texture_dir", "assets/textures")
 
     n_generated = 0
     n_skipped = 0
@@ -368,7 +366,7 @@ def run_biomes(game: str) -> int:
             print(f"  [gen]  biome '{biome_name}' → {filename}")
             n_generated += 1
         # Patch asset_resolution.json with the resolved path.
-        ref = f"{res_tex_dir}/{filename}"
+        ref = f"{ref_dir}/{filename}"
         if biome_cfg.get("albedo") != ref:
             biome_cfg["albedo"] = ref
             changed = True

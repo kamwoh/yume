@@ -157,7 +157,7 @@ omitting them keeps engine defaults.)
   "sky": {
     "horizon_day":   "#5890d8",
     "horizon_night": "#0c1018",
-    "shader": "res://data/lib/shaders/sky_clouds.gdshader",
+    "shader": "@lib/shaders/sky_clouds.gdshader",
     "shader_params": {
       "sky_top_color":      [0.30, 0.55, 0.85],
       "sky_horizon_color":  [0.66, 0.80, 0.92],

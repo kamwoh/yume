@@ -33,6 +33,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from content import asset_file  # noqa: E402
+
 
 # ground_renderer.gd auto-sets these; authoring them anywhere is
 # tolerated (the engine overrides).
@@ -48,12 +51,6 @@ def _shader_uniforms(shader_path: Path) -> set[str]:
         return set()
     text = shader_path.read_text()
     return set(UNIFORM_RE.findall(text))
-
-
-def _resolve_res_path(res_path: str, repo_root: Path) -> Path:
-    """res://X → <repo>/godot/X."""
-    rel = res_path.removeprefix("res://")
-    return repo_root / "godot" / rel
 
 
 def validate_game(game_dir: Path, repo_root: Path) -> list[dict]:
@@ -72,7 +69,7 @@ def validate_game(game_dir: Path, repo_root: Path) -> list[dict]:
     if not shader:
         return findings  # no shader, nothing to check
 
-    shader_file = _resolve_res_path(shader, repo_root)
+    shader_file = asset_file(shader, game_dir)
     uniforms = _shader_uniforms(shader_file)
     if not uniforms:
         findings.append({

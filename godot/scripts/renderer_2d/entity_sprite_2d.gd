@@ -75,7 +75,7 @@ func _ready() -> void:
 		z_index = int(visual["z_index"])
 
 	# Tier 1 — real sprite asset
-	var sprite_path := str(visual.get("sprite_2d", ""))
+	var sprite_path := AssetPath.resolve(str(visual.get("sprite_2d", "")))
 	if sprite_path != "" and ResourceLoader.exists(sprite_path):
 		_texture = load(sprite_path)
 		_mode = "texture"

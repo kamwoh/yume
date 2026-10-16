@@ -17,7 +17,7 @@ run() {
 
 for v in validate_engine_wiring validate_tag_writes validate_claude_config \
          validate_meshes validate_no_stray_scripts validate_tick_override \
-         validate_adr_index; do
+         validate_adr_index validate_host_neutral; do
   run "$v" "$PY" "tools/validators/${v}.py" --strict
 done
 run check_examples "$PY" tools/validators/check_examples.py --strict

@@ -40,10 +40,10 @@ def test_collider_defaults():
 def test_entity_def_full():
     print("entity def — full collider (rock)")
     d = _entity_def("boulder_0", "BoulderFactory",
-                    "res://data/demo_x/assets/infinigen/boulder_0.glb", 1.30, "full")
+                    "assets/infinigen/boulder_0.glb", 1.30, "full")
     _check(d["id"] == "boulder_0", "id set")
     _check(d["state_init"]["scale"] == 1.3, "scale = natural height (1.30m)")
-    _check(d["visual"]["mesh"].endswith("boulder_0.glb"), "mesh res:// path")
+    _check(d["visual"]["mesh"].endswith("boulder_0.glb"), "mesh path")
     cs = d["physics"]["collision_shape"]
     _check(cs["from_visual_mesh"] is True, "full -> from_visual_mesh true")
     _check(cs["type"] == "box" and len(cs["size"]) == 3, "box collider with fallback size")
@@ -54,7 +54,7 @@ def test_entity_def_full():
 def test_entity_def_base():
     print("entity def — base collider (tree)")
     d = _entity_def("tree_5", "TreeFactory",
-                    "res://data/demo_x/assets/infinigen/tree_5.glb", 6.0, "base")
+                    "assets/infinigen/tree_5.glb", 6.0, "base")
     cs = d["physics"]["collision_shape"]
     _check(cs["from_visual_mesh"] == "base", "base -> from_visual_mesh 'base' (trunk footprint)")
     _check(cs["size"][0] < cs["size"][1], "base fallback is narrower than tall (trunk-shaped)")
@@ -63,7 +63,7 @@ def test_entity_def_base():
 def test_entity_def_none():
     print("entity def — no collider")
     d = _entity_def("mush_1", "MushroomFactory",
-                    "res://data/demo_x/assets/infinigen/mush_1.glb", 0.4, "none")
+                    "assets/infinigen/mush_1.glb", 0.4, "none")
     _check("physics" not in d, "collider none -> no physics block")
     _check(d["state_init"]["scale"] == 0.4, "tiny asset keeps natural scale")
 
@@ -103,7 +103,7 @@ def test_catalog():
 
 def test_terrain_def():
     print("terrain def (C1)")
-    d = _terrain_def("res://data/demo_x/assets/infinigen/terrain.glb")
+    d = _terrain_def("assets/infinigen/terrain.glb")
     _check(d["visual"]["normalize"] is False, "normalize=False (native scale, ADR 0062)")
     _check("terrain" in d["tags"] and "ground" in d["tags"], "terrain+ground tags")
     cs = d["physics"]["collision_shape"]
