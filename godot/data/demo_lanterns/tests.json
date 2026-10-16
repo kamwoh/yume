@@ -1,3 +1,86 @@
 {
-  "scenarios": []
+  "_comment": "Scenario tests for the lanterns example (2026-10-16). They cover the game layer: boot state, collect on contact, the win at 3, and player movement. Before this file had scenarios, CI reported total: 0 for this game.",
+  "scenarios": [
+    {
+      "_section": "=== BOOT ===",
+      "name": "boot_state",
+      "_": "After load: 1 player, 3 lanterns, collected 0, won 0.",
+      "setup": {},
+      "steps": [
+        {"tick": 1},
+        {"expect": [
+          {"entity_count": {"query": {"tags_all": ["player"]}, "op": "==", "value": 1}},
+          {"entity_count": {"query": {"tags_all": ["lantern"]}, "op": "==", "value": 3}},
+          {"entity_field": {"query": {"tags_all": ["game_state"]}, "field": "state.collected", "op": "==", "value": 0}},
+          {"entity_field": {"query": {"tags_all": ["game_state"]}, "field": "state.won", "op": "==", "value": 0}}
+        ]}
+      ]
+    },
+    {
+      "_section": "=== COLLECT ===",
+      "name": "collect_on_contact",
+      "_": "The player stands on lantern_a. Contact removes the lantern and adds 1 to collected.",
+      "setup": {"entity_state": {"player_input_anchor": {"position": [12.0, -0.5, 6.0]}}},
+      "steps": [
+        {"tick": 3},
+        {"expect": [
+          {"entity_count": {"query": {"tags_all": ["lantern"]}, "op": "==", "value": 2}},
+          {"entity_field": {"query": {"tags_all": ["game_state"]}, "field": "state.collected", "op": "==", "value": 1}}
+        ]}
+      ]
+    },
+    {
+      "name": "far_lantern_stays",
+      "_": "At the spawn point the player is far from all lanterns. Nothing is collected.",
+      "setup": {},
+      "steps": [
+        {"tick": 10},
+        {"expect": [
+          {"entity_count": {"query": {"tags_all": ["lantern"]}, "op": "==", "value": 3}},
+          {"entity_field": {"query": {"tags_all": ["game_state"]}, "field": "state.collected", "op": "==", "value": 0}}
+        ]}
+      ]
+    },
+    {
+      "_section": "=== WIN ===",
+      "name": "no_win_at_two",
+      "_": "collected 2 is not a win.",
+      "setup": {"entity_state": {"game_state": {"collected": 2}}},
+      "steps": [
+        {"tick": 3},
+        {"expect": [
+          {"entity_field": {"query": {"tags_all": ["game_state"]}, "field": "state.won", "op": "==", "value": 0}}
+        ]}
+      ]
+    },
+    {
+      "name": "third_lantern_wins",
+      "_": "collected 2, then the player collects lantern_a. collected becomes 3 and won becomes 1.",
+      "setup": {"entity_state": {
+        "game_state": {"collected": 2},
+        "player_input_anchor": {"position": [12.0, -0.5, 6.0]}
+      }},
+      "steps": [
+        {"tick": 4},
+        {"expect": [
+          {"entity_field": {"query": {"tags_all": ["game_state"]}, "field": "state.collected", "op": "==", "value": 3}},
+          {"entity_field": {"query": {"tags_all": ["game_state"]}, "field": "state.won", "op": "==", "value": 1}}
+        ]}
+      ]
+    },
+    {
+      "_section": "=== MOVEMENT ===",
+      "name": "hold_north_moves_player",
+      "_": "The player starts at z = 10. Holding move_north for 0.5 s moves the player toward -Z.",
+      "setup": {},
+      "steps": [
+        {"tick": 2},
+        {"hold": "move_north", "for": 0.5},
+        {"tick": 2},
+        {"expect": [
+          {"entity_field": {"query": {"tags_all": ["player"]}, "field": "state.position.z", "op": "<", "value": 9.0}}
+        ]}
+      ]
+    }
+  ]
 }

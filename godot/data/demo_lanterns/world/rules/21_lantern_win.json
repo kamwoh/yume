@@ -4,7 +4,7 @@
     {
       "id": "lantern_win_check",
       "trigger": {"type": "tick", "interval": 1},
-      "query": {"tags_all": ["game_state"], "state": {"collected_ge": 3, "won_eq": 0}},
+      "query": {"tags_all": ["game_state"], "state": {"collected_gte": 3, "won_eq": 0}},
       "effect": [
         {"type": "state_set", "target": "self", "field": "won", "value": 1},
         {"type": "emit", "signal": "all_lanterns_collected"}

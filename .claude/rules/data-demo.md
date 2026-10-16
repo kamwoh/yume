@@ -519,6 +519,12 @@ mutations on one store don't show up reading the other.
   Expression — parses but always returns the IF branch. Workaround:
   `move * clamp((cond_lhs - cond_rhs) * 1e6, 0, 1)`. Older demos
   (harvestcore, tinypond) using ternary silently took IF.
+- ⚠️ **A query clause on a field nothing defines never matches.** The
+  operator suffixes are `_eq _ne _gt _lt _gte _lte _atleast _atmost
+  _has _in`. `collected_ge` reads a field named `collected_ge`, and
+  `position_x_gt` reads `position_x` (position is a vector). Gate:
+  `validate_rules.py` check (11). Empirical 2026-10-16: the lanterns
+  win rule never fired.
 
 ## Schema sketch
 

@@ -40,6 +40,14 @@ Checks implemented in v1:
       reads (schema from api-manifest.json). Empirical 2026-10-16:
       aldenmere `formula_x` on velocity_set, `state` on spawn.
 
+  (11) QUERY FIELD NOBODY DEFINES — a query `state` or `properties` key
+      names a field that no def, instance, spawn or effect in the game
+      defines. Queries are strict (missing field = no match), so the
+      clause never matches. The engine's operator suffixes come from
+      query.gd. Empirical 2026-10-16: demo_lanterns `collected_ge` (the
+      suffix is `_gte`), so the win rule never fired.
+
+
 Future v2 additions (deferred per data-demo.md):
   - Destructive effect-chain ordering (transition_level / reload_scene
     must be LAST in chain).
@@ -571,6 +579,89 @@ def check_unknown_effect_fields(rule, errors):
             ))
 
 
+_QUERY_GD = Path(__file__).resolve().parents[2] / "godot" / "scripts" / "engine" / "core" / "query.gd"
+_SUFFIX_BLOCK = re.search(r"OPERATOR_SUFFIXES: Array = \[(.*?)\]", _QUERY_GD.read_text(encoding="utf-8"), re.S)
+QUERY_SUFFIXES = re.findall(r'"(_\w+)"', _SUFFIX_BLOCK.group(1)) + ["_has", "_in"]
+# Fields the engine itself writes on entities (core/entity.gd, physics runners).
+ENGINE_STATE_FIELDS = {"position", "velocity", "age", "facing", "pitch", "y_velocity", "on_floor"}
+STATE_EFFECTS = ("state_set", "state_add", "state_mul", "state_clamp", "state_toggle")
+
+
+def _strip_suffix(key: str) -> str:
+    """The field a query key reads, as core/query.gd::_match_fields parses it."""
+    for suffix in QUERY_SUFFIXES:
+        if key.endswith(suffix):
+            return key[: -len(suffix)]
+    return key
+
+
+def collect_defined_fields(game_dir: Path) -> dict:
+    """Every state and property field that some file in the game (or a
+    bundle it includes) defines. Returns {"state": set, "properties": set}."""
+    out = {"state": set(ENGINE_STATE_FIELDS), "properties": set()}
+    res = resolver()
+
+    def walk(node, parent_key=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k in ("state_init", "overrides") or (k == "state" and parent_key != "query_spec"):
+                    if isinstance(v, dict):
+                        out["state"].update(v.get("state", {}).keys() if k == "overrides" else v.keys())
+                if k == "properties" and parent_key != "query_spec" and isinstance(v, dict):
+                    out["properties"].update(v.keys())
+                if k == "field" and isinstance(v, str) and node.get("type") in STATE_EFFECTS:
+                    out["state"].add(v.split(".", 1)[0])
+                # Query specs read fields. They never define them.
+                child_key = "query_spec" if k in ("query", "a", "b", "when", "match") else k
+                walk(v, child_key)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item, parent_key)
+
+    for f in sorted(game_dir.rglob("*.json")):
+        if "_snapshots" in f.parts or f.name == "tests.json":
+            continue
+        try:
+            walk(res.resolve(json.loads(f.read_text(encoding="utf-8"))))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            continue
+    return out
+
+
+def check_query_fields_defined(rule, errors, defined):
+    """(11) Each query state/properties key names a field the game defines."""
+    rule_id = rule.get("id", "<unnamed>")
+
+    def visit(spec, where):
+        if not isinstance(spec, dict):
+            return
+        for clause in ("state", "properties"):
+            fields = spec.get(clause)
+            if not isinstance(fields, dict):
+                continue
+            for key in fields:
+                if str(key).startswith("_"):
+                    continue
+                field = _strip_suffix(str(key))
+                if field not in defined[clause]:
+                    hint = ""
+                    if field == key and "_" in key:
+                        hint = f" If `_{key.rsplit('_', 1)[1]}` is an operator, use one of: {', '.join(QUERY_SUFFIXES)}."
+                    errors.append((
+                        rule_id, f"{where}.{clause}.{key}",
+                        f"the query reads `{field}`, but no def, instance, spawn or effect "
+                        f"in this game defines it, so this clause never matches.{hint}",
+                    ))
+        for sub in ("a", "b"):
+            visit(spec.get(sub), f"{where}.{sub}")
+
+    visit(rule.get("query"), "query")
+    effects = rule.get("effect", [])
+    for i, eff in enumerate(effects if isinstance(effects, list) else [effects]):
+        if isinstance(eff, dict):
+            visit(eff.get("query"), f"effect[{i}].query")
+
+
 def check_once_fields(rule, errors):
     """ADR 0080 — the one-shot quantifiers.
 
@@ -799,6 +890,7 @@ def validate_game(game_dir):
     """Return list of (file, rule_id, field, message) violations."""
     game_dir = Path(game_dir)
     errors = []
+    defined = collect_defined_fields(game_dir)
 
     # ---- world + game + levels rules ----
     for rules_file in find_rule_files(game_dir):
@@ -829,6 +921,7 @@ def validate_game(game_dir):
             check_edge_state_clause(rule, r_errors)
             check_once_fields(rule, r_errors)
             check_scope_vs_presentation(rule, r_errors)
+            check_query_fields_defined(rule, r_errors, defined)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

@@ -45,6 +45,7 @@ jobs:
         run: |
           for g in demo_sokoban demo_doomarena3d demo_lanterns; do
             timeout 600 "$GODOT" --headless --path . scenes/scenario_test.tscn -- --game=$g 2>&1 | tee "scen_$g.log"
-            grep -q "no tests.json" "scen_$g.log" && continue
             grep -qE "passed: [0-9]+  failed: 0 " "scen_$g.log" || { echo "$g failed or crashed"; exit 1; }
+            # A committed example with no scenarios proves nothing (lanterns, 2026-10-16).
+            if grep -qE "total: 0\b" "scen_$g.log"; then echo "$g has no scenarios"; exit 1; fi
           done
