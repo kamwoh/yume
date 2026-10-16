@@ -1,7 +1,7 @@
 # ADR 0029 — Schedule primitive
 
 _Date: 2026-05-09_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 in batch H: the code shipped in commit 10f313e, and ADR 0085 kept ScheduleDirector. No demo has a def-level `schedule` block yet)._
 
 ## Context
 

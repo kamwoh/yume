@@ -1,7 +1,7 @@
 # ADR 0079 — Simulation tiers (`abstract` / `embodied`)
 
 _Date: 2026-08-16_
-_Status: proposed_
+_Status: accepted for phase 1 (status corrected 2026-10-16 in batch H: phase 1 shipped in commit 23921b6, and thousandgate sets `embodied_radius`. Phase 2 stays deferred)._
 
 ## Context
 

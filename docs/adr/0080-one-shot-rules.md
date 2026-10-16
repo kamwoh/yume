@@ -1,7 +1,7 @@
 # ADR 0080 — One-shot rules (`once` / `once_per`)
 
 _Date: 2026-08-16_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 in batch H: the code shipped in commit deaf88e, and five demos use `once`)._
 
 ## Context
 

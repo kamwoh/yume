@@ -4,13 +4,11 @@ class_name GridSnap
 ## ADR 0038 — Sims-style grid placement primitive.
 ##
 ## Pure utility: snap entity positions + yaws to a cell grid declared in
-## scene.json. Engine snaps at four sites: world load (_spawn_initial),
-## pattern expansion (opt-in), runtime build_place (ADR 0037), and the
-## build preview widget.
+## scene.json. The engine snaps at world load (SpawnManager._spawn_initial).
 ##
 ## Per Condition C1 (tech-director, 2026-05-10): grid config travels via
-## the flat env key `env["scene_grid"]`, parallel to ADR 0037's
-## `env["scene_bounds"]` pattern. Empty dict = grid disabled (the default
+## the flat env key `env["scene_grid"]`, parallel to the
+## `env["scene_bounds"]` key. Empty dict = grid disabled (the default
 ## for the 13 existing demos).
 ##
 ## Per Condition C2 (tech-director, 2026-05-10): y_size defaults to 0

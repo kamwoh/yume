@@ -1,7 +1,7 @@
 # ADR 0043 — Universal input via `@lib.input.universal`
 
 _Date: 2026-05-11_
-_Status: **proposed** — awaiting tech-director review_
+_Status: accepted (status corrected 2026-10-16 in batch H: the code shipped in commit 93d118b, and every demo includes `@lib.input.universal`)._
 
 ## Context
 

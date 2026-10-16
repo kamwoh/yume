@@ -8,7 +8,8 @@ PY="${ROOT}/venv/bin/python"
 [ -x "$PY" ] || PY="python3"
 failed=0
 for v in validate_engine_wiring validate_tag_writes validate_claude_config \
-         validate_meshes validate_no_stray_scripts validate_tick_override; do
+         validate_meshes validate_no_stray_scripts validate_tick_override \
+         validate_adr_index; do
   if ! out="$("$PY" "${ROOT}/tools/validators/${v}.py" --strict 2>&1)"; then
     echo "[pre-commit] ${v} failed:"
     echo "$out" | sed 's/^/  /'

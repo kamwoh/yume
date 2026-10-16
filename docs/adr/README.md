@@ -70,14 +70,14 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0026](./0026-party-member-primitive.md) | Party-member primitive (leashed NPCs) | superseded by 0085 | 2026-05-07 |
 | [0027](./0027-cross-game-json-reuse-system.md) | Cross-game JSON reuse (`@lib.X` + `$extends`) | accepted (conditions addressed) | 2026-05-08 |
 | [0028](./0028-cross-game-parameterized-templates.md) | Cross-game parameterized templates (`$params`) | proposed — deferred until first dependent game | 2026-05-08 |
-| [0029](./0029-schedule-primitive.md) | Schedule primitive (NPC daily routines at scale) | proposed — Aldenmere Phase 1 BLOCKING | 2026-05-09 |
+| [0029](./0029-schedule-primitive.md) | Schedule primitive (NPC daily routines at scale) | accepted (corrected 2026-10-16) | 2026-05-09 |
 | [0030](./0030-class-primitive.md) | Occupation/class primitive (switchable, per-class HUD/verbs) | superseded by 0085 | 2026-05-09 |
 | [0031](./0031-zone-state-primitive.md) | Aggregated zone-state primitive (macro-economy substrate) | accepted (corrected 2026-10-16) | 2026-05-09 |
 | [0032](./0032-faction-primitive.md) | Faction primitive (politics, alliances, war) | superseded by 0085 | 2026-05-09 |
 | [0033](./0033-tech-tree-primitive.md) | Technology-tree primitive (knowledge accumulation across NPCs + generations) | superseded by 0085 | 2026-05-09 |
 | [0034](./0034-dynasty-primitive.md) | Dynasty / heir succession (player ages, dies, heir takes over) | superseded by 0085 | 2026-05-09 |
 | [0035](./0035-animation-primitive.md) | Animation primitive (declarative skeletal/piece-level mesh animation) | accepted — implementation realigned by ADR 0046 (2026-05-17) | 2026-05-09 |
-| [0036](./0036-lifecycle-aging.md) | Lifecycle / aging primitive (every entity born → grows → ages → dies) | proposed — Aldenmere schema in Phase 1, mechanics Phase 2 | 2026-05-09 |
+| [0036](./0036-lifecycle-aging.md) | Lifecycle / aging primitive (every entity born → grows → ages → dies) | accepted (corrected 2026-10-16) | 2026-05-09 |
 | [0037](./0037-dynamic-structure-placement.md) | Dynamic structure placement (player/NPC builds shelter; collision-validated) | superseded by 0085 | 2026-05-09 |
 | [0038](./0038-grid-based-placement.md) | Grid-based structure placement | accepted | 2026-05-09 |
 | [0039](./0039-step-runner-scenario-tests.md) | StepRunner-based scenario tests | accepted | 2026-05-10 |
@@ -99,7 +99,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0055](./0055-multi-biome-ground-from-semantic-map.md) | Multi-biome ground from the semantic map | accepted | 2026-05-20 |
 | [0056](./0056-visual-assertion-library.md) | Visual assertion library + capture-per-test runner | accepted | 2026-05-22 |
 | [0057](./0057-yume-visual-tester-skill.md) | yume-visual-tester skill (auto-generated visual test plans) | accepted (corrected 2026-10-16) | 2026-05-22 |
-| [0058](./0058-shader-as-json.md) | Shader as JSON (templates + composable primitives) | proposed | 2026-05-23 |
+| [0058](./0058-shader-as-json.md) | Shader as JSON (templates + composable primitives) | accepted (corrected 2026-10-16) | 2026-05-23 |
 | [0059](./0059-water-surface-from-scene-json.md) | Water surface from scene.json | accepted | 2026-05-26 |
 | [0060](./0060-deterministic-pomdp-pluggable-io.md) | Deterministic I/O contract — pluggable input + partitioned observe channels | accepted | 2026-05-30 |
 | [0061](./0061-networked-multiplayer-lockstep.md) | Networked multiplayer — input-replicated lockstep | accepted | 2026-05-30 |
@@ -109,6 +109,20 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0065](./0065-synced-animation-phase.md) | Synced animation — phase as deterministic sim state | accepted | 2026-06-01 |
 | [0066](./0066-record-replay-smooth-render.md) | Record-then-replay for smooth offline net video | accepted | 2026-06-04 |
 | [0067](./0067-unified-generation-pipeline.md) | Unified generation pipeline (World / Game / Assets — disjoint-ownership layers) | accepted | 2026-06-06 |
+| [0068](./0068-sim-tick-on-physics-clock.md) | sim tick driven by the physics clock | accepted | 2026-06-11 |
+| [0069](./0069-input-poll-on-physics-clock.md) | Input poll on the physics clock | accepted | 2026-06-11 |
+| [0070](./0070-physics-overlap-trigger.md) | Physics overlap trigger (`trigger: "overlap"` + `body_type: "area"`) | accepted | 2026-06-11 |
+| [0071](./0071-render-block-json-exposure.md) | JSON exposure: render/viewport block, color-correction LUT, shadow tuning, reflection probes | accepted | 2026-06-12 |
+| [0072](./0072-entity-light-sources.md) | Per-entity light sources + emissive primitives | accepted | 2026-06-12 |
+| [0073](./0073-editor-scene-preview.md) | Editor-time scene preview (read-only) | accepted | 2026-06-13 |
+| [0074](./0074-infinigen-world-layer-backend.md) | Infinigen as a World-layer / asset-library backend | accepted (phase B, phase C deferred) | 2026-06-19 |
+| [0075](./0075-relation-state.md) | Relation state (edge-scoped state store) | accepted (corrected 2026-10-16) | 2026-08-16 |
+| [0076](./0076-query-bound-repeated-ui.md) | Query-bound repeated UI (`list` element) | accepted (corrected 2026-10-16) | 2026-08-16 |
+| [0077](./0077-level-subroutines.md) | Level subroutines (`level_call` / `level_return`) | accepted (corrected 2026-10-16) | 2026-08-16 |
+| [0078](./0078-calendar-clock.md) | The calendar clock (`scheduled` trigger + `advance_time`) | accepted (corrected 2026-10-16) | 2026-08-16 |
+| [0079](./0079-simulation-tiers.md) | Simulation tiers (`abstract` / `embodied`) | accepted for phase 1 (corrected 2026-10-16) | 2026-08-16 |
+| [0080](./0080-one-shot-rules.md) | One-shot rules (`once` / `once_per`) | accepted (corrected 2026-10-16) | 2026-08-16 |
+| [0081](./0081-entity-reference-indirection.md) | entity-reference indirection | accepted | 2026-08-17 |
 | [0082](./0082-forked-skills-for-isolated-phases.md) | Forked skills for isolated pipeline phases (reviewers run in subagents) | accepted | 2026-10-15 |
 | [0083](./0083-code-built-meshes-v2.md) | Code-built meshes v2 (baked parts, CSG ops, shared materials) | accepted | 2026-10-15 |
 | [0084](./0084-query-tag-index-and-derived-cell-size.md) | Query tag index and a derived spatial cell size | accepted | 2026-10-16 |

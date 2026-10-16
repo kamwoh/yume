@@ -1,7 +1,7 @@
 # ADR 0036 — Lifecycle / aging primitive
 
 _Date: 2026-05-09_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 in batch H: the code shipped in commit c6363d2, and aldenmere uses `lifecycle` blocks)._
 
 ## Context
 

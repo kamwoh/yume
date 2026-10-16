@@ -43,6 +43,7 @@ REPO_WIDE = {
     "validate_meshes.py",
     "validate_tag_writes.py",
     "validate_engine_wiring.py",
+    "validate_adr_index.py",
 }
 
 

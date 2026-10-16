@@ -1,7 +1,7 @@
 # ADR 0075 — Relation state (edge-scoped state store)
 
 _Date: 2026-08-16_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16 in batch H: the code shipped in commit 246df4f, and thousandgate uses `_edge` clauses)._
 
 ## Context
 

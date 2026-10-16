@@ -44,7 +44,7 @@ const OPERATOR_SUFFIXES: Array = [
 	"_atleast",
 	"_atmost",
 ]
-# Note: `_has` (ADR 0033, set membership where field is array) and `_in`
+# Note: `_has` (set membership where the field is an array) and `_in`
 # (ADR 0040, where target is array) are handled as separate suffix branches
 # in _match_fields rather than via the scalar-comparison loop above.
 
@@ -310,8 +310,8 @@ static func _match_fields(fields: Dictionary, spec: Dictionary) -> bool:
 	for k in spec:
 		var key: String = str(k)
 		var target = spec[key]
-		# ADR 0033 — tech-tree primitive: `<field>_has` operator tests
-		# Array set membership. Treated as a separate op-suffix branch
+		# `<field>_has` tests Array set membership. It came with the tech
+		# tree that ADR 0085 deleted. The operator is generic, so it stays. Treated as a separate op-suffix branch
 		# because OPERATOR_SUFFIXES is sized for scalar comparisons; set
 		# membership has different semantics (missing field = no match,
 		# non-Array field = no match, value present in array = match).

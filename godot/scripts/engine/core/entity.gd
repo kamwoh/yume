@@ -34,12 +34,6 @@ class_name Entity
 ##                 read; renderers may swap mesh on transitions.
 ##   yaw         — float radians, Y-axis rotation. 3D + 2D renderers apply
 ##                 if set (per state.yaw commit on 2026-05-09). Idempotent.
-##   class_progress — dict {class_id: {level, xp, ...}}. ADR 0030 class
-##                 primitive reads/writes; engine itself doesn't recognize.
-##   known_techs — Array of tech_id strings. ADR 0033 tech-tree primitive
-##                 reads/writes.
-##   dynasty_id  — string or null. ADR 0034 dynasty primitive reads. Phase 3
-##                 entities default to null for Phase 4 forward-compat.
 
 # ============================================================
 # DATA
