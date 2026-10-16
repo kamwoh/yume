@@ -213,13 +213,16 @@ func _drain_game_pipelines() -> void:
 		_world._world_reset.process_pending(env)
 
 
-## ESC handling. First press: release captured mouse (so user can click
-## the window's X to close, or alt-tab away). Second press while cursor
-## is already visible: quit the game. Q also quits anytime.
+## ESC handling for a game with no ESC binding of its own. First press:
+## release the captured mouse (so the user can click the window's X or
+## alt-tab away). Second press while the cursor is visible: quit.
 ##
-## ADR 0011: when ScreenFlow has an active non-game screen (title, pause,
-## settings), defer ESC to it — GameShell stops handling input. ScreenFlow
-## owns the pause flow via global_inputs.
+## ADR 0011: ScreenFlow owns the pause flow via screens.json
+## global_inputs. When a global input binds ESC (the usual `ui_cancel` ->
+## pause), GameShell does nothing with ESC. Empirical 2026-10-16: both
+## nodes read ESC in the same frame, and GameShell quit sokoban instead
+## of opening its pause screen. GameShell also quit on Q, which a game
+## may bind to an action. That shortcut is gone.
 ##
 ## Tracked via _esc_was_pressed so we only fire once per keypress, not
 ## every frame the key is held.
@@ -227,23 +230,28 @@ var _esc_was_pressed: bool = false
 
 
 func _handle_pause_input() -> void:
-	# Defer to ScreenFlow when a screen is active (other than the gameplay one)
-	var ws: Dictionary = (_world.get("world_state") as Dictionary) if _world != null else {}
-	var current_screen := str(ws.get("current_screen", ""))
-	if current_screen != "" and current_screen != "game":
-		_esc_was_pressed = Input.is_key_label_pressed(KEY_ESCAPE)
-		return
-	if Input.is_key_label_pressed(KEY_Q):
-		get_tree().quit()
-		return
 	var esc := Input.is_key_label_pressed(KEY_ESCAPE)
-	if esc and not _esc_was_pressed:
-		# Press-edge: toggle cursor capture, or quit if already free
-		if Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
-			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-		else:
-			get_tree().quit()
+	var edge := esc and not _esc_was_pressed
 	_esc_was_pressed = esc
+	if not edge:
+		return
+	var ws: Dictionary = (_world.get("world_state") as Dictionary) if _world != null else {}
+	var sf = _world.get_node_or_null("ScreenFlow") if _world != null else null
+	var screens_own_esc: bool = sf != null and sf.has_method("binds_key") and sf.binds_key(KEY_ESCAPE)
+	match esc_outcome(str(ws.get("current_screen", "")), screens_own_esc,
+			Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED):
+		"release":
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		"quit":
+			get_tree().quit()
+
+
+## What an ESC press during play does: "defer" (ScreenFlow handles it),
+## "release" (free the captured mouse) or "quit".
+static func esc_outcome(current_screen: String, screens_own_esc: bool, mouse_captured: bool) -> String:
+	if screens_own_esc or (current_screen != "" and current_screen != "game"):
+		return "defer"
+	return "release" if mouse_captured else "quit"
 
 
 # ============================================================

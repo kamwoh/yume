@@ -157,7 +157,7 @@ Pick a policy and commit.
 - Bottom-right: current weapon name + cooldown bar
 - Center: crosshair (+ glyph, yellow)
 - Bottom-left: controls hint ("WASD walk · Mouse aim · SPACE fire ·
-  1/2/3 swap weapon · ESC release cursor · R restart · Q quit")
+  1/2/3 swap weapon · ESC release cursor (twice to quit) · R restart")
 - On-death: lose screen with stats + best-stats + R/ESC/Q hints
 - On-win: win screen with score breakdown
 ```

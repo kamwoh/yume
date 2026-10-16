@@ -645,6 +645,22 @@ func _handle_global_inputs() -> void:
 				_dispatch_effects(effects, {"_source": "global_input"})
 
 
+## True when a screens.json global input uses an action that the key
+## triggers. GameShell asks this before it handles ESC itself.
+func binds_key(keycode: int) -> bool:
+	var globals = _cfg.get("global_inputs", null)
+	if not (globals is Array):
+		return false
+	for g in globals:
+		var action := str((g as Dictionary).get("action", "")) if g is Dictionary else ""
+		if action == "" or not InputMap.has_action(action):
+			continue
+		for ev in InputMap.action_get_events(action):
+			if ev is InputEventKey and keycode in [ev.keycode, ev.physical_keycode, ev.key_label]:
+				return true
+	return false
+
+
 ## Compute press-edge (pressed-this-frame AND not-last-frame) per ACTION
 ## across the global_inputs list, updating _last_action_state ONCE per
 ## action. Returns {action: bool is_edge}. Extracted + pure-ish (reads
@@ -828,12 +844,21 @@ func _build_setting_row(host: Control, s: Dictionary, settings_mgr) -> void:
 			sl.value_changed.connect(func(v): settings_mgr.set_value(key, v))
 			ctrl = sl
 		"bool":
-			var cb := CheckBox.new()
-			cb.button_pressed = bool(current)
-			cb.text = "  "  # padding so the box has visible footprint
-			cb.custom_minimum_size = Vector2(220, 30)
-			cb.toggled.connect(func(v): settings_mgr.set_value(key, v))
-			ctrl = cb
+			# A toggle Button that says "On" or "Off". The CheckBox it
+			# replaces drew the theme's dark unchecked icon, which did not
+			# show on a dark panel. Empirical 2026-10-16: sokoban's
+			# "Reduced motion" row looked empty.
+			var tb := Button.new()
+			tb.toggle_mode = true
+			tb.button_pressed = bool(current)
+			tb.text = "On" if tb.button_pressed else "Off"
+			tb.custom_minimum_size = Vector2(120, 30)
+			tb.toggled.connect(
+				func(v):
+					tb.text = "On" if v else "Off"
+					settings_mgr.set_value(key, v)
+			)
+			ctrl = tb
 		"enum":
 			var ob := OptionButton.new()
 			var options: Array = s.get("options", [])

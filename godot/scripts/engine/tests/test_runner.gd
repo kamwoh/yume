@@ -8671,6 +8671,32 @@ func test_toast_without_screens() -> void:
 		1,
 		"no-screens: show_toast renders a toast label"
 	)
+	# ESC ownership (2026-10-16). Sokoban binds ui_cancel (ESC) to its pause
+	# screen, but GameShell quit on the same ESC press.
+	expect(not sf.binds_key(KEY_ESCAPE), "no global_inputs: ScreenFlow does not bind ESC")
+	sf._cfg = {"global_inputs": [{"action": "ui_cancel", "if_screen": "game", "on_press": []}]}
+	expect(sf.binds_key(KEY_ESCAPE), "global ui_cancel input: ScreenFlow binds ESC")
+	expect(not sf.binds_key(KEY_F9), "global ui_cancel input: F9 is not bound")
+	var gs_script = load("res://scripts/engine/ui/game_shell.gd")
+	expect_eq(gs_script.esc_outcome("game", true, false), "defer", "ESC with a pause binding defers to ScreenFlow")
+	expect_eq(gs_script.esc_outcome("game", false, true), "release", "ESC with no binding releases the mouse")
+	expect_eq(gs_script.esc_outcome("game", false, false), "quit", "ESC with no binding and a free mouse quits")
+	expect_eq(gs_script.esc_outcome("title", false, false), "defer", "ESC on a menu screen defers")
+	# A bool setting row shows its state as text (2026-10-16). The old
+	# CheckBox icon did not show on a dark panel.
+	var mgr: Node = load("res://scripts/engine/ui/settings_manager.gd").new()
+	mgr._settings_by_key = {"rm": {"key": "rm", "type": "bool"}}
+	mgr._values = {"rm": false}
+	var host := VBoxContainer.new()
+	sf._build_setting_row(host, {"key": "rm", "type": "bool", "label": "RM"}, mgr)
+	var toggle = host.get_child(0).get_child(1)
+	expect(toggle is Button and toggle.toggle_mode, "bool setting row: a toggle Button")
+	expect_eq(str(toggle.text), "Off", "bool setting row: shows Off for false")
+	toggle.button_pressed = true
+	expect_eq(str(toggle.text), "On", "bool setting row: shows On after a toggle")
+	expect_eq(mgr.get_value("rm"), true, "bool setting row: toggle writes the setting")
+	host.free()
+	mgr.free()
 	world.queue_free()
 
 

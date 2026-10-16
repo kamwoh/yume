@@ -4,7 +4,7 @@
   "hud": {
     "level_label": "📚 Level {}",
     "moves_label": "moves: {}",
-    "controls_hint": "WASD/arrows to move · R to restart · Q to quit"
+    "controls_hint": "WASD/arrows to move · R to restart · ESC to pause"
   },
 
   "win_message": "🌟 ALL LEVELS CLEARED 🌟\nThe archive is sorted.\nYou may rest.",
