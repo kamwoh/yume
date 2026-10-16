@@ -35,15 +35,16 @@ description: >-
 >    engine evaluates per-frame:
 >    ```json
 >    "win":  {"binds": "player.score", "op": ">=", "value": 30,
->             "message": "🌟 YOU WIN! 🌟", "screen": "ending_win"}
+>             "message": "🌟 YOU WIN! 🌟"}
 >    "lose": {"binds": "player.hp", "op": "<=", "value": 0,
->             "sustained": 60, "message": "💀 GAME OVER",
->             "screen": "ending_lose"}
+>             "sustained": 60, "message": "💀 GAME OVER"}
 >    ```
->    Required fields: `binds` (the state path), `op` (one of
+>    Fields: `binds` (the state path), `op` (one of
 >    `>=`/`<=`/`==`/`>`/`<`), `value` (threshold), `message` (HUD
->    overlay text), `screen` (modal to push when triggered). Optional
->    `sustained` (frames the condition must hold before firing).
+>    overlay text). Optional `sustained` (frames the condition must
+>    hold before it fires). The block has no `screen` key. To open an
+>    end screen, a rule fires `transition_screen` (2026-10-16:
+>    `validate_rules.py` check (13) rejects unknown keys).
 >
 > 2. **`game/flow.json`** for multi-level games — level order +
 >    `on_all_complete` behavior. See ADR 0006 for schema.

@@ -51,6 +51,11 @@ Checks implemented in v1:
       drops the tokens after `a`, so it always returns `a`. Formula.gd
       rejects it at run time. This check reports it before the game runs.
 
+  (13) UNKNOWN WIN/LOSE KEY — a key in hud.json `win` / `lose` that
+      win_lose_widget.gd never reads. Empirical 2026-10-16: the
+      game-rules-designer skill called `screen` a required key, and
+      aldenmere set it. The engine ignores it, so no screen opened.
+
 Future v2 additions (deferred per data-demo.md):
   - Destructive effect-chain ordering (transition_level / reload_scene
     must be LAST in chain).
@@ -692,6 +697,26 @@ def check_ternary_formulas(rule, errors):
         walk(rule.get(key), key)
 
 
+_WIN_LOSE_GD = Path(__file__).resolve().parents[2] / "godot" / "scripts" / "engine" / "ui" / "widgets" / "win_lose_widget.gd"
+WIN_LOSE_KEYS = set(re.findall(r'(?:cond|win_cfg|lose_cfg)\.get\("(\w+)"', _WIN_LOSE_GD.read_text(encoding="utf-8")))
+
+
+def check_win_lose_keys(hud, errors):
+    """(13) Each hud.json win/lose key is one win_lose_widget.gd reads."""
+    for block in ("win", "lose"):
+        cfg = hud.get(block)
+        if not isinstance(cfg, dict):
+            continue
+        for k in cfg:
+            if not str(k).startswith("_") and k not in WIN_LOSE_KEYS:
+                errors.append((
+                    block, k,
+                    f"hud.json `{block}.{k}` does nothing: the engine reads only "
+                    f"{', '.join(sorted(WIN_LOSE_KEYS))}. Open an end screen from a "
+                    "rule with transition_screen.",
+                ))
+
+
 def check_once_fields(rule, errors):
     """ADR 0080 — the one-shot quantifiers.
 
@@ -955,6 +980,17 @@ def validate_game(game_dir):
             check_ternary_formulas(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
+
+    # ---- hud.json win/lose ----
+    for hud_file in (game_dir / "hud.json", game_dir / "ui" / "hud.json"):
+        if hud_file.exists():
+            try:
+                h_errors = []
+                check_win_lose_keys(json.loads(hud_file.read_text()), h_errors)
+                for rid, field, msg in h_errors:
+                    errors.append((str(hud_file), rid, field, msg))
+            except json.JSONDecodeError as e:
+                errors.append((str(hud_file), "<root>", "json", f"parse error: {e}"))
 
     # ---- ui/input.json ----
     input_file = game_dir / "ui" / "input.json"
