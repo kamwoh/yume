@@ -245,7 +245,7 @@ revision 2026-05-16) fire effects like:
 {"type": "set_audio_bus_volume", "bus": "Music", "volume_db": -20}
 ```
 
-**This skill specifies WHAT exists; game-rules-designer wires it
+**This skill specifies WHAT exists. systems-designer wires it
 into state transitions.**
 
 ## Sample architectures per game type
@@ -343,7 +343,7 @@ to honor.
 - ❌ Author the music files themselves (asset-gen pipeline)
 - ❌ Decide audio engine internals (ADR 0013 + Godot AudioServer
   exposure)
-- ❌ Wire signals → music effects in rules (yume-game-rules-designer)
+- ❌ Wire signals → music effects in rules (yume-systems-designer)
 - ❌ Translate voice lines (asset-designer + ui/strings.json)
 
 ## When invoked by orchestrator

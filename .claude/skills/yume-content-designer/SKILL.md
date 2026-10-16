@@ -18,7 +18,7 @@ Per ADR 0009 (2026-05-05), this skill's scope is NARROWED:
   levels/<x>/entities.json) — placements
 - ✅ Initial world state (world/state.json) — global state
 - ❌ World physics rules — yume-systems-designer's domain
-- ❌ Game rules / scoring / win-lose — yume-game-rules-designer's domain
+- ❌ Game rules / scoring / win-lose — yume-systems-designer's domain
 - ❌ HUD / input / strings — yume-asset-designer + content for ui/
 
 Skill loads into orchestrator main context (no subagent spawn).
@@ -49,11 +49,11 @@ You do NOT write:
   (per ADR 0009 revision 2026-05-16, game/goals.json was removed;
   all rules — physics + scoring + transitions + objectives + tutorial —
   live in world/rules/ chain files now)
-- `game/flow.json` (multi-level progression) — yume-game-rules-designer
+- `game/flow.json` (multi-level progression) — yume-systems-designer
 - `scene.json` (camera/tick/renderer config) — yume-asset-designer
 - `ui/hud.json` + `ui/input.json` + `ui/strings.json` — yume-asset-designer
 - `audio/cues.json` — yume-asset-designer
-- `hud.json` declarative win:/lose: blocks — yume-game-rules-designer
+- `hud.json` declarative win:/lose: blocks — yume-systems-designer
 
 ### Per-def file pattern (preferred for new games)
 
@@ -91,7 +91,7 @@ GDScript. All playability config lives in scene.json + hud.json.
 
 1. **Read the level-design (if multi-level), world plan, and GDD.**
    The plan tells you the named cast; the GDD tells you intended feel.
-   You don't write rules — that's systems-designer / game-rules-designer.
+   You don't write rules — that's systems-designer.
 
 2. **Read `.claude/rules/data-demo.md` first.** Schema rules apply:
    no semantic effect types, formula whitelist, tag conventions,
@@ -156,9 +156,9 @@ GDScript. All playability config lives in scene.json + hud.json.
 ```
 
 You do NOT write rules. yume-systems-designer owns `world/rules/*.json`
-(all rule chains, per ADR 0009 revision 2026-05-16). yume-game-rules-
-designer owns `game/flow.json` (multi-level progression) and the
-declarative `win:` / `lose:` blocks in hud.json.
+(all rule chains, per ADR 0009 revision 2026-05-16), `game/flow.json`
+(multi-level progression) and the declarative `win:` / `lose:` blocks
+in hud.json.
 You DO need to align field names with what those skills expect — the
 rule sketches identify the binding contract.
 
@@ -286,17 +286,17 @@ data/<game>/
 ├── world/rules/*.json    # GLOBAL rules (feature modules) — systems-designer
 │                          # All rule chains live here per ADR 0009 revision
 │                          # 2026-05-16 (game/goals.json was removed).
-├── game/flow.json           # level order + start — game-rules-designer
+├── game/flow.json           # level order + start — systems-designer
 ├── entities/                # PERSISTENT entity defs — content-designer (this skill)
 └── levels/
     ├── level_1/
     │   ├── entities.json    # level-scoped initial_instances — content-designer
-    │   └── rules.json       # OPTIONAL per-level rules — game-rules-designer
+    │   └── rules.json       # OPTIONAL per-level rules — systems-designer
     ├── level_2/
     └── ...
 ```
 
-**`game/flow.json`** (game-rules-designer writes this; included for context):
+**`game/flow.json`** (systems-designer writes this. It is here for context):
 ```jsonc
 {
   "levels": ["level_1", "level_2", ..., "level_N"],
@@ -561,7 +561,7 @@ camera mode before declaring entity authoring done.
 - `_comment` keys explain the WHY of non-obvious tag/state choices
 - Balance values are inside the priors above
 - Field names match what the rule sketches expect (binding contract
-  with systems-designer / game-rules-designer)
+  with systems-designer)
 - File compiles without errors (`json` parse), passes `Rule.validate_all`
 
 ## What bad looks like

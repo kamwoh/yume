@@ -307,8 +307,8 @@ the per-skill checklist.
 
 ## When invoked by orchestrator
 
-After yume-content-designer + yume-systems-designer + yume-game-rules-
-designer establish the entity vocab + signal vocabulary. Skill needs
+After yume-content-designer + yume-systems-designer
+establish the entity vocab + signal vocabulary. Skill needs
 to know:
 - Which signals fire when player does X
 - Which input actions exist

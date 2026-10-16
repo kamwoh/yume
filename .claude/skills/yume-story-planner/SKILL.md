@@ -31,7 +31,7 @@ GDD, world-plan, level-design, and game-rules. Symptoms:
   the simulation runs but no events feel meaningful
 
 This skill catalogs the design space and produces a concrete
-story-design.md that game-rules-designer can implement as
+story-design.md that systems-designer can implement as
 signal/state-driven event triggers.
 
 ## What "story" covers
@@ -58,7 +58,7 @@ Does NOT include:
 - World-building lore (faction histories, geography) — game-planner
 - Level-by-level spatial design — level-designer
 - Dialogue text content — content-designer / asset-designer
-- Quest mechanics (kill 10 X) — game-rules-designer
+- Quest mechanics (kill 10 X) — systems-designer
 
 ## Inputs you accept
 
@@ -325,7 +325,7 @@ For each beat / arc / branch, write the primitive expression:
 - Signal emission for cross-rule coordination
 - Relation changes for NPC bonds
 
-Concrete enough that game-rules-designer can implement directly.
+Concrete enough that systems-designer can implement directly.
 
 ### Step 9 — Validate against GDD aesthetic
 
@@ -402,7 +402,7 @@ designer.
   level-designer.
 - ❌ Set numeric balance (XP rewards, gold from quests) —
   economy-designer.
-- ❌ Author the rule JSON. game-rules-designer translates your beats
+- ❌ Author the rule JSON. systems-designer translates your beats
   into trigger/effect rules.
 - ❌ Design lore / world-building. game-planner / game-designer.
 - ❌ Speculate about features the GDD doesn't ask for. If GDD says
@@ -414,7 +414,7 @@ designer.
 ## When invoked by orchestrator
 
 After GDD + world-plan land + (optionally) level-design + economy.
-Before content-designer + game-rules-designer write JSON — they need
+Before content-designer + systems-designer write JSON — they need
 the beat list to wire triggers.
 
 - Read GDD, world-plan, level-design (if present)

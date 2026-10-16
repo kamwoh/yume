@@ -198,7 +198,7 @@ finding what they need becomes a chore.
 - ❌ Math-check pricing curves (yume-economy-designer)
 - ❌ Write the story arc (yume-story-planner)
 - ❌ Pick visual style (yume-asset-designer)
-- ❌ Generate JSON (yume-content-designer / yume-game-rules-designer)
+- ❌ Generate JSON (yume-content-designer / yume-systems-designer)
 
 ## Reference files
 

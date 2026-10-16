@@ -47,11 +47,15 @@ Skill loads into orchestrator main context.
 Two outputs (review-doc + actual JSON):
 
 1. **Rule-sketch document** at `docs/games/<game-name>/rules-sketch.md`
-   — early review surface. Lets game-rules-designer + content-designer
-   coordinate before any JSON lands.
+   — early review surface. Lets content-designer coordinate with you
+   before any JSON lands.
 
 2. **`data/<game>/world/rules/*.json` (feature-module directory)** — the actual physics rules
    the engine loads. Per-game; required for any non-trivial Yume game.
+
+3. **End conditions and level flow** — the `win` / `lose` blocks in
+   `hud.json`, and `game/flow.json` for a multi-level game. See
+   § End conditions and level flow.
 
 The sketch document still uses this shape:
 
@@ -534,6 +538,41 @@ Genres where this matters most:
 Single-tick collapse is OK for ambient events the player isn't
 focused on (e.g. crops growing in a tick, weather updating,
 clock advancing). NOT for player-driven core interactions.
+
+## End conditions and level flow
+
+You own these. They were the yume-game-rules-designer skill until
+2026-10-16.
+
+**Declarative win/lose in `hud.json`.** Put `win` and `lose` blocks at
+the root of hud.json. The engine (`win_lose_widget.gd`) checks them
+each frame and shows the overlay:
+
+```json
+"win":  {"binds": "game_state.collected", "op": ">=", "value": 3,
+         "message": "You found all three lanterns."},
+"lose": {"binds": "player.hp", "op": "<=", "value": 0,
+         "sustained": 60, "message": "You did not survive."}
+```
+
+- `binds`: the state path. `op`: `>=`, `<=`, `==`, `>` or `<`.
+  `value`: the threshold. `message`: the overlay text.
+- `sustained` (optional): the frames the condition must hold before it
+  fires.
+- The block has no other keys. It opens no screen. To show an end
+  screen, write a rule that fires `transition_screen` when the same
+  condition latches (in `world/rules/13_transitions.json`).
+  `validate_rules.py` check (13) rejects unknown keys.
+- The `binds` field must match the state field that your rules write
+  and that content-designer declares in `state_init`.
+
+**`game/flow.json` for a multi-level game.** It sets the level order and
+the `on_all_complete` behavior (ADR 0006 has the schema). A
+single-level game needs no flow file. When `/yume-design --scene` ran,
+the World owns `game/flow.json` (one `level_default`). Do not write it.
+Use `level_default` as the level id.
+
+**Sandbox sims** with no goal and one level need neither.
 
 ## What you DON'T do
 

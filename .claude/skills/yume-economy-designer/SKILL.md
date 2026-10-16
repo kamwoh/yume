@@ -343,8 +343,8 @@ under-tuned for the intent.
 
 ## What you DON'T do
 
-- ❌ Author entities.json or rules. content-designer + game-rules-
-  designer + systems-designer translate your numbers into Yume
+- ❌ Author entities.json or rules. content-designer +
+  systems-designer translate your numbers into Yume
   primitives.
 - ❌ Design game mechanics or aesthetics. game-designer / GDD owns
   that. You take the GDD as given and balance the numbers.
@@ -361,7 +361,7 @@ under-tuned for the intent.
 ## When invoked by orchestrator
 
 After GDD + world-plan + (optionally) combining-design land. Before
-content-designer + systems-designer + game-rules-designer write JSON
+content-designer + systems-designer write JSON
 — they need your conversion ratios + balance values.
 
 - Read GDD, world-plan, combining-design (if present)

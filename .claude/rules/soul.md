@@ -83,7 +83,7 @@ clinch, attack landing, level transition) gets a juice chain;
 every named beat (boss phase, ending screen, story trigger) gets a
 unique juice profile.
 
-**5. Reactive density** (`yume-game-rules-designer` + tutorial) —
+**5. Reactive density** (`yume-systems-designer` + tutorial) —
 the world responds to player progression: barker pools shifting per
 reputation tier; NPC mid-loyalty + farewell screens firing
 automatically; reactive lines on milestones (debt paid, villain

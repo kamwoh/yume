@@ -6,8 +6,8 @@ Yume splits rules across world/rules.json (how the world evolves)
 and game/goals.json (goals) per ADR 0009. Tutorial.json adds another
 overlay. The split is conceptual — engine doesn't enforce which
 rule lives where. Authors from different skill agents
-(yume-systems-designer for simulation, yume-game-rules-designer for
-game) work in isolation, so they sometimes write rules with
+(yume-systems-designer, tutorial-designer, juice-designer) work in
+isolation, so they sometimes write rules with
 overlapping responsibilities.
 
 Empirical case 2026-05-11: Aldenmere had two pairs of duplicates:

@@ -385,7 +385,7 @@ Note any:
 - ❌ Pick visual representations (icon shapes, colors) — asset-designer.
 - ❌ Set economic values (how much does each output cost?) —
   economy-designer (or content-designer if no economy skill ran).
-- ❌ Author the rule JSON — systems-designer / game-rules-designer
+- ❌ Author the rule JSON — systems-designer
   translates your design into Yume rules.
 - ❌ Add recipe-book HUD widget — asset-designer / hud.json.
 - ❌ Speculate about features the GDD doesn't ask for. If the GDD

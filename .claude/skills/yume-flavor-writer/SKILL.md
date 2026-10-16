@@ -28,7 +28,7 @@ reinforce:
   emotional weight
 - Layer 4 (yume-juice-designer): kinetic feedback makes
   interactions felt
-- Layer 5 (yume-game-rules-designer): reactive rules surface the
+- Layer 5 (yume-systems-designer): reactive rules surface the
   writing at the right moments
 
 Your prose must be designed with the OTHER LAYERS IN MIND — the
@@ -322,7 +322,7 @@ serves it. If you can't, the prose isn't pulling its weight.
 - ❌ Write the screen layouts for character-arc dialogues (vbox /
   buttons / colors). screen-flow-designer composes those screens
   using your dialogue lines.
-- ❌ Write the rules that fire arc beats. game-rules-designer
+- ❌ Write the rules that fire arc beats. systems-designer
   translates "first-meeting beat fires on first contact + signal
   latch" into the actual rule JSON.
 - ❌ Pick visuals or audio cues. asset-designer owns those.

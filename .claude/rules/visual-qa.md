@@ -27,8 +27,8 @@ loaded the game and the camera was off-screen).
 
 Skills that write/modify content or code affecting rendering:
 - yume-content-designer (entity defs + initial placements)
-- yume-game-rules-designer (game/goals.json — transitions, screens, effects)
-- yume-systems-designer (world/rules.json — motion, AI, spawn timing)
+- yume-systems-designer (world/rules/*.json for motion, AI, spawn timing
+  and transitions, plus the hud.json win/lose blocks)
 - yume-asset-designer (visual fields per entity; scene/hud config)
 - yume-level-designer (coordinates / spatial layout)
 - yume-screen-flow-designer (screens.json)
@@ -281,8 +281,8 @@ boot with `--capture-input='ui_accept,N'`, capture stdout to a log,
 any match = fail. Catches latent rule-fired transitions to never-built
 screens, mistyped action names, broken on_change handlers.
 
-Skills that MUST run --strict: yume-screen-flow-designer, yume-game-
-rules-designer (rule effects fire transitions), yume-tutorial-designer,
+Skills that MUST run --strict: yume-screen-flow-designer, yume-systems-
+designer (rule effects fire transitions), yume-tutorial-designer,
 any skill splicing a `*_staged.json`.
 
 ## HUD/UI design gate (MANDATORY for hud.json / screens.json layout changes)

@@ -30,8 +30,8 @@ Turn a prose game description into a runnable Yume game.
 >   win/lose panel automatically).
 > - `game/flow.json` (multi-level progression) is unchanged.
 > - Skill ownership: yume-systems-designer writes all rule files.
->   yume-game-rules-designer's scope shrinks to declarative HUD
->   win/lose blocks + game/flow.json. See each skill's own header.
+>   It also writes the declarative HUD win/lose blocks and
+>   game/flow.json (it absorbed yume-game-rules-designer on 2026-10-16).
 
 ## Usage
 
@@ -252,7 +252,7 @@ based on prose-estimated scope:
 - Declarative `win:` / `lose:` blocks live in `hud.json` — engine
   evaluates per-frame and auto-shows the win/lose overlay.
 - `game/flow.json` — multi-level progression (level order + start).
-  yume-game-rules-designer owns this in its narrowed scope.
+  yume-systems-designer owns this.
 - Per-level rules: `levels/<name>/rules.json` (or `levels/<name>/rules/*.json`
   directory form).
 
@@ -275,7 +275,7 @@ writes files in the right structure:
 LAYOUT CHOSEN:
 - entity_layout: medium → entities/ directory
 - rules: world/rules/*.json feature modules (systems-designer)
-- flow: game/flow.json (game-rules-designer, multi-level only)
+- flow: game/flow.json (systems-designer, multi-level only)
 - assets: code-draw shapes appended to data/shapes.json root
 ```
 
@@ -400,7 +400,7 @@ The plan + level-design are the single sources of truth for downstream:
 
 ### Phase 1e — domain-specialist designers (CONDITIONAL)
 
-Three optional design specialists run BEFORE systems/content/game-rules
+Three optional design specialists run BEFORE systems/content
 authors any JSON. Each is gated on whether the GDD signals its domain.
 Order matters: combining-logic first (recipe table feeds economy),
 then economy (pricing curves feed content placement), then story
@@ -456,14 +456,15 @@ If trigger absent: skip.
 Per ADR 0009 revision 2026-05-16, this skill now writes ALL rule
 chains under `world/rules/*.json` (feature modules): motion, AI,
 contact, decay, lifecycle, scoring, transitions, objectives, tutorial
-overlays. Previously split with yume-game-rules-designer — scope
-absorbed here.
+overlays, plus the `hud.json` win/lose blocks and `game/flow.json`.
+It absorbed yume-game-rules-designer on 2026-10-16.
 
 8. Invoke `yume-systems-designer` skill. Tool:
    `Skill(skill="yume-systems-designer", args=<GDD path + resolved questions>)`.
 9. Skill produces `docs/games/<name>/rules-sketch.md` + `world/rules/*.json`
-   feature modules under the data folder. May propose ADRs if new
-   primitives needed.
+   feature modules under the data folder, the `hud.json` win/lose
+   blocks, and `game/flow.json` for a multi-level game. May propose
+   ADRs if new primitives needed.
 10. **If ADR proposed → escalate to tech-director:**
     `Skill(skill="yume-tech-director", args="<ADR path> <diff spec>")`.
     Read the verdict from `docs/reviews/<adr-file-name>-tech-director.md`.
@@ -495,28 +496,10 @@ placements + world state. Rules are NOT written here.
 > `world/state.json`). Entity ids must not collide with the map's
 > `<class>_NNN` ids or the shell singleton ids.
 
-### Phase 3.5 — game-rules-designer (HUD win/lose + flow) — NARROWED scope
-
-Post-ADR-0009-revision (2026-05-16), this phase covers only the
-declarative win/lose surface + multi-level progression. Rule
-authoring (scoring/transitions/objectives) moved to Phase 2's
-yume-systems-designer scope.
-
-15. Invoke `yume-game-rules-designer` skill. Tool:
-    `Skill(skill="yume-game-rules-designer", args=<GDD + world/rules/*.json>)`.
-16. Skill writes:
-    - Declarative `win:` / `lose:` blocks in `hud.json` (engine
-      evaluates per-frame, auto-shows the overlay).
-    - `game/flow.json` (level sequence + on-all-complete) for
-      multi-level games.
-    For sandbox sims (no goals, single-level), this phase is SKIPPED.
-17. Interactive: show decisions, ask approval. Autonomous: proceed.
-
-> **`--scene` ownership guard (ADR 0067).** When Phase W ran, do NOT
-> write `game/flow.json` — the World owns it (a single `level_default`).
-> Win/lose blocks in `hud.json` are fine (game-owned); just reference
-> `level_default` as the level id. A `--scene` game is single-level by
-> construction (the generated world is one map).
+> **No Phase 3.5 (2026-10-16).** Phase 2 writes the `hud.json` win/lose
+> blocks and `game/flow.json`. We retired steps 15-17, so the step
+> numbers jump from 14 to 18. The `--scene` guard is in the
+> systems-designer skill: the World owns `game/flow.json`.
 
 ### Phase 4 — asset-designer (visuals + audio + UI strings)
 
@@ -822,7 +805,6 @@ design-quality phases). The 8 specialist skills it invokes are at
 - `yume-story-planner` — Phase 1e.3 (narrative beats + arcs — CONDITIONAL)
 - `yume-systems-designer` — Phase 2 (ALL rules — `world/rules/*.json` feature modules, scope expanded per ADR 0009 revision 2026-05-16)
 - `yume-content-designer` — Phase 3 (entities + initial state)
-- `yume-game-rules-designer` — Phase 3.5 (declarative win/lose in `hud.json` + `game/flow.json` multi-level progression — NARROWED scope post-revision)
 - `yume-asset-designer` — Phase 4 (visuals + audio cues + UI strings)
 - `yume-qa-tester` — Phase 5 (headless + visual + scenario QA)
 - `yume-tech-director` — invariant guardian, on-demand

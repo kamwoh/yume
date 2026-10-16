@@ -34,7 +34,7 @@ for a game.
 ```
 yume/
 ├── .claude/                            ← Skills + rules + settings
-│   ├── skills/yume-*/SKILL.md          (41 specialist skills, Tier 2.6)
+│   ├── skills/yume-*/SKILL.md          (40 specialist skills, Tier 2.6)
 │   └── rules/                          (path-scoped invariants)
 ├── godot/    ← Godot project (engine + scaffolding; demos gitignored)
 │   ├── data/                           ← shared engine libraries (TRACKED)

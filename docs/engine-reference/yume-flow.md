@@ -63,12 +63,11 @@ flowchart TD
         S2["2 yume-game-reviewer<br/>→ 15-axis depth review<br/>(accept / revise / reject)"]
         S3["3 yume-game-planner<br/>→ world bible (named NPCs,<br/>items, events, schedules)"]
         S4["4 yume-level-designer<br/>→ level-design.md (coordinates)"]
-        S5["5 yume-systems-designer<br/>→ world/rules/*.json sketches"]
-        S6["6 yume-game-rules-designer<br/>→ hud.json win/lose · game/flow.json"]
-        S7["7 yume-content-designer<br/>→ entities/*.json · levels/ · state"]
-        S8["8 yume-asset-designer<br/>→ visual.* fields · audio/cues.json ·<br/>ui/strings.json · scene/hud config"]
-        S9["9 yume-qa-tester<br/>→ headless cascade run + capture"]
-        S1 --> S2 -->|accept| S3 --> S4 --> S5 --> S6 --> S7 --> S8 --> S9
+        S5["5 yume-systems-designer<br/>→ world/rules/*.json ·<br/>hud.json win/lose · game/flow.json"]
+        S7["6 yume-content-designer<br/>→ entities/*.json · levels/ · state"]
+        S8["7 yume-asset-designer<br/>→ visual.* fields · audio/cues.json ·<br/>ui/strings.json · scene/hud config"]
+        S9["8 yume-qa-tester<br/>→ headless cascade run + capture"]
+        S1 --> S2 -->|accept| S3 --> S4 --> S5 --> S7 --> S8 --> S9
         S2 -.->|revise| S1
     end
 
@@ -84,7 +83,7 @@ flowchart TD
         L2["asset-designer (visual identity)"]
         L3["audio-designer (BGM/ambience/stings)"]
         L4["juice-designer (kinetic feedback)"]
-        L5["rules-designer (reactive density)"]
+        L5["systems-designer (reactive density)"]
         L1 ~~~ L2 ~~~ L3 ~~~ L4 ~~~ L5
     end
 

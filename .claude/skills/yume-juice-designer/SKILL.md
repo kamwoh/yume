@@ -357,12 +357,12 @@ Heuristic minimums:
 - ❌ Pick SFX filenames (yume-asset-designer's cues.json)
 - ❌ Compose music (yume-audio-designer)
 - ❌ Decide visual aesthetic (yume-visual-designer / asset-designer)
-- ❌ Write game-logic rules (yume-game-rules-designer); only juice
-  rules attached to existing signals
+- ❌ Write game-logic rules (yume-systems-designer). Write only juice
+  rules attached to existing signals.
 
 ## When invoked by orchestrator
 
-After yume-game-rules-designer + yume-systems-designer (so the
+After yume-systems-designer (so the
 signal vocabulary exists) AND yume-asset-designer (so cues.json has
 SFX mapped). This skill ATTACHES juice to existing signals; it
 doesn't introduce new signals.

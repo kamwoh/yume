@@ -197,7 +197,7 @@ an ADR under `docs/adr/`.
 | **Gameplay system primitives** (opt-in directors — mounted only if used) | party, schedule, class/occupation, zones, faction, tech-tree, dynasty, lifecycle/aging, vehicles, multi-actor + scripted-policy AI, pathfinding, procedural generation, grid/dynamic placement, animation. |
 | **"Complete game" layer** | declarative screens/modals, save/load, tutorial overlays, settings schema, HUD-from-JSON, event→SFX audio, juice (shake/flash/particles). |
 | **Physics** | Godot PhysicsServer + CharacterBody motion, AABB blockers, camera-relative WASD. |
-| **Generation pipelines** (LLM-in-the-loop) | `/yume-design` is the single orchestrator — prose → full game, with `--scene` (generate a 3D world to play in) + `--with-assets` (AI textures/meshes) composing as **three disjoint-ownership layers** (World / Game / Assets — ADR 0067); no flags = key-free code-draw. Plus standalone authors: `/yume-create-scene`, `/yume-hud-author`, `/yume-screen-author`, `/yume-map-author`. **38 specialist skills**; optional codegen + AI assetgen (textures via OpenAI/Gemini, meshes + rig via Tripo3D, shaders). See [§ Generation pipeline](#generation-pipeline-prose--game). |
+| **Generation pipelines** (LLM-in-the-loop) | `/yume-design` is the single orchestrator — prose → full game, with `--scene` (generate a 3D world to play in) + `--with-assets` (AI textures/meshes) composing as **three disjoint-ownership layers** (World / Game / Assets — ADR 0067). With no flags, the game is key-free code-draw. Plus standalone authors: `/yume-create-scene`, `/yume-hud-author`, `/yume-screen-author`, `/yume-map-author`. **40 specialist skills**. Optional codegen + AI assetgen (textures via OpenAI/Gemini, meshes + rig via Tripo3D, shaders). See [§ Generation pipeline](#generation-pipeline-prose--game). |
 | **Networking & I/O** (ADR 0060–0066) | deterministic gym-like stepping env (Python) + determinism oracle; lockstep; **client-server (server-authoritative)** with data-driven `net.json` replication; synced animation; **record-then-replay smooth headless video** of N-player synced sessions (`scripts/net_video.py` — normal window / `--linux` headless, GPU, grid, 60 fps). |
 | **Tooling & QA** | 25 static validators (sync gate); Playwright-style scenario tests; visual QA (Gemini + Claude vision); tech-director invariant gate. |
 
@@ -259,7 +259,7 @@ other (ADR 0067):
  Phases 1-4 (always)        game-designer ─▶ game-reviewer ─▶ game-planner ─▶
    GAME                     level-designer ─▶ [combining-logic / economy / story]* ─▶
                             systems-designer ─▶ content-designer ─▶
-                            game-rules-designer ─▶ asset-designer
+                            asset-designer
                             (+ soul skills: flavor-writer, audio, juice, lighting,
                              screen-flow, save-policy, tutorial — as the GDD needs)
  Phase A   (--with-assets)  tools.yume_assetgen  (gpt-image concepts + Tripo3D .glb,

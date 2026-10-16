@@ -18,8 +18,8 @@ from English strings (localization).
 Per ADR 0009 (2026-05-05), expanded scope to own:
 - ✅ Entity `visual.*` + `audio.*` fields (existing)
 - ✅ `scene.json` — camera, bounds, tick rate (existing)
-- ✅ `hud.json` — HUD widgets (display only — win/lose LOGIC is
-  yume-game-rules-designer's; you author the HUD that BINDS to it)
+- ✅ `hud.json` — HUD widgets (display only). yume-systems-designer
+  owns the win/lose LOGIC. You author the HUD that BINDS to it.
 - ✅ NEW: `audio/cues.json` — event-name → sound-name mapping
 - ✅ NEW: `ui/strings.json` — localizable HUD text (English by default)
 - ✅ NEW (Phase 2d when it lands): `variants/` — visual/audio overlays
@@ -525,7 +525,7 @@ Style guidance:
 - Visually distinct from stat readouts — slightly larger, warmer
   color, leading arrow/marker (`→`, `★`, `◇`)
 - ≤80 chars wide so it fits any aspect ratio
-- Always non-empty (game-rules-designer authors initial value)
+- Always non-empty (systems-designer authors initial value)
 
 This HUD entry is non-negotiable for any game with multi-state
 progression (campaign, tutorial, quest chain). For pure ambient
