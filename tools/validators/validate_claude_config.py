@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """validate_claude_config.py — check that Claude Code loads .claude/ as we expect.
 
-This validator is repo-wide. It takes no game argument. It checks three things:
+This validator is repo-wide. It takes no game argument. It checks four things:
 
 1. Each `.claude/skills/<dir>/SKILL.md` starts with YAML frontmatter. The
    frontmatter must parse strictly. It must have `name: <dir>` and a
@@ -16,6 +16,11 @@ This validator is repo-wide. It takes no game argument. It checks three things:
    skill sees no chat history. Without that
    section, the caller does not know which arguments to pass, and the
    skill does not know which file to write.
+4. No skill, rule or CLAUDE.md runs Godot with an absolute `--path`.
+   Godot aborts with "Invalid project path" and prints no test output.
+   Use `cd "$TEMPLATE_DST"` and `--path .`, or `./scripts/play.sh`.
+   Empirical case 2026-10-16: 8 skills kept their own copy of a capture
+   command with `--path C:/.../YumeTemplate`.
 
 Empirical case 2026-10-15: all 5 path-scoped rules used `globs:`. That
 cost about 11k tokens on each turn. 14 of 42 skills had a fault: no
@@ -26,6 +31,7 @@ Usage:
     python3 tools/validators/validate_claude_config.py [--strict]
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -103,9 +109,26 @@ def check_rules() -> list[str]:
     return issues
 
 
+# `--path` followed by anything but `.`: a quoted variable, a placeholder,
+# a Windows or /mnt path.
+ABSOLUTE_PATH = re.compile(r"--path\s+(?!\.(\s|$|\\))[\"'$<A-Za-z/~]")
+
+
+def check_godot_path() -> list[str]:
+    files = sorted((ROOT / ".claude" / "skills").glob("*/SKILL.md"))
+    files += sorted((ROOT / ".claude" / "rules").glob("*.md")) + [ROOT / "CLAUDE.md"]
+    issues: list[str] = []
+    for f in files:
+        for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+            if ABSOLUTE_PATH.search(line):
+                issues.append(f"{f.relative_to(ROOT)}:{n}: absolute Godot `--path`. Use "
+                              "`cd \"$TEMPLATE_DST\"` and `--path .`, or ./scripts/play.sh")
+    return issues
+
+
 def main() -> int:
     strict = "--strict" in sys.argv
-    issues = check_skills() + check_rules()
+    issues = check_skills() + check_rules() + check_godot_path()
     for i in issues:
         print(f"  [claude_config] {i}")
     if not issues:

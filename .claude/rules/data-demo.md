@@ -111,7 +111,7 @@ copy registered first. Symptom: feature stopped working, no error.
 **Gate**: `validate_no_stray_scripts.py` (wired into `play.sh`)
 scans `data/` + the sync target for any `*.gd` and fails the
 pre-launch. After deleting a stray, rebuild Godot's class cache:
-`godot --path <template> --headless --import`.
+`cd "$TEMPLATE_DST" && "$GODOT_BIN" --path . --headless --import`.
 
 **Empirical 2026-05-15**: stale `data/demo_aldenmere/effect_apply.gd`
 won the `class_name EffectApply` registry race over the real engine

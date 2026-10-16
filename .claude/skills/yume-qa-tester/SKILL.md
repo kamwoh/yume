@@ -218,7 +218,7 @@ verbose = true
    600-2400 frames (~30s-2min real time). Pipe to log:
 
 ```bash
-timeout 60 .../Godot.exe --headless --path C:/.../YumeTemplate \
+cd "$TEMPLATE_DST" && timeout 60 "$GODOT_BIN" --headless --path . \
   scenes/<scene>.tscn > /tmp/qa.log 2>&1
 ```
 

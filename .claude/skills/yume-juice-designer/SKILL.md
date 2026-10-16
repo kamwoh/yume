@@ -288,14 +288,9 @@ visual-touching changes on "tests pass" alone — empirical precedent
 camera-off-screen / dead-key / radial-homing-NPC bugs invisible to
 unit tests.
 
-Quick command:
-```bash
-godot --path C:/.../YumeTemplate scenes/<game>_3d.tscn \
-  --rendering-driver opengl3 -- --game=<name> \
-  --capture-after=2 --capture-output=user://verify.png
-```
-Then `Read("/mnt/c/.../verify.png")` and verify your specific change
-rendered as intended. See visual-qa.md for the full per-skill checklist.
+Capture with the command in `visual-qa.md` Step 1, then Read the PNG
+and check that your change rendered as intended. visual-qa.md also has
+the per-skill checklist.
 
 ## Transition feel standards (REQUIRED)
 

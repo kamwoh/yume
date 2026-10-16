@@ -116,16 +116,21 @@ sanity sweep would've caught it.
 
 ### Step 1 — Capture
 
+This is the one capture command. Skills point here instead of keeping
+their own copy (2026-10-16).
+
 ```bash
-./scripts/play.sh <name> --capture
-# OR for scripted-input flows:
-godot --path <template> scenes/<name>_3d.tscn --rendering-driver opengl3 \
-  -- --game=<name> --capture-after=2 --capture-input='move_east,3.0' \
-  --capture-output=user://_named.png
+./scripts/play.sh <name> --capture-after=3 --output=user://<name>_verify.png
+# Scripted input: play.sh forwards other flags to the engine.
+./scripts/play.sh <name> --capture-after=2 --capture-input='move_east,3.0' \
+  --output=user://<name>_moved.png
 ```
 
-PNG lands under `~/.../app_userdata/Yume Framework/_named.png` (or
-the local user:// resolved path).
+`play.sh` syncs `godot/` to the template, picks `scenes/<name>_3d.tscn`
+(or `_2d`, or `play.tscn --game=`), and prints the PNG path. The PNG is
+under `/mnt/c/Users/<you>/AppData/Roaming/Godot/app_userdata/Yume Framework/`.
+To run Godot by hand, `cd "$TEMPLATE_DST"` and pass `--path .`. An
+absolute `--path` aborts with "Invalid project path".
 
 **Capture-timing note (2026-06-12, autorace)**: scripted
 `--capture-input` bursts run sim ticks synchronously at boot; the

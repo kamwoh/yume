@@ -70,8 +70,9 @@ func test_my_new_thing() -> void:
 
 Then sync to the test project and run:
 ```bash
-cp -r ~/yume/godot/. /mnt/c/.../YumeTemplate/
-godot --headless --path C:/Users/.../YumeTemplate scenes/test_main.tscn
+eval "$(grep -E '^(GODOT_BIN|TEMPLATE_DST)=' scripts/play.sh)"
+cp -r godot/. "$TEMPLATE_DST/" && cd "$TEMPLATE_DST"
+"$GODOT_BIN" --path . --headless scenes/test_main.tscn
 ```
 
 Output should end with `passed: NN  failed: 0  total: NN`.

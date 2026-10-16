@@ -129,7 +129,7 @@ If a NEW `class_name X` GDScript was added since last run, also rebuild
 the script class cache (catches "Identifier X not declared" parse errors):
 
 ```bash
-"$GODOT_BIN" --path "$TEMPLATE_DST" --headless --import 2>&1 | tail -5
+cd "$TEMPLATE_DST" && "$GODOT_BIN" --path . --headless --import 2>&1 | tail -5
 grep "X" "$TEMPLATE_DST/.godot/global_script_class_cache.cfg"
 ```
 
@@ -250,23 +250,9 @@ before transition_level — pops entire stack to gameplay.
 
 ### Gate 6 — visual capture + VQA read
 
-Per `.claude/rules/visual-qa.md`, capture key screens and Read them
-with **context-specific prompts**:
-
-```bash
-"$GODOT_BIN" --path "$TEMPLATE_DST" --rendering-driver opengl3 \
-  "$TEMPLATE_DST/scenes/<name>_3d.tscn" \
-  -- --capture-after=4 --capture-output='user://<name>_title.png'
-```
-
-Find: `find /mnt/c -path "*/app_userdata/*" -name "<name>_title.png"`
-
-Then Read with a prompt that includes:
-1. What did the build just change?
-2. What state is the capture in?
-3. 3-5 specific PASS/FAIL criteria (3D needs ground/sky/lighting/HUD;
-   2D needs floor/HUD/camera-framing).
-4. 2-3 specific fail flags.
+Capture key screens with the command in `.claude/rules/visual-qa.md`
+Step 1. Read each one with a context-specific prompt (visual-qa.md
+Step 2).
 
 For multi-screen games, capture at least:
 - Title screen (boot)
