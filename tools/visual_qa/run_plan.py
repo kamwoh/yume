@@ -397,18 +397,25 @@ def render_prompt(template: str, ctx: dict[str, Any]) -> str:
     return template.format_map(_D(**ctx))
 
 
+# The transient camera goes into the SYNCED template copy, never into the
+# repo. Empirical 2026-10-16: set_active_camera raised on demo_sokoban (no
+# world_clock.json) after write_test_camera edited the tracked
+# levels/1/entities.json, and the restore in `finally` never ran.
+def _template_data() -> Path:
+    return TEMPLATE_DST / "data"
+
+
 def write_test_camera(game: str, level: str, cam_pos: list[float], yaw: float, pitch: float) -> str:
     """Author a single free_camera entity 'camera_visual_qa_test' in the
-    level's entities.json. Returns the active_camera_id to set on
-    world_clock. Caller must restore."""
-    path = GODOT_DATA / game / "levels" / level / "entities.json"
+    template copy of the level's entities.json. Returns its id."""
+    path = _template_data() / game / "levels" / level / "entities.json"
     with open(path) as f:
         d = json.load(f)
     d["initial_instances"] = [
         i for i in d["initial_instances"] if i.get("id") != "camera_visual_qa_test"
     ]
     d["initial_instances"].append({
-        "_comment": "TRANSIENT visual-qa test camera (tools/visual_qa/run_plan.py). Auto-removed after the test run.",
+        "_comment": "TRANSIENT visual-qa test camera (tools/visual_qa/run_plan.py), template copy only.",
         "def": "free_camera",
         "id": "camera_visual_qa_test",
         "position": list(cam_pos),
@@ -423,35 +430,27 @@ def write_test_camera(game: str, level: str, cam_pos: list[float], yaw: float, p
     return "camera_visual_qa_test"
 
 
-def restore_camera_state(game: str, level: str, original_active: str) -> None:
-    """Remove the test camera + restore world_clock active_camera_id."""
-    path = GODOT_DATA / game / "levels" / level / "entities.json"
+def set_active_camera(game: str, camera_id: str) -> None:
+    """Set world_clock.active_camera_id in the template copy."""
+    path = _template_data() / game / "entities" / "world_clock.json"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{game} has no entities/world_clock.json. run_plan needs a 3D game "
+            "with a world_clock camera.")
     with open(path) as f:
         d = json.load(f)
-    d["initial_instances"] = [
-        i for i in d["initial_instances"] if i.get("id") != "camera_visual_qa_test"
-    ]
+    d["definitions"][0]["state_init"]["active_camera_id"] = camera_id
     with open(path, "w") as f:
         f.write(json.dumps(d, indent=2) + "\n")
-    wc_path = GODOT_DATA / game / "entities" / "world_clock.json"
-    with open(wc_path) as f:
-        wd = json.load(f)
-    wd["definitions"][0]["state_init"]["active_camera_id"] = original_active
-    with open(wc_path, "w") as f:
-        f.write(json.dumps(wd, indent=2) + "\n")
 
 
-def set_active_camera(game: str, camera_id: str) -> str:
-    """Set world_clock.active_camera_id; return the prior value."""
-    path = GODOT_DATA / game / "entities" / "world_clock.json"
-    with open(path) as f:
-        d = json.load(f)
-    state_init = d["definitions"][0]["state_init"]
-    prior = state_init.get("active_camera_id", "camera_a")
-    state_init["active_camera_id"] = camera_id
-    with open(path, "w") as f:
-        f.write(json.dumps(d, indent=2) + "\n")
-    return prior
+def restore_template_files(game: str, level: str) -> None:
+    """Copy the repo's level entities and world_clock back over the
+    template copies, so the next sync starts clean."""
+    for rel in (Path("levels") / level / "entities.json", Path("entities") / "world_clock.json"):
+        src = GODOT_DATA / game / rel
+        if src.exists():
+            shutil.copyfile(src, _template_data() / game / rel)
 
 
 def sync_to_template() -> None:
@@ -565,15 +564,16 @@ def run_test(game: str, level: str, test: dict[str, Any], idx: int,
         all_instances=all_instances, def_tags_map=def_tags_map,
     )
 
-    # Write transient camera, set active, sync, capture, restore
-    cam_id = write_test_camera(game, level, cam_pos, yaw, pitch)
-    original_active = set_active_camera(game, cam_id)
+    # Sync, write the transient camera into the template copy, capture,
+    # then restore the template copy. The repo is never written.
+    sync_to_template()
     try:
-        sync_to_template()
+        cam_id = write_test_camera(game, level, cam_pos, yaw, pitch)
+        set_active_camera(game, cam_id)
         capture_filename = f"_vqa_{idx:02d}_{test_id}.png"
         png_path = capture_once(game, capture_filename)
     finally:
-        restore_camera_state(game, level, original_active)
+        restore_template_files(game, level)
 
     # Render the prompt
     ctx = {
