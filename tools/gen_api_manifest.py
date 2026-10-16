@@ -895,7 +895,7 @@ def render_markdown(m: Manifest) -> str:
         "",
         "**Formula syntax notes** (Godot 4.6.1 quirks):",
         "",
-        "- Ternary: **Python-style** `a if cond else b`. C-style `cond ? a : b` does NOT parse.",
+        "- No ternary. Godot 4.6.1 Expression returns `a` for `a if cond else b`, and C-style `cond ? a : b` does not parse. Formula rejects `if`. Write `b + (a - b) * float(cond)`.",
         "- Bitwise `<<`, `&`, `|` — supported.",
         "- Vector2 / Vector3 / Array subscript `v[0]` — supported.",
         "- Vector2 / Vector3 component access `v.x`, `v.y`, `v.z` — supported via path resolver.",

@@ -2342,6 +2342,19 @@ func test_engine_error() -> void:
 			"formula rule_id attribution"
 		)
 
+	# Godot's Expression drops the tokens after the first expression, so a
+	# ternary always returned its first branch. Formula rejects it
+	# (2026-10-16). An `if` inside a string literal is not a ternary.
+	var env4: Dictionary = {"error_buffer": []}
+	var tern = Formula.evaluate("10 if 1 > 2 else 20", {"_rule_id": "r_tern"}, env4)
+	expect(float(tern) == 0.0, "ternary formula returns 0.0, not its first branch")
+	expect(
+		(env4["error_buffer"] as Array).any(func(r): return str(r.code) == EngineError.FORMULA_PARSE_FAILED),
+		"ternary formula raises formula.parse_failed"
+	)
+	expect(not Formula._has_ternary("'if' + \"else\""), "an `if` inside a string literal is not a ternary")
+	expect_eq(Formula.evaluate("10 + 160 * float(85 > 80)", {}, {}), 170.0, "float(cond) choice idiom")
+
 
 # ============================================================
 # RAYCAST_HIT (ADR 0005)
@@ -8192,6 +8205,7 @@ func test_step_runner() -> void:
 	)
 	expect_eq(int(ctx6.get("passed", 0)), 1, "expect legacy form: 1 pass")
 	expect_eq(int(ctx6.get("failed", 0)), 0, "expect legacy form: 0 fails")
+
 
 	# ---------- 7. test_expect_compact_form ----------
 	player.state["counter"] = 42

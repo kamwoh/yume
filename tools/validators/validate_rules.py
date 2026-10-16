@@ -47,6 +47,9 @@ Checks implemented in v1:
       query.gd. Empirical 2026-10-16: demo_lanterns `collected_ge` (the
       suffix is `_gte`), so the win rule never fired.
 
+  (12) TERNARY FORMULA — `a if cond else b`. Godot 4.6.1's Expression
+      drops the tokens after `a`, so it always returns `a`. Formula.gd
+      rejects it at run time. This check reports it before the game runs.
 
 Future v2 additions (deferred per data-demo.md):
   - Destructive effect-chain ordering (transition_level / reload_scene
@@ -662,6 +665,33 @@ def check_query_fields_defined(rule, errors, defined):
             visit(eff.get("query"), f"effect[{i}].query")
 
 
+_TERNARY = re.compile(r"\bif\b.*\belse\b")
+_STRING_LITERAL = re.compile(r"\"[^\"]*\"|'[^']*'")
+
+
+def check_ternary_formulas(rule, errors):
+    """(12) No `a if cond else b` in any formula string of the rule."""
+    rule_id = rule.get("id", "<unnamed>")
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if not str(k).startswith("_"):
+                    walk(v, f"{path}.{k}")
+        elif isinstance(node, list):
+            for i, v in enumerate(node):
+                walk(v, f"{path}[{i}]")
+        elif isinstance(node, str) and _TERNARY.search(_STRING_LITERAL.sub("", node)):
+            errors.append((
+                rule_id, path.lstrip("."),
+                f"formula `{node}` uses a ternary. Godot 4.6.1 Expression always "
+                "returns the first branch. Write b + (a - b) * float(cond).",
+            ))
+
+    for key in ("effect", "require", "query"):
+        walk(rule.get(key), key)
+
+
 def check_once_fields(rule, errors):
     """ADR 0080 — the one-shot quantifiers.
 
@@ -922,6 +952,7 @@ def validate_game(game_dir):
             check_once_fields(rule, r_errors)
             check_scope_vs_presentation(rule, r_errors)
             check_query_fields_defined(rule, r_errors, defined)
+            check_ternary_formulas(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

@@ -65,6 +65,20 @@ static func _root_regex(root: String) -> RegEx:
 	return rx
 
 
+## Godot 4.6.1's Expression has no ternary. It parses the first expression
+## and drops the trailing tokens with no error, so `a if cond else b` always
+## returns `a`. Formula rejects the `if` keyword (outside string literals).
+## Empirical 2026-10-16: an aldenmere cloud_wrap formula moved every cloud.
+static var _ternary_regex: RegEx = null
+
+
+static func _has_ternary(src: String) -> bool:
+	if _ternary_regex == null:
+		_ternary_regex = RegEx.create_from_string("\\bif\\b")
+	var bare := RegEx.create_from_string("\"[^\"]*\"|'[^']*'").sub(src, "", true)
+	return _ternary_regex.search(bare) != null
+
+
 static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	# Pass-through for non-string
 	if not (formula is String):
@@ -105,6 +119,16 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	if _cache.has(key):
 		expr = _cache[key]
 	else:
+		if _has_ternary(rewritten):
+			_last_error = "ternary in '%s'" % s
+			EngineError.raise(
+				env,
+				EngineError.FORMULA_PARSE_FAILED,
+				"Formula '%s' uses 'a if cond else b'. Godot 4.6.1 Expression always returns 'a'." % s,
+				{"rule_id": context.get("_rule_id", ""), "formula": s},
+				"Write the choice as arithmetic: b + (a - b) * float(cond)."
+			)
+			return 0.0
 		expr = Expression.new()
 		var err := expr.parse(rewritten, input_names)
 		if err != OK:
@@ -123,9 +147,8 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 					"Check formula syntax. Allowed: bindings (self.state.X,"
 					+ " target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow"
 					+ "/floor/ceil/lerp/randf), arithmetic, comparison, bitwise,"
-					+ " Vector2/Array subscript, Python-style ternary 'a if cond else b'"
-					+ " (NOT C-style 'cond ? a : b' — Godot 4.6.1 Expression doesn't"
-					+ " parse it)."
+					+ " Vector2/Array subscript. No ternary: write"
+					+ " 'b + (a - b) * float(cond)'."
 				)
 			)
 			return 0.0

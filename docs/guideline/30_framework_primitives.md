@@ -498,9 +498,7 @@ Rule struct — never re-parsed per tick.
 
 **Whitelist.** At load time, each formula's AST is walked. Allowed:
 identifiers from the binding set, numeric/string literals, arithmetic/
-comparison/logical operators, **Python-style ternary `a if cond else b`**
-(C-style `cond ? a : b` is NOT supported by Godot 4.6.1 Expression —
-empirically verified during harvestcore QA, 2026-05-02), bitwise ops
+comparison/logical operators, bitwise ops
 (`<<`, `&`, `|`), Vector2/Array subscript, and calls to the math helper
 set and the query helpers (`nearest`, `nearby`, traversal-aggregates).
 **Rejected:** any call whose callee is not in the whitelist; attribute

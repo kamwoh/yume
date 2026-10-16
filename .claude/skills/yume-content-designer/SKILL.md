@@ -215,11 +215,9 @@ randomness on the spawn target's spawn-trigger rules.
    - Every query references existing tag/state/property names
    - Formulas use whitelisted bindings only (`self`, `target`, `a`, `b`,
      `world`, plus payload keys)
-   - **Formulas use Python-style ternary `a if cond else b`** — NOT
-     C-style `cond ? a : b`. Godot Expression doesn't parse C-style.
-     (Note: Godot 4.6.1's Expression parses ternary but always returns
-     the IF branch — see `.claude/rules/data-demo.md` for the clamp-step
-     workaround.)
+   - **Formulas have no ternary.** Godot 4.6.1 Expression returns `a`
+     for `a if cond else b`, and Formula rejects it. Write
+     `b + (a - b) * float(cond)`.
    - All entity ids in `initial_instances` and `initial_relations`
      are unique
 
@@ -445,7 +443,7 @@ Before declaring done, run mental schema validation:
 | Every effect has a `type` | Walk effect arrays; valid set in manifest's `effects` |
 | No duplicate ids | Sort `initial_instances` ids |
 | Tag references match definitions | Cross-ref tags between defs and queries |
-| Formula syntax | Try parsing — most syntax errors visible by eye; use Python-style ternary |
+| Formula syntax | Try parsing. No ternary: write `b + (a - b) * float(cond)` |
 | Positions in scene-bounds | Assume ±240 px for 2D demos |
 | `aabb_extents` matches `visual.mesh` footprint | See subsection below |
 
@@ -572,7 +570,7 @@ camera mode before declaring entity authoring done.
 - entity ids that mix camelCase and snake_case randomly
 - 50 entities with identical visual params
 - Balance values that produce no observable cascade in <30s
-- C-style ternary `cond ? a : b` (use Python-style instead)
+- Any ternary, `cond ? a : b` or `a if cond else b` (use `float(cond)` arithmetic)
 - Missing `_comment` on a complex rule
 
 

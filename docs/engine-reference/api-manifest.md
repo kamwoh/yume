@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-10-16T04:23:27+00:00_
+_Generated: 2026-10-16T09:15:56+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -99,7 +99,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 
 **Formula syntax notes** (Godot 4.6.1 quirks):
 
-- Ternary: **Python-style** `a if cond else b`. C-style `cond ? a : b` does NOT parse.
+- No ternary. Godot 4.6.1 Expression returns `a` for `a if cond else b`, and C-style `cond ? a : b` does not parse. Formula rejects `if`. Write `b + (a - b) * float(cond)`.
 - Bitwise `<<`, `&`, `|` — supported.
 - Vector2 / Vector3 / Array subscript `v[0]` — supported.
 - Vector2 / Vector3 component access `v.x`, `v.y`, `v.z` — supported via path resolver.

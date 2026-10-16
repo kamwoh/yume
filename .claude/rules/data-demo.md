@@ -515,10 +515,12 @@ mutations on one store don't show up reading the other.
   `max`, `abs`, `sin`, `cos`, `sqrt`, `pow`, `floor`, `ceil`,
   `lerp`, `randf`), arithmetic, comparison, bitwise, Vector2/Array
   subscript. No function calls outside the math helpers.
-- ⚠️ **Ternary `a if cond else b` is BROKEN** in Godot 4.6.1's
-  Expression — parses but always returns the IF branch. Workaround:
-  `move * clamp((cond_lhs - cond_rhs) * 1e6, 0, 1)`. Older demos
-  (harvestcore, tinypond) using ternary silently took IF.
+- ⚠️ **No ternary.** Godot 4.6.1's Expression parses the first
+  expression and drops the rest, so `a if cond else b` returns `a`.
+  Write `b + (a - b) * float(cond)`. Older demos (harvestcore,
+  tinypond) silently took the first branch. Gates (2026-10-16):
+  Formula rejects `if` with `formula.parse_failed`, and
+  `validate_rules.py` check (12) reports it before the game runs.
 - ⚠️ **A query clause on a field nothing defines never matches.** The
   operator suffixes are `_eq _ne _gt _lt _gte _lte _atleast _atmost
   _has _in`. `collected_ge` reads a field named `collected_ge`, and
