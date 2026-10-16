@@ -8337,6 +8337,42 @@ func test_step_runner() -> void:
 		"scripted press: release + one frame clears the edge — no re-fire (was the I-toggle double-open)"
 	)
 
+	# ---------- 13b. StepRunner is the sole tick driver on the live path ----------
+	# 2026-10-16: a capture run left World._process on, so the live loop
+	# handled each scripted press a second time (sokoban moved two cells).
+	player.state["counter"] = 0
+	world.set_process(true)
+	world.set_physics_process(true)
+	var ctx13b: Dictionary = {
+		"verbose": false, "passed": 0, "failed": 0, "failures": [], "screenshots": []
+	}
+	await StepRunner.run([{"press": test_action}], world, ctx13b)
+	expect_eq(int(player.get_state("counter", 0)), 1, "live path: one scripted press fires the rule once")
+	expect(world.is_processing() and world.is_physics_processing(), "live path: run() restores World processing")
+	expect(not world.has_meta(StepRunner.LIVE_META), "live path: run() clears its mode meta")
+	world.set_process(false)
+	world.set_physics_process(false)
+
+	# ---------- 13c. a scripted press reaches the overlay manager ----------
+	# 2026-10-16: the step runner released each action before the next
+	# frame, and only ScreenFlow saw the press. No scripted step could
+	# close a tutorial overlay.
+	var om: Node = load("res://scripts/engine/ui/overlay.gd").new()
+	om.name = "OverlayManager"
+	world.add_child(om)
+	(world.scheduler.env["overlay_event_buffer"] as Array).append(
+		{"event": "show_overlay", "id": "tut", "advance_action": test_action, "text": "hi"}
+	)
+	om._drain_overlay_events()
+	expect_eq(om._stack.size(), 1, "overlay: shown before the press")
+	var ctx13c: Dictionary = {
+		"verbose": false, "passed": 0, "failed": 0, "failures": [], "screenshots": []
+	}
+	await StepRunner.run([{"press": test_action}], world, ctx13c)
+	expect_eq(om._stack.size(), 0, "overlay: a scripted press of its advance_action closes it")
+	world.remove_child(om)
+	om.free()
+
 	# ---------- 14. scripted input routes via ActorManager (ADR 0016 parity) ----------
 	# StepRunner._find_actor_id must mirror LIVE play: when the world has
 	# an ActorManager, the ACTIVE actor's controlled entity receives

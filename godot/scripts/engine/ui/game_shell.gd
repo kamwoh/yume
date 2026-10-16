@@ -230,7 +230,9 @@ var _esc_was_pressed: bool = false
 
 
 func _handle_pause_input() -> void:
-	var esc := Input.is_key_label_pressed(KEY_ESCAPE)
+	# The `ui_cancel` action (ESC by default), not the raw key, so a
+	# scripted `press: ui_cancel` reaches this check.
+	var esc := InputMap.has_action("ui_cancel") and Input.is_action_pressed("ui_cancel")
 	var edge := esc and not _esc_was_pressed
 	_esc_was_pressed = esc
 	if not edge:

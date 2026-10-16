@@ -19,6 +19,11 @@ class_name StepRunner
 ## its own. Live play and tests run identical state transitions.
 
 
+## World meta: true while StepRunner drives a live (capture) world, false
+## in a scenario world. Set by run(), read by _is_world_frozen.
+const LIVE_META := "_step_runner_live"
+
+
 ## Run a step list against a World. Returns metrics dict (always present
 ## fields: passed, failed, failures, screenshots, held).
 static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
@@ -36,6 +41,19 @@ static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
 		ctx["verbose"] = true
 	if not ctx.has("scenario"):
 		ctx["scenario"] = ""
+
+	# StepRunner is the SOLE tick driver while steps run, on the live
+	# capture path too. Before this, a capture run left World._process and
+	# _physics_process on. The live loop then polled and ticked a scripted
+	# press a second time, and each press moved the player two cells
+	# (sokoban, 2026-10-16). The live/scenario mode is kept in a meta for
+	# _is_world_frozen, and processing comes back after the last step.
+	var was_processing := world != null and world.is_processing()
+	var was_physics := world != null and world.is_physics_processing()
+	if world != null:
+		world.set_meta(LIVE_META, was_processing)
+		world.set_process(false)
+		world.set_physics_process(false)
 
 	for step in steps:
 		if not (step is Dictionary):
@@ -72,6 +90,10 @@ static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
 	for action in ctx["held"]:
 		Input.action_release(str(action))
 	ctx["held"] = []
+	if world != null:
+		world.set_process(was_processing)
+		world.set_physics_process(was_physics)
+		world.remove_meta(LIVE_META)
 	return ctx
 
 
@@ -119,9 +141,9 @@ static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	# frame-driven observer (ScreenFlow._handle_global_inputs, GameShell
 	# HUD bindings) sees the "pressed" state — the close-toggle path lives
 	# in screen_flow's _process, not the scheduler input phase.
-	_tick_screen_flow(world)
+	_tick_frame_observers(world)
 	Input.action_release(action)
-	_tick_screen_flow(world)
+	_tick_frame_observers(world)
 	# ADR 0060 Phase 1 — the frame boundary that REPLACES the old
 	# _scripted_action_consumed carve-out. Godot's is_action_just_pressed
 	# does NOT clear until a real process frame elapses; without this yield,
@@ -190,10 +212,10 @@ static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary):
 	# Mirror live-frame screen_flow tick BEFORE release for screen-toggle
 	# observability (see _do_press). Live play always has ≥1 frame of
 	# "actually pressed" before release; this re-creates that signal.
-	_tick_screen_flow(world)
+	_tick_frame_observers(world)
 	for action in actions:
 		Input.action_release(action)
-	_tick_screen_flow(world)
+	_tick_frame_observers(world)
 	# Clear the press-edge across a real frame (see _do_press). Held actions
 	# use is_action_pressed, but a trailing just_pressed can latch and re-fire
 	# on the next press/poll; one frame after release clears it.
@@ -254,24 +276,35 @@ static func _advance(world: World) -> void:
 		world._world_reset.process_pending(world.scheduler.env)
 
 
-# Mirror what live-play frames do for ScreenFlow:
-#   1. _drain_screen_events  → push/pop screens from transition_screen effects
-#   2. _handle_global_inputs → fire screen-level edge handlers (I-toggle, M-toggle)
+# Mirror what live-play frames do for the UI directors:
+#   1. ScreenFlow: drain screen events, then fire global_inputs edges
+#   2. OverlayManager: drain overlay events, then check advance/skip input
+#   3. GameShell: the ESC check (ui_cancel)
 # Synchronous so step_runner can call without breaking _ready's non-async caller.
 # Used by _do_press / _do_hold / _do_wait so scripted input observes the same
 # screen-state behavior as live play.
-static func _tick_screen_flow(world: World) -> void:
+static func _tick_frame_observers(world: World) -> void:
 	if world == null:
 		return
-	var sf := _find_screen_flow(world)
-	if sf == null:
-		return
-	if sf.has_method("drain"):
-		sf.drain()
-	# global_inputs handler is private (`_handle_global_inputs`). Call via
-	# `call` so non-existent methods are a no-op rather than a crash.
-	if sf.has_method("_handle_global_inputs"):
-		sf.call("_handle_global_inputs")
+	# Every UI node that reads input in its own _process must see the press
+	# here, because the step runner releases the action before the next
+	# frame. Empirical 2026-10-16: the overlay manager was not in this
+	# list, so no scripted step could close a tutorial overlay.
+	var sf := _find_director(world, "ScreenFlow")
+	if sf != null:
+		if sf.has_method("drain"):
+			sf.drain()
+		# Private handlers: `call` makes a missing method a no-op.
+		if sf.has_method("_handle_global_inputs"):
+			sf.call("_handle_global_inputs")
+	var om := _find_director(world, "OverlayManager")
+	if om != null and om.has_method("_advance_active_overlay"):
+		om.call("_drain_overlay_events")
+		om.call("_advance_active_overlay", 0.0)
+		om.call("_apply_freeze_state")
+	var gs := _find_director(world, "GameShell")
+	if gs != null and gs.has_method("_handle_pause_input"):
+		gs.call("_handle_pause_input")
 
 
 # Locate the ScreenFlow node. WorldBoot mounts it as a sibling/child of
@@ -280,11 +313,19 @@ static func _tick_screen_flow(world: World) -> void:
 # expensive). Returns null if no ScreenFlow node is mounted (legitimate
 # for pure-headless tests without a UI shell).
 static func _find_screen_flow(world: World) -> Node:
-	# Sibling-or-child of World (most common — WorldBoot adds as child).
-	var sf := world.get_node_or_null("ScreenFlow")
+	return _find_director(world, "ScreenFlow")
+
+
+## A WorldBoot director by node name: a child of World, a sibling, or an
+## autoload under /root. Returns null when it is not mounted (scenario mode).
+static func _find_director(world: World, node_name: String) -> Node:
+	var sf := world.get_node_or_null(node_name)
 	if sf != null:
 		return sf
-	sf = world.get_node_or_null("../ScreenFlow")
+	sf = world.get_node_or_null("../" + node_name)
+	if sf != null:
+		return sf
+	sf = world.get_node_or_null("/root/" + node_name)
 	if sf != null:
 		return sf
 	# Walk World's parent's children only (siblings of World) — avoids
@@ -293,7 +334,7 @@ static func _find_screen_flow(world: World) -> Node:
 	if parent != null:
 		for sib_v in parent.get_children():
 			var sib: Node = sib_v
-			if sib.name == "ScreenFlow":
+			if sib.name == node_name:
 				return sib
 	return null
 
@@ -316,7 +357,7 @@ static func _is_world_frozen(world: World) -> bool:
 	# e.g. a title screen ScreenFlow pushes at boot) is a phantom that scripted
 	# gameplay input must NOT be gated by (the legacy actions[] loop
 	# direct-queued past it). Discriminator: _process disabled == scenario mode.
-	if not world.is_processing():
+	if not bool(world.get_meta(LIVE_META, world.is_processing())):
 		return false
 	var ws: Dictionary = world.world_state
 	return (
@@ -460,7 +501,7 @@ static func _do_wait(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	# before the next scripted step reads world.current_screen. Without
 	# this, the rule's transition_screen sits in env.screen_event_buffer
 	# until the next natural frame which may not happen in time.
-	_tick_screen_flow(world)
+	_tick_frame_observers(world)
 
 
 static func _do_tick(step: Dictionary, world: World, _ctx: Dictionary) -> void:
@@ -485,7 +526,7 @@ static func _do_tick(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	# `refresh_screen`; the rebuild was correct and the re-query matched, but it
 	# drained after the whole scenario finished. Four scenarios failed pointing
 	# at contract state, and the actual defect was in the harness.
-	_tick_screen_flow(world)
+	_tick_frame_observers(world)
 
 
 static func _do_screenshot(step: Dictionary, world: World, ctx: Dictionary):

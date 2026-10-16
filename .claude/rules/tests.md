@@ -99,7 +99,10 @@ through the buffer. Screens therefore looked well covered while the
 entire rule→screen direction was untested.
 
 **Rule**: any new step verb that calls `_advance(world)` MUST also call
-`_tick_screen_flow(world)` before returning. If a verb deliberately does
+`_tick_frame_observers(world)` before returning. A new UI node that
+reads input in its own `_process` MUST join that helper (2026-10-16:
+the overlay manager was missing, so no scripted step could close a
+tutorial overlay). If a verb deliberately does
 not (a raw-sim probe), say so in a comment.
 
 **Gate**: `demo_thousandgate`'s four `contract_*` scenarios exercise
