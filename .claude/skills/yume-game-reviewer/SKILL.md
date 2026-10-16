@@ -189,10 +189,18 @@ Yume covers: simulation-shaped games (ecology, farming, RPG, shooter,
 chess, survival, strategy, tower defense, roguelike, puzzle-with-state).
 
 Out of scope: rhythm games, precision platformers, narrative-heavy
-adventures, continuous physics simulation, networked multiplayer.
+adventures, continuous physics simulation.
+
+Networked multiplayer is in scope through ADR 0063: a dedicated server,
+players spawned on join, and `net.json` (demo_tiny_village and
+demo_autorace use it). Each client feels round-trip input lag, so it
+does not suit twitch play. A GDD with co-op must give its rules: what
+the players share, and what happens on join and leave. (Updated
+2026-10-16. This list called networked play out of scope, and two
+reviews took that as true. ADR 0082 measurement.)
 
 **Red flags**: GDD promises dialogue trees (no dialogue runtime), real
-physics (rigid body), networked play, voice acting.
+physics (rigid body), voice acting, or twitch-timed networked play.
 
 ### Axis 7 — Adversarial pokes
 

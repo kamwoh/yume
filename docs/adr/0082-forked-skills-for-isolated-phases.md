@@ -1,7 +1,7 @@
 # ADR 0082 — Forked skills for isolated pipeline phases
 
 _Date: 2026-10-15_
-_Status: accepted. Phase 1 shipped 2026-10-15. Measurement pending._
+_Status: accepted. Phase 1 shipped 2026-10-15. Measurement done 2026-10-16 (see Results)._
 
 ## Context
 
@@ -111,6 +111,63 @@ the last commit with inline reviewers. Record the main-context tokens after the 
 GDD with 3 known flaws and count how many the reviewer finds in each mode.
 Phase 2 proceeds only if the context drops and the review finds at least
 as many flaws.
+
+### Results (2026-10-16)
+
+We measured the review step, not a full `--plan-only` run. The setup:
+
+- One pitch ("Lantern Keeper") with 3 seeded flaws. F1: resting at the
+  shrine scores and refills oil, so standing still wins (Axes 2 and 7).
+  F2: the oil lasts 72 m of walking, but each lantern is 90 m away
+  (Axis 7). F3: voiced branching dialogue and online co-op as pillars
+  (Axis 6). The numbers sat in different sections.
+- Inline mode: one agent wrote the GDD with yume-game-designer from an
+  author brief that gave a reason for each flaw. In the same context it
+  read the reviewer SKILL.md and ran it. This is also the fallback path.
+- Forked mode: the main session called `yume-game-reviewer` through the
+  Skill tool, on the same GDD file. The inline review was moved out of
+  the folder first.
+- Two trials, so two GDDs and four reviews.
+
+| | Inline t1 | Forked t1 | Inline t2 | Forked t2 |
+|---|---|---|---|---|
+| F1 passive win | found | found | found | found |
+| F2 unwinnable oil | found | found | found | found |
+| F3 out of scope | found | found | found | found (voice only) |
+| Verdict | reject | reject | reject | revise |
+| Review length (words) | 1607 | 2597 | 1509 | 2107 |
+
+Main-context cost of the review step:
+
+- Inline: the reviewer SKILL.md (about 7,100 tokens), the review that
+  the context writes (about 2,200 tokens), and the reasoning. About
+  9,500 tokens or more.
+- Forked: the returned summary, about 300 words or 450 tokens.
+- That is a drop of about 95% for this step.
+- A rough estimate for the whole phase: the GDD step (game-designer
+  skill plus GDD, about 4,000 tokens) does not change. The total goes
+  from about 13,500 to about 4,500 tokens, or about 33%. This meets the
+  ADR target of 50% or less. We did not measure a full run.
+
+Findings:
+
+1. Both modes found all 3 flaws. The flaws were easy enough to hit a
+   ceiling, so this test shows no quality loss. It cannot show a gain.
+2. The author's reasons did not hide the flaws in inline mode at this
+   difficulty. Author bias did not show.
+3. The forked reviews were longer and more specific. Forked t1
+   computed a 577 s tour against a 360 s dawn. Forked t2 judged co-op
+   in scope through ADR 0063 and named the stale "networked
+   multiplayer" non-goal in the contract doc and in the reviewer skill.
+   Both inline reviews took that stale non-goal as true.
+4. The t2 verdicts differed (inline reject, forked revise). Both fit
+   the verdict guideline, because new numbers can fix the loop.
+5. Follow-up done: the reviewer skill's scope list now puts networked
+   play in scope through ADR 0063. The same stale non-goal stays in
+   `30_framework_primitives.md`, which is ADR-gated.
+
+Decision rule: the context dropped, and the forked reviewer found as
+many flaws. Phase 2 (QA skills) may proceed, with user approval.
 
 ## Alternatives considered
 
