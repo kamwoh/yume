@@ -5,6 +5,8 @@ description: >-
   contrast, color harmony, layout balance, hierarchy, HUD integration,
   theme) with prioritized concrete JSON edits. Use after a game works, to
   make it look good.
+context: fork
+background: false
 ---
 
 # /yume-visual-designer
@@ -37,6 +39,22 @@ don't necessarily LOOK GOOD. Empirically:
 The cost of not catching visual issues: games that ship looking
 half-baked, requiring hand-tweaking by humans (the LLM-only-pipeline
 promise breaks).
+
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082, phase 2). It runs in its
+own subagent and does not see the chat history. The arguments and the
+files below carry all the input. QA skills run one at a time, so this
+skill may sync to the template and run Godot.
+
+1. **Arguments.** The game slug and the GDD path. Add a PNG path to
+   review an existing capture. Example: `demo_x docs/games/x/GDD.md`.
+   Without a PNG, capture one with the command in `visual-qa.md` Step 1.
+2. **Output.** Write `docs/games/<name>/visual-review.md` (shape
+   below). Do not apply the edits. The caller applies them.
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 revision requests for the caller. The caller
+   reads the full result from the file.
 
 ## Inputs you accept
 

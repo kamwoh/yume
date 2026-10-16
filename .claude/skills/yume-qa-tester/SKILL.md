@@ -4,6 +4,8 @@ description: >-
   Load a game's JSON headless, run N ticks, and report cascade outcomes
   against GDD intent (dead entities, missing rules, runaway loops) plus
   visual captures. Use as the QA phase of /yume-design.
+context: fork
+background: false
 ---
 
 # /yume-qa-tester
@@ -15,6 +17,21 @@ RUNS and PRODUCES the intended dynamics.
 
 This skill loads into the orchestrator's main context (Tier 2.6 — no
 subagent spawn).
+
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082, phase 2). It runs in its
+own subagent and does not see the chat history. The arguments and the
+files below carry all the input. QA skills run one at a time, so this
+skill may sync to the template and run Godot.
+
+1. **Arguments.** The game slug, the scene path and the GDD path.
+   Example: `demo_x scenes/x_3d.tscn docs/games/x/GDD.md`.
+2. **Output.** Write `docs/games/<name>/qa-report.md` (shape below).
+   Put the capture paths in the report.
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## Inputs you accept
 

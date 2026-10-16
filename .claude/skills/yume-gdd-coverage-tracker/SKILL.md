@@ -4,6 +4,8 @@ description: >-
   Measure how much of a GDD is actually built and reachable, as a percentage
   with a gap list. Use after QA and before declaring a game complete, so
   'tests pass' is not mistaken for 'game delivered'.
+context: fork
+background: false
 ---
 # /yume-gdd-coverage-tracker
 
@@ -38,6 +40,21 @@ This skill's output is the missing measurement. Fed back to the
 orchestrator, it lets autonomous mode LOOP: build → audit → fix-gaps
 → audit → ... until coverage crosses a threshold (typically 80%) OR
 the user explicitly accepts a lower delivery.
+
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082, phase 2). It runs in its
+own subagent and does not see the chat history. The arguments and the
+files below carry all the input. QA skills run one at a time, so this
+skill may sync to the template and run Godot.
+
+1. **Arguments.** The game slug. Example: `demo_x`. The design files
+   are under `docs/games/<name>/`, and the build is under
+   `godot/data/demo_<name>/`.
+2. **Output.** Write `docs/games/<name>/coverage.md` (shape below).
+3. **Return.** Reply in 200 words or fewer: the REQUIRED, IMPORTANT
+   and NICE percentages, the output path, and the top 3 gaps for the
+   caller. The caller reads the full result from the file.
 
 ## Inputs you accept
 

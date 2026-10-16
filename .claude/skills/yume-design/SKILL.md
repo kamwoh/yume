@@ -84,8 +84,9 @@ context.
 
 **Inline skills and forked skills (ADR 0082).** Most skills load into
 this context. The reviewer skills (`yume-game-reviewer`, the genre
-reviewers, `yume-code-reviewer`, `yume-tech-director`) have
-`context: fork` in their frontmatter. The Skill tool runs each of them
+reviewers, `yume-code-reviewer`, `yume-tech-director`) and the QA skills
+(`yume-qa-tester`, `yume-playtest`, `yume-visual-designer`,
+`yume-gdd-coverage-tracker`) have `context: fork` in their frontmatter. The Skill tool runs each of them
 in its own subagent. A forked skill sees no chat history. Pass the game
 slug and the input paths as `args`. The skill writes its full result to
 a file and returns a summary of 200 words or fewer. Read the verdict
@@ -593,9 +594,11 @@ python3 -m tools.yume_assetgen <name>          # reads data/demo_<name>/asset_ge
     game without writing a per-game .tscn; generating a per-game stub
     is a UX shortcut (`godot --path . scenes/<name>_2d.tscn` directly).
 19. Invoke `yume-qa-tester` skill. Tool:
-    `Skill(skill="yume-qa-tester", args=<data folder + scene path + GDD path>)`.
+    `Skill(skill="yume-qa-tester", args="demo_<name> scenes/<name>_3d.tscn docs/games/<name>/GDD.md")`.
 20. Skill runs Godot headless, drains `env.error_buffer`, produces
-    `docs/games/<name>/qa-report.md`.
+    `docs/games/<name>/qa-report.md`. It is forked (ADR 0082 phase 2),
+    so read the verdict and the findings from that file. Steps 20b-21b
+    describe what the skill does inside its fork.
 20b. **Tier 2.6s — Game-specific scenario tests**: content-designer should
     have authored `data/demo_<name>/tests.json` covering 3-5 core verbs
     (input → state change → expected cascade). qa-tester runs:
@@ -637,14 +640,14 @@ python3 -m tools.yume_assetgen <name>          # reads data/demo_<name>/asset_ge
 
 23a. **MANDATORY** in autonomous mode. After qa-tester reports
      `complete` (correctness verified), run gdd-coverage-tracker:
-     `Skill(skill="yume-gdd-coverage-tracker", args=<game-name>)`.
+     `Skill(skill="yume-gdd-coverage-tracker", args="demo_<name>")`.
 
 23b. Read its `coverage.md` output. Severity-weighted thresholds:
      - **REQUIRED = 100% AND IMPORTANT ≥ 90% AND NICE gaps all
        documented** → proceed to Phase 7 wrap-up.
      - **Any required ✗ OR important < 90%** → LOOP: parse the gap
        list as a checklist, hand items back to the right designer
-       (content / game-rules / asset / etc. per gap type), re-run
+       (content / systems / asset / etc. per gap type), re-run
        their phases, then re-run qa-tester + gdd-coverage-tracker.
        Cap at 3 loop iterations.
      - **After 2 loops, any same required ✗ persists** → STOP. The

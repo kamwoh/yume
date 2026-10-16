@@ -1,7 +1,7 @@
 # ADR 0082 — Forked skills for isolated pipeline phases
 
 _Date: 2026-10-15_
-_Status: accepted. Phase 1 shipped 2026-10-15. Measurement done 2026-10-16 (see Results)._
+_Status: accepted. Phase 1 shipped 2026-10-15. Measurement done 2026-10-16 (see Results). Phase 2 (QA skills) shipped 2026-10-16._
 
 ## Context
 

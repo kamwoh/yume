@@ -4,6 +4,8 @@ description: >-
   End-to-end playtest gate: fires real click chains, captures frames,
   catches dangling screen refs and runtime warnings that unit and scenario
   tests miss. Use as the last gate before declaring a game shippable.
+context: fork
+background: false
 ---
 # /yume-playtest
 
@@ -38,6 +40,21 @@ Empirical precedents that motivate the gate:
   `tier_up_celebration`, `lose_seizure`, etc.). 6 were dead rules
   (disabled via `__disabled__` tag) — should have been deleted.
   4 were live rules needing screens. Skill flags these.
+
+## Inputs and outputs
+
+This skill runs as a forked skill (ADR 0082, phase 2). It runs in its
+own subagent and does not see the chat history. The arguments and the
+files below carry all the input. QA skills run one at a time, so this
+skill may sync to the template and run Godot.
+
+1. **Arguments.** The game slug. Example: `demo_x`. Add a scene path
+   when the game has its own scene: `demo_x scenes/x_3d.tscn`.
+2. **Output.** Write `docs/games/<name>/playtest.md` (shape below).
+   Put the capture paths in the report.
+3. **Return.** Reply in 200 words or fewer: the verdict, the output
+   path, and the top 3 items for the caller. The caller reads the full
+   result from the file.
 
 ## Inputs
 
