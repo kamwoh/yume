@@ -55,6 +55,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import content  # noqa: E402
+from validate_rules import check_unknown_effect_fields  # noqa: E402
 
 SCENE_DESTROYING = {
     "reload_scene",
@@ -136,6 +137,22 @@ def _walk(node, path, errors):
             _walk(v, f"{path}[{i}]", errors)
 
 
+def _unknown_fields(node, path, errors):
+    """Run validate_rules check (10) on every UI effect chain (batch G,
+    2026-10-16). Rule files get the same check from validate_rules.py."""
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k in CHAIN_KEYS:
+                chain = v if isinstance(v, list) else [v]
+                found = []
+                check_unknown_effect_fields({"id": path, "effect": chain}, found)
+                errors += [(f"{path}.{k}.{where}", msg) for _, where, msg in found]
+            _unknown_fields(v, f"{path}.{k}", errors)
+    elif isinstance(node, list):
+        for i, v in enumerate(node):
+            _unknown_fields(v, f"{path}[{i}]", errors)
+
+
 def _files(game_dir: Path):
     # The rule files the engine loads (content.py), plus the UI chains.
     yield from content.rule_files(game_dir)
@@ -153,7 +170,10 @@ def validate_game(game_dir: Path, repo: Path):
         except Exception as exc:
             errors.append((str(f.relative_to(repo)), f"JSON parse error: {exc}"))
             continue
-        _walk(content.resolver().resolve(doc), f.name + "$", errors)
+        doc = content.resolver().resolve(doc)
+        _walk(doc, f.name + "$", errors)
+        if f.name in ("screens.json", "hud.json"):
+            _unknown_fields(doc, f.name + "$", errors)
     return errors
 
 

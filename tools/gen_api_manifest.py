@@ -561,6 +561,85 @@ def parse_effects(text: str) -> list[dict]:
     return [{"type": name, "source": "effect_apply.gd"} for name in arms]
 
 
+# ------------------------------------------------------------
+# Effect field schema (batch G, 2026-10-16)
+# ------------------------------------------------------------
+# For each dispatcher arm, follow its handler (and every engine helper the
+# effect dict is passed to) and collect the keys it reads: `e.get("k")`,
+# `e["k"]` and `e.has("k")`. A handler that passes the dict to code outside
+# a class_name script, or iterates its keys, has an OPEN field set: any key
+# can matter, so no validator may call a key unknown.
+#
+# Field names used to live as hand lists in validators. A wrong name (for
+# example `formula_x` for `x`, or `state` for `overrides.state`) was a
+# silent no-op that no list covered.
+
+
+def _class_files() -> dict[str, Path]:
+    out = {}
+    for p in ENGINE_DIR.rglob("*.gd"):
+        if "/tests/" in p.as_posix():
+            continue
+        m = re.search(r"^class_name (\w+)", read(p), re.M)
+        if m:
+            out[m.group(1)] = p
+    return out
+
+
+def _func_body(path: Path, name: str):
+    m = re.search(
+        r"^static func " + re.escape(name) + r"\(([^)]*)\)[^\n]*:\n((?:(?:\t.*|\s*)\n)+)",
+        read(path), re.M,
+    )
+    if not m:
+        return None, None
+    return [x.split(":")[0].strip() for x in m.group(1).split(",")], m.group(2)
+
+
+def _walk_fields(classes, cls, fn, argpos, seen, depth=0):
+    """Return (fields, open) for the dict passed at `argpos` of cls.fn."""
+    if (cls, fn, argpos) in seen or depth > 4 or cls not in classes:
+        return set(), False
+    seen.add((cls, fn, argpos))
+    params, body = _func_body(classes[cls], fn)
+    if not body or argpos >= len(params):
+        return set(), False
+    p = params[argpos]
+    fields = set(re.findall(rf'\b{p}\.get\("(\w+)"', body))
+    fields |= set(re.findall(rf'\b{p}\["(\w+)"\]', body))
+    fields |= set(re.findall(rf'\b{p}\.has\("(\w+)"', body))
+    is_open = bool(re.search(rf"for \w+ in {p}(\.keys\(\))?\s*:|=\s*{p}\s*$", body, re.M))
+    for m in re.finditer(rf"([\w\.]+)\(([^()]*\b{p}\b[^()]*)\)", body):
+        args = [a.strip() for a in m.group(2).split(",")]
+        if p not in args:
+            continue
+        parts = m.group(1).split(".")
+        c2, f2 = (parts[-2], parts[-1]) if len(parts) >= 2 else (cls, parts[-1])
+        if c2 in classes and _func_body(classes[c2], f2)[1] is not None:
+            sub, sub_open = _walk_fields(classes, c2, f2, args.index(p), seen, depth + 1)
+            fields |= sub
+            is_open |= sub_open
+        elif not m.group(1).endswith(("get", "has")):
+            is_open = True
+    return fields, is_open
+
+
+def parse_effect_fields(effect_src: str) -> dict[str, dict]:
+    """{effect_type: {"fields": [...], "open": bool}} from the dispatcher."""
+    classes = _class_files()
+    block = re.search(r"match\s+type:\s*\n((?:\t+.*\n)+)", effect_src)
+    out = {}
+    if not block:
+        return out
+    for name, cls, fn in re.findall(
+        r'^\t\t"([a-z_]+)":\s*\n\t\t\t(?:return )?(\w+)\.(\w+)\(effect', block.group(1), re.M
+    ):
+        fields, is_open = _walk_fields(classes, cls, fn, 0, set())
+        fields.discard("type")
+        out[name] = {"fields": sorted(fields), "open": is_open}
+    return out
+
+
 def parse_query_clauses(text: str) -> list[str]:
     """Find `spec.has("clause")` calls in query.gd's matches() / run()."""
     clauses = re.findall(r'spec\.has\("([a-z_]+)"\)', text)
@@ -666,7 +745,10 @@ def build_manifest() -> Manifest:
         primitives=["Entity", "Tag", "Rule", "Trigger", "Effect", "Query", "Relation"],
         deferred_primitives=["Plan", "Knowledge"],
         triggers=parse_string_array(rule_src, "VALID_TRIGGERS"),
-        effects=parse_effects(effect_src),
+        effects=[
+            {**e, **parse_effect_fields(effect_src).get(e["type"], {"fields": [], "open": True})}
+            for e in parse_effects(effect_src)
+        ],
         query_clauses=parse_query_clauses(query_src),
         query_operator_suffixes=parse_string_array(query_src, "OPERATOR_SUFFIXES"),
         formula_entity_roles=parse_formula_roles(formula_src),
@@ -784,7 +866,9 @@ def render_markdown(m: Manifest) -> str:
         "",
     ]
     for e in m.effects:
-        lines.append(f"- `{e['type']}` — `{e['source']}`")
+        fields = ", ".join(f"`{f}`" for f in e.get("fields", [])) or "none"
+        more = " (open: passes the dict on, so other keys can matter)" if e.get("open") else ""
+        lines.append(f"- `{e['type']}` — fields: {fields}{more}")
     lines += [
         "",
         "## Query clauses",

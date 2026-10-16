@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-15T17:23:18+00:00",
+  "generated_at": "2026-10-16T04:23:27+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -30,203 +30,489 @@
   "effects": [
     {
       "type": "state_set",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "target",
+        "value"
+      ],
+      "open": false
     },
     {
       "type": "state_add",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "amount",
+        "field",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "state_mul",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "amount",
+        "field",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "state_clamp",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "max",
+        "min",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "zone_state_set",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "value",
+        "zone"
+      ],
+      "open": false
     },
     {
       "type": "zone_state_add",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "amount",
+        "delta",
+        "field",
+        "zone"
+      ],
+      "open": false
     },
     {
       "type": "zone_state_clamp",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "max",
+        "min",
+        "zone"
+      ],
+      "open": false
     },
     {
       "type": "spawn",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "overrides",
+        "position",
+        "template"
+      ],
+      "open": false
     },
     {
       "type": "remove",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "transform",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "target",
+        "to"
+      ],
+      "open": false
     },
     {
       "type": "relate",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "from",
+        "relation",
+        "state",
+        "to"
+      ],
+      "open": false
     },
     {
       "type": "unrelate",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "from",
+        "relation",
+        "to"
+      ],
+      "open": false
     },
     {
       "type": "transfer_relation",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "from",
+        "new_from",
+        "new_to",
+        "relation",
+        "to"
+      ],
+      "open": false
     },
     {
       "type": "refresh_screen",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [],
+      "open": false
     },
     {
       "type": "advance_time",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "units"
+      ],
+      "open": false
     },
     {
       "type": "level_call",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "args",
+        "level",
+        "return_signal"
+      ],
+      "open": false
     },
     {
       "type": "level_return",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "result"
+      ],
+      "open": false
     },
     {
       "type": "relation_set",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "from",
+        "relation",
+        "to",
+        "value"
+      ],
+      "open": false
     },
     {
       "type": "relation_add",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "amount",
+        "field",
+        "from",
+        "relation",
+        "to"
+      ],
+      "open": false
     },
     {
       "type": "relation_clamp",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "from",
+        "max",
+        "min",
+        "relation",
+        "to"
+      ],
+      "open": false
     },
     {
       "type": "tag_add",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "tag",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "tag_remove",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "tag",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "velocity_set",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "target",
+        "x",
+        "y",
+        "z"
+      ],
+      "open": false
     },
     {
       "type": "velocity_lerp",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "rate",
+        "target",
+        "x",
+        "y"
+      ],
+      "open": false
     },
     {
       "type": "velocity_set_relative",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "facing",
+        "forward",
+        "strafe",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "velocity_add_relative",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "facing",
+        "forward",
+        "strafe",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "pathfind_to",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "destination_x",
+        "destination_y",
+        "destination_z",
+        "speed",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "raycast_hit",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "direction",
+        "max_distance",
+        "on_hit",
+        "on_miss",
+        "origin",
+        "respect_obstacles",
+        "tags_all",
+        "tags_none"
+      ],
+      "open": false
     },
     {
       "type": "transition_level",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "color",
+        "fade_duration",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "emit",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "payload",
+        "signal"
+      ],
+      "open": false
     },
     {
       "type": "array_set_at",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "index",
+        "target",
+        "value"
+      ],
+      "open": false
     },
     {
       "type": "array_insert_first_empty",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "field",
+        "on_full",
+        "result_field",
+        "sentinel",
+        "target",
+        "value"
+      ],
+      "open": false
     },
     {
       "type": "array_sync_to_field",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "array_field",
+        "default",
+        "dest_field",
+        "index_field",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "array_count_matching",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "array_field",
+        "dest_field",
+        "sentinel",
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "emit_shell_event",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "event"
+      ],
+      "open": true
     },
     {
       "type": "transition_screen",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "quit_app",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [],
+      "open": false
     },
     {
       "type": "show_toast",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "duration",
+        "text"
+      ],
+      "open": false
     },
     {
       "type": "reload_scene",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "args"
+      ],
+      "open": false
     },
     {
       "type": "scene_change",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "target"
+      ],
+      "open": false
     },
     {
       "type": "screen_fade",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "alpha",
+        "color",
+        "duration"
+      ],
+      "open": false
     },
     {
       "type": "save_state",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "slot"
+      ],
+      "open": false
     },
     {
       "type": "load_state",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "slot"
+      ],
+      "open": false
     },
     {
       "type": "show_overlay",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [],
+      "open": true
     },
     {
       "type": "dismiss_overlay",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "id"
+      ],
+      "open": false
     },
     {
       "type": "set_audio_bus_volume",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "bus",
+        "linear"
+      ],
+      "open": false
     },
     {
       "type": "set_input_mapping",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "action",
+        "key"
+      ],
+      "open": false
     },
     {
       "type": "switch_actor",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "target",
+        "target_id"
+      ],
+      "open": false
     },
     {
       "type": "queue_input_for_actor",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [
+        "action",
+        "actor_id"
+      ],
+      "open": false
     },
     {
       "type": "reset_world",
-      "source": "effect_apply.gd"
+      "source": "effect_apply.gd",
+      "fields": [],
+      "open": false
     }
   ],
   "query_clauses": [

@@ -41,6 +41,11 @@ Checks:
      ...) and 5 directors shipped under ADRs that stayed "proposed", and
      no demo ever used them. The no-genre-leak grep missed them, because
      it is a blocklist of other names. ADR 0085 deleted them.
+  D. The effect field schema in docs/engine-reference/api-manifest.json
+     matches the handlers (batch G, 2026-10-16). validate_rules check (10)
+     reads that schema, so a stale manifest would hide or invent unknown
+     fields. Each field in validate_rules.REQUIRED_EFFECT_FIELDS is also
+     one the handler reads.
 
 Usage:
     python3 tools/validators/validate_engine_wiring.py
@@ -56,7 +61,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from gen_api_manifest import parse_effects  # noqa: E402
+from gen_api_manifest import parse_effect_fields, parse_effects  # noqa: E402
 
 # Triggers dispatched by NAME through _dispatch_lifecycle_inline rather than
 # by a literal rules_by_trigger.get("<name>") call.
@@ -139,6 +144,27 @@ def check_vocabulary(repo: Path, engine: Path) -> list[str]:
     return errors
 
 
+def check_manifest_fields(repo: Path, engine: Path) -> list[str]:
+    errors: list[str] = []
+    live = parse_effect_fields((engine / "core" / "effect_apply.gd").read_text())
+    manifest = repo / "docs" / "engine-reference" / "api-manifest.json"
+    saved = {e["type"]: e for e in json.loads(manifest.read_text()).get("effects", [])}
+    for t, spec in live.items():
+        got = saved.get(t, {})
+        if got.get("fields") != spec["fields"] or got.get("open") != spec["open"]:
+            errors.append(
+                f"api-manifest.json is stale for `{t}` (handler reads {spec['fields']}, "
+                f"open={spec['open']}). Run: python3 tools/gen_api_manifest.py"
+            )
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from validate_rules import REQUIRED_EFFECT_FIELDS
+    for t, fields in REQUIRED_EFFECT_FIELDS.items():
+        for f in fields:
+            if f not in live.get(t, {}).get("fields", []):
+                errors.append(f"REQUIRED_EFFECT_FIELDS lists `{f}` for `{t}`, but its handler never reads it.")
+    return errors
+
+
 def main() -> int:
     strict = "--strict" in sys.argv
     repo = Path(__file__).resolve().parent.parent.parent
@@ -198,6 +224,9 @@ def main() -> int:
 
     # ---------- C. ADR 0085 vocabulary allowlist ----------
     errors += check_vocabulary(repo, engine)
+
+    # ---------- D. manifest field schema is current ----------
+    errors += check_manifest_fields(repo, engine)
 
     if not errors:
         print(

@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-10-15T17:23:18+00:00_
+_Generated: 2026-10-16T04:23:27+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -24,56 +24,56 @@ Valid `rule.trigger.type` strings:
 
 50 effect types (used as `rule.effect[].type`):
 
-- `state_set` — `effect_apply.gd`
-- `state_add` — `effect_apply.gd`
-- `state_mul` — `effect_apply.gd`
-- `state_clamp` — `effect_apply.gd`
-- `zone_state_set` — `effect_apply.gd`
-- `zone_state_add` — `effect_apply.gd`
-- `zone_state_clamp` — `effect_apply.gd`
-- `spawn` — `effect_apply.gd`
-- `remove` — `effect_apply.gd`
-- `transform` — `effect_apply.gd`
-- `relate` — `effect_apply.gd`
-- `unrelate` — `effect_apply.gd`
-- `transfer_relation` — `effect_apply.gd`
-- `refresh_screen` — `effect_apply.gd`
-- `advance_time` — `effect_apply.gd`
-- `level_call` — `effect_apply.gd`
-- `level_return` — `effect_apply.gd`
-- `relation_set` — `effect_apply.gd`
-- `relation_add` — `effect_apply.gd`
-- `relation_clamp` — `effect_apply.gd`
-- `tag_add` — `effect_apply.gd`
-- `tag_remove` — `effect_apply.gd`
-- `velocity_set` — `effect_apply.gd`
-- `velocity_lerp` — `effect_apply.gd`
-- `velocity_set_relative` — `effect_apply.gd`
-- `velocity_add_relative` — `effect_apply.gd`
-- `pathfind_to` — `effect_apply.gd`
-- `raycast_hit` — `effect_apply.gd`
-- `transition_level` — `effect_apply.gd`
-- `emit` — `effect_apply.gd`
-- `array_set_at` — `effect_apply.gd`
-- `array_insert_first_empty` — `effect_apply.gd`
-- `array_sync_to_field` — `effect_apply.gd`
-- `array_count_matching` — `effect_apply.gd`
-- `emit_shell_event` — `effect_apply.gd`
-- `transition_screen` — `effect_apply.gd`
-- `quit_app` — `effect_apply.gd`
-- `show_toast` — `effect_apply.gd`
-- `reload_scene` — `effect_apply.gd`
-- `scene_change` — `effect_apply.gd`
-- `screen_fade` — `effect_apply.gd`
-- `save_state` — `effect_apply.gd`
-- `load_state` — `effect_apply.gd`
-- `show_overlay` — `effect_apply.gd`
-- `dismiss_overlay` — `effect_apply.gd`
-- `set_audio_bus_volume` — `effect_apply.gd`
-- `set_input_mapping` — `effect_apply.gd`
-- `switch_actor` — `effect_apply.gd`
-- `queue_input_for_actor` — `effect_apply.gd`
-- `reset_world` — `effect_apply.gd`
+- `state_set` — fields: `field`, `target`, `value`
+- `state_add` — fields: `amount`, `field`, `target`
+- `state_mul` — fields: `amount`, `field`, `target`
+- `state_clamp` — fields: `field`, `max`, `min`, `target`
+- `zone_state_set` — fields: `field`, `value`, `zone`
+- `zone_state_add` — fields: `amount`, `delta`, `field`, `zone`
+- `zone_state_clamp` — fields: `field`, `max`, `min`, `zone`
+- `spawn` — fields: `overrides`, `position`, `template`
+- `remove` — fields: `target`
+- `transform` — fields: `target`, `to`
+- `relate` — fields: `from`, `relation`, `state`, `to`
+- `unrelate` — fields: `from`, `relation`, `to`
+- `transfer_relation` — fields: `from`, `new_from`, `new_to`, `relation`, `to`
+- `refresh_screen` — fields: none
+- `advance_time` — fields: `units`
+- `level_call` — fields: `args`, `level`, `return_signal`
+- `level_return` — fields: `result`
+- `relation_set` — fields: `field`, `from`, `relation`, `to`, `value`
+- `relation_add` — fields: `amount`, `field`, `from`, `relation`, `to`
+- `relation_clamp` — fields: `field`, `from`, `max`, `min`, `relation`, `to`
+- `tag_add` — fields: `tag`, `target`
+- `tag_remove` — fields: `tag`, `target`
+- `velocity_set` — fields: `target`, `x`, `y`, `z`
+- `velocity_lerp` — fields: `rate`, `target`, `x`, `y`
+- `velocity_set_relative` — fields: `facing`, `forward`, `strafe`, `target`
+- `velocity_add_relative` — fields: `facing`, `forward`, `strafe`, `target`
+- `pathfind_to` — fields: `destination_x`, `destination_y`, `destination_z`, `speed`, `target`
+- `raycast_hit` — fields: `direction`, `max_distance`, `on_hit`, `on_miss`, `origin`, `respect_obstacles`, `tags_all`, `tags_none`
+- `transition_level` — fields: `color`, `fade_duration`, `target`
+- `emit` — fields: `payload`, `signal`
+- `array_set_at` — fields: `field`, `index`, `target`, `value`
+- `array_insert_first_empty` — fields: `field`, `on_full`, `result_field`, `sentinel`, `target`, `value`
+- `array_sync_to_field` — fields: `array_field`, `default`, `dest_field`, `index_field`, `target`
+- `array_count_matching` — fields: `array_field`, `dest_field`, `sentinel`, `target`
+- `emit_shell_event` — fields: `event` (open: passes the dict on, so other keys can matter)
+- `transition_screen` — fields: `target`
+- `quit_app` — fields: none
+- `show_toast` — fields: `duration`, `text`
+- `reload_scene` — fields: `args`
+- `scene_change` — fields: `target`
+- `screen_fade` — fields: `alpha`, `color`, `duration`
+- `save_state` — fields: `slot`
+- `load_state` — fields: `slot`
+- `show_overlay` — fields: none (open: passes the dict on, so other keys can matter)
+- `dismiss_overlay` — fields: `id`
+- `set_audio_bus_volume` — fields: `bus`, `linear`
+- `set_input_mapping` — fields: `action`, `key`
+- `switch_actor` — fields: `target`, `target_id`
+- `queue_input_for_actor` — fields: `action`, `actor_id`
+- `reset_world` — fields: none
 
 ## Query clauses
 

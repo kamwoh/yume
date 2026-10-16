@@ -36,6 +36,10 @@ Checks implemented in v1:
       `state_*` need `field` (and `amount`), `spawn` needs `template`.
       Empirical 2026-10-16: aldenmere used `"tags": [...]`.
 
+  (10) UNKNOWN EFFECT FIELDS — a key that the effect's handler never
+      reads (schema from api-manifest.json). Empirical 2026-10-16:
+      aldenmere `formula_x` on velocity_set, `state` on spawn.
+
 Future v2 additions (deferred per data-demo.md):
   - Destructive effect-chain ordering (transition_level / reload_scene
     must be LAST in chain).
@@ -525,6 +529,48 @@ def check_required_effect_fields(rule, errors):
             ))
 
 
+# (10) Fields the engine never reads (batch G, 2026-10-16). The schema
+# comes from docs/engine-reference/api-manifest.json, which
+# gen_api_manifest.py derives from the effect handlers. An effect with an
+# open field set (it passes the dict on) is skipped.
+# Empirical 2026-10-16: aldenmere used `formula_x` / `formula_z` on
+# velocity_set (the engine reads `x` / `z`) and `state` on spawn (the
+# engine reads `overrides.state`). Rabbits never fled, deer never walked,
+# and spawned carcasses had no food.
+_MANIFEST = Path(__file__).resolve().parents[2] / "docs" / "engine-reference" / "api-manifest.json"
+try:
+    EFFECT_SCHEMA = {
+        e["type"]: e for e in json.loads(_MANIFEST.read_text(encoding="utf-8")).get("effects", [])
+    }
+except (OSError, json.JSONDecodeError):
+    EFFECT_SCHEMA = {}
+
+
+def check_unknown_effect_fields(rule, errors):
+    """(10) Each effect key is one its handler reads."""
+    rule_id = rule.get("id", "<unnamed>")
+    effects = rule.get("effect", [])
+    if isinstance(effects, dict):
+        effects = [effects]
+    if not isinstance(effects, list):
+        return
+    for i, eff in enumerate(effects):
+        if not isinstance(eff, dict):
+            continue
+        spec = EFFECT_SCHEMA.get(str(eff.get("type", "")))
+        if spec is None or spec.get("open", True):
+            continue
+        known = set(spec.get("fields", []))
+        for k in eff:
+            if k == "type" or str(k).startswith("_") or k in known:
+                continue
+            errors.append((
+                rule_id, f"effect[{i}]",
+                f"{eff['type']} effect has `{k}`, which the engine never reads, so it "
+                f"does nothing. The engine reads: {', '.join(sorted(known)) or 'no fields'}.",
+            ))
+
+
 def check_once_fields(rule, errors):
     """ADR 0080 — the one-shot quantifiers.
 
@@ -777,6 +823,7 @@ def validate_game(game_dir):
             check_2binding_non_contact(rule, r_errors)
             check_schema_field_landmines(rule, r_errors)
             check_required_effect_fields(rule, r_errors)
+            check_unknown_effect_fields(rule, r_errors)
             check_effect_read_after_write(rule, r_errors)
             check_emit_signal_fields(rule, r_errors)
             check_edge_state_clause(rule, r_errors)
