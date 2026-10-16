@@ -67,13 +67,10 @@
     "a": "0019",
     "b": "0019",
     "from": "0054",
-    "from_sq": "legacy",
-    "piece": "0035",
     "self": "0012",
     "source": "0019",
     "target": "0005",
     "to": "0054",
-    "to_sq": "legacy",
     "world": "0009",
     "zone": "0031"
   }

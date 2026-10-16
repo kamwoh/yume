@@ -84,8 +84,7 @@ REFLECTION_READ: dict[str, str] = {
 LEGACY_BASELINE = frozenset({
     "LightingDirector", "NameplateRenderer", "ScreenSmokeRunner", "SettingsManager",
     "array_count_matching", "array_insert_first_empty", "array_set_at",
-    "from_sq", "refresh_screen", "scene_change", "screen_fade", "state_mul",
-    "to_sq", "velocity_lerp",
+    "refresh_screen", "scene_change", "screen_fade", "state_mul", "velocity_lerp",
 })
 
 

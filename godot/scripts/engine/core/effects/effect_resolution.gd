@@ -173,10 +173,9 @@ static func formula_context(ctx: Dictionary, env: Dictionary, formula: String = 
 	var entities: Dictionary = env.get("entities", {})
 	# Common entity bindings: id string → Entity object. `from`/`to` are
 	# typically set by relation_changed dispatch (W2.4) and signal payloads
-	# carrying entity refs.
-	var entity_roles: Array[String] = [
-		"self", "target", "a", "b", "source", "from", "to", "piece", "from_sq", "to_sq"
-	]
+	# carrying entity refs. Any other key that names an entity (a payload
+	# key, a require binding) binds by the pass-through at the end.
+	var entity_roles: Array[String] = ["self", "target", "a", "b", "source", "from", "to"]
 	for role in entity_roles:
 		if ctx.has(role):
 			var id: String = str(ctx[role])

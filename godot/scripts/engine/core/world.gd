@@ -736,53 +736,20 @@ func _find_actor_id() -> String:
 # STATE blocks (see top of file).
 
 
-## Generic tick summary: total entity count + counts per common tag.
-## Adapts to whatever tags the loaded data uses; silent if no common ones match.
+## Generic tick summary: total entity count + the 8 most common tags.
+## The engine names no content tags or ids here (Invariant #1).
 func _print_tick_summary(count: int) -> void:
+	var counts: Dictionary = {}
+	for id in entities:
+		var e = entities[id]
+		if e is Entity:
+			for t in (e as Entity).tags:
+				counts[t] = int(counts.get(t, 0)) + 1
+	var tags: Array = counts.keys()
+	tags.sort_custom(func(x, y): return counts[x] > counts[y] or (counts[x] == counts[y] and str(x) < str(y)))
 	var bits: Array = ["n=%d" % entities.size()]
-	# Probe a small set of common tags. Add yours here if useful.
-	var probe_tags := [
-		"seed",
-		"young",
-		"mature",
-		"rotten",
-		"water",
-		"player",
-		"sparkle",
-		"enemy",
-		"projectile",
-		"crop",
-		"fire",
-		"tree",
-		"burning_tree",
-		"ash",
-		"grass",
-		"rabbit",
-		"fox",
-		"animal",
-		"predator",
-		"prey",
-		"bird",
-		"iron_ore",
-		"iron",
-		"copper_ore",
-		"copper",
-		"fertilizer",
-		"mushroom",
-		"seedling",
-		"weather",
-		"bush",
-		"square",
-		"piece",
-	]
-	for t in probe_tags:
-		var n := QueryLib.run({"tags_all": [t]}, _build_env()).size()
-		if n > 0:
-			bits.append("%s=%d" % [t, n])
-	# If a "ctr_1" counter is present, show its state (demo convenience).
-	var ctr = entities.get("ctr_1", null)
-	if ctr is Entity:
-		bits.append("ctr=%s" % (ctr as Entity).state)
+	for t in tags.slice(0, 8):
+		bits.append("%s=%d" % [t, counts[t]])
 	print("[t%d] %s" % [count, " ".join(bits)])
 
 
