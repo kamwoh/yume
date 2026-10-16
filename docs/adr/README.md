@@ -98,7 +98,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0054](./0054-visual-layout-compiler.md) | Visual layout compiler — image gen → CV extraction → JSON | accepted | 2026-05-19 |
 | [0055](./0055-multi-biome-ground-from-semantic-map.md) | Multi-biome ground from the semantic map | accepted | 2026-05-20 |
 | [0056](./0056-visual-assertion-library.md) | Visual assertion library + capture-per-test runner | accepted | 2026-05-22 |
-| [0057](./0057-yume-visual-tester-skill.md) | yume-visual-tester skill (auto-generated visual test plans) | proposed | 2026-05-22 |
+| [0057](./0057-yume-visual-tester-skill.md) | yume-visual-tester skill (auto-generated visual test plans) | accepted (corrected 2026-10-16) | 2026-05-22 |
 | [0058](./0058-shader-as-json.md) | Shader as JSON (templates + composable primitives) | proposed | 2026-05-23 |
 | [0059](./0059-water-surface-from-scene-json.md) | Water surface from scene.json | accepted | 2026-05-26 |
 | [0060](./0060-deterministic-pomdp-pluggable-io.md) | Deterministic I/O contract — pluggable input + partitioned observe channels | accepted | 2026-05-30 |

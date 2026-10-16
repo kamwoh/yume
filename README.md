@@ -264,7 +264,7 @@ other (ADR 0067):
                              screen-flow, save-policy, tutorial — as the GDD needs)
  Phase A   (--with-assets)  tools.yume_assetgen  (gpt-image concepts + Tripo3D .glb,
    ASSETS                     patches visual.* in place)
- Phase QA  (always)         qa-tester ─▶ visual-designer / visual-tester ─▶
+ Phase QA  (always)         qa-tester ─▶ playtest ─▶ visual-designer ─▶
                             gdd-coverage-tracker  (GDD = contract; no silent drops)
  on demand                  tech-director  (gates engine / new-primitive / ADR changes)
 ```
@@ -303,7 +303,7 @@ run. The skills that actually invoke a script:
 | `yume-scene-class-catalog` | authors the catalog `compose_world` consumes (no run) |
 | `yume-asset-designer` | `tools.yume_assetgen`, `tools/validators/run_all.py` |
 | `yume-hud-author` / `screen-author` / `map-author` | `wireframe_to_{hud,screen,map}` |
-| `yume-qa-tester` · `playtest` · `visual-designer` · `visual-tester` · `lighting-designer` | `scripts/play.sh` (run + `--capture`) |
+| `yume-qa-tester` · `playtest` · `visual-designer` · `lighting-designer` | `scripts/play.sh` (run + `--capture`), `tools/visual_qa/` (playtest Gate 6b) |
 | `yume-tech-director` | invariant greps + the unit suite (gate, no content) |
 | _all other designers_ | write JSON only — no scripts |
 

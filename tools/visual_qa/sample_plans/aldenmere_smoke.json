@@ -1,5 +1,5 @@
 {
-  "_comment": "Smoke test plan for aldenmere — 8 assertions covering all 8 starter classes. Hand-authored 2026-05-22 as Phase A acceptance gate proof. Generated automatically via yume-visual-tester skill in Phase B (ADR 0057).",
+  "_comment": "Smoke test plan for aldenmere — 8 assertions covering all 8 starter classes. Hand-authored 2026-05-22 as Phase A acceptance gate proof. Generated automatically by tools/visual_qa/generate_plan.py in Phase B (ADR 0057).",
   "game": "demo_aldenmere",
   "level": "level_proto_village",
   "tests": [

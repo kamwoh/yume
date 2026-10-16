@@ -1,7 +1,9 @@
 # ADR 0057 — yume-visual-tester skill (auto-generated visual test plans)
 
 _Date: 2026-05-22_
-_Status: proposed_
+_Status: accepted (status corrected 2026-10-16: tools/visual_qa/generate_plan.py shipped)._
+
+_Note 2026-10-16 (batch G4): the skill text merged into `yume-playtest` as Gate 6b. The generator and the priors library stay._
 
 ## Context
 

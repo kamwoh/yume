@@ -275,6 +275,28 @@ For multi-screen games, capture at least:
 - Pause menu (if pause input is wired)
 - Each ending screen (if reachable in test conditions)
 
+### Gate 6b — objective visual assertions (ADR 0056 / 0057)
+
+Gate 6 reads frames with a judgment prompt. This gate adds binary
+pass/fail checks: relative sizes, no floating props, pivots at the foot,
+distinct silhouettes for named NPCs, no orphan cubes. This gate was the
+`yume-visual-tester` skill until 2026-10-16 (batch G4).
+
+```bash
+python3 tools/visual_qa/generate_plan.py <game> [--level=<level>] [--diff-base=HEAD~1] [--max-tests=12]
+python3 tools/visual_qa/run_plan.py tools/visual_qa/plans/<game>_<level>_<hash>.json
+```
+
+- `generate_plan.py` matches `godot/data/lib/visual_qa/priors.json`
+  against the level's entities and the GDD aesthetic, and puts tests on
+  recently changed entities first. It caches by game, level and diff.
+  Pass `--no-cache` to build the plan again.
+- `run_plan.py` captures the shots and writes a report next to the plan.
+- Each failed assertion is a blocker in the report, with its test id
+  and frame.
+- To cover a new visual rule, add a prior to `priors.json`. A new
+  assertion class needs an ADR.
+
 ### Gate 7 — write the report
 
 Aggregate results into `docs/games/<name>/playtest.md` with the

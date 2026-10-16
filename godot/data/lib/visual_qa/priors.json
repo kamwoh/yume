@@ -1,5 +1,5 @@
 {
-  "_comment": "Visual-QA priors library (ADR 0057). Each prior describes a common-sense world fact + which visual assertion to emit when it applies to the entities present in a given game. yume-visual-tester walks each level's entities, matches them against each prior's trigger, and emits a concrete test instance into visual_test_plan.json. Priors are content (JSON), not engine code — extensible by any author + reviewed by the team. New priors should be added here whenever a post-mortem reveals a generalizable visual rule.",
+  "_comment": "Visual-QA priors library (ADR 0057). Each prior describes a common-sense world fact + which visual assertion to emit when it applies to the entities present in a given game. tools/visual_qa/generate_plan.py (yume-playtest Gate 6b) walks each level's entities, matches them against each prior's trigger, and emits a concrete test instance into visual_test_plan.json. Priors are content (JSON), not engine code — extensible by any author + reviewed by the team. New priors should be added here whenever a post-mortem reveals a generalizable visual rule.",
   "_schema": {
     "id": "unique prior id, kebab-case",
     "description": "one-line explanation of the world fact",
