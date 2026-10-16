@@ -624,6 +624,18 @@ static func _check_one(a: Dictionary, world: World, ctx: Dictionary) -> void:
 		_fail(ctx, "expect %s recorded no result (a script error stopped it)" % str(a))
 
 
+## The keys each assertion reads. An unknown key fails the assertion, because
+## an ignored key can make it check the wrong entity. Empirical 2026-10-16:
+## StepRunner read `{"entity_field": {"select": "by_id", "id": ...}}` as an empty
+## query and checked the first entity in the world.
+const ASSERT_KEYS := {
+	"entity_field": ["query", "id", "field", "op", "value"],
+	"entity_count": ["query", "op", "value"],
+	"world_field": ["field", "op", "value"],
+	"relation_field": ["relation", "from_query", "to_query", "field", "op", "value"],
+}
+
+
 static func _check_one_inner(a: Dictionary, world: World, ctx: Dictionary) -> void:
 	# Two forms:
 	#   1) Old shape:  {"entity_field": {query, field, op, value}}
@@ -636,6 +648,12 @@ static func _check_one_inner(a: Dictionary, world: World, ctx: Dictionary) -> vo
 	#                   {"screen_active": "title"}
 	#   2) Compact: {"<dotted.path>": {"<op>": value}}
 	#       e.g. {"player.state.hp": {">=": 50}}, {"world.day": {"==": 5}}
+	for kind in ASSERT_KEYS:
+		if a.get(kind) is Dictionary:
+			for k in a[kind]:
+				if not str(k).begins_with("_") and not (ASSERT_KEYS[kind] as Array).has(str(k)):
+					_fail(ctx, "%s: unknown key '%s'. Allowed keys: %s" % [kind, k, ASSERT_KEYS[kind]])
+					return
 	if a.has("entity_field"):
 		_assert_entity_field(a["entity_field"], world, ctx)
 	elif a.has("entity_count"):
@@ -667,11 +685,19 @@ static func _check_one_inner(a: Dictionary, world: World, ctx: Dictionary) -> vo
 
 static func _assert_entity_field(spec: Dictionary, world: World, ctx: Dictionary) -> void:
 	var query: Dictionary = spec.get("query", {})
-	var matches := _query_entities(world, query)
-	if matches.is_empty():
-		_fail(ctx, "entity_field %s: no entities matched" % _summarize_query(query))
-		return
-	var ent: Entity = matches[0]
+	var ent: Entity = null
+	if spec.has("id"):
+		ent = world.scheduler.env.get("entities", {}).get(str(spec["id"]), null) as Entity
+		if ent == null:
+			_fail(ctx, "entity_field id=%s: no such entity" % spec["id"])
+			return
+		query = {"id": spec["id"]}
+	else:
+		var matches := _query_entities(world, query)
+		if matches.is_empty():
+			_fail(ctx, "entity_field %s: no entities matched" % _summarize_query(query))
+			return
+		ent = matches[0]
 	var field := str(spec.get("field", ""))
 	var got = _resolve_field(ent, field)
 	var op := str(spec.get("op", "=="))

@@ -8206,6 +8206,21 @@ func test_step_runner() -> void:
 	expect_eq(int(ctx6.get("passed", 0)), 1, "expect legacy form: 1 pass")
 	expect_eq(int(ctx6.get("failed", 0)), 0, "expect legacy form: 0 fails")
 
+	# entity_field by id, and an unknown key fails. Empirical 2026-10-16:
+	# StepRunner ignored `select`/`id`, so an empty query checked the first entity.
+	var ctx6b: Dictionary = {
+		"verbose": false, "passed": 0, "failed": 0, "failures": [], "screenshots": []
+	}
+	await StepRunner.run(
+		[{"expect": [
+			{"entity_field": {"id": "p1", "field": "state.counter", "op": "==", "value": 7}},
+			{"entity_field": {"select": "by_id", "id": "p1", "field": "state.counter", "value": 7}},
+		]}],
+		world,
+		ctx6b
+	)
+	expect_eq(int(ctx6b.get("passed", 0)), 1, "entity_field id: 1 pass")
+	expect_eq(int(ctx6b.get("failed", 0)), 1, "entity_field unknown key `select`: 1 fail")
 
 	# ---------- 7. test_expect_compact_form ----------
 	player.state["counter"] = 42
