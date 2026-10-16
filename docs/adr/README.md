@@ -127,6 +127,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0083](./0083-code-built-meshes-v2.md) | Code-built meshes v2 (baked parts, CSG ops, shared materials) | accepted | 2026-10-15 |
 | [0084](./0084-query-tag-index-and-derived-cell-size.md) | Query tag index and a derived spatial cell size | accepted | 2026-10-16 |
 | [0085](./0085-delete-unused-genre-verbs.md) | Delete the unused genre verbs and their directors | accepted | 2026-10-16 |
+| [0086](./0086-host-neutral-spec.md) | Yume is a host-neutral spec, and Godot is the reference interpreter | accepted | 2026-10-17 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 
