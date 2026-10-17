@@ -521,16 +521,22 @@ mutations on one store don't show up reading the other.
   state — engine doesn't enforce the split.
 - ✅ **`_comment` keys** are ignored by the engine; use them for
   design intent.
-- ✅ **Formula whitelist**: bindings, math helpers (`clamp`, `min`,
-  `max`, `abs`, `sin`, `cos`, `sqrt`, `pow`, `floor`, `ceil`,
-  `lerp`, `randf`), arithmetic, comparison, bitwise, Vector2/Array
-  subscript. No function calls outside the math helpers.
+- ✅ **The formula language (ADR 0088, 2026-10-17)**: numbers,
+  bindings, `+ - * /`, `== != < <= > >=`, `and or not`, `true false`,
+  parentheses and an index (`self.state.position[0]`). Every number is a
+  float, so `5 / 2` gives `2.5`. The 16 functions are `abs floor ceil
+  round min max clamp lerp sqrt pow sin cos tan atan2 randf float`.
+  Not allowed: `%`, `**`, strings, method calls, constructors (`Vector2(...)`),
+  array literals, `&& || !` and bitwise operators. Full grammar:
+  `30_framework_primitives.md` §Formula language. Gates: Formula rejects
+  other calls with `formula.unknown_function` and other syntax with
+  `formula.parse_failed`. `validate_rules.py` check (12) reports both
+  before the game runs.
 - ⚠️ **No ternary.** Godot 4.6.1's Expression parses the first
-  expression and drops the rest, so `a if cond else b` returns `a`.
+  expression and drops the rest, so `a if cond else b` returned `a`.
   Write `b + (a - b) * float(cond)`. Older demos (harvestcore,
-  tinypond) silently took the first branch. Gates (2026-10-16):
-  Formula rejects `if` with `formula.parse_failed`, and
-  `validate_rules.py` check (12) reports it before the game runs.
+  tinypond) silently took the first branch. Check (12) and Formula
+  reject `if` (2026-10-16).
 - ⚠️ **A query clause on a field nothing defines never matches.** The
   operator suffixes are `_eq _ne _gt _lt _gte _lte _atleast _atmost
   _has _in`. `collected_ge` reads a field named `collected_ge`, and

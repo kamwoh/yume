@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-10-16T17:21:46+00:00_
+_Generated: 2026-10-17T05:02:33+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -93,21 +93,21 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 
 `self`, `target`, `a`, `b`, `source`, `world`
 
-**Math helpers** (Godot Expression built-ins):
+**Functions** (ADR 0088, `Formula.FUNCTIONS`). A call to any other name fails with `formula.unknown_function`:
 
-`sin`, `cos`, `tan`, `sqrt`, `pow`, `abs`, `floor`, `ceil`, `round`, `clamp`, `min`, `max`, `lerp`, `randf`
+`abs`, `floor`, `ceil`, `round`, `min`, `max`, `clamp`, `lerp`, `sqrt`, `pow`, `sin`, `cos`, `tan`, `atan2`, `randf`, `float`
 
-**Formula syntax notes** (Godot 4.6.1 quirks):
+**Formula language** (ADR 0088):
 
-- No ternary. Godot 4.6.1 Expression returns `a` for `a if cond else b`, and C-style `cond ? a : b` does not parse. Formula rejects `if`. Write `b + (a - b) * float(cond)`.
-- Bitwise `<<`, `&`, `|` — supported.
-- Vector2 / Vector3 / Array subscript `v[0]` — supported.
-- Vector2 / Vector3 component access `v.x`, `v.y`, `v.z` — supported via path resolver.
-- Empirically verified during harvestcore QA (2026-05-02).
+- Every number is a float. `5 / 2` gives `2.5`.
+- Allowed: numbers, bindings, `+ - * /`, `== != < <= > >=`, `and or not`, `true false`, parentheses, and an index such as `self.state.position[0]`.
+- Not allowed: `%`, `**`, strings, method calls, constructors, array literals, `&& || !`, bitwise operators.
+- No ternary. Write `b + (a - b) * float(cond)`. `float(b)` gives 1.0 or 0.0.
+- Vector component access `v.x`, `v.y`, `v.z` works through the binding path.
 
 ## Error codes (Tier 2.6a)
 
-38 stable codes for matching in retry loops:
+39 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -130,6 +130,7 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `effect.emit_no_buffer` | `EngineError.EFFECT_EMIT_NO_BUFFER` |
 | `formula.parse_failed` | `EngineError.FORMULA_PARSE_FAILED` |
 | `formula.exec_failed` | `EngineError.FORMULA_EXEC_FAILED` |
+| `formula.unknown_function` | `EngineError.FORMULA_UNKNOWN_FUNCTION` |
 | `world.entities_missing` | `EngineError.WORLD_ENTITIES_MISSING` |
 | `world.entities_invalid_json` | `EngineError.WORLD_ENTITIES_INVALID` |
 | `world.def_unknown` | `EngineError.WORLD_DEF_UNKNOWN` |

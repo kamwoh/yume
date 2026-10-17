@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-10-16 (ADR 0085: party effects deleted)_
+_Last updated: 2026-10-17 (ADR 0088: the formula language)_
 
 ## Purpose
 
@@ -475,16 +475,6 @@ Any number in rule JSON can be a string expression.
 "chance": "clamp(world.wind_speed / 10, 0.1, 0.9)"
 ```
 
-Bindings:
-- `self.*` — entity the rule is scoped to
-- `source.*`, `target.*`, `a.*`, `b.*` — rule-specific roles
-- `world.*` — global state (time, weather, tick count)
-- Math helpers: `clamp`, `min`, `max`, `abs`, `sin`, `cos`, `randf`, `lerp`
-
-Evaluated via Godot's built-in `Expression` with a **whitelisted syntax** at
-load time (see §Formula layer below). Parsed expressions are **cached** on the
-Rule struct — never re-parsed per tick.
-
 **Bindings (complete list):**
 - `self.*` — entity the rule is scoped to
 - `source.*`, `target.*`, `a.*`, `b.*` — rule-specific roles
@@ -492,19 +482,69 @@ Rule struct — never re-parsed per tick.
 - `self.<relation>` — relation traversal (see §7): `self.held_by`,
   `self.contains`, `self.part_of`, `self.parent_of.state.hp`
 - ⚠️ `self.nearest({...})` / `self.nearby({...})` — spatial formula helpers
-  are **NOT yet implemented** (the evaluator returns null → downstream
-  `.state.X` crashes). For pair-matching, use a `contact` trigger with
-  `query: {a, b, radius}` instead (see `.claude/rules/data-demo.md`).
-- Math helpers: `clamp`, `min`, `max`, `abs`, `sin`, `cos`, `randf`, `lerp`
+  are **NOT yet implemented**. For pair-matching, use a `contact` trigger
+  with `query: {a, b, radius}` instead (see `.claude/rules/data-demo.md`).
 
-**Whitelist.** At load time, each formula's AST is walked. Allowed:
-identifiers from the binding set, numeric/string literals, arithmetic/
-comparison/logical operators, bitwise ops
-(`<<`, `&`, `|`), Vector2/Array subscript, and calls to the math helper
-set and the query helpers (`nearest`, `nearby`, traversal-aggregates).
-**Rejected:** any call whose callee is not in the whitelist; attribute
-access on non-bindings; bytecode-level escapes. A formula that fails the
-whitelist errors at load, not at tick.
+A missing field reads as `0`. A formula that is only a binding returns the
+bound value unchanged, for example `self.id`.
+
+#### Formula language (ADR 0088)
+
+The formula language is part of the spec (ADR 0086). Every interpreter
+must give the same result for the same formula.
+
+**Numbers.** Every number is a float: literals, bound values and results.
+`5 / 2` gives `2.5`, and `-7 / 2` gives `-3.5`. Division by zero follows
+IEEE 754. An index uses the integer part of its value, so `a[1.7]` reads
+`a[1]`.
+
+**Booleans.** A comparison gives a boolean. `and`, `or` and `not` take
+booleans. Arithmetic on a boolean is an error. `float(b)` gives `1.0` or
+`0.0`.
+
+**Grammar.**
+
+```
+formula  := or
+or       := and ("or" and)*
+and      := not ("and" not)*
+not      := "not" not | compare
+compare  := sum (("==" | "!=" | "<" | "<=" | ">" | ">=") sum)?
+sum      := product (("+" | "-") product)*
+product  := unary (("*" | "/") unary)*
+unary    := "-" unary | "+" unary | atom
+atom     := number | "true" | "false" | binding subscript*
+          | function "(" args? ")" | "(" formula ")"
+args     := formula ("," formula)*
+binding  := root ("." field)+
+```
+
+Not in the language: `%`, `**`, string literals, method calls,
+constructors, array literals, `&&`, `||`, `!`, bitwise operators and the
+ternary `a if cond else b`. Write a choice as `b + (a - b) * float(cond)`.
+
+**Functions.** A new function needs an ADR.
+
+| Function | Result |
+|---|---|
+| `abs(x)` | absolute value |
+| `floor(x)`, `ceil(x)`, `round(x)` | nearest whole number, as a float. `round` rounds a half away from zero. |
+| `min(a, b)`, `max(a, b)` | the smaller or the larger value |
+| `clamp(x, lo, hi)` | `x` limited to the range `lo` to `hi` |
+| `lerp(a, b, t)` | `a + (b - a) * t` |
+| `sqrt(x)`, `pow(x, y)` | square root and power |
+| `sin(x)`, `cos(x)`, `tan(x)` | trigonometry in radians |
+| `atan2(y, x)` | the angle of the point (x, y), in radians |
+| `randf()` | a uniform random number from 0 to 1, without 1 |
+| `float(x)` | a boolean as `1.0` or `0.0`, or a number unchanged |
+
+**Enforcement.** `Formula.FUNCTIONS` in `formula.gd` is the one list.
+`Formula` checks each formula token by token before Godot's `Expression`
+parses it. A call to another name fails with `formula.unknown_function`.
+Any other construct outside the grammar fails with `formula.parse_failed`.
+`validate_rules.py` check (12) applies the same rules before the game
+runs. Formula caches each parsed expression, so it parses no formula
+again per tick.
 
 **Perf note.** Formulas inside `contact` triggers evaluate **per candidate
 pair per tick**. With 500 pairs/tick on a busy scene, that is 30 000 evals/s.

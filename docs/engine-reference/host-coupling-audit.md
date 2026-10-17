@@ -20,14 +20,13 @@ tracked library, the three tracked demos and the local demos.
 | Asset file formats | Meshes are glTF (`.glb`), images are PNG, and sounds are OGG. These are open formats. |
 | Shader DAG | ADR 0058 describes shaders as a JSON graph of primitives. A compiler emits `.gdshader` today, and it could emit other shader languages. |
 | Calendar clock | `scheduled` and `advance_time` (ADR 0078) have no host meaning. |
+| Formula language | ADR 0088 (phase 2): every number is a float, and a formula calls only the 16 functions in `Formula.FUNCTIONS`. `validate_rules.py` check (12) and `Formula` reject other syntax. |
 | Asset and save paths | ADR 0087 (phase 1): a path is relative to the game folder or starts with `@lib/`. `validate_host_neutral.py` rejects `res://` and `user://`. |
 
 ## Tied to Godot
 
 | # | Area | Today | Count | Neutral form | Phase |
 |---|---|---|---|---|---|
-| 3 | Formula language | Godot `Expression` parses every formula. No function list is enforced. | 14 documented helpers. Rules also call `atan2`. | A grammar, a function list and number rules in the contract document. The validator rejects other functions. | 2 |
-| 4 | Number rules | Integer and float behavior follows Godot. JSON numbers load as floats, and formula literals keep their own type. | Every formula | The spec states the result of division, comparison and rounding. | 2 |
 | 5 | Shaders | `"shader": "@lib/shaders/x.gdshader"` with `shader_params` | 17 references, 6 tracked `.gdshader` files | The ADR 0058 shader DAG. Hand-written `.gdshader` files become a Godot-only extension. | 3 |
 | 6 | Godot resources | `"water_normal_tex": "@lib/textures/water_normal.tres"` | 1 reference, 1 tracked `.tres` | A PNG, or a declared procedural texture. | 3 |
 | 7 | Key names | `"key": "Ctrl"`, parsed by `OS.find_keycode_from_string` | 85 `key` fields | A key-name list in the spec. Each interpreter maps the list to its host. | 4 |

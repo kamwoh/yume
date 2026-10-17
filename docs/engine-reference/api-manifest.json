@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-16T17:21:46+00:00",
+  "generated_at": "2026-10-17T05:02:33+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -547,20 +547,22 @@
     "world"
   ],
   "formula_math_helpers": [
-    "sin",
-    "cos",
-    "tan",
-    "sqrt",
-    "pow",
     "abs",
     "floor",
     "ceil",
     "round",
-    "clamp",
     "min",
     "max",
+    "clamp",
     "lerp",
-    "randf"
+    "sqrt",
+    "pow",
+    "sin",
+    "cos",
+    "tan",
+    "atan2",
+    "randf",
+    "float"
   ],
   "error_codes": [
     {
@@ -638,6 +640,10 @@
     {
       "constant": "FORMULA_EXEC_FAILED",
       "code": "formula.exec_failed"
+    },
+    {
+      "constant": "FORMULA_UNKNOWN_FUNCTION",
+      "code": "formula.unknown_function"
     },
     {
       "constant": "WORLD_ENTITIES_MISSING",

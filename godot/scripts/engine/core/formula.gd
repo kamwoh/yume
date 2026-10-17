@@ -21,16 +21,22 @@ class_name Formula
 ##   target.* / a.* / b.* / source.* — same shape, different role
 ##   world.<field> — global state (e.g. world.tick)
 ##
-## Math helpers: Godot's Expression supports `sin`, `cos`, `tan`, `sqrt`,
-## `pow`, `abs`, `floor`, `ceil`, `round`, `clamp`, `min`, `max`, `lerp`,
-## `randf`, etc. as built-in functions — no extra registration needed.
+## The formula language is ADR 0088. Every number is a float, and a call
+## must name one of FUNCTIONS. `_check_language` reads the formula token by
+## token before Expression sees it, because Expression accepts all of
+## GDScript (global functions, constructors, method calls, integer rules).
 ##
 ## Deferred to Tier 3:
 ##   self.held_by.* — relation traversal (needs RelationStore lookup)
 ##   self.nearest({...}) — spatial helper
-##
-## Deferred to W6:
-##   AST whitelist (W4.5) — security, documented as known gap
+
+## The function list of the formula language (ADR 0088). A new function
+## needs an ADR. gen_api_manifest.py and validate_rules.py read this list.
+const FUNCTIONS: Array = [
+	"abs", "floor", "ceil", "round", "min", "max", "clamp", "lerp",
+	"sqrt", "pow", "sin", "cos", "tan", "atan2", "randf", "float",
+]
+const _KEYWORDS: Array = ["and", "or", "not", "true", "false"]
 
 static var _cache: Dictionary = {}  # cache key → Expression
 static var _last_error: String = ""  # for diagnostics
@@ -65,18 +71,83 @@ static func _root_regex(root: String) -> RegEx:
 	return rx
 
 
+## One token of the formula language: space, number, name, or operator.
+static var _token_regex: RegEx = null
+
+
+## Check `src` (bindings already replaced by inputs) against the formula
+## language (ADR 0088). Returns [formula, code, message, hint]. On success,
+## code is "" and formula has each integer literal as a float literal.
 ## Godot 4.6.1's Expression has no ternary. It parses the first expression
 ## and drops the trailing tokens with no error, so `a if cond else b` always
-## returns `a`. Formula rejects the `if` keyword (outside string literals).
-## Empirical 2026-10-16: an aldenmere cloud_wrap formula moved every cloud.
-static var _ternary_regex: RegEx = null
-
-
-static func _has_ternary(src: String) -> bool:
-	if _ternary_regex == null:
-		_ternary_regex = RegEx.create_from_string("\\bif\\b")
-	var bare := RegEx.create_from_string("\"[^\"]*\"|'[^']*'").sub(src, "", true)
-	return _ternary_regex.search(bare) != null
+## returned `a`. Empirical 2026-10-16: an aldenmere cloud_wrap formula moved
+## every cloud.
+static func _check_language(src: String, inputs: PackedStringArray) -> Array:
+	if _token_regex == null:
+		_token_regex = RegEx.create_from_string(
+			"\\s+|(\\d+\\.\\d*|\\.\\d+|\\d+)([eE][+-]?\\d+)?|[A-Za-z_]\\w*|\\*\\*|==|!=|<=|>=|[-+*/()\\[\\],<>]"
+		)
+	var tokens: Array[RegExMatch] = []
+	var pos := 0
+	while pos < src.length():
+		var m := _token_regex.search(src, pos)
+		if m == null or m.get_start() != pos:
+			return [
+				"", EngineError.FORMULA_PARSE_FAILED,
+				"'%s' is not in the formula language." % src[pos],
+				"Formulas allow numbers, bindings, + - * /, comparisons, and, or, not, ( ) and [index]."
+			]
+		if not m.get_string().strip_edges().is_empty():
+			tokens.append(m)
+		pos = m.get_end()
+	var out := ""
+	for i in tokens.size():
+		var tok := tokens[i].get_string()
+		var next := tokens[i + 1].get_string() if i + 1 < tokens.size() else ""
+		var prev := tokens[i - 1].get_string() if i > 0 else ""
+		var first := tok.unicode_at(0)
+		if tok == "**":
+			return [
+				"", EngineError.FORMULA_PARSE_FAILED,
+				"'**' is not in the formula language.",
+				"Write pow(x, y)."
+			]
+		if first == 95 or (first >= 65 and first <= 90) or (first >= 97 and first <= 122):
+			if tok == "if" or tok == "else":
+				return [
+					"", EngineError.FORMULA_PARSE_FAILED,
+					"The formula uses 'a if cond else b'. The formula language has no ternary.",
+					"Write the choice as arithmetic: b + (a - b) * float(cond)."
+				]
+			if next == "(" and tok in inputs:
+				return [
+					"", EngineError.FORMULA_PARSE_FAILED,
+					"A method call is not in the formula language.",
+					"Call a formula function on the binding, for example abs(self.state.x)."
+				]
+			if next == "(" and not tok in _KEYWORDS:
+				if not tok in FUNCTIONS:
+					return [
+						"", EngineError.FORMULA_UNKNOWN_FUNCTION,
+						"'%s' is not a formula function." % tok,
+						"The functions are: %s." % ", ".join(FUNCTIONS)
+					]
+			elif not (tok in inputs or tok in _KEYWORDS):
+				return [
+					"", EngineError.FORMULA_PARSE_FAILED,
+					"'%s' is not a binding the rule provides." % tok,
+					"A binding starts with a root the trigger provides, for example self.state.hp."
+				]
+		elif tok == "[" and not (prev == "]" or prev == ")" or prev in inputs):
+			return [
+				"", EngineError.FORMULA_PARSE_FAILED,
+				"An array literal is not in the formula language.",
+				"Use '[' only to index a binding, for example self.state.position[0]."
+			]
+		elif tokens[i].get_string(1) != "" and tokens[i].get_string(2) == "" and not "." in tok:
+			tok += ".0"
+		out += tok + " "
+	return [out, "", "", ""]
 
 
 static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
@@ -119,41 +190,41 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	if _cache.has(key):
 		expr = _cache[key]
 	else:
-		if _has_ternary(rewritten):
-			_last_error = "ternary in '%s'" % s
+		var checked := _check_language(rewritten, input_names)
+		if checked[1] != "":
+			_last_error = "%s in '%s'" % [checked[1], s]
 			EngineError.raise(
 				env,
-				EngineError.FORMULA_PARSE_FAILED,
-				"Formula '%s' uses 'a if cond else b'. Godot 4.6.1 Expression always returns 'a'." % s,
+				checked[1],
+				"Formula '%s': %s" % [s, checked[2]],
 				{"rule_id": context.get("_rule_id", ""), "formula": s},
-				"Write the choice as arithmetic: b + (a - b) * float(cond)."
+				checked[3]
 			)
 			return 0.0
 		expr = Expression.new()
-		var err := expr.parse(rewritten, input_names)
+		var err := expr.parse(checked[0], input_names)
 		if err != OK:
-			_last_error = "parse error in '%s' → '%s': %s" % [s, rewritten, expr.get_error_text()]
+			_last_error = "parse error in '%s' → '%s': %s" % [s, checked[0], expr.get_error_text()]
 			EngineError.raise(
 				env,
 				EngineError.FORMULA_PARSE_FAILED,
-				"Formula parse error: '%s' → '%s' — %s" % [s, rewritten, expr.get_error_text()],
+				"Formula parse error: '%s' → '%s' — %s" % [s, checked[0], expr.get_error_text()],
 				{
 					"rule_id": context.get("_rule_id", ""),
 					"formula": s,
-					"rewritten": rewritten,
+					"rewritten": checked[0],
 					"godot_error": expr.get_error_text()
 				},
-				(
-					"Check formula syntax. Allowed: bindings (self.state.X,"
-					+ " target.X, world.tick), math (clamp/min/max/abs/sin/cos/sqrt/pow"
-					+ "/floor/ceil/lerp/randf), arithmetic, comparison, bitwise,"
-					+ " Vector2/Array subscript. No ternary: write"
-					+ " 'b + (a - b) * float(cond)'."
-				)
+				"Check the formula syntax against the formula language (ADR 0088)."
 			)
 			return 0.0
 		_cache[key] = expr
 
+	# Every number is a float (ADR 0088). Engine integers such as world.tick
+	# would otherwise make `/` an integer division.
+	for i in input_values.size():
+		if input_values[i] is int:
+			input_values[i] = float(input_values[i])
 	var result = expr.execute(input_values)
 	if expr.has_execute_failed():
 		_last_error = "exec failed for '%s'" % s
@@ -219,34 +290,6 @@ static func looks_like_formula(s: String) -> bool:
 		if s.find(ch) >= 0:
 			return true
 	return false
-
-
-## Compile-only; for load-time validation (W4.6). Returns "" on success or
-## an error string. Doesn't substitute paths since we don't have values yet —
-## just checks GDScript expression syntax.
-static func validate_syntax(
-	formula: String, _expected_roots: PackedStringArray = PackedStringArray()
-) -> String:
-	if formula == "":
-		return "empty formula"
-	# We can't actually validate without knowing roots; just try parsing as-is.
-	# Real validation happens at first evaluation; this is a smoke check.
-	var probe: String = formula
-	# Substitute each dotted path with a placeholder so parse can succeed
-	var regex := RegEx.new()
-	regex.compile("\\b[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+")
-	var i: int = 0
-	while regex.search(probe) != null:
-		var m := regex.search(probe)
-		probe = probe.substr(0, m.get_start()) + ("__p%d" % i) + probe.substr(m.get_end())
-		i += 1
-		if i > 100:
-			break  # safety
-	var expr := Expression.new()
-	var err := expr.parse(probe)
-	if err != OK:
-		return "syntax error: %s" % expr.get_error_text()
-	return ""
 
 
 # ============================================================

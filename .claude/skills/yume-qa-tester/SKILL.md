@@ -569,7 +569,7 @@ regardless of what the tests say.
 | Rule with `chance: 0.x` never fires | Query mismatch — rule isn't even rolling. Verify with chance: 1.0. |
 | State value goes negative when it shouldn't | Missing state_clamp. |
 | Position never changes despite velocity_set | Motion integrator only runs in World — not in test_runner unit tests. Confirm scene-based run. |
-| `formula.parse_failed` records | Read the structured error: a ternary (write `b + (a - b) * float(cond)`), an unsupported operator, or an unreachable binding. |
+| `formula.parse_failed` / `formula.unknown_function` records | Read the structured error: a ternary (write `b + (a - b) * float(cond)`), a construct outside the formula language (ADR 0088), a function outside the 16, or an unreachable binding. |
 
 ## Recognition: "the game is good"
 

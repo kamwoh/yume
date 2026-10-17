@@ -657,19 +657,6 @@ def parse_error_codes(text: str) -> list[dict]:
     return out
 
 
-def parse_formula_helpers(text: str) -> list[str]:
-    """Read the math-helpers list from formula.gd's doc comment."""
-    m = re.search(r"Godot's Expression supports\s*`([^`]+)`(?:.*?`([^`]+)`)*", text)
-    if not m:
-        return []
-    helpers = re.findall(r"`([a-z_]+)`", text[: text.index("Math helpers") + 2000] if "Math helpers" in text else text)
-    seen: dict[str, None] = {}
-    for h in helpers:
-        if h.replace("_", "").isalpha() and len(h) <= 10:
-            seen[h] = None
-    return list(seen.keys())[:20]
-
-
 def parse_formula_roles(text: str) -> list[str]:
     """Doc-listed entity roles in formula.gd."""
     block = re.search(r"## Bindings supported.*?##\s*\n", text, re.DOTALL)
@@ -752,10 +739,7 @@ def build_manifest() -> Manifest:
         query_clauses=parse_query_clauses(query_src),
         query_operator_suffixes=parse_string_array(query_src, "OPERATOR_SUFFIXES"),
         formula_entity_roles=parse_formula_roles(formula_src),
-        formula_math_helpers=[
-            "sin", "cos", "tan", "sqrt", "pow", "abs", "floor", "ceil",
-            "round", "clamp", "min", "max", "lerp", "randf",
-        ],
+        formula_math_helpers=parse_string_array(formula_src, "FUNCTIONS"),
         error_codes=parse_error_codes(err_src),
         reserved_state_fields=["position", "velocity", "age"],
         hud_elements=HUD_ELEMENTS,
@@ -889,17 +873,17 @@ def render_markdown(m: Manifest) -> str:
         "",
         ", ".join(f"`{r}`" for r in m.formula_entity_roles),
         "",
-        "**Math helpers** (Godot Expression built-ins):",
+        "**Functions** (ADR 0088, `Formula.FUNCTIONS`). A call to any other name fails with `formula.unknown_function`:",
         "",
         ", ".join(f"`{h}`" for h in m.formula_math_helpers),
         "",
-        "**Formula syntax notes** (Godot 4.6.1 quirks):",
+        "**Formula language** (ADR 0088):",
         "",
-        "- No ternary. Godot 4.6.1 Expression returns `a` for `a if cond else b`, and C-style `cond ? a : b` does not parse. Formula rejects `if`. Write `b + (a - b) * float(cond)`.",
-        "- Bitwise `<<`, `&`, `|` — supported.",
-        "- Vector2 / Vector3 / Array subscript `v[0]` — supported.",
-        "- Vector2 / Vector3 component access `v.x`, `v.y`, `v.z` — supported via path resolver.",
-        "- Empirically verified during harvestcore QA (2026-05-02).",
+        "- Every number is a float. `5 / 2` gives `2.5`.",
+        "- Allowed: numbers, bindings, `+ - * /`, `== != < <= > >=`, `and or not`, `true false`, parentheses, and an index such as `self.state.position[0]`.",
+        "- Not allowed: `%`, `**`, strings, method calls, constructors, array literals, `&& || !`, bitwise operators.",
+        "- No ternary. Write `b + (a - b) * float(cond)`. `float(b)` gives 1.0 or 0.0.",
+        "- Vector component access `v.x`, `v.y`, `v.z` works through the binding path.",
         "",
         "## Error codes (Tier 2.6a)",
         "",

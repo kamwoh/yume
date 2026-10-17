@@ -215,9 +215,10 @@ randomness on the spawn target's spawn-trigger rules.
    - Every query references existing tag/state/property names
    - Formulas use whitelisted bindings only (`self`, `target`, `a`, `b`,
      `world`, plus payload keys)
-   - **Formulas have no ternary.** Godot 4.6.1 Expression returns `a`
-     for `a if cond else b`, and Formula rejects it. Write
-     `b + (a - b) * float(cond)`.
+   - **Formulas use the formula language (ADR 0088).** Every number
+     is a float. Call only the 16 functions in the api-manifest. No
+     ternary: write `b + (a - b) * float(cond)`. No `%`, strings or
+     method calls. `validate_rules.py` check (12) reports violations.
    - All entity ids in `initial_instances` and `initial_relations`
      are unique
 
@@ -443,7 +444,7 @@ Before declaring done, run mental schema validation:
 | Every effect has a `type` | Walk effect arrays; valid set in manifest's `effects` |
 | No duplicate ids | Sort `initial_instances` ids |
 | Tag references match definitions | Cross-ref tags between defs and queries |
-| Formula syntax | Try parsing. No ternary: write `b + (a - b) * float(cond)` |
+| Formula syntax | `validate_rules.py` check (12). No ternary: write `b + (a - b) * float(cond)` |
 | Positions in scene-bounds | Assume ±240 px for 2D demos |
 | `aabb_extents` matches `visual.mesh` footprint | See subsection below |
 

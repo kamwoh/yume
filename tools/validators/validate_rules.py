@@ -47,9 +47,13 @@ Checks implemented in v1:
       query.gd. Empirical 2026-10-16: demo_lanterns `collected_ge` (the
       suffix is `_gte`), so the win rule never fired.
 
-  (12) TERNARY FORMULA — `a if cond else b`. Godot 4.6.1's Expression
-      drops the tokens after `a`, so it always returns `a`. Formula.gd
-      rejects it at run time. This check reports it before the game runs.
+  (12) FORMULA LANGUAGE (ADR 0088) — a formula must use only numbers,
+      bindings, + - * /, comparisons, and/or/not, parentheses, an index,
+      and the functions in formula.gd FUNCTIONS. The engine reads the same
+      token rules at run time. Empirical 2026-10-16: a ternary
+      (`a if cond else b`) always returned `a` in Godot's Expression.
+      Empirical 2026-10-17: rules called `atan2` and `float`, which no
+      list named, and nothing stopped any other GDScript function.
 
   (13) UNKNOWN WIN/LOSE KEY — a key in hud.json `win` / `lose` that
       win_lose_widget.gd never reads. Empirical 2026-10-16: the
@@ -670,28 +674,77 @@ def check_query_fields_defined(rule, errors, defined):
             visit(eff.get("query"), f"effect[{i}].query")
 
 
-_TERNARY = re.compile(r"\bif\b.*\belse\b")
-_STRING_LITERAL = re.compile(r"\"[^\"]*\"|'[^']*'")
+_FORMULA_GD = Path(__file__).resolve().parents[2] / "godot" / "scripts" / "engine" / "core" / "formula.gd"
+_FORMULA_SRC = _FORMULA_GD.read_text(encoding="utf-8")
+FORMULA_FUNCTIONS = set(re.findall(r'"(\w+)"', re.search(r"const FUNCTIONS: Array = \[(.*?)\]", _FORMULA_SRC, re.DOTALL).group(1)))
+_FORMULA_KEYWORDS = {"and", "or", "not", "true", "false"}
+# The token rule of Formula._check_language, plus the dotted binding form
+# that the engine replaces with an input before it checks.
+_FORMULA_TOKEN = re.compile(
+    r"\s+|(?P<num>(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?)"
+    r"|(?P<name>[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)|(?P<op>\*\*|==|!=|<=|>=|[-+*/()\[\],<>])"
+)
 
 
-def check_ternary_formulas(rule, errors):
-    """(12) No `a if cond else b` in any formula string of the rule."""
+def looks_like_formula(s):
+    """Mirror Formula.looks_like_formula: the strings the engine evaluates."""
+    if not isinstance(s, str) or not s or s[0] == "@":
+        return False
+    first = s[0]
+    if not ((first.isascii() and first.islower()) or first.isdigit() or first in "(-+_"):
+        return False
+    return any(ch in s for ch in " +-*/().")
+
+
+def formula_problem(s):
+    """Return why `s` is outside the formula language, or "" (ADR 0088)."""
+    toks, pos = [], 0
+    while pos < len(s):
+        m = _FORMULA_TOKEN.match(s, pos)
+        if not m:
+            return f"'{s[pos]}' is not in the formula language"
+        if not m.group(0).isspace():
+            toks.append(m)
+        pos = m.end()
+    for i, m in enumerate(toks):
+        tok = m.group(0)
+        nxt = toks[i + 1].group(0) if i + 1 < len(toks) else ""
+        prev = toks[i - 1] if i > 0 else None
+        if tok == "**":
+            return "`**` is not in the formula language. Write pow(x, y)"
+        if m.group("name"):
+            if tok in ("if", "else"):
+                return "a ternary is not in the formula language. Write b + (a - b) * float(cond)"
+            if "." in tok:
+                if nxt == "(":
+                    return f"`{tok}(` is a method call. The formula language has none"
+            elif nxt == "(" and tok not in _FORMULA_KEYWORDS:
+                if tok not in FORMULA_FUNCTIONS:
+                    return f"`{tok}` is not a formula function. The functions are: {', '.join(sorted(FORMULA_FUNCTIONS))}"
+            elif tok not in _FORMULA_KEYWORDS:
+                return f"`{tok}` is not a binding. A binding starts with a root, for example self.state.hp"
+        elif tok == "[" and not (prev and (prev.group("name") or prev.group(0) in ("]", ")"))):
+            return "an array literal is not in the formula language"
+    return ""
+
+
+def check_formula_language(rule, errors):
+    """(12) Every formula in the rule fits the formula language (ADR 0088)."""
     rule_id = rule.get("id", "<unnamed>")
 
-    def walk(node, path):
+    def walk(node, path, key=None):
+        if isinstance(key, str) and (key.startswith("_") or key in LITERAL_TEXT_KEYS):
+            return
         if isinstance(node, dict):
             for k, v in node.items():
-                if not str(k).startswith("_"):
-                    walk(v, f"{path}.{k}")
+                walk(v, f"{path}.{k}", k)
         elif isinstance(node, list):
             for i, v in enumerate(node):
-                walk(v, f"{path}[{i}]")
-        elif isinstance(node, str) and _TERNARY.search(_STRING_LITERAL.sub("", node)):
-            errors.append((
-                rule_id, path.lstrip("."),
-                f"formula `{node}` uses a ternary. Godot 4.6.1 Expression always "
-                "returns the first branch. Write b + (a - b) * float(cond).",
-            ))
+                walk(v, f"{path}[{i}]", key)
+        elif looks_like_formula(node):
+            problem = formula_problem(node)
+            if problem:
+                errors.append((rule_id, path.lstrip("."), f"formula `{node}`: {problem}."))
 
     for key in ("effect", "require", "query"):
         walk(rule.get(key), key)
@@ -977,7 +1030,7 @@ def validate_game(game_dir):
             check_once_fields(rule, r_errors)
             check_scope_vs_presentation(rule, r_errors)
             check_query_fields_defined(rule, r_errors, defined)
-            check_ternary_formulas(rule, r_errors)
+            check_formula_language(rule, r_errors)
             for rid, field, msg in r_errors:
                 errors.append((str(rules_file), rid, field, msg))
 

@@ -104,6 +104,7 @@ func _ready() -> void:
 	test_animation_translator()
 	test_ground_renderer_rebind()
 	test_asset_path()
+	test_formula_language()
 	test_ground_heightmap_collider()
 	test_query_tag_index()
 	test_spatial_cell_size()
@@ -2353,7 +2354,6 @@ func test_engine_error() -> void:
 		(env4["error_buffer"] as Array).any(func(r): return str(r.code) == EngineError.FORMULA_PARSE_FAILED),
 		"ternary formula raises formula.parse_failed"
 	)
-	expect(not Formula._has_ternary("'if' + \"else\""), "an `if` inside a string literal is not a ternary")
 	expect_eq(Formula.evaluate("10 + 160 * float(85 > 80)", {}, {}), 170.0, "float(cond) choice idiom")
 
 
@@ -10026,3 +10026,47 @@ func test_spatial_cell_size() -> void:
 	expect(sx.query_radius_ids(Vector2(10, -3), 1.0).has("pit"), "static entity found after the scheduler re-bucket")
 	pit.free()
 	lone.free()
+
+
+# ============================================================
+# FORMULA LANGUAGE (ADR 0088)
+# ============================================================
+
+
+## One case per trap that the 2026-10-17 probe found in Godot's Expression.
+func test_formula_language() -> void:
+	_section("Formula language — float numbers, 16 functions (ADR 0088)")
+	var ctx := {"world": {"tick": 7, "list": [10.0, 20.0, 30.0]}, "self": {"state": {"on": true}}}
+	expect_eq(Formula.evaluate("5 / 2", ctx), 2.5, "5 / 2 is a float division")
+	expect_eq(Formula.evaluate("-7 / 2", ctx), -3.5, "-7 / 2 does not truncate")
+	expect_eq(Formula.evaluate("world.tick / 2", ctx), 3.5, "an engine int binding enters as a float")
+	expect_eq(Formula.evaluate("world.list[1.7]", ctx), 20.0, "a float index uses its integer part")
+	expect_eq(Formula.evaluate("world.list[1]", ctx), 20.0, "an int literal index still indexes")
+	expect_eq(Formula.evaluate("1e3 + .5", ctx), 1000.5, "exponent and leading-dot literals")
+	expect_eq(Formula.evaluate("float(self.state.on) * 3", ctx), 3.0, "float(bool) is 1.0")
+	expect_eq(Formula.evaluate("round(-2.5)", ctx), -3.0, "round takes a half away from zero")
+	expect_eq(Formula.evaluate("atan2(1, 1) * 4", ctx), PI, "atan2 is in the list")
+	expect(Formula.evaluate("world.tick > 3 and not (world.tick > 9)", ctx) == true, "and, not, comparison")
+	expect(Formula.evaluate("min(1, 2.5)", ctx) is float, "a function on int literals gives a float")
+
+	var rejects := {
+		"7.5 % 2": EngineError.FORMULA_PARSE_FAILED,
+		"\"a\" + \"b\"": EngineError.FORMULA_PARSE_FAILED,
+		"2 ** 3": EngineError.FORMULA_PARSE_FAILED,
+		"world.tick > 1 && true": EngineError.FORMULA_PARSE_FAILED,
+		"[1, 2][0]": EngineError.FORMULA_PARSE_FAILED,
+		"10 if 1 > 2 else 20": EngineError.FORMULA_PARSE_FAILED,
+		"PI * 2": EngineError.FORMULA_PARSE_FAILED,
+		"wrapf(5, 0, 3)": EngineError.FORMULA_UNKNOWN_FUNCTION,
+		"Vector2(1, 2)[0]": EngineError.FORMULA_UNKNOWN_FUNCTION,
+		"world.list.size()": EngineError.FORMULA_PARSE_FAILED,
+		"str(world.tick)": EngineError.FORMULA_UNKNOWN_FUNCTION,
+	}
+	for f in rejects:
+		var env := {"error_buffer": []}
+		var got = Formula.evaluate(f, ctx, env)
+		var codes: Array = (env["error_buffer"] as Array).map(func(r): return str(r.code))
+		expect(float(got) == 0.0 and rejects[f] in codes, "'%s' raises %s (got %s)" % [f, rejects[f], codes])
+
+	# The function list is the manifest's source. Keep it at 16 unless an ADR adds one.
+	expect_eq(Formula.FUNCTIONS.size(), 16, "ADR 0088 lists 16 formula functions")

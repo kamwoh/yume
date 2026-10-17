@@ -107,7 +107,7 @@ Built-in math: `sin`, `cos`, `tan`, `sqrt`, `pow`, `abs`, `floor`, `ceil`,
 `round`, `clamp`, `min`, `max`, `lerp`, `randf`. No registration needed.
 
 **Don't** trust user-supplied formula strings without an AST whitelist —
-`Expression` parses full GDScript syntax. (Whitelist is W4.5, deferred.)
+`Expression` parses full GDScript syntax. `Formula._check_language` limits it to the formula language (ADR 0088) before `parse()`.
 
 ## Signals
 

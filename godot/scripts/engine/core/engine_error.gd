@@ -48,6 +48,7 @@ const EFFECT_EMIT_NO_BUFFER := "effect.emit_no_buffer"
 
 const FORMULA_PARSE_FAILED := "formula.parse_failed"
 const FORMULA_EXEC_FAILED := "formula.exec_failed"
+const FORMULA_UNKNOWN_FUNCTION := "formula.unknown_function"
 
 const WORLD_ENTITIES_MISSING := "world.entities_missing"
 const WORLD_ENTITIES_INVALID := "world.entities_invalid_json"
