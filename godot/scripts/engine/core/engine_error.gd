@@ -50,6 +50,9 @@ const FORMULA_PARSE_FAILED := "formula.parse_failed"
 const FORMULA_EXEC_FAILED := "formula.exec_failed"
 const FORMULA_UNKNOWN_FUNCTION := "formula.unknown_function"
 
+const SHADER_UNKNOWN := "shader.unknown"
+const SHADER_NOT_COMPILED := "shader.not_compiled"
+
 const WORLD_ENTITIES_MISSING := "world.entities_missing"
 const WORLD_ENTITIES_INVALID := "world.entities_invalid_json"
 const WORLD_DEF_UNKNOWN := "world.def_unknown"

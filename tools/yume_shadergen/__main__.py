@@ -8,8 +8,9 @@ references a primitive from `data/lib/shaders/primitives/<id>.json`;
 the compiler walks the graph (vertex stage then fragment stage),
 validates types, stitches the primitives' hand-tuned GLSL
 fragments together, and emits the output to
-`data/<game>/assets/shaders/ground.gdshader`. Patches
-`scene.json.ground.mesh.shader` to point at the compiled output.
+`data/<game>/assets/shaders/ground.gdshader`. The ground renderer
+loads the graph from that fixed place (ShaderLib.GRAPH_OUTPUT, ADR
+0089), so scene.json holds only the graph.
 
 Per docs/guideline/00_what_yume_is.md, the shader is projection-configuration
 = content = JSON-driven. No game-specific GLSL files live in the
@@ -38,10 +39,11 @@ HERE = Path(__file__).resolve()
 REPO_ROOT = HERE.parents[2]
 DATA_ROOT = REPO_ROOT / "godot" / "data"
 PRIMITIVES_DIR = DATA_ROOT / "lib" / "shaders" / "primitives"
+GRAPH_OUTPUT = "assets/shaders/ground.gdshader"  # ShaderLib.GRAPH_OUTPUT
 
 
-def load_spec(game: str) -> tuple[dict, Path]:
-    """Read scene.json, return (mesh_block, scene_path)."""
+def load_spec(game: str) -> dict:
+    """Read scene.json, return the ground mesh block."""
     scene_path = DATA_ROOT / game / "scene.json"
     if not scene_path.is_file():
         print(f"error: scene.json not found at {scene_path}", file=sys.stderr)
@@ -51,7 +53,7 @@ def load_spec(game: str) -> tuple[dict, Path]:
     if "shader_dag" not in mesh:
         print(f"[{game}] no ground.mesh.shader_dag — nothing to compile.")
         sys.exit(0)
-    return mesh, scene_path
+    return mesh
 
 
 def compile_shader(mesh: dict, primitives: dict) -> str:
@@ -77,25 +79,14 @@ def compile_shader(mesh: dict, primitives: dict) -> str:
     return compiled.full_source()
 
 
-def write_shader(game: str, source: str) -> tuple[Path, str]:
-    """Write to data/<game>/assets/shaders/ground.gdshader. Returns
-    (filesystem path, asset path relative to the game, ADR 0087)."""
-    shaders_dir = DATA_ROOT / game / "assets" / "shaders"
-    shaders_dir.mkdir(parents=True, exist_ok=True)
-    fp = shaders_dir / "ground.gdshader"
+def write_shader(game: str, source: str) -> Path:
+    """Write to the fixed place where the ground renderer loads the graph:
+    data/<game>/assets/shaders/ground.gdshader (ShaderLib.GRAPH_OUTPUT,
+    ADR 0089). scene.json keeps only the graph."""
+    fp = DATA_ROOT / game / GRAPH_OUTPUT
+    fp.parent.mkdir(parents=True, exist_ok=True)
     fp.write_text(source)
-    return fp, "assets/shaders/ground.gdshader"
-
-
-def patch_scene(scene_path: Path, asset_path: str) -> bool:
-    scene = json.loads(scene_path.read_text())
-    mesh = scene["ground"]["mesh"]
-    prior = mesh.get("shader", "")
-    if prior == asset_path:
-        return False
-    mesh["shader"] = asset_path
-    scene_path.write_text(json.dumps(scene, indent=2) + "\n")
-    return True
+    return fp
 
 
 def needs_regen(mesh: dict, output_path: Path,
@@ -139,7 +130,7 @@ def main() -> int:
                     help="regenerate even if hash matches")
     args = ap.parse_args()
 
-    mesh, scene_path = load_spec(args.game)
+    mesh = load_spec(args.game)
     primitives = load_primitives(PRIMITIVES_DIR)
     referenced = sorted({op.get("op", "")
                          for ops in mesh["shader_dag"].get("stages", {}).values()
@@ -147,7 +138,7 @@ def main() -> int:
     print(f"[{args.game}] DAG: {len(referenced)} primitive(s) referenced: "
           f"{referenced}")
 
-    output_path = DATA_ROOT / args.game / "assets" / "shaders" / "ground.gdshader"
+    output_path = DATA_ROOT / args.game / GRAPH_OUTPUT
     needs, new_hash = needs_regen(mesh, output_path, primitives)
     if not args.force and not needs and not args.dry_run:
         print(f"[{args.game}] spec unchanged — skipping (cache hit on {new_hash})")
@@ -160,11 +151,8 @@ def main() -> int:
         sys.stdout.write(rendered)
         return 0
 
-    fp, asset_path = write_shader(args.game, rendered)
-    patched = patch_scene(scene_path, asset_path)
+    fp = write_shader(args.game, rendered)
     print(f"[{args.game}] wrote {fp.relative_to(REPO_ROOT)} ({len(rendered)} bytes)")
-    if patched:
-        print(f"[{args.game}] patched scene.json shader → {asset_path}")
     return 0
 
 

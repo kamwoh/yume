@@ -3,6 +3,12 @@
 _Date: 2026-05-23_
 _Status: accepted — implemented (verified 2026-06-09)_
 
+> **Revised by ADR 0089 (2026-10-17).** The graph is the only custom
+> shader form in the spec. `yume_shadergen` no longer writes a `shader`
+> path into `scene.json`. The renderer loads the compiled graph from
+> `assets/shaders/ground.gdshader`. Content names a library shader by
+> name, never by file.
+>
 > **Implementation note (2026-06-09).** Both phases shipped. Phase A
 > templates live in `data/lib/shaders/*.gdshader`; Phase B's DAG compiler is
 > `tools/yume_shadergen/compiler.py` (loads `data/lib/shaders/primitives/*.json`,

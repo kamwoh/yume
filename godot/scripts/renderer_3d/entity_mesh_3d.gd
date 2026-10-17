@@ -152,7 +152,7 @@ func _ready() -> void:
 				_apply_albedo_texture_to_primitives(str(visual["albedo_texture"]))
 			# ADR 0052: custom shader. Replaces the per-primitive
 			# StandardMaterial3D with a ShaderMaterial backed by the
-			# referenced .gdshader. Uniforms come from `visual.
+			# named shader (ADR 0089). Uniforms come from `visual.
 			# shader_params` (a dict of param-name → value). Applied
 			# to ALL primitives uniformly — for per-primitive shaders,
 			# extend with material_overrides later.
@@ -896,27 +896,19 @@ func _paint_albedo_texture_recursive(node: Node, tex: Texture2D) -> void:
 
 
 ## ADR 0052: replace every primitive's material with a ShaderMaterial
-## backed by `shader_path`. Uniforms come from `shader_params` (dict
+## backed by the named shader `shader_name` (ADR 0089). Uniforms come from `shader_params` (dict
 ## of param-name → value). Every surface gets the same shader, and each
 ## surface keeps its own albedo (ADR 0083). The river bands all become
 ## water, each in its own color.
 func _apply_shader_to_primitives(
-	shader_path: String, shader_params: Variant, nodes: Array = []
+	shader_name: String, shader_params: Variant, nodes: Array = []
 ) -> void:
-	shader_path = AssetPath.resolve(shader_path)
-	if shader_path == "" or not ResourceLoader.exists(shader_path):
-		if shader_path != "":
-			push_warning(
-				"EntityMesh3D: visual.shader not found: %s" % shader_path
-			)
+	var shader := ShaderLib.load_named(shader_name, "visual.shader")
+	if shader == null:
 		return
-	var shader = load(shader_path)
-	if not (shader is Shader):
-		push_warning(
-			"EntityMesh3D: visual.shader did not load as Shader: %s" % shader_path
-		)
-		return
-	var params: Dictionary = shader_params if shader_params is Dictionary else {}
+	var params := ShaderLib.with_defaults(
+		shader_name, shader_params if shader_params is Dictionary else {}
+	)
 	for child in (nodes if not nodes.is_empty() else get_children()):
 		_paint_shader_recursive(child, shader, params)
 

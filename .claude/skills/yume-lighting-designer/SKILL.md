@@ -147,8 +147,8 @@ omitting them keeps engine defaults.)
   },
 
   // === 2026-05-18: procedural sky-shader (ADR 0052) ===
-  // OPTIONAL — if `sky.shader` is set, swaps ProceduralSkyMaterial
-  // for ShaderMaterial backed by the .gdshader. Sky.process_mode
+  // OPTIONAL — if `sky.shader` names a library shader (ADR 0089),
+  // swaps ProceduralSkyMaterial for that shader. Sky.process_mode
   // is auto-switched to REALTIME so animation actually plays.
   // sky_top_color / cloud_color / cloud_shadow_color uniforms can
   // animate day/night via "<uniform>_day" + "<uniform>_night" keys
@@ -157,7 +157,7 @@ omitting them keeps engine defaults.)
   "sky": {
     "horizon_day":   "#5890d8",
     "horizon_night": "#0c1018",
-    "shader": "@lib/shaders/sky_clouds.gdshader",
+    "shader": "sky_clouds",
     "shader_params": {
       "sky_top_color":      [0.30, 0.55, 0.85],
       "sky_horizon_color":  [0.66, 0.80, 0.92],

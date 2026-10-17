@@ -4,7 +4,7 @@ extends RefCounted
 ##
 ## The spec writes an asset path relative to the game folder
 ## ("assets/meshes/hero.glb") or to the shared library
-## ("@lib/shaders/toon.gdshader"). Godot needs a res:// path. Every value
+## ("@lib/meshes/rock.glb"). Godot needs a res:// path. Every value
 ## that comes from game JSON goes through resolve(). Engine code may still
 ## name its own files with res://.
 ##
@@ -24,7 +24,7 @@ static var game_root: String = ""
 ## A string that ends with one of these is an asset reference (ADR 0087).
 const EXTENSIONS := [
 	".glb", ".gltf", ".png", ".jpg", ".jpeg", ".webp", ".svg",
-	".exr", ".hdr", ".ogg", ".wav", ".mp3", ".gdshader", ".tres",
+	".exr", ".hdr", ".ogg", ".wav", ".mp3",
 ]
 
 

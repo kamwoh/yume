@@ -189,58 +189,59 @@ func build() -> void:
 	if uv_scale != 1.0:
 		smat.uv1_scale = Vector3(uv_scale, uv_scale, 1.0)
 
-	# ADR 0052: optional custom shader. If `ground.mesh.shader` is set,
-	# REPLACE the StandardMaterial3D with a ShaderMaterial backed by
-	# the referenced .gdshader. Uniforms come from `shader_params`
-	# (dict of param-name -> value, or path-string -> Texture2D).
-	# Used for the multi-biome ground (composition pass 2026-05-17).
-	var shader_path: String = str(cfg.get("shader", "")).strip_edges()
-	if shader_path != "":
-		var shader_res = AssetPath.load_asset(shader_path)
-		if shader_res is Shader:
-			var sm := ShaderMaterial.new()
-			sm.shader = shader_res
-			var params: Dictionary = cfg.get("shader_params", {})
-			for k in params:
-				var v = params[k]
-				# Auto-load a Texture2D from an asset path, so that
-				# authors don't have to pre-load textures in JSON.
-				if AssetPath.is_asset(v):
-					var loaded = AssetPath.load_asset(v)
-					if loaded is Texture2D:
-						v = loaded
-				else:
-					v = _coerce_shader_value(v)
-				sm.set_shader_parameter(str(k), v)
-			# Plane size uniform — derived from cfg.size, not authored
-			# separately. Lets the shader compute world-scale UVs.
-			sm.set_shader_parameter("plane_size", max(w, d))
-			mat = sm  # Override the StandardMaterial3D
+	# ADR 0052: optional custom shader. If `ground.mesh.shader` names a
+	# library shader, or `ground.mesh.shader_dag` holds a graph (ADR 0089),
+	# REPLACE the StandardMaterial3D with a ShaderMaterial. Uniforms come
+	# from `shader_params` (dict of param-name -> value, or asset path ->
+	# Texture2D). Used for the multi-biome ground (2026-05-17).
+	var shader_name: String = str(cfg.get("shader", "")).strip_edges()
+	var shader_res: Shader = null
+	if cfg.has("shader_dag"):
+		shader_res = ShaderLib.load_graph()
+	elif shader_name != "":
+		shader_res = ShaderLib.load_named(shader_name, "ground.mesh.shader")
+	if shader_res != null:
+		var sm := ShaderMaterial.new()
+		sm.shader = shader_res
+		var params: Dictionary = cfg.get("shader_params", {})
+		for k in params:
+			var v = params[k]
+			# Auto-load a Texture2D from an asset path, so that
+			# authors don't have to pre-load textures in JSON.
+			if AssetPath.is_asset(v):
+				var loaded = AssetPath.load_asset(v)
+				if loaded is Texture2D:
+					v = loaded
+			else:
+				v = _coerce_shader_value(v)
+			sm.set_shader_parameter(str(k), v)
+		# Plane size uniform — derived from cfg.size, not authored
+		# separately. Lets the shader compute world-scale UVs.
+		sm.set_shader_parameter("plane_size", max(w, d))
+		mat = sm  # Override the StandardMaterial3D
 
-			# Cache heightmap as CPU-side Image so the physics floor
-			# (HeightMapShape3D collider, built below) and any
-			# ground-snap follow the SAME displacement the vertex
-			# shader applies. Reads the biome-displace shader's actual
-			# uniforms: `heightmap` texture + `height_scale` +
-			# `height_offset` (see ground_biome_displace.gdshader).
-			var hm_val = params.get("heightmap", null)
-			var h_scale := float(params.get("height_scale", 0.0))
-			if hm_val is String and h_scale != 0.0:
-				var hm_tex = AssetPath.load_asset(hm_val as String)
-				if hm_tex is Texture2D:
-					_heightmap_img = (hm_tex as Texture2D).get_image()
-					_heightmap_strength = h_scale
-					_heightmap_offset = float(params.get("height_offset", -0.5))
-					_heightmap_plane_size = max(w, d)
-					_heightmap_enabled = true
-			# Cache for per-level rebind (ADR 0055, 2026-05-20).
-			# The game-level params dict is the baseline; per-level
-			# overrides merge over it on transition.
-			_shader_material = sm
-			_game_shader_params = (params as Dictionary).duplicate(true)
-			_cached_data_root = str(_world.get("data_root")).rstrip("/")
-		else:
-			push_warning("ground_renderer: shader failed to load: " + shader_path)
+		# Cache heightmap as CPU-side Image so the physics floor
+		# (HeightMapShape3D collider, built below) and any
+		# ground-snap follow the SAME displacement the vertex
+		# shader applies. Reads the biome-displace shader's actual
+		# uniforms: `heightmap` texture + `height_scale` +
+		# `height_offset` (see ground_biome_displace.gdshader).
+		var hm_val = params.get("heightmap", null)
+		var h_scale := float(params.get("height_scale", 0.0))
+		if hm_val is String and h_scale != 0.0:
+			var hm_tex = AssetPath.load_asset(hm_val as String)
+			if hm_tex is Texture2D:
+				_heightmap_img = (hm_tex as Texture2D).get_image()
+				_heightmap_strength = h_scale
+				_heightmap_offset = float(params.get("height_offset", -0.5))
+				_heightmap_plane_size = max(w, d)
+				_heightmap_enabled = true
+		# Cache for per-level rebind (ADR 0055, 2026-05-20).
+		# The game-level params dict is the baseline; per-level
+		# overrides merge over it on transition.
+		_shader_material = sm
+		_game_shader_params = (params as Dictionary).duplicate(true)
+		_cached_data_root = str(_world.get("data_root")).rstrip("/")
 
 	var node := MeshInstance3D.new()
 	node.name = "Ground"
@@ -321,7 +322,7 @@ func _build_heightmap_shape(w: float, d: float) -> HeightMapShape3D:
 
 ## ADR 0059 — build the water surface from scene.json's `water.mesh`
 ## block. A flat transparent PlaneMesh at `water.level`, backed by a
-## custom shader (water_stylized.gdshader). NO collider — water isn't
+## named shader (`water_stylized`, ADR 0089). NO collider — water isn't
 ## a walkable surface; actors pass through.
 ##
 ## Depth-test handles the shoreline for free: the opaque terrain (built
@@ -371,18 +372,17 @@ func build_water() -> void:
 		pm.size = Vector2(w, d)
 		mesh = pm
 
-	var shader_path: String = str(cfg.get("shader", "")).strip_edges()
-	if shader_path == "":
+	var shader_name: String = str(cfg.get("shader", "")).strip_edges()
+	if shader_name == "":
 		push_warning("ground_renderer: water.mesh has no `shader` — skipping")
 		return
-	var shader_res = AssetPath.load_asset(shader_path)
-	if not (shader_res is Shader):
-		push_warning("ground_renderer: water shader failed to load: " + shader_path)
+	var shader_res := ShaderLib.load_named(shader_name, "water.mesh.shader")
+	if shader_res == null:
 		return
 
 	var sm := ShaderMaterial.new()
 	sm.shader = shader_res
-	var params: Dictionary = cfg.get("shader_params", {})
+	var params := ShaderLib.with_defaults(shader_name, cfg.get("shader_params", {}))
 	for k in params:
 		var v = params[k]
 		if AssetPath.is_asset(v):
@@ -390,6 +390,9 @@ func build_water() -> void:
 			if loaded is Texture2D:
 				v = loaded
 		sm.set_shader_parameter(str(k), v)
+	# The interpreter sets plane_size from the mesh, as for the ground
+	# (ADR 0089). The water mask spans the whole water plane.
+	sm.set_shader_parameter("plane_size", max(w, d))
 
 	var node := MeshInstance3D.new()
 	node.name = "Water"

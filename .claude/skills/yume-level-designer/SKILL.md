@@ -605,8 +605,8 @@ don't clip into each other. Generate 2-3× candidates, accept those
 that pass the filter.
 
 **Path splatmap** — for camp scenes with a multi-biome ground
-shader (see yume-asset-designer §visual.shader and
-`data/lib/shaders/ground_multi_biome.gdshader`), generate the
+shader (see yume-asset-designer §visual.shader and the
+`ground_biome_displace` shader, ADR 0089), generate the
 splatmap with radial paths from focal point to each landmark
 (~3m wide cleared trails). Procedurally derive via Python script
 (noise + line-distance to each landmark endpoint).

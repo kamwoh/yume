@@ -511,6 +511,9 @@ class Manifest:
     formula_entity_roles: list[str] = field(default_factory=list)
     formula_math_helpers: list[str] = field(default_factory=list)
     error_codes: list[dict] = field(default_factory=list)
+    # ADR 0089: the named shaders and their parameters, read from
+    # util/shader_lib.gd and the library .gdshader files.
+    shaders: list[dict] = field(default_factory=list)
     reserved_state_fields: list[str] = field(default_factory=list)
     invariants_count: int = 8
     # HUD authoring catalog (Tier 2.7v, 2026-05-19) — for the
@@ -657,6 +660,41 @@ def parse_error_codes(text: str) -> list[dict]:
     return out
 
 
+_UNIFORM_RE = re.compile(
+    r"^\s*uniform\s+(\w+)\s+(\w+)(\[\w+\])?\s*(?::\s*([^=;]*))?(?:=\s*([^;]*))?;\s*(?://\s*(.*))?$"
+)
+_SPEC_TYPES = {"float": "number", "int": "integer", "bool": "bool", "vec2": "[x, y]",
+               "vec3": "[x, y, z]", "vec4": "[x, y, z, w]", "sampler2D": "texture (asset path)"}
+
+
+def parse_shaders() -> list[dict]:
+    """The named shaders of ADR 0089 with the parameters content may set."""
+    lib_src = read(ENGINE_DIR / "util" / "shader_lib.gd")
+    hidden = set(parse_string_array(lib_src, "INTERPRETER_PARAMS"))
+    out = []
+    for name in parse_string_array(lib_src, "NAMES"):
+        src = read(REPO / "godot" / "data" / "lib" / "shaders" / f"{name}.gdshader")
+        kind = re.search(r"^shader_type\s+(\w+);", src, re.MULTILINE).group(1)
+        params = []
+        for line in src.splitlines():
+            m = _UNIFORM_RE.match(line)
+            if not m or m.group(2) in hidden:
+                continue
+            gtype, pname, arr, hints, default, note = m.groups()
+            hints = hints or ""
+            spec = "color" if "source_color" in hints and gtype.startswith("vec") else _SPEC_TYPES.get(gtype, gtype)
+            rng = re.search(r"hint_range\(([^)]*)\)", hints)
+            params.append({
+                "name": pname,
+                "type": f"list of {spec}" if arr else spec,
+                "default": re.sub(r"^vec\d\((.*)\)$", r"[\1]", (default or "").strip()),
+                "range": rng.group(1).replace(" ", "") if rng else "",
+                "note": (note or "").strip(),
+            })
+        out.append({"name": name, "kind": kind, "params": params})
+    return out
+
+
 def parse_formula_roles(text: str) -> list[str]:
     """Doc-listed entity roles in formula.gd."""
     block = re.search(r"## Bindings supported.*?##\s*\n", text, re.DOTALL)
@@ -740,6 +778,7 @@ def build_manifest() -> Manifest:
         query_operator_suffixes=parse_string_array(query_src, "OPERATOR_SUFFIXES"),
         formula_entity_roles=parse_formula_roles(formula_src),
         formula_math_helpers=parse_string_array(formula_src, "FUNCTIONS"),
+        shaders=parse_shaders(),
         error_codes=parse_error_codes(err_src),
         reserved_state_fields=["position", "velocity", "age"],
         hud_elements=HUD_ELEMENTS,
@@ -885,6 +924,18 @@ def render_markdown(m: Manifest) -> str:
         "- No ternary. Write `b + (a - b) * float(cond)`. `float(b)` gives 1.0 or 0.0.",
         "- Vector component access `v.x`, `v.y`, `v.z` works through the binding path.",
         "",
+        "## Shaders (ADR 0089)",
+        "",
+        "Content names a library shader by name (`\"shader\": \"sky_clouds\"`) and sets its parameters in `shader_params`. A custom shader is a `shader_dag` graph (ADR 0058). The exact look is host-defined. The interpreter sets `plane_size`, `screen_tex` and `depth_tex` itself.",
+        "",
+        *[line for sh in m.shaders for line in (
+            f"### `{sh['name']}` ({sh['kind']})",
+            "",
+            "| Parameter | Type | Default | Range | Note |",
+            "|---|---|---|---|---|",
+            *[f"| `{p['name']}` | {p['type']} | {p['default'] or '—'} | {p['range'] or '—'} | {p['note'] or ''} |" for p in sh["params"]],
+            "",
+        )],
         "## Error codes (Tier 2.6a)",
         "",
         f"{len(m.error_codes)} stable codes for matching in retry loops:",

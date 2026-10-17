@@ -286,8 +286,8 @@ feels like a tech demo of assets" — a different failure mode than
 ### Axis 8 — Ground variation
 Single uniform texture across 80m+ reads as "prototype map" no
 matter how nice. Need paths, trampled patches, biome edges. Check
-for the multi-biome ground shader (data/lib/shaders/
-ground_multi_biome.gdshader) + a splatmap with radial paths from
+for the multi-biome ground shader (`"shader": "ground_biome_displace"`,
+ADR 0089) + a splatmap with radial paths from
 the camp center to landmarks.
 
 ### Axis 9 — Focal point + cardinal layout
@@ -321,7 +321,7 @@ Without ALL THREE layers, the frame feels exposed:
 | Everything looks reflective | Set `material_overrides.<uuid>.roughness 0.9-0.95, metallic 0.0` (renderer clears the PBR texture so the factor is authoritative) |
 | Trees clip through houses | Procedural placer needs structure-exclusion zones — see yume-level-designer §Composition pass |
 | AI-gen meshes sink into ground | Set `visual.y_offset = -bbox.min.y * scale` per entity. validate_mesh_y_offset.py catches this |
-| Sky too plain | Set `lighting.sky.shader: "@lib/shaders/sky_clouds.gdshader"` + shader_params |
+| Sky too plain | Set `lighting.sky.shader: "sky_clouds"` + shader_params (ADR 0089) |
 | Far things crisp / no atmosphere | Add `lighting.fog` block with `density 0.003-0.008` + warm `light_color` |
 | Palette feels disjointed | Bump `lighting.adjustments.{contrast 1.10-1.20, saturation 1.00-1.10}` (saturation >1.2 reads candy — revised 2026-06-12, autorace anti-cartoon pass) |
 | FOV makes things look small | scene.json camera `fov: 60-65` (Godot default 75 is wide for FPS) |

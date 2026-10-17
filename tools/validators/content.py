@@ -20,12 +20,15 @@ This module mirrors the engine:
   resolution. A rule from a bundle carries `_origin`.
 - `asset_file(path, game_dir)` ports `util/asset_path.gd` (ADR 0087): it
   turns a host-neutral asset path into the file it names.
+- `SHADER_NAMES` and `shader_file(mesh, game_dir)` port
+  `util/shader_lib.gd` (ADR 0089).
 """
 
 from __future__ import annotations
 
 import copy
 import json
+import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -37,7 +40,7 @@ MAX_DEPTH = 8
 LIB_PREFIX = "@lib/"
 ASSET_EXTENSIONS = (
     ".glb", ".gltf", ".png", ".jpg", ".jpeg", ".webp", ".svg",
-    ".exr", ".hdr", ".ogg", ".wav", ".mp3", ".gdshader", ".tres",
+    ".exr", ".hdr", ".ogg", ".wav", ".mp3",
 )
 
 
@@ -66,6 +69,28 @@ def asset_file(path: str, game_dir: Path | None) -> Path | None:
     if path.startswith(LIB_PREFIX):
         return DATA / "lib" / path[len(LIB_PREFIX):]
     return Path(game_dir) / path if game_dir is not None else None
+
+
+# ADR 0089 named shaders. util/shader_lib.gd is the source.
+_SHADER_LIB = (REPO / "godot" / "scripts" / "engine" / "util" / "shader_lib.gd").read_text(encoding="utf-8")
+SHADER_NAMES = tuple(re.findall(r'"(\w+)"', re.search(r"const NAMES: Array = \[(.*?)\]", _SHADER_LIB, re.DOTALL).group(1)))
+INTERPRETER_PARAMS = tuple(re.findall(r'"(\w+)"', re.search(r"const INTERPRETER_PARAMS: Array = \[(.*?)\]", _SHADER_LIB, re.DOTALL).group(1)))
+GRAPH_OUTPUT = re.search(r'const GRAPH_OUTPUT := "([^"]+)"', _SHADER_LIB).group(1)
+
+
+def shader_params(name: str) -> set[str]:
+    """The uniform names of the library shader `name`."""
+    src = (DATA / "lib" / "shaders" / f"{name}.gdshader").read_text(encoding="utf-8")
+    return set(re.findall(r"^\s*uniform\s+\w+\s+(\w+)", src, re.MULTILINE))
+
+
+def shader_file(block: dict, game_dir: Path) -> Path | None:
+    """The Godot shader file that a `shader` / `shader_dag` block runs, or
+    None when the block names no shader or an unknown name."""
+    if "shader_dag" in block:
+        return Path(game_dir) / GRAPH_OUTPUT
+    name = str(block.get("shader", "")).strip()
+    return DATA / "lib" / "shaders" / f"{name}.gdshader" if name in SHADER_NAMES else None
 
 
 def load_json(path: Path):

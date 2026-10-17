@@ -31,12 +31,26 @@ fountain rendered as a magenta sphere instead of `fountain_kit`.
 ## Asset paths are relative to the game folder (ADR 0087)
 
 Write `"mesh": "assets/meshes/hero.glb"` or
-`"shader": "@lib/shaders/toon.gdshader"`. Never write `res://`, `user://`,
+`"texture": "@lib/textures/grass.png"`. Never write `res://`, `user://`,
 `..` or a leading `/`. A game must not point into another game's folder.
 Copy the file into this game instead. `AssetPath.resolve()` rejects any
 other form at load, and `validate_host_neutral.py` (pre-commit and CI)
 fails on it. Empirical case 2026-10-17: 201 `res://` references, 15 of
 them into other demos.
+
+## Shaders are names, not files (ADR 0089)
+
+Write `"shader": "sky_clouds"`. The names are `sky_clouds`,
+`water_stylized`, `ground_biome_displace`, `ground_ortho_displace` and
+`toon`. Each `shader_params` key must be a parameter of that shader (api
+manifest §Shaders). The interpreter sets `plane_size`, `screen_tex`,
+`depth_tex` and `water_normal_tex`, so content must not. A custom shader
+is a `shader_dag` graph, with no `shader` field next to it. Never name a
+`.gdshader` or `.tres` file. Gates: `ShaderLib` reports `shader.unknown`
+at load, and `validate_host_neutral.py` rejects file names, unknown
+names and unknown parameters. Empirical case 2026-10-17: two games set 5
+and 9 water parameters that the water shader did not have, and Godot
+ignored them with no warning.
 
 ## Top-level `position` clobbers `state.position` in initial_instances
 

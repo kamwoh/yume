@@ -96,7 +96,7 @@ def _lighting_block() -> dict:
         },
         "ambient": {"color": "#aebccf", "energy": 0.35},
         "sky": {
-            "shader": "@lib/shaders/sky_clouds.gdshader",
+            "shader": "sky_clouds",
             "shader_params": {
                 "sky_top_color": [0.22, 0.45, 0.82],
                 "sky_horizon_color": [0.80, 0.87, 0.93],

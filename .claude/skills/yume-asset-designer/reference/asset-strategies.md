@@ -279,23 +279,23 @@ Per-entity tinting via material_overrides also drives distinctness
 when 8+ structures look similar at distance (e.g. mud_hut warm
 terracotta, lean_to cool blue-grey, market_stall punchy orange).
 
-**`visual.shader` (ADR 0052)** — REPLACES the StandardMaterial3D
-with a ShaderMaterial backed by a `.gdshader` file. Uniforms via
-`visual.shader_params`. Used for animated / procedural visuals
-where flat PBR isn't enough.
+**`visual.shader` (ADR 0052, ADR 0089)** — REPLACES the
+StandardMaterial3D with a named library shader. Write the name, not a
+file: `"shader": "toon"`. Set its parameters in `visual.shader_params`.
+The api manifest (§Shaders) lists each shader's parameters, and
+`validate_host_neutral.py` rejects a parameter the shader does not have.
 
-Available shared shaders under `data/lib/shaders/`:
-- `water_stylized.gdshader` — animated noise ripples for rivers /
-  ponds. Set on `prop_water_plane`-style entities.
-- `ground_multi_biome.gdshader` — used by ground_renderer; not
-  per-entity.
-- `sky_clouds.gdshader` — used by lighting_director; not
-  per-entity.
+The named shaders:
+- `water_stylized` — water with depth tint, foam and flowing ripples.
+  Used for `water.mesh` and for water props.
+- `toon` — banded cel lighting with rim and fill light. It keeps each
+  mesh's own albedo.
+- `ground_biome_displace`, `ground_ortho_displace` — `ground.mesh` only.
+- `sky_clouds` — `lighting.sky` only.
 
-Authors can add new entity-level shaders following the same pattern.
-The shader-as-primitive ADR (0052) covers fire glow, ice, magic
-auras, force fields — anything that benefits from animated /
-view-aware materials beyond StandardMaterial3D.
+A new named shader needs an ADR. A game-specific shader is a
+`shader_dag` graph (ADR 0058). Never name a `.gdshader` or `.tres` file
+in content.
 
 **`visual.animate` + `visual.rig_type` (ADR 0053, 2026-05-18)** —
 opt-in skeletal animation via Tripo3D's rig + retarget pipeline.

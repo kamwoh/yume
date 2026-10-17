@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-10-17T05:02:33+00:00_
+_Generated: 2026-10-17T13:58:36+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -105,9 +105,103 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 - No ternary. Write `b + (a - b) * float(cond)`. `float(b)` gives 1.0 or 0.0.
 - Vector component access `v.x`, `v.y`, `v.z` works through the binding path.
 
+## Shaders (ADR 0089)
+
+Content names a library shader by name (`"shader": "sky_clouds"`) and sets its parameters in `shader_params`. A custom shader is a `shader_dag` graph (ADR 0058). The exact look is host-defined. The interpreter sets `plane_size`, `screen_tex` and `depth_tex` itself.
+
+### `sky_clouds` (sky)
+
+| Parameter | Type | Default | Range | Note |
+|---|---|---|---|---|
+| `sky_top_color` | color | [0.35, 0.55, 0.85] | — |  |
+| `sky_horizon_color` | color | [0.70, 0.82, 0.92] | — |  |
+| `cloud_color` | color | [0.95, 0.95, 0.92] | — |  |
+| `cloud_shadow_color` | color | [0.55, 0.60, 0.65] | — |  |
+| `cloud_coverage` | number | 0.45 | 0.0,1.0 |  |
+| `cloud_softness` | number | 0.40 | 0.0,1.0 |  |
+| `cloud_speed` | number | 0.012 | 0.0,0.1 |  |
+| `cloud_scale` | number | 5.0 | 1.0,20.0 |  |
+| `mountain_enabled` | number | 0.0 | 0.0,1.0 |  |
+| `mountain_base_color` | color | [0.40, 0.48, 0.62] | — |  |
+| `mountain_peak_color` | color | [0.70, 0.74, 0.80] | — |  |
+| `mountain_height` | number | 0.15 | 0.0,0.4 | peak amplitude (radians of altitude) |
+| `mountain_jaggedness` | number | 8.0 | 1.0,30.0 | higher = more peaks per 360° |
+
+### `water_stylized` (spatial)
+
+| Parameter | Type | Default | Range | Note |
+|---|---|---|---|---|
+| `deep_color` | color | [0.03, 0.10, 0.20, 1.0] | — |  |
+| `shallow_color` | color | [0.30, 0.62, 0.74, 0.85] | — |  |
+| `foam_color` | color | [0.97, 0.99, 1.0, 1.0] | — |  |
+| `normal_tile_m` | number | 6.0 | 0.5,30.0 |  |
+| `ripple_strength` | number | 0.85 | 0.0,1.5 |  |
+| `flow_dir` | [x, y] | [0.72, 0.32] | — |  |
+| `flow_speed` | number | 0.045 | 0.0,0.5 |  |
+| `depth_fade_m` | number | 0.45 | 0.05,8.0 |  |
+| `refraction_strength` | number | 0.05 | 0.0,0.15 |  |
+| `fresnel_power` | number | 3.5 | 0.5,8.0 |  |
+| `foam_distance_m` | number | 0.65 | 0.0,3.0 |  |
+| `foam_softness` | number | 0.40 | 0.01,1.0 |  |
+| `foam_animation` | number | 1.8 | 0.0,4.0 |  |
+| `water_mask` | texture (asset path) | — | — |  |
+| `use_water_mask` | bool | false | — |  |
+
+### `ground_biome_displace` (spatial)
+
+| Parameter | Type | Default | Range | Note |
+|---|---|---|---|---|
+| `biome_map` | texture (asset path) | — | — |  |
+| `heightmap` | texture (asset path) | — | — |  |
+| `height_scale` | number | 3.0 | — |  |
+| `height_offset` | number | -0.5 | — |  |
+| `biome_count` | integer | 1 | — |  |
+| `biome_key` | list of [x, y, z] | — | — |  |
+| `biome_albedo` | list of [x, y, z] | — | — |  |
+| `biome_roughness` | list of number | — | — |  |
+| `blend_softness` | number | 0.12 | 0.01,0.6 |  |
+| `noise_amount` | number | 0.06 | 0.0,0.5 |  |
+| `grass_detail` | texture (asset path) | — | — |  |
+| `grass_biome_index` | integer | -1 | — | -1 = no grass |
+| `detail_tile` | number | 24.0 | — | tiles across plane |
+| `detail_strength` | number | 0.30 | 0.0,1.0 |  |
+| `wind_dir` | [x, y] | [0.7, 0.7] | — |  |
+| `wind_speed` | number | 0.9 | — |  |
+| `wind_gust_freq` | number | 0.08 | — | gust-band spacing |
+| `wind_gust_strength` | number | 0.11 | 0.0,0.3 |  |
+| `wind_flow` | number | 0.035 | — | detail-UV drift |
+| `crown_lift` | number | 0.16 | 0.0,0.4 | hilltop brighten |
+| `crease_darken` | number | 0.22 | 0.0,0.5 | slope/dip darken |
+| `crown_warm` | color | [1.08, 1.04, 0.84] | — |  |
+
+### `ground_ortho_displace` (spatial)
+
+| Parameter | Type | Default | Range | Note |
+|---|---|---|---|---|
+| `ortho_albedo` | texture (asset path) | — | — |  |
+| `heightmap` | texture (asset path) | — | — |  |
+| `height_scale` | number | 3.0 | — |  |
+| `height_offset` | number | -0.5 | — |  |
+| `crown_lift` | number | 0.06 | 0.0,0.25 |  |
+| `crease_darken` | number | 0.10 | 0.0,0.35 |  |
+| `albedo_attenuate` | number | 0.55 | 0.2,1.0 |  |
+
+### `toon` (spatial)
+
+| Parameter | Type | Default | Range | Note |
+|---|---|---|---|---|
+| `albedo_color` | color | [1.0] | — |  |
+| `albedo_texture` | texture (asset path) | — | — |  |
+| `bands` | integer | 3 | 2,6 |  |
+| `rim_color` | color | [1.0] | — |  |
+| `rim_power` | number | 3.0 | 0.5,8.0 |  |
+| `rim_strength` | number | 0.35 | 0.0,1.0 |  |
+| `fill_color` | color | [0.5, 0.55, 0.65, 1.0] | — |  |
+| `fill_strength` | number | 0.7 | 0.0,1.5 |  |
+
 ## Error codes (Tier 2.6a)
 
-39 stable codes for matching in retry loops:
+41 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -131,6 +225,8 @@ Used in `state` / `properties` filters (e.g. `"hp_lt": 50`):
 | `formula.parse_failed` | `EngineError.FORMULA_PARSE_FAILED` |
 | `formula.exec_failed` | `EngineError.FORMULA_EXEC_FAILED` |
 | `formula.unknown_function` | `EngineError.FORMULA_UNKNOWN_FUNCTION` |
+| `shader.unknown` | `EngineError.SHADER_UNKNOWN` |
+| `shader.not_compiled` | `EngineError.SHADER_NOT_COMPILED` |
 | `world.entities_missing` | `EngineError.WORLD_ENTITIES_MISSING` |
 | `world.entities_invalid_json` | `EngineError.WORLD_ENTITIES_INVALID` |
 | `world.def_unknown` | `EngineError.WORLD_DEF_UNKNOWN` |

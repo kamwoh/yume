@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-17T05:02:33+00:00",
+  "generated_at": "2026-10-17T13:58:36+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -646,6 +646,14 @@
       "code": "formula.unknown_function"
     },
     {
+      "constant": "SHADER_UNKNOWN",
+      "code": "shader.unknown"
+    },
+    {
+      "constant": "SHADER_NOT_COMPILED",
+      "code": "shader.not_compiled"
+    },
+    {
       "constant": "WORLD_ENTITIES_MISSING",
       "code": "world.entities_missing"
     },
@@ -720,6 +728,493 @@
     {
       "constant": "STEP_INVALID_DURATION",
       "code": "step.invalid_duration"
+    }
+  ],
+  "shaders": [
+    {
+      "name": "sky_clouds",
+      "kind": "sky",
+      "params": [
+        {
+          "name": "sky_top_color",
+          "type": "color",
+          "default": "[0.35, 0.55, 0.85]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "sky_horizon_color",
+          "type": "color",
+          "default": "[0.70, 0.82, 0.92]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "cloud_color",
+          "type": "color",
+          "default": "[0.95, 0.95, 0.92]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "cloud_shadow_color",
+          "type": "color",
+          "default": "[0.55, 0.60, 0.65]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "cloud_coverage",
+          "type": "number",
+          "default": "0.45",
+          "range": "0.0,1.0",
+          "note": ""
+        },
+        {
+          "name": "cloud_softness",
+          "type": "number",
+          "default": "0.40",
+          "range": "0.0,1.0",
+          "note": ""
+        },
+        {
+          "name": "cloud_speed",
+          "type": "number",
+          "default": "0.012",
+          "range": "0.0,0.1",
+          "note": ""
+        },
+        {
+          "name": "cloud_scale",
+          "type": "number",
+          "default": "5.0",
+          "range": "1.0,20.0",
+          "note": ""
+        },
+        {
+          "name": "mountain_enabled",
+          "type": "number",
+          "default": "0.0",
+          "range": "0.0,1.0",
+          "note": ""
+        },
+        {
+          "name": "mountain_base_color",
+          "type": "color",
+          "default": "[0.40, 0.48, 0.62]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "mountain_peak_color",
+          "type": "color",
+          "default": "[0.70, 0.74, 0.80]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "mountain_height",
+          "type": "number",
+          "default": "0.15",
+          "range": "0.0,0.4",
+          "note": "peak amplitude (radians of altitude)"
+        },
+        {
+          "name": "mountain_jaggedness",
+          "type": "number",
+          "default": "8.0",
+          "range": "1.0,30.0",
+          "note": "higher = more peaks per 360\u00b0"
+        }
+      ]
+    },
+    {
+      "name": "water_stylized",
+      "kind": "spatial",
+      "params": [
+        {
+          "name": "deep_color",
+          "type": "color",
+          "default": "[0.03, 0.10, 0.20, 1.0]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "shallow_color",
+          "type": "color",
+          "default": "[0.30, 0.62, 0.74, 0.85]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "foam_color",
+          "type": "color",
+          "default": "[0.97, 0.99, 1.0, 1.0]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "normal_tile_m",
+          "type": "number",
+          "default": "6.0",
+          "range": "0.5,30.0",
+          "note": ""
+        },
+        {
+          "name": "ripple_strength",
+          "type": "number",
+          "default": "0.85",
+          "range": "0.0,1.5",
+          "note": ""
+        },
+        {
+          "name": "flow_dir",
+          "type": "[x, y]",
+          "default": "[0.72, 0.32]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "flow_speed",
+          "type": "number",
+          "default": "0.045",
+          "range": "0.0,0.5",
+          "note": ""
+        },
+        {
+          "name": "depth_fade_m",
+          "type": "number",
+          "default": "0.45",
+          "range": "0.05,8.0",
+          "note": ""
+        },
+        {
+          "name": "refraction_strength",
+          "type": "number",
+          "default": "0.05",
+          "range": "0.0,0.15",
+          "note": ""
+        },
+        {
+          "name": "fresnel_power",
+          "type": "number",
+          "default": "3.5",
+          "range": "0.5,8.0",
+          "note": ""
+        },
+        {
+          "name": "foam_distance_m",
+          "type": "number",
+          "default": "0.65",
+          "range": "0.0,3.0",
+          "note": ""
+        },
+        {
+          "name": "foam_softness",
+          "type": "number",
+          "default": "0.40",
+          "range": "0.01,1.0",
+          "note": ""
+        },
+        {
+          "name": "foam_animation",
+          "type": "number",
+          "default": "1.8",
+          "range": "0.0,4.0",
+          "note": ""
+        },
+        {
+          "name": "water_mask",
+          "type": "texture (asset path)",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "use_water_mask",
+          "type": "bool",
+          "default": "false",
+          "range": "",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "name": "ground_biome_displace",
+      "kind": "spatial",
+      "params": [
+        {
+          "name": "biome_map",
+          "type": "texture (asset path)",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "heightmap",
+          "type": "texture (asset path)",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "height_scale",
+          "type": "number",
+          "default": "3.0",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "height_offset",
+          "type": "number",
+          "default": "-0.5",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "biome_count",
+          "type": "integer",
+          "default": "1",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "biome_key",
+          "type": "list of [x, y, z]",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "biome_albedo",
+          "type": "list of [x, y, z]",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "biome_roughness",
+          "type": "list of number",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "blend_softness",
+          "type": "number",
+          "default": "0.12",
+          "range": "0.01,0.6",
+          "note": ""
+        },
+        {
+          "name": "noise_amount",
+          "type": "number",
+          "default": "0.06",
+          "range": "0.0,0.5",
+          "note": ""
+        },
+        {
+          "name": "grass_detail",
+          "type": "texture (asset path)",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "grass_biome_index",
+          "type": "integer",
+          "default": "-1",
+          "range": "",
+          "note": "-1 = no grass"
+        },
+        {
+          "name": "detail_tile",
+          "type": "number",
+          "default": "24.0",
+          "range": "",
+          "note": "tiles across plane"
+        },
+        {
+          "name": "detail_strength",
+          "type": "number",
+          "default": "0.30",
+          "range": "0.0,1.0",
+          "note": ""
+        },
+        {
+          "name": "wind_dir",
+          "type": "[x, y]",
+          "default": "[0.7, 0.7]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "wind_speed",
+          "type": "number",
+          "default": "0.9",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "wind_gust_freq",
+          "type": "number",
+          "default": "0.08",
+          "range": "",
+          "note": "gust-band spacing"
+        },
+        {
+          "name": "wind_gust_strength",
+          "type": "number",
+          "default": "0.11",
+          "range": "0.0,0.3",
+          "note": ""
+        },
+        {
+          "name": "wind_flow",
+          "type": "number",
+          "default": "0.035",
+          "range": "",
+          "note": "detail-UV drift"
+        },
+        {
+          "name": "crown_lift",
+          "type": "number",
+          "default": "0.16",
+          "range": "0.0,0.4",
+          "note": "hilltop brighten"
+        },
+        {
+          "name": "crease_darken",
+          "type": "number",
+          "default": "0.22",
+          "range": "0.0,0.5",
+          "note": "slope/dip darken"
+        },
+        {
+          "name": "crown_warm",
+          "type": "color",
+          "default": "[1.08, 1.04, 0.84]",
+          "range": "",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "name": "ground_ortho_displace",
+      "kind": "spatial",
+      "params": [
+        {
+          "name": "ortho_albedo",
+          "type": "texture (asset path)",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "heightmap",
+          "type": "texture (asset path)",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "height_scale",
+          "type": "number",
+          "default": "3.0",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "height_offset",
+          "type": "number",
+          "default": "-0.5",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "crown_lift",
+          "type": "number",
+          "default": "0.06",
+          "range": "0.0,0.25",
+          "note": ""
+        },
+        {
+          "name": "crease_darken",
+          "type": "number",
+          "default": "0.10",
+          "range": "0.0,0.35",
+          "note": ""
+        },
+        {
+          "name": "albedo_attenuate",
+          "type": "number",
+          "default": "0.55",
+          "range": "0.2,1.0",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "name": "toon",
+      "kind": "spatial",
+      "params": [
+        {
+          "name": "albedo_color",
+          "type": "color",
+          "default": "[1.0]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "albedo_texture",
+          "type": "texture (asset path)",
+          "default": "",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "bands",
+          "type": "integer",
+          "default": "3",
+          "range": "2,6",
+          "note": ""
+        },
+        {
+          "name": "rim_color",
+          "type": "color",
+          "default": "[1.0]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "rim_power",
+          "type": "number",
+          "default": "3.0",
+          "range": "0.5,8.0",
+          "note": ""
+        },
+        {
+          "name": "rim_strength",
+          "type": "number",
+          "default": "0.35",
+          "range": "0.0,1.0",
+          "note": ""
+        },
+        {
+          "name": "fill_color",
+          "type": "color",
+          "default": "[0.5, 0.55, 0.65, 1.0]",
+          "range": "",
+          "note": ""
+        },
+        {
+          "name": "fill_strength",
+          "type": "number",
+          "default": "0.7",
+          "range": "0.0,1.5",
+          "note": ""
+        }
+      ]
     }
   ],
   "reserved_state_fields": [

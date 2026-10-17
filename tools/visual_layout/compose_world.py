@@ -1105,9 +1105,7 @@ def compose(
     # the hero's painterly grass/rocks/paths/water onto the floor in one
     # step. Bypasses biome classification entirely.
     if albedo_image is not None and (semantic_dest or heightmap_dest):
-        scene["ground"]["mesh"]["shader"] = (
-            "@lib/shaders/ground_ortho_displace.gdshader"
-        )
+        scene["ground"]["mesh"]["shader"] = "ground_ortho_displace"
         scene["ground"]["mesh"]["plane_size"] = float(world_w)
         ortho_params: dict = {
             "height_scale": float(height_scale),
@@ -1129,9 +1127,7 @@ def compose(
             "seed": 13,
         }
     elif semantic_dest or heightmap_dest:
-        scene["ground"]["mesh"]["shader"] = (
-            "@lib/shaders/ground_biome_displace.gdshader"
-        )
+        scene["ground"]["mesh"]["shader"] = "ground_biome_displace"
         scene["ground"]["mesh"]["plane_size"] = float(world_w)
         # ground_renderer.gd only forwards `shader_params` (+ auto-sets
         # plane_size); mesh-level uniforms are silently ignored. So all
@@ -1266,14 +1262,14 @@ def compose(
                 "size": [world_w, world_h],
                 "level": float(level),
                 "box_depth": 8.0,
-                "shader": "@lib/shaders/water_stylized.gdshader",
+                "shader": "water_stylized",
                 "shader_params": {
-                    # Stylized water — box-mesh aware. Uniform names match
-                    # water_stylized.gdshader (2026-05-28).
+                    # Stylized water — box-mesh aware. The parameter names
+                    # are the water_stylized list in the api manifest
+                    # (ADR 0089). The engine supplies the normal texture.
                     "deep_color": [0.03, 0.10, 0.20, 1.0],
                     "shallow_color": [0.30, 0.62, 0.74, 0.85],
                     "foam_color": [0.97, 0.99, 1.0, 1.0],
-                    "water_normal_tex": "@lib/textures/water_normal.tres",
                     "normal_tile_m": 6.0,
                     "ripple_strength": 0.85,
                     "flow_dir": [0.72, 0.32],
@@ -1285,7 +1281,6 @@ def compose(
                     "foam_softness": 0.40,
                     "foam_animation": 1.8,
                     "use_water_mask": True,
-                    "plane_size": float(world_w),
                     "water_mask": (
                         f"assets/layouts/"
                         f"{water_mask_dest.name}"

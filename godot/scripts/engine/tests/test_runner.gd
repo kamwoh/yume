@@ -105,6 +105,7 @@ func _ready() -> void:
 	test_ground_renderer_rebind()
 	test_asset_path()
 	test_formula_language()
+	test_shader_lib()
 	test_ground_heightmap_collider()
 	test_query_tag_index()
 	test_spatial_cell_size()
@@ -9706,8 +9707,9 @@ func test_asset_path() -> void:
 	AssetPath.game_root = "res://data/test_game"
 	expect_eq(AssetPath.resolve("assets/meshes/hero.glb"),
 		"res://data/test_game/assets/meshes/hero.glb", "relative path → game folder")
-	expect_eq(AssetPath.resolve("@lib/shaders/toon.gdshader"),
-		"res://data/lib/shaders/toon.gdshader", "@lib/ path → shared library")
+	expect_eq(AssetPath.resolve("@lib/meshes/rock.glb"),
+		"res://data/lib/meshes/rock.glb", "@lib/ path → shared library")
+	expect(not AssetPath.is_asset("@lib/shaders/toon.gdshader"), "a .gdshader file is not an asset (ADR 0089)")
 	expect_eq(AssetPath.resolve(""), "", "empty path → empty")
 	expect_eq(AssetPath.resolve("res://data/test_game/x.glb"), "", "res:// path is rejected")
 	expect_eq(AssetPath.resolve("../demo_other/x.glb"), "", "a .. segment is rejected")
@@ -10070,3 +10072,38 @@ func test_formula_language() -> void:
 
 	# The function list is the manifest's source. Keep it at 16 unless an ADR adds one.
 	expect_eq(Formula.FUNCTIONS.size(), 16, "ADR 0088 lists 16 formula functions")
+
+
+# ============================================================
+# SHADER LIBRARY (ADR 0089)
+# ============================================================
+
+
+## Content names a library shader by name. Empirical case 2026-10-17: 17
+## shader references named .gdshader files, which a second interpreter
+## cannot run.
+func test_shader_lib() -> void:
+	_section("ShaderLib — shaders by name (ADR 0089)")
+	for shader_name in ShaderLib.NAMES:
+		expect(ShaderLib.load_named(shader_name, "test") is Shader, "'%s' loads as a Shader" % shader_name)
+	expect(ShaderLib.load_named("sky_magic", "test") == null, "an unknown name gives null (shader.unknown)")
+	expect(ShaderLib.load_named("@lib/shaders/toon.gdshader", "test") == null, "a file path is not a name")
+	var with := ShaderLib.with_defaults("water_stylized", {"flow_speed": 0.1})
+	expect(with.get("water_normal_tex") is Texture2D, "water_stylized gets the interpreter's normal texture")
+	expect_eq(with.get("flow_speed"), 0.1, "with_defaults keeps the content parameters")
+	var mine := ShaderLib.with_defaults("water_stylized", {"water_normal_tex": "x"})
+	expect_eq(mine.get("water_normal_tex"), "x", "with_defaults never replaces a set parameter")
+	expect(ShaderLib.with_defaults("toon", {}).is_empty(), "toon has no default textures")
+	var saved := AssetPath.game_root
+	AssetPath.game_root = "res://data/test_game"
+	expect(ShaderLib.load_graph() == null, "a missing compiled graph gives null (shader.not_compiled)")
+	AssetPath.game_root = saved
+	# Every interpreter parameter of a named shader is a real uniform, or
+	# the hide list would drift from the library. Read the source:
+	# get_shader_uniform_list() leaves out screen and depth textures.
+	var code := ""
+	for shader_name in ShaderLib.NAMES:
+		code += ShaderLib.load_named(shader_name, "test").code
+	for p in ShaderLib.INTERPRETER_PARAMS:
+		var rx := RegEx.create_from_string("uniform\\s+\\w+\\s+%s\\b" % p)
+		expect(rx.search(code) != null, "interpreter parameter '%s' is a library uniform" % p)

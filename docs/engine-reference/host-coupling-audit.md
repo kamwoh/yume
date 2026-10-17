@@ -18,7 +18,7 @@ tracked library, the three tracked demos and the local demos.
 | UI vocabulary | Screens and HUDs use `label`, `button`, `vbox`, `hbox`, `image`, `progress_bar`, `list`, `spacer`, `color_rect`. No file names a Godot Control class. |
 | Scenario tests | `tests.json` uses `press <action>`, `tick N`, and `expect` on entity fields. |
 | Asset file formats | Meshes are glTF (`.glb`), images are PNG, and sounds are OGG. These are open formats. |
-| Shader DAG | ADR 0058 describes shaders as a JSON graph of primitives. A compiler emits `.gdshader` today, and it could emit other shader languages. |
+| Shaders | ADR 0089 (phase 3): content names one of 5 library shaders by name, or writes a `shader_dag` graph (ADR 0058). The api manifest lists each shader's parameters. `validate_host_neutral.py` rejects `.gdshader` and `.tres` names. |
 | Calendar clock | `scheduled` and `advance_time` (ADR 0078) have no host meaning. |
 | Formula language | ADR 0088 (phase 2): every number is a float, and a formula calls only the 16 functions in `Formula.FUNCTIONS`. `validate_rules.py` check (12) and `Formula` reject other syntax. |
 | Asset and save paths | ADR 0087 (phase 1): a path is relative to the game folder or starts with `@lib/`. `validate_host_neutral.py` rejects `res://` and `user://`. |
@@ -27,8 +27,6 @@ tracked library, the three tracked demos and the local demos.
 
 | # | Area | Today | Count | Neutral form | Phase |
 |---|---|---|---|---|---|
-| 5 | Shaders | `"shader": "@lib/shaders/x.gdshader"` with `shader_params` | 17 references, 6 tracked `.gdshader` files | The ADR 0058 shader DAG. Hand-written `.gdshader` files become a Godot-only extension. | 3 |
-| 6 | Godot resources | `"water_normal_tex": "@lib/textures/water_normal.tres"` | 1 reference, 1 tracked `.tres` | A PNG, or a declared procedural texture. | 3 |
 | 7 | Key names | `"key": "Ctrl"`, parsed by `OS.find_keycode_from_string` | 85 `key` fields | A key-name list in the spec. Each interpreter maps the list to its host. | 4 |
 | 8 | Audio buses | `set_audio_bus_volume` with `"bus": "Master"` or `"Music"` | 2 references | A fixed set of channels in the spec (for example, master, music, sfx). | 4 |
 | 9 | Lighting and sky | `scene.json` fields such as `sky_top_color`, `aerial_perspective`, `sun_scatter`, `energy_noon`, fog `density` | About 60 field names | Define each field by its visible result. Mark the exact look as host-defined. | 4 |

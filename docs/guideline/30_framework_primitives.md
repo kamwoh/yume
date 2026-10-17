@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-10-17 (ADR 0088: the formula language)_
+_Last updated: 2026-10-17 (ADR 0089: shaders by name)_
 
 ## Purpose
 
@@ -549,6 +549,30 @@ again per tick.
 **Perf note.** Formulas inside `contact` triggers evaluate **per candidate
 pair per tick**. With 500 pairs/tick on a busy scene, that is 30 000 evals/s.
 Parsed-expression caching is mandatory. Formula micro-benchmarks land in W4.
+
+### Shaders (ADR 0089)
+
+A visual block can name a shader: `lighting.sky.shader`,
+`ground.mesh.shader`, `water.mesh.shader` or an entity's
+`visual.shader`. The value is a name, never a file:
+
+```json
+"sky": {"shader": "sky_clouds", "shader_params": {"cloud_coverage": 0.5}}
+```
+
+- The names are `sky_clouds`, `water_stylized`, `ground_biome_displace`,
+  `ground_ortho_displace` and `toon`. A new name needs an ADR.
+- `shader_params` sets the shader's parameters. The api manifest
+  (§Shaders) lists each parameter with its type, default and range. A
+  color is `[r, g, b]` or `[r, g, b, a]` from 0 to 1. A texture is an
+  asset path.
+- The interpreter sets `plane_size`, `screen_tex`, `depth_tex` and
+  `water_normal_tex`. Content does not set them.
+- The exact look is host-defined. Each parameter must change the look in
+  the direction its name says.
+- A custom shader is a `shader_dag` graph of primitives (ADR 0058) in
+  `ground.mesh`, with no `shader` field next to it.
+- Content never names a `.gdshader` or `.tres` file.
 
 ---
 

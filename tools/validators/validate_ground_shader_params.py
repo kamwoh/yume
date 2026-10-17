@@ -17,7 +17,7 @@ silently uses defaults.
 
 This validator:
   1. Reads scene.json ground.mesh.
-  2. If a `shader` is set, loads the .gdshader and extracts every
+  2. If a `shader` name or a `shader_dag` is set, loads the .gdshader and extracts every
      `uniform <type> <name>` declaration.
   3. For each uniform name, if it appears at ground.mesh top-level
      (NOT inside shader_params) → ERROR (it's silently ignored).
@@ -34,7 +34,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from content import asset_file  # noqa: E402
+from content import shader_file as content_shader_file  # noqa: E402
 
 
 # ground_renderer.gd auto-sets these; authoring them anywhere is
@@ -65,11 +65,9 @@ def validate_game(game_dir: Path, repo_root: Path) -> list[dict]:
                  "message": f"scene.json parse error: {e}"}]
 
     mesh = scene.get("ground", {}).get("mesh", {})
-    shader = str(mesh.get("shader", "")).strip()
-    if not shader:
-        return findings  # no shader, nothing to check
-
-    shader_file = asset_file(shader, game_dir)
+    shader_file = content_shader_file(mesh, game_dir)
+    if shader_file is None:
+        return findings  # no shader, or an unknown name (validate_host_neutral owns it)
     uniforms = _shader_uniforms(shader_file)
     if not uniforms:
         findings.append({

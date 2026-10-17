@@ -3,13 +3,17 @@
 
 ADR 0086 makes the JSON a host-neutral spec. ADR 0087 (phase 1) sets the
 asset path form: a path relative to the game folder ("assets/meshes/x.glb")
-or to the shared library ("@lib/shaders/toon.gdshader").
+or to the shared library ("@lib/meshes/rock.glb"). ADR 0089 (phase 3)
+names a library shader by name ("sky_clouds").
 
 Checks, for each JSON file:
 1. No string contains `res://` or `user://`.
 2. No asset reference has a scheme, a leading `/` or a `..` segment.
 3. Each asset reference names a file that exists.
-4. No string ends with `.tscn`.
+4. No string names a Godot file: `.tscn`, `.gdshader` or `.tres`.
+5. Each `shader` value is a name in `content.SHADER_NAMES`.
+6. Each `shader_params` key next to a named shader is a parameter of that
+   shader, and not one that the interpreter sets.
 
 An asset reference is a string that ends with an extension in
 `content.ASSET_EXTENSIONS`.
@@ -39,7 +43,11 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from content import DATA, REPO, asset_file, asset_problem, is_asset  # noqa: E402
+from content import (  # noqa: E402
+    DATA, INTERPRETER_PARAMS, REPO, SHADER_NAMES, asset_file, asset_problem, is_asset, shader_params,
+)
+
+GODOT_FILES = (".tscn", ".gdshader", ".tres")
 
 # Keys whose value names a file that the run WRITES, not an asset it reads.
 OUTPUT_KEYS = {"screenshot"}
@@ -55,6 +63,18 @@ def _strings(node, key=""):
             yield from _strings(v, key)
     elif isinstance(node, str):
         yield key, node
+
+
+def _shader_blocks(node):
+    """Yield every dict that names a library shader."""
+    if isinstance(node, dict):
+        if node.get("shader") in SHADER_NAMES:
+            yield node
+        for v in node.values():
+            yield from _shader_blocks(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _shader_blocks(v)
 
 
 def _game_dir(f: Path) -> Path | None:
@@ -77,15 +97,33 @@ def check_file(f: Path) -> list[str]:
         return []  # other validators own JSON-shape errors
     game_dir = _game_dir(f)
     out = []
+    for block in _shader_blocks(doc):
+        name = block["shader"]
+        allowed = shader_params(name)
+        params = block.get("shader_params", {})
+        for k in params if isinstance(params, dict) else ():
+            if k.startswith("_"):
+                continue
+            if k in INTERPRETER_PARAMS:
+                out.append(f"{f.relative_to(REPO)}: shader_params.{k}: the interpreter "
+                           f"sets '{k}'. Delete it (ADR 0089).")
+            elif k not in allowed:
+                out.append(f"{f.relative_to(REPO)}: shader_params.{k}: '{name}' has no "
+                           f"parameter '{k}'. See the api manifest, Shaders (ADR 0089).")
     for key, s in _strings(doc):
         where = f"{f.relative_to(REPO)}: {key}"
         if "res://" in s or "user://" in s:
             out.append(f"{where}: '{s}' is a Godot path. Write it relative to "
                        f"the game folder, or as @lib/<path> (ADR 0087).")
             continue
-        if s.endswith(".tscn"):
-            out.append(f"{where}: '{s}' names a Godot scene (.tscn). The spec "
-                       f"must not name one (ADR 0086 rule 3).")
+        if s.endswith(GODOT_FILES) and " " not in s:
+            out.append(f"{where}: '{s}' names a Godot file. The spec must not "
+                       f"name one (ADR 0086 rule 3). Name a library shader, "
+                       f"or write a shader_dag (ADR 0089).")
+            continue
+        if key == "shader" and s not in SHADER_NAMES:
+            out.append(f"{where}: '{s}' is not a shader name. The names are: "
+                       f"{', '.join(SHADER_NAMES)} (ADR 0089).")
             continue
         if not is_asset(s) or key in OUTPUT_KEYS or " " in s:
             continue

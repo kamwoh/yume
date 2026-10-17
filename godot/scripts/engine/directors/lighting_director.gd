@@ -222,17 +222,17 @@ func _attach_lighting_nodes() -> void:
 		env.background_mode = Environment.BG_SKY
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 		var sky := Sky.new()
-		# Per ADR 0052, optional custom sky shader (e.g.
-		# data/lib/shaders/sky_clouds.gdshader). If sky.shader is set,
-		# use a ShaderMaterial with the referenced shader_type sky;
+		# Per ADR 0052, optional custom sky shader, named per ADR 0089
+		# (e.g. "sky_clouds"). If sky.shader is set,
+		# use a ShaderMaterial with the named shader_type sky;
 		# uniforms from sky.shader_params. Else fall back to the
 		# default ProceduralSkyMaterial that _apply_environment's
 		# per-frame logic targets.
 		var sky_cfg: Dictionary = _config.get("sky", {})
-		var shader_path: String = str(sky_cfg.get("shader", "")).strip_edges()
-		if shader_path != "":
-			var sh_res = AssetPath.load_asset(shader_path)
-			if sh_res is Shader:
+		var shader_name: String = str(sky_cfg.get("shader", "")).strip_edges()
+		if shader_name != "":
+			var sh_res := ShaderLib.load_named(shader_name, "lighting.sky.shader")
+			if sh_res != null:
 				var shader_mat := ShaderMaterial.new()
 				shader_mat.shader = sh_res
 				var params: Dictionary = sky_cfg.get("shader_params", {})
@@ -249,7 +249,6 @@ func _attach_lighting_nodes() -> void:
 				# ignored until this was set.
 				sky.process_mode = Sky.PROCESS_MODE_REALTIME
 			else:
-				push_warning("lighting.sky.shader failed to load: " + shader_path)
 				sky.sky_material = ProceduralSkyMaterial.new()
 		else:
 			sky.sky_material = ProceduralSkyMaterial.new()
