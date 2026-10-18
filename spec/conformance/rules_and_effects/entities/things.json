@@ -1,0 +1,45 @@
+{
+  "_comment": "Conformance: rule order, intervals, effect order, before/after, once, once_per (ADR 0095).",
+  "definitions": [
+    {
+      "id": "box",
+      "tags": [
+        "box"
+      ],
+      "state_init": {
+        "n": 0,
+        "every3": 0,
+        "m": 2,
+        "c": 5,
+        "x": 0,
+        "copy": -1,
+        "seq": 0,
+        "per": 0
+      }
+    },
+    {
+      "id": "flag",
+      "tags": [
+        "flag"
+      ],
+      "state_init": {
+        "fired": 0,
+        "t": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "box",
+      "id": "box_a"
+    },
+    {
+      "def": "box",
+      "id": "box_b"
+    },
+    {
+      "def": "flag",
+      "id": "flag_a"
+    }
+  ]
+}

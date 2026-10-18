@@ -297,6 +297,11 @@ hand-authoring freely):
 - **`tools/yume_urdf/`** — URDF robot → articulated-body def (ADR 0093).
   `python -m tools.yume_urdf robot.urdf [--friction caster=0] [--spawn x,y,z]`.
 
+- **`hosts/web/`** — the TypeScript interpreter of the spec (ADR 0095),
+  phase 1: the headless core. `spec/conformance/` holds the cases that
+  both hosts must pass: `./scripts/conformance.sh [--ts-only]`. A
+  disagreement is a spec bug (see `hosts/web/README.md`).
+
 Engine support: `entity_mesh_3d.gd` reads `visual.albedo_texture` +
 dict-form `material_overrides` ({albedo_color, albedo_texture,
 normal_texture, roughness, metallic}). See each package's README.

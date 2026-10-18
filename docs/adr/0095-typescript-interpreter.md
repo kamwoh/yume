@@ -136,3 +136,23 @@ a sentence and a conformance case, and both hosts follow it.
 1. The code lives in `hosts/web/` in this repo.
 2. The spec names one seeded generator, and Godot uses it too.
 3. The headless core comes first.
+
+## Phase 1 findings (2026-10-18)
+
+The headless core passes the eight conformance cases on both hosts.
+Sokoban is not done yet: it needs levels (`game/flow.json`), variants
+and save policies. Work on the new host found four defects in the
+reference:
+
+1. **Randomness was not portable.** Fixed by the spec generator.
+2. **Engine rules were lost.** The game's first rules file cleared the
+   `lib/engine_rules` bundles, so the lifetime primitive (ADR 0049) did
+   nothing in any game with its own rules.
+3. **A radius query returned grid order.** Queries now return world
+   order, and a distance sort keeps world order for ties.
+4. **A held press-edge key fired on every tick** in scenarios, but once
+   in live play. The input steps now follow live play, and the contract
+   states them.
+
+Each fix landed with a gate in `test_runner.gd` and a conformance case.
+

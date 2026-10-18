@@ -1,0 +1,200 @@
+{
+  "scenarios": [
+    {
+      "name": "formula_values",
+      "steps": [
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.div",
+                "op": "==",
+                "value": 3.5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.negdiv",
+                "op": "==",
+                "value": -3.5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.half_tick",
+                "op": "==",
+                "value": 0.5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.rneg",
+                "op": "==",
+                "value": -3
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.rpos",
+                "op": "==",
+                "value": 3
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.fl",
+                "op": "==",
+                "value": -2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.ce",
+                "op": "==",
+                "value": -1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.gt",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.eq",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.missing",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.idx",
+                "op": "==",
+                "value": 20
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.idxf",
+                "op": "==",
+                "value": 20
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.cl",
+                "op": "==",
+                "value": 5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.le",
+                "op": "==",
+                "value": 2.5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.mm",
+                "op": "==",
+                "value": 5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.pw",
+                "op": "==",
+                "value": 1024
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.sq",
+                "op": "==",
+                "value": 4
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.prec",
+                "op": "==",
+                "value": 5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.notand",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.unary",
+                "op": "==",
+                "value": -6
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.boolarith",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.absn",
+                "op": "==",
+                "value": 7
+              }
+            },
+            {
+              "entity_field": {
+                "id": "calc_a",
+                "field": "state.paren",
+                "op": "==",
+                "value": 9
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,233 @@
+{
+  "_comment": "A value formula resolves when the effect applies, so r_copy (before r_add) reads the old n.",
+  "rules": [
+    {
+      "id": "r_copy",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "copy",
+        "value": "self.state.n + 0"
+      }
+    },
+    {
+      "id": "r_add",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "n",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_every3",
+      "trigger": {
+        "type": "tick",
+        "interval": 3
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "every3",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_mul",
+      "trigger": {
+        "type": "tick",
+        "interval": 2
+      },
+      "query": {
+        "id": "box_a"
+      },
+      "effect": {
+        "type": "state_mul",
+        "target": "self",
+        "field": "m",
+        "amount": 2
+      }
+    },
+    {
+      "id": "r_c_add",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "c",
+        "amount": 10
+      }
+    },
+    {
+      "id": "r_c_clamp",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_clamp",
+        "target": "self",
+        "field": "c",
+        "min": 0,
+        "max": 20
+      }
+    },
+    {
+      "id": "r_effect_order",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "x",
+          "value": 1
+        },
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "x",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "id": "r_late",
+      "after": [
+        "r_early"
+      ],
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "seq",
+        "value": "self.state.seq * 10 + 2"
+      }
+    },
+    {
+      "id": "r_early",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "seq",
+        "value": 1
+      }
+    },
+    {
+      "id": "r_once",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "flag"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "fired",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_once_per",
+      "once_per": "self",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "box"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "per",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_world_tick",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "flag"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "t",
+        "value": "world.tick * 1"
+      }
+    }
+  ]
+}

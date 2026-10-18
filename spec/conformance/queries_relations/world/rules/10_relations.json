@@ -1,0 +1,158 @@
+{
+  "rules": [
+    {
+      "id": "r_relate",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "effect": [
+        {
+          "type": "relate",
+          "relation": "holds",
+          "from": "h1",
+          "to": "i1",
+          "state": {
+            "count": 1
+          }
+        },
+        {
+          "type": "relate",
+          "relation": "holds",
+          "from": "h1",
+          "to": "i2"
+        }
+      ]
+    },
+    {
+      "id": "r_count",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "effect": {
+        "type": "relation_add",
+        "relation": "holds",
+        "from": "h1",
+        "to": "i1",
+        "field": "count",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_picked",
+      "trigger": {
+        "type": "relation_changed",
+        "relation": "holds",
+        "change": "added"
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "to",
+        "field": "picked",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_dropped",
+      "trigger": {
+        "type": "relation_changed",
+        "relation": "holds",
+        "change": "removed"
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "to",
+        "field": "dropped",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_drop",
+      "trigger": {
+        "type": "tick",
+        "interval": 3
+      },
+      "effect": {
+        "type": "unrelate",
+        "relation": "holds",
+        "from": "h1",
+        "to": "i2"
+      }
+    },
+    {
+      "id": "r_heavy",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "holder"
+        ],
+        "relations": {
+          "holds": {
+            "tags_all": [
+              "item"
+            ],
+            "state": {
+              "weight_gt": 4
+            }
+          }
+        }
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "heavy",
+        "value": "world.tick * 1"
+      }
+    },
+    {
+      "id": "r_clean",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_any": [
+          "item"
+        ],
+        "tags_none": [
+          "cursed"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "clean",
+        "value": 1
+      }
+    },
+    {
+      "id": "r_odd",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "item"
+        ],
+        "state": {
+          "weight_in": [
+            1,
+            5
+          ]
+        }
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "odd",
+        "value": 1
+      }
+    }
+  ]
+}

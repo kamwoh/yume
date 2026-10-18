@@ -1,0 +1,30 @@
+{
+  "scenarios": [
+    {
+      "name": "world_order",
+      "steps": [
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "log_a",
+                "field": "state.order",
+                "op": "==",
+                "value": [
+                  "t_c",
+                  "t_a",
+                  "t_b",
+                  "",
+                  ""
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

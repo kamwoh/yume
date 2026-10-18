@@ -1,0 +1,30 @@
+{
+  "rules": [
+    {
+      "id": "r_touch",
+      "trigger": {
+        "type": "contact"
+      },
+      "query": {
+        "a": {
+          "tags_all": [
+            "probe"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "target"
+          ]
+        },
+        "radius": 3
+      },
+      "effect": {
+        "type": "array_insert_first_empty",
+        "target": "log_a",
+        "field": "order",
+        "sentinel": "",
+        "value": "b"
+      }
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "_comment": "Conformance: contact pairs come in world order (ADR 0095), not in spatial-grid order.",
+  "definitions": [
+    {
+      "id": "probe",
+      "tags": [
+        "probe"
+      ]
+    },
+    {
+      "id": "target",
+      "tags": [
+        "target"
+      ]
+    },
+    {
+      "id": "log",
+      "tags": [
+        "log"
+      ],
+      "state_init": {
+        "order": [
+          "",
+          "",
+          "",
+          "",
+          ""
+        ]
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "log",
+      "id": "log_a"
+    },
+    {
+      "def": "probe",
+      "id": "p1",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "def": "probe",
+      "id": "p2",
+      "position": [
+        10,
+        0
+      ]
+    },
+    {
+      "def": "target",
+      "id": "t_c",
+      "position": [
+        2.5,
+        0
+      ]
+    },
+    {
+      "def": "target",
+      "id": "t_a",
+      "position": [
+        -0.5,
+        0
+      ]
+    },
+    {
+      "def": "target",
+      "id": "t_b",
+      "position": [
+        0.8,
+        0
+      ]
+    }
+  ]
+}

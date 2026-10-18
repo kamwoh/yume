@@ -1,0 +1,65 @@
+{
+  "rules": [
+    {
+      "id": "r_travel",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "effect": {
+        "type": "advance_time",
+        "units": 7
+      }
+    },
+    {
+      "id": "r_day",
+      "trigger": {
+        "type": "scheduled",
+        "every": 1
+      },
+      "query": {
+        "tags_all": [
+          "farm"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "days",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_harvest",
+      "trigger": {
+        "type": "scheduled",
+        "every": 3
+      },
+      "query": {
+        "tags_all": [
+          "farm"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "harvests",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_advanced",
+      "trigger": {
+        "type": "signal",
+        "name": "time_advanced"
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "world",
+        "field": "advanced",
+        "value": "units"
+      }
+    }
+  ]
+}

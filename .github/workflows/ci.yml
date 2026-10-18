@@ -3,7 +3,10 @@
 #   (check_examples), the validator tests and the asset-gen tests, through
 #   scripts/ci_checks.sh.
 # - godot: the engine unit tests and the scenario tests of the committed
-#   example demos, headless, on the pinned Godot 4.6.1.
+#   example demos, headless, on the pinned Godot 4.6.1. It also runs the
+#   conformance cases in spec/conformance (ADR 0095).
+# - web: the TypeScript host (ADR 0095): its unit tests, the type check and
+#   the conformance cases.
 name: ci
 
 on:
@@ -20,6 +23,23 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements-ci.txt
       - run: PYTHON=python ./scripts/ci_checks.sh
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hosts/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - name: Conformance (TypeScript host)
+        working-directory: .
+        run: ./scripts/conformance.sh --ts-only
 
   godot:
     runs-on: ubuntu-latest
@@ -48,4 +68,13 @@ jobs:
             grep -qE "passed: [0-9]+  failed: 0 " "scen_$g.log" || { echo "$g failed or crashed"; exit 1; }
             # A committed example with no scenarios proves nothing (lanterns, 2026-10-16).
             if grep -qE "total: 0\b" "scen_$g.log"; then echo "$g has no scenarios"; exit 1; fi
+          done
+      - name: Conformance cases (ADR 0095)
+        working-directory: godot
+        run: |
+          for c in ../spec/conformance/*/; do
+            name="$(basename "$c")"
+            cp -r "$c" "data/conf_$name"
+            timeout 300 "$GODOT" --headless --path . scenes/scenario_test.tscn -- --game="conf_$name" 2>&1 | tee "conf_$name.log"
+            grep -qE "passed: [0-9]+  failed: 0 " "conf_$name.log" || { echo "conformance $name failed or crashed"; exit 1; }
           done

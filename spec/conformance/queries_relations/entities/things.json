@@ -1,0 +1,52 @@
+{
+  "_comment": "Conformance: query clauses, relations, edge state, relation_changed.",
+  "definitions": [
+    {
+      "id": "holder",
+      "tags": [
+        "holder"
+      ],
+      "state_init": {
+        "heavy": 0
+      }
+    },
+    {
+      "id": "item",
+      "tags": [
+        "item"
+      ],
+      "state_init": {
+        "weight": 3,
+        "picked": 0,
+        "dropped": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "holder",
+      "id": "h1"
+    },
+    {
+      "def": "item",
+      "id": "i1"
+    },
+    {
+      "def": "item",
+      "id": "i2",
+      "state": {
+        "weight": 5
+      }
+    },
+    {
+      "def": "item",
+      "id": "i3",
+      "state": {
+        "weight": 1
+      },
+      "tags": [
+        "cursed"
+      ]
+    }
+  ]
+}

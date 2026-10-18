@@ -1,0 +1,21 @@
+{
+  "_comment": "Conformance: the spec generator (ADR 0095). Seed 42 rolls 0.6606, 0.1269, 0.1117, 0.8149, ...",
+  "definitions": [
+    {
+      "id": "dice",
+      "tags": [
+        "dice"
+      ],
+      "state_init": {
+        "r1": -1,
+        "hits": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "dice",
+      "id": "dice_a"
+    }
+  ]
+}

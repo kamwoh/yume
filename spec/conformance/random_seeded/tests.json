@@ -1,0 +1,33 @@
+{
+  "scenarios": [
+    {
+      "name": "seed_42",
+      "seed": 42,
+      "steps": [
+        {
+          "tick": 3
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "dice_a",
+                "field": "state.r1",
+                "op": "==",
+                "value": 0.12688004970550537
+              }
+            },
+            {
+              "entity_field": {
+                "id": "dice_a",
+                "field": "state.hits",
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "_comment": "Conformance: spawn ids, spawn and despawn triggers, transform, remove, and the engine lifetime rule (ADR 0049).",
+  "definitions": [
+    {
+      "id": "spawner",
+      "tags": [
+        "spawner"
+      ]
+    },
+    {
+      "id": "pellet",
+      "tags": [
+        "pellet"
+      ],
+      "state_init": {
+        "lifetime": 2
+      }
+    },
+    {
+      "id": "rock",
+      "tags": [
+        "rock"
+      ],
+      "state_init": {
+        "hp": 9
+      }
+    },
+    {
+      "id": "gem",
+      "tags": [
+        "gem"
+      ]
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "spawner",
+      "id": "s1"
+    },
+    {
+      "def": "rock"
+    },
+    {
+      "def": "rock",
+      "count": 2
+    }
+  ]
+}

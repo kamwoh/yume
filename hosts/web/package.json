@@ -1,0 +1,17 @@
+{
+  "name": "@yume/web-host",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The TypeScript interpreter of the Yume spec (ADR 0095).",
+  "type": "module",
+  "engines": {"node": ">=22.18"},
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "conformance": "node src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "22.18.0"
+  }
+}

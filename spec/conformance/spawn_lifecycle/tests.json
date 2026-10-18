@@ -1,0 +1,134 @@
+{
+  "scenarios": [
+    {
+      "name": "lifecycle",
+      "steps": [
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "pellet_3"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "pellet_3",
+                "field": "state.position.y",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "world_field": {
+                "field": "spawned",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "rock"
+                  ]
+                },
+                "op": "==",
+                "value": 2
+              }
+            }
+          ]
+        },
+        {
+          "tick": 2
+        },
+        {
+          "expect": [
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "pellet"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "pellet_3",
+                "field": "state.lifetime",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "gem_4"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "gem_4",
+                "field": "state.hp",
+                "op": "==",
+                "value": 9
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "rock"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        },
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "pellet"
+                  ]
+                },
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "world_field": {
+                "field": "despawned",
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

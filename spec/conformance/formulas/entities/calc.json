@@ -1,0 +1,27 @@
+{
+  "_comment": "Conformance: the formula language (ADR 0088).",
+  "definitions": [
+    {
+      "id": "calc",
+      "tags": [
+        "calc"
+      ],
+      "state_init": {
+        "a": 7,
+        "b": 2,
+        "neg": -7,
+        "arr": [
+          10,
+          20,
+          30
+        ]
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "calc",
+      "id": "calc_a"
+    }
+  ]
+}

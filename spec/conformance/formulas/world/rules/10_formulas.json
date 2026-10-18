@@ -1,0 +1,158 @@
+{
+  "_comment": "Each field gets one formula on tick 1. boolarith is arithmetic on a boolean, an error that gives 0.",
+  "rules": [
+    {
+      "id": "r_formulas",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "calc"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "div",
+          "value": "self.state.a / self.state.b"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "negdiv",
+          "value": "self.state.neg / self.state.b"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "half_tick",
+          "value": "world.tick / 2"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "rneg",
+          "value": "round(-2.5)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "rpos",
+          "value": "round(2.5)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "fl",
+          "value": "floor(-1.5)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "ce",
+          "value": "ceil(-1.5)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "gt",
+          "value": "float(self.state.a > self.state.b)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "eq",
+          "value": "float(self.state.a == self.state.b)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "missing",
+          "value": "self.state.nope + 1"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "idx",
+          "value": "self.state.arr[1] + 0"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "idxf",
+          "value": "self.state.arr[1.7] + 0"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "cl",
+          "value": "clamp(self.state.a, 0, 5)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "le",
+          "value": "lerp(0, 10, 0.25)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "mm",
+          "value": "min(self.state.a, self.state.b) + max(1, 3)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "pw",
+          "value": "pow(2, 10)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "sq",
+          "value": "sqrt(16)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "prec",
+          "value": "1 + 2 * 3 - 4 / 2"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "notand",
+          "value": "float(not self.state.a > 10 and self.state.b == 2)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "unary",
+          "value": "-self.state.a + 1"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "boolarith",
+          "value": "float(self.state.a > 1) + (self.state.a > 1)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "absn",
+          "value": "abs(self.state.neg)"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "paren",
+          "value": "(1 + 2) * 3"
+        }
+      ]
+    }
+  ]
+}

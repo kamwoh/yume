@@ -1,0 +1,127 @@
+{
+  "scenarios": [
+    {
+      "name": "six_ticks",
+      "steps": [
+        {
+          "tick": 6
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.n",
+                "op": "==",
+                "value": 6
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_b",
+                "field": "state.n",
+                "op": "==",
+                "value": 6
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.copy",
+                "op": "==",
+                "value": 5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.every3",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.m",
+                "op": "==",
+                "value": 16
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_b",
+                "field": "state.m",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.c",
+                "op": "==",
+                "value": 20
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.x",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.seq",
+                "op": "==",
+                "value": 12
+              }
+            },
+            {
+              "entity_field": {
+                "id": "flag_a",
+                "field": "state.fired",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_a",
+                "field": "state.per",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "box_b",
+                "field": "state.per",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "flag_a",
+                "field": "state.t",
+                "op": "==",
+                "value": 6
+              }
+            },
+            {
+              "world_field": {
+                "field": "tick",
+                "op": "==",
+                "value": 6
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

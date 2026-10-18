@@ -1,0 +1,90 @@
+{
+  "rules": [
+    {
+      "id": "r_spawn",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "spawner"
+        ]
+      },
+      "effect": {
+        "type": "spawn",
+        "template": "pellet",
+        "position": [
+          1,
+          2
+        ]
+      }
+    },
+    {
+      "id": "r_on_spawn",
+      "trigger": {
+        "type": "spawn"
+      },
+      "query": {
+        "tags_all": [
+          "pellet"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "world",
+        "field": "spawned",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_on_despawn",
+      "trigger": {
+        "type": "despawn"
+      },
+      "query": {
+        "tags_all": [
+          "pellet"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "world",
+        "field": "despawned",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_transform",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 2
+      },
+      "query": {
+        "id": "rock_0"
+      },
+      "effect": {
+        "type": "transform",
+        "target": "self",
+        "to": "gem"
+      }
+    },
+    {
+      "id": "r_remove",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "id": "rock_2"
+      },
+      "effect": {
+        "type": "remove",
+        "target": "self"
+      }
+    }
+  ]
+}

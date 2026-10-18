@@ -1,0 +1,361 @@
+// Effects. Mirrors effect_apply.gd, effect_core.gd and effect_resolution.gd
+// for the exact effects of ADR 0095 phase 1. Shell effects (screens,
+// toasts, save, audio) append a record to env.shellEvents and change no
+// other state. An effect outside phase 1 raises effect.unsupported_host.
+import { Entity } from "./entity.ts";
+import type { Env } from "./env.ts";
+import { raise } from "./env.ts";
+import { type FormulaContext, evaluate, looksLikeFormula } from "./formula.ts";
+import { type Ctx, strOf } from "./query.ts";
+import { type Dict, type Value, Vec2, Vec3, deepCopy, equals, isDict, toFloat, toInt } from "./value.ts";
+
+const WORLD_STATE_ALIAS = "_engine";
+
+const SHELL_EFFECTS = [
+  "transition_screen", "quit_app", "show_toast", "reload_scene", "scene_change", "screen_fade",
+  "save_state", "load_state", "show_overlay", "dismiss_overlay", "set_audio_bus_volume",
+  "set_input_mapping", "refresh_screen",
+];
+
+export function apply(e: Dict, env: Env, ctx: Ctx): void {
+  const type = String(e.type ?? "");
+  switch (type) {
+    case "state_set":
+      return stateSet(e, env, ctx);
+    case "state_add": {
+      const ent = target(e, env, ctx);
+      if (ent) ent.addState(String(e.field ?? ""), toFloat(value(e.amount ?? null, ctx, env)));
+      return;
+    }
+    case "state_mul": {
+      const ent = target(e, env, ctx);
+      if (!ent) return;
+      const f = String(e.field ?? "");
+      ent.setState(f, toFloat(ent.getState(f, 0)) * toFloat(value(e.amount ?? null, ctx, env)));
+      return;
+    }
+    case "state_clamp": {
+      const ent = target(e, env, ctx);
+      if (!ent) return;
+      const f = String(e.field ?? "");
+      const lo = "min" in e ? toFloat(e.min) : -Infinity;
+      const hi = "max" in e ? toFloat(e.max) : Infinity;
+      const x = toFloat(ent.getState(f, 0));
+      ent.setState(f, x < lo ? lo : x > hi ? hi : x);
+      return;
+    }
+    case "spawn":
+      spawn(e, env, ctx);
+      return;
+    case "remove":
+      return remove(e, env, ctx);
+    case "transform":
+      return transform(e, env, ctx);
+    case "relate":
+    case "unrelate": {
+      const t = String(e.relation ?? "");
+      const from = resolveId(e.from ?? "self", ctx, env);
+      const to = resolveId(e.to ?? "", ctx, env);
+      if (t === "" || from === "" || to === "") return;
+      if (type === "relate") env.relations.relate(t, from, to, isDict(e.state) ? e.state : {});
+      else env.relations.unrelate(t, from, to);
+      return;
+    }
+    case "transfer_relation": {
+      const t = String(e.relation ?? "");
+      const from = resolveId(e.from ?? "self", ctx, env);
+      const to = resolveId(e.to ?? "", ctx, env);
+      if ("new_to" in e) env.relations.transferTo(t, from, to, resolveId(e.new_to, ctx, env));
+      else if ("new_from" in e) env.relations.transferFrom(t, from, resolveId(e.new_from, ctx, env), to);
+      return;
+    }
+    case "relation_set":
+    case "relation_add":
+    case "relation_clamp":
+      return relationField(type, e, env, ctx);
+    case "tag_add":
+    case "tag_remove": {
+      const ent = target(e, env, ctx);
+      const tag = String(e.tag ?? "");
+      if (tag === "") raise(env, "effect.tag_missing", `${type}: no \`tag\` field`, "warning");
+      if (!ent || tag === "") return;
+      if (type === "tag_add") ent.addTag(tag);
+      else ent.removeTag(tag);
+      return;
+    }
+    case "emit": {
+      const name = String(e.signal ?? "");
+      if (name === "") return;
+      const raw = isDict(e.payload) ? e.payload : {};
+      const payload: Dict = {};
+      for (const k of Object.keys(raw)) payload[k] = value(raw[k], ctx, env) as Value;
+      pushSignal(env, name, payload);
+      return;
+    }
+    case "emit_shell_event": {
+      const ev = String(e.event ?? "");
+      if (ev === "") return;
+      const rec: Dict = { event: ev };
+      for (const k of Object.keys(e)) if (k !== "type" && k !== "event") rec[k] = value(e[k], ctx, env) as Value;
+      env.shellEvents.push({ type: "emit_shell_event", ...rec });
+      return;
+    }
+    case "array_set_at":
+    case "array_insert_first_empty":
+    case "array_count_matching":
+    case "array_sync_to_field":
+      return arrayEffect(type, e, env, ctx);
+    case "advance_time": {
+      const units = toInt(value(e.units ?? 1, ctx, env));
+      if (units > 0 && env.advanceCalendar) env.advanceCalendar(units);
+      return;
+    }
+    case "velocity_set":
+      return velocitySet(e, env, ctx);
+  }
+  if (SHELL_EFFECTS.includes(type)) {
+    const rec: Dict = { type };
+    for (const k of Object.keys(e)) if (k !== "type") rec[k] = deepCopy(e[k]);
+    env.shellEvents.push(rec);
+    return;
+  }
+  raise(env, "effect.unsupported_host", `effect '${type}' is not in this host yet (ADR 0095 phase 1)`, "warning");
+}
+
+export function pushSignal(env: Env, name: string, payload: Dict): void {
+  if (name === "") return;
+  env.signalBuffer.push({ name, payload });
+}
+
+function stateSet(e: Dict, env: Env, ctx: Ctx): void {
+  const ent = target(e, env, ctx);
+  if (!ent) return;
+  const field = String(e.field ?? "");
+  const v = value(e.value ?? null, ctx, env) as Value;
+  if (field === "position") ent.setPosition(v);
+  else if (field === "velocity") ent.setVelocity(v);
+  else ent.setState(field, v);
+}
+
+export function spawn(e: Dict, env: Env, ctx: Ctx): string {
+  const template = String(e.template ?? "");
+  const def = env.defs.get(template);
+  if (!def) {
+    raise(env, "effect.spawn_no_def", `spawn: no def '${template}'`);
+    return "";
+  }
+  const overrides: Dict = deepCopy(isDict(e.overrides) ? e.overrides : {});
+  if ("position" in e) overrides.position = position(e.position, env, ctx);
+  if (isDict(overrides.state)) {
+    const st = overrides.state;
+    for (const k of Object.keys(st)) {
+      const v = st[k];
+      if ((k === "position" || k === "velocity") && Array.isArray(v)) st[k] = position(v, env, ctx);
+      else if (typeof v === "string") st[k] = value(v, ctx, env) as Value;
+    }
+  }
+  let id = "";
+  if ("_forced_id" in overrides) {
+    id = String(overrides._forced_id);
+    delete overrides._forced_id;
+  } else {
+    id = `${template}_${env.nextId.n}`;
+    env.nextId.n += 1;
+  }
+  const ent = Entity.create(def, id, overrides);
+  env.entities.set(id, ent);
+  env.dispatchLifecycle?.("spawn", id);
+  return id;
+}
+
+function remove(e: Dict, env: Env, ctx: Ctx): void {
+  const ent = target(e, env, ctx);
+  if (!ent) return;
+  env.dispatchLifecycle?.("despawn", ent.id);
+  env.relations.clearEntity(ent.id);
+  env.entities.delete(ent.id);
+}
+
+function transform(e: Dict, env: Env, ctx: Ctx): void {
+  const ent = target(e, env, ctx);
+  if (!ent) return;
+  const to = String(e.to ?? "");
+  if (!env.defs.has(to)) {
+    raise(env, "effect.transform_no_def", `transform: no def '${to}'`);
+    return;
+  }
+  const preserved = deepCopy(ent.state);
+  remove({ type: "remove", target: e.target ?? "self" }, env, ctx);
+  spawn({ type: "spawn", template: to, overrides: { state: preserved } }, env, ctx);
+}
+
+function relationField(type: string, e: Dict, env: Env, ctx: Ctx): void {
+  const t = String(e.relation ?? "");
+  const from = resolveId(e.from ?? "self", ctx, env);
+  const to = resolveId(e.to ?? "", ctx, env);
+  if (t === "" || from === "" || to === "") return;
+  const field = String(e.field ?? "");
+  let ok = false;
+  if (type === "relation_set") ok = env.relations.setEdgeField(t, from, to, field, value(e.value ?? null, ctx, env) as Value);
+  else if (type === "relation_add") ok = env.relations.addEdgeField(t, from, to, field, toFloat(value(e.amount ?? null, ctx, env)));
+  else ok = env.relations.clampEdgeField(t, from, to, field, "min" in e ? toFloat(e.min) : -Infinity, "max" in e ? toFloat(e.max) : Infinity);
+  if (!ok && !env.relations.hasEdge(t, from, to)) {
+    raise(env, "relation.no_edge", `${type}: no ${t} edge ${from} -> ${to}`, "warning");
+  }
+}
+
+function arrayEffect(type: string, e: Dict, env: Env, ctx: Ctx): void {
+  const ent = target(e, env, ctx);
+  if (!ent) return;
+  if (type === "array_set_at") {
+    const field = String(e.field ?? "");
+    if (field === "") return;
+    const index = toInt(value(e.index ?? 0, ctx, env));
+    if (index < 0) return;
+    const v = value(e.value ?? null, ctx, env) as Value;
+    const cur = ent.getState(field, []);
+    const arr: Value[] = Array.isArray(cur) ? [...cur] : [];
+    while (arr.length <= index) arr.push(null);
+    arr[index] = v;
+    ent.setState(field, arr);
+  } else if (type === "array_insert_first_empty") {
+    const field = String(e.field ?? "");
+    if (field === "") return;
+    const sentinel = value(e.sentinel ?? "", ctx, env);
+    const v = value(e.value ?? null, ctx, env) as Value;
+    if (v === null) return;
+    const resultField = String(e.result_field ?? "_last_slot");
+    const cur = ent.getState(field, []);
+    const arr: Value[] = Array.isArray(cur) ? [...cur] : [];
+    for (let i = 0; i < arr.length; i++) {
+      if (equals(arr[i], sentinel)) {
+        arr[i] = v;
+        ent.setState(field, arr);
+        ent.setState(resultField, i);
+        return;
+      }
+    }
+    ent.setState(resultField, -1);
+    if (isDict(e.on_full)) {
+      const sig = String(e.on_full.signal ?? "");
+      if (sig !== "") pushSignal(env, sig, deepCopy(isDict(e.on_full.payload) ? e.on_full.payload : {}));
+    }
+  } else if (type === "array_count_matching") {
+    const af = String(e.array_field ?? "");
+    const df = String(e.dest_field ?? "");
+    if (af === "" || df === "") return;
+    const sentinel = value(e.sentinel ?? "", ctx, env);
+    const cur = ent.getState(af, []);
+    ent.setState(df, Array.isArray(cur) ? cur.filter((x) => equals(x, sentinel)).length : 0);
+  } else {
+    const af = String(e.array_field ?? "");
+    const inf = String(e.index_field ?? "");
+    const df = String(e.dest_field ?? "");
+    if (af === "" || inf === "" || df === "") return;
+    const dflt = (e.default ?? "") as Value;
+    const cur = ent.getState(af, []);
+    const idx = toInt(ent.getState(inf, 0));
+    let out: Value = dflt;
+    if (Array.isArray(cur) && idx >= 0 && idx < cur.length) out = cur[idx] ?? dflt;
+    ent.setState(df, out);
+  }
+}
+
+function velocitySet(e: Dict, env: Env, ctx: Ctx): void {
+  const ent = target(e, env, ctx);
+  if (!ent) return;
+  const cur = ent.getState("velocity", null);
+  const cx = cur instanceof Vec2 || cur instanceof Vec3 ? cur.x : 0;
+  const cy = cur instanceof Vec2 || cur instanceof Vec3 ? cur.y : 0;
+  const vx = "x" in e ? toFloat(value(e.x, ctx, env)) : cx;
+  const vy = "y" in e ? toFloat(value(e.y, ctx, env)) : cy;
+  if ("z" in e || cur instanceof Vec3) {
+    const vz = "z" in e ? toFloat(value(e.z, ctx, env)) : cur instanceof Vec3 ? cur.z : 0;
+    ent.setVelocity(new Vec3(vx, vy, vz));
+  } else {
+    ent.setVelocity(new Vec2(vx, vy));
+  }
+}
+
+// ---------- resolution (effect_resolution.gd) ----------
+
+export function entityId(v: unknown, ctx: Ctx, env: Env): string {
+  if (typeof v !== "string") return "";
+  if (v in ctx) return strOf(ctx[v]);
+  const dot = v.indexOf(".");
+  if (dot > 0 && v.slice(0, dot) in ctx) {
+    const r = value(v, ctx, env);
+    return r === null || r === undefined ? "" : strOf(r);
+  }
+  return v;
+}
+
+export const resolveId = entityId;
+
+export function target(e: Dict, env: Env, ctx: Ctx): Entity | null {
+  let id = entityId(e.target ?? "self", ctx, env);
+  if (id === "world" && !env.entities.has(id)) id = WORLD_STATE_ALIAS;
+  return env.entities.get(id) ?? null;
+}
+
+export function value(v: unknown, ctx: Ctx, env: Env): unknown {
+  if (typeof v === "number" || typeof v === "boolean") return v;
+  if (v instanceof Vec2 || v instanceof Vec3) return v;
+  if (Array.isArray(v)) return v.map((x) => value(x, ctx, env));
+  if (isDict(v)) {
+    const out: Dict = {};
+    for (const k of Object.keys(v)) out[k] = value(v[k], ctx, env) as Value;
+    return out;
+  }
+  if (typeof v === "string") {
+    if (v in ctx) return ctx[v];
+    if (v.startsWith("@")) return v;
+    if (looksLikeFormula(v)) {
+      const fctx = formulaContext(ctx, env, v);
+      return evaluate(v, fctx, env);
+    }
+    return v;
+  }
+  return v;
+}
+
+export function formulaContext(ctx: Ctx, env: Env, formula = ""): FormulaContext {
+  const out: FormulaContext = {};
+  for (const role of ["self", "target", "a", "b", "source", "from", "to"]) {
+    if (role in ctx) {
+      const e = env.entities.get(strOf(ctx[role]));
+      if (e) out[role] = e;
+    }
+  }
+  out.world = env.world;
+  out.zone = {};
+  void formula;
+  for (const pre of ["self_entity", "a_entity", "b_entity"]) {
+    if (pre in ctx) out[pre.replace("_entity", "")] = ctx[pre];
+  }
+  for (const k of Object.keys(ctx)) {
+    if (k in out || k.startsWith("_")) continue;
+    const v = ctx[k];
+    if (typeof v === "string" && env.entities.has(v)) out[k] = env.entities.get(v);
+    else out[k] = v;
+  }
+  return out;
+}
+
+export function position(v: unknown, env: Env, ctx: Ctx): Vec2 | Vec3 {
+  if (v instanceof Vec2 || v instanceof Vec3) return v;
+  if (Array.isArray(v)) {
+    if (v.length === 2) return new Vec2(toFloat(value(v[0], ctx, env)), toFloat(value(v[1], ctx, env)));
+    if (v.length === 3) {
+      return new Vec3(toFloat(value(v[0], ctx, env)), toFloat(value(v[1], ctx, env)), toFloat(value(v[2], ctx, env)));
+    }
+  }
+  if (typeof v === "string" && v in ctx) {
+    const e = env.entities.get(strOf(ctx[v]));
+    if (e) {
+      const p = e.position();
+      if (p instanceof Vec2 || p instanceof Vec3) return p;
+    }
+  }
+  return new Vec2(0, 0);
+}

@@ -1,0 +1,46 @@
+{
+  "scenarios": [
+    {
+      "name": "seven_days",
+      "steps": [
+        {
+          "tick": 2
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "farm_a",
+                "field": "state.days",
+                "op": "==",
+                "value": 7
+              }
+            },
+            {
+              "entity_field": {
+                "id": "farm_a",
+                "field": "state.harvests",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "world_field": {
+                "field": "calendar_units",
+                "op": "==",
+                "value": 7
+              }
+            },
+            {
+              "world_field": {
+                "field": "advanced",
+                "op": "==",
+                "value": 7
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

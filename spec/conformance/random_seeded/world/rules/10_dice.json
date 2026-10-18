@@ -1,0 +1,43 @@
+{
+  "_comment": "A chance roll happens when the rule fires (decide). A randf() in a value happens when the effect applies (the flush after decide).",
+  "rules": [
+    {
+      "id": "r_formula",
+      "once": true,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "dice"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "r1",
+        "value": "randf() * 1"
+      }
+    },
+    {
+      "id": "r_chance",
+      "chance": 0.5,
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "dice"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "hits",
+        "amount": 1
+      }
+    }
+  ]
+}

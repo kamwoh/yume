@@ -1,0 +1,21 @@
+{
+  "_comment": "Conformance: the calendar clock (ADR 0078). advance_time runs the scheduled rules once per unit.",
+  "definitions": [
+    {
+      "id": "farm",
+      "tags": [
+        "farm"
+      ],
+      "state_init": {
+        "days": 0,
+        "harvests": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "farm",
+      "id": "farm_a"
+    }
+  ]
+}

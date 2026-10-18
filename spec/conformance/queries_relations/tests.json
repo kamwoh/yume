@@ -1,0 +1,113 @@
+{
+  "scenarios": [
+    {
+      "name": "three_ticks",
+      "steps": [
+        {
+          "tick": 3
+        },
+        {
+          "expect": [
+            {
+              "relation_field": {
+                "relation": "holds",
+                "from_query": {
+                  "id": "h1"
+                },
+                "to_query": {
+                  "id": "i1"
+                },
+                "field": "count",
+                "op": "==",
+                "value": 4
+              }
+            },
+            {
+              "entity_field": {
+                "id": "i1",
+                "field": "state.picked",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "i2",
+                "field": "state.picked",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "i2",
+                "field": "state.dropped",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "i1",
+                "field": "state.dropped",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "h1",
+                "field": "state.heavy",
+                "op": "==",
+                "value": 3
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "item"
+                  ],
+                  "state": {
+                    "clean_eq": 1
+                  }
+                },
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "item"
+                  ],
+                  "state": {
+                    "odd_eq": 1
+                  }
+                },
+                "op": "==",
+                "value": 2
+              }
+            }
+          ]
+        },
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "h1",
+                "field": "state.heavy",
+                "op": "==",
+                "value": 3
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
