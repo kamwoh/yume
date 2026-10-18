@@ -136,6 +136,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0092](./0092-sensors.md) | Sensors: rays and lidar that write state | accepted | 2026-10-18 |
 | [0093](./0093-urdf-importer.md) | URDF importer for articulated bodies | accepted | 2026-10-18 |
 | [0094](./0094-camera-heading.md) | Camera heading: follow the mouse look or the body heading | accepted | 2026-10-18 |
+| [0095](./0095-typescript-interpreter.md) | A second interpreter in TypeScript, on three.js | accepted | 2026-10-18 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 
