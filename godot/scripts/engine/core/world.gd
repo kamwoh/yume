@@ -79,6 +79,9 @@ var error_buffer: Array = []  # Tier 2.6a structured errors
 var _overlap_events: Array = []  # ADR 0070 — area overlap event buffer
 var articulated_bodies: Dictionary = {}  # ADR 0091 — instance_id → ArticulatedBody
 var sensor_arrays: Dictionary = {}  # ADR 0092 — instance_id → SensorArray
+## ADR 0049 — the lib/engine_rules bundles. A content load that replaces
+## the rule set keeps them (WorldLoader.load_rules_file).
+var engine_rules: Array = []
 var save_policy: Dictionary = {}  # ADR 0010 — empty = no persistence
 
 var relations: RelationStore = null  # primitive #7

@@ -214,7 +214,12 @@ func load_rules_file(path: String, append: bool = false) -> void:
 	if append and _world.scheduler.has_method("append_rules"):
 		_world.scheduler.append_rules(rules)
 	else:
-		_world.scheduler.register_rules(rules)
+		# Replace the content rules, but keep the engine rules (ADR 0049).
+		# Empirical case 2026-10-18: register_rules dropped them, so the
+		# lifetime primitive did nothing in every game with its own rules.
+		var all: Array = _world.engine_rules.duplicate()
+		all.append_array(rules)
+		_world.scheduler.register_rules(all)
 	if _world.verbose:
 		print("[World] %d rules %s" % [rules.size(), "appended" if append else "registered"])
 
@@ -228,6 +233,19 @@ func load_rules_file(path: String, append: bool = false) -> void:
 ##
 ## Example: `load_rules_files_for("world/rules.json", false)` tries
 ## `world/rules/` first (globs *.json), falls back to `world/rules.json`.
+## ADR 0049 — load one lib/engine_rules bundle. The world keeps the rules,
+## so a later content load that replaces the rule set keeps them too.
+func load_engine_rules_file(path: String) -> void:
+	if not FileAccess.file_exists(path):
+		return
+	var env := _world._build_env()
+	var rules := Rule.load_from_file(path, env)
+	for record in Rule.validate_all(rules):
+		EngineError.report(env, record)
+	_world.engine_rules.append_array(rules)
+	_world.scheduler.append_rules(rules)
+
+
 func load_rules_files_for(path: String, append: bool = false) -> void:
 	var dir_path := path.trim_suffix(".json")
 	if DirAccess.dir_exists_absolute(dir_path):

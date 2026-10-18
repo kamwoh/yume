@@ -102,6 +102,7 @@ func _ready() -> void:
 	test_camera_intrinsics()
 	await test_camera_heading()
 	test_spec_random()
+	test_boot_rules()
 	test_array_primitives()
 	test_animation_translator()
 	test_ground_renderer_rebind()
@@ -9272,6 +9273,37 @@ func test_camera_intrinsics() -> void:
 	CameraDirector._merge_camera_overrides(cfg, {"cam_ortho": 0, "cam_focal_mm": 35.0})
 	expect_eq(cfg["projection"], "perspective", "cam_ortho 0 → perspective")
 	expect_eq(cfg["focal_length_mm"], 35.0, "positive cam_focal_mm → focal override")
+
+
+## ADR 0049 — the lib/engine_rules bundles stay after the game's own rules
+## load. Empirical case 2026-10-18: the first content rules file called
+## register_rules, which cleared the engine rules. The lifetime primitive
+## then did nothing in every game with rules, and one demo wrote its own
+## copy of the lifetime rules.
+func test_boot_rules() -> void:
+	_section("boot_rules (ADR 0049 engine rules survive a content load)")
+	var w := World.new()
+	w.data_root = "res://data/test_boot_rules"
+	w.auto_start = false
+	w.verbose = false
+	w.renderer_script = ""
+	add_child(w)
+	w.set_process(false)
+	w.set_physics_process(false)
+	w.load_data()
+	expect(w.scheduler.get_rule_by_id("engine_lifetime_decrement") != null,
+		"engine lifetime rule is registered after the content rules load")
+	expect(w.scheduler.get_rule_by_id("count") != null, "the content rule is registered")
+	for i in 4:
+		w.advance_one_tick()
+	expect(not w.entities.has("spark_a"), "a spark with lifetime 3 is gone after 4 ticks")
+	expect_eq(float((w.entities["counter_a"] as Entity).get_state("n", -1)), 4.0,
+		"the content rule fired once per tick")
+	# A later replace (a level change) keeps the engine rules too.
+	w._loader.load_rules_file("res://data/test_boot_rules/world/rules/10_count.json")
+	expect(w.scheduler.get_rule_by_id("engine_lifetime_decrement") != null,
+		"engine rules stay after a second replace")
+	w.queue_free()
 
 
 ## ADR 0095 — the spec generator gives the reference values of

@@ -184,13 +184,18 @@ func _load_engine_rules() -> void:
 	var dir := DirAccess.open(lib_root)
 	if dir == null:
 		return
+	var files: Array[String] = []
 	dir.list_dir_begin()
 	var fname := dir.get_next()
 	while fname != "":
 		if not dir.current_is_dir() and fname.ends_with(".json"):
-			_world._loader.load_rules_file(lib_root + "/" + fname, true)
+			files.append(fname)
 		fname = dir.get_next()
 	dir.list_dir_end()
+	files.sort()  # the same order on every host
+	_world.engine_rules.clear()
+	for f in files:
+		_world._loader.load_engine_rules_file(lib_root + "/" + f)
 
 
 ## Tier 2.6t / ADR 0009 — register per-game input actions from

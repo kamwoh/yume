@@ -1,0 +1,11 @@
+{
+  "_comment": "Unit-test fixture for test_boot_rules (ADR 0049). A spark with state.lifetime 3, and a counter that a content rule ticks.",
+  "definitions": [
+    {"id": "spark", "tags": ["spark"], "state_init": {"lifetime": 3}},
+    {"id": "counter", "tags": ["counter"], "state_init": {"n": 0}}
+  ],
+  "initial_instances": [
+    {"def": "spark", "id": "spark_a"},
+    {"def": "counter", "id": "counter_a"}
+  ]
+}

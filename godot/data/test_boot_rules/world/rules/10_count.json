@@ -1,0 +1,7 @@
+{
+  "_comment": "One content rule. Its load replaces the rule set, and the engine rules must stay.",
+  "rules": [
+    {"id": "count", "trigger": {"type": "tick", "interval": 1}, "query": {"tags_all": ["counter"]},
+     "effect": {"type": "state_add", "target": "self", "field": "n", "amount": 1}}
+  ]
+}
