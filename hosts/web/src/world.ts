@@ -1,8 +1,7 @@
 // A world: entities, rules and state loaded from a game folder. Mirrors
 // world.gd, world_boot.gd and world_loader.gd for the parts in ADR 0095
 // phase 1. Features outside phase 1 raise host.unsupported once at load.
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { type Files, dirname, join } from "./files.ts";
 import { Entity } from "./entity.ts";
 import type { Env } from "./env.ts";
 import { raise } from "./env.ts";
@@ -37,9 +36,13 @@ export class World {
   savePolicy: Dict = {};
 
   libRoot: string;
+  files: Files;
+  /** The key names of each action, from ui/input.json (InputRegistrar). */
+  actionKeys = new Map<string, string[]>();
 
   /** `libRoot` defaults to the `lib/` folder next to the game folder, as in the reference. */
-  constructor(root: string, libRoot = "") {
+  constructor(root: string, files: Files, libRoot = "") {
+    this.files = files;
     this.root = root.replace(/\/+$/, "");
     this.libRoot = libRoot !== "" ? libRoot : join(dirname(this.root), "lib");
     const world: Dict = {};
@@ -57,7 +60,7 @@ export class World {
       pendingLevel: "",
     };
     this.scheduler = new PhaseScheduler(this.env);
-    this.lib = new LibResolver(this.libRoot);
+    this.lib = new LibResolver(this.libRoot, files);
   }
 
   /** world.gd load_data + WorldBoot.run, in the same order. */
@@ -69,7 +72,7 @@ export class World {
       if (typeof ws === "number" && Math.trunc(ws) !== 0) SpecRandom.shared.setSeed(Math.trunc(ws));
     }
     for (const f of UNSUPPORTED_FILES) {
-      if (existsSync(join(this.root, f))) raise(this.env, "host.unsupported", `${f} is not in this host yet (ADR 0095 phase 1)`, "warning");
+      if (this.files.exists(join(this.root, f))) raise(this.env, "host.unsupported", `${f} is not in this host yet (ADR 0095 phase 1)`, "warning");
     }
     this.spawnEngineEntity();
     this.loadEngineRules();
@@ -94,7 +97,7 @@ export class World {
   /** WorldBoot._load_content: the progression, the global rules, then the starting level. */
   private loadContent(): void {
     const prog = join(this.root, "game/flow.json");
-    if (existsSync(prog)) this.loadProgression(prog);
+    if (this.files.exists(prog)) this.loadProgression(prog);
     this.loadGlobalRules();
     this.loadWorldFile();
     this.loadEntities(this.root);
@@ -176,7 +179,7 @@ export class World {
       const scene = this.readJson("scene.json");
       if (isDict(scene) && String(scene.variant ?? "") !== "") name = String(scene.variant);
     }
-    if (name === "") name = process.env.YUME_VARIANT ?? "";
+    if (name === "") name = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.YUME_VARIANT ?? "";
     if (name === "") return;
     const v = this.readJson(join("variants", `${name}.json`));
     if (!isDict(v)) return;
@@ -218,8 +221,8 @@ export class World {
 
   private loadEngineRules(): void {
     const dir = join(this.libRoot, "engine_rules");
-    if (!existsSync(dir)) return;
-    for (const f of readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
+    if (!this.files.exists(dir)) return;
+    for (const f of this.files.list(dir).filter((x) => x.endsWith(".json")).sort()) {
       const rules = this.parseRules(join(dir, f));
       this.engineRules.push(...rules);
       this.scheduler.pinnedRules.push(...rules);
@@ -238,6 +241,9 @@ export class World {
       const name = String(a.name ?? "");
       if (name === "") continue;
       edgeByName.set(name, String(a.edge ?? "press") === "hold" ? "hold" : "press");
+      // A declaration with keys replaces the bindings. One without keys keeps them.
+      const keys = [...("key" in a ? [String(a.key)] : []), ...(Array.isArray(a.keys) ? a.keys.map(String) : [])];
+      if (keys.length > 0) this.actionKeys.set(name, keys);
     }
     for (const [name, edge] of edgeByName) (edge === "hold" ? this.actionsHold : this.actionsPress).push(name);
   }
@@ -247,10 +253,10 @@ export class World {
   }
 
   private parseRules(path: string): Rule[] {
-    if (!existsSync(path)) return [];
+    if (!this.files.exists(path)) return [];
     let data: unknown;
     try {
-      data = JSON.parse(readFileSync(path, "utf8"));
+      data = JSON.parse(this.files.read(path) ?? "");
     } catch {
       raise(this.env, "rule.invalid_json", `Rules file is not valid JSON: ${path}`);
       return [];
@@ -272,7 +278,7 @@ export class World {
 
   /** WorldLoader.load_rules_file. A replace keeps the engine rules (ADR 0049). */
   loadRulesFile(path: string, append: boolean): void {
-    if (!existsSync(path)) return;
+    if (!this.files.exists(path)) return;
     const rules = this.parseRules(path);
     if (append) this.scheduler.appendRules(rules);
     else this.scheduler.registerRules(rules);
@@ -281,9 +287,9 @@ export class World {
   /** WorldLoader.load_rules_files_for: a folder of rule files in name order, or one file. */
   private loadRulesFor(path: string, append: boolean): void {
     const dir = path.replace(/\.json$/, "");
-    if (existsSync(dir)) {
+    if (this.files.exists(dir)) {
       let first = true;
-      for (const f of readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
+      for (const f of this.files.list(dir).filter((x) => x.endsWith(".json")).sort()) {
         this.loadRulesFile(join(dir, f), first ? append : true);
         first = false;
       }
@@ -303,8 +309,8 @@ export class World {
     const single = this.readAbs(join(root, "entities.json"));
     if (isDict(single)) docs.push(this.lib.resolve(single) as Dict);
     const dir = join(root, "entities");
-    if (existsSync(dir)) {
-      for (const f of readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
+    if (this.files.exists(dir)) {
+      for (const f of this.files.list(dir).filter((x) => x.endsWith(".json")).sort()) {
         const d = this.readAbs(join(dir, f));
         if (isDict(d)) docs.push(this.lib.resolve(d) as Dict);
       }
@@ -381,9 +387,9 @@ export class World {
   }
 
   private readAbs(p: string): unknown {
-    if (!existsSync(p)) return null;
+    if (!this.files.exists(p)) return null;
     try {
-      return JSON.parse(readFileSync(p, "utf8"));
+      return JSON.parse(this.files.read(p) ?? "");
     } catch {
       raise(this.env, "world.invalid_json", `Invalid JSON: ${p}`);
       return null;

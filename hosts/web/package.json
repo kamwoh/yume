@@ -4,14 +4,20 @@
   "private": true,
   "description": "The TypeScript interpreter of the Yume spec (ADR 0095).",
   "type": "module",
-  "engines": {"node": ">=22.18"},
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "test": "node --test test/*.test.ts",
     "conformance": "node src/cli.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
-    "@types/node": "22.18.0"
+    "@types/node": "22.18.0",
+    "@types/three": "0.170.0",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "three": "0.170.0"
   }
 }

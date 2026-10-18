@@ -159,3 +159,13 @@ done. Work on the new host found five defects in the reference:
 
 Each fix landed with a gate in `test_runner.gd` and a conformance case.
 
+## Phase 2 progress (2026-10-18)
+
+Sokoban is playable in a browser: `node hosts/web/src/serve.ts`. The
+viewer draws the 2D shape library with three.js and fits the 2D camera
+to the floor. It reads the keys from `ui/input.json` and shows the HUD
+labels as HTML. A capture of level 2 passes the 2D visual-QA baseline.
+The live loop has its own Node tests.
+
+Still open in phase 2: the 3D path (`meshes.json`, the `scene.json`
+ground, lighting, sky and 3D camera presets).

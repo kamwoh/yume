@@ -6,7 +6,7 @@ The TypeScript interpreter of the Yume spec (ADR 0095). Godot stays the
 reference interpreter. This host must give the same result for every
 exact behavior (contract doc, §Two behavior classes).
 
-## Status: phase 1, the headless core
+## Status: phase 1 done, phase 2 in progress
 
 | In this host | Not in this host yet |
 |---|---|
@@ -16,6 +16,7 @@ exact behavior (contract doc, §Two behavior classes).
 | The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call`, saves to disk |
 | Levels (`game/flow.json`), `transition_level`, variants | |
 | `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
+| The browser viewer: 2D shapes (`shapes.json`), the 2D camera, the keyboard, HUD labels | 3D meshes (`meshes.json`), ground, lighting, sky, 3D cameras, screens |
 
 Shell effects (screens, toasts, save, audio) write a record to
 `env.shellEvents` and change no other state. An autosave on a level swap
@@ -38,6 +39,35 @@ node src/cli.ts --lib=../../godot/data/lib ../../spec/conformance/*/
 `../../scripts/conformance.sh` runs the conformance cases on this host
 and on Godot.
 
+## The browser viewer
+
+```bash
+node src/serve.ts      # then open http://localhost:8095/?game=demo_sokoban
+```
+
+The server strips the types from each `.ts` file when it serves it, so
+the viewer also needs no build step. It sends the game as one JSON
+bundle (`src/bundle.ts`), and the browser loads it into `MemoryFiles`.
+The core never imports `node:fs`. It reads files through `src/files.ts`.
+
+`src/live.ts` runs the live loop of the reference: one input poll for
+each 1/60 s physics step, and one sim tick for each `tick_seconds`. A
+press-edge key fires once for each key-down. `test/live.test.ts` checks
+this.
+
+For a capture, the URL takes `press=a,b,c` (one key-down for each
+action) and `ticks=N`. Headless Chromium can then take the screenshot:
+
+```bash
+chrome-headless-shell --use-angle=swiftshader --enable-unsafe-swiftshader \
+  --window-size=960,540 --virtual-time-budget=4000 --screenshot=out.png \
+  "http://localhost:8095/?game=demo_sokoban&press=move_east&ticks=5"
+```
+
+The viewer starts the game at once. Screens (`screens.json`) and
+overlays are phase 4, so the title screen and the tutorial overlay do
+not show. The status line shows the title of the last overlay.
+
 ## Layout
 
 The files follow the Godot files, one to one, so that a reader can
@@ -56,6 +86,10 @@ compare them:
 | `src/random.ts` | `util/spec_random.gd` |
 | `src/world.ts` | `core/world.gd`, `coordinators/world_boot.gd`, `coordinators/world_loader.gd` |
 | `src/scenario.ts` | `qa/scenario_runner.gd`, `qa/step_runner.gd` |
+| `src/input.ts` | `io/input_registrar.gd` (the poll) |
+| `src/viewer/render2d.ts` | `renderer_2d/entity_sprite_2d.gd`, the 2D part of `ui/widgets/camera_director.gd` |
+| `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, hint, win panel) |
+| `src/viewer/keys.ts` | `io/input_keys.gd` |
 
 ## When the two hosts disagree
 

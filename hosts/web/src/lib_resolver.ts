@@ -1,7 +1,6 @@
 // `@lib.` references, `$extends` and `$include`. Mirrors lib_resolver.gd.
 // The library is the `lib/` folder next to the game folder.
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { type Files, join } from "./files.ts";
 import { deepCopy, isDict } from "./value.ts";
 
 const MAX_DEPTH = 8;
@@ -9,20 +8,23 @@ const MAX_DEPTH = 8;
 export class LibResolver {
   private cache = new Map<string, unknown>();
 
-  constructor(libRoot: string) {
-    if (existsSync(libRoot)) this.walk(libRoot, "");
+  private files: Files;
+
+  constructor(libRoot: string, files: Files) {
+    this.files = files;
+    if (files.exists(libRoot)) this.walk(libRoot, "");
   }
 
   private walk(dir: string, prefix: string): void {
-    for (const entry of readdirSync(dir).sort()) {
+    for (const entry of this.files.list(dir)) {
       if (entry.startsWith(".")) continue;
       const full = join(dir, entry);
-      if (statSync(full).isDirectory()) {
+      if (this.files.isDir(full)) {
         this.walk(full, prefix === "" ? entry : `${prefix}.${entry}`);
       } else if (entry.endsWith(".json") && entry !== "manifest.json") {
         const base = entry.slice(0, -5);
         try {
-          this.cache.set(prefix === "" ? base : `${prefix}.${base}`, JSON.parse(readFileSync(full, "utf8")));
+          this.cache.set(prefix === "" ? base : `${prefix}.${base}`, JSON.parse(this.files.read(full) ?? ""));
         } catch {
           // A file that does not parse is skipped, as in the reference.
         }

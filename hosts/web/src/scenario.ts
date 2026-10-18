@@ -1,12 +1,9 @@
 // Runs a game's tests.json. Mirrors scenario_runner.gd and step_runner.gd
 // for the neutral steps: press, hold, release, tick, wait and expect.
-//
-// Input follows InputRegistrar.poll: before a tick, each held hold-edge
-// action queues, and a press-edge action queues on the tick of its press
-// only. A held move_* key on one axis suppresses stop_x or stop_y.
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+// Input follows InputRegistrar.poll (input.ts).
 import { Entity } from "./entity.ts";
+import { type Files, join } from "./files.ts";
+import { pollInput } from "./input.ts";
 import { matches } from "./query.ts";
 import { SpecRandom } from "./random.ts";
 import { type Dict, Vec2, Vec3, isDict, toFloat } from "./value.ts";
@@ -21,14 +18,14 @@ const ASSERT_KEYS: Record<string, string[]> = {
   relation_field: ["relation", "from_query", "to_query", "field", "op", "value"],
 };
 
-export function runGame(root: string, verbose = false, libRoot = ""): Result {
+export function runGame(root: string, files: Files, verbose = false, libRoot = ""): Result {
   const res: Result = { passed: 0, failed: 0, failures: [], errors: [] };
-  const testsPath = join(root, "tests.json");
-  if (!existsSync(testsPath)) return res;
-  const spec = JSON.parse(readFileSync(testsPath, "utf8"));
+  const text = files.read(join(root, "tests.json"));
+  if (text === null) return res;
+  const spec = JSON.parse(text);
   for (const sc of Array.isArray(spec.scenarios) ? spec.scenarios : []) {
     if (!isDict(sc) || sc._skip) continue;
-    runScenario(root, sc, res, verbose, libRoot);
+    runScenario(root, files, sc, res, verbose, libRoot);
   }
   return res;
 }
@@ -59,36 +56,7 @@ class Runner {
   }
 
   poll(): void {
-    const w = this.world;
-    const actor = w.activeActorId();
-    if (actor === "") return;
-    let ns = false;
-    let ew = false;
-    let anyMove = false;
-    for (const a of w.actionsHold) {
-      if (!this.held.has(a)) continue;
-      w.scheduler.queueInput(a, { actor });
-      if (a.startsWith("move_")) {
-        anyMove = true;
-        if (a === "move_north" || a === "move_south") ns = true;
-        else if (a === "move_east" || a === "move_west") ew = true;
-      }
-    }
-    for (const a of w.actionsPress) if (this.justPressed.has(a)) w.scheduler.queueInput(a, { actor });
-    this.justPressed.clear();
-    const ent = w.env.entities.get(actor);
-    if (ent) {
-      const v = ent.getState("velocity", new Vec2(0, 0));
-      const vx = v instanceof Vec2 || v instanceof Vec3 ? v.x : 0;
-      const vy = v instanceof Vec2 ? v.y : v instanceof Vec3 ? v.z : 0;
-      if (!ew && Math.abs(vx) > 0.001) w.scheduler.queueInput("stop_x", { actor });
-      if (!ns && Math.abs(vy) > 0.001) w.scheduler.queueInput("stop_y", { actor });
-      const stop = w.stopActionOnIdle;
-      if (stop !== "" && !anyMove && stop !== "stop_x" && stop !== "stop_y") {
-        const nonzero = v instanceof Vec2 ? v.x !== 0 || v.y !== 0 : v instanceof Vec3 ? v.x !== 0 || v.y !== 0 || v.z !== 0 : false;
-        if (nonzero) w.scheduler.queueInput(stop, { actor });
-      }
-    }
+    pollInput(this.world, this.held, this.justPressed);
   }
 
   /** step_runner._advance: one tick, then the pending swaps that the shell drains in live play. */
@@ -257,10 +225,10 @@ class Runner {
   }
 }
 
-function runScenario(root: string, sc: Dict, res: Result, verbose: boolean, libRoot: string): void {
+function runScenario(root: string, files: Files, sc: Dict, res: Result, verbose: boolean, libRoot: string): void {
   const name = String(sc.name ?? "<unnamed>");
   if (verbose) console.log(`\n[scenario] ${name}`);
-  const world = new World(root, libRoot);
+  const world = new World(root, files, libRoot);
   world.variantOverride = String(sc.variant ?? "");
   world.load();
   if ("seed" in sc) SpecRandom.shared.setSeed(Math.trunc(toFloat(sc.seed)));
