@@ -1,0 +1,40 @@
+{
+  "rules": [
+    {
+      "id": "r_jump",
+      "trigger": {
+        "type": "input",
+        "action": "jump"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "jumps",
+        "amount": 1
+      }
+    },
+    {
+      "id": "r_run",
+      "trigger": {
+        "type": "input",
+        "action": "run"
+      },
+      "query": {
+        "tags_all": [
+          "player"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "runs",
+        "amount": 1
+      }
+    }
+  ]
+}

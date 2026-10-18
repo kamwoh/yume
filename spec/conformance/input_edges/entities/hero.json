@@ -1,0 +1,21 @@
+{
+  "_comment": "Conformance: a press-edge action fires once per press, also when held. A hold-edge action fires each tick it is held.",
+  "definitions": [
+    {
+      "id": "hero",
+      "tags": [
+        "player"
+      ],
+      "state_init": {
+        "jumps": 0,
+        "runs": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "hero",
+      "id": "hero_a"
+    }
+  ]
+}

@@ -212,72 +212,121 @@
      "tick": 3
     },
     {
-     "hold": "move_east",
-     "for": 0.4
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
     },
     {
      "press": "move_south"
     },
     {
-     "hold": "move_west",
-     "for": 0.3
+     "press": "move_west"
+    },
+    {
+     "press": "move_west"
+    },
+    {
+     "press": "move_west"
     },
     {
      "press": "move_south"
     },
     {
-     "hold": "move_east",
-     "for": 0.3
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
     },
     {
      "tick": 3
     },
     {
-     "hold": "move_east",
-     "for": 0.3
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
     },
     {
      "press": "move_south"
     },
     {
-     "hold": "move_west",
-     "for": 0.3
+     "press": "move_west"
     },
     {
-     "hold": "move_south",
-     "for": 0.3
+     "press": "move_west"
     },
     {
-     "hold": "move_east",
-     "for": 0.3
+     "press": "move_west"
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "press": "move_south"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
     },
     {
      "press": "move_north"
     },
     {
-     "hold": "move_west",
-     "for": 0.2
+     "press": "move_west"
+    },
+    {
+     "press": "move_west"
     },
     {
      "tick": 3
     },
     {
-     "hold": "move_east",
-     "for": 0.2
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
     },
     {
      "press": "move_south"
     },
     {
-     "hold": "move_west",
-     "for": 0.3
+     "press": "move_west"
+    },
+    {
+     "press": "move_west"
+    },
+    {
+     "press": "move_west"
     },
     {
      "press": "move_south"
     },
     {
-     "hold": "move_east",
-     "for": 0.2
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
     },
     {
      "tick": 8
@@ -307,8 +356,19 @@
      "tick": 3
     },
     {
-     "hold": "move_east",
-     "for": 0.5
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
+    },
+    {
+     "press": "move_east"
     },
     {
      "tick": 3

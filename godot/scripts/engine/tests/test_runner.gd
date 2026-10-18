@@ -8146,6 +8146,22 @@ func test_step_runner() -> void:
 	await StepRunner.run([{"hold": test_action, "for": 0.5}], world, ctx2)
 	expect(int(player.get_state("counter", 0)) == 5, "hold for 0.5s = 5 ticks; rule fired 5×")
 
+	# ---------- 2b. a held press-edge action fires once (ADR 0095) ----------
+	# Live play fires a press-edge action once per keypress. Empirical case
+	# 2026-10-18: the scripted hold fired it on every tick, because the
+	# ticks of a hold share one engine frame.
+	player.state["counter"] = 0
+	var saved_hold: PackedStringArray = world.input_actions_hold
+	world.input_actions_hold = PackedStringArray()
+	var ctx2b: Dictionary = {
+		"verbose": false, "passed": 0, "failed": 0, "failures": [], "screenshots": []
+	}
+	await StepRunner.run([{"hold": test_action, "for": 0.5}], world, ctx2b)
+	expect_eq(int(player.get_state("counter", 0)), 1, "a press-edge action held for 5 ticks fires once")
+	await StepRunner.run([{"press": test_action}], world, ctx2b)
+	expect_eq(int(player.get_state("counter", 0)), 2, "the next press fires it again")
+	world.input_actions_hold = saved_hold
+
 	# ---------- 3. test_hold_multi (two simultaneous actions) ----------
 	# Register a second action; verify both can be held together without
 	# crashing. State assertion validated via WASD lib in real Aldenmere

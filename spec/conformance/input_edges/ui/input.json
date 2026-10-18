@@ -1,0 +1,14 @@
+{
+  "actions": [
+    {
+      "name": "jump",
+      "key": "Space",
+      "edge": "press"
+    },
+    {
+      "name": "run",
+      "key": "Shift",
+      "edge": "hold"
+    }
+  ]
+}

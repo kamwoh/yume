@@ -1,0 +1,73 @@
+{
+  "scenarios": [
+    {
+      "name": "edges",
+      "steps": [
+        {
+          "hold": "jump",
+          "for": 0.5
+        },
+        {
+          "hold": "run",
+          "for": 0.5
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "hero_a",
+                "field": "state.jumps",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero_a",
+                "field": "state.runs",
+                "op": "==",
+                "value": 5
+              }
+            }
+          ]
+        },
+        {
+          "press": "jump"
+        },
+        {
+          "press": "run"
+        },
+        {
+          "tick": 2
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "hero_a",
+                "field": "state.jumps",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero_a",
+                "field": "state.runs",
+                "op": "==",
+                "value": 6
+              }
+            },
+            {
+              "world_field": {
+                "field": "tick",
+                "op": "==",
+                "value": 14
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

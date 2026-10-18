@@ -144,7 +144,7 @@ static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 		await world.get_tree().process_frame
 	Input.action_press(action)
 	if not _is_world_frozen(world):
-		_drive_poll(world)
+		_drive_poll(world, [action])
 		world.record_trajectory_action(action)
 	await _advance(world)
 	# Mirror the live-frame screen_flow tick BEFORE releasing so any
@@ -214,8 +214,12 @@ static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary):
 		# re-queues them every tick, exactly as live play's per-frame poll
 		# does. Freeze-mirror: when a modal/overlay is up, world.gd skips
 		# _poll_input, so we skip too (queue stays empty for held actions).
+		# A press-edge action fires on the first tick only, as in live play.
+		# The ticks of a hold run inside one engine frame, where
+		# is_action_just_pressed stays true. Empirical case 2026-10-18: a
+		# 0.5 s hold of a press-edge action fired it on all 5 ticks.
 		if not _is_world_frozen(world):
-			_drive_poll(world)
+			_drive_poll(world, actions if i == 0 else [])
 			for action in actions:
 				world.record_trajectory_action(action)
 		await _advance(world)
@@ -241,7 +245,11 @@ static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary):
 # to the resolved actor. Replaces the old direct scheduler.queue_input
 # bypass (which diverged from live and needed the _scripted_action_consumed
 # carve-out to suppress the resulting double-fire).
-static func _drive_poll(world: World) -> void:
+## `pressed_now` names the actions that this step pressed. Only those can
+## fire as press-edge actions (ADR 0095). Godot's is_action_just_pressed
+## reads frame state, and the scripted ticks share frames, so it can stay
+## true after the press step or the first tick of a hold.
+static func _drive_poll(world: World, pressed_now: Array = []) -> void:
 	if world == null or world.scheduler == null:
 		return
 	var actor_id := _find_actor_id(world)
@@ -254,7 +262,7 @@ static func _drive_poll(world: World) -> void:
 		world.scheduler,
 		actor_id,
 		world.input_actions_hold,
-		world.input_actions_press,
+		_press_edge_subset(world.input_actions_press, pressed_now),
 		stop_idle,
 		world.entities,
 	)
@@ -265,6 +273,14 @@ static func _drive_poll(world: World) -> void:
 # integrator runs once with delta = tick_seconds. In LIVE play, motion integrates
 # at frame rate in _process (~60Hz × 0.017s ≈ tick rate) — this synthesizes one
 # equivalent tick-step's worth of motion for headless tests.
+static func _press_edge_subset(press_actions, pressed_now: Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	for a in press_actions:
+		if pressed_now.has(str(a)):
+			out.append(str(a))
+	return out
+
+
 static func _advance(world: World) -> void:
 	world.advance_one_tick()
 	# ADR 0045: motion runs per-character-body via _physics_process in

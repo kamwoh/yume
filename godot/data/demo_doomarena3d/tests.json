@@ -163,8 +163,13 @@
       },
       "steps": [
         {
-          "hold": "spark",
-          "for": 0.15
+          "press": "spark"
+        },
+        {
+          "press": "spark"
+        },
+        {
+          "press": "spark"
         },
         {
           "tick": 1
@@ -1108,8 +1113,10 @@
       },
       "steps": [
         {
-          "hold": "spark",
-          "for": 0.1
+          "press": "spark"
+        },
+        {
+          "press": "spark"
         },
         {
           "tick": 2

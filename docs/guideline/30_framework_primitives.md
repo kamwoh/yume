@@ -104,6 +104,18 @@ interpreter must pass them. Two rules keep them portable:
 `spec/conformance/` holds small tracked test games (ADR 0095). A
 fresh clone has them, and CI runs them.
 
+**Input steps (ADR 0095).** The input steps act as a player's keys:
+
+- `press A`: A is down for one tick. A fires on that tick.
+- `hold A for S`: A is down for `round(S / tick_seconds)` ticks, at least
+  one. A hold-edge action fires on each of these ticks. A press-edge
+  action fires on the first tick only.
+- `tick N` and `wait`: N ticks with no key down.
+
+Each tick, before the input phase, a held `move_*` key on one axis keeps
+that axis moving. With no key on an axis and a velocity on it, the
+active actor gets `stop_x` or `stop_y`.
+
 #### Randomness (ADR 0095)
 
 The spec has one random generator, so a seed gives the same rolls on
