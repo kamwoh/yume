@@ -94,7 +94,7 @@ def _lighting_block() -> dict:
             "energy_horizon": 0.85,
             "energy_night": 0.05,
         },
-        "ambient": {"color": "#aebccf", "energy": 0.35},
+        "ambient": {"color_day": "#aebccf", "energy_day": 0.35},
         "sky": {
             "shader": "sky_clouds",
             "shader_params": {

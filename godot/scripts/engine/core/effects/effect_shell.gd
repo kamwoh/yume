@@ -410,25 +410,26 @@ static func dismiss_overlay_effect(e: Dictionary, env: Dictionary, ctx: Dictiona
 # player changes a setting.
 
 
-## Set the volume of a Godot AudioServer bus (by name) to a linear
-## level in [0.0, 1.0]. Linear converts to dB internally
+## Set the volume of an audio channel (ADR 0090: master, music or sfx)
+## to a linear level in [0.0, 1.0]. Linear converts to dB internally
 ## (Godot's AudioServer takes dB, but linear is the player-facing value).
 static func set_audio_bus_volume(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
-	var bus_name := str(EffectResolution.value(e.get("bus", "Master"), ctx, env))
+	var channel := str(EffectResolution.value(e.get("bus", "master"), ctx, env))
 	var linear := float(EffectResolution.value(e.get("linear", 1.0), ctx, env))
 	linear = clamp(linear, 0.0, 1.0)
-	var bus_idx := AudioServer.get_bus_index(bus_name)
-	if bus_idx < 0:
-		# Bus may not exist if AudioBus autoload didn't add it (e.g. in
-		# headless tests). Silent skip to keep this effect cheap-fail.
+	var bus_name := AudioChannels.bus(channel, "set_audio_bus_volume.bus")
+	if bus_name == "":
 		return
+	AudioChannels.ensure_buses()
+	var bus_idx := AudioServer.get_bus_index(bus_name)
 	# Godot's volume is in dB; linear_to_db handles 0.0 → -inf cleanly.
 	AudioServer.set_bus_volume_db(bus_idx, linear_to_db(linear))
 
 
 ## Remap a Godot InputMap action to a new physical key.
 ## Erases existing bindings for the action, then adds the new key.
-## key string is parsed via OS.find_keycode_from_string.
+## The key is a name from InputKeys.KEYS (ADR 0090). It binds by key
+## position, as ui/input.json does.
 static func set_input_mapping(e: Dictionary, env: Dictionary, ctx: Dictionary) -> void:
 	var action := str(EffectResolution.value(e.get("action", ""), ctx, env))
 	var key_str := str(EffectResolution.value(e.get("key", ""), ctx, env))
@@ -437,9 +438,8 @@ static func set_input_mapping(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 	if not InputMap.has_action(action):
 		# Action doesn't exist in this game's InputMap. Silent skip.
 		return
-	var keycode := OS.find_keycode_from_string(key_str)
+	var keycode := InputKeys.keycode(key_str, "set_input_mapping '%s' key" % action)
 	if keycode == KEY_NONE:
-		push_warning("set_input_mapping: unknown key '%s' for action '%s'" % [key_str, action])
 		return
 	# Erase any existing key events on this action, keep non-key events
 	# (gamepad, mouse) untouched.
@@ -447,5 +447,5 @@ static func set_input_mapping(e: Dictionary, env: Dictionary, ctx: Dictionary) -
 		if ev is InputEventKey:
 			InputMap.action_erase_event(action, ev)
 	var new_ev := InputEventKey.new()
-	new_ev.keycode = keycode
+	new_ev.physical_keycode = keycode
 	InputMap.action_add_event(action, new_ev)

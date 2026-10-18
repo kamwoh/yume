@@ -106,6 +106,7 @@ func _ready() -> void:
 	test_asset_path()
 	test_formula_language()
 	test_shader_lib()
+	test_spec_vocabularies()
 	test_ground_heightmap_collider()
 	test_query_tag_index()
 	test_spatial_cell_size()
@@ -10107,3 +10108,84 @@ func test_shader_lib() -> void:
 	for p in ShaderLib.INTERPRETER_PARAMS:
 		var rx := RegEx.create_from_string("uniform\\s+\\w+\\s+%s\\b" % p)
 		expect(rx.search(code) != null, "interpreter parameter '%s' is a library uniform" % p)
+
+
+func test_spec_vocabularies() -> void:
+	_section("Spec vocabularies — keys, audio channels, lighting, physics (ADR 0090)")
+	# Keys: an explicit table, bound by key position.
+	expect_eq(InputKeys.keycode("W", "test"), KEY_W, "W maps to the W key")
+	expect_eq(InputKeys.keycode("Numpad2", "test"), KEY_KP_2, "Numpad2 maps to keypad 2")
+	expect_eq(InputKeys.keycode("Kp 2", "test"), KEY_NONE, "a host key name is not a spec name")
+	expect_eq(InputKeys.mouse_button("WheelUp", "test"), MOUSE_BUTTON_WHEEL_UP, "WheelUp maps to the wheel")
+	InputRegistrar._register_one({"name": "_vocab_test", "key": "Ctrl"})
+	var evs := InputMap.action_get_events("_vocab_test")
+	expect(evs.size() == 1 and (evs[0] as InputEventKey).physical_keycode == KEY_CTRL,
+		"ui/input.json binds a physical keycode")
+	EffectShell.set_input_mapping({"action": "_vocab_test", "key": "E"}, {}, {})
+	evs = InputMap.action_get_events("_vocab_test")
+	expect(evs.size() == 1 and (evs[0] as InputEventKey).physical_keycode == KEY_E,
+		"set_input_mapping binds a physical keycode, as ui/input.json does")
+	InputMap.erase_action("_vocab_test")
+	# Audio: three channels, each a real bus that feeds Master.
+	AudioChannels.ensure_buses()
+	for channel in AudioChannels.CHANNELS:
+		expect(AudioServer.get_bus_index(AudioChannels.CHANNELS[channel]) >= 0, "channel '%s' has a bus" % channel)
+	var music_idx := AudioServer.get_bus_index("Music")
+	expect_eq(AudioServer.get_bus_send(music_idx), &"Master", "the music bus feeds master")
+	var saved_db := AudioServer.get_bus_volume_db(music_idx)
+	EffectShell.set_audio_bus_volume({"bus": "music", "linear": 0.5}, {}, {})
+	expect(absf(AudioServer.get_bus_volume_db(music_idx) - linear_to_db(0.5)) < 0.01,
+		"set_audio_bus_volume music changes the music bus (the sokoban slider bug)")
+	AudioServer.set_bus_volume_db(music_idx, saved_db)
+	expect_eq(AudioChannels.bus("Music", "test"), "", "a host bus name is not a channel name")
+	var audio_bus = Engine.get_main_loop().root.get_node_or_null("AudioBus")
+	if audio_bus != null:
+		expect_eq(str(audio_bus._music_player.bus), "Music", "music plays on the music channel")
+	# Lighting: a closed field list.
+	var scene := {
+		"lighting": {
+			"ambient": {"color": "#ffffff", "color_day": "#ffffff", "_note": "x"},
+			"reflection_probes": [{"position": [0, 1, 0], "radius": 3}],
+		},
+		"render": {"msaa_3d": "2x"},
+	}
+	var unknown := LightingDirector.unknown_fields(scene)
+	unknown.sort()
+	expect_eq(unknown, ["lighting.ambient.color", "lighting.reflection_probes[].radius"],
+		"unknown_fields reports dead fields and skips comments")
+	# Every field LightingDirector reads is in FIELDS. Read the source.
+	var listed := {"lighting": true, "render": true}
+	for path in LightingDirector.FIELDS:
+		for f in LightingDirector.FIELDS[path]:
+			listed[f] = true
+	var src := FileAccess.get_file_as_string("res://scripts/engine/directors/lighting_director.gd")
+	var rx := RegEx.create_from_string("(?:cfg|_config|amb|pd|Dictionary\\))(?:\\.get|\\.has)\\(\"(\\w+)\"|cfg\\[\"(\\w+)\"\\]")
+	var read := {}
+	for m in rx.search_all(src):
+		read[m.get_string(1) if m.get_string(1) != "" else m.get_string(2)] = true
+	var missing: Array = read.keys().filter(func(k): return not listed.has(k))
+	expect(read.size() > 30, "the source scan finds the lighting reads (%d)" % read.size())
+	expect_eq(missing, [], "LightingDirector reads no field outside FIELDS")
+	# Sky: shader_params colors are the day colors, not replaced each frame.
+	var sky := {"shader": "sky_clouds", "shader_params": {"sky_top_color": [0.2, 0.4, 0.8]}}
+	expect(LightingDirector.sky_color_at(sky, "sky_top_color", 1.0).is_equal_approx(Color(0.2, 0.4, 0.8)),
+		"at noon the sky top is the shader_params color")
+	sky["sky_top_color_day"] = "#ff0000"
+	expect(LightingDirector.sky_color_at(sky, "sky_top_color", 1.0).is_equal_approx(Color("#ff0000")),
+		"the day field wins over shader_params")
+	expect(LightingDirector.sky_color_at(sky, "sky_top_color", 0.0).is_equal_approx(Color("#0a1530")),
+		"at midnight the sky top is the night color")
+	# Physics: layer names, not bits.
+	var layers := {"wall": 2, "player": 5}
+	expect_eq(PhysicsBodyBuilder.layer_mask(["wall", "player"], layers), (1 << 1) | (1 << 4), "names map to bits")
+	expect_eq(PhysicsBodyBuilder.layer_mask("all", layers), 0xFFFFFFFF, "all sets every bit")
+	expect_eq(PhysicsBodyBuilder.layer_mask(6, layers), 0, "a raw number is not a layer (physics.unknown_layer)")
+	var bodies: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/lib/physics/bodies.json"))
+	for preset in bodies:
+		if bodies[preset] is Dictionary:
+			var bt = bodies[preset].get("body_type")
+			expect(bt in PhysicsBodyBuilder.BODY_TYPES, "preset '%s' uses a spec body type" % preset)
+			for k in bodies[preset]:
+				expect(str(k).begins_with("_") or str(k) in PhysicsBodyBuilder.FIELDS,
+					"preset '%s' field '%s' is in FIELDS" % [preset, k])
+

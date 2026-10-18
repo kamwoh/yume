@@ -17,8 +17,8 @@ class_name InputRegistrar
 ##     ]
 ##   }
 ##
-## - `key` — single keycode string (lookup via OS.find_keycode_from_string)
-## - `keys` — array of keycode strings (multiple bindings for one action)
+## - `key` — one key name from InputKeys.KEYS (ADR 0090)
+## - `keys` — an array of key names (multiple bindings for one action)
 ## - `edge` — `"press"` (fire once on press-edge, default) or `"hold"`
 ##   (fire every frame while held). Engine adds the action to its
 ##   `input_actions_press` or `input_actions_hold` poll list automatically.
@@ -172,40 +172,22 @@ static func _register_one(action_def: Dictionary) -> String:
 		InputMap.add_action(name)
 
 	for key_str in keys:
-		var keycode: int = OS.find_keycode_from_string(key_str)
-		if keycode == 0:
-			push_warning("[InputRegistrar] unknown key '%s' for action '%s'" % [key_str, name])
+		var keycode: int = InputKeys.keycode(str(key_str), "input action '%s' key" % name)
+		if keycode == KEY_NONE:
 			continue
 		var event := InputEventKey.new()
 		event.physical_keycode = keycode
 		InputMap.action_add_event(name, event)
 
 	for mb_str in mouse_buttons:
-		var mb_idx := _mouse_button_idx(str(mb_str))
+		var mb_idx := InputKeys.mouse_button(str(mb_str), "input action '%s' mouse_button" % name)
 		if mb_idx == 0:
-			push_warning("[InputRegistrar] unknown mouse_button '%s' for action '%s'" % [mb_str, name])
 			continue
 		var mb_event := InputEventMouseButton.new()
 		mb_event.button_index = mb_idx
 		mb_event.pressed = true
 		InputMap.action_add_event(name, mb_event)
 	return name
-
-
-## Resolve a mouse-button string to Godot's MOUSE_BUTTON_* constant.
-## Returns 0 (invalid) for unknown names.
-static func _mouse_button_idx(s: String) -> int:
-	match s.to_lower():
-		"left":         return MOUSE_BUTTON_LEFT
-		"right":        return MOUSE_BUTTON_RIGHT
-		"middle":       return MOUSE_BUTTON_MIDDLE
-		"wheelup":      return MOUSE_BUTTON_WHEEL_UP
-		"wheeldown":    return MOUSE_BUTTON_WHEEL_DOWN
-		"wheelleft":    return MOUSE_BUTTON_WHEEL_LEFT
-		"wheelright":   return MOUSE_BUTTON_WHEEL_RIGHT
-		"xbutton1":     return MOUSE_BUTTON_XBUTTON1
-		"xbutton2":     return MOUSE_BUTTON_XBUTTON2
-	return 0
 
 
 # ============================================================

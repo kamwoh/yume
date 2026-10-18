@@ -222,9 +222,9 @@ func setting_spec(key: String) -> Dictionary:
 ## "value" tokens in the effect dict resolve to the current value.
 ##
 ## Example schema apply:
-##   {"type": "set_audio_bus_volume", "bus": "Master", "linear": "value"}
+##   {"type": "set_audio_bus_volume", "bus": "master", "linear": "value"}
 ## Becomes:
-##   {"type": "set_audio_bus_volume", "bus": "Master", "linear": 0.7}
+##   {"type": "set_audio_bus_volume", "bus": "master", "linear": 0.7}
 func _run_apply_block(s: Dictionary, value) -> void:
 	if _world == null:
 		return

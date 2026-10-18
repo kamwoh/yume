@@ -22,6 +22,9 @@ This module mirrors the engine:
   turns a host-neutral asset path into the file it names.
 - `SHADER_NAMES` and `shader_file(mesh, game_dir)` port
   `util/shader_lib.gd` (ADR 0089).
+- `KEY_NAMES`, `MOUSE_BUTTONS`, `AUDIO_CHANNELS`, `SCENE_FIELDS`,
+  `BODY_TYPES`, `PHYSICS_FIELDS` and `LAYER_NAMES` read the ADR 0090
+  vocabularies from the engine files that own them.
 """
 
 from __future__ import annotations
@@ -82,6 +85,67 @@ def shader_params(name: str) -> set[str]:
     """The uniform names of the library shader `name`."""
     src = (DATA / "lib" / "shaders" / f"{name}.gdshader").read_text(encoding="utf-8")
     return set(re.findall(r"^\s*uniform\s+\w+\s+(\w+)", src, re.MULTILINE))
+
+
+# ADR 0090 vocabularies. The engine files are the source.
+_ENGINE = REPO / "godot" / "scripts" / "engine"
+
+
+def _gd(rel: str) -> str:
+    return (_ENGINE / rel).read_text(encoding="utf-8")
+
+
+def _gd_block(src: str, const: str) -> str:
+    """The text of a GDScript `const NAME := {...}` or `[...]` value."""
+    m = re.search(rf"const {const}(?::\s*\w+)?\s*:?=\s*", src)
+    start = m.end()
+    opener = src[start]
+    closer = {"{": "}", "[": "]"}[opener]
+    depth = 0
+    for i in range(start, len(src)):
+        depth += {opener: 1, closer: -1}.get(src[i], 0)
+        if depth == 0:
+            return src[start:i + 1]
+    raise ValueError(f"unclosed const {const}")
+
+
+def _gd_keys(src: str, const: str) -> tuple[str, ...]:
+    """The string keys of a GDScript dict const, in order."""
+    return tuple(re.findall(r'"([^"]+)"\s*:', _gd_block(src, const)))
+
+
+def _gd_strings(src: str, const: str) -> tuple[str, ...]:
+    """The strings of a GDScript array const, in order."""
+    return tuple(re.findall(r'"([^"]+)"', _gd_block(src, const)))
+
+
+_INPUT_KEYS = _gd("io/input_keys.gd")
+KEY_NAMES = _gd_keys(_INPUT_KEYS, "KEYS")
+MOUSE_BUTTONS = _gd_keys(_INPUT_KEYS, "MOUSE_BUTTONS")
+AUDIO_CHANNELS = _gd_keys(_gd("io/audio_channels.gd"), "CHANNELS")
+_LIGHTING = _gd("directors/lighting_director.gd")
+SCENE_FIELDS: dict[str, list[str]] = json.loads(_gd_block(_LIGHTING, "FIELDS"))
+SCENE_HOST_HINTS = _gd_strings(_LIGHTING, "HOST_HINTS")
+_PHYSICS = _gd("coordinators/physics_body_builder.gd")
+BODY_TYPES = _gd_strings(_PHYSICS, "BODY_TYPES")
+PHYSICS_FIELDS = _gd_strings(_PHYSICS, "FIELDS")
+LAYER_NAMES = tuple(json.loads((DATA / "lib" / "physics" / "layers.json").read_text(encoding="utf-8"))["layers"])
+
+
+def unknown_scene_fields(scene: dict) -> list[str]:
+    """Port of LightingDirector.unknown_fields: dotted paths of the
+    `lighting` and `render` fields that SCENE_FIELDS does not list."""
+    out = []
+    for path, allowed in SCENE_FIELDS.items():
+        is_list = path.endswith("[]")
+        node = scene
+        for part in path.removesuffix("[]").split("."):
+            node = node.get(part) if isinstance(node, dict) else None
+        blocks = node if is_list and isinstance(node, list) else [node] if not is_list and isinstance(node, dict) else []
+        for block in blocks:
+            if isinstance(block, dict):
+                out += [f"{path}.{k}" for k in block if not str(k).startswith("_") and k not in allowed]
+    return out
 
 
 def shader_file(block: dict, game_dir: Path) -> Path | None:

@@ -514,6 +514,9 @@ class Manifest:
     # ADR 0089: the named shaders and their parameters, read from
     # util/shader_lib.gd and the library .gdshader files.
     shaders: list[dict] = field(default_factory=list)
+    # ADR 0090: key names, audio channels, lighting fields and physics
+    # names, read from the engine files that own them (via content.py).
+    vocabularies: dict = field(default_factory=dict)
     reserved_state_fields: list[str] = field(default_factory=list)
     invariants_count: int = 8
     # HUD authoring catalog (Tier 2.7v, 2026-05-19) — for the
@@ -695,6 +698,23 @@ def parse_shaders() -> list[dict]:
     return out
 
 
+def parse_vocabularies() -> dict:
+    """The ADR 0090 vocabularies. tools/validators/content.py reads them
+    from the engine files, so the validator and this manifest agree."""
+    sys.path.insert(0, str(REPO / "tools" / "validators"))
+    import content  # noqa: E402
+    return {
+        "keys": list(content.KEY_NAMES),
+        "mouse_buttons": list(content.MOUSE_BUTTONS),
+        "audio_channels": list(content.AUDIO_CHANNELS),
+        "lighting_fields": content.SCENE_FIELDS,
+        "lighting_host_hints": list(content.SCENE_HOST_HINTS),
+        "body_types": list(content.BODY_TYPES),
+        "physics_fields": list(content.PHYSICS_FIELDS),
+        "collision_layers": list(content.LAYER_NAMES),
+    }
+
+
 def parse_formula_roles(text: str) -> list[str]:
     """Doc-listed entity roles in formula.gd."""
     block = re.search(r"## Bindings supported.*?##\s*\n", text, re.DOTALL)
@@ -779,6 +799,7 @@ def build_manifest() -> Manifest:
         formula_entity_roles=parse_formula_roles(formula_src),
         formula_math_helpers=parse_string_array(formula_src, "FUNCTIONS"),
         shaders=parse_shaders(),
+        vocabularies=parse_vocabularies(),
         error_codes=parse_error_codes(err_src),
         reserved_state_fields=["position", "velocity", "age"],
         hud_elements=HUD_ELEMENTS,
@@ -936,6 +957,39 @@ def render_markdown(m: Manifest) -> str:
             *[f"| `{p['name']}` | {p['type']} | {p['default'] or '—'} | {p['range'] or '—'} | {p['note'] or ''} |" for p in sh["params"]],
             "",
         )],
+        "## Spec vocabularies (ADR 0090)",
+        "",
+        "Each list is closed. `validate_host_neutral.py` rejects other names, and the engine reports an error code. The contract document defines each name.",
+        "",
+        "### Input keys",
+        "",
+        "A key name means a key position on a US keyboard. Use it in `ui/input.json` (`key`, `keys`) and in `set_input_mapping`:",
+        "",
+        ", ".join(f"`{k}`" for k in m.vocabularies["keys"]),
+        "",
+        "Mouse buttons (`mouse_button`, `mouse_buttons`): " + ", ".join(f"`{k}`" for k in m.vocabularies["mouse_buttons"]),
+        "",
+        "### Audio channels",
+        "",
+        "`set_audio_bus_volume` `bus`: " + ", ".join(f"`{k}`" for k in m.vocabularies["audio_channels"]) + ". Music plays on `music`, sound cues on `sfx`. Both feed `master`.",
+        "",
+        "### Lighting fields",
+        "",
+        "The fields of `scene.json` `lighting` and `render`. A key that starts with `_` is a comment. Host hints tune one host's renderer, and an interpreter may ignore them.",
+        "",
+        "| Block | Fields |",
+        "|---|---|",
+        *[f"| `{path}`{' (host hint)' if path in m.vocabularies['lighting_host_hints'] else ''} | "
+          + ", ".join(f"`{f}`" for f in fields) + " |" for path, fields in m.vocabularies["lighting_fields"].items()],
+        "",
+        "### Physics",
+        "",
+        "Body types: " + ", ".join(f"`{k}`" for k in m.vocabularies["body_types"]) + ". `kinematic` is the default.",
+        "",
+        "Fields of a `physics` block: " + ", ".join(f"`{k}`" for k in m.vocabularies["physics_fields"]),
+        "",
+        "Collision layer names (`collision_layer`, `collision_mask`, or `\"all\"`): " + ", ".join(f"`{k}`" for k in m.vocabularies["collision_layers"]),
+        "",
         "## Error codes (Tier 2.6a)",
         "",
         f"{len(m.error_codes)} stable codes for matching in retry loops:",

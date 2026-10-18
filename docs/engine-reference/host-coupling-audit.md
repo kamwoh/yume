@@ -1,6 +1,6 @@
 # Host-coupling audit: where the Yume JSON depends on Godot
 
-_Last updated: 2026-10-17_
+_Last updated: 2026-10-18_
 
 ADR 0086 makes Yume a host-neutral spec, with Godot as the reference
 interpreter. This page lists each place where today's JSON depends on
@@ -22,15 +22,12 @@ tracked library, the three tracked demos and the local demos.
 | Calendar clock | `scheduled` and `advance_time` (ADR 0078) have no host meaning. |
 | Formula language | ADR 0088 (phase 2): every number is a float, and a formula calls only the 16 functions in `Formula.FUNCTIONS`. `validate_rules.py` check (12) and `Formula` reject other syntax. |
 | Asset and save paths | ADR 0087 (phase 1): a path is relative to the game folder or starts with `@lib/`. `validate_host_neutral.py` rejects `res://` and `user://`. |
+| Key names, audio channels, lighting fields, physics | ADR 0090 (phase 4): each is a closed list in its engine file (`InputKeys`, `AudioChannels`, `LightingDirector.FIELDS`, `PhysicsBodyBuilder.BODY_TYPES`). The contract defines each name. `validate_host_neutral.py` checks 7 to 10 reject other names. |
 
 ## Tied to Godot
 
 | # | Area | Today | Count | Neutral form | Phase |
 |---|---|---|---|---|---|
-| 7 | Key names | `"key": "Ctrl"`, parsed by `OS.find_keycode_from_string` | 85 `key` fields | A key-name list in the spec. Each interpreter maps the list to its host. | 4 |
-| 8 | Audio buses | `set_audio_bus_volume` with `"bus": "Master"` or `"Music"` | 2 references | A fixed set of channels in the spec (for example, master, music, sfx). | 4 |
-| 9 | Lighting and sky | `scene.json` fields such as `sky_top_color`, `aerial_perspective`, `sun_scatter`, `energy_noon`, fog `density` | About 60 field names | Define each field by its visible result. Mark the exact look as host-defined. | 4 |
-| 10 | Physics | `body_type` (`static`, `kinematic`, `rigid`, `area`, `character`), `collision_layer`, `collision_mask` | 53 `physics` blocks | Define what each body type guarantees and what the masks mean. Numeric results are host-defined. | 4 |
 | 11 | Randomness | `randf()` in formulas uses Godot's global PRNG. `level_seed` calls Godot's `seed()`. Instance patterns use their own `RandomNumberGenerator`. | 34 `randf(` calls | Open question 1 in ADR 0086: one PRNG defined by the spec, or no random rules in conformance tests. | open |
 | 12 | Tick order | Input, rules and body motion share Godot's physics clock (ADRs 0068, 0069). | All games | The spec states the order inside one tick. | open |
 
@@ -43,6 +40,8 @@ second interpreter does not need them.
 - Per-game `.tscn` launchers and `renderer_script`.
 - `CharacterBody3D`, `RigidBody3D` and other nodes that
   `physics_body_builder.gd` makes from a `body_type`.
+- The Godot bus names (`Master`, `Music`, `SFX`) behind the audio
+  channels, and the Godot keycodes behind the key names.
 - `AnimationPlayer`, which plays the clips inside a glTF file.
 
 ## How to update this page

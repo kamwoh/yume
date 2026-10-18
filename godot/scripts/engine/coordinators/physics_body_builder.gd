@@ -11,7 +11,7 @@ class_name PhysicsBodyBuilder
 ## Schema (from ADR 0044 § "JSON schema (per-entity physics declaration)"):
 ##
 ##   "physics": {
-##     "body_type": "static" | "kinematic" | "rigid" | "area",
+##     "body_type": "static" | "kinematic" | "rigid" | "area" | "character",
 ##     "collision_shape": {"type": "box"|"sphere"|"capsule"|"cylinder",
 ##                         "size":   [x,y,z]   // box
 ##                         "radius": float     // sphere/capsule/cylinder
@@ -34,6 +34,18 @@ class_name PhysicsBodyBuilder
 ## Bodies are created in Yume's 3D physics space (from the active
 ## Viewport's World3D). 2D backend (PhysicsServer2D) lands in a later
 ## sub-step per ADR Condition 9.
+
+## ADR 0090 — the body types of the spec. "kinematic" is the default.
+## validate_host_neutral.py and gen_api_manifest.py read BODY_TYPES and
+## FIELDS from this file. A new name needs an ADR.
+const BODY_TYPES: Array = ["static", "kinematic", "rigid", "area", "character"]
+
+## ADR 0090 — the fields of a `physics` block.
+const FIELDS: Array = [
+	"body_type", "collision_shape", "collision_layer", "collision_mask",
+	"mass", "friction", "restitution", "linear_damp", "angular_damp", "gravity_scale",
+	"floor_block_on_wall", "floor_snap_length", "floor_constant_speed", "floor_max_angle_deg",
+]
 
 # ============================================================
 # PUBLIC API
@@ -103,8 +115,8 @@ static func build_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_map: Di
 		)
 
 	# Collision layer + mask
-	var layer_bits := _resolve_layer_mask(phys_cfg.get("collision_layer", "all"), layer_map)
-	var mask_bits := _resolve_layer_mask(phys_cfg.get("collision_mask", "all"), layer_map)
+	var layer_bits := layer_mask(phys_cfg.get("collision_layer", "all"), layer_map)
+	var mask_bits := layer_mask(phys_cfg.get("collision_mask", "all"), layer_map)
 	PhysicsServer3D.body_set_collision_layer(body, layer_bits)
 	PhysicsServer3D.body_set_collision_mask(body, mask_bits)
 
@@ -207,10 +219,10 @@ static func build_area_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_ma
 			)
 		)
 	PhysicsServer3D.area_set_collision_mask(
-		area, _resolve_layer_mask(phys_cfg.get("collision_mask", "all"), layer_map)
+		area, layer_mask(phys_cfg.get("collision_mask", "all"), layer_map)
 	)
 	PhysicsServer3D.area_set_collision_layer(
-		area, _resolve_layer_mask(phys_cfg.get("collision_layer", []), layer_map)
+		area, layer_mask(phys_cfg.get("collision_layer", []), layer_map)
 	)
 	PhysicsServer3D.area_set_monitorable(area, false)
 	var pos = entity.get_position() if entity.has_method("get_position") else null
@@ -300,8 +312,8 @@ static func build_character_3d(
 		body.add_child(shape_node)
 
 	# Collision layer/mask — translate name arrays via layer_map.
-	body.collision_layer = _layer_mask(phys_cfg.get("collision_layer", []), layer_map)
-	body.collision_mask = _layer_mask(phys_cfg.get("collision_mask", []), layer_map)
+	body.collision_layer = layer_mask(phys_cfg.get("collision_layer", []), layer_map)
+	body.collision_mask = layer_mask(phys_cfg.get("collision_mask", []), layer_map)
 
 	# Floor-detection tuning (2026-05-30). Godot's CharacterBody3D defaults
 	# break on stairs/uneven world meshes (ADR 0062):
@@ -559,20 +571,6 @@ static func _build_collision_shape_node(shape_cfg: Dictionary) -> CollisionShape
 	return node
 
 
-## Convert a layer-name array to a Godot collision-mask bitfield.
-## Mirrors the bit-set logic in build_3d's BODY-RID path.
-static func _layer_mask(names, layer_map: Dictionary) -> int:
-	var mask := 0
-	if names is Array:
-		for n in names:
-			var bit_index := int(layer_map.get(str(n), 0))
-			if bit_index >= 1 and bit_index <= 32:
-				mask |= 1 << (bit_index - 1)
-	elif str(names) == "all":
-		mask = 0xFFFFFFFF
-	return mask
-
-
 # ============================================================
 # TRANSLATION LAYER
 # ============================================================
@@ -680,12 +678,10 @@ static func _body_mode_3d(body_type: String) -> int:
 			return PhysicsServer3D.BODY_MODE_KINEMATIC
 		"rigid":
 			return PhysicsServer3D.BODY_MODE_RIGID
-		"area":
-			push_warning("[PhysicsBodyBuilder] body_type='area' not yet implemented — using static")
-			return PhysicsServer3D.BODY_MODE_STATIC
 		_:
-			push_warning(
-				"[PhysicsBodyBuilder] unknown body_type '%s' — defaulting to kinematic" % body_type
+			push_error(
+				"%s: '%s' is not a body type. The types are: %s (ADR 0090)."
+				% [EngineError.PHYSICS_UNKNOWN_BODY_TYPE, body_type, ", ".join(BODY_TYPES)]
 			)
 			return PhysicsServer3D.BODY_MODE_KINEMATIC
 
@@ -779,30 +775,25 @@ static func _collect_trimesh_faces(node: Node, xform: Transform3D, faces: Packed
 		_collect_trimesh_faces(child, t, faces)
 
 
-## Resolve collision_layer / collision_mask to a 32-bit mask.
-## Accepts:
-##   "all"              → 0xFFFFFFFF
-##   ["wall", "player"] → bit(wall) | bit(player)
-##   int (raw mask)     → passed through
-static func _resolve_layer_mask(value, layer_map: Dictionary) -> int:
-	if value is int:
-		return int(value)
-	if value is String:
-		if str(value) == "all":
-			return 0xFFFFFFFF
-		# Single layer name
-		var bit := int(layer_map.get(str(value), 0))
-		return (1 << (bit - 1)) if bit > 0 else 0
-	if value is Array:
-		var mask: int = 0
-		for name in value as Array:
-			var bit2 := int(layer_map.get(str(name), 0))
-			if bit2 > 0:
-				mask |= (1 << (bit2 - 1))
-			else:
-				push_warning("[PhysicsBodyBuilder] unknown collision layer name '%s'" % str(name))
-		return mask
-	return 0
+## ADR 0090 — collision_layer / collision_mask to a 32-bit mask.
+## The value is "all", one layer name, or an array of layer names from
+## @lib.physics.layers. Bit numbers are the interpreter's business, so a
+## raw number is an error (physics.unknown_layer).
+static func layer_mask(value, layer_map: Dictionary) -> int:
+	if value is String and str(value) == "all":
+		return 0xFFFFFFFF
+	var names: Array = value if value is Array else [value]
+	var mask: int = 0
+	for name in names:
+		var bit := int(layer_map.get(str(name), 0)) if name is String else 0
+		if bit >= 1 and bit <= 32:
+			mask |= 1 << (bit - 1)
+		else:
+			push_error(
+				"%s: '%s' is not a collision layer name. See @lib.physics.layers (ADR 0090)."
+				% [EngineError.PHYSICS_UNKNOWN_LAYER, str(name)]
+			)
+	return mask
 
 
 static func _vec3_from(value) -> Vector3:

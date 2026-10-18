@@ -52,6 +52,27 @@ names and unknown parameters. Empirical case 2026-10-17: two games set 5
 and 9 water parameters that the water shader did not have, and Godot
 ignored them with no warning.
 
+## Closed vocabularies: keys, channels, lighting, physics (ADR 0090)
+
+Four lists are closed. The api manifest (§Spec vocabularies) prints them.
+
+- Keys: `"key": "Space"`, from `InputKeys.KEYS`. A name is a key
+  position on a US keyboard. Mouse: `Left`, `Right`, `Middle`,
+  `WheelUp`, `WheelDown`.
+- Audio: `set_audio_bus_volume` `bus` is `master`, `music` or `sfx`.
+- Lighting: only the fields in `LightingDirector.FIELDS`. Ambient light
+  is `color_day` / `color_night` / `energy_day` / `energy_night`, never
+  `color` / `energy`. Sky shader colors come from `shader_params`, and
+  `<uniform>_day` / `_night` fields override them.
+- Physics: `body_type` from `BODY_TYPES`. Layers are names from
+  `@lib.physics.layers` or `"all"`, never bit numbers.
+
+Gates: `validate_host_neutral.py` checks 7 to 10, and the engine
+reports `input.unknown_key`, `audio.unknown_channel`,
+`scene.unknown_field` or a `physics.unknown_*` code. Empirical case
+2026-10-18: sokoban's music slider set a `Music` bus that did not
+exist, and ten scenes set `ambient.color`, which the engine never read.
+
 ## Top-level `position` clobbers `state.position` in initial_instances
 
 `entity._apply_overrides` runs the `state` block first then applies

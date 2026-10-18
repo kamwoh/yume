@@ -83,6 +83,42 @@ class_name LightingDirector
 # horizon. We rotate around X axis so the sun arcs across the sky.
 const HOURS_PER_DAY: float = 24.0
 
+## ADR 0090 — the closed field list of scene.json `lighting` and `render`.
+## Each key is a block path ("[]" marks an array of blocks). Each value
+## lists the fields of that block. A key that starts with "_" is a
+## comment. validate_host_neutral.py and gen_api_manifest.py parse this
+## dictionary as JSON, so keep it in JSON form: double quotes and no
+## trailing commas. A new field needs an ADR.
+const FIELDS := {
+	"lighting": ["directional_light", "ambient", "sky", "fog", "tonemap", "glow", "adjustments", "ssao", "reflection_probes"],
+	"lighting.directional_light": ["enabled", "shadow_enabled", "binds_to", "color_at_noon", "color_at_dawn_dusk", "color_at_night", "energy_noon", "energy_horizon", "energy_night", "shadow"],
+	"lighting.directional_light.shadow": ["mode", "blur", "max_distance", "atlas_size"],
+	"lighting.ambient": ["color_day", "color_night", "energy_day", "energy_night"],
+	"lighting.sky": ["shader", "shader_params", "horizon_day", "horizon_night", "ground_day", "ground_night", "sky_top_color_day", "sky_top_color_night", "cloud_color_day", "cloud_color_night", "cloud_shadow_color_day", "cloud_shadow_color_night"],
+	"lighting.fog": ["enabled", "light_color", "light_energy", "sun_scatter", "density", "aerial_perspective", "height", "height_density"],
+	"lighting.tonemap": ["mode", "exposure", "white"],
+	"lighting.glow": ["enabled", "intensity", "strength", "bloom", "hdr_threshold"],
+	"lighting.adjustments": ["enabled", "brightness", "contrast", "saturation", "color_correction"],
+	"lighting.adjustments.color_correction": ["texture", "gradient"],
+	"lighting.ssao": ["enabled", "radius", "intensity"],
+	"lighting.reflection_probes[]": ["position", "size", "intensity", "box_projection", "update_mode", "enable_shadows"],
+	"render": ["msaa_3d", "screen_space_aa", "use_taa", "scaling_3d_mode", "scaling_3d_scale", "fsr_sharpness"]
+}
+
+## ADR 0090 — blocks that tune one host's renderer. An interpreter may
+## ignore them.
+const HOST_HINTS: Array = ["render", "lighting.directional_light.shadow", "lighting.reflection_probes[]"]
+
+## Sky shader colors that follow the time of day: uniform → [day field,
+## night field, default day, default night]. The day color falls back to
+## the uniform's value in sky.shader_params, then to the default.
+const SKY_DAY_NIGHT := {
+	"sky_top_color": ["sky_top_color_day", "sky_top_color_night", "#5890d8", "#0a1530"],
+	"sky_horizon_color": ["horizon_day", "horizon_night", "#80a0e0", "#101020"],
+	"cloud_color": ["cloud_color_day", "cloud_color_night", "#f0eee8", "#383848"],
+	"cloud_shadow_color": ["cloud_shadow_color_day", "cloud_shadow_color_night", "#888888", "#1a1a25"],
+}
+
 # ============================================================
 # STATE
 # ============================================================
@@ -165,6 +201,11 @@ func _load_config() -> void:
 	var render_v = (data as Dictionary).get("render", null)
 	if render_v is Dictionary:
 		_render_cfg = render_v
+	for field in unknown_fields(data):
+		push_error(
+			"%s: scene.json has no field '%s'. See the api manifest, Lighting fields (ADR 0090)."
+			% [EngineError.SCENE_UNKNOWN_FIELD, field]
+		)
 	var lighting = (data as Dictionary).get("lighting", null)
 	if not (lighting is Dictionary):
 		return
@@ -451,28 +492,54 @@ func _apply_environment(t: float) -> void:
 			# carrying both "*_day" and "*_night" pairs (or just static
 			# values for shader-driven looks that don't need animation).
 			var sm: ShaderMaterial = mat
-			_animate_sky_uniform(sm, sky_cfg, "sky_top_color", f, "#5890d8", "#0a1530")
-			_animate_sky_uniform(sm, sky_cfg, "sky_horizon_color", f,
-				sky_cfg.get("horizon_day", "#80a0e0"),
-				sky_cfg.get("horizon_night", "#101020"))
-			_animate_sky_uniform(sm, sky_cfg, "cloud_color", f, "#f0eee8", "#383848")
-			_animate_sky_uniform(sm, sky_cfg, "cloud_shadow_color", f, "#888888", "#1a1a25")
+			for uniform_name in SKY_DAY_NIGHT:
+				var c := sky_color_at(sky_cfg, uniform_name, f)
+				sm.set_shader_parameter(uniform_name, Vector3(c.r, c.g, c.b))
 
 
-## Helper for shader-driven sky color animation. Reads optional
-## sky_cfg["<uniform>_day"] / sky_cfg["<uniform>_night"] overrides
-## (falls back to the provided defaults), lerps by day_factor, sets
-## the uniform.
-func _animate_sky_uniform(sm: ShaderMaterial, sky_cfg: Dictionary,
-		uniform_name: String, day_factor_v: float,
-		default_day, default_night) -> void:
-	var day_key := uniform_name + "_day"
-	var night_key := uniform_name + "_night"
-	var c_day := Color(sky_cfg.get(day_key, default_day))
-	var c_night := Color(sky_cfg.get(night_key, default_night))
-	sm.set_shader_parameter(uniform_name,
-		Vector3(c_night.r, c_night.g, c_night.b).lerp(
-			Vector3(c_day.r, c_day.g, c_day.b), day_factor_v))
+## The color of sky shader uniform `uniform_name` at day factor `f`.
+## ADR 0090: the day color is the day field, else the uniform's value in
+## shader_params, else the default. Before 2026-10-18 the default won
+## over shader_params, so every frame replaced the authored sky colors.
+static func sky_color_at(sky_cfg: Dictionary, uniform_name: String, f: float) -> Color:
+	var spec: Array = SKY_DAY_NIGHT[uniform_name]
+	var params = sky_cfg.get("shader_params", {})
+	var day_v = spec[2]
+	if params is Dictionary and (params as Dictionary).has(uniform_name):
+		day_v = params[uniform_name]
+	var c_day := _to_color(sky_cfg.get(spec[0], day_v))
+	var c_night := _to_color(sky_cfg.get(spec[1], spec[3]))
+	return c_night.lerp(c_day, f)
+
+
+## A spec color: a hex string, or [r, g, b] / [r, g, b, a] from 0 to 1.
+static func _to_color(v) -> Color:
+	if v is Array and (v as Array).size() >= 3:
+		return Color(float(v[0]), float(v[1]), float(v[2]))
+	return Color(str(v))
+
+
+## ADR 0090 — the fields of `scene` that FIELDS does not list, as dotted
+## paths. Keys that start with "_" are comments.
+static func unknown_fields(scene: Dictionary) -> Array:
+	var out: Array = []
+	for path in FIELDS:
+		var is_list: bool = path.ends_with("[]")
+		var node = scene
+		for part in path.trim_suffix("[]").split("."):
+			node = node.get(part, null) if node is Dictionary else null
+		var blocks: Array = []
+		if is_list and node is Array:
+			blocks = node
+		elif not is_list and node is Dictionary:
+			blocks = [node]
+		for block in blocks:
+			if not (block is Dictionary):
+				continue
+			for key in block:
+				if not str(key).begins_with("_") and not str(key) in FIELDS[path]:
+					out.append("%s.%s" % [path, key])
+	return out
 
 
 # ============================================================

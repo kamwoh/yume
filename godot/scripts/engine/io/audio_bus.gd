@@ -47,12 +47,15 @@ var _music_current: String = ""
 
 
 func _ready() -> void:
+	# ADR 0090 — music plays on the `music` channel, cues on `sfx`.
+	AudioChannels.ensure_buses()
 	for i in range(POOL_SIZE):
 		var p := AudioStreamPlayer.new()
+		p.bus = AudioChannels.CHANNELS["sfx"]
 		add_child(p)
 		_player_pool.append(p)
 	_music_player = AudioStreamPlayer.new()
-	_music_player.bus = "Master"
+	_music_player.bus = AudioChannels.CHANNELS["music"]
 	add_child(_music_player)
 	_load_sounds_library()
 

@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-17T13:58:36+00:00",
+  "generated_at": "2026-10-18T05:25:21+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -654,6 +654,26 @@
       "code": "shader.not_compiled"
     },
     {
+      "constant": "INPUT_UNKNOWN_KEY",
+      "code": "input.unknown_key"
+    },
+    {
+      "constant": "AUDIO_UNKNOWN_CHANNEL",
+      "code": "audio.unknown_channel"
+    },
+    {
+      "constant": "SCENE_UNKNOWN_FIELD",
+      "code": "scene.unknown_field"
+    },
+    {
+      "constant": "PHYSICS_UNKNOWN_BODY_TYPE",
+      "code": "physics.unknown_body_type"
+    },
+    {
+      "constant": "PHYSICS_UNKNOWN_LAYER",
+      "code": "physics.unknown_layer"
+    },
+    {
       "constant": "WORLD_ENTITIES_MISSING",
       "code": "world.entities_missing"
     },
@@ -1217,6 +1237,243 @@
       ]
     }
   ],
+  "vocabularies": {
+    "keys": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E",
+      "F",
+      "G",
+      "H",
+      "I",
+      "J",
+      "K",
+      "L",
+      "M",
+      "N",
+      "O",
+      "P",
+      "Q",
+      "R",
+      "S",
+      "T",
+      "U",
+      "V",
+      "W",
+      "X",
+      "Y",
+      "Z",
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "F1",
+      "F2",
+      "F3",
+      "F4",
+      "F5",
+      "F6",
+      "F7",
+      "F8",
+      "F9",
+      "F10",
+      "F11",
+      "F12",
+      "Up",
+      "Down",
+      "Left",
+      "Right",
+      "Space",
+      "Enter",
+      "Escape",
+      "Tab",
+      "Shift",
+      "Ctrl",
+      "Alt",
+      "Backspace",
+      "Numpad0",
+      "Numpad1",
+      "Numpad2",
+      "Numpad3",
+      "Numpad4",
+      "Numpad5",
+      "Numpad6",
+      "Numpad7",
+      "Numpad8",
+      "Numpad9"
+    ],
+    "mouse_buttons": [
+      "Left",
+      "Right",
+      "Middle",
+      "WheelUp",
+      "WheelDown"
+    ],
+    "audio_channels": [
+      "master",
+      "music",
+      "sfx"
+    ],
+    "lighting_fields": {
+      "lighting": [
+        "directional_light",
+        "ambient",
+        "sky",
+        "fog",
+        "tonemap",
+        "glow",
+        "adjustments",
+        "ssao",
+        "reflection_probes"
+      ],
+      "lighting.directional_light": [
+        "enabled",
+        "shadow_enabled",
+        "binds_to",
+        "color_at_noon",
+        "color_at_dawn_dusk",
+        "color_at_night",
+        "energy_noon",
+        "energy_horizon",
+        "energy_night",
+        "shadow"
+      ],
+      "lighting.directional_light.shadow": [
+        "mode",
+        "blur",
+        "max_distance",
+        "atlas_size"
+      ],
+      "lighting.ambient": [
+        "color_day",
+        "color_night",
+        "energy_day",
+        "energy_night"
+      ],
+      "lighting.sky": [
+        "shader",
+        "shader_params",
+        "horizon_day",
+        "horizon_night",
+        "ground_day",
+        "ground_night",
+        "sky_top_color_day",
+        "sky_top_color_night",
+        "cloud_color_day",
+        "cloud_color_night",
+        "cloud_shadow_color_day",
+        "cloud_shadow_color_night"
+      ],
+      "lighting.fog": [
+        "enabled",
+        "light_color",
+        "light_energy",
+        "sun_scatter",
+        "density",
+        "aerial_perspective",
+        "height",
+        "height_density"
+      ],
+      "lighting.tonemap": [
+        "mode",
+        "exposure",
+        "white"
+      ],
+      "lighting.glow": [
+        "enabled",
+        "intensity",
+        "strength",
+        "bloom",
+        "hdr_threshold"
+      ],
+      "lighting.adjustments": [
+        "enabled",
+        "brightness",
+        "contrast",
+        "saturation",
+        "color_correction"
+      ],
+      "lighting.adjustments.color_correction": [
+        "texture",
+        "gradient"
+      ],
+      "lighting.ssao": [
+        "enabled",
+        "radius",
+        "intensity"
+      ],
+      "lighting.reflection_probes[]": [
+        "position",
+        "size",
+        "intensity",
+        "box_projection",
+        "update_mode",
+        "enable_shadows"
+      ],
+      "render": [
+        "msaa_3d",
+        "screen_space_aa",
+        "use_taa",
+        "scaling_3d_mode",
+        "scaling_3d_scale",
+        "fsr_sharpness"
+      ]
+    },
+    "lighting_host_hints": [
+      "render",
+      "lighting.directional_light.shadow",
+      "lighting.reflection_probes[]"
+    ],
+    "body_types": [
+      "static",
+      "kinematic",
+      "rigid",
+      "area",
+      "character"
+    ],
+    "physics_fields": [
+      "body_type",
+      "collision_shape",
+      "collision_layer",
+      "collision_mask",
+      "mass",
+      "friction",
+      "restitution",
+      "linear_damp",
+      "angular_damp",
+      "gravity_scale",
+      "floor_block_on_wall",
+      "floor_snap_length",
+      "floor_constant_speed",
+      "floor_max_angle_deg"
+    ],
+    "collision_layers": [
+      "world",
+      "wall",
+      "floor",
+      "ceiling",
+      "player",
+      "npc",
+      "enemy",
+      "animal",
+      "ally",
+      "projectile",
+      "pickup",
+      "trigger",
+      "decoration",
+      "vehicle",
+      "fluid",
+      "sensor"
+    ]
+  },
   "reserved_state_fields": [
     "position",
     "velocity",

@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-10-17 (ADR 0089: shaders by name)_
+_Last updated: 2026-10-18 (ADR 0090: spec vocabularies)_
 
 ## Purpose
 
@@ -573,6 +573,107 @@ A visual block can name a shader: `lighting.sky.shader`,
 - A custom shader is a `shader_dag` graph of primitives (ADR 0058) in
   `ground.mesh`, with no `shader` field next to it.
 - Content never names a `.gdshader` or `.tres` file.
+
+### Spec vocabularies (ADR 0090)
+
+Four lists are closed. A name outside them fails validation
+(`validate_host_neutral.py`), and the engine reports an error code. The
+api manifest (§Spec vocabularies) prints each list. A new name needs an
+ADR.
+
+**Input keys.** `ui/input.json` (`key`, `keys`) and `set_input_mapping`
+name keys from one list:
+
+- `A`–`Z`, `0`–`9`, `F1`–`F12` and `Numpad0`–`Numpad9`
+- `Up`, `Down`, `Left`, `Right`
+- `Space`, `Enter`, `Escape`, `Tab`, `Shift`, `Ctrl`, `Alt`, `Backspace`
+
+
+- A key name means a key position on a US keyboard. "W" stays in the
+  same place on any layout, so movement keys work everywhere.
+- `mouse_button` and `mouse_buttons` take `Left`, `Right`, `Middle`,
+  `WheelUp` and `WheelDown`.
+- Error code: `input.unknown_key`.
+
+**Audio channels.** `set_audio_bus_volume` sets the volume of one
+channel: `master`, `music` or `sfx`. `linear` is the volume from 0 to 1.
+
+- Music plays on `music`. Sound cues play on `sfx`. Both feed `master`.
+- Error code: `audio.unknown_channel`.
+
+**Lighting fields.** `scene.json` `lighting` has these blocks. Each
+field is defined by what the player sees. The exact look is
+host-defined, but a larger value must change the look in the direction
+the definition says. A key that starts with `_` is a comment. Error
+code: `scene.unknown_field`.
+
+The day cycle drives most fields. `directional_light.binds_to` names an
+hour from 0 to 24 (`"world_clock.time_of_day"` by default, or
+`"world.<field>"`). With no clock, the hour is 12. The day factor is 0
+at midnight, 1 at noon and 0.5 at 6 and 18, and it changes smoothly.
+A `_day` / `_night` pair blends by the day factor.
+
+| Block | Field | What the player sees |
+|---|---|---|
+| `directional_light` | `enabled` | A sun lights the scene. |
+| | `shadow_enabled` | Objects cast sun shadows. |
+| | `binds_to` | The hour that sets the sun angle and the day factor. |
+| | `color_at_noon`, `color_at_dawn_dusk`, `color_at_night` | The sun color at that time. Between times, the color blends. |
+| | `energy_noon`, `energy_horizon`, `energy_night` | The sun brightness at that time. |
+| `ambient` | `color_day`, `color_night` | The color of the fill light on surfaces that the sun does not reach. |
+| | `energy_day`, `energy_night` | The brightness of that fill light. |
+| `sky` | `shader` | A named sky shader. Without it, the sky is a plain gradient. |
+| | `shader_params` | The parameters of that shader. |
+| | `horizon_day`, `horizon_night` | The sky color at the horizon. |
+| | `ground_day`, `ground_night` | The sky color below the horizon (plain sky only). |
+| | `sky_top_color_day`, `sky_top_color_night` | The sky color overhead (`sky_clouds`). |
+| | `cloud_color_day`, `cloud_color_night` | The lit cloud color (`sky_clouds`). |
+| | `cloud_shadow_color_day`, `cloud_shadow_color_night` | The shaded cloud color (`sky_clouds`). |
+| `fog` | `enabled` | Far objects fade into fog. |
+| | `light_color`, `light_energy` | The fog color and brightness. |
+| | `sun_scatter` | How much the fog glows toward the sun. |
+| | `density` | How thick the fog is. |
+| | `aerial_perspective` | How much far objects take the sky color, from 0 to 1. |
+| | `height`, `height_density` | The fog thins above `height`. `height_density` sets how fast. |
+| `tonemap` | `mode` | How bright colors compress: `linear`, `reinhard`, `filmic` or `aces`. |
+| | `exposure` | The overall brightness. |
+| | `white` | The brightness that becomes pure white. |
+| `glow` | `enabled`, `intensity`, `strength`, `bloom` | Bright areas spread light around them. |
+| | `hdr_threshold` | How bright an area must be to glow. |
+| `adjustments` | `brightness`, `contrast`, `saturation` | Final color changes. 1.0 is no change. |
+| | `color_correction` | A color lookup: `texture` (an asset path) or `gradient` (hex stops). |
+| `ssao` | `enabled`, `radius`, `intensity` | Creases and contact areas become darker. |
+
+For a sky color from the day cycle, the day value is the `_day` field,
+then the uniform's value in `shader_params`, then the host default.
+
+*Host hints* tune one host's renderer, and an interpreter may ignore
+them. There are three:
+
+- the top-level `render` block: `msaa_3d`, `screen_space_aa`,
+  `use_taa`, `scaling_3d_mode`, `scaling_3d_scale`, `fsr_sharpness`
+- `directional_light.shadow`: `mode`, `blur`, `max_distance`,
+  `atlas_size`
+- `reflection_probes`
+
+**Physics.** A `physics` block gives an entity a body. An entity
+without the block has no body. `body_type` is one of these:
+
+| Body type | Guarantee |
+|---|---|
+| `static` | It never moves. It blocks bodies whose mask includes its layer. |
+| `kinematic` (default) | It moves only when its state moves it. It blocks as `static` does. |
+| `character` | It moves by `state.velocity` and slides along what blocks it. Its position writes back to `state.position` each tick. `floor_*` fields tune how it walks on slopes. |
+| `area` | It never blocks. It reports an overlap with each body that its mask includes. |
+| `rigid` | The host simulates it. Its position does not write back to state, so it is host-defined and outside the conformance tests. `mass`, `friction`, `restitution`, `linear_damp`, `angular_damp` and `gravity_scale` tune it. |
+
+- `collision_layer` lists the layers that the body is on.
+  `collision_mask` lists the layers that it reacts to. Each is `"all"`
+  or a list of names from `@lib.physics.layers`. Bit numbers belong to
+  the interpreter, so a raw number is an error.
+- Numeric results (exact contact points, slide angles) are
+  host-defined.
+- Error codes: `physics.unknown_body_type`, `physics.unknown_layer`.
 
 ---
 

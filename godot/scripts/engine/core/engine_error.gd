@@ -53,6 +53,13 @@ const FORMULA_UNKNOWN_FUNCTION := "formula.unknown_function"
 const SHADER_UNKNOWN := "shader.unknown"
 const SHADER_NOT_COMPILED := "shader.not_compiled"
 
+## ADR 0090 — the spec vocabularies.
+const INPUT_UNKNOWN_KEY := "input.unknown_key"
+const AUDIO_UNKNOWN_CHANNEL := "audio.unknown_channel"
+const SCENE_UNKNOWN_FIELD := "scene.unknown_field"
+const PHYSICS_UNKNOWN_BODY_TYPE := "physics.unknown_body_type"
+const PHYSICS_UNKNOWN_LAYER := "physics.unknown_layer"
+
 const WORLD_ENTITIES_MISSING := "world.entities_missing"
 const WORLD_ENTITIES_INVALID := "world.entities_invalid_json"
 const WORLD_DEF_UNKNOWN := "world.def_unknown"

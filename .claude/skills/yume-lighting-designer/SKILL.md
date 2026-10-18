@@ -24,8 +24,7 @@ death-march" depending on:
 - directional_light color across time-of-day
 - ambient color + energy (skylight fill)
 - sky horizon color (sets the visible boundary)
-- seasonal palette shifts
-- per-location point lights (fire pit glow, lamps)
+- per-entity lights (fire pits, lamps)
 
 Without coordinated values, the result feels noisy: warm sun + cool
 ambient + neutral sky = stage-lit gray. With coordinated values, the
@@ -68,41 +67,22 @@ omitting them keeps engine defaults.)
     "color_at_night":     "#2a3870",
     "energy_noon":    1.0,   // float, suggested 0.8-1.4
     "energy_horizon": 0.7,   // dawn/dusk transition
-    "energy_night":   0.05,  // very low (moonlight)
-
-    "_seasonal_noon_override": {
-      // Per `world_clock.season_phase` value, override noon color.
-      // 60-second crossfade when season_phase changes.
-      "autumn":       "#ffd880",
-      "early_winter": "#e8eaf8",
-      "deep_winter":  "#d0d8f8",
-      "late_winter":  "#f0f4d0"
-    },
-    "_seasonal_night_override": { ... }
+    "energy_night":   0.05   // very low (moonlight)
   },
   "ambient": {
     "color_day":   "#a0a0b0",
     "color_night": "#181828",
     "energy_day":   0.45,    // higher = brighter shadowed surfaces
-    "energy_night": 0.08,
-    "_seasonal_ambient_day_override": { ... }
+    "energy_night": 0.08
   },
   "sky": {
     "horizon_day":   "#78a0d8",
-    "horizon_night": "#0c1018",
-    "binds_to": "world_clock.current_hour",
-    "_seasonal_horizon_day_override": { ... }
+    "horizon_night": "#0c1018"
+    // The sky has no binds_to. directional_light.binds_to drives the
+    // whole day cycle.
   },
-  "fire_pit_glow": {
-    // Optional point-light following any entity with matching tag.
-    "source_tag": "fire_pit",
-    "color": "#ff9040",
-    "radius_normal": 10.0,
-    "radius_solstice_boost": 18.0,
-    "intensity_fuel_full": 1.2,
-    "intensity_fuel_low":  0.4,
-    "intensity_extinguished": 0.0
-  },
+  // A glowing prop (fire pit, lamp) is a per-entity light:
+  // `visual.light` on its def (ADR 0072). See § Per-entity lights.
   "level_seed": 4412,  // determinism for sky generation
 
   // === 2026-05-18: composition pass — WorldEnvironment polish ===
@@ -150,9 +130,11 @@ omitting them keeps engine defaults.)
   // OPTIONAL — if `sky.shader` names a library shader (ADR 0089),
   // swaps ProceduralSkyMaterial for that shader. Sky.process_mode
   // is auto-switched to REALTIME so animation actually plays.
-  // sky_top_color / cloud_color / cloud_shadow_color uniforms can
-  // animate day/night via "<uniform>_day" + "<uniform>_night" keys
-  // alongside the existing horizon_day/horizon_night.
+  // The sky colors follow the day cycle (ADR 0090). The day color of
+  // sky_top_color, cloud_color and cloud_shadow_color is the
+  // "<uniform>_day" field, else the shader_params value. The night
+  // color is "<uniform>_night", else a dark default. sky_horizon_color
+  // uses horizon_day / horizon_night.
 
   "sky": {
     "horizon_day":   "#5890d8",
@@ -412,22 +394,17 @@ in-game hour), the player perceives the cycle as flickering — increase
 all energies 0.1-0.2 to smooth visually. Conversely, slow pacing (1
 real second = 1 in-game minute) lets you use full range.
 
-### Step 5 — Seasonal overrides (if applicable)
+### Step 5 — Seasons
 
-If the game has `world_clock.season_phase` cycling, the engine
-crossfades between season palettes over 60 seconds. Author each phase
-key in `_seasonal_*_override` blocks.
+The spec has no seasonal lighting fields (ADR 0090). Keys that start
+with `_` are comments, so a `_seasonal_*_override` block does nothing.
+Pick one palette that fits the whole game. A seasonal palette needs an
+ADR through yume-tech-director.
 
-Standard 4-phase set:
-
-| Phase | Sun noon | Ambient day | Sky horizon |
-|---|---|---|---|
-| autumn | `#ffd880` (amber) | `#b8a880` (warm gray) | `#a09060` (hazy gold) |
-| early_winter | `#e8eaf8` (cool white) | `#9098b0` (slate) | `#6878a8` (slate blue) |
-| deep_winter | `#d0d8f8` (icy) | `#7880a8` (blue-gray) | `#8090b8` (pale gray) |
-| late_winter | `#f0f4d0` (tentative gold) | `#90a890` (greenish) | `#88b898` (teal-green) |
-
-Match these to the GDD's narrative arc.
+Empirical case 2026-10-18: this skill taught `_seasonal_*_override`
+blocks, `sky.binds_to` and a `fire_pit_glow` block. The engine read
+none of them. `validate_host_neutral.py` now rejects unknown
+lighting fields.
 
 ## How to do your job
 
@@ -436,7 +413,7 @@ Match these to the GDD's narrative arc.
    (`scripts/play.sh <game> --capture`). Read the PNG. Diagnose:
    too dim? too washed out? off-palette?
 3. Apply the 5-step recipe — pick mood → sun triplet → ambient+sky
-   → energy → seasonal.
+   → energy → one palette for the whole game.
 4. Edit `scene.json` directly. Comment each value with intent
    ("warm amber autumn — matches GDD's 'hopeful, halting, kind'").
 5. Capture again. Compare. Iterate.
@@ -449,12 +426,10 @@ Match these to the GDD's narrative arc.
 - ❌ Implement engine changes. lighting_director.gd is the contract;
   if you need a new feature (point lights, volumetric fog), file an
   ADR through yume-tech-director.
-- ❌ ~~Edit per-entity light sources. fire_pit_glow follows a tag; if
-  the game needs OTHER glowing things, propose a primitive expansion~~
-  **Outdated as of 2026-06-12** — per-entity lights exist
-  (`visual.light`, ADR 0072). The per-def block is asset-designer's;
-  you own the scene-level light budget + mood coordination (see
-  § Render + shadows + LUT + probes + entity lights).
+- ❌ Edit per-entity light sources. The per-def `visual.light` block
+  (ADR 0072) is asset-designer's. You own the scene-level light budget
+  and mood coordination (see § Render + shadows + LUT + probes +
+  entity lights).
 - ❌ Author particle effects (sun rays, dust motes). That's juice-
   designer.
 - ❌ Pick screen palette (UI colors). That's asset-designer.
@@ -470,7 +445,7 @@ Match these to the GDD's narrative arc.
 - **Too dim at dawn**: `energy_horizon` is the value at exactly 6:00
   AM. If the player's session starts at 8:00 AM and looks dark, the
   noon energy is too low OR ambient.color_day is too desaturated.
-- **Washed out**: high ambient.energy + light sun color = no contrast.
+- **Washed out**: high ambient.energy_day + light sun color = no contrast.
   Drop ambient to 0.35-0.45 for crisp shadows.
 - **Color-shift jolt at sunset**: dawn/dusk → night transition is
   cosine-eased internally; but if your dawn color and night color are
@@ -489,9 +464,8 @@ Match these to the GDD's narrative arc.
 
 ## Reference files
 
-- `godot/scripts/engine/lighting_director.gd` — the engine contract
+- `godot/scripts/engine/directors/lighting_director.gd` — `FIELDS` is the closed field list (ADR 0090)
+- `docs/guideline/30_framework_primitives.md` §Spec vocabularies — what each field does
 - `docs/adr/0025-day-night-cycle.md` — design rationale
-- `godot/data/demo_merchant/scene.json` — mature lighting block
-  (multi-season + fire_pit_glow + ProceduralSky)
 - `godot/data/demo_doomarena3d/scene.json` — minimal lighting
   (single mood, harsh shadows)

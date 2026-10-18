@@ -11,14 +11,14 @@
          "label": "Master volume",
          "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.7,
          "apply": [
-           {"type": "set_audio_bus_volume", "bus": "Master", "linear": "value"}
+           {"type": "set_audio_bus_volume", "bus": "master", "linear": "value"}
          ]},
         {"key": "music_volume",
          "type": "slider",
          "label": "Music volume",
          "min": 0.0, "max": 1.0, "step": 0.05, "default": 0.5,
          "apply": [
-           {"type": "set_audio_bus_volume", "bus": "Music", "linear": "value"}
+           {"type": "set_audio_bus_volume", "bus": "music", "linear": "value"}
          ]}
       ]
     },

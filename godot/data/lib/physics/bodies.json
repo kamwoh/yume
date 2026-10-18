@@ -34,11 +34,6 @@
     "collision_mask": "all"
   },
 
-  "static_decoration_no_collision": {
-    "_comment": "For visible-but-non-blocking decoration. No body = no physics overhead. Use this template by NOT declaring a physics block on the entity.",
-    "body_type": null
-  },
-
   "rigid_projectile": {
     "_comment": "RigidBody3D projectile — Godot's PhysicsServer integrates it with the full 3D velocity vector (so a pitch-aimed shot rises/falls correctly) and gravity_scale 0 keeps it straight. CAVEAT: rigid bodies only move under a LIVE physics server; the headless scenario/step harness has none (it integrates only CharacterBody3D via tick_headless), so rigid projectiles are FROZEN in scenario tests — gate a projectile's hit RULE by placing the target within contact range (position-based), not by relying on headless flight.",
     "body_type": "rigid",

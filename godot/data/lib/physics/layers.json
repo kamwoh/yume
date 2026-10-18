@@ -1,6 +1,6 @@
 {
   "_origin": "lib/physics/layers.json",
-  "_comment": "ADR 0044 — default collision layer name → bit mapping. Godot physics uses 32-bit layer masks; this file gives them human names. Each entity's physics.collision_layer / collision_mask declares the layer NAMES it lives on and reacts to; the engine translates to bit masks at body creation. Per-game extension: a game can ship its own data/<game>/physics_layers.json with additional categories. The engine merges them on top of these defaults.",
+  "_comment": "ADR 0044, ADR 0090 — the collision layer names of the spec. Each entity's physics.collision_layer / collision_mask lists the layer NAMES it lives on and reacts to, or \"all\". The interpreter maps each name to a host bit. A raw number is an error. A new name is a change to this file.",
 
   "layers": {
     "world":      1,
@@ -21,5 +21,5 @@
     "sensor":     16
   },
 
-  "_authoring_note": "Layer indices ARE the Godot collision layer bits (1..32). The engine reads physics.collision_layer:['wall'] and sets body's collision_layer to bit 2. physics.collision_mask:['player','enemy'] gets bit 5 + bit 7 set. Per-game extensions append new names at unused bit slots (17..32 reserved for game-specific). Default `mask: 'all'` means 0xFFFFFFFF (collides with everything)."
+  "_authoring_note": "The numbers are the Godot interpreter's bit numbers (1..32), not part of the spec. physics.collision_layer: [\"wall\"] sets bit 2. collision_mask: \"all\" sets every bit."
 }

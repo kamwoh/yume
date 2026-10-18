@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-10-17T13:58:36+00:00_
+_Generated: 2026-10-18T05:25:21+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -199,9 +199,53 @@ Content names a library shader by name (`"shader": "sky_clouds"`) and sets its p
 | `fill_color` | color | [0.5, 0.55, 0.65, 1.0] | — |  |
 | `fill_strength` | number | 0.7 | 0.0,1.5 |  |
 
+## Spec vocabularies (ADR 0090)
+
+Each list is closed. `validate_host_neutral.py` rejects other names, and the engine reports an error code. The contract document defines each name.
+
+### Input keys
+
+A key name means a key position on a US keyboard. Use it in `ui/input.json` (`key`, `keys`) and in `set_input_mapping`:
+
+`A`, `B`, `C`, `D`, `E`, `F`, `G`, `H`, `I`, `J`, `K`, `L`, `M`, `N`, `O`, `P`, `Q`, `R`, `S`, `T`, `U`, `V`, `W`, `X`, `Y`, `Z`, `0`, `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `F1`, `F2`, `F3`, `F4`, `F5`, `F6`, `F7`, `F8`, `F9`, `F10`, `F11`, `F12`, `Up`, `Down`, `Left`, `Right`, `Space`, `Enter`, `Escape`, `Tab`, `Shift`, `Ctrl`, `Alt`, `Backspace`, `Numpad0`, `Numpad1`, `Numpad2`, `Numpad3`, `Numpad4`, `Numpad5`, `Numpad6`, `Numpad7`, `Numpad8`, `Numpad9`
+
+Mouse buttons (`mouse_button`, `mouse_buttons`): `Left`, `Right`, `Middle`, `WheelUp`, `WheelDown`
+
+### Audio channels
+
+`set_audio_bus_volume` `bus`: `master`, `music`, `sfx`. Music plays on `music`, sound cues on `sfx`. Both feed `master`.
+
+### Lighting fields
+
+The fields of `scene.json` `lighting` and `render`. A key that starts with `_` is a comment. Host hints tune one host's renderer, and an interpreter may ignore them.
+
+| Block | Fields |
+|---|---|
+| `lighting` | `directional_light`, `ambient`, `sky`, `fog`, `tonemap`, `glow`, `adjustments`, `ssao`, `reflection_probes` |
+| `lighting.directional_light` | `enabled`, `shadow_enabled`, `binds_to`, `color_at_noon`, `color_at_dawn_dusk`, `color_at_night`, `energy_noon`, `energy_horizon`, `energy_night`, `shadow` |
+| `lighting.directional_light.shadow` (host hint) | `mode`, `blur`, `max_distance`, `atlas_size` |
+| `lighting.ambient` | `color_day`, `color_night`, `energy_day`, `energy_night` |
+| `lighting.sky` | `shader`, `shader_params`, `horizon_day`, `horizon_night`, `ground_day`, `ground_night`, `sky_top_color_day`, `sky_top_color_night`, `cloud_color_day`, `cloud_color_night`, `cloud_shadow_color_day`, `cloud_shadow_color_night` |
+| `lighting.fog` | `enabled`, `light_color`, `light_energy`, `sun_scatter`, `density`, `aerial_perspective`, `height`, `height_density` |
+| `lighting.tonemap` | `mode`, `exposure`, `white` |
+| `lighting.glow` | `enabled`, `intensity`, `strength`, `bloom`, `hdr_threshold` |
+| `lighting.adjustments` | `enabled`, `brightness`, `contrast`, `saturation`, `color_correction` |
+| `lighting.adjustments.color_correction` | `texture`, `gradient` |
+| `lighting.ssao` | `enabled`, `radius`, `intensity` |
+| `lighting.reflection_probes[]` (host hint) | `position`, `size`, `intensity`, `box_projection`, `update_mode`, `enable_shadows` |
+| `render` (host hint) | `msaa_3d`, `screen_space_aa`, `use_taa`, `scaling_3d_mode`, `scaling_3d_scale`, `fsr_sharpness` |
+
+### Physics
+
+Body types: `static`, `kinematic`, `rigid`, `area`, `character`. `kinematic` is the default.
+
+Fields of a `physics` block: `body_type`, `collision_shape`, `collision_layer`, `collision_mask`, `mass`, `friction`, `restitution`, `linear_damp`, `angular_damp`, `gravity_scale`, `floor_block_on_wall`, `floor_snap_length`, `floor_constant_speed`, `floor_max_angle_deg`
+
+Collision layer names (`collision_layer`, `collision_mask`, or `"all"`): `world`, `wall`, `floor`, `ceiling`, `player`, `npc`, `enemy`, `animal`, `ally`, `projectile`, `pickup`, `trigger`, `decoration`, `vehicle`, `fluid`, `sensor`
+
 ## Error codes (Tier 2.6a)
 
-41 stable codes for matching in retry loops:
+46 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -227,6 +271,11 @@ Content names a library shader by name (`"shader": "sky_clouds"`) and sets its p
 | `formula.unknown_function` | `EngineError.FORMULA_UNKNOWN_FUNCTION` |
 | `shader.unknown` | `EngineError.SHADER_UNKNOWN` |
 | `shader.not_compiled` | `EngineError.SHADER_NOT_COMPILED` |
+| `input.unknown_key` | `EngineError.INPUT_UNKNOWN_KEY` |
+| `audio.unknown_channel` | `EngineError.AUDIO_UNKNOWN_CHANNEL` |
+| `scene.unknown_field` | `EngineError.SCENE_UNKNOWN_FIELD` |
+| `physics.unknown_body_type` | `EngineError.PHYSICS_UNKNOWN_BODY_TYPE` |
+| `physics.unknown_layer` | `EngineError.PHYSICS_UNKNOWN_LAYER` |
 | `world.entities_missing` | `EngineError.WORLD_ENTITIES_MISSING` |
 | `world.entities_invalid_json` | `EngineError.WORLD_ENTITIES_INVALID` |
 | `world.def_unknown` | `EngineError.WORLD_DEF_UNKNOWN` |

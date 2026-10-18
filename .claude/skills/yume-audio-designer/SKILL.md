@@ -178,7 +178,6 @@ changes.
 ```jsonc
 {
   "music": {
-    "default_bus": "Music",
     "tracks": {
       "title_theme": {
         "asset": "@audio.title_theme",
@@ -200,10 +199,7 @@ changes.
       "level_complete": {
         "asset": "@audio.stinger_complete",
         "loop": false,
-        "volume_db": 0.0,
-        "duck_bus": "Music",
-        "duck_amount_db": -12.0,
-        "duck_duration_s": 3.0
+        "volume_db": 0.0
       },
       "boss_spawn": {
         "asset": "@audio.stinger_boss",
@@ -215,14 +211,12 @@ changes.
       "forest": {
         "asset": "@audio.amb_forest",
         "loop": true,
-        "volume_db": -18.0,
-        "bus": "Ambient"
+        "volume_db": -18.0
       },
       "cave": {
         "asset": "@audio.amb_cave",
         "loop": true,
-        "volume_db": -16.0,
-        "bus": "Ambient"
+        "volume_db": -16.0
       }
     },
     "transitions": {
@@ -242,7 +236,7 @@ revision 2026-05-16) fire effects like:
 ```jsonc
 {"type": "play_music", "track": "level_1_bgm", "crossfade_s": 1.0},
 {"type": "play_stinger", "id": "level_complete"},
-{"type": "set_audio_bus_volume", "bus": "Music", "volume_db": -20}
+{"type": "set_audio_bus_volume", "bus": "music", "linear": 0.2}
 ```
 
 **This skill specifies WHAT exists. systems-designer wires it
@@ -327,8 +321,10 @@ to honor.
    Reuse where it makes thematic sense.
 ❌ **No stingers** — moments feel flat. At minimum: level_complete,
    game_over.
-❌ **Music + ambient on same bus** — can't independently control.
-   Always separate buses.
+❌ **A bus name outside the spec** — the audio channels are `master`,
+   `music` and `sfx` (ADR 0090). Music plays on `music` and sound cues
+   on `sfx`, so the player can set each volume. `validate_host_neutral.py`
+   rejects any other name.
 ❌ **No volume specified** — playback uses 0dB default which is
    often too loud. Always specify volume_db.
 ❌ **Stinger longer than 3s** — overlaps/awkward. Keep brief.

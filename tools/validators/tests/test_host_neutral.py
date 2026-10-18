@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Regression test for validate_host_neutral.py (ADR 0087 and ADR 0089,
-2026-10-17).
+Regression test for validate_host_neutral.py (ADR 0087, ADR 0089 and
+ADR 0090, 2026-10-18).
 
 Empirical cases:
 - 201 asset references in game JSON were Godot `res://` paths. 15 pointed
@@ -9,6 +9,8 @@ Empirical cases:
 - 17 shader references named `.gdshader` files, and one named a `.tres`
   resource. Two games set 5 and 9 water parameters that the water shader
   does not have, and Godot ignored them with no warning.
+- Sokoban's music slider set a "Music" bus that did not exist. Ten scenes
+  set `lighting.ambient.color` and `energy`, which the engine never read.
 
 The test also checks that the Python path rules (content.py) and the
 engine twin (util/asset_path.gd) list the same extensions, so the two
@@ -50,6 +52,24 @@ CASES = [
     ("unknown shader parameter", {"shader": "sky_clouds", "shader_params": {"wave_speed": 1}}, 1),
     ("interpreter parameter", {"water": {"shader": "water_stylized", "shader_params": {"plane_size": 80}}}, 1),
     ("shader graph", {"shader_dag": {"stages": {}}, "shader_params": {"anything": 1}}, 0),
+    # ADR 0090 vocabularies. A fourth item names the file in the game folder.
+    ("spec key names", {"actions": [{"name": "jump", "keys": ["Space", "W", "Numpad2"]},
+                                    {"name": "fire", "mouse_button": "Left"}]}, 0, "ui/input.json"),
+    ("host key name", {"actions": [{"name": "jump", "key": "Kp 2"}]}, 1, "ui/input.json"),
+    ("unknown mouse button", {"actions": [{"name": "fire", "mouse_button": "XButton1"}]}, 1, "ui/input.json"),
+    ("rebind to a binding", {"type": "set_input_mapping", "action": "jump", "key": "value"}, 0),
+    ("rebind to a host key", {"type": "set_input_mapping", "action": "jump", "key": "Kp 2"}, 1),
+    ("audio channel", {"type": "set_audio_bus_volume", "bus": "music", "linear": "value"}, 0),
+    ("host bus name", {"type": "set_audio_bus_volume", "bus": "Music", "linear": "value"}, 1),
+    ("lighting fields", {"lighting": {"ambient": {"color_day": "#fff", "_note": "x"},
+                                      "fog": {"density": 0.01}}, "render": {"msaa_3d": "2x"}}, 0, "scene.json"),
+    ("dead lighting field", {"lighting": {"ambient": {"color": "#fff", "energy": 0.3}}}, 2, "scene.json"),
+    ("lighting field in an entity file", {"lighting": {"glow_radius": 2}}, 0),
+    ("physics preset", {"physics": {"$extends": "@lib.physics.bodies.static_wall"}}, 0),
+    ("unknown body type", {"physics": {"body_type": "ghost", "collision_shape": {"type": "box"}}}, 1),
+    ("unknown layer and raw bits", {"physics": {"body_type": "static", "collision_layer": ["walls"],
+                                                "collision_mask": 6}}, 2),
+    ("unknown physics field", {"physics": {"$extends": "@lib.physics.bodies.static_wall", "bounce": 1}}, 1),
 ]
 
 
@@ -71,8 +91,9 @@ def run_cases() -> int:
         content.DATA = hn.DATA = data
         hn.REPO = root
         try:
-            for name, doc, want in CASES:
-                f = data / "demo_t" / "case.json"
+            for name, doc, want, *where in CASES:
+                f = data / "demo_t" / (where[0] if where else "case.json")
+                f.parent.mkdir(parents=True, exist_ok=True)
                 f.write_text(json.dumps(doc))
                 got = len(hn.check_file(f))
                 ok = got == want

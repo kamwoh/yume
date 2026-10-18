@@ -131,6 +131,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0087](./0087-host-neutral-asset-paths.md) | Asset paths relative to the game folder | accepted | 2026-10-17 |
 | [0088](./0088-formula-language.md) | The formula language: float numbers and 16 functions | accepted | 2026-10-17 |
 | [0089](./0089-named-shaders.md) | Shaders by name, and custom shaders through the graph | accepted | 2026-10-17 |
+| [0090](./0090-spec-vocabularies.md) | Spec vocabularies: keys, audio channels, lighting, physics | accepted | 2026-10-18 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 

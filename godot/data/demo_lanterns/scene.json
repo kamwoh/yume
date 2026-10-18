@@ -99,8 +99,8 @@
       "energy_night": 0.05
     },
     "ambient": {
-      "color": "#aebccf",
-      "energy": 0.35
+      "color_day": "#aebccf",
+      "energy_day": 0.35
     },
     "sky": {
       "shader": "sky_clouds",
