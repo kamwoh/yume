@@ -64,6 +64,14 @@ var _freecam_ephemeral_initialized: bool = false
 var _warned_no_free_camera: bool = false
 
 
+## ADR 0094 — the state field that the third-person and first-person
+## cameras aim along. "facing" is the mouse look (_drain_mouse_facing).
+## "yaw" is the body heading that physics writes, for a vehicle or robot.
+## validate_host_neutral.py check 13 reads this list. A new name needs an ADR.
+const HEADING_SOURCES: Array = ["facing", "yaw"]
+var _warned_heading: bool = false
+
+
 func _init(shell: Node) -> void:
 	_shell = shell
 
@@ -450,7 +458,8 @@ func _camera_isometric_3d(cam_cfg: Dictionary) -> void:
 	_apply_ortho(cam_cfg, true)
 
 
-## Third-person 3D: Camera3D orbits behind entity using state.facing.
+## Third-person 3D: Camera3D orbits behind entity along its heading
+## (state.facing, or state.yaw with `heading: "yaw"`, ADR 0094).
 func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var target_v = _follow_target_3d(cam_cfg)
 	if target_v == null:
@@ -497,7 +506,7 @@ func _camera_third_person_3d(cam_cfg: Dictionary) -> void:
 	var facing := 0.0
 	var pitch := 0.0
 	if actor != null:
-		facing = float(actor.get_state("facing", 0.0))
+		facing = _heading(actor, cam_cfg)
 		pitch = float(actor.get_state("pitch", 0.0))
 	# Distance: prefer per-actor override (state.camera_distance, set by
 	# scroll-wheel zoom rules), fall back to scene.json's `distance`.
@@ -633,7 +642,7 @@ func _camera_first_person_3d(cam_cfg: Dictionary) -> void:
 	var actor = _drain_mouse_facing(cam_cfg)
 	if actor == null:
 		return
-	var facing := float(actor.get_state("facing", 0.0))
+	var facing := _heading(actor, cam_cfg)
 	var pitch := float(actor.get_state("pitch", 0.0))
 	var eye_height := float(cam_cfg.get("eye_height", 1.7))
 	_camera3d.global_position = target + Vector3(0, eye_height, 0)
@@ -904,6 +913,25 @@ static func _focal_to_fov_deg(focal_mm: float) -> float:
 	return rad_to_deg(2.0 * atan(36.0 / (2.0 * focal_mm)))
 
 
+## The heading in radians that the camera aims along (ADR 0094).
+static func heading_of(actor: Object, cam_cfg: Dictionary) -> float:
+	var src := str(cam_cfg.get("heading", "facing"))
+	if not HEADING_SOURCES.has(src):
+		src = "facing"
+	return float(actor.get_state(src, 0.0))
+
+
+func _heading(actor: Object, cam_cfg: Dictionary) -> float:
+	var src := str(cam_cfg.get("heading", "facing"))
+	if not HEADING_SOURCES.has(src) and not _warned_heading:
+		_warned_heading = true
+		push_error(
+			"%s: camera.heading '%s' is not a heading. The names are: %s (ADR 0094)."
+			% [EngineError.CAMERA_UNKNOWN_HEADING, src, ", ".join(HEADING_SOURCES)]
+		)
+	return heading_of(actor, cam_cfg)
+
+
 func _drain_mouse_facing(cam_cfg: Dictionary):
 	var tag := str(cam_cfg.get("follow_tag", ""))
 	if tag == "":
@@ -1039,7 +1067,7 @@ func _update_crosshair_target(actor: Entity, cam_cfg: Dictionary) -> void:
 			else Vector3((apos_v as Vector2).x, 0, (apos_v as Vector2).y)
 		)
 		cam_pos = apos + Vector3(0, eye_h, 0)
-		var facing := float(actor.get_state("facing", 0.0))
+		var facing := _heading(actor, cam_cfg)
 		# Apply pitch too (2026-05-19). Without this the crosshair ray
 		# is horizontal even when the camera tilts via mouse-up/down,
 		# so the labeled target diverges from what the camera actually

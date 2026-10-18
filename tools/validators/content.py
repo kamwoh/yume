@@ -138,6 +138,7 @@ SHAPE_AXES = _gd_strings(_ARTICULATED, "SHAPE_AXES")
 _SENSORS = _gd("coordinators/sensor_array.gd")
 SENSOR_TYPES = _gd_strings(_SENSORS, "SENSOR_TYPES")
 SENSOR_FIELDS = _gd_strings(_SENSORS, "SENSOR_FIELDS")
+CAMERA_HEADINGS = _gd_strings(_gd("ui/widgets/camera_director.gd"), "HEADING_SOURCES")
 LAYER_NAMES = tuple(json.loads((DATA / "lib" / "physics" / "layers.json").read_text(encoding="utf-8"))["layers"])
 
 

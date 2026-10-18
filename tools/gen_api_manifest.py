@@ -718,6 +718,7 @@ def parse_vocabularies() -> dict:
         "motor_fields": list(content.MOTOR_FIELDS),
         "sensor_types": list(content.SENSOR_TYPES),
         "sensor_fields": list(content.SENSOR_FIELDS),
+        "camera_headings": list(content.CAMERA_HEADINGS),
     }
 
 
@@ -1014,6 +1015,10 @@ def render_markdown(m: Manifest) -> str:
         "- `at` and `direction` are in the frame of `link` (an articulated body), or else of the entity position and yaw.",
         "- A `ray` with `report: \"x\"` writes `state.x_distance` (`range` when nothing is hit) and `state.x_hit` (0 or 1).",
         "- A `lidar` writes `state.x_ranges` (an array), `state.x_min` and `state.x_min_angle` (radians from `direction`, positive to the left).",
+        "",
+        "### Camera heading (ADR 0094)",
+        "",
+        "A `third_person_3d` or `first_person_3d` camera aims along `heading`: " + ", ".join(f"`{k}`" for k in m.vocabularies["camera_headings"]) + ". `facing` (the default) is the mouse look. `yaw` is the body heading, for a vehicle or a robot.",
         "",
         "## Error codes (Tier 2.6a)",
         "",

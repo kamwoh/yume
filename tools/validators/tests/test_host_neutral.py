@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Regression test for validate_host_neutral.py (ADR 0087, ADR 0089 and
-ADR 0090, 2026-10-18).
+Regression test for validate_host_neutral.py (ADR 0087, ADR 0089,
+ADR 0090 and ADR 0094, 2026-10-18).
 
 Empirical cases:
 - 201 asset references in game JSON were Godot `res://` paths. 15 pointed
@@ -100,6 +100,10 @@ CASES = [
         {"type": "ray", "report": "f", "collision_mask": ["walls"]}]}, 1),
     ("articulated: shape axis", {"physics": {**ROVER, "links": {**ROVER["links"],
                                  "wheel": {"shape": {"type": "cylinder", "axis": "w"}}}}}, 1),
+    # ADR 0094 — follow-camera heading.
+    ("camera heading yaw", {"camera": {"$extends": "@lib.cameras.third_person_default",
+                                       "heading": "yaw"}}, 0, "scene.json"),
+    ("camera heading unknown", {"camera": {"mode": "third_person_3d", "heading": "velocity"}}, 1, "scene.json"),
 ]
 
 

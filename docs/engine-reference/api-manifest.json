@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-18T10:10:28+00:00",
+  "generated_at": "2026-10-18T12:21:14+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -680,6 +680,10 @@
     {
       "constant": "SENSOR_BAD_CONFIG",
       "code": "sensor.bad_config"
+    },
+    {
+      "constant": "CAMERA_UNKNOWN_HEADING",
+      "code": "camera.unknown_heading"
     },
     {
       "constant": "WORLD_ENTITIES_MISSING",
@@ -1525,6 +1529,10 @@
       "fov",
       "report",
       "collision_mask"
+    ],
+    "camera_headings": [
+      "facing",
+      "yaw"
     ]
   },
   "reserved_state_fields": [

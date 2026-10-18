@@ -211,6 +211,16 @@ plane (sky's gradient was mistaken for floor) — only the user noticed.
     ground-level shows the grid. Empirical 2026-05-27: grass detail
     tiled 24× shipped clean from overview captures but showed a
     ~5.8m square grid from ground level.
+11. **One perspective frame at the game's own scale** (2026-10-18). An
+    orthographic view (`iso_top_down`, `top_down_3d`) flattens height. It
+    cannot show a wheel that sinks or floats, a camera that does not
+    follow, or a missing sky. So the check of a 3D game MUST include one
+    perspective capture near the ground, behind the subject. For a small
+    subject (a robot), set `distance`, `height` and `eye_height` to its
+    size. The `third_person_default` preset is sized for a 1.7 m human.
+    Empirical case 2026-10-18: every rover capture used the iso preset.
+    The first perspective frame showed that the chase camera ignored
+    the robot heading (ADR 0094), and that the demo had no sky.
 
 ### 2D scenes — baseline criteria
 

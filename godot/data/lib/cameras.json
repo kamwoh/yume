@@ -16,7 +16,7 @@
   "lerp": 0.18
  },
  "third_person_default": {
-  "_comment": "Behind-shoulder follow with mouse yaw+pitch via _drain_mouse_facing. Perspective, not orthographic. Action-adventure / MMO. use_pitch:true so mouse-Y looks up/down (orbits the camera) by default; set false for a fixed-pitch follow.",
+  "_comment": "Behind-shoulder follow with mouse yaw+pitch via _drain_mouse_facing. Perspective, not orthographic. Action-adventure / MMO. use_pitch:true so mouse-Y looks up/down (orbits the camera) by default; set false for a fixed-pitch follow. Sized for a 1.7 m human (eye_height 1.6, distance_min 3). For a vehicle or robot, set heading: \"yaw\" to aim along the body heading (ADR 0094).",
   "mode": "third_person_3d",
   "distance": 6.0,
   "height": 3.0,

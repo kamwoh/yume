@@ -100,6 +100,7 @@ func _ready() -> void:
 	test_grid_snap()
 	test_multimesh_director()
 	test_camera_intrinsics()
+	await test_camera_heading()
 	test_array_primitives()
 	test_animation_translator()
 	test_ground_renderer_rebind()
@@ -9269,6 +9270,53 @@ func test_camera_intrinsics() -> void:
 	CameraDirector._merge_camera_overrides(cfg, {"cam_ortho": 0, "cam_focal_mm": 35.0})
 	expect_eq(cfg["projection"], "perspective", "cam_ortho 0 → perspective")
 	expect_eq(cfg["focal_length_mm"], 35.0, "positive cam_focal_mm → focal override")
+
+
+## ADR 0094 — a follow camera aims along state.facing (the mouse look) or,
+## with `heading: "yaw"`, along the body heading. Empirical case
+## 2026-10-18: the rover chase camera read state.facing, which no rule
+## writes for a robot, so it stayed behind the spawn heading.
+func test_camera_heading() -> void:
+	_section("camera_heading (ADR 0094)")
+	var ent := Entity.new()
+	ent.instance_id = "rover_1"
+	ent.state = {"facing": 0.0, "yaw": PI * 0.5, "position": Vector3.ZERO}
+	expect_eq(CameraDirector.heading_of(ent, {}), 0.0, "no heading → state.facing")
+	expect_eq(CameraDirector.heading_of(ent, {"heading": "yaw"}), PI * 0.5, "heading yaw → state.yaw")
+	expect_eq(CameraDirector.heading_of(ent, {"heading": "velocity"}), 0.0, "unknown heading → state.facing")
+
+	# The chase camera sits behind the heading. Yaw π/2 faces -X, so the
+	# camera sits on +X. With the facing heading (0, faces -Z) it sits on +Z.
+	var shell_src := GDScript.new()
+	shell_src.source_code = "extends Node\nvar ent\nfunc _find_entity_by_tag(_t): return ent\n"
+	shell_src.reload()
+	var shell: Node = shell_src.new()
+	shell.set("ent", ent)
+	var world_src := GDScript.new()
+	world_src.source_code = "extends Node3D\nvar world_state := {}\nvar scheduler = null\nvar entities := {}\n"
+	world_src.reload()
+	var world: Node3D = world_src.new()
+	var cam := Camera3D.new()
+	cam.name = "Camera3D"
+	world.add_child(cam)
+	add_child(world)
+	var cd := CameraDirector.new(shell)
+	cd.bind_cameras(world)
+	var cfg := {"mode": "third_person_3d", "follow_tag": "rover", "distance": 2.0,
+		"height": 0.5, "eye_height": 0.1, "use_pitch": false, "lerp": 1.0}
+	cd._camera_third_person_3d(cfg)
+	expect(cam.global_position.z > 1.5 and absf(cam.global_position.x) < 0.01,
+		"facing heading → camera behind on +Z (got %s)" % cam.global_position)
+	cfg["heading"] = "yaw"
+	cd._camera_third_person_3d(cfg)
+	expect(cam.global_position.x > 1.5 and absf(cam.global_position.z) < 0.01,
+		"yaw heading → camera behind on +X (got %s)" % cam.global_position)
+	expect((-cam.global_transform.basis.z).x < -0.9, "yaw heading → camera looks along -X")
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	world.queue_free()
+	shell.free()
+	ent.free()
+	await get_tree().process_frame
 
 
 # ============================================================

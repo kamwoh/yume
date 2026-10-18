@@ -29,6 +29,8 @@ ADR 0090 (phase 4) closes four vocabularies:
    joint types, link, joint and motor fields from `ArticulatedBody`.
 12. A def's `sensors` list (ADR 0092) uses the types and fields of
    `SensorArray`, and a `link` names a link of the def's articulated body.
+13. A game's `scene.json` camera, after `$extends`, names a `heading`
+   from `CameraDirector.HEADING_SOURCES` (ADR 0094).
 
 An asset reference is a string that ends with an extension in
 `content.ASSET_EXTENSIONS`.
@@ -63,7 +65,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from content import (  # noqa: E402
-    AUDIO_CHANNELS, BODY_TYPES, articulation_problems, sensor_problems, DATA, INTERPRETER_PARAMS, KEY_NAMES, LAYER_NAMES, MOUSE_BUTTONS,
+    AUDIO_CHANNELS, BODY_TYPES, CAMERA_HEADINGS, articulation_problems, sensor_problems, DATA, INTERPRETER_PARAMS, KEY_NAMES, LAYER_NAMES, MOUSE_BUTTONS,
     PHYSICS_FIELDS, REPO, SHADER_NAMES, asset_file, asset_problem, is_asset, resolver, shader_params,
     unknown_scene_fields,
 )
@@ -153,6 +155,10 @@ def check_vocabularies(f: Path, doc) -> list[str]:
         for field in unknown_scene_fields(doc):
             out.append(f"{where}: {field}: scene.json has no such field. See the api manifest, "
                        f"Lighting fields (ADR 0090).")
+        cam = resolver().resolve(doc.get("camera"))
+        if isinstance(cam, dict) and "heading" in cam and cam["heading"] not in CAMERA_HEADINGS:
+            out.append(f"{where}: camera.heading: '{cam['heading']}' is not a heading. "
+                       f"The names are: {', '.join(CAMERA_HEADINGS)} (ADR 0094).")
     for holder in _dicts(doc):
         if "sensors" in holder and "id" in holder:
             phys = holder.get("physics")

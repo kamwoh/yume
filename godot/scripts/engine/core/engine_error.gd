@@ -66,6 +66,9 @@ const PHYSICS_BAD_ARTICULATION := "physics.bad_articulation"
 ## ADR 0092 — sensors.
 const SENSOR_BAD_CONFIG := "sensor.bad_config"
 
+## ADR 0094 — follow-camera heading.
+const CAMERA_UNKNOWN_HEADING := "camera.unknown_heading"
+
 const WORLD_ENTITIES_MISSING := "world.entities_missing"
 const WORLD_ENTITIES_INVALID := "world.entities_invalid_json"
 const WORLD_DEF_UNKNOWN := "world.def_unknown"
