@@ -180,9 +180,16 @@ func _on_relation_removed(type: String, from_id: String, to_id: String) -> void:
 
 ## Rebuild the trigger-bucketed rule map. Applies before/after topo-sort
 ## within each bucket.
+## ADR 0049 — the engine rules (lib/engine_rules). register_rules and
+## clear_rules keep them, so no content load or level change drops them.
+## Empirical case 2026-10-18: a content load cleared them, and the lifetime
+## primitive did nothing in every game with its own rules.
+var pinned_rules: Array = []
+
+
 func register_rules(rules: Array) -> void:
 	rules_by_trigger.clear()
-	for r in rules:
+	for r in pinned_rules + rules:
 		if not (r is Rule):
 			continue
 		var tt := (r as Rule).trigger_type()
@@ -211,6 +218,9 @@ func append_rules(rules: Array) -> void:
 ## reloading per-level rules + global rules.
 func clear_rules() -> void:
 	rules_by_trigger.clear()
+	if not pinned_rules.is_empty():
+		append_rules(pinned_rules)
+		return
 	_cell_size_dirty = true
 
 

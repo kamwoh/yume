@@ -214,12 +214,8 @@ func load_rules_file(path: String, append: bool = false) -> void:
 	if append and _world.scheduler.has_method("append_rules"):
 		_world.scheduler.append_rules(rules)
 	else:
-		# Replace the content rules, but keep the engine rules (ADR 0049).
-		# Empirical case 2026-10-18: register_rules dropped them, so the
-		# lifetime primitive did nothing in every game with its own rules.
-		var all: Array = _world.engine_rules.duplicate()
-		all.append_array(rules)
-		_world.scheduler.register_rules(all)
+		# register_rules keeps the pinned engine rules (ADR 0049).
+		_world.scheduler.register_rules(rules)
 	if _world.verbose:
 		print("[World] %d rules %s" % [rules.size(), "appended" if append else "registered"])
 
@@ -243,6 +239,7 @@ func load_engine_rules_file(path: String) -> void:
 	for record in Rule.validate_all(rules):
 		EngineError.report(env, record)
 	_world.engine_rules.append_array(rules)
+	_world.scheduler.pinned_rules.append_array(rules)
 	_world.scheduler.append_rules(rules)
 
 

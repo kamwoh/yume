@@ -9346,6 +9346,11 @@ func test_boot_rules() -> void:
 	w._loader.load_rules_file("res://data/test_boot_rules/world/rules/10_count.json")
 	expect(w.scheduler.get_rule_by_id("engine_lifetime_decrement") != null,
 		"engine rules stay after a second replace")
+	# A level change clears the rules first. The engine rules stay.
+	w.scheduler.clear_rules()
+	expect(w.scheduler.get_rule_by_id("engine_lifetime_decrement") != null,
+		"engine rules stay after clear_rules (a level change)")
+	expect(w.scheduler.get_rule_by_id("count") == null, "clear_rules removes the content rules")
 	w.queue_free()
 
 

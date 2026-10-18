@@ -33,9 +33,17 @@ export class PhaseScheduler {
     env.relations.onChange = (c) => this.relationChanges.push(c);
   }
 
+  /** The engine rules (ADR 0049). registerRules and clearRules keep them. */
+  pinnedRules: Rule[] = [];
+
   registerRules(rules: Rule[]): void {
     this.rulesByTrigger.clear();
-    this.appendRules(rules);
+    this.appendRules([...this.pinnedRules, ...rules]);
+  }
+
+  clearRules(): void {
+    this.rulesByTrigger.clear();
+    if (this.pinnedRules.length > 0) this.appendRules(this.pinnedRules);
   }
 
   appendRules(rules: Rule[]): void {

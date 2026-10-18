@@ -194,6 +194,7 @@ func _load_engine_rules() -> void:
 	dir.list_dir_end()
 	files.sort()  # the same order on every host
 	_world.engine_rules.clear()
+	_world.scheduler.pinned_rules.clear()
 	for f in files:
 		_world._loader.load_engine_rules_file(lib_root + "/" + f)
 

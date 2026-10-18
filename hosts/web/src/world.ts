@@ -92,6 +92,7 @@ export class World {
     for (const f of readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
       const rules = this.parseRules(join(dir, f));
       this.engineRules.push(...rules);
+      this.scheduler.pinnedRules.push(...rules);
       this.scheduler.appendRules(rules);
     }
   }
@@ -144,7 +145,7 @@ export class World {
     if (!existsSync(path)) return;
     const rules = this.parseRules(path);
     if (append) this.scheduler.appendRules(rules);
-    else this.scheduler.registerRules([...this.engineRules, ...rules]);
+    else this.scheduler.registerRules(rules);
   }
 
   /** WorldLoader.load_rules_files_for: a folder of rule files in name order, or one file. */
