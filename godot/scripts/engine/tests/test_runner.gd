@@ -101,6 +101,7 @@ func _ready() -> void:
 	test_multimesh_director()
 	test_camera_intrinsics()
 	await test_camera_heading()
+	test_spec_random()
 	test_array_primitives()
 	test_animation_translator()
 	test_ground_renderer_rebind()
@@ -3685,12 +3686,13 @@ func test_batch_c_tick_cost() -> void:
 		"id": "c_chance", "once": true, "chance": 0.5, "trigger": {"type": "tick", "interval": 1},
 		"query": {"tags_all": ["v"]}, "effect": []})
 	(env["world"]["_fired_rules"] as Dictionary)["c_chance"] = true
-	seed(1234)
+	# The roll reads the spec generator (ADR 0095).
+	SpecRandom.shared.set_seed(1234)
 	sched._fire_scan_rule(chancy)
-	var after_spent := randf()
-	seed(1234)
-	randf()
-	expect_eq(after_spent, randf(), "a spent rule with chance < 1 still rolls once (random sequence kept)")
+	var after_spent := SpecRandom.shared.randf()
+	var ref := SpecRandom.new(1234)
+	ref.randf()
+	expect_eq(after_spent, ref.randf(), "a spent rule with chance < 1 still rolls once (random sequence kept)")
 
 
 func test_rule_once() -> void:
@@ -9270,6 +9272,31 @@ func test_camera_intrinsics() -> void:
 	CameraDirector._merge_camera_overrides(cfg, {"cam_ortho": 0, "cam_focal_mm": 35.0})
 	expect_eq(cfg["projection"], "perspective", "cam_ortho 0 → perspective")
 	expect_eq(cfg["focal_length_mm"], 35.0, "positive cam_focal_mm → focal override")
+
+
+## ADR 0095 — the spec generator gives the reference values of
+## spec/conformance/random_vectors.json, so every host rolls the same.
+func test_spec_random() -> void:
+	_section("spec_random (ADR 0095)")
+	var want := {
+		42: [2837322924, 544945897, 479756282, 3500138142, 339756180, 113173290],
+		-7: [4105674630, 1549025917, 1462909597, 1494321277, 4127257517, 2156728898],
+		4294967295: [835879718, 1921286648, 2356205009, 1885780724, 980451116, 1053911718],
+	}
+	for sd in want:
+		var r := SpecRandom.new(sd)
+		var got: Array = []
+		for i in 6:
+			got.append(r.next_u32())
+		expect_eq(got, want[sd], "seed %d → reference u32 values" % sd)
+	var r0 := SpecRandom.new(0)
+	expect_eq(r0.randf(), 0.8868539333343506, "seed 0 → reference randf")
+	# Formula randf() and the rule chance roll read SpecRandom.shared.
+	SpecRandom.shared.set_seed(42)
+	var a := float(Formula.evaluate("randf() * 1", {}))
+	SpecRandom.shared.set_seed(42)
+	var b := SpecRandom.new(42).randf()
+	expect_eq(a, b, "formula randf() reads SpecRandom.shared")
 
 
 ## ADR 0094 — a follow camera aims along state.facing (the mouse look) or,

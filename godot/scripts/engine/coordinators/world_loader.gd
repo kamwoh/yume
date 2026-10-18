@@ -361,6 +361,7 @@ func apply_level_seed_if_set(root: String) -> void:
 		return
 	var s: int = int((json.data as Dictionary).get("level_seed", 0))
 	seed(s)  # still seed the global PRNG for non-pattern randf consumers
+	SpecRandom.shared.set_seed(s)  # ADR 0095: rule chance and formula randf()
 	_level_seed = s  # ADR 0060 — threaded into per-pattern RNGs (the real gate)
 	if _world.verbose:
 		print("[World] level_seed=%d applied — patterns are deterministic" % s)

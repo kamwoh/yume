@@ -404,6 +404,7 @@ func _apply_world_seed_from_scene() -> void:
 	if seed_int == 0:
 		return
 	seed(seed_int)
+	SpecRandom.shared.set_seed(seed_int)  # ADR 0095
 	if verbose:
 		print("[World] seeded RNG with world_seed=%d" % seed_int)
 

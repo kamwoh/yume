@@ -169,6 +169,11 @@ func _run_one(sc: Dictionary, data_root: String) -> void:
 			if cfg.has("tick_seconds"):
 				world.tick_seconds = float(cfg["tick_seconds"])
 
+	# ADR 0095: a scenario `seed` makes rule chance and formula randf()
+	# give the same rolls on every host.
+	if sc.has("seed"):
+		SpecRandom.shared.set_seed(int(sc["seed"]))
+
 	# Apply setup
 	var setup: Dictionary = sc.get("setup", {})
 	_apply_setup(world, setup)

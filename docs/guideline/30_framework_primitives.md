@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-10-18 (ADR 0092: sensors)_
+_Last updated: 2026-10-18 (ADR 0095: randomness, conformance cases)_
 
 ## Purpose
 
@@ -101,10 +101,37 @@ interpreter must pass them. Two rules keep them portable:
   asserts the guarantee instead, for example "the bullet stopped at the
   wall", not "the bullet stopped at x = 4.73".
 
-Two questions stay open (ADR 0086):
+`spec/conformance/` holds small tracked test games (ADR 0095). A
+fresh clone has them, and CI runs them.
 
-- Does the spec define one seeded random generator for conformance?
-- Does body motion have an exact place in the phase order of a tick?
+#### Randomness (ADR 0095)
+
+The spec has one random generator, so a seed gives the same rolls on
+every host.
+
+- **Algorithm.** xoshiro128** on four 32-bit words. To seed it, take the
+  seed modulo 2^32 as `x`. Four times, add `0x9E3779B9` to `x` (modulo
+  2^32) and store the murmur3 `fmix32` of `x` as the next word. An
+  all-zero state becomes `[1, 0, 0, 0]`.
+- **A roll.** `randf()` is `(next >> 8) / 2^24`, a float from 0 to 1,
+  without 1. `spec/conformance/random_vectors.json` holds reference
+  values.
+- **Readers.** The formula function `randf()` and the rule `chance` roll
+  read this generator. A rule rolls only when its `chance` is below 1,
+  and it skips its effects when the roll is above `chance`:
+  - `tick`, `signal`, `input` and `relation_changed`: one roll for each
+    firing, before the query runs.
+  - `spawn` and `despawn`: one roll for each entity event, after the
+    query and `require` pass.
+  - `contact`: one roll for each candidate pair. `overlap`: one roll for
+    each event, before the pair check.
+- **Seed.** `scene.json` `world_seed` (or `level_seed`) seeds it at load.
+  A scenario seeds it with `"seed": N`. With no seed, the host picks one.
+- Host-side scatter (instance patterns, grass) uses its own generators
+  and is outside this rule.
+
+One question stays open (ADR 0086): does body motion have an exact place
+in the phase order of a tick?
 
 **Invariants** — non-negotiable design constraints:
 
@@ -588,7 +615,7 @@ ternary `a if cond else b`. Write a choice as `b + (a - b) * float(cond)`.
 | `sqrt(x)`, `pow(x, y)` | square root and power |
 | `sin(x)`, `cos(x)`, `tan(x)` | trigonometry in radians |
 | `atan2(y, x)` | the angle of the point (x, y), in radians |
-| `randf()` | a uniform random number from 0 to 1, without 1 |
+| `randf()` | the next roll of the spec generator (§Conformance, Randomness) |
 | `float(x)` | a boolean as `1.0` or `0.0`, or a number unchanged |
 
 **Enforcement.** `Formula.FUNCTIONS` in `formula.gd` is the one list.

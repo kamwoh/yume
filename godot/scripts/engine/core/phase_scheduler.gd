@@ -465,7 +465,7 @@ func _phase_react() -> void:
 						!= str((ev as Dictionary).get("change", "enter"))
 					):
 						continue
-					if orule.chance < 1.0 and randf() > orule.chance:
+					if orule.chance < 1.0 and SpecRandom.shared.randf() > orule.chance:
 						continue
 					var a_id := str((ev as Dictionary).get("a", ""))
 					var b_id := str((ev as Dictionary).get("b", ""))
@@ -562,7 +562,7 @@ func _fire_contact_rule(rule: Rule) -> void:
 				continue
 			if a_ent == b_ent:
 				continue
-			if chance < 1.0 and randf() > chance:
+			if chance < 1.0 and SpecRandom.shared.randf() > chance:
 				continue
 			var ctx: Dictionary = {
 				"a": (a_ent as Entity).instance_id,
@@ -648,7 +648,7 @@ func _apply_motion() -> void:
 ## Fire a rule whose query scans all entities (tick rules). For each match,
 ## bind `self` in context, validate require, and enqueue effects.
 func _fire_scan_rule(rule: Rule) -> void:
-	if rule.chance < 1.0 and randf() > rule.chance:
+	if rule.chance < 1.0 and SpecRandom.shared.randf() > rule.chance:
 		return
 	if _once_spent(rule):
 		return
@@ -687,7 +687,7 @@ func _fire_scan_rule(rule: Rule) -> void:
 ## `require`. If `query` is present, scan and bind self per match (rare for
 ## payload-driven rules but allowed).
 func _fire_payload_rule(rule: Rule, payload: Dictionary, phase: String) -> void:
-	if rule.chance < 1.0 and randf() > rule.chance:
+	if rule.chance < 1.0 and SpecRandom.shared.randf() > rule.chance:
 		return
 	if _once_spent(rule):
 		return
@@ -728,7 +728,7 @@ func _fire_lifecycle_rule(rule: Rule, entity_id: String, phase: String) -> void:
 	if rule.require is Dictionary and not _require_ok(rule.require, ctx):
 		return
 
-	if rule.chance < 1.0 and randf() > rule.chance:
+	if rule.chance < 1.0 and SpecRandom.shared.randf() > rule.chance:
 		return
 
 	_fire_effects(rule, ctx)

@@ -71,6 +71,16 @@ static func _root_regex(root: String) -> RegEx:
 	return rx
 
 
+static var _randf_rx: RegEx = null
+
+
+static func _randf_regex() -> RegEx:
+	if _randf_rx == null:
+		_randf_rx = RegEx.new()
+		_randf_rx.compile("\\brandf\\s*\\(\\s*\\)")
+	return _randf_rx
+
+
 ## One token of the formula language: space, number, name, or operator.
 static var _token_regex: RegEx = null
 
@@ -202,7 +212,13 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 			)
 			return 0.0
 		expr = Expression.new()
-		var err := expr.parse(checked[0], input_names)
+		# ADR 0095: randf() reads the spec generator, not Godot's global one.
+		var src: String = checked[0]
+		var parse_names: Array = input_names.duplicate()
+		if rewritten.contains("randf"):
+			src = _randf_regex().sub(src, "__rng.randf()", true)
+			parse_names.append("__rng")
+		var err := expr.parse(src, parse_names)
 		if err != OK:
 			_last_error = "parse error in '%s' → '%s': %s" % [s, checked[0], expr.get_error_text()]
 			EngineError.raise(
@@ -225,6 +241,8 @@ static func evaluate(formula, context: Dictionary, env: Dictionary = {}):
 	for i in input_values.size():
 		if input_values[i] is int:
 			input_values[i] = float(input_values[i])
+	if rewritten.contains("randf"):
+		input_values.append(SpecRandom.shared)
 	var result = expr.execute(input_values)
 	if expr.has_execute_failed():
 		_last_error = "exec failed for '%s'" % s
