@@ -103,6 +103,7 @@ func _ready() -> void:
 	await test_camera_heading()
 	test_spec_random()
 	test_boot_rules()
+	test_query_order()
 	test_array_primitives()
 	test_animation_translator()
 	test_ground_renderer_rebind()
@@ -9273,6 +9274,32 @@ func test_camera_intrinsics() -> void:
 	CameraDirector._merge_camera_overrides(cfg, {"cam_ortho": 0, "cam_focal_mm": 35.0})
 	expect_eq(cfg["projection"], "perspective", "cam_ortho 0 → perspective")
 	expect_eq(cfg["focal_length_mm"], 35.0, "positive cam_focal_mm → focal override")
+
+
+## ADR 0095 — a query returns entities in world order, also with a radius.
+## The spatial grid returns ids in cell order, a host detail that changed
+## the order of contact pairs, effects and chance rolls.
+func test_query_order() -> void:
+	_section("query_order (ADR 0095 world order)")
+	var ents: Dictionary = {}
+	var sx := SpatialIndex.new()
+	sx.cell_size = 1.0
+	# World order c, a, b. Cell order (x ascending) is a, b, c.
+	var spots := {"c": Vector2(2.5, 0), "a": Vector2(-2.5, 0), "b": Vector2(0.5, 0)}
+	for id in spots:
+		var e := Entity.create({"id": "t", "tags": ["t"]}, id, {"position": [spots[id].x, spots[id].y]})
+		ents[id] = e
+		sx.update_entity(id, spots[id])
+	var env := {"entities": ents, "spatial_index": sx}
+	var got := QueryLib._ids(QueryLib.run({"tags_all": ["t"], "radius": 5.0}, env, {"_origin_position": Vector2.ZERO}))
+	expect_eq(got, ["c", "a", "b"], "a radius query returns world order, not cell order")
+	# Equal distances keep world order under order_by.
+	var tie := QueryLib._ids(QueryLib.run(
+		{"tags_all": ["t"], "radius": 5.0, "order_by": "distance_asc"}, env,
+		{"_origin_position": Vector2.ZERO}))
+	expect_eq(tie, ["b", "c", "a"], "distance_asc sorts by distance, ties keep world order")
+	for e in ents.values():
+		(e as Entity).free()
 
 
 ## ADR 0049 — the lib/engine_rules bundles stay after the game's own rules

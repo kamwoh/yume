@@ -130,8 +130,12 @@ every host.
 - Host-side scatter (instance patterns, grass) uses its own generators
   and is outside this rule.
 
-One question stays open (ADR 0086): does body motion have an exact place
-in the phase order of a tick?
+#### Body motion in the tick (ADR 0095)
+
+An entity with no `physics` block never moves by its `velocity`. A rule
+moves it with `state_set` on `position`. A body moves after the rules of
+a tick (after the react phase) and before the input phase of the next
+tick. Its motion is host-defined.
 
 **Invariants** — non-negotiable design constraints:
 
@@ -438,6 +442,13 @@ self}}` matches entities currently `held_by` the caller; `{relations: {part_of:
 {tag: "house"}}}` matches entities `part_of` any entity tagged `house`.
 
 Queries are **declarative**. Engine chooses spatial index / scan strategy.
+
+**Result order (ADR 0095).** A query returns entities in world order: the
+order in which they entered the world (initial instances in load order,
+then spawns). The scan strategy does not change this order. `order_by`
+sorts by distance from the origin, and equal distances keep world order.
+`limit` then keeps the first N. Rule firing, contact pairs and `chance`
+rolls follow this order, so it is exact.
 
 ### 7. Relation
 

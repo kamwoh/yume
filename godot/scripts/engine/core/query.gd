@@ -195,24 +195,29 @@ static func _run(
 			continue
 		out.append(ent)
 
-	if spec.has("order_by"):
-		var ob: String = str(spec["order_by"])
-		if ob == "distance_asc":
-			out.sort_custom(
-				func(a, b):
-					return (
-						(a as Entity).get_planar_position().distance_to(origin)
-						< (b as Entity).get_planar_position().distance_to(origin)
-					)
-			)
-		elif ob == "distance_desc":
-			out.sort_custom(
-				func(a, b):
-					return (
-						(a as Entity).get_planar_position().distance_to(origin)
-						> (b as Entity).get_planar_position().distance_to(origin)
-					)
-			)
+	# ADR 0095: a query returns entities in world order (the order they
+	# entered the world). The spatial grid returns them in cell order, a
+	# host detail, so a radius query sorts them back. A distance sort keeps
+	# world order for equal distances (sort_custom is not stable).
+	if has_radius or spec.has("order_by"):
+		var ord: Dictionary = _tag_index(env, all)["ord"]
+		out.sort_custom(func(a, b): return int(ord.get(a, 0)) < int(ord.get(b, 0)))
+		if spec.has("order_by"):
+			var ob: String = str(spec["order_by"])
+			var sign := 0.0
+			if ob == "distance_asc":
+				sign = 1.0
+			elif ob == "distance_desc":
+				sign = -1.0
+			if sign != 0.0:
+				out.sort_custom(
+					func(a, b):
+						var da := (a as Entity).get_planar_position().distance_to(origin) * sign
+						var db := (b as Entity).get_planar_position().distance_to(origin) * sign
+						if da != db:
+							return da < db
+						return int(ord.get(a, 0)) < int(ord.get(b, 0))
+				)
 
 	if spec.has("limit"):
 		var n: int = int(spec["limit"])
