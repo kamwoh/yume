@@ -358,11 +358,23 @@ def resolver() -> LibResolver:
     return _RESOLVER
 
 
-def iter_rules(game_dir: Path):
+def engine_rule_files() -> list[Path]:
+    """The lib/engine_rules bundles (ADR 0049). The engine loads them into
+    every game, in name order, before the game's own rules."""
+    d = DATA / "lib" / "engine_rules"
+    return sorted(d.glob("*.json")) if d.is_dir() else []
+
+
+def iter_rules(game_dir: Path, engine: bool = True):
     """Yield (path, rule) for every rule the engine loads, after lib
-    resolution. A file that fails to parse yields nothing here.
-    validate_rules.py reports parse errors."""
-    for path in rule_files(game_dir):
+    resolution: the engine rules first (unless engine=False), then the
+    game's rules. A file that fails to parse yields nothing here.
+    validate_rules.py reports parse errors.
+
+    Empirical case 2026-10-18: this helper skipped the engine rules, so
+    validate_lifetime_despawn demanded that each game copy the lifetime
+    rules. The engine copy was itself lost at boot (fixed in 6566eee)."""
+    for path in (engine_rule_files() if engine else []) + list(rule_files(game_dir)):
         doc = load_json(path)
         if not isinstance(doc, dict):
             continue

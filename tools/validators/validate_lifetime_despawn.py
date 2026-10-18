@@ -16,8 +16,11 @@ reach it):
   lifetime_def  = a def whose state_init has a "lifetime" key.
   decrement rule = state_add on field "lifetime" (any amount) whose query
                    tags_all ⊆ the def's tags.
-  despawn rule   = a `remove` effect whose query has a lifetime_lt/lte/le state
-                   filter AND whose tags_all ⊆ the def's tags.
+  despawn rule   = a `remove` effect whose query has a lifetime_eq/lt/lte/le
+                   state filter AND whose tags_all ⊆ the def's tags.
+  The rules include lib/engine_rules (content.iter_rules), which expire every
+  entity with state.lifetime (ADR 0049). Since 2026-10-18 a game needs no
+  rules of its own for this.
   A lifetime_def is OK iff it has BOTH a decrement and a despawn rule reaching
   it. Missing either → flag (it can't expire).
 
@@ -61,9 +64,9 @@ def _defs(game_dir):
     return out
 
 
-def _rules(game_dir):
+def _rules(game_dir, engine=True):
     # Every rule the engine loads, with @lib refs resolved (content.py).
-    return [r for _, r in content.iter_rules(game_dir)]
+    return [r for _, r in content.iter_rules(game_dir, engine=engine)]
 
 
 def _effects(rule):
@@ -84,13 +87,13 @@ def _state_filter_keys(rule):
     return set(st.keys()) if isinstance(st, dict) else set()
 
 
-def validate_game(game_dir):
+def validate_game(game_dir, engine=True):
     game_dir = Path(game_dir)
     defs = _defs(game_dir)
     lifetime_defs = [d for d in defs if "lifetime" in (d.get("state_init", {}) or {})]
     if not lifetime_defs:
         return []
-    rules = _rules(game_dir)
+    rules = _rules(game_dir, engine)
 
     decrement = []  # (tags_all,) for state_add on lifetime
     despawn = []    # (tags_all,) for remove gated on lifetime_*
@@ -100,7 +103,7 @@ def validate_game(game_dir):
         if any(e.get("type") == "state_add" and e.get("field") == "lifetime" for e in effs):
             decrement.append(tags)
         if any(e.get("type") == "remove" for e in effs) and any(
-            k in ("lifetime_lt", "lifetime_lte", "lifetime_le") for k in _state_filter_keys(r)
+            k in ("lifetime_lt", "lifetime_lte", "lifetime_le", "lifetime_eq") for k in _state_filter_keys(r)
         ):
             despawn.append(tags)
 
@@ -118,7 +121,7 @@ def validate_game(game_dir):
             if not has_dec:
                 missing.append("no rule decrements state.lifetime")
             if not has_del:
-                missing.append("no `remove` rule gated on lifetime_lte/lt")
+                missing.append("no `remove` rule gated on lifetime_eq/lte/lt")
             issues.append({"id": de.get("id"), "tags": sorted(dtags), "missing": missing})
     return issues
 
@@ -144,9 +147,9 @@ def main():
         else:
             print(f"[ok] {g.name}")
     if total:
-        print(f"\n{total} ephemeral def(s) can't expire. Add a tick rule decrementing "
-              f"state.lifetime + a `remove` rule gated on lifetime_lte:0 for the def's tags "
-              f"(see doomarena3d bullet_age/bullet_expire + particle_age/particle_expire).")
+        print(f"\n{total} ephemeral def(s) can't expire. The engine rules in "
+              f"lib/engine_rules/lifetime.json expire any entity with state.lifetime > 0. "
+              f"Check that no game rule or variant removes them.")
         return 1 if strict else 0
     return 0
 

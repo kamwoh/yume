@@ -8,6 +8,10 @@ This bug class hit doomarena3d twice (bullets, then particle_spark) and a tag
 mismatch (enemy_bullet tagged "projectile" but the despawn rule queried
 "bullet") — pin all of it.
 
+Cases 1-4 check the game rules alone (engine=False). Case 5 checks that the
+engine rules in lib/engine_rules (ADR 0049) cover a def with no game rules
+(2026-10-18).
+
 Run:  python3 -m tools.validators.tests.test_lifetime_despawn
 """
 
@@ -47,30 +51,33 @@ def main() -> int:
 
         # (1) covered by shared "projectile" tag → OK
         g1 = _game(root, "demo_ok", [BULLET, ENEMY_BOLT], [DEC("projectile"), DEL("projectile")])
-        ok1 = len(validate_game(g1)) == 0
+        ok1 = len(validate_game(g1, engine=False)) == 0
 
         # (2) lifetime def with NO rules → flag
         g2 = _game(root, "demo_none", [BULLET], [])
-        ok2 = len(validate_game(g2)) == 1
+        ok2 = len(validate_game(g2, engine=False)) == 1
 
         # (3) tag mismatch: rules query "bullet" but enemy_bullet lacks it → flag only enemy_bullet
         g3 = _game(root, "demo_mismatch", [BULLET, ENEMY_BOLT], [DEC("bullet"), DEL("bullet")])
-        iss3 = validate_game(g3)
+        iss3 = validate_game(g3, engine=False)
         ok3 = len(iss3) == 1 and iss3[0]["id"] == "enemy_bullet"
 
         # (4) decrement but no remove → flag (would never reach 0-and-despawn)
         g4 = _game(root, "demo_nodel", [BULLET], [DEC("projectile")])
-        ok4 = len(validate_game(g4)) == 1
+        ok4 = len(validate_game(g4, engine=False)) == 1
 
+        # (5) the engine rules cover a lifetime def with no game rules
+        ok5 = len(validate_game(g2)) == 0
         for name, ok in [("shared-tag coverage passes", ok1),
                          ("no rules flagged", ok2),
                          ("tag mismatch flags only the uncovered def", ok3),
-                         ("decrement-without-remove flagged", ok4)]:
+                         ("decrement-without-remove flagged", ok4),
+                         ("engine rules cover a def with no game rules", ok5)]:
             print(f"  [{'ok' if ok else 'FAIL'}] {name}")
             if not ok:
                 failures += 1
 
-    print(f"\n{'PASS' if failures == 0 else 'FAIL'}: 4 cases, {failures} failure(s)")
+    print(f"\n{'PASS' if failures == 0 else 'FAIL'}: 5 cases, {failures} failure(s)")
     return 1 if failures else 0
 
 
