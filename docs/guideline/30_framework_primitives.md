@@ -142,6 +142,23 @@ every host.
 - Host-side scatter (instance patterns, grass) uses its own generators
   and is outside this rule.
 
+#### Level swap (ADR 0095)
+
+`transition_level` does not swap at once. The swap runs after the tick,
+so the last target written in a tick wins. The swap does these steps:
+
+1. It removes each entity that has no tag from `game/flow.json`
+   `persistent_tags` (default `["persistent"]`). The `_engine` entity
+   (ADR 0047) always stays.
+2. It loads the global rules again, then the rules and entities of the
+   new level. A level that declares a kept entity again moves it to the
+   new `position`. The entity keeps its state.
+3. `target: "next"` past the last level sets `world.all_levels_complete`
+   to 1 and does not swap.
+
+A variant (`variants/<name>.json`) applies after the first level loads.
+A scenario selects it with `"variant": "<name>"`.
+
 #### Body motion in the tick (ADR 0095)
 
 An entity with no `physics` block never moves by its `velocity`. A rule

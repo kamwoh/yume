@@ -1,0 +1,64 @@
+{
+  "_comment": "Conformance: transition_level with next, with a formula target, and past the last level.",
+  "rules": [
+    {
+      "id": "count",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "keeper"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "laps",
+        "amount": 1
+      }
+    },
+    {
+      "id": "advance",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "door"
+        ],
+        "state": {
+          "open_eq": 1
+        }
+      },
+      "effect": {
+        "type": "transition_level",
+        "target": "next"
+      }
+    },
+    {
+      "id": "restart",
+      "trigger": {
+        "type": "input",
+        "action": "restart"
+      },
+      "effect": {
+        "type": "transition_level",
+        "target": "world.current_level"
+      }
+    },
+    {
+      "id": "finish",
+      "trigger": {
+        "type": "input",
+        "action": "finish"
+      },
+      "effect": {
+        "type": "transition_level",
+        "target": "next"
+      }
+    }
+  ]
+}

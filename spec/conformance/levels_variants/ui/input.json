@@ -1,0 +1,19 @@
+{
+  "actions": [
+    {
+      "name": "restart",
+      "key": "R",
+      "edge": "press"
+    },
+    {
+      "name": "finish",
+      "key": "F",
+      "edge": "press"
+    },
+    {
+      "name": "kick",
+      "key": "K",
+      "edge": "press"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "_comment": "Level a declares hero again. hero moves to [5,5] and keeps its state.",
+  "initial_instances": [
+    {
+      "def": "door",
+      "id": "door_a",
+      "state": {
+        "open": 1
+      }
+    },
+    {
+      "def": "crate",
+      "id": "crate_a"
+    },
+    {
+      "def": "keeper",
+      "id": "hero",
+      "position": [
+        5,
+        5
+      ],
+      "state": {
+        "laps": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "_comment": "Conformance: root entities. hero survives each level swap. junk does not.",
+  "definitions": [
+    {
+      "id": "keeper",
+      "tags": [
+        "keeper",
+        "player"
+      ],
+      "state_init": {
+        "laps": 0
+      }
+    },
+    {
+      "id": "junk",
+      "tags": [
+        "junk"
+      ]
+    },
+    {
+      "id": "door",
+      "tags": [
+        "door"
+      ],
+      "state_init": {
+        "open": 0
+      }
+    },
+    {
+      "id": "crate",
+      "tags": [
+        "crate"
+      ],
+      "state_init": {
+        "pushed": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "keeper",
+      "id": "hero",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "def": "junk",
+      "id": "junk1"
+    }
+  ]
+}

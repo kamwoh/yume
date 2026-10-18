@@ -11,9 +11,9 @@ import { SpecRandom } from "./random.ts";
 import { RelationStore } from "./relations.ts";
 import { Rule, VALID_TRIGGERS } from "./rule.ts";
 import { PhaseScheduler } from "./scheduler.ts";
-import { type Dict, isDict, toFloat } from "./value.ts";
+import { type Dict, type Value, isDict, toFloat } from "./value.ts";
 
-const UNSUPPORTED_FILES = ["game/flow.json", "macros.json", "actors.json", "world/zones.json", "chunks"];
+const UNSUPPORTED_FILES = ["macros.json", "actors.json", "world/zones.json", "chunks"];
 
 export class World {
   root: string;
@@ -27,6 +27,14 @@ export class World {
   actorTag = "player";
   stopActionOnIdle = "stop";
   simTick = 0;
+  /** ADR 0006 progression (game/flow.json). */
+  levelOrder: string[] = [];
+  levelPersistentTags: string[] = ["persistent"];
+  levelsRoot = "";
+  onAllCompleteMsg = "";
+  /** VariantOverlay precedence 1: a scenario's `variant` field. */
+  variantOverride = "";
+  savePolicy: Dict = {};
 
   libRoot: string;
 
@@ -46,6 +54,7 @@ export class World {
       shellEvents: [],
       dispatchLifecycle: null,
       advanceCalendar: null,
+      pendingLevel: "",
     };
     this.scheduler = new PhaseScheduler(this.env);
     this.lib = new LibResolver(this.libRoot);
@@ -67,14 +76,135 @@ export class World {
     this.registerInputs();
     if (isDict(scene) && "level_seed" in scene) SpecRandom.shared.setSeed(Math.trunc(toFloat(scene.level_seed)));
     this.env.world.active_actor_id = "default_player";
-    this.loadRulesFor("world/rules.json", false);
-    this.loadRulesFor("game/goals.json", true);
-    this.loadRulesFile(join(this.root, "tutorial.json"), true);
-    this.loadWorldFile();
-    this.loadEntities();
-    if (!existsSync(join(this.root, "save_policy.json"))) this.env.world.has_save = 0;
-    else this.env.world.has_save = 0;
+    this.loadContent();
+    this.applyVariant();
+    this.loadSavePolicy();
     this.scheduler.flush();
+  }
+
+  get currentLevel(): string {
+    return String(this.env.world.current_level ?? "");
+  }
+
+  /** ADR 0047: current_level writes through to world state. */
+  set currentLevel(v: string) {
+    this.env.world.current_level = v;
+  }
+
+  /** WorldBoot._load_content: the progression, the global rules, then the starting level. */
+  private loadContent(): void {
+    const prog = join(this.root, "game/flow.json");
+    if (existsSync(prog)) this.loadProgression(prog);
+    this.loadGlobalRules();
+    this.loadWorldFile();
+    this.loadEntities(this.root);
+    if (this.levelsRoot !== "" && this.currentLevel !== "") this.loadLevel(this.currentLevel);
+  }
+
+  private loadGlobalRules(): void {
+    this.loadRulesFor(join(this.root, "world/rules.json"), false);
+    this.loadRulesFor(join(this.root, "game/goals.json"), true);
+    this.loadRulesFile(join(this.root, "tutorial.json"), true);
+  }
+
+  /** WorldLoader.load_progression. */
+  private loadProgression(path: string): void {
+    const p = this.readJson(path.slice(this.root.length + 1));
+    if (!isDict(p)) return;
+    this.levelOrder = asList(p.levels).map(String);
+    const ptags = p.persistent_tags;
+    if (Array.isArray(ptags) && ptags.length > 0) this.levelPersistentTags = ptags.map(String);
+    this.currentLevel = String(p.starting_level ?? (this.levelOrder[0] ?? ""));
+    this.levelsRoot = join(this.root, "levels");
+    if (isDict(p.on_all_complete)) this.onAllCompleteMsg = String(p.on_all_complete.win_message ?? "");
+  }
+
+  /** LevelTransitionCoordinator.load_level: the level rules (appended), then its entities. */
+  private loadLevel(name: string): void {
+    if (this.levelsRoot === "" || name === "") return;
+    const dir = join(this.levelsRoot, name);
+    this.loadRulesFor(join(dir, "rules.json"), true);
+    this.loadEntities(dir);
+  }
+
+  /** LevelTransitionCoordinator.process_pending. The host drains it after each tick. */
+  processPending(): void {
+    const pending = this.env.pendingLevel;
+    if (pending === "") return;
+    this.env.pendingLevel = "";
+    this.doTransition(pending);
+  }
+
+  /** LevelTransitionCoordinator.do_transition. */
+  doTransition(target: string): void {
+    if (target === "next") {
+      const idx = this.levelOrder.indexOf(this.currentLevel);
+      if (idx >= 0 && idx + 1 < this.levelOrder.length) target = this.levelOrder[idx + 1];
+      else {
+        this.env.world.all_levels_complete = 1;
+        return;
+      }
+    }
+    if (!this.levelOrder.includes(target)) {
+      raise(this.env, "level.unknown_target", `transition_level target '${target}' not in progression.levels`, "warning");
+      return;
+    }
+    // Entities with any persistent tag survive the swap (Invariant #12).
+    // The engine-owned `_engine` entity always survives.
+    const keep = [...this.levelPersistentTags, "_engine"];
+    for (const [id, e] of [...this.env.entities]) {
+      if (keep.some((t) => e.hasTag(t))) continue;
+      this.env.relations.clearEntity(id);
+      this.env.entities.delete(id);
+    }
+    this.scheduler.clearRules();
+    this.loadGlobalRules();
+    this.currentLevel = target;
+    this.loadLevel(target);
+    this.scheduler.flush();
+    const auto = this.savePolicy.autosave;
+    if (isDict(auto) && Boolean(auto.on_level_transition)) {
+      // Saving is host-defined storage (ADR 0086). This host records the request.
+      this.env.shellEvents.push({ type: "save_state", slot: 0, autosave: true });
+    }
+  }
+
+  /** VariantOverlay.apply (ADR 0009 phase 2d): rule, world-state and entity overrides. */
+  private applyVariant(): void {
+    let name = this.variantOverride;
+    if (name === "") {
+      const scene = this.readJson("scene.json");
+      if (isDict(scene) && String(scene.variant ?? "") !== "") name = String(scene.variant);
+    }
+    if (name === "") name = process.env.YUME_VARIANT ?? "";
+    if (name === "") return;
+    const v = this.readJson(join("variants", `${name}.json`));
+    if (!isDict(v)) return;
+    for (const [rid, fields] of Object.entries(isDict(v.rules) ? v.rules : {})) {
+      const rule = this.scheduler.ruleById(rid);
+      if (!rule) {
+        raise(this.env, "variant.rule_unknown", `variant rule '${rid}' not found`, "warning");
+        continue;
+      }
+      if (!isDict(fields)) continue;
+      for (const [path, val] of Object.entries(fields)) applyRuleOverride(this.env, rule, path, val);
+    }
+    if (isDict(v.world_state)) Object.assign(this.env.world, v.world_state);
+    for (const [id, st] of Object.entries(isDict(v.entities) ? v.entities : {})) {
+      const e = this.env.entities.get(id);
+      if (!e) {
+        raise(this.env, "variant.entity_unknown", `variant entity '${id}' not found`, "warning");
+        continue;
+      }
+      if (isDict(st)) for (const [k, val] of Object.entries(st)) e.state[k] = val;
+    }
+  }
+
+  /** WorldBoot._load_save_policy. This host keeps no saves, so has_save is 0. */
+  private loadSavePolicy(): void {
+    const p = this.readJson("save_policy.json");
+    this.savePolicy = isDict(p) ? p : {};
+    this.env.world.has_save = 0;
   }
 
   private spawnEngineEntity(): void {
@@ -149,8 +279,8 @@ export class World {
   }
 
   /** WorldLoader.load_rules_files_for: a folder of rule files in name order, or one file. */
-  private loadRulesFor(rel: string, append: boolean): void {
-    const dir = join(this.root, rel.replace(/\.json$/, ""));
+  private loadRulesFor(path: string, append: boolean): void {
+    const dir = path.replace(/\.json$/, "");
     if (existsSync(dir)) {
       let first = true;
       for (const f of readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
@@ -159,7 +289,7 @@ export class World {
       }
       return;
     }
-    this.loadRulesFile(join(this.root, rel), append);
+    this.loadRulesFile(path, append);
   }
 
   private loadWorldFile(): void {
@@ -167,16 +297,21 @@ export class World {
     if (isDict(data) && isDict(data.state)) Object.assign(this.env.world, data.state);
   }
 
-  private loadEntities(): void {
+  /** WorldLoader.load_entities_path: entities.json, then entities/*.json in name order. */
+  private loadEntities(root: string): void {
     const docs: Dict[] = [];
-    const single = this.readJson("entities.json");
+    const single = this.readAbs(join(root, "entities.json"));
     if (isDict(single)) docs.push(this.lib.resolve(single) as Dict);
-    const dir = join(this.root, "entities");
+    const dir = join(root, "entities");
     if (existsSync(dir)) {
       for (const f of readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
-        const d = this.readJson(join("entities", f));
+        const d = this.readAbs(join(dir, f));
         if (isDict(d)) docs.push(this.lib.resolve(d) as Dict);
       }
+    }
+    if (docs.length === 0) {
+      raise(this.env, "world.entities_missing", `No entities found at ${root} (checked entities.json + entities/)`, "warning");
+      return;
     }
     for (const d of docs) for (const def of asList(d.definitions)) if (isDict(def)) this.env.defs.set(String(def.id ?? ""), def);
     for (const d of docs) {
@@ -211,6 +346,14 @@ export class World {
         id = `${defId}_${this.env.nextId.n}`;
         this.env.nextId.n += 1;
       }
+      // The persistent-clobber guard (Invariant #12): a level that declares a
+      // persistent entity again moves it, and keeps its state.
+      const existing = this.env.entities.get(id);
+      if (existing && this.levelPersistentTags.some((t) => existing.hasTag(t))) {
+        const p = inst.position;
+        if (Array.isArray(p) && p.length >= 2) existing.setPosition(p as Value);
+        continue;
+      }
       if (isDict(def.physics)) {
         raise(this.env, "host.unsupported", `def '${defId}': physics bodies are phase 3 of ADR 0095`, "warning");
       }
@@ -234,7 +377,10 @@ export class World {
   }
 
   private readJson(rel: string): unknown {
-    const p = join(this.root, rel);
+    return this.readAbs(join(this.root, rel));
+  }
+
+  private readAbs(p: string): unknown {
     if (!existsSync(p)) return null;
     try {
       return JSON.parse(readFileSync(p, "utf8"));
@@ -243,6 +389,35 @@ export class World {
       return null;
     }
   }
+}
+
+/** VariantOverlay._apply_rule_override: chance, effect.<key>, effects.<idx>.<key>. */
+function applyRuleOverride(env: Env, rule: Rule, path: string, val: unknown): void {
+  if (path === "chance") {
+    rule.chance = toFloat(val);
+    return;
+  }
+  let idx = 0;
+  let key = "";
+  if (path.startsWith("effect.")) key = path.slice("effect.".length);
+  else if (path.startsWith("effects.")) {
+    const rest = path.slice("effects.".length);
+    const dot = rest.indexOf(".");
+    if (dot < 0) {
+      raise(env, "variant.bad_path", `malformed effects path '${path}'`, "warning");
+      return;
+    }
+    idx = Math.trunc(Number(rest.slice(0, dot)));
+    key = rest.slice(dot + 1);
+  } else {
+    raise(env, "variant.bad_path", `unsupported override path '${path}' on rule '${rule.id}'`, "warning");
+    return;
+  }
+  if (idx < 0 || idx >= rule.effects.length) {
+    raise(env, "variant.bad_path", `rule '${rule.id}' effects index ${idx} out of range`, "warning");
+    return;
+  }
+  rule.effects[idx][key] = val as Dict[string];
 }
 
 function asList(v: unknown): unknown[] {

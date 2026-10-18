@@ -13,11 +13,13 @@ exact behavior (contract doc, §Two behavior classes).
 | Entities, tags, state, relations, queries, formulas | Physics bodies, sensors (phase 3) |
 | Rules with the tick phases, `once`, `once_per`, `chance` | `lod`, `scope`, `overlap` |
 | Exact effects: state, spawn, remove, transform, relations, tags, arrays, emit, `advance_time`, `velocity_set` | Other motion effects, zones, `pathfind_to`, `raycast_hit` |
-| The engine rules in `lib/engine_rules` | Levels (`game/flow.json`), variants, macros, actors |
+| The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call`, saves to disk |
+| Levels (`game/flow.json`), `transition_level`, variants | |
 | `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
 
 Shell effects (screens, toasts, save, audio) write a record to
-`env.shellEvents` and change no other state. A feature outside phase 1
+`env.shellEvents` and change no other state. An autosave on a level swap
+also writes a record there. A feature outside phase 1
 gives a `host.unsupported` or `effect.unsupported_host` warning.
 
 ## Run
@@ -60,4 +62,4 @@ compare them:
 A disagreement is a spec bug. Do not change one host to match the other
 by guess. Find the behavior in the contract doc. If the contract does
 not state it, add a sentence and a conformance case, then make both
-hosts follow it. Phase 1 found four such bugs (ADR 0095).
+hosts follow it. Phase 1 found five such bugs (ADR 0095).

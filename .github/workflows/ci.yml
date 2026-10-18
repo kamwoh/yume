@@ -40,6 +40,8 @@ jobs:
       - name: Conformance (TypeScript host)
         working-directory: .
         run: ./scripts/conformance.sh --ts-only
+      - name: Sokoban scenarios (TypeScript host)
+        run: node src/cli.ts --lib=../../godot/data/lib ../../godot/data/demo_sokoban
 
   godot:
     runs-on: ubuntu-latest

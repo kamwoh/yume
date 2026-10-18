@@ -154,7 +154,12 @@ func do_transition(target: String, off_progression: bool = false) -> void:
 	# declaring ["player", "persistent"] still lost its player on the first swap,
 	# and nothing errored — the player simply was not on the next level, so every
 	# rule requiring one silently stopped matching.
-	var keep_tags: Array = _world.level_persistent_tags
+	#
+	# The `_engine` entity (ADR 0047) always survives. It is engine-owned, and
+	# no game tags it. A game that declared `persistent_tags: ["player"]` used
+	# to lose it on the first swap, and every later `world` write did nothing.
+	# Empirical 2026-10-18: the levels_variants conformance case.
+	var keep_tags: Array = _world.level_persistent_tags + ["_engine"]
 	var to_remove: Array[String] = []
 	for id in _world.entities.keys():
 		var ent = _world.entities[id]

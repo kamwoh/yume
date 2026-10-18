@@ -1,0 +1,23 @@
+{
+  "initial_instances": [
+    {
+      "def": "door",
+      "id": "door_b"
+    },
+    {
+      "def": "crate",
+      "id": "crate_b"
+    },
+    {
+      "def": "keeper",
+      "id": "hero",
+      "position": [
+        7,
+        0
+      ],
+      "state": {
+        "laps": 0
+      }
+    }
+  ]
+}

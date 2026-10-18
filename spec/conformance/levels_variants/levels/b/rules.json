@@ -1,0 +1,41 @@
+{
+  "_comment": "Level rules load with the level. b_tick needs the _engine entity to survive the swap.",
+  "rules": [
+    {
+      "id": "b_tick",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "_engine"
+        ]
+      },
+      "effect": {
+        "type": "state_add",
+        "target": "self",
+        "field": "b_ticks",
+        "amount": 1
+      }
+    },
+    {
+      "id": "kick",
+      "trigger": {
+        "type": "input",
+        "action": "kick"
+      },
+      "query": {
+        "tags_all": [
+          "crate"
+        ]
+      },
+      "effect": {
+        "type": "state_set",
+        "target": "self",
+        "field": "pushed",
+        "value": 1
+      }
+    }
+  ]
+}

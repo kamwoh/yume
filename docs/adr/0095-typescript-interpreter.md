@@ -139,10 +139,9 @@ a sentence and a conformance case, and both hosts follow it.
 
 ## Phase 1 findings (2026-10-18)
 
-The headless core passes the eight conformance cases on both hosts.
-Sokoban is not done yet: it needs levels (`game/flow.json`), variants
-and save policies. Work on the new host found four defects in the
-reference:
+The headless core passes the nine conformance cases on both hosts. The
+14 sokoban scenarios pass on the new host, and CI runs them. Phase 1 is
+done. Work on the new host found five defects in the reference:
 
 1. **Randomness was not portable.** Fixed by the spec generator.
 2. **Engine rules were lost.** The game's first rules file cleared the
@@ -153,6 +152,10 @@ reference:
 4. **A held press-edge key fired on every tick** in scenarios, but once
    in live play. The input steps now follow live play, and the contract
    states them.
+5. **A level swap removed the `_engine` entity** when `persistent_tags`
+   did not name `persistent`. After that swap, each rule that queried
+   world state matched nothing, and no error showed. The swap now always
+   keeps `_engine`.
 
 Each fix landed with a gate in `test_runner.gd` and a conformance case.
 

@@ -1,0 +1,16 @@
+{
+  "_comment": "Conformance: a variant overrides a rule effect, world state and entity state.",
+  "rules": {
+    "count": {
+      "effect.amount": 5
+    }
+  },
+  "world_state": {
+    "mode": "fast"
+  },
+  "entities": {
+    "hero": {
+      "laps": 10
+    }
+  }
+}

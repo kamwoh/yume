@@ -112,6 +112,8 @@ export function apply(e: Dict, env: Env, ctx: Ctx): void {
     }
     case "velocity_set":
       return velocitySet(e, env, ctx);
+    case "transition_level":
+      return transitionLevel(e, env, ctx);
   }
   if (SHELL_EFFECTS.includes(type)) {
     const rec: Dict = { type };
@@ -120,6 +122,18 @@ export function apply(e: Dict, env: Env, ctx: Ctx): void {
     return;
   }
   raise(env, "effect.unsupported_host", `effect '${type}' is not in this host yet (ADR 0095 phase 1)`, "warning");
+}
+
+/** EffectShell.transition_level: a fade goes to the shell, else the swap waits for the tick end. */
+function transitionLevel(e: Dict, env: Env, ctx: Ctx): void {
+  const target = strOf(value(e.target ?? "next", ctx, env));
+  if (target === "") return;
+  const fade = toFloat(value(e.fade_duration ?? 0, ctx, env));
+  if (fade > 0) {
+    env.shellEvents.push({ type: "transition_level_fade_request", target, fade_duration: fade, color: deepCopy(e.color ?? "#000000") });
+    return;
+  }
+  env.pendingLevel = target;
 }
 
 export function pushSignal(env: Env, name: string, payload: Dict): void {

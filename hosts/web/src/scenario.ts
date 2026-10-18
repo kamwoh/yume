@@ -91,6 +91,12 @@ class Runner {
     }
   }
 
+  /** step_runner._advance: one tick, then the pending swaps that the shell drains in live play. */
+  private advance(): void {
+    this.world.advanceOneTick();
+    this.world.processPending();
+  }
+
   step(step: Dict): void {
     const verb = ["press", "hold", "release", "click", "wait", "tick", "screenshot", "expect", "key"].find((v) => v in step);
     switch (verb) {
@@ -100,7 +106,7 @@ class Runner {
         this.held.add(a);
         this.justPressed.add(a);
         this.poll();
-        this.world.advanceOneTick();
+        this.advance();
         this.held.delete(a);
         return;
       }
@@ -115,7 +121,7 @@ class Runner {
         const ticks = Math.max(1, Math.round(toFloat(step.for) / this.world.tickSeconds));
         for (let i = 0; i < ticks; i++) {
           this.poll();
-          this.world.advanceOneTick();
+          this.advance();
         }
         for (const a of actions) this.held.delete(a);
         return;
@@ -126,7 +132,7 @@ class Runner {
       case "tick": {
         const n = Math.trunc(toFloat(step.tick));
         if (n <= 0) return this.error("tick requires a positive count");
-        for (let i = 0; i < n; i++) this.world.advanceOneTick();
+        for (let i = 0; i < n; i++) this.advance();
         return;
       }
       case "wait": {
@@ -138,7 +144,7 @@ class Runner {
           else if ("seconds" in s) ticks = Math.max(1, Math.round(toFloat(s.seconds) / this.world.tickSeconds));
         }
         if (ticks <= 0) return this.error("wait requires positive seconds or ticks");
-        for (let i = 0; i < ticks; i++) this.world.advanceOneTick();
+        for (let i = 0; i < ticks; i++) this.advance();
         return;
       }
       case "expect": {
@@ -255,6 +261,7 @@ function runScenario(root: string, sc: Dict, res: Result, verbose: boolean, libR
   const name = String(sc.name ?? "<unnamed>");
   if (verbose) console.log(`\n[scenario] ${name}`);
   const world = new World(root, libRoot);
+  world.variantOverride = String(sc.variant ?? "");
   world.load();
   if ("seed" in sc) SpecRandom.shared.setSeed(Math.trunc(toFloat(sc.seed)));
   if (isDict(sc.setup) && Object.keys(sc.setup).length > 0) {

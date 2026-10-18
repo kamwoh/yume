@@ -16,6 +16,7 @@ code-drawn content, so they hold no generated assets.
 | `random_seeded` | the spec generator, and when a roll happens |
 | `input_edges` | press-edge and hold-edge actions under `press` and `hold` |
 | `calendar` | `advance_time` and `scheduled` rules (ADR 0078) |
+| `levels_variants` | level swaps, `persistent_tags`, the kept `_engine` entity, a variant overlay |
 
 `random_vectors.json` holds reference values of the spec generator.
 

@@ -1,0 +1,11 @@
+{
+  "_comment": "Conformance: levels (ADR 0006). The game keeps 'keeper' entities and leaves out 'persistent'.",
+  "levels": [
+    "a",
+    "b"
+  ],
+  "starting_level": "a",
+  "persistent_tags": [
+    "keeper"
+  ]
+}

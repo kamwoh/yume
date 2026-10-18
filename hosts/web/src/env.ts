@@ -20,6 +20,8 @@ export interface Env {
   shellEvents: Dict[];
   dispatchLifecycle: ((kind: "spawn" | "despawn", id: string) => void) | null;
   advanceCalendar: ((units: number) => void) | null;
+  /** env._pending_level_transition: set by transition_level, drained after the tick. */
+  pendingLevel: string;
 }
 
 export function raise(env: Env, code: string, message: string, severity: "error" | "warning" = "error"): void {

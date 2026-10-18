@@ -1,0 +1,286 @@
+{
+  "scenarios": [
+    {
+      "name": "progression",
+      "steps": [
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "a"
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.position.x",
+                "op": "==",
+                "value": 5
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.laps",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "junk1"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        },
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "b"
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "junk1"
+                  ]
+                },
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "crate_a"
+                  ]
+                },
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "door_a"
+                  ]
+                },
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "crate_b"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "_engine"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.laps",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.position.x",
+                "op": "==",
+                "value": 7
+              }
+            }
+          ]
+        },
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.laps",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "world_field": {
+                "field": "b_ticks",
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        },
+        {
+          "press": "finish"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "all_levels_complete",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "b"
+              }
+            },
+            {
+              "world_field": {
+                "field": "b_ticks",
+                "op": "==",
+                "value": 2
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "restart_reloads_level",
+      "steps": [
+        {
+          "tick": 1
+        },
+        {
+          "press": "kick"
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "crate_b",
+                "field": "state.pushed",
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        },
+        {
+          "press": "restart"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "b"
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "ids": [
+                    "crate_b"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "crate_b",
+                "field": "state.pushed",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.laps",
+                "op": "==",
+                "value": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "variant_overlay",
+      "variant": "fast",
+      "steps": [
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "mode",
+                "op": "==",
+                "value": "fast"
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.laps",
+                "op": "==",
+                "value": 10
+              }
+            }
+          ]
+        },
+        {
+          "tick": 1
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.laps",
+                "op": "==",
+                "value": 15
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
