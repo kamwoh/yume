@@ -122,6 +122,9 @@ margin and never an exact value:
 - `ArticulatedBody` (`coordinators/articulated_body.gd`) builds one
   `PhysicsServer3D` rigid body for each link that is not `fixed`. A
   `fixed` link adds its shape and mass to its parent body.
+- A host body has one material. So a `fixed` link with its own
+  `friction` or `restitution` keeps its own body. A 6-DOF joint with
+  every axis locked holds it (amended 2026-10-18, ADR 0093).
 - A `hinge` is `joint_make_hinge` and a `ball` is `joint_make_pin`.
 - Godot's hinge motor turns against the right-hand rule, so the
   interpreter negates the target.

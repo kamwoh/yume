@@ -134,6 +134,7 @@ Status: `proposed` / `accepted` / `superseded by ADR-MMMM`.
 | [0090](./0090-spec-vocabularies.md) | Spec vocabularies: keys, audio channels, lighting, physics | accepted | 2026-10-18 |
 | [0091](./0091-articulated-bodies.md) | Articulated bodies: links, joints and motors | accepted | 2026-10-18 |
 | [0092](./0092-sensors.md) | Sensors: rays and lidar that write state | accepted | 2026-10-18 |
+| [0093](./0093-urdf-importer.md) | URDF importer for articulated bodies | accepted | 2026-10-18 |
 
 ## Cross-ADR review (2026-05-06, batch 0014-0019)
 

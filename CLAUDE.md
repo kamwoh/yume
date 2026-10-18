@@ -294,6 +294,9 @@ hand-authoring freely):
   relative to the game folder (ADR 0087).
   `python3 -m tools.yume_assetgen <game> [--dry-run|--init]`.
 
+- **`tools/yume_urdf/`** — URDF robot → articulated-body def (ADR 0093).
+  `python -m tools.yume_urdf robot.urdf [--friction caster=0] [--spawn x,y,z]`.
+
 Engine support: `entity_mesh_3d.gd` reads `visual.albedo_texture` +
 dict-form `material_overrides` ({albedo_color, albedo_texture,
 normal_texture, roughness, metallic}). See each package's README.

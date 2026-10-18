@@ -362,6 +362,10 @@ manifest §Articulated bodies list the fields.
   autopilot rules in a file that sorts before the mixer, because rules
   run in file order. `demo_rover/world/rules/05_autopilot.json` is the
   reference.
+- **Import, do not retype, a real robot.** `python -m tools.yume_urdf
+  robot.urdf` writes the def (ADR 0093). Each motor reads
+  `self.state.<joint>_cmd`. See `tools/yume_urdf/README.md` for the
+  limits.
 - **Test with margins.** Motion is host-defined. Check "moved more than
   0.4 m" or "yaw grew by more than 0.8", never an exact value. Such a
   scenario runs in real time.

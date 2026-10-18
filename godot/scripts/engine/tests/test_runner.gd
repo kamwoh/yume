@@ -10273,6 +10273,17 @@ func test_articulated_body() -> void:
 	world.articulated_bodies["rover_1"] = ab
 	expect_eq(ab._bodies.size(), 4, "the fixed mast merges into the chassis: 4 bodies for 5 links")
 	expect_eq(ab._joints.size(), 3, "two hinges and one ball joint")
+	# A fixed child with its own friction keeps its own body (a host body
+	# has one material) and a locked joint.
+	var slick := _ROVER_PHYSICS.duplicate(true)
+	slick["links"]["mast"]["friction"] = 0.0
+	var probe_ent := Entity.create(defs["rover"], "slick", {"position": Vector3(5, 0.15, 0)})
+	world.add_child(probe_ent)
+	var slick_ab := ArticulatedBody.build(probe_ent, slick, space, {})
+	expect_eq(slick_ab._bodies.size(), 5, "a fixed link with its own friction keeps its own body")
+	expect_eq(slick_ab._joints.size(), 4, "and gets a locked joint")
+	slick_ab.free_all()
+	probe_ent.queue_free()
 	var mast_offset: Vector3 = ab.poses["mast"].origin - ab.poses["chassis"].origin
 	expect(mast_offset.distance_to(Vector3(0, 0.14, 0.1)) < 0.001, "the mast sits at its 'at' offset")
 
@@ -10321,6 +10332,22 @@ func test_articulated_body() -> void:
 	var turn_drift := Vector2(axle2.x - axle1.x, axle2.z - axle1.z).length()
 	expect(float(rover.get_state("yaw", 0.0)) - yaw0 > 0.5, "left back and right forward turn it left (yaw +%.2f)" % (float(rover.get_state("yaw", 0.0)) - yaw0))
 	expect(turn_drift < 0.05, "the turn is in place: the axle midpoint moved %.3f m" % turn_drift)
+
+	# The renderer draws one node for each link. A link with no shape and
+	# no mesh draws nothing (post-mortem 2026-10-18: an imported URDF
+	# root link drew a default 1 m box that hid the robot).
+	var view := Entity.create(defs["rover"], "view", {})
+	add_child(view)
+	view.set_meta("_link_render", {
+		"empty": {"shape": {}, "visual": {}},
+		"wheel": {"shape": {"type": "cylinder", "radius": 0.1, "height": 0.04, "axis": "x"}, "visual": {"color": "#222222"}},
+	})
+	var mesh_node := EntityMesh3D.new()
+	view.add_child(mesh_node)
+	mesh_node._mount_links()
+	expect_eq((mesh_node._link_nodes["empty"] as Node3D).get_child_count(), 0, "a link with no shape draws nothing")
+	expect_eq((mesh_node._link_nodes["wheel"] as Node3D).get_child_count(), 1, "a link with a shape draws it")
+	view.queue_free()
 
 	# Despawn frees every RID.
 	PhysicsBodyBuilder.free_3d(rover)

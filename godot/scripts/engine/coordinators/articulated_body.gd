@@ -23,7 +23,9 @@ class_name ArticulatedBody
 ## A link frame has the orientation of the root at spawn. `at` places the
 ## child link origin in the parent link frame, and the joint anchor is that
 ## origin. A positive hinge velocity turns the child about `axis` by the
-## right-hand rule. A `fixed` child merges into its parent body.
+## right-hand rule. A `fixed` child merges into its parent body, unless it
+## sets its own `friction` or `restitution`: a host body has one material,
+## so such a child keeps its own body and a locked joint.
 ##
 ## Readback, at the start of each tick (World.advance_one_tick):
 ##   - the root pose writes state.position, state.yaw and state.velocity.
@@ -150,7 +152,7 @@ func _build(phys_cfg: Dictionary, space_rid: RID, layer_map: Dictionary) -> void
 				continue
 			var c := str(j["child"])
 			spawn[c] = spawn[p] * Transform3D(Basis.IDENTITY, _vec3(j.get("at", [0, 0, 0])))
-			_owner[c] = _owner[p] if str(j["type"]) == "fixed" else c
+			_owner[c] = _owner[p] if _merges(j, links) else c
 			ordered.append(j)
 		pending = rest
 	# One rigid body for each owner link. A fixed child adds its shape and
@@ -203,7 +205,7 @@ func _build(phys_cfg: Dictionary, space_rid: RID, layer_map: Dictionary) -> void
 		for k in range(i + 1, rids.size()):
 			PhysicsServer3D.body_add_collision_exception(rids[i], rids[k])
 	for j in ordered:
-		if str(j["type"]) != "fixed":
+		if not _merges(j, links):
 			_make_joint(j, spawn)
 	_read_poses()
 
@@ -214,7 +216,22 @@ func _make_joint(j: Dictionary, spawn: Dictionary) -> void:
 	var anchor: Vector3 = spawn[b].origin
 	var rid := PhysicsServer3D.joint_create()
 	var entry := {"rid": rid, "type": str(j["type"]), "a": a, "b": b, "motor": {}, "report": "", "angle": 0.0}
-	if str(j["type"]) == "ball":
+	if str(j["type"]) == "fixed":
+		# A fixed child with its own material: a 6-DOF joint with every
+		# axis locked.
+		var frame := Transform3D(Basis.IDENTITY, anchor)
+		PhysicsServer3D.joint_make_generic_6dof(
+			rid, _bodies[a], spawn[a].affine_inverse() * frame, _bodies[b], spawn[b].affine_inverse() * frame
+		)
+		for axis in [Vector3.AXIS_X, Vector3.AXIS_Y, Vector3.AXIS_Z]:
+			for p in [
+				PhysicsServer3D.G6DOF_JOINT_LINEAR_LOWER_LIMIT, PhysicsServer3D.G6DOF_JOINT_LINEAR_UPPER_LIMIT,
+				PhysicsServer3D.G6DOF_JOINT_ANGULAR_LOWER_LIMIT, PhysicsServer3D.G6DOF_JOINT_ANGULAR_UPPER_LIMIT,
+			]:
+				PhysicsServer3D.generic_6dof_joint_set_param(rid, axis, p, 0.0)
+			PhysicsServer3D.generic_6dof_joint_set_flag(rid, axis, PhysicsServer3D.G6DOF_JOINT_FLAG_ENABLE_LINEAR_LIMIT, true)
+			PhysicsServer3D.generic_6dof_joint_set_flag(rid, axis, PhysicsServer3D.G6DOF_JOINT_FLAG_ENABLE_ANGULAR_LIMIT, true)
+	elif str(j["type"]) == "ball":
 		PhysicsServer3D.joint_make_pin(
 			rid, _bodies[a], spawn[a].affine_inverse() * anchor, _bodies[b], spawn[b].affine_inverse() * anchor
 		)
@@ -246,6 +263,15 @@ func _make_joint(j: Dictionary, spawn: Dictionary) -> void:
 		entry["report"] = str(j.get("report", ""))
 	PhysicsServer3D.joint_disable_collisions_between_bodies(rid, true)
 	_joints.append(entry)
+
+
+## True when a joint's child merges into the parent body: a fixed joint
+## whose child sets no material of its own.
+static func _merges(j: Dictionary, links: Dictionary) -> bool:
+	if str(j["type"]) != "fixed":
+		return false
+	var child: Dictionary = links.get(str(j["child"]), {})
+	return not (child.has("friction") or child.has("restitution"))
 
 
 ## Readback: the root pose and each reported hinge write entity state.

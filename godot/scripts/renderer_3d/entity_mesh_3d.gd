@@ -670,8 +670,12 @@ func _sync_links() -> void:
 			(_link_nodes[link_name] as Node3D).global_transform = t
 
 
-## A MeshInstance3D that matches a link collision shape.
+## A MeshInstance3D that matches a link collision shape, or null for a
+## link with no shape. Empirical 2026-10-18: a URDF root link
+## (base_footprint) has no shape, and a default 1 m box hid the robot.
 func _shape_mesh(shape_cfg: Dictionary) -> MeshInstance3D:
+	if not shape_cfg.has("type"):
+		return null
 	var mi := MeshInstance3D.new()
 	match str(shape_cfg.get("type", "box")):
 		"box":

@@ -25,6 +25,7 @@ for t in tools/validators/tests/test_*.py; do
   mod="$(echo "${t%.py}" | tr '/' '.')"
   run "$mod" "$PY" -m "$mod"
 done
+run yume_urdf "$PY" -m tools.yume_urdf.tests.test_urdf
 run assetgen_pytest "$PY" -m pytest -q tools/yume_assetgen/tests
 run assetgen_smoke "$PY" -m tools.yume_assetgen.tests.test_smoke
 run glb_merge "$PY" -m tools.yume_assetgen.tests.test_glb_merge
