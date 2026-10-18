@@ -71,6 +71,9 @@ Four lists are closed. The api manifest (§Spec vocabularies) prints them.
   `hinge` has `axis`, `limit`, `motor` and `report`. The motor field is
   `max_torque`, not `max_force`. Check 11 of `validate_host_neutral.py`
   enforces this.
+- Sensors (ADR 0092): a def's `sensors` list. Only a `lidar` has `rays`
+  and `fov`. A `link` must name a link of the def's articulated body.
+  Check 12 enforces this.
 
 Gates: `validate_host_neutral.py` checks 7 to 10, and the engine
 reports `input.unknown_key`, `audio.unknown_channel`,

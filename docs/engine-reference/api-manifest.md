@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-10-18T09:41:02+00:00_
+_Generated: 2026-10-18T10:10:28+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -253,9 +253,18 @@ A `physics` block with `"body_type": "articulated"` has `root`, `links` and `joi
 - Motor fields: `target_velocity`, `max_torque`. `target_velocity` is a formula in radians per second, and `max_torque` is in N·m.
 - Readback: the root writes `state.position`, `state.yaw` and `state.velocity`. A hinge with `report: "x"` writes `state.x_angle` and `state.x_speed`.
 
+### Sensors (ADR 0092)
+
+A def's `sensors` list casts rays each tick, before the rules. Types: `ray`, `lidar`.
+
+- Fields: `type`, `link`, `at`, `direction`, `range`, `rays`, `fov`, `report`, `collision_mask`. Only a `lidar` has `rays` and `fov`.
+- `at` and `direction` are in the frame of `link` (an articulated body), or else of the entity position and yaw.
+- A `ray` with `report: "x"` writes `state.x_distance` (`range` when nothing is hit) and `state.x_hit` (0 or 1).
+- A `lidar` writes `state.x_ranges` (an array), `state.x_min` and `state.x_min_angle` (radians from `direction`, positive to the left).
+
 ## Error codes (Tier 2.6a)
 
-47 stable codes for matching in retry loops:
+48 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -287,6 +296,7 @@ A `physics` block with `"body_type": "articulated"` has `root`, `links` and `joi
 | `physics.unknown_body_type` | `EngineError.PHYSICS_UNKNOWN_BODY_TYPE` |
 | `physics.unknown_layer` | `EngineError.PHYSICS_UNKNOWN_LAYER` |
 | `physics.bad_articulation` | `EngineError.PHYSICS_BAD_ARTICULATION` |
+| `sensor.bad_config` | `EngineError.SENSOR_BAD_CONFIG` |
 | `world.entities_missing` | `EngineError.WORLD_ENTITIES_MISSING` |
 | `world.entities_invalid_json` | `EngineError.WORLD_ENTITIES_INVALID` |
 | `world.def_unknown` | `EngineError.WORLD_DEF_UNKNOWN` |

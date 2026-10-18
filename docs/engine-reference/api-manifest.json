@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-18T09:41:02+00:00",
+  "generated_at": "2026-10-18T10:10:28+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -676,6 +676,10 @@
     {
       "constant": "PHYSICS_BAD_ARTICULATION",
       "code": "physics.bad_articulation"
+    },
+    {
+      "constant": "SENSOR_BAD_CONFIG",
+      "code": "sensor.bad_config"
     },
     {
       "constant": "WORLD_ENTITIES_MISSING",
@@ -1506,6 +1510,21 @@
     "motor_fields": [
       "target_velocity",
       "max_torque"
+    ],
+    "sensor_types": [
+      "ray",
+      "lidar"
+    ],
+    "sensor_fields": [
+      "type",
+      "link",
+      "at",
+      "direction",
+      "range",
+      "rays",
+      "fov",
+      "report",
+      "collision_mask"
     ]
   },
   "reserved_state_fields": [

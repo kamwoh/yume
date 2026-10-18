@@ -111,6 +111,7 @@ func _ready() -> void:
 	test_query_tag_index()
 	test_spatial_cell_size()
 	await test_articulated_body()
+	await test_sensor_array()
 	expect_eq(QueryLib.index_mismatches, 0, "ADR 0084: no tag index result differed from the full scan")
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
@@ -10291,6 +10292,24 @@ func test_articulated_body() -> void:
 	expect(rover.get_state("velocity", Vector3.ZERO) is Vector3, "state.velocity is the root velocity")
 	expect(ab.poses["mast"].origin.distance_to(ab.poses["chassis"] * Vector3(0, 0.14, 0.1)) < 0.001, "the merged mast follows the chassis")
 
+	# Post-mortem 2026-10-18: after _step_physics the runner sits inside a
+	# physics frame, where a scripted press gave no press edge. A press
+	# action never fired after the first tick of such a world (found with
+	# the rover autopilot toggle, ADR 0092). Gate: press after ticks.
+	var press_action := "articulated_press_probe"
+	if not InputMap.has_action(press_action):
+		InputMap.add_action(press_action)
+	world.input_actions_press = PackedStringArray([press_action])
+	rover.add_tag("player")
+	rover.state["presses"] = 0
+	world.scheduler.register_rules([Rule.from_dict({
+		"id": "count_press", "trigger": {"type": "input", "action": press_action},
+		"query": {"tags_all": ["robot"]},
+		"effect": {"type": "state_set", "target": "self", "field": "presses", "value": "self.state.presses + 1"},
+	})])
+	await StepRunner.run([{"press": press_action}, {"tick": 2}, {"press": press_action}], world, {"verbose": false})
+	expect_eq(int(rover.get_state("presses", 0)), 2, "a press after physics ticks still fires once each time")
+
 	# Opposite speeds: the rover turns left in place (yaw grows). It turns
 	# about the midpoint of its axle, so the test measures that point.
 	var axle1: Vector3 = (ab.poses["wheel_l"].origin + ab.poses["wheel_r"].origin) * 0.5
@@ -10310,5 +10329,90 @@ func test_articulated_body() -> void:
 	expect(world.articulated_bodies.is_empty(), "the next tick drops a freed body from the registry")
 	PhysicsServer3D.free_rid(floor_body)
 	PhysicsServer3D.free_rid(floor_shape)
+	world.queue_free()
+
+
+## ADR 0092 — ray and lidar sensors. A wall stands 1.95 m ahead of a
+## probe. The checks are guarantees with a margin (ADR 0086).
+func test_sensor_array() -> void:
+	_section("sensor array (ADR 0092)")
+	expect_eq(SensorArray.SENSOR_TYPES, ["ray", "lidar"], "the two sensor types")
+	var world := World.new()
+	world.auto_start = false
+	world.verbose = false
+	add_child(world)
+	world.set_process(false)
+	world.set_physics_process(false)
+	world.scheduler = PhaseScheduler.new({})
+	world.scheduler.env = {
+		"entities": world.entities, "defs": {}, "relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(), "world": {}, "parent": world,
+		"next_id": {"_": 0}, "error_buffer": [],
+	}
+	world.world_state = world.scheduler.env["world"]
+	var space: RID = world.get_viewport().find_world_3d().space
+	var layers := {"wall": 2, "npc": 6}
+	var rids: Array = []
+	for spec in [[Vector3(0, -0.5, 0), Vector3(10, 0.5, 10), 3], [Vector3(0, 0.5, -2), Vector3(2, 0.5, 0.05), 2]]:
+		var b := PhysicsServer3D.body_create()
+		var sh := PhysicsServer3D.box_shape_create()
+		PhysicsServer3D.shape_set_data(sh, spec[1])
+		PhysicsServer3D.body_set_mode(b, PhysicsServer3D.BODY_MODE_STATIC)
+		PhysicsServer3D.body_add_shape(b, sh)
+		PhysicsServer3D.body_set_collision_layer(b, 1 << (int(spec[2]) - 1))
+		PhysicsServer3D.body_set_state(b, PhysicsServer3D.BODY_STATE_TRANSFORM, Transform3D(Basis(), spec[0]))
+		PhysicsServer3D.body_set_space(b, space)
+		rids.append_array([b, sh])
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	var probe := Entity.create({"id": "probe", "tags": []}, "probe", {"position": Vector3(0, 0.3, 0)})
+	world.add_child(probe)
+	world.entities["probe"] = probe
+	world.sensor_arrays["probe"] = SensorArray.build(probe, [
+		{"type": "ray", "direction": [0, 0, -1], "range": 5.0, "report": "front"},
+		{"type": "ray", "direction": [0, 0, 1], "range": 5.0, "report": "back"},
+		{"type": "ray", "direction": [0, 0, -1], "range": 5.0, "report": "blind", "collision_mask": ["npc"]},
+		{"type": "lidar", "rays": 4, "fov": TAU, "range": 5.0, "report": "lidar"},
+	], space, layers)
+	world.advance_one_tick()
+	expect(absf(float(probe.get_state("front_distance", -1.0)) - 1.95) < 0.05,
+		"a wall 1.95 m ahead reads 1.95 ± 0.05 (got %s)" % str(probe.get_state("front_distance")))
+	expect_eq(probe.get_state("front_hit"), 1, "front_hit is 1")
+	expect_eq(float(probe.get_state("back_distance", -1.0)), 5.0, "nothing in range reads exactly the range")
+	expect_eq(probe.get_state("back_hit"), 0, "back_hit is 0")
+	expect_eq(float(probe.get_state("blind_distance", -1.0)), 5.0, "collision_mask skips a layer it does not list")
+	var ranges = probe.get_state("lidar_ranges", [])
+	expect(ranges is Array and (ranges as Array).size() == 4, "a 4-ray lidar writes 4 ranges")
+	expect(absf(float(probe.get_state("lidar_min", -1.0)) - 1.95) < 0.05, "lidar_min is the wall")
+	expect(absf(float(probe.get_state("lidar_min_angle", 9.0))) < 0.01, "the wall is at angle 0 (straight ahead)")
+	# The frame follows the entity yaw: facing -X, the wall is to the right.
+	probe.state["yaw"] = PI / 2.0
+	world.advance_one_tick()
+	expect_eq(float(probe.get_state("front_distance", -1.0)), 5.0, "after a quarter turn, the front ray misses the wall")
+	expect(absf(float(probe.get_state("lidar_min_angle", 0.0)) + PI / 2.0) < 0.01,
+		"the wall is now at -π/2 (to the right)")
+
+	# A sensor on a link skips the robot's own bodies: a ray from the
+	# chassis center reaches the wall, not the chassis box around it.
+	var rover := Entity.create({"id": "rover", "tags": []}, "rover", {"position": Vector3(0, 0.15, 0)})
+	world.add_child(rover)
+	world.entities["rover"] = rover
+	var ab := ArticulatedBody.build(rover, _ROVER_PHYSICS, space, {})
+	world.articulated_bodies["rover"] = ab
+	world.sensor_arrays["rover"] = SensorArray.build(rover, [
+		{"type": "ray", "link": "chassis", "direction": [0, 0, -1], "range": 5.0, "report": "front"},
+	], space, {})
+	world.advance_one_tick()
+	expect(absf(float(rover.get_state("front_distance", -1.0)) - 1.95) < 0.05,
+		"a link sensor skips its own links (got %s)" % str(rover.get_state("front_distance")))
+
+	# A despawned entity leaves the registry.
+	world.entities.erase("probe")
+	world.advance_one_tick()
+	expect(not world.sensor_arrays.has("probe"), "the next tick drops a despawned sensor entity")
+	PhysicsBodyBuilder.free_3d(rover)
+	for r in rids:
+		PhysicsServer3D.free_rid(r)
 	world.queue_free()
 

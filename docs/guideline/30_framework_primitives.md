@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-10-18 (ADR 0091: articulated bodies)_
+_Last updated: 2026-10-18 (ADR 0092: sensors)_
 
 ## Purpose
 
@@ -753,6 +753,24 @@ body never collide with each other.
   turn in place. A zero target stops the wheel.
 - A rule that writes `state.position` does not move the body.
 - Error code: `physics.bad_articulation`.
+
+**Sensors (ADR 0092).** A def's `sensors` list casts rays at the start
+of each tick, after the articulated readback and before the rules.
+
+- Types: `ray` and `lidar`. Fields: `type`, `link`, `at`, `direction`,
+  `range`, `rays`, `fov`, `report`, `collision_mask`. Only a `lidar`
+  has `rays` and `fov`.
+- The frame is the pose of `link` (an articulated body), or else the
+  entity position and `state.yaw`.
+- A ray hits collision shapes, never an `area`, and never its own
+  entity.
+- A `ray` writes `<report>_distance` (`range` when nothing is hit) and
+  `<report>_hit` (0 or 1).
+- A `lidar` spreads its rays evenly over `fov`. It writes
+  `<report>_ranges`, `<report>_min` and `<report>_min_angle` (radians
+  from `direction`, positive to the left).
+- Distances are host-defined. A test checks a guarantee with a margin.
+- Error code: `sensor.bad_config`.
 
 ---
 

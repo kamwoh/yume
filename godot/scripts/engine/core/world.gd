@@ -78,6 +78,7 @@ var next_id_seq: Dictionary = {"_": 0}  # shared spawn-id counter
 var error_buffer: Array = []  # Tier 2.6a structured errors
 var _overlap_events: Array = []  # ADR 0070 — area overlap event buffer
 var articulated_bodies: Dictionary = {}  # ADR 0091 — instance_id → ArticulatedBody
+var sensor_arrays: Dictionary = {}  # ADR 0092 — instance_id → SensorArray
 var save_policy: Dictionary = {}  # ADR 0010 — empty = no persistence
 
 var relations: RelationStore = null  # primitive #7
@@ -468,6 +469,7 @@ func despawn_entity(id: String) -> void:
 func build_runtime_physics_body(ent: Entity) -> void:
 	if _spawn_manager != null and ent is Entity:
 		_spawn_manager._build_physics_body_if_declared(ent)
+		_spawn_manager._build_sensors_if_declared(ent)
 
 
 ## Attach the per-entity renderer (entity_mesh_3d / entity_sprite_2d) to a
@@ -505,6 +507,7 @@ func advance_one_tick() -> void:
 	_tick_count += 1
 	world_state["_tick"] = _tick_count
 	_read_back_articulated()  # ADR 0091 — body poses → state, before rules
+	_read_sensors()  # ADR 0092 — rays → state, after the poses
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)  # ADR 0018 — AI before input
 	scheduler.tick()  # canonical phase loop (lifetime decay via ADR 0049 rules)
@@ -535,6 +538,19 @@ func _read_back_articulated() -> void:
 			articulated_bodies.erase(id)
 			continue
 		ab.read_back()
+
+
+## ADR 0092 — each sensor casts its rays and writes state. A despawned
+## entity leaves the registry here.
+func _read_sensors() -> void:
+	if sensor_arrays.is_empty():
+		return
+	for id in sensor_arrays.keys():
+		var sa: SensorArray = sensor_arrays[id]
+		if not is_instance_valid(sa.entity) or not entities.has(id):
+			sensor_arrays.erase(id)
+			continue
+		sa.read()
 
 
 ## ADR 0091 — each motor reads its target formula after the rules ran.

@@ -356,6 +356,12 @@ manifest §Articulated bodies list the fields.
   does not move the body.
 - **Forward is -Z.** A wheel that turns about `[-1, 0, 0]` with a
   positive command drives toward -Z (forward at yaw 0).
+- **Sense with `sensors` (ADR 0092).** A `ray` writes
+  `<report>_distance` and `_hit`. A `lidar` writes `_min` and
+  `_min_angle`, which a query reads (`"lidar_min_lt": 0.55`). Put
+  autopilot rules in a file that sorts before the mixer, because rules
+  run in file order. `demo_rover/world/rules/05_autopilot.json` is the
+  reference.
 - **Test with margins.** Motion is host-defined. Check "moved more than
   0.4 m" or "yaw grew by more than 0.8", never an exact value. Such a
   scenario runs in real time.

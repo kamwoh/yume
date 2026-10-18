@@ -135,6 +135,9 @@ LINK_FIELDS = _gd_strings(_ARTICULATED, "LINK_FIELDS")
 JOINT_FIELDS = _gd_strings(_ARTICULATED, "JOINT_FIELDS")
 MOTOR_FIELDS = _gd_strings(_ARTICULATED, "MOTOR_FIELDS")
 SHAPE_AXES = _gd_strings(_ARTICULATED, "SHAPE_AXES")
+_SENSORS = _gd("coordinators/sensor_array.gd")
+SENSOR_TYPES = _gd_strings(_SENSORS, "SENSOR_TYPES")
+SENSOR_FIELDS = _gd_strings(_SENSORS, "SENSOR_FIELDS")
 LAYER_NAMES = tuple(json.loads((DATA / "lib" / "physics" / "layers.json").read_text(encoding="utf-8"))["layers"])
 
 
@@ -188,6 +191,37 @@ def articulation_problems(phys: dict) -> list[str]:
             cur = parent_of[cur]
         if cur != root and root in links:
             out.append(f"links.{name}: the link does not connect to the root")
+    return out
+
+
+def sensor_problems(sensors, phys) -> list[str]:
+    """The ADR 0092 problems of a def's `sensors` list, as "field: problem".
+    `phys` is the def's resolved physics block (or None)."""
+    if not isinstance(sensors, list):
+        return ["sensors: the field is a list"]
+    links = phys.get("links", {}) if isinstance(phys, dict) and phys.get("body_type") == "articulated" else {}
+    out = []
+    for i, s in enumerate(sensors):
+        where = f"sensors[{i}]"
+        if not isinstance(s, dict):
+            out.append(f"{where}: a sensor is an object")
+            continue
+        out += [f"{where}.{k}: a sensor has no such field" for k in s
+                if not str(k).startswith("_") and k not in SENSOR_FIELDS]
+        if s.get("type") not in SENSOR_TYPES:
+            out.append(f"{where}.type: '{s.get('type')}' is not a sensor type. The types are: {', '.join(SENSOR_TYPES)}")
+        if not s.get("report"):
+            out.append(f"{where}.report: a sensor needs a report name")
+        for k in ("rays", "fov"):
+            if k in s and s.get("type") != "lidar":
+                out.append(f"{where}.{k}: only a lidar has '{k}'")
+        if "link" in s and s["link"] not in links:
+            out.append(f"{where}.link: '{s['link']}' is not a link of an articulated body")
+        mask = s.get("collision_mask", "all")
+        if mask != "all":
+            for name in mask if isinstance(mask, list) else [mask]:
+                if name not in LAYER_NAMES:
+                    out.append(f"{where}.collision_mask: '{name}' is not a layer name")
     return out
 
 

@@ -175,6 +175,21 @@ func spawn(inst: Dictionary) -> void:
 		# legacy _integrate_motion still drives motion; Session B routes
 		# velocity to bodies; Session C disables the legacy path.
 		_build_physics_body_if_declared(ent)
+		_build_sensors_if_declared(ent)
+
+
+## ADR 0092 — build the def's `sensors` after its body, so the rays can
+## skip the entity's own bodies. World reads them once per tick.
+func _build_sensors_if_declared(ent: Entity) -> void:
+	if _world == null:
+		return
+	var cfgs = _world.defs.get(ent.def_id, {}).get("sensors", null)
+	if not (cfgs is Array) or (cfgs as Array).is_empty():
+		return
+	var space := _resolve_3d_space()
+	if not space.is_valid():
+		return
+	_world.sensor_arrays[ent.instance_id] = SensorArray.build(ent, cfgs, space, _resolve_layer_map())
 
 
 # ============================================================

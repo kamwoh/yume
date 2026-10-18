@@ -716,6 +716,8 @@ def parse_vocabularies() -> dict:
         "link_fields": list(content.LINK_FIELDS),
         "joint_fields": list(content.JOINT_FIELDS),
         "motor_fields": list(content.MOTOR_FIELDS),
+        "sensor_types": list(content.SENSOR_TYPES),
+        "sensor_fields": list(content.SENSOR_FIELDS),
     }
 
 
@@ -1003,6 +1005,15 @@ def render_markdown(m: Manifest) -> str:
         "- Joint fields: " + ", ".join(f"`{k}`" for k in m.vocabularies["joint_fields"]),
         "- Motor fields: " + ", ".join(f"`{k}`" for k in m.vocabularies["motor_fields"]) + ". `target_velocity` is a formula in radians per second, and `max_torque` is in N·m.",
         "- Readback: the root writes `state.position`, `state.yaw` and `state.velocity`. A hinge with `report: \"x\"` writes `state.x_angle` and `state.x_speed`.",
+        "",
+        "### Sensors (ADR 0092)",
+        "",
+        "A def's `sensors` list casts rays each tick, before the rules. Types: " + ", ".join(f"`{k}`" for k in m.vocabularies["sensor_types"]) + ".",
+        "",
+        "- Fields: " + ", ".join(f"`{k}`" for k in m.vocabularies["sensor_fields"]) + ". Only a `lidar` has `rays` and `fov`.",
+        "- `at` and `direction` are in the frame of `link` (an articulated body), or else of the entity position and yaw.",
+        "- A `ray` with `report: \"x\"` writes `state.x_distance` (`range` when nothing is hit) and `state.x_hit` (0 or 1).",
+        "- A `lidar` writes `state.x_ranges` (an array), `state.x_min` and `state.x_min_angle` (radians from `direction`, positive to the left).",
         "",
         "## Error codes (Tier 2.6a)",
         "",

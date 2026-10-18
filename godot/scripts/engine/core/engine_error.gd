@@ -63,6 +63,9 @@ const PHYSICS_UNKNOWN_LAYER := "physics.unknown_layer"
 ## ADR 0091 — articulated bodies.
 const PHYSICS_BAD_ARTICULATION := "physics.bad_articulation"
 
+## ADR 0092 — sensors.
+const SENSOR_BAD_CONFIG := "sensor.bad_config"
+
 const WORLD_ENTITIES_MISSING := "world.entities_missing"
 const WORLD_ENTITIES_INVALID := "world.entities_invalid_json"
 const WORLD_DEF_UNKNOWN := "world.def_unknown"

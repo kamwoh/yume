@@ -136,6 +136,12 @@ static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	# screen_freeze_world / overlay_freeze_world is set (modal/overlay up).
 	# Mirrored so a scripted press while a modal is open doesn't re-fire
 	# the open-rule (empirical 2026-05-17 I-toggle double-open).
+	# ADR 0092: after _step_physics, the runner sits inside a physics frame.
+	# There a scripted press gives no press edge, so a press action never
+	# fired after the first tick of a world with an articulated body. Leave
+	# the physics frame first.
+	if Engine.is_in_physics_frame() and world != null and world.get_tree() != null:
+		await world.get_tree().process_frame
 	Input.action_press(action)
 	if not _is_world_frozen(world):
 		_drive_poll(world)

@@ -87,6 +87,17 @@ CASES = [
                               "motor": {"target_velocity": 1, "max_force": 2}}]}}, 3),
     ("articulated: a link with no joint", {"physics": {**ROVER, "links": {**ROVER["links"], "spare": {}}}}, 1),
     ("links on a rigid body", {"physics": {"body_type": "rigid", "links": {}}}, 1),
+    # ADR 0092 — sensors.
+    ("sensors on a rover", {"id": "r", "physics": ROVER, "sensors": [
+        {"type": "ray", "link": "base", "direction": [0, 0, -1], "range": 3, "report": "front"},
+        {"type": "lidar", "rays": 8, "fov": 3.14, "report": "lidar", "collision_mask": ["wall"]}]}, 0),
+    ("sensor: unknown type, no report", {"id": "r", "sensors": [{"type": "sonar"}]}, 2),
+    ("sensor: rays on a ray, unknown field", {"id": "r", "sensors": [
+        {"type": "ray", "report": "f", "rays": 4, "angle": 1}]}, 2),
+    ("sensor: link without an articulated body", {"id": "r", "sensors": [
+        {"type": "ray", "report": "f", "link": "base"}]}, 1),
+    ("sensor: unknown mask layer", {"id": "r", "sensors": [
+        {"type": "ray", "report": "f", "collision_mask": ["walls"]}]}, 1),
     ("articulated: shape axis", {"physics": {**ROVER, "links": {**ROVER["links"],
                                  "wheel": {"shape": {"type": "cylinder", "axis": "w"}}}}}, 1),
 ]
