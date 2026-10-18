@@ -25,6 +25,8 @@ ADR 0090 (phase 4) closes four vocabularies:
 10. A `physics` block, after `$extends`, uses only the fields in
    `PhysicsBodyBuilder.FIELDS`, a body type from `BODY_TYPES` and layer
    names from `@lib.physics.layers` (or "all").
+11. An articulated `physics` block (ADR 0091) is one tree of links, with
+   joint types, link, joint and motor fields from `ArticulatedBody`.
 
 An asset reference is a string that ends with an extension in
 `content.ASSET_EXTENSIONS`.
@@ -59,7 +61,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from content import (  # noqa: E402
-    AUDIO_CHANNELS, BODY_TYPES, DATA, INTERPRETER_PARAMS, KEY_NAMES, LAYER_NAMES, MOUSE_BUTTONS,
+    AUDIO_CHANNELS, BODY_TYPES, articulation_problems, DATA, INTERPRETER_PARAMS, KEY_NAMES, LAYER_NAMES, MOUSE_BUTTONS,
     PHYSICS_FIELDS, REPO, SHADER_NAMES, asset_file, asset_problem, is_asset, resolver, shader_params,
     unknown_scene_fields,
 )
@@ -160,6 +162,13 @@ def check_vocabularies(f: Path, doc) -> list[str]:
         for k in phys:
             if not str(k).startswith(("_", "$")) and k not in PHYSICS_FIELDS:
                 out.append(f"{where}: physics.{k}: a physics block has no such field (ADR 0090).")
+        if phys.get("body_type") == "articulated":
+            for problem in articulation_problems(phys):
+                out.append(f"{where}: physics.{problem} (ADR 0091).")
+        else:
+            for k in ("root", "links", "joints"):
+                if k in phys:
+                    out.append(f"{where}: physics.{k}: only an articulated body has '{k}' (ADR 0091).")
         if "body_type" in phys and phys["body_type"] not in BODY_TYPES:
             out.append(f"{where}: physics.body_type: '{phys['body_type']}' is not a body type. "
                        f"The types are: {', '.join(BODY_TYPES)} (ADR 0090).")

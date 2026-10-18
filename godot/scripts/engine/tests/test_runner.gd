@@ -110,6 +110,7 @@ func _ready() -> void:
 	test_ground_heightmap_collider()
 	test_query_tag_index()
 	test_spatial_cell_size()
+	await test_articulated_body()
 	expect_eq(QueryLib.index_mismatches, 0, "ADR 0084: no tag index result differed from the full scan")
 	print("\n=== RESULTS ===")
 	print("passed: %d  failed: %d  total: %d" % [pass_count, fail_count, pass_count + fail_count])
@@ -10188,4 +10189,126 @@ func test_spec_vocabularies() -> void:
 			for k in bodies[preset]:
 				expect(str(k).begins_with("_") or str(k) in PhysicsBodyBuilder.FIELDS,
 					"preset '%s' field '%s' is in FIELDS" % [preset, k])
+
+
+## ADR 0091 — articulated bodies. A two-wheel rover with a ball caster
+## drives on a static floor through StepRunner, so the test covers the
+## spawn, the readback, the motor drive and one physics step per tick.
+## The checks are guarantees, not exact host values (ADR 0086).
+const _ROVER_PHYSICS := {
+	"body_type": "articulated",
+	"root": "chassis",
+	"links": {
+		"chassis": {"shape": {"type": "box", "size": [0.3, 0.08, 0.4]}, "mass": 2.0},
+		"wheel_l": {"shape": {"type": "cylinder", "radius": 0.1, "height": 0.04, "axis": "x"}, "mass": 0.3, "friction": 1.0},
+		"wheel_r": {"shape": {"type": "cylinder", "radius": 0.1, "height": 0.04, "axis": "x"}, "mass": 0.3, "friction": 1.0},
+		"caster": {"shape": {"type": "sphere", "radius": 0.05}, "mass": 0.1, "friction": 0.0},
+		"mast": {"shape": {"type": "box", "size": [0.04, 0.2, 0.04]}, "mass": 0.1},
+	},
+	"joints": [
+		{"type": "hinge", "parent": "chassis", "child": "wheel_l", "at": [-0.19, -0.05, -0.1], "axis": [-1, 0, 0],
+			"motor": {"target_velocity": "self.state.left_cmd", "max_torque": 3.0}, "report": "wheel_l"},
+		{"type": "hinge", "parent": "chassis", "child": "wheel_r", "at": [0.19, -0.05, -0.1], "axis": [-1, 0, 0],
+			"motor": {"target_velocity": "self.state.right_cmd", "max_torque": 3.0}, "report": "wheel_r"},
+		{"type": "ball", "parent": "chassis", "child": "caster", "at": [0, -0.1, 0.15]},
+		{"type": "fixed", "parent": "chassis", "child": "mast", "at": [0, 0.14, 0.1]},
+	],
+}
+
+
+func test_articulated_body() -> void:
+	_section("articulated body (ADR 0091)")
+	expect(PhysicsBodyBuilder.BODY_TYPES.has("articulated"), "BODY_TYPES lists articulated")
+	for f in ["root", "links", "joints"]:
+		expect(PhysicsBodyBuilder.FIELDS.has(f), "physics FIELDS lists '%s'" % f)
+	expect_eq(ArticulatedBody.JOINT_TYPES, ["hinge", "ball", "fixed"], "the three joint types")
+	# _check: each defect gives a reason, the rover gives none.
+	expect_eq(ArticulatedBody._check(_ROVER_PHYSICS), "", "the rover is one tree")
+	var bad_root := _ROVER_PHYSICS.duplicate(true)
+	bad_root["root"] = "nope"
+	expect(ArticulatedBody._check(bad_root) != "", "an unknown root is a defect")
+	var two_parents := _ROVER_PHYSICS.duplicate(true)
+	two_parents["joints"].append({"type": "ball", "parent": "wheel_r", "child": "caster"})
+	expect(ArticulatedBody._check(two_parents) != "", "a link with two parents is a defect")
+	var loose := _ROVER_PHYSICS.duplicate(true)
+	loose["links"]["spare"] = {"shape": {"type": "sphere", "radius": 0.1}}
+	expect(ArticulatedBody._check(loose) != "", "a link with no joint to the root is a defect")
+	var slider := _ROVER_PHYSICS.duplicate(true)
+	slider["joints"][0]["type"] = "slider"
+	expect(ArticulatedBody._check(slider) != "", "an unknown joint type is a defect")
+
+	# A world with a floor and one rover.
+	var world := World.new()
+	world.auto_start = false
+	world.verbose = false
+	world.tick_seconds = 1.0 / float(Engine.physics_ticks_per_second)
+	add_child(world)
+	world.set_process(false)
+	world.set_physics_process(false)
+	var defs := {"rover": {"id": "rover", "tags": ["robot"], "state_init": {"left_cmd": 0.0, "right_cmd": 0.0}}}
+	world.scheduler = PhaseScheduler.new({})
+	world.scheduler.env = {
+		"entities": world.entities, "defs": defs, "relations": RelationStore.new(),
+		"spatial_index": SpatialIndex.new(), "world": {}, "parent": world,
+		"next_id": {"_": 0}, "error_buffer": [],
+	}
+	world.world_state = world.scheduler.env["world"]
+	var space: RID = world.get_viewport().find_world_3d().space
+	var floor_body := PhysicsServer3D.body_create()
+	var floor_shape := PhysicsServer3D.box_shape_create()
+	PhysicsServer3D.shape_set_data(floor_shape, Vector3(10, 0.5, 10))
+	PhysicsServer3D.body_set_mode(floor_body, PhysicsServer3D.BODY_MODE_STATIC)
+	PhysicsServer3D.body_add_shape(floor_body, floor_shape)
+	PhysicsServer3D.body_set_state(floor_body, PhysicsServer3D.BODY_STATE_TRANSFORM, Transform3D(Basis(), Vector3(0, -0.5, 0)))
+	PhysicsServer3D.body_set_space(floor_body, space)
+	var rover := Entity.create(defs["rover"], "rover_1", {"position": Vector3(0, 0.15, 0)})
+	world.add_child(rover)
+	world.entities["rover_1"] = rover
+	var ab := ArticulatedBody.build(rover, _ROVER_PHYSICS, space, {})
+	expect(ab != null, "the rover builds")
+	if ab == null:
+		world.queue_free()
+		return
+	world.articulated_bodies["rover_1"] = ab
+	expect_eq(ab._bodies.size(), 4, "the fixed mast merges into the chassis: 4 bodies for 5 links")
+	expect_eq(ab._joints.size(), 3, "two hinges and one ball joint")
+	var mast_offset: Vector3 = ab.poses["mast"].origin - ab.poses["chassis"].origin
+	expect(mast_offset.distance_to(Vector3(0, 0.14, 0.1)) < 0.001, "the mast sits at its 'at' offset")
+
+	# Settle, then both wheels forward: the rover moves toward -Z.
+	await StepRunner.run([{"tick": 20}], world, {"verbose": false})
+	var p0: Vector3 = rover.get_position()
+	rover.state["left_cmd"] = 6.0
+	rover.state["right_cmd"] = 6.0
+	await StepRunner.run([{"tick": 60}], world, {"verbose": false})
+	var p1: Vector3 = rover.get_position()
+	expect_eq(int(world.world_state.get("_tick", 0)), 80, "one tick for each step, 80 in all")
+	expect(p0.z - p1.z > 0.3, "equal forward speeds move the rover toward -Z (moved %.3f m)" % (p0.z - p1.z))
+	expect(absf(p1.x - p0.x) < 0.1, "equal speeds keep it straight (x drift %.3f m)" % (p1.x - p0.x))
+	expect(absf(p1.y - 0.15) < 0.05, "the chassis stays on its wheels (y %.3f)" % p1.y)
+	expect(float(rover.get_state("wheel_l_angle", 0.0)) > 3.0, "the left wheel angle counts whole turns")
+	expect(float(rover.get_state("wheel_r_speed", 0.0)) > 4.0, "the right wheel speed reads back (%.2f rad/s)" % float(rover.get_state("wheel_r_speed", 0.0)))
+	expect(rover.get_state("velocity", Vector3.ZERO) is Vector3, "state.velocity is the root velocity")
+	expect(ab.poses["mast"].origin.distance_to(ab.poses["chassis"] * Vector3(0, 0.14, 0.1)) < 0.001, "the merged mast follows the chassis")
+
+	# Opposite speeds: the rover turns left in place (yaw grows). It turns
+	# about the midpoint of its axle, so the test measures that point.
+	var axle1: Vector3 = (ab.poses["wheel_l"].origin + ab.poses["wheel_r"].origin) * 0.5
+	var yaw0 := float(rover.get_state("yaw", 0.0))
+	rover.state["left_cmd"] = -4.0
+	rover.state["right_cmd"] = 4.0
+	await StepRunner.run([{"tick": 60}], world, {"verbose": false})
+	var axle2: Vector3 = (ab.poses["wheel_l"].origin + ab.poses["wheel_r"].origin) * 0.5
+	var turn_drift := Vector2(axle2.x - axle1.x, axle2.z - axle1.z).length()
+	expect(float(rover.get_state("yaw", 0.0)) - yaw0 > 0.5, "left back and right forward turn it left (yaw +%.2f)" % (float(rover.get_state("yaw", 0.0)) - yaw0))
+	expect(turn_drift < 0.05, "the turn is in place: the axle midpoint moved %.3f m" % turn_drift)
+
+	# Despawn frees every RID.
+	PhysicsBodyBuilder.free_3d(rover)
+	expect(ab.freed and ab._bodies.is_empty() and ab._joints.is_empty(), "free_3d frees the bodies and joints")
+	world.advance_one_tick()
+	expect(world.articulated_bodies.is_empty(), "the next tick drops a freed body from the registry")
+	PhysicsServer3D.free_rid(floor_body)
+	PhysicsServer3D.free_rid(floor_shape)
+	world.queue_free()
 

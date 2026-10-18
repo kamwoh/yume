@@ -38,13 +38,15 @@ class_name PhysicsBodyBuilder
 ## ADR 0090 — the body types of the spec. "kinematic" is the default.
 ## validate_host_neutral.py and gen_api_manifest.py read BODY_TYPES and
 ## FIELDS from this file. A new name needs an ADR.
-const BODY_TYPES: Array = ["static", "kinematic", "rigid", "area", "character"]
+## ADR 0091 adds "articulated" (ArticulatedBody: links and joints).
+const BODY_TYPES: Array = ["static", "kinematic", "rigid", "area", "character", "articulated"]
 
 ## ADR 0090 — the fields of a `physics` block.
 const FIELDS: Array = [
 	"body_type", "collision_shape", "collision_layer", "collision_mask",
 	"mass", "friction", "restitution", "linear_damp", "angular_damp", "gravity_scale",
 	"floor_block_on_wall", "floor_snap_length", "floor_constant_speed", "floor_max_angle_deg",
+	"root", "links", "joints",
 ]
 
 # ============================================================
@@ -248,6 +250,12 @@ static func build_area_3d(entity, phys_cfg: Dictionary, space_rid: RID, layer_ma
 ##   - Node (character — a CharacterBody3D scene node) →
 ##     node.queue_free (Godot frees the body + its shape children)
 static func free_3d(entity) -> void:
+	# ADR 0091 — an articulated body owns several bodies and joints.
+	if entity.has_meta("_articulated"):
+		var ab = entity.get_meta("_articulated")
+		entity.remove_meta("_articulated")
+		if ab is ArticulatedBody:
+			(ab as ArticulatedBody).free_all()
 	# ADR 0070 — areas are RIDs under their own meta (area_* API, not body_*).
 	if entity.has_meta("_physics_area"):
 		var area = entity.get_meta("_physics_area")

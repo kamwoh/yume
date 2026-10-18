@@ -34,6 +34,12 @@ import validate_host_neutral as hn  # noqa: E402
 ASSET_PATH_GD = content.REPO / "godot" / "scripts" / "engine" / "util" / "asset_path.gd"
 SHADER_LIB_GD = content.REPO / "godot" / "scripts" / "engine" / "util" / "shader_lib.gd"
 
+ROVER = {"body_type": "articulated", "root": "base",
+        "links": {"base": {"shape": {"type": "box", "size": [1, 1, 1]}},
+                  "wheel": {"shape": {"type": "cylinder", "radius": 0.1, "height": 0.04, "axis": "x"}}},
+        "joints": [{"type": "hinge", "parent": "base", "child": "wheel", "at": [0.5, 0, 0], "axis": [1, 0, 0],
+                    "motor": {"target_velocity": "self.state.cmd", "max_torque": 2}, "report": "wheel"}]}
+
 CASES = [
     ("relative path that exists", {"mesh": "assets/hero.glb"}, 0),
     ("library path that exists", {"texture": "@lib/textures/grass.png"}, 0),
@@ -70,6 +76,19 @@ CASES = [
     ("unknown layer and raw bits", {"physics": {"body_type": "static", "collision_layer": ["walls"],
                                                 "collision_mask": 6}}, 2),
     ("unknown physics field", {"physics": {"$extends": "@lib.physics.bodies.static_wall", "bounce": 1}}, 1),
+    # ADR 0091 — articulated bodies.
+    ("articulated rover", {"physics": ROVER}, 0),
+    ("articulated: root is not a link", {"physics": {**ROVER, "root": "chassis"}}, 1),
+    ("articulated: unknown joint type and a slider motor",
+     {"physics": {**ROVER, "joints": [{**ROVER["joints"][0], "type": "slider"}]}}, 4),
+    ("articulated: unknown link, joint and motor fields",
+     {"physics": {**ROVER, "links": {**ROVER["links"], "base": {"shape": {"type": "box"}, "color": "red"}},
+                  "joints": [{**ROVER["joints"][0], "spring": 1,
+                              "motor": {"target_velocity": 1, "max_force": 2}}]}}, 3),
+    ("articulated: a link with no joint", {"physics": {**ROVER, "links": {**ROVER["links"], "spare": {}}}}, 1),
+    ("links on a rigid body", {"physics": {"body_type": "rigid", "links": {}}}, 1),
+    ("articulated: shape axis", {"physics": {**ROVER, "links": {**ROVER["links"],
+                                 "wheel": {"shape": {"type": "cylinder", "axis": "w"}}}}}, 1),
 ]
 
 

@@ -1,7 +1,7 @@
 # Yume Engine API Manifest
 
 **Auto-generated** by `tools/gen_api_manifest.py` — do not hand-edit.
-_Generated: 2026-10-18T05:25:21+00:00_
+_Generated: 2026-10-18T09:41:02+00:00_
 _Source: `godot/scripts/engine`_
 
 This manifest is the canonical list of what verbs the engine supports.
@@ -237,15 +237,25 @@ The fields of `scene.json` `lighting` and `render`. A key that starts with `_` i
 
 ### Physics
 
-Body types: `static`, `kinematic`, `rigid`, `area`, `character`. `kinematic` is the default.
+Body types: `static`, `kinematic`, `rigid`, `area`, `character`, `articulated`. `kinematic` is the default.
 
-Fields of a `physics` block: `body_type`, `collision_shape`, `collision_layer`, `collision_mask`, `mass`, `friction`, `restitution`, `linear_damp`, `angular_damp`, `gravity_scale`, `floor_block_on_wall`, `floor_snap_length`, `floor_constant_speed`, `floor_max_angle_deg`
+Fields of a `physics` block: `body_type`, `collision_shape`, `collision_layer`, `collision_mask`, `mass`, `friction`, `restitution`, `linear_damp`, `angular_damp`, `gravity_scale`, `floor_block_on_wall`, `floor_snap_length`, `floor_constant_speed`, `floor_max_angle_deg`, `root`, `links`, `joints`
 
 Collision layer names (`collision_layer`, `collision_mask`, or `"all"`): `world`, `wall`, `floor`, `ceiling`, `player`, `npc`, `enemy`, `animal`, `ally`, `projectile`, `pickup`, `trigger`, `decoration`, `vehicle`, `fluid`, `sensor`
 
+### Articulated bodies (ADR 0091)
+
+A `physics` block with `"body_type": "articulated"` has `root`, `links` and `joints`.
+
+- Joint types: `hinge`, `ball`, `fixed`. Only a `hinge` has `axis`, `limit`, `motor` and `report`.
+- Link fields: `shape`, `mass`, `friction`, `restitution`, `visual`. A link `shape` takes `axis` (`x`, `y` or `z`) and `offset`.
+- Joint fields: `type`, `parent`, `child`, `at`, `axis`, `limit`, `motor`, `report`
+- Motor fields: `target_velocity`, `max_torque`. `target_velocity` is a formula in radians per second, and `max_torque` is in N·m.
+- Readback: the root writes `state.position`, `state.yaw` and `state.velocity`. A hinge with `report: "x"` writes `state.x_angle` and `state.x_speed`.
+
 ## Error codes (Tier 2.6a)
 
-46 stable codes for matching in retry loops:
+47 stable codes for matching in retry loops:
 
 | Code | Constant |
 |---|---|
@@ -276,6 +286,7 @@ Collision layer names (`collision_layer`, `collision_mask`, or `"all"`): `world`
 | `scene.unknown_field` | `EngineError.SCENE_UNKNOWN_FIELD` |
 | `physics.unknown_body_type` | `EngineError.PHYSICS_UNKNOWN_BODY_TYPE` |
 | `physics.unknown_layer` | `EngineError.PHYSICS_UNKNOWN_LAYER` |
+| `physics.bad_articulation` | `EngineError.PHYSICS_BAD_ARTICULATION` |
 | `world.entities_missing` | `EngineError.WORLD_ENTITIES_MISSING` |
 | `world.entities_invalid_json` | `EngineError.WORLD_ENTITIES_INVALID` |
 | `world.def_unknown` | `EngineError.WORLD_DEF_UNKNOWN` |

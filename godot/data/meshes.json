@@ -1226,6 +1226,35 @@
         }
       ],
       "params": {"albedo": "#f4f2ea", "glow": "#fff6e0"}
+    },
+    "rover_chassis_3d": {
+      "_comment": "ADR 0091 rover chassis link (0.3 x 0.08 x 0.4 m). Link frame: origin at the box center, forward is -Z. A lidar puck sits on top, and a lit sensor strip is at the front.",
+      "primitives": [
+        {"op": "box", "pos": [0, 0, 0], "size": [0.3, 0.08, 0.4], "color": "$body"},
+        {"op": "box", "pos": [0, 0.05, 0.02], "size": [0.24, 0.02, 0.3], "color": "$deck"},
+        {"op": "box", "pos": [0, 0.005, -0.201], "size": [0.2, 0.025, 0.01], "color": "$sensor", "emission": "$sensor", "emission_energy": 1.5},
+        {"op": "cylinder", "pos": [0, 0.085, -0.06], "radius": 0.045, "height": 0.05, "color": "$deck"},
+        {"op": "cylinder", "pos": [0, 0.115, -0.06], "radius": 0.035, "height": 0.012, "color": "$sensor", "emission": "$sensor", "emission_energy": 0.8}
+      ],
+      "params": {"body": "#e8eef5", "deck": "#2b2f36", "sensor": "#35d0ff"}
+    },
+    "rover_wheel_3d": {
+      "_comment": "ADR 0091 rover wheel link (radius 0.1, width 0.04). The axle is the X axis. A light spoke across the hub makes the turn visible.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0, 0], "rotation_deg": [0, 0, 90], "radius": 0.1, "height": 0.04, "color": "$tire"},
+        {"op": "cylinder", "pos": [0, 0, 0], "rotation_deg": [0, 0, 90], "radius": 0.05, "height": 0.044, "color": "$hub"},
+        {"op": "box", "pos": [0, 0, 0], "size": [0.046, 0.17, 0.024], "color": "$spoke"}
+      ],
+      "params": {"tire": "#1d1f24", "hub": "#8d96a3", "spoke": "#ffb340"}
+    },
+    "rover_beacon_3d": {
+      "_comment": "ADR 0091 demo beacon: a base pad, a post and a lit lamp, about 0.6 m tall.",
+      "primitives": [
+        {"op": "cylinder", "pos": [0, 0.01, 0], "radius": 0.3, "height": 0.02, "color": "$glow", "emission": "$glow", "emission_energy": 0.6},
+        {"op": "cylinder", "pos": [0, 0.27, 0], "radius": 0.025, "height": 0.5, "color": "#c9ced6"},
+        {"op": "sphere", "pos": [0, 0.56, 0], "radius": 0.07, "color": "$glow", "emission": "$glow", "emission_energy": 2.0}
+      ],
+      "params": {"glow": "#3adb40"}
     }
   }
 }

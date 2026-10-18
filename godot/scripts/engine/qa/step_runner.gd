@@ -67,11 +67,11 @@ static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
 			"release":
 				_do_release(step, world, ctx)
 			"click":
-				_do_click(step, world, ctx)
+				await _do_click(step, world, ctx)
 			"wait":
-				_do_wait(step, world, ctx)
+				await _do_wait(step, world, ctx)
 			"tick":
-				_do_tick(step, world, ctx)
+				await _do_tick(step, world, ctx)
 			"screenshot":
 				await _do_screenshot(step, world, ctx)
 			"expect":
@@ -86,6 +86,10 @@ static func run(steps: Array, world: World, ctx: Dictionary = {}) -> Dictionary:
 					{"step": step}
 				)
 
+	# ADR 0091: _step_physics pauses the physics server between ticks.
+	# Give it back to the next world in the same process.
+	if world != null and not world.articulated_bodies.is_empty():
+		PhysicsServer3D.set_active(true)
 	# Auto-release any still-held actions at end of scenario.
 	for action in ctx["held"]:
 		Input.action_release(str(action))
@@ -136,7 +140,7 @@ static func _do_press(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	if not _is_world_frozen(world):
 		_drive_poll(world)
 		world.record_trajectory_action(action)
-	_advance(world)
+	await _advance(world)
 	# Mirror the live-frame screen_flow tick BEFORE releasing so any
 	# frame-driven observer (ScreenFlow._handle_global_inputs, GameShell
 	# HUD bindings) sees the "pressed" state — the close-toggle path lives
@@ -208,7 +212,7 @@ static func _do_hold(step: Dictionary, world: World, _ctx: Dictionary):
 			_drive_poll(world)
 			for action in actions:
 				world.record_trajectory_action(action)
-		_advance(world)
+		await _advance(world)
 	# Mirror live-frame screen_flow tick BEFORE release for screen-toggle
 	# observability (see _do_press). Live play always has ≥1 frame of
 	# "actually pressed" before release; this re-creates that signal.
@@ -262,6 +266,7 @@ static func _advance(world: World) -> void:
 	# manually via tick_headless. Non-character entities don't move
 	# (use body_type:"character" to opt in).
 	_tick_character_bodies(world)
+	await _step_physics(world)
 	# ADR 0060 de-legacy (2026-05-31): drain the pending pipelines GameShell
 	# drives per-frame in live play (game_shell.gd:208-213) — level transitions,
 	# save/load, world reset. The scenario path doesn't mount GameShell, so
@@ -274,6 +279,24 @@ static func _advance(world: World) -> void:
 		world._save_load.process_pending(world.scheduler.env)
 	if world._world_reset != null:
 		world._world_reset.process_pending(world.scheduler.env)
+
+
+## ADR 0091 — a world with an articulated body steps the physics server
+## exactly once per tick, as live play does (one tick per physics step).
+## GDScript cannot step the server by hand, so the runner pauses it
+## between ticks and lets one real physics frame run. Other worlds keep
+## the synchronous path. A coroutine resumed by physics_frame runs before
+## that frame's step, so the step after the second await is the only one.
+static func _step_physics(world: World) -> void:
+	if world == null or world.articulated_bodies.is_empty() or world.get_tree() == null:
+		return
+	var tree := world.get_tree()
+	if not Engine.is_in_physics_frame():
+		PhysicsServer3D.set_active(false)
+		await tree.physics_frame
+	PhysicsServer3D.set_active(true)
+	await tree.physics_frame
+	PhysicsServer3D.set_active(false)
 
 
 # Mirror what live-play frames do for the UI directors:
@@ -471,7 +494,7 @@ static func _do_click(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 	if screen_flow != null and screen_flow.has_method("drain"):
 		screen_flow.drain()
 	# One tick lets any rule-side effects (state_set, signal emit) propagate.
-	_advance(world)
+	await _advance(world)
 
 
 static func _do_wait(step: Dictionary, world: World, _ctx: Dictionary) -> void:
@@ -495,7 +518,7 @@ static func _do_wait(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 		)
 		return
 	for i in range(ticks):
-		_advance(world)
+		await _advance(world)
 	# Mirror live-frame screen_flow tick at end of wait so any pending
 	# transition_screen events from upstream rule effects get drained
 	# before the next scripted step reads world.current_screen. Without
@@ -512,7 +535,7 @@ static func _do_tick(step: Dictionary, world: World, _ctx: Dictionary) -> void:
 		)
 		return
 	for i in range(n):
-		_advance(world)
+		await _advance(world)
 	# Same drain `wait` does, and for the same reason — a step that advances the
 	# simulation must also settle the screen layer, or a scenario reads a UI
 	# frozen at whatever state it was in before the rules ran.

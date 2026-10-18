@@ -41,6 +41,9 @@ var _animation_director: AnimationDirector = null
 # Cached mesh library
 static var _mesh_lib_cache: MeshLib = null
 
+# ADR 0091 — link name → top-level Node3D for an articulated body.
+var _link_nodes: Dictionary = {}
+
 
 func _ready() -> void:
 	var ent := get_parent() as Entity
@@ -604,6 +607,14 @@ func _set_shadow_only_recursive(node: Node) -> void:
 
 
 func _process(_dt: float) -> void:
+	# ADR 0091 — an articulated body draws one node for each link. The
+	# body is built after this renderer, so the links mount on the first
+	# frame that sees the meta.
+	if _entity_ref != null and _entity_ref.has_meta("_link_render"):
+		if _link_nodes.is_empty():
+			_mount_links()
+		_sync_links()
+		return
 	_sync_position()
 	_sync_yaw()
 	_sync_scale()
@@ -611,6 +622,82 @@ func _process(_dt: float) -> void:
 	# ADR 0035 — animate addressable mesh pieces per-frame.
 	if _animation_director != null:
 		_animation_director.tick(Time.get_ticks_msec() / 1000.0)
+
+
+# ============================================================
+# ADR 0091 — articulated links
+# ============================================================
+
+
+## Replace the single-entity visual with one node per link. A link visual
+## names a mesh-library mesh, or gives a color to draw the link shape.
+func _mount_links() -> void:
+	for child in get_children():
+		if not (child is AnimationPlayer):
+			child.queue_free()
+	var specs: Dictionary = _entity_ref.get_meta("_link_render")
+	for link_name in specs:
+		var spec: Dictionary = specs[link_name]
+		var node := Node3D.new()
+		node.name = "link_" + str(link_name)
+		node.top_level = true
+		var visual: Dictionary = spec.get("visual", {})
+		var mesh_name := str(visual.get("mesh", ""))
+		var lib := _get_mesh_lib()
+		if mesh_name != "" and lib.has(mesh_name):
+			var mesh_def := lib.get_mesh(mesh_name)
+			MeshLib.build_primitives_into(
+				node, mesh_def.get("primitives", []),
+				MeshLib.merge_params(mesh_def, visual.get("params", {}) as Dictionary),
+				bool(mesh_def.get("cast_shadow", true))
+			)
+		else:
+			var mi := _shape_mesh(spec.get("shape", {}))
+			if mi != null:
+				mi.material_override = _make_material(_parse_color(visual.get("color", fallback_color)))
+				node.add_child(mi)
+		add_child(node)
+		_link_nodes[link_name] = node
+	_mode = "articulated"
+
+
+func _sync_links() -> void:
+	var poses: Dictionary = _entity_ref.get_meta("_link_poses", {})
+	for link_name in _link_nodes:
+		if poses.has(link_name):
+			var t: Transform3D = poses[link_name]
+			t.origin *= position_scale
+			(_link_nodes[link_name] as Node3D).global_transform = t
+
+
+## A MeshInstance3D that matches a link collision shape.
+func _shape_mesh(shape_cfg: Dictionary) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	match str(shape_cfg.get("type", "box")):
+		"box":
+			var m := BoxMesh.new()
+			m.size = _to_vec3(shape_cfg.get("size", [1, 1, 1]))
+			mi.mesh = m
+		"sphere":
+			var m := SphereMesh.new()
+			m.radius = float(shape_cfg.get("radius", 0.5))
+			m.height = m.radius * 2.0
+			mi.mesh = m
+		"cylinder":
+			var m := CylinderMesh.new()
+			m.top_radius = float(shape_cfg.get("radius", 0.4))
+			m.bottom_radius = m.top_radius
+			m.height = float(shape_cfg.get("height", 1.0))
+			mi.mesh = m
+		"capsule":
+			var m := CapsuleMesh.new()
+			m.radius = float(shape_cfg.get("radius", 0.4))
+			m.height = float(shape_cfg.get("height", 1.0))
+			mi.mesh = m
+		_:
+			return null
+	mi.transform = ArticulatedBody.shape_transform(shape_cfg)
+	return mi
 
 
 # ============================================================

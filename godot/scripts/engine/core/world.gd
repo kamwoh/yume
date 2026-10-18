@@ -77,6 +77,7 @@ var world_state: Dictionary = {}
 var next_id_seq: Dictionary = {"_": 0}  # shared spawn-id counter
 var error_buffer: Array = []  # Tier 2.6a structured errors
 var _overlap_events: Array = []  # ADR 0070 — area overlap event buffer
+var articulated_bodies: Dictionary = {}  # ADR 0091 — instance_id → ArticulatedBody
 var save_policy: Dictionary = {}  # ADR 0010 — empty = no persistence
 
 var relations: RelationStore = null  # primitive #7
@@ -503,9 +504,11 @@ func advance_one_tick() -> void:
 	# magnitudes. Empirical case 2026-05-16.
 	_tick_count += 1
 	world_state["_tick"] = _tick_count
+	_read_back_articulated()  # ADR 0091 — body poses → state, before rules
 	if actor_manager != null:
 		actor_manager.tick_policies(scheduler.env)  # ADR 0018 — AI before input
 	scheduler.tick()  # canonical phase loop (lifetime decay via ADR 0049 rules)
+	_drive_articulated()  # ADR 0091 — motor targets, after rules
 	_tick_lifecycle_director()  # ADR 0036
 	_stream_chunks_if_active()  # ADR 0014
 	if actor_manager != null:
@@ -519,6 +522,25 @@ func advance_one_tick() -> void:
 	if _trajectory_file != null:
 		_write_trajectory_row()
 	write_hash_log_row()  # ADR 0060 (no-op unless --hash-log)
+
+
+## ADR 0091 — each articulated body writes its root pose and reported
+## joints to state. A freed body leaves the registry here.
+func _read_back_articulated() -> void:
+	if articulated_bodies.is_empty():
+		return
+	for id in articulated_bodies.keys():
+		var ab: ArticulatedBody = articulated_bodies[id]
+		if ab.freed or not is_instance_valid(ab.entity):
+			articulated_bodies.erase(id)
+			continue
+		ab.read_back()
+
+
+## ADR 0091 — each motor reads its target formula after the rules ran.
+func _drive_articulated() -> void:
+	for id in articulated_bodies:
+		(articulated_bodies[id] as ArticulatedBody).drive(world_state, scheduler.env)
 
 
 ## ADR 0060 — append one {tick, hash, ents} row for the just-completed tick.

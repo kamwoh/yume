@@ -129,7 +129,66 @@ SCENE_HOST_HINTS = _gd_strings(_LIGHTING, "HOST_HINTS")
 _PHYSICS = _gd("coordinators/physics_body_builder.gd")
 BODY_TYPES = _gd_strings(_PHYSICS, "BODY_TYPES")
 PHYSICS_FIELDS = _gd_strings(_PHYSICS, "FIELDS")
+_ARTICULATED = _gd("coordinators/articulated_body.gd")
+JOINT_TYPES = _gd_strings(_ARTICULATED, "JOINT_TYPES")
+LINK_FIELDS = _gd_strings(_ARTICULATED, "LINK_FIELDS")
+JOINT_FIELDS = _gd_strings(_ARTICULATED, "JOINT_FIELDS")
+MOTOR_FIELDS = _gd_strings(_ARTICULATED, "MOTOR_FIELDS")
+SHAPE_AXES = _gd_strings(_ARTICULATED, "SHAPE_AXES")
 LAYER_NAMES = tuple(json.loads((DATA / "lib" / "physics" / "layers.json").read_text(encoding="utf-8"))["layers"])
+
+
+def articulation_problems(phys: dict) -> list[str]:
+    """Port of ArticulatedBody._check plus the ADR 0091 field lists: the
+    problems of an articulated `physics` block, as "field: problem"."""
+    links = phys.get("links")
+    if not isinstance(links, dict) or not links:
+        return ["links: an articulated body needs a 'links' object"]
+    out = []
+    root = phys.get("root")
+    if root not in links:
+        out.append(f"root: '{root}' is not a link")
+    for name, link in links.items():
+        if not isinstance(link, dict):
+            out.append(f"links.{name}: a link is an object")
+            continue
+        out += [f"links.{name}.{k}: a link has no such field" for k in link
+                if not str(k).startswith("_") and k not in LINK_FIELDS]
+        shape = link.get("shape", {})
+        if isinstance(shape, dict) and shape.get("axis", "y") not in SHAPE_AXES:
+            out.append(f"links.{name}.shape.axis: '{shape['axis']}' is not one of {', '.join(SHAPE_AXES)}")
+    parent_of: dict = {}
+    for i, j in enumerate(phys.get("joints", [])):
+        where = f"joints[{i}]"
+        if not isinstance(j, dict):
+            out.append(f"{where}: a joint is an object")
+            continue
+        out += [f"{where}.{k}: a joint has no such field" for k in j
+                if not str(k).startswith("_") and k not in JOINT_FIELDS]
+        jt = j.get("type")
+        if jt not in JOINT_TYPES:
+            out.append(f"{where}.type: '{jt}' is not a joint type. The types are: {', '.join(JOINT_TYPES)}")
+        for k in ("axis", "limit", "motor", "report"):
+            if k in j and jt != "hinge":
+                out.append(f"{where}.{k}: only a hinge joint has '{k}'")
+        if isinstance(j.get("motor"), dict):
+            out += [f"{where}.motor.{k}: a motor has no such field" for k in j["motor"]
+                    if not str(k).startswith("_") and k not in MOTOR_FIELDS]
+        p, c = j.get("parent"), j.get("child")
+        if p not in links or c not in links:
+            out.append(f"{where}: parent '{p}' and child '{c}' must both be links")
+        elif c == root or c in parent_of:
+            out.append(f"{where}: link '{c}' has more than one parent")
+        else:
+            parent_of[c] = p
+    for name in links:
+        seen, cur = set(), name
+        while cur != root and cur in parent_of and cur not in seen:
+            seen.add(cur)
+            cur = parent_of[cur]
+        if cur != root and root in links:
+            out.append(f"links.{name}: the link does not connect to the root")
+    return out
 
 
 def unknown_scene_fields(scene: dict) -> list[str]:

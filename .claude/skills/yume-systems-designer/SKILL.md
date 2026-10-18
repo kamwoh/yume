@@ -337,6 +337,29 @@ scenario tests and `--capture-input` runs generate ZERO overlap
 events (yume-qa-tester § overlap). Don't read "overlap rule never
 fired in scenarios" as a bug; don't gate progression on it either.
 
+## Articulated bodies — robots and vehicles with joints (ADR 0091, 2026-10-18)
+
+For a robot, a vehicle on real wheels or an arm, use one entity with
+`"body_type": "articulated"`. The contract doc §Physics and the api
+manifest §Articulated bodies list the fields.
+
+- **Command through state.** A motor reads a formula, for example
+  `"target_velocity": "self.state.left_cmd"`. Rules write the command
+  with `state_set`. There is no motor effect.
+- **Mix in a tick rule.** Input rules set `throttle` or `steer` for
+  this tick. One `tick` rule computes the wheel commands from them,
+  then sets them back to 0. Input runs before tick rules, so a released
+  key stops the robot. `demo_rover/world/rules/10_drive.json` is the
+  reference.
+- **Read, do not write, the pose.** `state.position`, `state.yaw` and
+  `state.velocity` are readback. A rule that writes `state.position`
+  does not move the body.
+- **Forward is -Z.** A wheel that turns about `[-1, 0, 0]` with a
+  positive command drives toward -Z (forward at yaw 0).
+- **Test with margins.** Motion is host-defined. Check "moved more than
+  0.4 m" or "yaw grew by more than 0.8", never an exact value. Such a
+  scenario runs in real time.
+
 ## `show_toast` text is literal — one rule per variant (2026-06-11)
 
 `show_toast` does NOT formula-interpolate its text (deliberate; full

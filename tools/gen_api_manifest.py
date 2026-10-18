@@ -712,6 +712,10 @@ def parse_vocabularies() -> dict:
         "body_types": list(content.BODY_TYPES),
         "physics_fields": list(content.PHYSICS_FIELDS),
         "collision_layers": list(content.LAYER_NAMES),
+        "joint_types": list(content.JOINT_TYPES),
+        "link_fields": list(content.LINK_FIELDS),
+        "joint_fields": list(content.JOINT_FIELDS),
+        "motor_fields": list(content.MOTOR_FIELDS),
     }
 
 
@@ -989,6 +993,16 @@ def render_markdown(m: Manifest) -> str:
         "Fields of a `physics` block: " + ", ".join(f"`{k}`" for k in m.vocabularies["physics_fields"]),
         "",
         "Collision layer names (`collision_layer`, `collision_mask`, or `\"all\"`): " + ", ".join(f"`{k}`" for k in m.vocabularies["collision_layers"]),
+        "",
+        "### Articulated bodies (ADR 0091)",
+        "",
+        "A `physics` block with `\"body_type\": \"articulated\"` has `root`, `links` and `joints`.",
+        "",
+        "- Joint types: " + ", ".join(f"`{k}`" for k in m.vocabularies["joint_types"]) + ". Only a `hinge` has `axis`, `limit`, `motor` and `report`.",
+        "- Link fields: " + ", ".join(f"`{k}`" for k in m.vocabularies["link_fields"]) + ". A link `shape` takes `axis` (`x`, `y` or `z`) and `offset`.",
+        "- Joint fields: " + ", ".join(f"`{k}`" for k in m.vocabularies["joint_fields"]),
+        "- Motor fields: " + ", ".join(f"`{k}`" for k in m.vocabularies["motor_fields"]) + ". `target_velocity` is a formula in radians per second, and `max_torque` is in N·m.",
+        "- Readback: the root writes `state.position`, `state.yaw` and `state.velocity`. A hinge with `report: \"x\"` writes `state.x_angle` and `state.x_speed`.",
         "",
         "## Error codes (Tier 2.6a)",
         "",

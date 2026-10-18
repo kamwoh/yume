@@ -309,6 +309,13 @@ func _build_physics_body_if_declared(ent: Entity) -> void:
 	var body_type := str(phys_cfg.get("body_type", ""))
 	if body_type == "character":
 		PhysicsBodyBuilder.build_character_3d(ent, phys_cfg, layer_map)
+	elif body_type == "articulated":
+		# ADR 0091 — links and joints. World reads back and drives it
+		# once per tick.
+		var ab := ArticulatedBody.build(ent, phys_cfg, space, layer_map, _world.scheduler.env if _world.scheduler != null else {})
+		if ab != null:
+			_world.articulated_bodies[ent.instance_id] = ab
+		return
 	elif body_type == "area":
 		# ADR 0070 — trigger volume: World owns the monitor callback so
 		# overlap events land in env.overlap_events for the react phase.

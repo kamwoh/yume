@@ -1,6 +1,6 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-10-18 (ADR 0086 phase 5: three layers, two behavior classes)_
+_Last updated: 2026-10-18 (ADR 0091: articulated bodies)_
 
 ## Purpose
 
@@ -719,6 +719,7 @@ without the block has no body. `body_type` is one of these:
 | `character` | It moves by `state.velocity` and slides along what blocks it. Its position writes back to `state.position` each tick. `floor_*` fields tune how it walks on slopes. |
 | `area` | It never blocks. It reports an overlap with each body that its mask includes. |
 | `rigid` | The host simulates it. Its position does not write back to state, so it is host-defined and outside the conformance tests. `mass`, `friction`, `restitution`, `linear_damp`, `angular_damp` and `gravity_scale` tune it. |
+| `articulated` | Links joined by joints, in one entity (ADR 0091). The host simulates it. The root pose and each reported joint write back to state each tick. |
 
 - `collision_layer` lists the layers that the body is on.
   `collision_mask` lists the layers that it reacts to. Each is `"all"`
@@ -727,6 +728,31 @@ without the block has no body. `body_type` is one of these:
 - Numeric results (exact contact points, slide angles) are
   host-defined.
 - Error codes: `physics.unknown_body_type`, `physics.unknown_layer`.
+
+**Articulated bodies (ADR 0091).** An `articulated` block has `root`,
+`links` and `joints`. The links form one tree, and the links of one
+body never collide with each other.
+
+- A link has `shape`, `mass`, `friction`, `restitution` and `visual`.
+  A link `shape` takes `axis` (`x`, `y` or `z`) and `offset`.
+- Each link frame has the orientation of the root at spawn. A joint
+  `at` places the child origin in the parent frame. The joint anchor is
+  that origin.
+- Joint types: `hinge` (turns about `axis` only, `limit` in radians),
+  `ball` (turns freely) and `fixed` (no motion).
+- A positive hinge angle or velocity follows the right-hand rule.
+- `motor.target_velocity` is a formula (`self`, `world`) in radians per
+  second. The engine reads it after the rules of each tick.
+  `motor.max_torque` is in N·m.
+- Readback, before the rules of each tick: the root writes
+  `state.position`, `state.yaw` and `state.velocity`. A hinge with
+  `report: "x"` writes `state.x_angle` (not wrapped) and
+  `state.x_speed`.
+- The motion is host-defined. A conformance test checks a guarantee
+  with a margin. Equal wheel speeds drive straight. Opposite speeds
+  turn in place. A zero target stops the wheel.
+- A rule that writes `state.position` does not move the body.
+- Error code: `physics.bad_articulation`.
 
 ---
 

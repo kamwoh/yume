@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "generated_at": "2026-10-18T05:25:21+00:00",
+  "generated_at": "2026-10-18T09:41:02+00:00",
   "generated_from": "godot/scripts/engine",
   "primitives": [
     "Entity",
@@ -672,6 +672,10 @@
     {
       "constant": "PHYSICS_UNKNOWN_LAYER",
       "code": "physics.unknown_layer"
+    },
+    {
+      "constant": "PHYSICS_BAD_ARTICULATION",
+      "code": "physics.bad_articulation"
     },
     {
       "constant": "WORLD_ENTITIES_MISSING",
@@ -1437,7 +1441,8 @@
       "kinematic",
       "rigid",
       "area",
-      "character"
+      "character",
+      "articulated"
     ],
     "physics_fields": [
       "body_type",
@@ -1453,7 +1458,10 @@
       "floor_block_on_wall",
       "floor_snap_length",
       "floor_constant_speed",
-      "floor_max_angle_deg"
+      "floor_max_angle_deg",
+      "root",
+      "links",
+      "joints"
     ],
     "collision_layers": [
       "world",
@@ -1472,6 +1480,32 @@
       "vehicle",
       "fluid",
       "sensor"
+    ],
+    "joint_types": [
+      "hinge",
+      "ball",
+      "fixed"
+    ],
+    "link_fields": [
+      "shape",
+      "mass",
+      "friction",
+      "restitution",
+      "visual"
+    ],
+    "joint_fields": [
+      "type",
+      "parent",
+      "child",
+      "at",
+      "axis",
+      "limit",
+      "motor",
+      "report"
+    ],
+    "motor_fields": [
+      "target_velocity",
+      "max_torque"
     ]
   },
   "reserved_state_fields": [

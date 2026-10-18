@@ -66,6 +66,11 @@ Four lists are closed. The api manifest (§Spec vocabularies) prints them.
   `<uniform>_day` / `_night` fields override them.
 - Physics: `body_type` from `BODY_TYPES`. Layers are names from
   `@lib.physics.layers` or `"all"`, never bit numbers.
+- Articulated bodies (ADR 0091): `root`, `links` and `joints` belong
+  only to `"body_type": "articulated"`. The links form one tree. Only a
+  `hinge` has `axis`, `limit`, `motor` and `report`. The motor field is
+  `max_torque`, not `max_force`. Check 11 of `validate_host_neutral.py`
+  enforces this.
 
 Gates: `validate_host_neutral.py` checks 7 to 10, and the engine
 reports `input.unknown_key`, `audio.unknown_channel`,

@@ -303,7 +303,7 @@ func snapshot() -> Dictionary:
 ## server's allocation table — empirical case 2026-05-12: Aldenmere boot
 ## reported 102 leaked P11GodotBody3D allocations at exit.
 func _exit_tree() -> void:
-	if has_meta("_physics_body"):
+	if has_meta("_physics_body") or has_meta("_articulated"):
 		PhysicsBodyBuilder.free_3d(self)
 
 
