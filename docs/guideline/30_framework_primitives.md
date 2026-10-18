@@ -1,13 +1,15 @@
 # Yume Framework — Universal Primitives
 
-_Last updated: 2026-10-18 (ADR 0090: spec vocabularies)_
+_Last updated: 2026-10-18 (ADR 0086 phase 5: three layers, two behavior classes)_
 
 ## Purpose
 
-This is the contract the engine is built against. It defines **seven primitives**
-such that any simulation-shaped game (ecology, farming, shooter, RPG, survival,
-tower-defense, roguelike, puzzle-with-state, chess) can be expressed as JSON
-config over a single GDScript engine. No genre-specific engine code.
+This is the Yume spec: the contract that every interpreter implements. It
+defines **seven primitives** such that any simulation-shaped game (ecology,
+farming, shooter, RPG, survival, tower-defense, roguelike, puzzle-with-state,
+chess) can be expressed as JSON. The Godot interpreter in
+`godot/scripts/engine/` is the reference implementation (ADR 0086). No
+genre-specific interpreter code.
 
 > **Authoring note (2026-05-17, ADR 0051):** JSON remains canonical
 > — the engine reads it authoritatively. As of 2026-05-17 there are
@@ -28,30 +30,81 @@ config over a single GDScript engine. No genre-specific engine code.
 > Both are emitters of canonical JSON / asset files; the engine
 > never sees Python. Hand-authoring keeps working unchanged.
 
-## Architectural framing (2026-05-06, codified in ADR 0021)
+## Architectural framing (ADR 0086, 2026-10-18)
 
-Yume is **the JSON layer over Godot + external capabilities**.
+Yume is a **host-neutral JSON spec**. Godot runs it today, but a game
+depends on the spec, not on Godot.
 
-- **Game content**: pure JSON. Entities, rules, layouts, physics
-  scenes, animations, behaviors, narrative, economy, dialog —
-  everything game-specific.
-- **Yume engine** (GDScript): interpreters that read JSON and
-  dispatch to Godot or external tools.
-- **Godot platform**: physics, rendering, audio, input, animation,
-  pathfinding, scene graph. Yume EXPOSES these capabilities through
-  JSON-declarative primitives; never reimplements them.
-- **External tools** (via IPC, ADR 0020 pattern): LLMs, RL agents,
-  specialized solvers, ML models. Yume orchestrates; never bundles.
+### Three layers
 
-Adding a capability = ADR exposing one Godot subsystem (or external
-tool) through JSON. The vocabulary grows reactively; compositions
-stay in JSON.
+| Layer | Owns | Today |
+|---|---|---|
+| **Spec** | The JSON format and what each field means. This document is its contract. | `world/rules/*.json`, `scene.json`, `screens.json`, `tests.json` |
+| **Interpreter** | Reads the spec and drives one host. | `godot/scripts/engine/*.gd` (the reference interpreter) |
+| **Host** | Rendering, physics, audio, input, UI. | Godot 4.6.1 |
 
-**Yume engine never reimplements what Godot or specialized tools
-already do.** This generalizes Invariant #8 — primitives can be
-"expose Godot capability X" rather than "implement X from scratch."
+- **Game content** is pure spec JSON: entities, rules, layouts,
+  physics, animation, narrative, economy, dialog. Authors write only
+  JSON.
+- **An interpreter** exposes its host's capabilities through the spec.
+  ADR 0021 still applies inside each interpreter: expose the host's
+  physics, UI and audio, and never reimplement them.
+- **External tools** (via IPC, ADR 0020 pattern) such as LLMs, RL agents
+  and solvers stay outside the spec. The interpreter orchestrates them.
+- Where the spec is silent, the Godot interpreter's behavior is the
+  answer for now. `docs/engine-reference/host-coupling-audit.md` lists
+  each such case until the spec defines it.
 
-See ADR 0021 for the full architectural commitment.
+### The spec names no host (ADR 0086 rule 3)
+
+A spec field must not contain:
+
+- a Godot class, node, property or enum name,
+- a `res://` or `user://` path (asset paths: ADR 0087),
+- a Godot-only file format: `.gdshader`, `.tres` or `.tscn` (ADR 0089).
+
+Each field describes intent in host-free words. A closed list in the
+spec replaces each host table:
+
+- the formula functions (ADR 0088),
+- the named shaders (ADR 0089),
+- the key names, audio channels, lighting fields and physics names
+  (ADR 0090, §Spec vocabularies).
+
+`validate_host_neutral.py` enforces this rule.
+
+### Two behavior classes
+
+Each behavior is either exact or host-defined.
+
+| Class | Behaviors | What every interpreter must do |
+|---|---|---|
+| **Exact** | Rule order, effect order, the tick phases (§Tick ordering), queries, formulas, state, relations, the calendar clock, UI structure and screen flow. | Give the same result from the same input. |
+| **Host-defined** | Physics results, pathfinding routes, rendering, shader output, audio mixing. | Honor the inputs and the stated guarantees. The exact numbers belong to the host. |
+
+A guarantee is a sentence in this document that a host-defined behavior
+must keep. Two examples:
+
+- A `static` body never moves, and it blocks each body whose mask
+  includes its layer (§Spec vocabularies).
+- Each shader parameter changes the look in the direction its name
+  says (§Shaders).
+
+### Conformance
+
+`tests.json` scenarios are the conformance suite. They use only neutral
+steps (`press <action>`, `tick N`, `expect` on entity fields). Every
+interpreter must pass them. Two rules keep them portable:
+
+- A new step verb must be neutral, by rule 3.
+- A test must not assert an exact value of a host-defined behavior. It
+  asserts the guarantee instead, for example "the bullet stopped at the
+  wall", not "the bullet stopped at x = 4.73".
+
+Two questions stay open (ADR 0086):
+
+- Does the spec define one seeded random generator for conformance?
+- Does body motion have an exact place in the phase order of a tick?
 
 **Invariants** — non-negotiable design constraints:
 

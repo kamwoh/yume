@@ -132,6 +132,19 @@ Each phase gets its own ADR or revision when it changes a schema.
    to state the three layers and the two behavior classes. This ADR
    authorizes that change.
 
+### Phase status (2026-10-18)
+
+| Phase | ADR | Status |
+|---|---|---|
+| 1. Asset references | 0087 | done |
+| 2. Formula language | 0088 | done |
+| 3. Shaders | 0089 | done |
+| 4. Vocabularies | 0090 | done |
+| 5. Contract document | this ADR | done: §Architectural framing in `30_framework_primitives.md` |
+
+Open questions 1 and 2 stay open. The answer to question 3 is "the
+relative path is enough" (ADR 0087).
+
 ## Consequences
 
 **Enables:**

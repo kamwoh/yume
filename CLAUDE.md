@@ -95,11 +95,18 @@ fixed vocabulary in GDScript; all game-specific behavior lives in JSON.
 6. **Query** — entities matching tags + state + radius + relations
 7. **Relation** — typed directed edge between entities
 
-**ADR 0021** (foundational): Yume = JSON layer over Godot. Engine never
-reimplements what Godot already does well — it EXPOSES Godot's
-capabilities through JSON-declarative primitives. Each new capability
-is a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR
-0010 for FileAccess+JSON, future ADR 0022 for PhysicsServer3D).
+**ADR 0086** (foundational): Yume is a host-neutral JSON spec, and the
+Godot engine is its reference interpreter. A spec field never names a
+Godot class, a `res://` path or a Godot file format. Each behavior is
+exact (rules, queries, formulas, state) or host-defined (physics,
+rendering, audio). The contract doc §Architectural framing states the
+three layers and the two classes.
+
+**ADR 0021** still applies inside the interpreter: the engine never
+reimplements what Godot already does well. It EXPOSES Godot's
+capabilities through JSON-declarative primitives. Each new capability is
+a "capability-exposure ADR" (e.g. ADR 0011 for Control nodes, ADR 0010
+for FileAccess+JSON).
 
 ## Two clocks: the heartbeat and the calendar (2026-05-16, amended 2026-08-16)
 
