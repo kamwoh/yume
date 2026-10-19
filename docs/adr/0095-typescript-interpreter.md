@@ -341,3 +341,35 @@ beige. The radiance pass skips this fog. The viewer now fogs both sky
 materials the same way, and draws the environment map without it. The
 mid-sky sample went from 198, 207, 222 to 218, 202, 167, against
 Godot's 204, 194, 166.
+
+A sweep of every demo's `tests.json` on the TypeScript host then found
+four gaps in the host:
+
+- Eight effects of the vocabulary were not in the host: `level_call`,
+  `level_return`, `pathfind_to`, `switch_actor`, `queue_input_for_actor`
+  and the three `zone_state_*` effects. The host raised
+  `effect.unsupported_host` as a warning, and the scenario CLI prints
+  only errors, so autorace's car never moved and nothing said why. The
+  code is now an error, and a test applies each effect of
+  `engine_vocabulary.json` to check that the host has it.
+- A scenario world had no screen stack, so 132 thousandgate checks
+  failed at `click`. The stack moved out of the viewer into
+  `src/screen_flow.ts`, with no DOM. The viewer draws it, and the
+  scenario runner presses its buttons, as Godot's ScreenFlow serves
+  both.
+- A rules file with no `rules` key raised `rule.list_not_array`. Godot
+  reads `data.get("rules", [])`, so aldenmere's `tutorial.json` with
+  only overlays loads there with no error.
+- canyon's test looks for a `fire` entity, and its data places none.
+  This gap is in the demo, not in the host.
+
+`pathfind_to` searches a 1 m grid in the host, where Godot asks its
+navigation server. Both build the map from `walkable_floor` entities
+only, and no current game tags one. So the effect does nothing in both
+hosts for all current content.
+
+The viewer now draws `reflection_probes` (ADR 0071). Godot's
+compatibility renderer draws them since 4.3, at most two for each mesh.
+A probe bakes a cube map once all models load, and each mesh in its
+box reflects it. three.js also takes the diffuse ambient from that
+map, where Godot keeps the ambient of the environment.

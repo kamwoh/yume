@@ -1,6 +1,8 @@
 // Runs a game's tests.json. Mirrors scenario_runner.gd and step_runner.gd
-// for the neutral steps: press, hold, release, tick, wait and expect.
-// Input follows InputRegistrar.poll (input.ts).
+// for the steps press, hold, release, click, tick, wait and expect.
+// Input follows InputRegistrar.poll (input.ts). Each scenario world has a
+// ScreenFlow (screen_flow.ts), as WorldBoot mounts one in the reference, so
+// a `click` presses a button of an open screen.
 import { Entity } from "./entity.ts";
 import { type Files, join } from "./files.ts";
 import { pollInput } from "./input.ts";
@@ -8,6 +10,7 @@ import { PHYSICS_DT } from "./live.ts";
 import { attachBody } from "./physics.ts";
 import { matches } from "./query.ts";
 import { SpecRandom } from "./random.ts";
+import { ScreenFlow } from "./screen_flow.ts";
 import { type Dict, Vec2, Vec3, isDict, normalizePosition, toFloat } from "./value.ts";
 import { World } from "./world.ts";
 
@@ -42,9 +45,13 @@ class Runner {
   verbose: boolean;
   held = new Set<string>();
   justPressed = new Set<string>();
+  flow: ScreenFlow;
+  /** ScreenFlow._last_action_state: the actions held at the last frame-observer pass. */
+  private observed = new Set<string>();
 
-  constructor(world: World, name: string, res: Result, verbose: boolean) {
+  constructor(world: World, flow: ScreenFlow, name: string, res: Result, verbose: boolean) {
     this.world = world;
+    this.flow = flow;
     this.name = name;
     this.res = res;
     this.verbose = verbose;
@@ -79,6 +86,18 @@ class Runner {
     this.world.processPending();
   }
 
+  /**
+   * step_runner._tick_frame_observers: the work of a live frame for the UI.
+   * ScreenFlow drains its records, then fires the global inputs whose action
+   * went down since the last pass.
+   */
+  private observe(): void {
+    this.flow.drain();
+    const edges = new Set([...this.held].filter((a) => !this.observed.has(a)));
+    this.observed = new Set(this.held);
+    this.flow.globalInputs(edges);
+  }
+
   step(step: Dict): void {
     const verb = ["press", "hold", "release", "click", "wait", "tick", "screenshot", "expect", "key"].find((v) => v in step);
     switch (verb) {
@@ -89,7 +108,9 @@ class Runner {
         this.justPressed.add(a);
         this.poll();
         this.advance();
+        this.observe();
         this.held.delete(a);
+        this.observe();
         return;
       }
       case "hold": {
@@ -105,7 +126,9 @@ class Runner {
           this.poll();
           this.advance();
         }
+        this.observe();
         for (const a of actions) this.held.delete(a);
+        this.observe();
         return;
       }
       case "release":
@@ -115,6 +138,7 @@ class Runner {
         const n = Math.trunc(toFloat(step.tick));
         if (n <= 0) return this.error("tick requires a positive count");
         for (let i = 0; i < n; i++) this.advance();
+        this.observe();
         return;
       }
       case "wait": {
@@ -127,6 +151,7 @@ class Runner {
         }
         if (ticks <= 0) return this.error("wait requires positive seconds or ticks");
         for (let i = 0; i < ticks; i++) this.advance();
+        this.observe();
         return;
       }
       case "expect": {
@@ -135,11 +160,29 @@ class Runner {
         return;
       }
       case "click":
+        return this.click(step.click);
       case "screenshot":
       case "key":
         return this.error(`step '${verb}' needs a UI and is not in this host yet (ADR 0095 phase 4)`);
     }
     this.error(`unknown step verb in ${JSON.stringify(Object.keys(step))}`);
+  }
+
+  /**
+   * step_runner._do_click: press the one control of an open screen that the
+   * selector names ({id}, {text} or a bare text), drain the stack, then
+   * advance one tick.
+   */
+  private click(selector: unknown): void {
+    const sel: Dict = isDict(selector) ? selector : { text: String(selector) };
+    const found = this.flow.findControls(sel);
+    if (found.length === 0) return this.error(`[step.click_not_found] click selector matched nothing: ${JSON.stringify(sel)}`);
+    if (found.length > 1 && !("screen" in sel)) {
+      return this.error(`[step.click_ambiguous] click selector matched ${found.length} controls; add 'screen' to disambiguate`);
+    }
+    this.flow.press(found[0]);
+    this.flow.drain();
+    this.advance();
   }
 
   error(msg: string): void {
@@ -179,6 +222,19 @@ class Runner {
         : this.fail(`world_field ${f}: expected ${op} ${fmt(s.value)}, got ${fmt(got)}`);
     }
     if (isDict(a.relation_field)) return this.relationField(a.relation_field);
+    if ("ui_present" in a || "ui_hidden" in a) {
+      const want = "ui_present" in a;
+      const v = want ? a.ui_present : a.ui_hidden;
+      const sel: Dict = isDict(v) ? v : { text: String(v) };
+      const present = this.flow.findControls(sel).length > 0;
+      const label = `ui_${want ? "present" : "hidden"} ${JSON.stringify(sel)}`;
+      return present === want ? this.pass(label) : this.fail(`${label}: was ${present ? "present" : "hidden"}`);
+    }
+    if ("screen_active" in a) {
+      const want = String(a.screen_active);
+      const got = this.flow.currentScreen;
+      return got === want ? this.pass(`screen_active == ${want}`) : this.fail(`screen_active: expected ${want}, got ${got}`);
+    }
     const keys = Object.keys(a).filter((k) => !k.startsWith("_"));
     if (keys.length === 1 && isDict(a[keys[0]])) return this.compact(keys[0], a[keys[0]] as Dict);
     this.fail(`expect: assertion shape not in this host: ${JSON.stringify(a)}`);
@@ -246,6 +302,9 @@ function runScenario(root: string, files: Files, sc: Dict, res: Result, verbose:
   world.physicsFactory = physics;
   world.variantOverride = String(sc.variant ?? "");
   world.load();
+  // WorldBoot mounts ScreenFlow in load_data, so its lists see the loaded world and not the setup.
+  const flow = new ScreenFlow(() => world, readScreens(world, root, files), readJson(files, join(root, "ui/strings.json")));
+  flow.start();
   if ("seed" in sc) SpecRandom.shared.setSeed(Math.trunc(toFloat(sc.seed)));
   if (isDict(sc.setup)) applySetup(world, sc.setup);
   if (!Array.isArray(sc.steps)) {
@@ -253,9 +312,23 @@ function runScenario(root: string, files: Files, sc: Dict, res: Result, verbose:
     res.failures.push(`${name} — scenario has no 'steps'`);
     return;
   }
-  const r = new Runner(world, name, res, verbose);
+  const r = new Runner(world, flow, name, res, verbose);
   for (const step of sc.steps) if (isDict(step)) r.step(step);
   for (const e of world.env.errors) if (e.severity === "error") res.errors.push(`${name} — [${e.code}] ${e.message}`);
+}
+
+/** ScreenFlow._load_config: screens.json with its lib references resolved, or {} for none. */
+function readScreens(world: World, root: string, files: Files): Dict {
+  const cfg = readJson(files, join(root, "screens.json"));
+  const out = world.lib.resolve(cfg);
+  return isDict(out) ? out : {};
+}
+
+function readJson(files: Files, path: string): Dict {
+  const text = files.read(path);
+  if (text === null) return {};
+  const v = JSON.parse(text);
+  return isDict(v) ? v : {};
 }
 
 /** step_runner._resolve_field: state.* and properties.* paths, vectors by x/y/z. */

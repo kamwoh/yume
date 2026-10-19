@@ -1,13 +1,15 @@
 // The shell of the viewer (ADR 0095 phase 4): screens, overlays, toasts,
 // fades, the hit flash and the camera shake, as HTML over the canvas.
-// Mirrors screen_flow.gd (ADR 0011), overlay.gd (ADR 0012) and the event
-// drain of game_shell.gd. The core writes each shell effect to
-// env.shellEvents (effects.ts). The shell drains that list once each frame.
+// Mirrors overlay.gd (ADR 0012) and the event drain of game_shell.gd. The
+// screen stack itself is the core's ScreenFlow (screen_flow.ts), which the
+// scenario runner drives too. The shell draws each open screen as a layer.
+// The core writes each shell effect to env.shellEvents (effects.ts). The
+// shell drains that list once each frame.
 //
-// World state that the shell owns, as in the reference: current_screen,
-// screen_freeze_world and overlay_freeze_world. The live clock (live.ts)
-// does not tick while either freeze flag is set.
-import { apply } from "../effects.ts";
+// World state that the shell owns, as in the reference: overlay_freeze_world.
+// ScreenFlow owns current_screen and screen_freeze_world. The live clock
+// (live.ts) does not tick while either freeze flag is set.
+import { type ScreenEntry, ScreenFlow } from "../screen_flow.ts";
 import { type Dict, isDict } from "../value.ts";
 import type { World } from "../world.ts";
 import { resolveBinding } from "./hud.ts";
@@ -26,17 +28,16 @@ export type ShellHost = {
   settingsRows?: (host: HTMLElement, text: (s: unknown) => string) => void;
 };
 
-type Screen = { id: string; spec: Dict; layer: HTMLElement; bound: Bound[] };
+type Layer = { layer: HTMLElement; bound: Bound[] };
 type Overlay = { id: string; spec: Dict; layer: HTMLElement; elapsed: number };
 
 export class Shell {
   private host: ShellHost;
   private root: HTMLElement;
-  private cfg: Dict = {};
-  private screens = new Map<string, Dict>();
-  private stack: Screen[] = [];
+  readonly flow: ScreenFlow;
+  /** The drawn layer of each open screen. */
+  private layers = new Map<ScreenEntry, Layer>();
   private overlays: Overlay[] = [];
-  private strings: Dict;
   private toastEl: HTMLElement | null = null;
   private toastTimer = 0;
   private fade: HTMLElement;
@@ -56,14 +57,21 @@ export class Shell {
   constructor(root: HTMLElement, screens: Dict, strings: Dict, host: ShellHost) {
     this.root = root;
     this.host = host;
-    this.strings = strings;
-    this.cfg = screens;
-    for (const s of Array.isArray(screens.screens) ? screens.screens : []) if (isDict(s) && "id" in s) this.screens.set(String(s.id), s);
+    this.flow = new ScreenFlow(host.world, screens, strings);
+    this.flow.view = {
+      pushed: (e) => this.drawScreen(e),
+      removed: (e) => this.eraseScreen(e),
+      rebuilt: (e) => {
+        this.eraseScreen(e);
+        this.drawScreen(e);
+      },
+      event: (ev) => this.event(ev),
+    };
     this.ui = {
       world: host.world,
       text: (s) => this.text(s),
       binding: (p) => resolveBinding(host.world(), p),
-      dispatch: (effects) => this.dispatch(effects),
+      dispatch: (effects) => this.flow.dispatch(effects),
       assetUrl: host.assetUrl,
       settingsRows: host.settingsRows ? (el) => host.settingsRows!(el, (t) => this.text(t)) : undefined,
     };
@@ -73,13 +81,16 @@ export class Shell {
 
   /** ScreenFlow._ready: push the starting screen before the first tick, so a title shows before the world runs. */
   start(): void {
-    const first = String(this.cfg.starting_screen ?? "");
-    if (this.screens.has(first)) this.push(first, false);
-    else this.applyActive();
+    this.flow.start();
   }
 
   get currentScreen(): string {
-    return this.stack.length > 0 ? this.stack[this.stack.length - 1].id : "";
+    return this.flow.currentScreen;
+  }
+
+  private get top(): Layer | undefined {
+    const e = this.flow.stack[this.flow.stack.length - 1];
+    return e ? this.layers.get(e) : undefined;
   }
 
   /**
@@ -89,79 +100,67 @@ export class Shell {
    */
   update(dt: number, held: Set<string>, pressed: Set<string>): void {
     this.drain();
-    const top = this.stack[this.stack.length - 1];
+    const top = this.top;
     if (top) updateBound(top.bound, this.ui);
     const edges = new Set([...pressed, ...[...held].filter((a) => !this.lastHeld.has(a))]);
     this.lastHeld = new Set(held);
-    this.globalInputs(edges);
+    this.flow.globalInputs(edges);
     this.advanceOverlay(dt, edges);
     this.moveFocus(edges);
     this.updateFades(dt);
     this.applyFreeze();
   }
 
-  /** ScreenFlow._drain_screen_events, OverlayManager._drain_overlay_events and GameShell._drain_shell_events. */
+  /** ScreenFlow.drain: the stack takes the screen records and hands each other record to event(). */
   drain(): void {
-    const env = this.host.world().env;
-    if (env.shellEvents.length === 0) return;
-    const events = [...env.shellEvents];
-    env.shellEvents.length = 0;
-    for (const ev of events) {
-      const type = String(ev.type ?? "");
-      switch (type) {
-        case "transition_screen": {
-          const target = String(ev.target ?? "");
-          if (target === "@previous") this.pop();
-          else if (target === "@root") while (this.stack.length > 0) this.pop();
-          else if (this.screens.has(target)) this.push(target, this.screens.get(target)!.modal === true);
-          else console.warn(`[shell] transition to unknown screen '${target}'`);
-          break;
-        }
-        case "show_toast":
-          this.toast(this.text(ev.text ?? ""), Number(ev.duration ?? 2));
-          break;
-        case "show_overlay":
-          this.showOverlay(ev);
-          break;
-        case "dismiss_overlay":
-          this.dismissOverlay(String(ev.id ?? ""), "manual");
-          break;
-        case "screen_fade": {
-          this.fade.style.background = cssColor(String(ev.color ?? "#000000"));
-          this.fadeTarget = Math.min(Math.max(Number(ev.alpha ?? 1), 0), 1);
-          this.fadeLeft = Math.max(Number(ev.duration ?? 0), 0);
-          if (this.fadeLeft <= 0) this.fadeAlpha = this.fadeTarget;
-          break;
-        }
-        case "transition_level_fade_request":
-          if (this.fadePhase === "idle") {
-            this.fade.style.background = cssColor(String(ev.color ?? "#000000"));
-            this.fadeLevel = String(ev.target ?? "");
-            this.fadeHalf = Math.max(Number(ev.fade_duration ?? 0.5) / 2, 0);
-            this.fadeTarget = 1;
-            this.fadeLeft = this.fadeHalf;
-            this.fadePhase = "out";
-          }
-          break;
-        case "refresh_screen":
-          this.refreshTop();
-          break;
-        case "reload_scene":
-          this.host.reload();
-          return;
-        case "quit_app":
-          // A browser page cannot close itself. The shell shows the end instead.
-          while (this.stack.length > 0) this.pop();
-          this.toast("The game has ended.", 600);
-          break;
-        case "emit_shell_event":
-          this.shellEvent(ev);
-          break;
-        case "set_audio_bus_volume":
-          this.host.audio(ev);
-          break;
+    this.flow.drain();
+  }
+
+  /** OverlayManager._drain_overlay_events and GameShell._drain_shell_events: one record that is not a screen record. */
+  private event(ev: Dict): boolean {
+    switch (String(ev.type ?? "")) {
+      case "show_toast":
+        this.toast(this.text(ev.text ?? ""), Number(ev.duration ?? 2));
+        break;
+      case "show_overlay":
+        this.showOverlay(ev);
+        break;
+      case "dismiss_overlay":
+        this.dismissOverlay(String(ev.id ?? ""), "manual");
+        break;
+      case "screen_fade": {
+        this.fade.style.background = cssColor(String(ev.color ?? "#000000"));
+        this.fadeTarget = Math.min(Math.max(Number(ev.alpha ?? 1), 0), 1);
+        this.fadeLeft = Math.max(Number(ev.duration ?? 0), 0);
+        if (this.fadeLeft <= 0) this.fadeAlpha = this.fadeTarget;
+        break;
       }
+      case "transition_level_fade_request":
+        if (this.fadePhase === "idle") {
+          this.fade.style.background = cssColor(String(ev.color ?? "#000000"));
+          this.fadeLevel = String(ev.target ?? "");
+          this.fadeHalf = Math.max(Number(ev.fade_duration ?? 0.5) / 2, 0);
+          this.fadeTarget = 1;
+          this.fadeLeft = this.fadeHalf;
+          this.fadePhase = "out";
+        }
+        break;
+      case "reload_scene":
+        this.host.reload();
+        return false;
+      case "quit_app":
+        // A browser page cannot close itself. The shell shows the end instead.
+        this.flow.popAll();
+        this.toast("The game has ended.", 600);
+        break;
+      case "emit_shell_event":
+        this.shellEvent(ev);
+        break;
+      case "set_audio_bus_volume":
+        this.host.audio(ev);
+        break;
     }
+    return true;
   }
 
   /** GameShell._drain_shell_events for emit_shell_event records. */
@@ -189,79 +188,35 @@ export class Shell {
 
   // ------------------------------------------------------------ screens
 
-  /** ScreenFlow._push_screen: a modal screen stacks, any other replaces the stack. */
-  private push(id: string, modal: boolean): void {
-    const spec = this.screens.get(id)!;
-    if (!modal) while (this.stack.length > 0) this.removeTop();
-    const layer = layerDiv(this.root, 20 + this.stack.length, "");
+  /** ScreenFlow._push_screen draws the new top screen as a layer. */
+  private drawScreen(entry: ScreenEntry): void {
+    const spec = entry.spec;
+    const layer = layerDiv(this.root, 20 + this.flow.stack.indexOf(entry), "");
     if ("background_color" in spec || "background_alpha" in spec) {
       layer.style.background = cssColor(String(spec.background_color ?? "#000000"), Number(spec.background_alpha ?? 1));
       layer.style.pointerEvents = "auto";
     }
     const bound: Bound[] = [];
-    for (const el of Array.isArray(spec.elements) ? spec.elements : []) if (isDict(el)) build(el, layer, this.ui, bound);
-    this.stack.push({ id, spec, layer, bound });
+    for (const el of entry.elements) build(el, layer, this.ui, bound);
+    this.layers.set(entry, { layer, bound });
     updateBound(bound, this.ui);
     // _focus_first_interactive: the keyboard reaches the screen with no mouse.
-    (layer.querySelector("button:not([disabled])") as HTMLButtonElement | null)?.focus();
-    this.applyActive();
-    // _sync_global_input_edge_state: a key held through the push is not a new press.
+    this.focusTop();
   }
 
-  private pop(): void {
-    if (this.stack.length === 0) return;
-    this.removeTop();
-    this.applyActive();
-    const top = this.stack[this.stack.length - 1];
-    (top?.layer.querySelector("button:not([disabled])") as HTMLButtonElement | null)?.focus();
+  private eraseScreen(entry: ScreenEntry): void {
+    this.layers.get(entry)?.layer.remove();
+    this.layers.delete(entry);
+    this.focusTop();
   }
 
-  private removeTop(): void {
-    this.stack.pop()?.layer.remove();
-  }
-
-  /** ScreenFlow._refresh_top_screen: build the top screen again in place. */
-  private refreshTop(): void {
-    const top = this.stack.pop();
-    if (!top) return;
-    top.layer.remove();
-    this.push(top.id, true);
-  }
-
-  /** ScreenFlow._apply_active_screen. */
-  private applyActive(): void {
-    const ws = this.host.world().env.world;
-    const top = this.stack[this.stack.length - 1];
-    ws.current_screen = top ? top.id : "";
-    ws.screen_freeze_world = top && top.spec.freeze_world === true ? 1 : 0;
-  }
-
-  /** ScreenFlow._handle_global_inputs: a press edge fires on_press when if_screen names the top screen ("" = none). */
-  private globalInputs(edges: Set<string>): void {
-    const globals = Array.isArray(this.cfg.global_inputs) ? this.cfg.global_inputs : [];
-    const current = this.currentScreen;
-    // The edges are read once for each action, before any entry fires: a paired toggle needs both halves to see one press.
-    const fired: unknown[] = [];
-    for (const g of globals) {
-      if (!isDict(g) || !edges.has(String(g.action ?? ""))) continue;
-      if (String(g.if_screen ?? "") !== current) continue;
-      fired.push(g.on_press);
-    }
-    for (const effects of fired) this.dispatch(effects);
-  }
-
-  /** ScreenFlow._dispatch_effects: a control's effect chain runs at once, then the shell drains what it wrote. */
-  private dispatch(effects: unknown): void {
-    if (!Array.isArray(effects)) return;
-    const env = this.host.world().env;
-    for (const e of effects) if (isDict(e)) apply(e, env, { _rule_id: "screen_flow", _source: "ui" });
-    this.host.world().scheduler.flush();
-    this.drain();
+  private focusTop(): void {
+    (this.top?.layer.querySelector("button:not([disabled])") as HTMLButtonElement | null)?.focus();
   }
 
   /** Godot moves focus between controls with the arrow keys (ui_up, ui_down). */
   private moveFocus(edges: Set<string>): void {
-    const top = this.stack[this.stack.length - 1];
+    const top = this.top;
     if (!top || this.overlays.length > 0) return;
     const step = edges.has("ui_down") || edges.has("ui_right") ? 1 : edges.has("ui_up") || edges.has("ui_left") ? -1 : 0;
     if (step === 0) return;
@@ -375,17 +330,9 @@ export class Shell {
     } else this.flash.style.opacity = "0";
   }
 
-  /** `@strings.a.b` → ui/strings.json. A number shows as an integer (ControlFactory._resolve_text). */
+  /** `@strings.a.b` → ui/strings.json (ScreenFlow.text). */
   text(v: unknown): string {
-    if (typeof v === "number") return String(Math.trunc(v));
-    const s = String(v ?? "");
-    if (!s.startsWith("@strings.")) return s;
-    let cur: unknown = this.strings;
-    for (const seg of s.slice("@strings.".length).split(".")) {
-      if (!isDict(cur) || !(seg in cur)) return s;
-      cur = cur[seg];
-    }
-    return typeof cur === "string" ? cur : s;
+    return this.flow.text(v);
   }
 }
 

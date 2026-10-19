@@ -60,7 +60,7 @@ THREE.ShaderChunk.fog_fragment = THREE.ShaderChunk.fog_fragment.replace(
 );
 
 /** The fields of LightingDirector.FIELDS["lighting"] that this host draws. */
-export const LIGHTING_DONE = ["directional_light", "ambient", "sky", "fog", "tonemap", "adjustments", "glow", "ssao"];
+export const LIGHTING_DONE = ["directional_light", "ambient", "sky", "fog", "tonemap", "adjustments", "glow", "ssao", "reflection_probes"];
 
 /**
  * Godot's tonemap curves (servers/rendering tonemap.glsl), as three.js's
@@ -140,6 +140,7 @@ export class Renderer3D {
   private envKey = "";
   private envBuiltAt = -Infinity;
   private snap = true;
+  private probes: Probe[] = [];
   private camPos = new THREE.Vector3();
   /** Mouse motion since the last frame, as env.mouse_delta in the reference. */
   mouseDelta = new THREE.Vector2();
@@ -355,6 +356,7 @@ export class Renderer3D {
       // The density is linear here: the fog chunks above follow Godot's formula.
       this.scene.fog = new THREE.FogExp2(colorOf(fog.light_color ?? "#8a9bb5"), toFloat(fog.density ?? 0.01));
     }
+    for (const pd of Array.isArray(cfg.reflection_probes) ? cfg.reflection_probes : []) if (isDict(pd)) this.probes.push(makeProbe(pd));
     const tm = isDict(cfg.tonemap) ? cfg.tonemap : null;
     if (tm) {
       // Godot's own curves (tonemap.glsl): exposure, then linear, Reinhard, filmic or ACES, each with its white point.
@@ -528,6 +530,35 @@ export class Renderer3D {
     const focus = this.updateCamera(world);
     this.updateLighting(world, focus);
     if (this.sky) this.sky.position.copy(this.camPos);
+    this.updateProbes();
+  }
+
+  /**
+   * LightingDirector._build_reflection_probes (ADR 0071). A probe renders the
+   * scene into a cube map from its position. UPDATE_ONCE bakes once: here,
+   * on the first frame with every model loaded. "always" bakes each frame.
+   * Each mesh whose bounds meet the probe box then reflects the probe map at
+   * its intensity, with a copy of its material.
+   *
+   * Host approximation: three.js takes the diffuse ambient from the same
+   * map, while the reference keeps the ambient of the environment
+   * (AMBIENT_ENVIRONMENT). box_projection and enable_shadows are not drawn.
+   */
+  private updateProbes(): void {
+    if (this.probes.length === 0 || !this.pmrem || this.pending > 0) return;
+    for (const pr of this.probes) {
+      if (pr.baked && !pr.always) continue;
+      pr.cam.position.copy(pr.box.getCenter(new THREE.Vector3()));
+      pr.cam.update(this.renderer, this.scene);
+      pr.env?.dispose();
+      pr.env = this.pmrem.fromCubemap(pr.target.texture);
+      pr.baked = true;
+      pr.epoch++;
+    }
+    // A mesh takes the first probe that meets it (the compatibility renderer blends at most 2).
+    for (const n of this.nodes.values()) applyProbes(n.group, this.probes);
+    if (this.ground) applyProbes(this.ground.mesh, this.probes);
+    for (const d of this.decor) applyProbes(d, this.probes);
   }
 
   /** EntityMesh3D._ready: a GLB model, a library mesh, or a bare box. */
@@ -1134,6 +1165,45 @@ function skyColorAt(sky: Dict, uniform: string, f: number): THREE.Color {
 /** An sRGB color from Godot's float components, as a linear three.js color. */
 function linear(r: number, g: number, b: number): THREE.Color {
   return new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
+}
+
+/** One lighting.reflection_probes entry. */
+type Probe = { box: THREE.Box3; intensity: number; always: boolean; target: THREE.WebGLCubeRenderTarget; cam: THREE.CubeCamera; env: THREE.WebGLRenderTarget | null; baked: boolean; epoch: number };
+
+/** ReflectionProbe from one entry: position (0, 5, 0), size (40, 20, 40), intensity 1, update_mode "once". */
+function makeProbe(pd: Dict): Probe {
+  const pos = Array.isArray(pd.position) && pd.position.length >= 3 ? pd.position.map(Number) : [0, 5, 0];
+  const size = Array.isArray(pd.size) && pd.size.length >= 3 ? pd.size.map(Number) : [40, 20, 40];
+  const box = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(pos[0], pos[1], pos[2]), new THREE.Vector3(size[0], size[1], size[2]));
+  const target = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType });
+  return { box, intensity: toFloat(pd.intensity ?? 1), always: String(pd.update_mode ?? "once") === "always", target, cam: new THREE.CubeCamera(0.1, 1000, target), env: null, baked: false, epoch: 0 };
+}
+
+const probeCopies = new WeakMap<THREE.Material, Map<Probe, THREE.Material>>();
+
+/** Gives each standard material under `root` inside a probe box a copy that reflects the probe. */
+function applyProbes(root: THREE.Object3D, probes: Probe[]): void {
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh) || Array.isArray(o.material)) return;
+    const box = new THREE.Box3().setFromObject(o);
+    const pr = probes.find((p) => p.env && p.box.intersectsBox(box));
+    if (!pr || o.userData.probeEpoch === pr.epoch) return;
+    const base = (o.userData.probeBase as THREE.Material | undefined) ?? o.material;
+    if (!(base instanceof THREE.MeshStandardMaterial)) return;
+    let copies = probeCopies.get(base);
+    if (!copies) probeCopies.set(base, (copies = new Map()));
+    let m = copies.get(pr) as THREE.MeshStandardMaterial | undefined;
+    if (!m) {
+      m = base.clone();
+      copies.set(pr, m);
+    }
+    m.envMap = pr.env!.texture;
+    m.envMapIntensity = pr.intensity;
+    m.needsUpdate = true;
+    o.userData.probeBase = base;
+    o.userData.probeEpoch = pr.epoch;
+    o.material = m;
+  });
 }
 
 /**

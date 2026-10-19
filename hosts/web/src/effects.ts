@@ -6,6 +6,7 @@ import { Entity } from "./entity.ts";
 import type { Env } from "./env.ts";
 import { raise } from "./env.ts";
 import { type FormulaContext, evaluate, looksLikeFormula } from "./formula.ts";
+import { tickPathfind } from "./pathfinding.ts";
 import { attachBody } from "./physics.ts";
 import { type Ctx, strOf } from "./query.ts";
 import { type Dict, type Value, Vec2, Vec3, deepCopy, equals, isDict, toFloat, toInt } from "./value.ts";
@@ -135,6 +136,45 @@ export function apply(e: Dict, env: Env, ctx: Ctx): void {
       return raycastHit(e, env, ctx);
     case "transition_level":
       return transitionLevel(e, env, ctx);
+    case "level_call":
+      return levelCall(e, env, ctx);
+    case "level_return":
+      return levelReturn(e, env, ctx);
+    case "pathfind_to": {
+      // EffectMotion.pathfind_to (ADR 0024).
+      const ent = target(e, env, ctx);
+      if (!ent) return;
+      const dx = toFloat(value(e.destination_x ?? 0, ctx, env));
+      const dy = toFloat(value(e.destination_y ?? 0, ctx, env));
+      const dz = toFloat(value(e.destination_z ?? 0, ctx, env));
+      const speed = toFloat(value(e.speed ?? 1, ctx, env));
+      return tickPathfind(env, ent, dx, dy, dz, speed);
+    }
+    case "switch_actor": {
+      // EffectActor.switch_actor (ADR 0016): the switch waits for the tick boundary.
+      const id = strOf(value(e.target_id ?? e.target ?? "", ctx, env));
+      if (id === "") {
+        console.warn(`switch_actor: missing target_id (rule=${String(ctx._rule_id ?? "")})`);
+        return;
+      }
+      env.pendingActiveActor = id;
+      return;
+    }
+    case "queue_input_for_actor": {
+      // EffectActor.queue_input_for_actor: input for any actor, through the scheduler's input queue.
+      const actor = strOf(value(e.actor_id ?? "", ctx, env));
+      const action = strOf(value(e.action ?? "", ctx, env));
+      if (actor === "" || action === "") {
+        console.warn(`queue_input_for_actor: missing actor_id or action (rule=${String(ctx._rule_id ?? "")})`);
+        return;
+      }
+      env.queueInput?.(action, { actor, synthesized: true });
+      return;
+    }
+    case "zone_state_set":
+    case "zone_state_add":
+    case "zone_state_clamp":
+      return zoneState(type, e, env, ctx);
   }
   if (SHELL_EFFECTS.includes(type)) {
     const rec: Dict = { type };
@@ -142,7 +182,8 @@ export function apply(e: Dict, env: Env, ctx: Ctx): void {
     env.shellEvents.push(rec);
     return;
   }
-  raise(env, "effect.unsupported_host", `effect '${type}' is not in this host yet (ADR 0095 phase 1)`, "warning");
+  // An error, not a warning: the scenario runner prints errors, so a missing effect cannot pass in silence.
+  raise(env, "effect.unsupported_host", `effect '${type}' is not in this host yet (ADR 0095 phase 1)`);
 }
 
 /** EffectShell.transition_level: a fade goes to the shell, else the swap waits for the tick end. */
@@ -155,6 +196,74 @@ function transitionLevel(e: Dict, env: Env, ctx: Ctx): void {
     return;
   }
   env.pendingLevel = target;
+}
+
+const CALL_STACK_KEY = "_level_call_stack";
+const CALL_ARGS_KEY = "_call_args";
+
+/**
+ * EffectShell.level_call (ADR 0077): push the caller onto the call stack,
+ * store the resolved args, and enter the sub-level after the tick. A
+ * screen_mark record lets level_return remove the screens of the sub-level.
+ */
+function levelCall(e: Dict, env: Env, ctx: Ctx): void {
+  const lvl = strOf(value(e.level ?? "", ctx, env));
+  if (lvl === "") return;
+  const world = env.world;
+  const stack = Array.isArray(world[CALL_STACK_KEY]) ? (world[CALL_STACK_KEY] as Value[]) : [];
+  stack.push({ level: String(world.current_level ?? ""), return_signal: String(e.return_signal ?? "") });
+  world[CALL_STACK_KEY] = stack;
+  const args = isDict(e.args) ? value(e.args, ctx, env) : {};
+  world[CALL_ARGS_KEY] = (isDict(args) ? args : {}) as Value;
+  env.pendingLevelCall = lvl;
+  env.shellEvents.push({ type: "screen_mark" });
+}
+
+/**
+ * EffectShell.level_return (ADR 0077): pop the call stack and return to
+ * the caller after the tick, with the resolved result. An empty stack
+ * raises level.return_empty_stack and changes nothing.
+ */
+function levelReturn(e: Dict, env: Env, ctx: Ctx): void {
+  const world = env.world;
+  const stack = Array.isArray(world[CALL_STACK_KEY]) ? (world[CALL_STACK_KEY] as Value[]) : [];
+  if (stack.length === 0) {
+    raise(env, "level.return_empty_stack", "level_return with an empty call stack — no caller to return to", "warning");
+    return;
+  }
+  const frame = stack.pop();
+  world[CALL_STACK_KEY] = stack;
+  const result = isDict(e.result) ? value(e.result, ctx, env) : {};
+  const f = isDict(frame) ? frame : {};
+  env.pendingLevelReturn = { level: String(f.level ?? ""), return_signal: String(f.return_signal ?? ""), result: (isDict(result) ? result : {}) as Value };
+  env.shellEvents.push({ type: "screen_restore" });
+}
+
+/** EffectCore.resolve_zone_id: a context binding, then a formula, then the literal id. */
+function zoneId(v: unknown, ctx: Ctx, env: Env): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v !== "string") return String(v);
+  if (v in ctx) return String(ctx[v]);
+  if (looksLikeFormula(v)) {
+    const r = evaluate(v, formulaContext(ctx, env, v), env);
+    return r === null || r === undefined ? "" : String(r);
+  }
+  return v;
+}
+
+/** EffectCore.zone_state_set, zone_state_add and zone_state_clamp (ADR 0031). */
+function zoneState(type: string, e: Dict, env: Env, ctx: Ctx): void {
+  const zs = env.zones;
+  if (!zs) return;
+  const zid = zoneId(e.zone, ctx, env);
+  if (zid === "" || !zs.has(zid)) {
+    raise(env, "effect.zone_unknown", `${type}: unknown zone '${zid}'`, "warning");
+    return;
+  }
+  const field = String(e.field ?? "");
+  if (type === "zone_state_set") zs.setField(zid, field, value(e.value ?? null, ctx, env) as Value);
+  else if (type === "zone_state_add") zs.addField(zid, field, toFloat(value(e.amount ?? e.delta ?? 0, ctx, env)));
+  else zs.clampField(zid, field, toFloat(value(e.min ?? -Infinity, ctx, env)), toFloat(value(e.max ?? Infinity, ctx, env)));
 }
 
 export function pushSignal(env: Env, name: string, payload: Dict): void {
@@ -493,8 +602,8 @@ export function formulaContext(ctx: Ctx, env: Env, formula = ""): FormulaContext
     }
   }
   out.world = env.world;
-  out.zone = {};
-  void formula;
+  // ADR 0031: zone state as `zone.<id>.<field>`, built only when the text names `zone`.
+  out.zone = env.zones && (formula === "" || formula.includes("zone")) ? env.zones.bindingSnapshot() : {};
   for (const pre of ["self_entity", "a_entity", "b_entity"]) {
     if (pre in ctx) out[pre.replace("_entity", "")] = ctx[pre];
   }

@@ -108,7 +108,7 @@ test("the 3D viewer lists the lighting fields it draws, all from LightingDirecto
   assert.ok(m, "LightingDirector.FIELDS has a lighting list");
   const fields = m![1].split(",").map((x) => x.trim().replace(/"/g, ""));
   for (const f of LIGHTING_DONE) assert.ok(fields.includes(f), `'${f}' is a lighting field of the reference`);
-  assert.ok(fields.some((f) => !LIGHTING_DONE.includes(f)), "the others get a load note (glow, ssao, reflection_probes)");
+  for (const f of fields) assert.ok(LIGHTING_DONE.includes(f), `the viewer draws the lighting field '${f}', or this list names the gap`);
 });
 
 test("the depth fog follows Godot's formula: 1 - exp(-density × view distance)", async () => {

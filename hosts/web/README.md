@@ -12,17 +12,17 @@ exact behavior (contract doc, §Two behavior classes).
 |---|---|
 | Entities, tags, state, relations, queries, formulas | |
 | Rules with the tick phases, `once`, `once_per`, `chance`, `overlap` | `lod`, `scope` |
-| Exact effects: state, spawn, remove, transform, relations, tags, arrays, emit, `advance_time`, `velocity_set`, `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit` | Zones, `pathfind_to` |
+| Exact effects: state, spawn, remove, transform, relations, tags, arrays, emit, `advance_time`, `velocity_set`, `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit`. Zones (`zone_state_*`), `level_call` and `level_return`, `switch_actor`, `queue_input_for_actor`, `pathfind_to` over a 1 m grid | The navigation path shape of the reference |
 | Physics on Rapier (phase 3): the static, kinematic, rigid, area, character and articulated bodies, and sensors. Also `blocks_motion` boxes, GLB-sized shapes, and trimesh and heightmap ground in the viewer | The `base` footprint of `from_visual_mesh` |
-| The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call` |
+| The engine rules in `lib/engine_rules`, actors (`actors.json`), zones (`world/zones.json`) | Macros, actor AI policies |
 | Instance `patterns` (ring, grid, line, scatter, cluster, mirror) | |
 | Saves (ADR 0010): `save_state`, `load_state`, autosave, `has_save`. A scenario keeps them in memory, the viewer in `localStorage` | |
 | Levels (`game/flow.json`), `transition_level`, variants | |
-| `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
+| `press`, `hold`, `release`, `click`, `tick`, `wait`, `expect`, with `ui_present`, `ui_hidden` and `screen_active`. A scenario world has the same screen stack as the viewer (`src/screen_flow.ts`) | `screenshot` |
 | The browser viewer, 2D: shapes (`shapes.json`), the 2D camera and its shake, the keyboard and the mouse buttons | |
-| The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`. HUD labels, progress bars and the crosshair | A HUD `list` |
+| The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`, query-bound screen lists. HUD labels, progress bars and the crosshair | A HUD `list` |
 | Audio (phase 4): the procedural sounds of `sounds.json` with WebAudio, `@cues.*`, the music slot, the master, music and sfx channels | Audio files (.ogg) |
-| The browser viewer, 3D: `meshes.json`, GLB models, the ground and its relief, sun, sky, fog, color adjustments, the 3D cameras, mouse look, articulated links | CSG booleans (`csg` subtract and intersect), the toon shader, reflection probes |
+| The browser viewer, 3D: `meshes.json`, GLB models, the ground and its relief, sun, sky, fog, color adjustments, the 3D cameras, mouse look, articulated links | CSG booleans (`csg` subtract and intersect), the toon shader. A reflection probe takes its diffuse ambient from the probe map, and draws no box projection |
 | Settings (ADR 0013): the rows of `settings_schema.json`, the apply chains at boot and on change, kept in `localStorage`. The first-person viewmodel. The CSG ops `lathe`, `extrude` and `sweep`. Grass blades and flowers | |
 | Animation (phase 4): GLB clips under `animation_state_rules` with `clip_alias`, library-mesh `animations`, `anim_phase` | |
 | Shaders (phase 4): `sky_clouds`, `ground_biome_displace`, `ground_ortho_displace`, `water_stylized`, and a `shader_dag` ground, compiled at load. Godot's tonemap curves. Glow. The plain ground's `albedo_texture`, `normal_texture` and `uv1_scale`. The minimap and `slot_grid` widgets | `toon` |
@@ -144,7 +144,8 @@ compare them:
 | `src/viewer/render3d.ts` | `renderer_3d/entity_mesh_3d.gd`, `coordinators/ground_renderer.gd`, `directors/lighting_director.gd`, the 3D part of `camera_director.gd` |
 | `src/viewer/mesh_lib.ts` | `renderer_3d/mesh_lib.gd` |
 | `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, bars, crosshair, hint, win panel) |
-| `src/viewer/shell.ts` | `ui/screen_flow.gd`, `ui/overlay.gd`, the event drain of `ui/game_shell.gd` |
+| `src/screen_flow.ts` | `ui/screen_flow.gd`, the list rows of `ui/control_factory.gd` |
+| `src/viewer/shell.ts` | `ui/overlay.gd`, the event drain of `ui/game_shell.gd` |
 | `src/viewer/ui.ts` | `ui/control_factory.gd` |
 | `src/viewer/anim.ts` | `directors/animation_director.gd`, `directors/animation_translator.gd` |
 | `src/viewer/shaders.ts` | `data/lib/shaders/*.gdshader` |
@@ -152,6 +153,9 @@ compare them:
 | `src/viewer/grass.ts` | `coordinators/grass_renderer.gd`, `data/lib/shaders/grass_blade.gdshader` |
 | `src/viewer/shader_dag.ts` | `tools/yume_shadergen/compiler.py` |
 | `src/patterns.ts` | `util/instance_patterns.gd` |
+| `src/actors.ts` | `coordinators/actor_manager.gd` |
+| `src/zones.ts` | `stores/zone_store.gd` |
+| `src/pathfinding.ts` | `EffectMotion.pathfind_to` and its walkable grid |
 | `src/viewer/water.ts` | `GroundRenderer.build_water`, `data/lib/shaders/water_stylized.gdshader` |
 | `src/viewer/widgets.ts` | `ui/minimap_widget.gd`, the slot_grid of `ui/control_factory.gd` |
 | `src/viewer/audio.ts` | `io/audio_bus.gd`, `io/audio_channels.gd` |

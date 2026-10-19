@@ -8,15 +8,19 @@ import type { Env } from "./env.ts";
 import { raise } from "./env.ts";
 import { LibResolver } from "./lib_resolver.ts";
 import { expandPattern } from "./patterns.ts";
+import { ActorManager } from "./actors.ts";
+import { pushSignal } from "./effects.ts";
+import { buildNavGrid, teardownNavGrid } from "./pathfinding.ts";
 import { type PhysicsHost, attachBody } from "./physics.ts";
+import { ZoneStore } from "./zones.ts";
 import { SpecRandom } from "./random.ts";
 import { RelationStore } from "./relations.ts";
 import { Rule, VALID_TRIGGERS } from "./rule.ts";
 import { PhaseScheduler } from "./scheduler.ts";
 import { MemorySaveStore, type SaveStore, buildPayload, hasAnySave, readSlot } from "./save.ts";
-import { type Dict, type Value, Vec3, isDict, normalizePosition, toFloat } from "./value.ts";
+import { type Dict, type Value, Vec3, deepCopy, isDict, normalizePosition, toFloat } from "./value.ts";
 
-const UNSUPPORTED_FILES = ["macros.json", "actors.json", "world/zones.json", "chunks"];
+const UNSUPPORTED_FILES = ["macros.json", "chunks"];
 
 export class World {
   root: string;
@@ -30,6 +34,8 @@ export class World {
   actorTag = "player";
   stopActionOnIdle = "stop";
   simTick = 0;
+  /** World.world_loaded (ADR 0076): one more at the end of each load and each reset. Open lists build their rows again. */
+  loadCount = 0;
   /** ADR 0006 progression (game/flow.json). */
   levelOrder: string[] = [];
   levelPersistentTags: string[] = ["persistent"];
@@ -40,6 +46,8 @@ export class World {
   /** VariantOverlay precedence 1: a scenario's `variant` field. */
   variantOverride = "";
   savePolicy: Dict = {};
+  /** ADR 0016: the actors of actors.json, or the synthesized default actor. */
+  actors: ActorManager = ActorManager.loadOrSynthesize(null, "player");
 
   libRoot: string;
   files: Files;
@@ -75,14 +83,21 @@ export class World {
       shellEvents: [],
       dispatchLifecycle: null,
       advanceCalendar: null,
+      queueInput: null,
       pendingLevel: "",
       pendingReset: false,
       pendingSave: null,
       pendingLoad: null,
       overlapEvents: [],
       physics: null,
+      pendingLevelCall: "",
+      pendingLevelReturn: null,
+      pendingActiveActor: null,
+      zones: null,
+      navGrid: null,
     };
     this.scheduler = new PhaseScheduler(this.env);
+    this.env.queueInput = (action, params) => this.scheduler.queueInput(action, params);
     this.lib = new LibResolver(this.libRoot, files);
   }
 
@@ -108,11 +123,15 @@ export class World {
       this.levelSeed = Math.trunc(toFloat(scene.level_seed));
       SpecRandom.shared.setSeed(this.levelSeed);
     }
-    this.env.world.active_actor_id = "default_player";
+    // WorldBoot._load_actor_config (ADR 0016).
+    this.actors = ActorManager.loadOrSynthesize(this.readJson("actors.json"), this.actorTag);
+    this.env.world.active_actor_id = this.actors.activeActorId;
     this.loadContent();
+    this.loadZones();
     this.applyVariant();
     this.loadSavePolicy();
     this.scheduler.flush();
+    this.loadCount++;
   }
 
   get currentLevel(): string {
@@ -132,6 +151,21 @@ export class World {
     this.loadWorldFile();
     this.loadEntities(this.root);
     if (this.levelsRoot !== "" && this.currentLevel !== "") this.loadLevel(this.currentLevel);
+    // ADR 0024: a single-level game builds its walkable grid here. A level builds its own in loadLevel.
+    else if (!this.files.exists(prog)) buildNavGrid(this.env);
+  }
+
+  /** WorldBoot._load_zones (ADR 0031): world/zones.json, after the entities and the world state. */
+  private loadZones(): void {
+    this.env.zones = new ZoneStore();
+    const path = join(this.root, "world/zones.json");
+    if (!this.files.exists(path)) return;
+    const data = this.readJson("world/zones.json");
+    if (!isDict(data)) {
+      raise(this.env, "zone.invalid_json", "world/zones.json is not a JSON object");
+      return;
+    }
+    this.env.zones.loadFromDict(data, this.env);
   }
 
   private loadGlobalRules(): void {
@@ -158,6 +192,7 @@ export class World {
     const dir = join(this.levelsRoot, name);
     this.loadRulesFor(join(dir, "rules.json"), true);
     this.loadEntities(dir);
+    buildNavGrid(this.env);
   }
 
   /** step_runner._advance: the pending level swap, the save, the load, then the world reset. The host drains them after each tick. */
@@ -166,6 +201,15 @@ export class World {
     if (pending !== "") {
       this.env.pendingLevel = "";
       this.doTransition(pending);
+    } else if (this.env.pendingLevelCall !== "") {
+      // ADR 0077: a sub-level is off the progression, so `next` never walks into it.
+      const call = this.env.pendingLevelCall;
+      this.env.pendingLevelCall = "";
+      this.doTransition(call, true);
+    } else if (this.env.pendingLevelReturn !== null) {
+      const ret = this.env.pendingLevelReturn;
+      this.env.pendingLevelReturn = null;
+      this.doReturn(ret);
     }
     // A save goes first, so a save and a load in one tick save the state before the load.
     if (this.env.pendingSave !== null) {
@@ -208,8 +252,10 @@ export class World {
       if (this.currentLevel !== "") this.loadLevel(this.currentLevel);
     } else this.loadEntities(this.root);
     if (Object.keys(this.savePolicy).length > 0) this.env.world.has_save = hasAnySave(this.saveStore, this.saveGame, Math.trunc(toFloat(this.savePolicy.slots ?? 1))) ? 1 : 0;
-    this.env.world.active_actor_id = "default_player";
+    // The reset keeps the actor registry. It mirrors the active actor again.
+    this.env.world.active_actor_id = this.actors.activeActorId;
     this.scheduler.flush();
+    this.loadCount++;
   }
 
   private get saveGame(): string {
@@ -274,7 +320,28 @@ export class World {
   }
 
   /** LevelTransitionCoordinator.do_transition. */
-  doTransition(target: string): void {
+  /**
+   * LevelTransitionCoordinator._do_return: swap back to the caller, then
+   * emit its return_signal with the result. The emit comes after the swap,
+   * because the caller's rules load with its level. An unknown caller falls
+   * back to the first level of the progression.
+   */
+  private doReturn(frame: Dict): void {
+    let target = String(frame.level ?? "");
+    if (target === "" || !this.levelOrder.includes(target)) {
+      const fallback = this.levelOrder.length > 0 ? this.levelOrder[0] : "";
+      raise(this.env, "level.return_orphaned", `level_return caller '${target}' is not a known level — falling back to '${fallback}'`, "warning");
+      if (fallback === "") return;
+      target = fallback;
+    }
+    this.doTransition(target, true);
+    const sig = String(frame.return_signal ?? "");
+    if (sig === "") return;
+    pushSignal(this.env, sig, isDict(frame.result) ? (deepCopy(frame.result) as Dict) : {});
+  }
+
+  /** LevelTransitionCoordinator.do_transition. `offProgression` (ADR 0077) skips the level_order check for a sub-level. */
+  doTransition(target: string, offProgression = false): void {
     if (target === "next") {
       const idx = this.levelOrder.indexOf(this.currentLevel);
       if (idx >= 0 && idx + 1 < this.levelOrder.length) target = this.levelOrder[idx + 1];
@@ -283,10 +350,12 @@ export class World {
         return;
       }
     }
-    if (!this.levelOrder.includes(target)) {
+    if (!offProgression && !this.levelOrder.includes(target)) {
       raise(this.env, "level.unknown_target", `transition_level target '${target}' not in progression.levels`, "warning");
       return;
     }
+    // ADR 0024: the old level's walkable grid goes before its entities.
+    teardownNavGrid(this.env);
     // Entities with any persistent tag survive the swap (Invariant #12).
     // The engine-owned `_engine` entity always survives.
     const keep = [...this.levelPersistentTags, "_engine"];
@@ -399,7 +468,8 @@ export class World {
     }
     const resolved = this.lib.resolve(data);
     if (!isDict(resolved)) return [];
-    const list = resolved.rules;
+    // RuleLib.load_file reads data.get("rules", []): a file with no `rules` key (a tutorial.json with only overlays) has no rules.
+    const list = "rules" in resolved ? resolved.rules : [];
     if (!Array.isArray(list)) {
       raise(this.env, "rule.list_not_array", `${path}: 'rules' must be an array`);
       return [];
@@ -511,6 +581,16 @@ export class World {
     ph?.readSensors(); // ADR 0092: rays → state, after the poses
     this.scheduler.tick();
     ph?.drive(this.env); // ADR 0091: motor targets, after rules
+    this.processPendingActor();
+  }
+
+  /** ActorManager.process_pending (ADR 0016): a switch_actor takes effect at the tick boundary. */
+  private processPendingActor(): void {
+    const pending = this.env.pendingActiveActor;
+    if (pending === null) return;
+    this.env.pendingActiveActor = null;
+    if (this.actors.setActive(pending)) this.env.world.active_actor_id = pending;
+    else console.warn(`ActorManager: switch_actor target '${pending}' not in registry`);
   }
 
   /**
@@ -558,10 +638,9 @@ export class World {
     return this.files.glbBounds(path.startsWith("@lib/") ? join(this.libRoot, path.slice(5)) : join(this.root, path));
   }
 
-  /** ActorManager.resolve_active_entity for the default actor: the first entity with the actor tag. */
+  /** ActorManager.resolve_active_entity: the entity that the active actor controls. */
   activeActorId(): string {
-    for (const e of this.env.entities.values()) if (e.hasTag(this.actorTag)) return e.id;
-    return "";
+    return this.actors.resolveActiveEntity(this.env.entities);
   }
 
   private readJson(rel: string): unknown {
