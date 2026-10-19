@@ -15,7 +15,9 @@ import { LiveClock, PHYSICS_DT } from "../live.ts";
 import { type Dict, isDict } from "../value.ts";
 import { World } from "../world.ts";
 import { AudioBus } from "./audio.ts";
+import { type Rgba, buildGrass } from "./grass.ts";
 import { Hud } from "./hud.ts";
+import { Settings, buildSettingsRows } from "./settings.ts";
 import { Shell } from "./shell.ts";
 import { buttonToActions, codeToActions } from "./keys.ts";
 import { Renderer2D } from "./render2d.ts";
@@ -55,6 +57,13 @@ async function boot(): Promise<void> {
     ? new Renderer3D(canvas, parse(files.read("meshes.json")), scene, `/asset/${encodeURIComponent(game)}/`)
     : new Renderer2D(canvas, parse(files.read("shapes.json")), scene);
   if (view instanceof Renderer3D && height) view.setGroundHeight(height);
+  // GrassRenderer: blades and flowers on the grass biome of the splat map.
+  if (view instanceof Renderer3D && ground && (isDict(ground.flowers) || isDict(ground.grass_blades))) {
+    const mesh = isDict(ground.mesh) ? ground.mesh : {};
+    const sp = isDict(mesh.shader_params) ? mesh.shader_params : {};
+    const biome = typeof sp.biome_map === "string" ? await loadRgba(`/asset/${encodeURIComponent(game)}/${sp.biome_map}`) : null;
+    view.addDecor(buildGrass(ground, biome, height));
+  }
   if (view instanceof Renderer3D) {
     // A click captures the mouse. Motion then turns the actor, as in the reference.
     canvas.addEventListener("click", () => canvas.requestPointerLock());
@@ -77,6 +86,9 @@ async function boot(): Promise<void> {
   resize();
 
   const clock = new LiveClock(world);
+  // SettingsManager: every apply chain runs at boot (ADR 0013).
+  const schema = parse(files.read("game/settings_schema.json"));
+  const settings = Array.isArray(schema.categories) ? new Settings(schema, () => world, game) : null;
   const audio = new AudioBus(parse(files.read("sounds.json")), parse(files.read("game/audio/cues.json")));
   // A browser starts audio only after a user gesture.
   addEventListener("keydown", () => audio.unlock(), { capture: true });
@@ -88,8 +100,10 @@ async function boot(): Promise<void> {
     shake: (i, f) => view.shake(i, f),
     audio: (ev) => audio.event(ev),
     assetUrl: (p) => `/asset/${encodeURIComponent(game)}/${p}`,
+    settingsRows: settings ? (el, text) => buildSettingsRows(el, settings, text) : undefined,
   });
   // ScreenFlow pushes the starting screen before the first tick, so a title shows before the world runs.
+  settings?.applyAll();
   shell.start();
   const byCode = codeToActions(world.actionKeys);
   /** The key-downs since the last frame, for the shell's press edges. */
@@ -183,8 +197,8 @@ async function boot(): Promise<void> {
   (globalThis as unknown as { yume: unknown }).yume = { world, view };
 }
 
-/** The heightmap of a ground block: the red channel of its image, with no color conversion. */
-async function loadGroundHeight(ground: Dict, url: string): Promise<GroundHeight | null> {
+/** An image of the game, decoded to RGBA with no color conversion, or null. */
+async function loadRgba(url: string): Promise<Rgba | null> {
   try {
     const res = await fetch(url);
     if (!res.ok) return null;
@@ -192,14 +206,20 @@ async function loadGroundHeight(ground: Dict, url: string): Promise<GroundHeight
     const canvas = new OffscreenCanvas(bmp.width, bmp.height);
     const ctx = canvas.getContext("2d")!;
     ctx.drawImage(bmp, 0, 0);
-    const px = ctx.getImageData(0, 0, bmp.width, bmp.height).data;
-    const red = new Float32Array(bmp.width * bmp.height);
-    for (let i = 0; i < red.length; i++) red[i] = px[i * 4] / 255;
-    return GroundHeight.of(ground, { width: bmp.width, height: bmp.height, red });
+    return { width: bmp.width, height: bmp.height, data: ctx.getImageData(0, 0, bmp.width, bmp.height).data };
   } catch (e) {
-    console.info(`[ground] heightmap did not load: ${String(e)}`);
+    console.info(`[ground] image did not load: ${url}: ${String(e)}`);
     return null;
   }
+}
+
+/** The heightmap of a ground block: the red channel of its image. */
+async function loadGroundHeight(ground: Dict, url: string): Promise<GroundHeight | null> {
+  const img = await loadRgba(url);
+  if (!img) return null;
+  const red = new Float32Array(img.width * img.height);
+  for (let i = 0; i < red.length; i++) red[i] = img.data[i * 4] / 255;
+  return GroundHeight.of(ground, { width: img.width, height: img.height, red });
 }
 
 /** The faces of a GLB scene in its native space: each mesh with its transform relative to the root. */

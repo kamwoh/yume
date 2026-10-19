@@ -283,3 +283,8 @@ loads shader textures with no vertical flip. Before that fix, the
 lanterns path was mirrored. One gap stays open. The lanterns grass is
 less saturated than in the Godot capture: a pixel sample gives 114, 156,
 74 against 88, 174, 54. The cause is not known yet.
+
+More of phase 4 followed. It added the settings rows and their apply
+chains, and the first-person viewmodel. It also added the CSG ops
+`lathe`, `extrude` and `sweep`, and the grass blades and flowers. A boolean CSG group (`csg` subtract or
+intersect) is not in the host yet. No content uses one.

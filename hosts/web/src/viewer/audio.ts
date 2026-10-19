@@ -21,6 +21,8 @@ export class AudioBus {
   private music: AudioBufferSourceNode | null = null;
   private musicName = "";
   private cues: Dict;
+  /** Channel levels set before the audio starts (settings apply at boot). */
+  private levels = new Map<string, number>();
 
   constructor(sounds: Dict, cues: Dict) {
     this.specs = isDict(sounds.sounds) ? sounds.sounds : {};
@@ -41,6 +43,7 @@ export class AudioBus {
         g.connect(master);
         this.channels.set(ch, g);
       }
+      for (const [ch, v] of this.levels) this.channels.get(ch)!.gain.value = v;
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
   }
@@ -92,9 +95,14 @@ export class AudioBus {
 
   /** EffectShell.set_audio_bus_volume: a linear level in [0, 1] for one channel. */
   setVolume(channel: string, linear: number): void {
+    if (!["master", "music", "sfx"].includes(channel)) {
+      console.warn(`[audio] '${channel}' is not an audio channel (ADR 0090)`);
+      return;
+    }
+    const v = Math.min(Math.max(linear, 0), 1);
+    this.levels.set(channel, v);
     const g = this.channels.get(channel);
-    if (g) g.gain.value = Math.min(Math.max(linear, 0), 1);
-    else if (!["master", "music", "sfx"].includes(channel)) console.warn(`[audio] '${channel}' is not an audio channel (ADR 0090)`);
+    if (g) g.gain.value = v;
   }
 
   /** A shell event: play_sound, play_music or stop_music. */

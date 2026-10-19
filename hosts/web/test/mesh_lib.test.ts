@@ -87,3 +87,16 @@ test("the sun points straight down at noon and along +x at 6:00 (lighting_direct
   near(dayFactor(12), 1, "day factor at noon");
   near(dayFactor(0), 0, "day factor at midnight");
 });
+
+test("a lathe spins its profile about Y and closes it to the axis", () => {
+  const g = build([{ op: "lathe", profile: [[0.5, 0], [0.3, 1]], segments: 8 }]);
+  const box = new THREE.Box3().setFromObject(g);
+  assert.ok(Math.abs(box.max.x - 0.5) < 1e-6 && Math.abs(box.max.y - 1) < 1e-6 && Math.abs(box.min.y) < 1e-6, "radius 0.5, from y 0 to 1");
+});
+
+test("an extrude is centered on pos along Z, and a sweep follows its path", () => {
+  const e = new THREE.Box3().setFromObject(build([{ op: "extrude", polygon: [[0, 0], [1, 0], [0, 1]], depth: 0.4 }]));
+  assert.ok(Math.abs(e.min.z + 0.2) < 1e-6 && Math.abs(e.max.z - 0.2) < 1e-6, "depth 0.4 centered on z 0");
+  const s = new THREE.Box3().setFromObject(build([{ op: "sweep", polygon: [[-0.1, -0.1], [0.1, -0.1], [0, 0.1]], path: [[0, 0, 0], [2, 0, 0]] }]));
+  assert.ok(s.max.x > 1.9 && s.min.x < 0.1, "the swept shape spans the 2 m path");
+});

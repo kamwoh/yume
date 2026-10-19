@@ -3,8 +3,10 @@
 // anchors, sizes and offsets of _apply_common. A size or an offset is
 // pixels, or a percent of the view ("25%").
 //
-// Not in this host yet: slider, checkbox, option_button, slot_grid,
-// minimap and the settings rows. Each raises one console note.
+// settings_renderer takes its rows from settings.ts.
+//
+// Not in this host yet: slider, checkbox, option_button, slot_grid and
+// minimap as screen elements. Each raises one console note.
 import type { Entity } from "../entity.ts";
 import { evaluate } from "../formula.ts";
 import { run } from "../query.ts";
@@ -18,6 +20,8 @@ export type UiContext = {
   binding: (path: string) => unknown;
   dispatch: (effects: unknown, ctx: Dict) => void;
   assetUrl: (path: string) => string;
+  /** settings_renderer fills a box with the rows of settings_schema.json. */
+  settingsRows?: (host: HTMLElement) => void;
 };
 
 /** A control with visible_if, enabled_if or binds, which the shell updates each frame. */
@@ -48,7 +52,10 @@ export function build(spec: Dict, parent: HTMLElement, ui: UiContext, bound: Bou
     case "hbox":
     case "settings_renderer":
       el = box(t === "hbox" ? "row" : "column", spec);
-      if (t === "settings_renderer") note("the settings rows are not in this host yet");
+      if (t === "settings_renderer") {
+        if (ui.settingsRows) ui.settingsRows(el);
+        else note("this game has no settings_schema.json");
+      }
       for (const c of Array.isArray(spec.children) ? spec.children : []) if (isDict(c)) build(c, el, ui, bound, true);
       break;
     case "color_rect": {

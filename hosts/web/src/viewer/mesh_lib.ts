@@ -3,8 +3,10 @@
 // Basis.from_euler), `$param` values, named materials, `cast_shadow` and the
 // `pivot` joint of an addressable part.
 //
-// Not in this host yet: the CSG ops (lathe, extrude, sweep, csg groups).
-// A part with one of them raises one console note and draws nothing.
+// The CSG ops lathe, extrude and sweep build their own geometry, as a CSG
+// group of one part does in the reference. A group with a `csg` subtract
+// or intersect is not in this host yet: its parts draw unchanged, with one
+// console note.
 import * as THREE from "three";
 import { type Dict, Vec2, Vec3, isDict, toFloat } from "../value.ts";
 import { colorOf } from "./color.ts";
@@ -82,11 +84,33 @@ export class MeshLib {
   private geometry(p: Dict, params: Dict): THREE.BufferGeometry | null {
     const op = String(p.op ?? "");
     const num = (k: string, d: number) => toFloat(resolve(p[k] ?? d, params));
-    if ("group" in p || "csg" in p || ["lathe", "extrude", "sweep"].includes(op)) {
-      note(`CSG op '${op}' is not in this host yet`);
-      return null;
-    }
+    if ("csg" in p && String(p.csg) !== "union") note(`a CSG '${String(p.csg)}' is not in this host yet: the part draws unchanged`);
     switch (op) {
+      case "lathe": {
+        // CSGPolygon3D MODE_SPIN about Y. The profile closes to the axis (_closed_profile).
+        const pts = asPoints(resolve(p.profile ?? [], params));
+        if (pts.length === 0) return null;
+        if (pts[0].x !== 0) pts.unshift(new THREE.Vector2(0, pts[0].y));
+        if (pts[pts.length - 1].x !== 0) pts.push(new THREE.Vector2(0, pts[pts.length - 1].y));
+        return new THREE.LatheGeometry(pts, Math.max(3, Math.trunc(num("segments", 16))));
+      }
+      case "extrude": {
+        // CSGPolygon3D MODE_DEPTH: the polygon in XY, `depth` along Z, centered on `pos`.
+        const pts = asPoints(resolve(p.polygon ?? [], params));
+        if (pts.length < 3) return null;
+        const depth = num("depth", 0.1);
+        return new THREE.ExtrudeGeometry(new THREE.Shape(pts), { depth, bevelEnabled: false }).translate(0, 0, -depth / 2);
+      }
+      case "sweep": {
+        // CSGPolygon3D MODE_PATH: the polygon follows the path's straight segments, one ring each `interval`.
+        const pts = asPoints(resolve(p.polygon ?? [], params));
+        const path = (Array.isArray(resolve(p.path ?? [], params)) ? (resolve(p.path, params) as unknown[]) : []).map((q) => vec3(q));
+        if (pts.length < 3 || path.length < 2) return null;
+        const curve = new THREE.CurvePath<THREE.Vector3>();
+        for (let i = 1; i < path.length; i++) curve.add(new THREE.LineCurve3(path[i - 1], path[i]));
+        const steps = Math.max(1, Math.round(curve.getLength() / Math.max(num("interval", 0.05), 0.001)));
+        return new THREE.ExtrudeGeometry(new THREE.Shape(pts), { steps, bevelEnabled: false, extrudePath: curve });
+      }
       case "box": {
         const s = vec3(resolve(p.size ?? [1, 1, 1], params));
         return new THREE.BoxGeometry(s.x, s.y, s.z);
@@ -177,6 +201,11 @@ export function vec3(v: unknown): THREE.Vector3 {
   if (v instanceof Vec3) return new THREE.Vector3(v.x, v.y, v.z);
   if (v instanceof Vec2) return new THREE.Vector3(v.x, v.y, 0);
   return new THREE.Vector3();
+}
+
+/** A list of [x, y] points. */
+function asPoints(v: unknown): THREE.Vector2[] {
+  return (Array.isArray(v) ? v : []).filter((q) => Array.isArray(q) && q.length >= 2).map((q) => new THREE.Vector2(toFloat((q as unknown[])[0]), toFloat((q as unknown[])[1])));
 }
 
 /** MeshLib._to_vec2: [x, y], or one number for both. The default is [1, 1]. */

@@ -22,6 +22,8 @@ export type ShellHost = {
   /** GameShell "play_sound", "play_music" and "stop_music", and set_audio_bus_volume (audio.ts). */
   audio: (ev: Dict) => void;
   assetUrl: (path: string) => string;
+  /** settings_renderer rows, when the game has settings_schema.json. */
+  settingsRows?: (host: HTMLElement, text: (s: unknown) => string) => void;
 };
 
 type Screen = { id: string; spec: Dict; layer: HTMLElement; bound: Bound[] };
@@ -63,6 +65,7 @@ export class Shell {
       binding: (p) => resolveBinding(host.world(), p),
       dispatch: (effects) => this.dispatch(effects),
       assetUrl: host.assetUrl,
+      settingsRows: host.settingsRows ? (el) => host.settingsRows!(el, (t) => this.text(t)) : undefined,
     };
     this.flash = layerDiv(root, 30, "pointer-events:none;opacity:0");
     this.fade = layerDiv(root, 60, "pointer-events:none;background:#000;opacity:0");

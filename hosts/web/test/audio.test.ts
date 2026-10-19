@@ -23,3 +23,11 @@ test("a melody joins its notes, each with its own length", () => {
   const pcm = synthesizeMelody({ wave: "sine", volume: 0.4, notes: [{ freq: 440, dur: 0.1 }, { freq: 660, dur: 0.2 }] });
   assert.equal(pcm.length, 2205 + 4410);
 });
+
+test("a settings row value is clamped to its type (SettingsManager._clamp_value)", async () => {
+  const { clampValue } = await import("../src/viewer/settings.ts");
+  assert.equal(clampValue({ type: "slider", min: 0, max: 1 }, 1.4), 1);
+  assert.equal(clampValue({ type: "bool" }, 1), true);
+  assert.equal(clampValue({ type: "enum", options: ["off", "on"] }, "nope"), "off");
+  assert.equal(clampValue({ type: "key_binding" }, 5), "5");
+});

@@ -21,6 +21,8 @@
 //
 // The sky_clouds sky and the two ground shaders come from shaders.ts.
 //
+// The first-person viewmodel (camera.viewmodel) hangs under the camera.
+//
 // Not in this host yet: the water and toon shaders, glow, SSAO, reflection
 // probes.
 import * as THREE from "three";
@@ -175,6 +177,16 @@ export class Renderer3D {
     mesh.geometry = geo;
   }
 
+  private decor: THREE.Object3D[] = [];
+
+  /** Ground decoration (grass.ts): drawn as it is, its TIME uniform advanced each frame. */
+  addDecor(objs: THREE.Object3D[]): void {
+    for (const o of objs) {
+      this.scene.add(o);
+      this.decor.push(o);
+    }
+  }
+
   /** The scene of a GLB file in its native space, for a trimesh collider. It counts toward `pending`. */
   loadModel(path: string): Promise<THREE.Object3D | null> {
     const url = this.assetUrl(path);
@@ -298,6 +310,7 @@ export class Renderer3D {
       }
     }
     if (this.ground) setTime(this.ground.mesh.material as THREE.Material, performance.now() / 1000);
+    for (const d of this.decor) if (d instanceof THREE.Mesh) setTime(d.material as THREE.Material, performance.now() / 1000);
     const amb = isDict(cfg.ambient) ? cfg.ambient : {};
     const energy = lerp(toFloat(amb.energy_night ?? 1), toFloat(amb.energy_day ?? 1), f);
     if (this.skyScene && this.pmrem) {
@@ -667,12 +680,54 @@ export class Renderer3D {
         this.useProjection(false);
         this.active.position.copy(this.camPos);
         this.active.rotation.set(pitch, facing, 0, "YXZ");
+        this.updateViewmodel(actor);
         break;
       }
       default:
         console.info(`[camera] mode '${mode}' is not in this host yet`);
     }
     return target;
+  }
+
+  private viewmodel: THREE.Group | null = null;
+  private viewmodelMeshes = new Map<string, THREE.Group>();
+
+  /**
+   * ViewmodelDirector.setup and update: one library mesh for each weapon,
+   * at `offset` in camera space. The mesh whose key is the actor's
+   * follow_state value shows, and the others hide.
+   */
+  private updateViewmodel(actor: Entity): void {
+    const vm = this.cam.viewmodel;
+    if (!isDict(vm)) return;
+    if (!this.viewmodel) {
+      const weapons = isDict(vm.weapons) ? vm.weapons : {};
+      if (Object.keys(weapons).length === 0) return;
+      this.viewmodel = new THREE.Group();
+      this.viewmodel.name = "Viewmodel";
+      const off = Array.isArray(vm.offset) && vm.offset.length >= 3 ? vm.offset.map(toFloat) : [0.3, -0.25, -0.5];
+      this.viewmodel.position.set(off[0], off[1], off[2]);
+      for (const key of Object.keys(weapons)) {
+        const w = weapons[key];
+        const name = isDict(w) ? String(w.mesh ?? "") : "";
+        if (name === "" || !this.lib.has(name)) continue;
+        const def = this.lib.get(name);
+        const g = new THREE.Group();
+        g.name = `vm_${key}`;
+        g.visible = false;
+        this.lib.buildInto(g, Array.isArray(def.primitives) ? def.primitives : [], MeshLib.mergeParams(def, isDict(w) ? w.params : {}));
+        this.viewmodel.add(g);
+        this.viewmodelMeshes.set(key, g);
+      }
+      this.camera.add(this.viewmodel);
+      // A camera's children render only when the camera is in the scene.
+      if (!this.camera.parent) this.scene.add(this.camera);
+    }
+    const field = String(vm.follow_state ?? "");
+    if (field === "") return;
+    const v = actor.getState(field, "");
+    const current = typeof v === "number" ? String(Math.trunc(v)) : String(v);
+    for (const [k, g] of this.viewmodelMeshes) g.visible = k === current;
   }
 
   /** CameraDirector._apply_ortho: the mode default, then `projection`, ortho_size, fov or focal_length_mm. */
