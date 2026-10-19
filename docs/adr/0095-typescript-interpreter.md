@@ -167,5 +167,24 @@ to the floor. It reads the keys from `ui/input.json` and shows the HUD
 labels as HTML. A capture of level 2 passes the 2D visual-QA baseline.
 The live loop has its own Node tests.
 
-Still open in phase 2: the 3D path (`meshes.json`, the `scene.json`
-ground, lighting, sky and 3D camera presets).
+The 3D path followed on 2026-10-19. The viewer draws `meshes.json`, GLB
+models, the ground color, the sun, the sky, fog and the four 3D camera
+modes. It picks 3D from the `scene.json` camera mode. A capture of
+doomarena3d has the same geometry and framing as the Godot capture.
+Pixel samples of its sky, floor and walls agree within a few units.
+
+Two findings came from the comparison:
+
+- With a sky, Godot ignores `lighting.ambient`. The ambient light
+  comes from the sky at full energy, because Godot applies
+  `ambient_light_energy` only when the sky contribution is below 1.
+  The viewer does the same. Content that sets `ambient` next to `sky`
+  has no effect on Godot either.
+- A shader sky gives its colors through `shader_params` and the
+  day/night table of the lighting director, not through the procedural
+  defaults.
+
+Phase 2 is done for the spec fields that a browser can draw with
+three.js alone. These stay open and move to phase 4: CSG ops, the
+library shaders (ground, sky), heightmaps, GLB animations, the
+viewmodel, SSAO and glow. Articulated links need phase 3.

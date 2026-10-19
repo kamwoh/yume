@@ -8,6 +8,8 @@
 //   /                   the viewer page
 //   /src/<file>.ts      a source file, as JavaScript
 //   /vendor/three.js    three.js from node_modules
+//   /vendor/addons/...  three.js addons (the GLTF loader)
+//   /asset/<game>/<p>   an asset file: <game>/<p>, or lib/<p> for @lib/<p> (ADR 0087)
 //   /bundle/<game>      one JSON map of the game, lib/ and the shape and mesh libraries
 //   /games              the game folders that have a scene.json
 import { createServer } from "node:http";
@@ -37,6 +39,22 @@ const server = createServer((req, res) => {
     if (url.pathname === "/vendor/three.js") {
       return send(200, "text/javascript", readFileSync(join(webRoot, "node_modules/three/build/three.module.js")));
     }
+    if (url.pathname.startsWith("/vendor/addons/")) {
+      const rel = url.pathname.slice("/vendor/addons/".length);
+      if (rel.split("/").includes("..")) return send(403, "text/plain", "forbidden");
+      return send(200, "text/javascript", readFileSync(join(webRoot, "node_modules/three/examples/jsm", rel)));
+    }
+    if (url.pathname.startsWith("/asset/")) {
+      const [game, ...rest] = decodeURIComponent(url.pathname.slice("/asset/".length)).split("/");
+      const rel = rest.join("/");
+      // AssetPath.problem: no scheme, no leading slash, no .. segment.
+      if (!/^[\w-]+$/.test(game) || rel.includes("://") || rel.startsWith("/") || rel.split("/").includes("..")) {
+        return send(403, "text/plain", "forbidden");
+      }
+      const path = rel.startsWith("@lib/") ? join(dataRoot, "lib", rel.slice(5)) : join(dataRoot, game, rel);
+      const body = !files.exists(path) || files.isDir(path) ? null : readFileSync(path);
+      return body ? send(200, mimeOf(path), body) : send(404, "text/plain", "no such asset");
+    }
     if (url.pathname === "/games") {
       const games = files.list(dataRoot).filter((g) => files.exists(join(dataRoot, g, "scene.json")));
       return send(200, "application/json", JSON.stringify(games));
@@ -55,5 +73,14 @@ const server = createServer((req, res) => {
     send(500, "text/plain", String(e));
   }
 });
+
+function mimeOf(path: string): string {
+  const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
+  const types: Record<string, string> = {
+    glb: "model/gltf-binary", gltf: "model/gltf+json", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+    webp: "image/webp", svg: "image/svg+xml", ogg: "audio/ogg", wav: "audio/wav", mp3: "audio/mpeg",
+  };
+  return types[ext] ?? "application/octet-stream";
+}
 
 server.listen(port, () => console.log(`Yume viewer: http://localhost:${port}/?game=demo_sokoban  (data: ${dataRoot})`));

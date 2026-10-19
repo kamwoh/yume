@@ -5,6 +5,7 @@
 // so the content keeps the reference convention: x right, y down, in pixels.
 import * as THREE from "three";
 import type { Entity } from "../entity.ts";
+import { type RGBA, colorOf } from "./color.ts";
 import { type Dict, isDict, toFloat } from "../value.ts";
 import type { World } from "../world.ts";
 
@@ -177,13 +178,13 @@ function primitive(p: Dict, params: Dict): THREE.Object3D | null {
   return null;
 }
 
-function circle(x: number, y: number, r: number, color: THREE.Color & { alpha?: number }): THREE.Mesh {
+function circle(x: number, y: number, r: number, color: RGBA): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.CircleGeometry(r, 48), material(color));
   mesh.position.set(x, y, 0);
   return mesh;
 }
 
-function material(color: THREE.Color & { alpha?: number }): THREE.MeshBasicMaterial {
+function material(color: RGBA): THREE.MeshBasicMaterial {
   const alpha = color.alpha ?? 1;
   return new THREE.MeshBasicMaterial({
     color,
@@ -193,26 +194,6 @@ function material(color: THREE.Color & { alpha?: number }): THREE.MeshBasicMater
     transparent: alpha < 1,
     opacity: alpha,
   });
-}
-
-/** _parse_color: "#rrggbb", "#rrggbbaa", or [r, g, b(, a)] in 0..1. */
-function colorOf(v: unknown): THREE.Color & { alpha?: number } {
-  const c = new THREE.Color(0.7, 0.7, 0.7) as THREE.Color & { alpha?: number };
-  if (typeof v === "string") {
-    const hex = v.replace(/^#/, "");
-    if (/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(hex)) {
-      c.setRGB(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255, THREE.SRGBColorSpace);
-      if (hex.length === 8) c.alpha = parseInt(hex.slice(6, 8), 16) / 255;
-    } else if (/^[0-9a-fA-F]{3}$/.test(hex)) {
-      c.set(`#${hex}`);
-    } else {
-      c.set(v as THREE.ColorRepresentation);
-    }
-  } else if (Array.isArray(v) && v.length >= 3) {
-    c.setRGB(toFloat(v[0]), toFloat(v[1]), toFloat(v[2]), THREE.SRGBColorSpace);
-    if (v.length >= 4) c.alpha = toFloat(v[3]);
-  }
-  return c;
 }
 
 function vec2(v: unknown): [number, number] {

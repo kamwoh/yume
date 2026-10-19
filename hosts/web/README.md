@@ -16,7 +16,8 @@ exact behavior (contract doc, §Two behavior classes).
 | The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call`, saves to disk |
 | Levels (`game/flow.json`), `transition_level`, variants | |
 | `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
-| The browser viewer: 2D shapes (`shapes.json`), the 2D camera, the keyboard, HUD labels | 3D meshes (`meshes.json`), ground, lighting, sky, 3D cameras, screens |
+| The browser viewer, 2D: shapes (`shapes.json`), the 2D camera, the keyboard, HUD labels | Screens, overlays, other HUD widgets (phase 4) |
+| The browser viewer, 3D: `meshes.json`, GLB models, the ground color, sun, sky, fog, the 3D camera modes, mouse look | CSG ops, ground and sky shaders, heightmaps, animations, articulated links, the viewmodel, SSAO, glow |
 
 Shell effects (screens, toasts, save, audio) write a record to
 `env.shellEvents` and change no other state. An autosave on a level swap
@@ -55,14 +56,23 @@ each 1/60 s physics step, and one sim tick for each `tick_seconds`. A
 press-edge key fires once for each key-down. `test/live.test.ts` checks
 this.
 
-For a capture, the URL takes `press=a,b,c` (one key-down for each
-action) and `ticks=N`. Headless Chromium can then take the screenshot:
+The viewer picks the 3D renderer when the `scene.json` camera mode is a
+3D mode (`top_down_3d`, `isometric_3d`, `third_person_3d`,
+`first_person_3d`). A click captures the mouse for mouse look.
+
+### Captures for visual QA
+
+`src/capture.ts` drives a headless Chromium over the DevTools protocol.
+It waits until every GLB file has loaded, plays real key presses through
+the live loop, and saves a PNG. The dev server must be running.
 
 ```bash
-chrome-headless-shell --use-angle=swiftshader --enable-unsafe-swiftshader \
-  --window-size=960,540 --virtual-time-budget=4000 --screenshot=out.png \
-  "http://localhost:8095/?game=demo_sokoban&press=move_east&ticks=5"
+node src/capture.ts --game=demo_sokoban --out=shot.png --keys=Right:0.1,wait:1
 ```
+
+`--keys` takes spec key names (ADR 0090) with a hold time in seconds,
+and `wait:N`. The tool finds a Playwright headless shell in
+`~/.cache/ms-playwright`, or takes `--browser=<path>` or `$YUME_CHROME`.
 
 The viewer starts the game at once. Screens (`screens.json`) and
 overlays are phase 4, so the title screen and the tutorial overlay do
@@ -88,6 +98,8 @@ compare them:
 | `src/scenario.ts` | `qa/scenario_runner.gd`, `qa/step_runner.gd` |
 | `src/input.ts` | `io/input_registrar.gd` (the poll) |
 | `src/viewer/render2d.ts` | `renderer_2d/entity_sprite_2d.gd`, the 2D part of `ui/widgets/camera_director.gd` |
+| `src/viewer/render3d.ts` | `renderer_3d/entity_mesh_3d.gd`, `coordinators/ground_renderer.gd`, `directors/lighting_director.gd`, the 3D part of `camera_director.gd` |
+| `src/viewer/mesh_lib.ts` | `renderer_3d/mesh_lib.gd` |
 | `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, hint, win panel) |
 | `src/viewer/keys.ts` | `io/input_keys.gd` |
 

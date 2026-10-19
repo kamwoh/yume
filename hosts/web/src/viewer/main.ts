@@ -14,6 +14,7 @@ import { World } from "../world.ts";
 import { Hud } from "./hud.ts";
 import { codeToActions } from "./keys.ts";
 import { Renderer2D } from "./render2d.ts";
+import { Renderer3D, is3D } from "./render3d.ts";
 
 async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search);
@@ -27,10 +28,29 @@ async function boot(): Promise<void> {
   const files = new MemoryFiles((await res.json()) as Record<string, string>);
   const world = new World("game", files, "lib");
   world.load();
-  const scene = parse(files.read("game/scene.json"));
+  // The camera block may use $extends with a lib preset (lib/cameras.json).
+  const scene = world.lib.resolve(parse(files.read("game/scene.json"))) as Dict;
   const canvas = document.getElementById("view") as HTMLCanvasElement;
-  const view = new Renderer2D(canvas, parse(files.read("shapes.json")), scene);
-  const hud = new Hud(document.getElementById("hud")!, parse(files.read("game/hud.json")), parse(files.read("game/ui/strings.json")));
+  const view = is3D(scene)
+    ? new Renderer3D(canvas, parse(files.read("meshes.json")), scene, `/asset/${encodeURIComponent(game)}/`)
+    : new Renderer2D(canvas, parse(files.read("shapes.json")), scene);
+  if (view instanceof Renderer3D) {
+    // A click captures the mouse. Motion then turns the actor, as in the reference.
+    canvas.addEventListener("click", () => canvas.requestPointerLock());
+    document.addEventListener("pointerlockchange", () => {
+      view.mouseCaptured = document.pointerLockElement === canvas;
+    });
+    addEventListener("mousemove", (ev) => {
+      if (view.mouseCaptured) {
+        view.mouseDelta.x += ev.movementX;
+        view.mouseDelta.y += ev.movementY;
+      }
+    });
+  }
+  const hudCfg = parse(files.read("game/hud.json"));
+  const hud = new Hud(document.getElementById("hud")!, hudCfg, parse(files.read("game/ui/strings.json")));
+  // The status line is for games with no HUD. A HUD may use any corner.
+  if (Array.isArray(hudCfg.panels) && hudCfg.panels.length > 0) status.style.display = "none";
   const resize = () => view.renderer.setSize(innerWidth, innerHeight, false);
   addEventListener("resize", resize);
   resize();
@@ -77,6 +97,8 @@ async function boot(): Promise<void> {
     view.render();
     hud.update(world);
     showStatus();
+    // A capture tool waits for data-assets="loaded" (tools/capture.ts).
+    if (!(view instanceof Renderer3D) || view.pending === 0) document.body.dataset.assets = "loaded";
     requestAnimationFrame(frame);
   };
   view.sync(world);
