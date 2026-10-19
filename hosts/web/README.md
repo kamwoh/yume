@@ -15,16 +15,17 @@ exact behavior (contract doc, §Two behavior classes).
 | Exact effects: state, spawn, remove, transform, relations, tags, arrays, emit, `advance_time`, `velocity_set`, `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit` | Zones, `pathfind_to` |
 | Physics on Rapier (phase 3): the static, kinematic, rigid, area, character and articulated bodies, and sensors. Also `blocks_motion` boxes, GLB-sized shapes, and trimesh and heightmap ground in the viewer | The `base` footprint of `from_visual_mesh` |
 | The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call` |
+| Instance `patterns` (ring, grid, line, scatter, cluster, mirror) | |
 | Saves (ADR 0010): `save_state`, `load_state`, autosave, `has_save`. A scenario keeps them in memory, the viewer in `localStorage` | |
 | Levels (`game/flow.json`), `transition_level`, variants | |
 | `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
 | The browser viewer, 2D: shapes (`shapes.json`), the 2D camera and its shake, the keyboard and the mouse buttons | |
 | The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`. HUD labels, progress bars and the crosshair | A HUD `list` |
 | Audio (phase 4): the procedural sounds of `sounds.json` with WebAudio, `@cues.*`, the music slot, the master, music and sfx channels | Audio files (.ogg) |
-| The browser viewer, 3D: `meshes.json`, GLB models, the ground and its relief, sun, sky, fog, color adjustments, the 3D cameras, mouse look, articulated links | CSG booleans (`csg` subtract and intersect), the toon shader, `shader_dag`, SSAO, glow |
+| The browser viewer, 3D: `meshes.json`, GLB models, the ground and its relief, sun, sky, fog, color adjustments, the 3D cameras, mouse look, articulated links | CSG booleans (`csg` subtract and intersect), the toon shader, reflection probes |
 | Settings (ADR 0013): the rows of `settings_schema.json`, the apply chains at boot and on change, kept in `localStorage`. The first-person viewmodel. The CSG ops `lathe`, `extrude` and `sweep`. Grass blades and flowers | |
 | Animation (phase 4): GLB clips under `animation_state_rules` with `clip_alias`, library-mesh `animations`, `anim_phase` | |
-| Shaders (phase 4): `sky_clouds`, `ground_biome_displace`, `ground_ortho_displace`, `water_stylized`. The plain ground's `albedo_texture`, `normal_texture` and `uv1_scale`. The minimap and `slot_grid` widgets | `toon`, `shader_dag` |
+| Shaders (phase 4): `sky_clouds`, `ground_biome_displace`, `ground_ortho_displace`, `water_stylized`, and a `shader_dag` ground, compiled at load. Godot's tonemap curves. Glow. The plain ground's `albedo_texture`, `normal_texture` and `uv1_scale`. The minimap and `slot_grid` widgets | `toon` |
 
 Shell effects (screens, toasts, save, audio) write a record to
 `env.shellEvents` and change no other state. An autosave on a level swap
@@ -86,6 +87,11 @@ follows Godot:
 - A new body joins the ray queries at the next physics step.
 - A rigid body writes nothing back to state, as in the reference.
 
+The reference runs Godot's `gl_compatibility` renderer (`project.godot`).
+Two facts follow for the viewer. That renderer draws no SSAO, so the
+viewer draws none. It reads a custom shader's `source_color` sampler
+raw, so the viewer loads those textures with no sRGB decode.
+
 A scenario steps the bodies as `step_runner.gd` does. Character bodies
 move by Euler integration (`tick_headless`). Only a world with an
 articulated body gets one physics step for each tick. Live play adds the ground
@@ -144,6 +150,8 @@ compare them:
 | `src/viewer/shaders.ts` | `data/lib/shaders/*.gdshader` |
 | `src/viewer/settings.ts` | `ui/settings_manager.gd`, the settings rows of `ui/screen_flow.gd` |
 | `src/viewer/grass.ts` | `coordinators/grass_renderer.gd`, `data/lib/shaders/grass_blade.gdshader` |
+| `src/viewer/shader_dag.ts` | `tools/yume_shadergen/compiler.py` |
+| `src/patterns.ts` | `util/instance_patterns.gd` |
 | `src/viewer/water.ts` | `GroundRenderer.build_water`, `data/lib/shaders/water_stylized.gdshader` |
 | `src/viewer/widgets.ts` | `ui/minimap_widget.gd`, the slot_grid of `ui/control_factory.gd` |
 | `src/viewer/audio.ts` | `io/audio_bus.gd`, `io/audio_channels.gd` |

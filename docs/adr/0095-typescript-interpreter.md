@@ -303,3 +303,29 @@ texture each frame, with the water hidden, and the water material reads
 both. The minimap and `slot_grid` widgets and the plain ground textures
 followed. Still open in phase 4: the toon shader, `shader_dag` (ADR
 0058), CSG booleans, glow, SSAO and reflection probes.
+
+The last part of phase 4 found more host facts, each by a capture
+against a fresh Godot frame:
+
+- The reference runs Godot's `gl_compatibility` renderer. It draws no
+  SSAO, so the viewer draws none, although six scenes enable it. It
+  reads a custom shader's `source_color` sampler raw. With an sRGB
+  decode, aldenmere's splat colors matched no biome, and the ground
+  was one blend. Read raw, the path curve took Godot's shape.
+- Godot's `filmic` tonemap is the Hable curve with an exposure bias of
+  2. The viewer had mapped it to three.js's AgX, a different curve. The
+  viewer now runs Godot's linear, Reinhard, filmic and ACES curves.
+- A `shader_dag` ground compiles at load in the viewer, with the rules
+  of `tools/yume_shadergen`. A test checks that its GLSL equals the
+  Python compiler's output.
+- The viewer read `hud.json` with no lib resolution, so a palette
+  reference drew an empty minimap. Godot resolves scene, HUD and
+  screens. A test now checks each of those viewer reads.
+
+Instance `patterns` were the last consumer of Godot's own random
+generator: scatter and cluster seeded a RandomNumberGenerator from
+`String.hash()`. Both are Godot's own algorithms, so no second host could
+place a scattered entity where Godot did. They now draw from the spec
+generator, seeded with `level_seed` XOR the FNV-1a hash of the pattern
+identity. This changes the scatter layout of aldenmere in Godot. The
+`instance_patterns` conformance case pins each position on both hosts.

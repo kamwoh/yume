@@ -8,8 +8,9 @@
 // same lighting as every other mesh. Its vertex displacement is on the
 // CPU (heightmap.ts sample_y, the twin of the shader's vertex()).
 //
-// A `source_color` uniform is sRGB, so the host turns it to linear. TIME
-// is seconds since the page started.
+// A `source_color` color uniform is sRGB, so the host turns it to linear.
+// A `source_color` sampler reads raw, as in the reference's gl_compatibility
+// renderer (see shader_dag.ts). TIME is seconds since the page started.
 //
 // Not in this host yet: water_stylized (it reads the screen and depth
 // textures) and toon.
@@ -124,7 +125,8 @@ export function groundMaterial(shader: string, params: Dict, planeSize: number, 
   let decl = "";
   let body = "";
   if (shader === "ground_ortho_displace") {
-    u.ortho_albedo = { value: load(String(params.ortho_albedo ?? ""), true) };
+    // source_color, but read raw: the reference renderer (gl_compatibility) does so in a custom shader (shader_dag.ts).
+    u.ortho_albedo = { value: load(String(params.ortho_albedo ?? ""), false) };
     u.crown_lift = { value: num("crown_lift", 0.06) };
     u.crease_darken = { value: num("crease_darken", 0.1) };
     u.albedo_attenuate = { value: num("albedo_attenuate", 0.55) };

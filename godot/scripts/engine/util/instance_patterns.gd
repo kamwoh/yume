@@ -34,8 +34,8 @@ class_name InstancePatterns
 ## where placement is forbidden. Useful for protecting player spawn,
 ## boss spawn frame, choke points.
 ##
-## Determinism (ADR 0060): scatter/cluster use a PER-PATTERN seeded
-## `RandomNumberGenerator` — NOT Godot's shared global PRNG. The seed is
+## Determinism (ADR 0060, ADR 0095): scatter/cluster use a PER-PATTERN
+## stream of the spec generator (SpecRandom), not the shared one. The seed is
 ## derived from `base_seed` (scene.json `level_seed`, 0 if unset) XOR the
 ## pattern's identity (id_prefix + def), so each pattern's layout is
 ## reproducible INDEPENDENT of how many `randf()` calls anything else made
@@ -68,14 +68,24 @@ static func expand(pattern: Dictionary, base_seed: int = 0) -> Array:
 	return []
 
 
-## Per-pattern deterministic RNG. seed = base_seed XOR identity-hash, so the
-## same pattern always scatters identically regardless of call order or what
-## else consumed the global PRNG. ADR 0060.
-static func _pattern_rng(base_seed: int, p: Dictionary) -> RandomNumberGenerator:
-	var rng := RandomNumberGenerator.new()
+## Per-pattern deterministic stream of the spec generator (ADR 0095). The
+## seed is base_seed XOR an identity hash, so the same pattern always
+## scatters the same way, whatever else used randomness first (ADR 0060).
+## The hash is FNV-1a over the UTF-8 bytes, so every host gets the same
+## seed. Empirical case 2026-10-19: Godot's RandomNumberGenerator and
+## String.hash() are Godot's own, so a second host could not place a
+## scattered entity where Godot did.
+static func _pattern_rng(base_seed: int, p: Dictionary) -> SpecRandom:
 	var ident := str(p.get("id_prefix", "")) + "|" + str(p.get("def", "")) + "|" + str(p.get("def_choices", []))
-	rng.seed = base_seed ^ (ident.hash() | 1)
-	return rng
+	return SpecRandom.new((base_seed ^ (fnv1a32(ident) | 1)) & 0xFFFFFFFF)
+
+
+## FNV-1a, 32 bits, over the UTF-8 bytes of `s`.
+static func fnv1a32(s: String) -> int:
+	var h: int = 2166136261
+	for b in s.to_utf8_buffer():
+		h = ((h ^ b) * 16777619) & 0xFFFFFFFF
+	return h
 
 
 # ============================================================
@@ -228,7 +238,7 @@ static func _scatter(p: Dictionary, base_seed: int = 0) -> Array:
 			ok = not _in_exclude_zone(pos, exclude_zones)
 		if ok:
 			placed.append(pos)
-			var picked_def := str(def_choices[rng.randi() % def_choices.size()])
+			var picked_def := str(def_choices[rng.next_u32() % def_choices.size()])
 			var inst: Dictionary = {
 				"def": picked_def,
 				"id": "%s_%d" % [id_prefix, placed.size()],

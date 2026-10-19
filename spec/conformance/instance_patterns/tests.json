@@ -1,0 +1,788 @@
+{
+ "_comment": "Patterns expand at load (instance_patterns.gd). Ids are <prefix>_<n>. Each position check has a margin of 1e-6 for the last bit of sin and cos.",
+ "scenarios": [
+  {
+   "name": "patterns_expand",
+   "steps": [
+    {
+     "expect": [
+      {
+       "entity_field": {
+        "id": "r_1",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 1.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_1",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 2.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_1",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_1",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_2",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_2",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_2",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 1.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_2",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 2.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_3",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -2.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_3",
+        "field": "state.position.x",
+        "op": "<",
+        "value": -1.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_3",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_3",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_4",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_4",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_4",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -2.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "r_4",
+        "field": "state.position.z",
+        "op": "<",
+        "value": -1.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_1",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_1",
+        "field": "state.position.x",
+        "op": "<",
+        "value": -1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_1",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_1",
+        "field": "state.position.z",
+        "op": "<",
+        "value": -1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_2",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_2",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_2",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_2",
+        "field": "state.position.z",
+        "op": "<",
+        "value": -1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_3",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_3",
+        "field": "state.position.x",
+        "op": "<",
+        "value": -1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_3",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_3",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_4",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_4",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_4",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 1.499999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "g_4",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 1.500001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_1",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_1",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_1",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_1",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_2",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 1.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_2",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 2.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_2",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_2",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_3",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 3.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_3",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 4.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_3",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "l_3",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 0.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_1",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -2.266500827
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_1",
+        "field": "state.position.x",
+        "op": "<",
+        "value": -2.266498827
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_1",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 2.060543776
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_1",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 2.060545776
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_1",
+        "field": "state.scale",
+        "op": ">",
+        "value": 0.951499475
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_1",
+        "field": "state.scale",
+        "op": "<",
+        "value": 0.951501475
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_2",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -0.068102313
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_2",
+        "field": "state.position.x",
+        "op": "<",
+        "value": -0.068100313
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_2",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 3.132723179
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_2",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 3.132725179
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_2",
+        "field": "state.scale",
+        "op": ">",
+        "value": 0.966059042
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_2",
+        "field": "state.scale",
+        "op": "<",
+        "value": 0.966061042
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_3",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -0.415519438
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_3",
+        "field": "state.position.x",
+        "op": "<",
+        "value": -0.415517438
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_3",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 4.816196951
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_3",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 4.816198951
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_3",
+        "field": "state.scale",
+        "op": ">",
+        "value": 0.549967719
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_3",
+        "field": "state.scale",
+        "op": "<",
+        "value": 0.549969719
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_4",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 4.082367851
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_4",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 4.082369851
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_4",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 1.329234295
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_4",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 1.329236295
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_4",
+        "field": "state.scale",
+        "op": ">",
+        "value": 1.184409453
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_4",
+        "field": "state.scale",
+        "op": "<",
+        "value": 1.184411453
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_5",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 2.653526545
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_5",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 2.653528545
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_5",
+        "field": "state.position.z",
+        "op": ">",
+        "value": -0.438568075
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_5",
+        "field": "state.position.z",
+        "op": "<",
+        "value": -0.438566075
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_5",
+        "field": "state.scale",
+        "op": ">",
+        "value": 0.555630161
+       }
+      },
+      {
+       "entity_field": {
+        "id": "s_5",
+        "field": "state.scale",
+        "op": "<",
+        "value": 0.555632161
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_1",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 11.655428602
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_1",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 11.655430602
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_1",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 8.750636531
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_1",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 8.750638531
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_2",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 10.625261976
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_2",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 10.625263976
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_2",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 8.355735971
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_2",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 8.355737971
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_3",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 8.069696142
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_3",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 8.069698142
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_3",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 11.73815055
+       }
+      },
+      {
+       "entity_field": {
+        "id": "c_3",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 11.73815255
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1",
+        "field": "state.position.x",
+        "op": ">",
+        "value": 2.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1",
+        "field": "state.position.x",
+        "op": "<",
+        "value": 3.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 0.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 1.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1_mirror",
+        "field": "state.position.x",
+        "op": ">",
+        "value": -3.000001
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1_mirror",
+        "field": "state.position.x",
+        "op": "<",
+        "value": -2.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1_mirror",
+        "field": "state.position.z",
+        "op": ">",
+        "value": 0.999999
+       }
+      },
+      {
+       "entity_field": {
+        "id": "m1_mirror",
+        "field": "state.position.z",
+        "op": "<",
+        "value": 1.000001
+       }
+      },
+      {
+       "entity_count": {
+        "query": {
+         "tags_all": [
+          "marker"
+         ]
+        },
+        "op": "==",
+        "value": 19
+       }
+      },
+      {
+       "entity_count": {
+        "query": {
+         "tags_all": [
+          "rock"
+         ]
+        },
+        "op": "==",
+        "value": 3
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

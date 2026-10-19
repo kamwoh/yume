@@ -17,6 +17,7 @@ code-drawn content, so they hold no generated assets.
 | `input_edges` | press-edge and hold-edge actions under `press` and `hold` |
 | `calendar` | `advance_time` and `scheduled` rules (ADR 0078) |
 | `levels_variants` | level swaps, `persistent_tags`, the kept `_engine` entity, a variant overlay |
+| `instance_patterns` | ring, grid, line, scatter, cluster and mirror patterns. Scatter and cluster draw from the spec generator, so their positions are exact |
 | `motion_effects` | `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit` |
 | `reset_world` | `reset_world`: state, the starting level, and one copy of the global and level rules |
 | `save_load` | `save_state` and `load_state`: world state, persistent entities, the state blacklist, a swap to the saved level |

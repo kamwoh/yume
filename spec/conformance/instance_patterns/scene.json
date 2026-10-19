@@ -1,0 +1,4 @@
+{
+  "_comment": "level_seed is the base of each pattern's stream of the spec generator (ADR 0060, ADR 0095).",
+  "level_seed": 4412
+}

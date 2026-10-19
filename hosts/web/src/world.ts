@@ -7,6 +7,7 @@ import { Entity } from "./entity.ts";
 import type { Env } from "./env.ts";
 import { raise } from "./env.ts";
 import { LibResolver } from "./lib_resolver.ts";
+import { expandPattern } from "./patterns.ts";
 import { type PhysicsHost, attachBody } from "./physics.ts";
 import { SpecRandom } from "./random.ts";
 import { RelationStore } from "./relations.ts";
@@ -34,6 +35,8 @@ export class World {
   levelPersistentTags: string[] = ["persistent"];
   levelsRoot = "";
   onAllCompleteMsg = "";
+  /** scene.json level_seed: the base of each pattern's stream (ADR 0060). */
+  levelSeed = 0;
   /** VariantOverlay precedence 1: a scenario's `variant` field. */
   variantOverride = "";
   savePolicy: Dict = {};
@@ -101,7 +104,10 @@ export class World {
     this.spawnEngineEntity();
     this.loadEngineRules();
     this.registerInputs();
-    if (isDict(scene) && "level_seed" in scene) SpecRandom.shared.setSeed(Math.trunc(toFloat(scene.level_seed)));
+    if (isDict(scene) && "level_seed" in scene) {
+      this.levelSeed = Math.trunc(toFloat(scene.level_seed));
+      SpecRandom.shared.setSeed(this.levelSeed);
+    }
     this.env.world.active_actor_id = "default_player";
     this.loadContent();
     this.applyVariant();
@@ -450,9 +456,8 @@ export class World {
       return;
     }
     for (const d of docs) for (const def of asList(d.definitions)) if (isDict(def)) this.env.defs.set(String(def.id ?? ""), def);
-    for (const d of docs) {
-      if (asList(d.patterns).length > 0) raise(this.env, "host.unsupported", "instance patterns are host-side scatter, not in this host yet", "warning");
-    }
+    // WorldLoader phase 1.5: every file's patterns expand before any initial instance (patterns.ts).
+    for (const d of docs) for (const p of asList(d.patterns)) if (isDict(p)) for (const inst of expandPattern(p, this.levelSeed)) this.spawnInstance(inst);
     for (const d of docs) {
       for (const inst of asList(d.initial_instances)) if (isDict(inst)) this.spawnInstance(inst);
       for (const rel of asList(d.initial_relations)) {

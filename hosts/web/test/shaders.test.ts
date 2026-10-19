@@ -1,6 +1,7 @@
 // The library shader ports (shaders.ts): the uniforms they take from shader_params.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { groundMaterial, skyCloudsMaterial } from "../src/viewer/shaders.ts";
 
@@ -46,4 +47,17 @@ test("water is a plane at its level, or a box whose top face is at its level", a
   assert.equal(u.fresnel_power.value, 3.5, "a default");
   assert.ok(u.water_normal_tex.value instanceof THREE.DataTexture, "the generated noise normal map");
   assert.equal(buildWater({ mesh: { shader: "other" } }, () => null), null);
+});
+
+// Post-mortem 2026-10-19: the viewer read hud.json raw, so the minimap's
+// `tag_colors: "@lib.palettes..."` stayed a string and drew no dots. Godot
+// (game_shell.gd, screen_flow.gd) resolves lib references in scene.json,
+// hud.json and screens.json. Each viewer read of those files must resolve too.
+test("the viewer resolves lib references in scene.json, hud.json and screens.json", () => {
+  const src = readFileSync(new URL("../src/viewer/main.ts", import.meta.url), "utf8");
+  for (const f of ["scene.json", "hud.json", "screens.json"]) {
+    const reads = src.split("\n").filter((l) => l.includes(`files.read("game/${f}")`));
+    assert.ok(reads.length > 0, `main.ts reads game/${f}`);
+    for (const l of reads) assert.ok(l.includes("world.lib.resolve("), `game/${f} goes through the lib resolver: ${l.trim()}`);
+  }
 });

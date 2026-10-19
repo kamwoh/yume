@@ -54,7 +54,7 @@ async function boot(): Promise<void> {
   if (ground) world.env.physics?.addGround(ground, height);
   const canvas = document.getElementById("view") as HTMLCanvasElement;
   const view = is3D(scene)
-    ? new Renderer3D(canvas, parse(files.read("meshes.json")), scene, `/asset/${encodeURIComponent(game)}/`)
+    ? new Renderer3D(canvas, parse(files.read("meshes.json")), scene, `/asset/${encodeURIComponent(game)}/`, loadPrimitives(files))
     : new Renderer2D(canvas, parse(files.read("shapes.json")), scene);
   if (view instanceof Renderer3D && height) view.setGroundHeight(height);
   // GrassRenderer: blades and flowers on the grass biome of the splat map.
@@ -77,7 +77,8 @@ async function boot(): Promise<void> {
       }
     });
   }
-  const hudCfg = parse(files.read("game/hud.json"));
+  // GameShell resolves lib references in hud.json (palettes, $extends), as for scene.json and screens.json.
+  const hudCfg = world.lib.resolve(parse(files.read("game/hud.json"))) as Dict;
   const hud = new Hud(document.getElementById("hud")!, hudCfg, parse(files.read("game/ui/strings.json")));
   // The status line is for games with no HUD. A HUD may use any corner.
   if (Array.isArray(hudCfg.panels) && hudCfg.panels.length > 0) status.style.display = "none";
@@ -265,6 +266,17 @@ class LocalSaveStore implements SaveStore {
       // Private mode or blocked storage: the save lasts for this page.
     }
   }
+}
+
+/** The shader-graph primitives of the lib (ADR 0058), by id. */
+function loadPrimitives(files: MemoryFiles): Map<string, Dict> {
+  const out = new Map<string, Dict>();
+  for (const f of files.list("lib/shaders/primitives")) {
+    if (!f.endsWith(".json") || f.startsWith("_")) continue;
+    const d = parse(files.read(`lib/shaders/primitives/${f}`));
+    if (typeof d.id === "string") out.set(d.id, d);
+  }
+  return out;
 }
 
 function parse(text: string | null): Dict {

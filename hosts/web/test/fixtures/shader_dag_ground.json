@@ -1,0 +1,171 @@
+{
+ "mesh": {
+  "size": [
+   80,
+   80
+  ],
+  "color": "#ffffff",
+  "subdivide": 64,
+  "biomes": [
+   {
+    "name": "dirt",
+    "color": [
+     0.659,
+     0.537,
+     0.353
+    ],
+    "albedo": "assets/dirt.png",
+    "roughness": 0.92,
+    "metallic": 0.0
+   },
+   {
+    "name": "grass",
+    "color": [
+     0.627,
+     0.847,
+     0.439
+    ],
+    "albedo": "assets/grass.png",
+    "roughness": 0.95,
+    "metallic": 0.0
+   },
+   {
+    "name": "water",
+    "color": [
+     0.188,
+     0.439,
+     0.753
+    ],
+    "albedo": "assets/water.png",
+    "roughness": 0.25,
+    "metallic": 0.05,
+    "animate": true
+   },
+   {
+    "name": "path",
+    "color": [
+     0.784,
+     0.659,
+     0.471
+    ],
+    "albedo": "assets/path.png",
+    "roughness": 0.8,
+    "metallic": 0.0
+   },
+   {
+    "name": "forest",
+    "color": [
+     0.165,
+     0.353,
+     0.165
+    ],
+    "albedo": "assets/forest.png",
+    "roughness": 0.9,
+    "metallic": 0.0
+   }
+  ],
+  "shader_params": {
+   "biome_map": "assets/biome_map.png",
+   "heightmap": "assets/heightmap.png",
+   "albedo_dirt": "assets/albedo_dirt.png",
+   "albedo_grass": "assets/albedo_grass.png",
+   "albedo_water": "assets/albedo_water.png",
+   "albedo_path": "assets/albedo_path.png",
+   "albedo_forest": "assets/albedo_forest.png"
+  },
+  "shader_dag": {
+   "stages": {
+    "vertex": [
+     {
+      "op": "world_uv_from_position",
+      "in": {
+       "pos": "VERTEX",
+       "plane_size": "$plane_size"
+      },
+      "out": "hm_uv"
+     },
+     {
+      "op": "heightmap_displace",
+      "in": {
+       "uv": "@hm_uv",
+       "map": "$heightmap",
+       "height_scale": "$height_scale",
+       "height_offset": "$height_offset",
+       "plane_size": "$plane_size"
+      },
+      "out": {
+       "normal": "NORMAL"
+      }
+     },
+     {
+      "op": "world_pos_from_model",
+      "in": {},
+      "out": "world_pos_local"
+     }
+    ],
+    "fragment": [
+     {
+      "op": "world_uv_from_position",
+      "in": {
+       "pos": "v_world_pos",
+       "plane_size": "$plane_size"
+      },
+      "out": "biome_uv"
+     },
+     {
+      "op": "sample_biome_map",
+      "in": {
+       "uv": "@biome_uv",
+       "map": "$biome_map"
+      },
+      "out": "biome_probe"
+     },
+     {
+      "op": "biome_blend",
+      "in": {
+       "probe": "@biome_probe",
+       "biomes": "$biomes",
+       "softness": "$blend_softness"
+      },
+      "out": {
+       "wsum": "wsum"
+      }
+     },
+     {
+      "op": "tile_sample_per_biome",
+      "in": {
+       "biomes": "$biomes",
+       "wsum": "@wsum",
+       "uv_tile": "$uv_tile",
+       "world_pos": "v_world_pos",
+       "scroll_speed": "$water_scroll_speed",
+       "scroll_amplitude": "$water_scroll_amplitude"
+      },
+      "out": "ALBEDO"
+     },
+     {
+      "op": "weighted_material_blend",
+      "in": {
+       "biomes": "$biomes",
+       "wsum": "@wsum"
+      },
+      "out": {
+       "roughness": "ROUGHNESS",
+       "metallic": "METALLIC"
+      }
+     }
+    ]
+   }
+  },
+  "plane_size": 80.0,
+  "blend_softness": 0.1,
+  "uv_tile": 30.0,
+  "water_scroll_speed": 0.15,
+  "water_scroll_amplitude": 0.06,
+  "height_scale": 0.6,
+  "height_offset": -0.5
+ },
+ "vertex": "vec2 hm_uv = vec2(\n    (VERTEX.x + 80.0 * 0.5) / 80.0,\n    1.0 - (VERTEX.z + 80.0 * 0.5) / 80.0\n);\nfloat _h_center = texture(heightmap, hm_uv).r + -0.5;\nVERTEX.y += _h_center * 0.6;\nfloat _eps_uv = 1.0 / 1024.0;\nfloat _h_xp = texture(heightmap, hm_uv + vec2(_eps_uv, 0.0)).r + -0.5;\nfloat _h_xn = texture(heightmap, hm_uv - vec2(_eps_uv, 0.0)).r + -0.5;\nfloat _h_zp = texture(heightmap, hm_uv + vec2(0.0, _eps_uv)).r + -0.5;\nfloat _h_zn = texture(heightmap, hm_uv - vec2(0.0, _eps_uv)).r + -0.5;\nfloat _ds = 2.0 * _eps_uv * 80.0;\nvec3 _slope_x = vec3(_ds, (_h_xp - _h_xn) * 0.6, 0.0);\nvec3 _slope_z = vec3(0.0, (_h_zp - _h_zn) * 0.6, _ds);\nNORMAL = normalize(cross(_slope_z, _slope_x));\nv_world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;\nvec3 world_pos_local = v_world_pos;",
+ "fragment": "vec2 biome_uv = vec2(\n    (v_world_pos.x + 80.0 * 0.5) / 80.0,\n    1.0 - (v_world_pos.z + 80.0 * 0.5) / 80.0\n);\nvec3 biome_probe = texture(biome_map, biome_uv).rgb;\nfloat d_dirt = distance(biome_probe, vec3(0.659, 0.537, 0.353));\nfloat d_grass = distance(biome_probe, vec3(0.627, 0.847, 0.439));\nfloat d_water = distance(biome_probe, vec3(0.188, 0.439, 0.753));\nfloat d_path = distance(biome_probe, vec3(0.784, 0.659, 0.471));\nfloat d_forest = distance(biome_probe, vec3(0.165, 0.353, 0.165));\nfloat w_dirt = pow(max(0.001, 0.1 - d_dirt), 2.0);\nfloat w_grass = pow(max(0.001, 0.1 - d_grass), 2.0);\nfloat w_water = pow(max(0.001, 0.1 - d_water), 2.0);\nfloat w_path = pow(max(0.001, 0.1 - d_path), 2.0);\nfloat w_forest = pow(max(0.001, 0.1 - d_forest), 2.0);\nfloat wsum = w_dirt + w_grass + w_water + w_path + w_forest;\nvec2 _tile_uv = UV * 30.0;\nvec2 _anim_uv = _tile_uv + vec2(\n    sin(TIME * 0.15 + v_world_pos.x * 0.18) * 0.06,\n    cos(TIME * 0.15 * 0.73 + v_world_pos.z * 0.18) * 0.06\n);\nvec3 a_dirt = texture(albedo_dirt, _tile_uv).rgb;\nvec3 a_grass = texture(albedo_grass, _tile_uv).rgb;\nvec3 a_water = texture(albedo_water, _anim_uv).rgb;\nvec3 a_path = texture(albedo_path, _tile_uv).rgb;\nvec3 a_forest = texture(albedo_forest, _tile_uv).rgb;\nALBEDO = (a_dirt * w_dirt\n        + a_grass * w_grass\n        + a_water * w_water\n        + a_path * w_path\n        + a_forest * w_forest) / wsum;\nROUGHNESS = (0.92 * w_dirt\n        + 0.95 * w_grass\n        + 0.25 * w_water\n        + 0.8 * w_path\n        + 0.9 * w_forest) / wsum;\nMETALLIC = (0.0 * w_dirt\n        + 0.0 * w_grass\n        + 0.05 * w_water\n        + 0.0 * w_path\n        + 0.0 * w_forest) / wsum;",
+ "uniforms": "uniform sampler2D albedo_dirt : source_color, filter_linear_mipmap, repeat_enable;\nuniform sampler2D albedo_forest : source_color, filter_linear_mipmap, repeat_enable;\nuniform sampler2D albedo_grass : source_color, filter_linear_mipmap, repeat_enable;\nuniform sampler2D albedo_path : source_color, filter_linear_mipmap, repeat_enable;\nuniform sampler2D albedo_water : source_color, filter_linear_mipmap, repeat_enable;\nuniform sampler2D biome_map : source_color, filter_linear, repeat_disable;\nuniform sampler2D heightmap : source_color, filter_linear, repeat_disable;\n\n// Per-biome reference colors (from spec)\nconst vec3 BIOME_COLOR_DIRT = vec3(0.659, 0.537, 0.353);\nconst vec3 BIOME_COLOR_GRASS = vec3(0.627, 0.847, 0.439);\nconst vec3 BIOME_COLOR_WATER = vec3(0.188, 0.439, 0.753);\nconst vec3 BIOME_COLOR_PATH = vec3(0.784, 0.659, 0.471);\nconst vec3 BIOME_COLOR_FOREST = vec3(0.165, 0.353, 0.165);"
+}

@@ -1,0 +1,18 @@
+{
+  "_comment": "Each pattern kind once. Scatter and cluster draw from the spec generator, so their positions are exact on every host.",
+  "definitions": [
+    {"id": "marker", "tags": ["marker"]},
+    {"id": "rock", "tags": ["rock"]}
+  ],
+  "patterns": [
+    {"def": "marker", "pattern": "ring", "count": 4, "radius": 2, "id_prefix": "r"},
+    {"def": "marker", "pattern": "grid", "cols": 2, "rows": 2, "spacing": 3, "id_prefix": "g"},
+    {"def": "marker", "pattern": "line", "count": 3, "start": [0, 0, 0], "end": [4, 0, 0], "id_prefix": "l"},
+    {"pattern": "scatter", "def_choices": ["marker", "rock"], "count": 5, "min_r": 1, "max_r": 6, "min_spacing": 1, "id_prefix": "s", "scale_min": 0.5, "scale_max": 1.5},
+    {"def": "marker", "pattern": "cluster", "count": 3, "spread": 2, "origin": [10, 0, 10], "id_prefix": "c"},
+    {"pattern": "mirror", "axis": "x", "items": [{"def": "marker", "id": "m1", "position": [3, 0, 1]}]}
+  ],
+  "initial_instances": [
+    {"def": "marker", "id": "hand", "position": [0, 0, 0]}
+  ]
+}

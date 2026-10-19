@@ -19,12 +19,16 @@
 // Animation (anim.ts): a GLB's clips under visual.animation_state_rules,
 // and the `animations` block of a library mesh, as the reference does.
 //
+// A ground shader graph (shader_dag) compiles at load in shader_dag.ts.
 // The sky_clouds sky and the two ground shaders come from shaders.ts. The
 // water_stylized surface comes from water.ts.
 //
 // The first-person viewmodel (camera.viewmodel) hangs under the camera.
 //
-// Not in this host yet: the toon shader, glow, SSAO, reflection probes.
+// Glow runs in the post chain (renderPost), as an approximation. SSAO
+// does not: the reference's gl_compatibility renderer ignores it.
+//
+// Not in this host yet: the toon shader, reflection probes.
 import * as THREE from "three";
 import { type GLTF, GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
@@ -32,6 +36,8 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import type { Entity } from "../entity.ts";
 import type { GroundHeight } from "../heightmap.ts";
 import { shapeTransform } from "../physics.ts";
@@ -42,6 +48,7 @@ import { Animator, hasDefault, libraryClip } from "./anim.ts";
 import { MeshLib } from "./mesh_lib.ts";
 import { groundMaterial, setTime, skyCloudsMaterial } from "./shaders.ts";
 import { buildWater } from "./water.ts";
+import { dagMaterial } from "./shader_dag.ts";
 
 // Godot 4's depth fog is exponential in the view-space distance:
 // 1 - exp(-density * distance). three.js's FogExp2 squares the distance, so
@@ -53,7 +60,46 @@ THREE.ShaderChunk.fog_fragment = THREE.ShaderChunk.fog_fragment.replace(
 );
 
 /** The fields of LightingDirector.FIELDS["lighting"] that this host draws. */
-export const LIGHTING_DONE = ["directional_light", "ambient", "sky", "fog", "tonemap", "adjustments"];
+export const LIGHTING_DONE = ["directional_light", "ambient", "sky", "fog", "tonemap", "adjustments", "glow", "ssao"];
+
+/**
+ * Godot's tonemap curves (servers/rendering tonemap.glsl), as three.js's
+ * CustomToneMapping. 0 linear, 1 Reinhard, 2 filmic, 3 ACES.
+ */
+function godotToneMapping(mode: number, white: number): string {
+  const w = white.toFixed(6);
+  return `vec3 CustomToneMapping( vec3 color ) {
+  color *= toneMappingExposure;
+  float white = ${w};
+  ${
+    mode === 1
+      ? "return (white * color + color) / (color * white + white);"
+      : mode === 2
+        ? `const float bias = 2.0;
+  const float A = 0.22 * bias * bias; const float B = 0.30 * bias; const float C = 0.10; const float D = 0.20; const float E = 0.01; const float F = 0.30;
+  vec3 c = ((color * (A * color + C * B) + D * E) / (color * (A * color + B) + D * F)) - E / F;
+  float wt = ((white * (A * white + C * B) + D * E) / (white * (A * white + B) + D * F)) - E / F;
+  return c / wt;`
+        : mode === 3
+          ? `const float bias = 1.8;
+  const float A = 0.0245786; const float B = 0.000090537; const float C = 0.983729; const float D = 0.432951; const float E = 0.238081;
+  const mat3 rgb_to_rrt = mat3(vec3(0.59719, 0.35458, 0.04823) * bias, vec3(0.07600, 0.90834, 0.01566) * bias, vec3(0.02840, 0.13383, 0.83777) * bias);
+  const mat3 odt_to_rgb = mat3(vec3(1.60475, -0.53108, -0.07367), vec3(-0.10208, 1.10813, -0.00605), vec3(-0.00327, -0.07276, 1.07602));
+  color *= rgb_to_rrt;
+  vec3 c = (color * (color + A) - B) / (color * (C * color + D) + E);
+  c *= odt_to_rgb;
+  float wb = white * bias;
+  float wt = (wb * (wb + A) - B) / (wb * (C * wb + D) + E);
+  return c / wt;`
+          : "return color;"
+  }
+}`;
+}
+
+/** The share of the light that SSAO may darken. Godot's SSAO darkens only the ambient light; GTAO darkens all of it. */
+const AO_AMBIENT_SHARE = 0.3;
+/** Godot's gl_compatibility renderer ignores Environment.ssao_enabled. */
+const REFERENCE_DRAWS_SSAO = false;
 
 /** Godot's default clear color, Color(0.3, 0.3, 0.3). */
 const CLEAR_COLOR = 0x4d4d4d;
@@ -107,7 +153,11 @@ export class Renderer3D {
   pending = 0;
 
   /** `assetBase` is the URL prefix of the game's asset files, for example "/asset/demo_x/". */
-  constructor(canvas: HTMLCanvasElement, meshes: Dict, scene: Dict, assetBase: string) {
+  /** The shader-graph primitives (lib/shaders/primitives), by id. */
+  private primitives: Map<string, Dict>;
+
+  constructor(canvas: HTMLCanvasElement, meshes: Dict, scene: Dict, assetBase: string, primitives: Map<string, Dict> = new Map()) {
+    this.primitives = primitives;
     this.assetBase = assetBase;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     this.renderer.setClearColor(CLEAR_COLOR);
@@ -144,8 +194,18 @@ export class Renderer3D {
       this.loadTexture(p, srgb),
     );
     if (!shaded && "shader" in cfg) console.info(`[ground] shader '${String(cfg.shader ?? "")}' is not in this host yet: flat color`);
-    if ("shader_dag" in cfg) console.info("[ground] shader_dag (ADR 0058) is not in this host yet: flat color");
     let mat = shaded;
+    let segments = 1;
+    if (!mat && isDict(cfg.shader_dag)) {
+      // ADR 0058: the graph compiles at load (shader_dag.ts). It displaces on the GPU,
+      // so the plane takes the subdivision of Godot's PlaneMesh (subdivide N: N + 1 segments).
+      try {
+        mat = dagMaterial(cfg, this.primitives, (p, srgb) => this.loadTexture(p, srgb));
+        segments = Math.max(Math.trunc(toFloat(cfg.subdivide ?? 0)) + 1, 1);
+      } catch (e) {
+        console.warn(`[ground] shader_dag did not compile: ${String(e)}`);
+      }
+    }
     if (!mat) {
       // StandardMaterial3D: color × albedo_texture, a normal map, both tiled uv1_scale times.
       const m = new THREE.MeshStandardMaterial({
@@ -164,7 +224,7 @@ export class Renderer3D {
       if (normal !== "") m.normalMap = tiled(this.loadTexture(normal, false));
       mat = m;
     }
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), mat);
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d, segments, segments).rotateX(-Math.PI / 2), mat);
     mesh.receiveShadow = true;
     mesh.name = "Ground";
     this.scene.add(mesh);
@@ -297,9 +357,14 @@ export class Renderer3D {
     }
     const tm = isDict(cfg.tonemap) ? cfg.tonemap : null;
     if (tm) {
+      // Godot's own curves (tonemap.glsl): exposure, then linear, Reinhard, filmic or ACES, each with its white point.
       const mode = String(tm.mode ?? "linear").toLowerCase();
-      this.renderer.toneMapping =
-        mode === "filmic" ? THREE.AgXToneMapping : mode === "aces" ? THREE.ACESFilmicToneMapping : mode.startsWith("reinhard") ? THREE.ReinhardToneMapping : THREE.NoToneMapping;
+      const id = mode === "filmic" ? 2 : mode === "aces" ? 3 : mode.startsWith("reinhard") ? 1 : 0;
+      THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
+        /vec3 CustomToneMapping\( vec3 color \) \{[^}]*\}/,
+        godotToneMapping(id, toFloat(tm.white ?? 1)),
+      );
+      this.renderer.toneMapping = THREE.CustomToneMapping;
       this.renderer.toneMappingExposure = toFloat(tm.exposure ?? 1);
     }
   }
@@ -362,7 +427,11 @@ export class Renderer3D {
       const ap = Math.min(Math.max(toFloat(fogCfg.aerial_perspective ?? 0), 0), 1);
       this.scene.fog.color.copy(base.lerp(horizon, ap));
     }
-    if (this.ground) setTime(this.ground.mesh.material as THREE.Material, performance.now() / 1000);
+    if (this.ground) {
+      setTime(this.ground.mesh.material as THREE.Material, performance.now() / 1000);
+      const du = (this.ground.mesh.material as THREE.Material).userData.uniforms?.dagTime;
+      if (du) du.value = performance.now() / 1000;
+    }
     for (const d of this.decor) if (d instanceof THREE.Mesh) setTime(d.material as THREE.Material, performance.now() / 1000);
     const amb = isDict(cfg.ambient) ? cfg.ambient : {};
     const energy = lerp(toFloat(amb.energy_night ?? 1), toFloat(amb.energy_day ?? 1), f);
@@ -841,9 +910,8 @@ export class Renderer3D {
       this.camera.updateProjectionMatrix();
     }
     this.renderWaterInputs();
-    const adj = isDict(this.lighting.adjustments) ? this.lighting.adjustments : null;
-    if (adj && adj.enabled !== false) {
-      this.renderAdjusted(adj, size);
+    if (this.usesPost()) {
+      this.renderPost(size);
       return;
     }
     this.renderer.render(this.scene, this.active);
@@ -878,25 +946,60 @@ export class Renderer3D {
 
   private composer: EffectComposer | null = null;
   private renderPass: RenderPass | null = null;
+  private aoPass: GTAOPass | null = null;
+  private bloomPass: UnrealBloomPass | null = null;
   private bcsPass: ShaderPass | null = null;
 
+  private enabledBlock(name: string): Dict | null {
+    const b = this.lighting[name];
+    return isDict(b) && b.enabled !== false ? b : null;
+  }
+
+  private usesPost(): boolean {
+    return ["adjustments", "glow"].some((n) => this.enabledBlock(n) !== null);
+  }
+
   /**
-   * LightingDirector._apply_adjustments: brightness, contrast and
-   * saturation over the tonemapped frame, by Godot's apply_bcs, on sRGB
-   * values after the sRGB step. A pixel check against the lanterns Godot
-   * capture chose this order: in linear space the colors crushed.
+   * The post chain of Godot's Environment, in its order: SSAO and glow on
+   * the HDR frame, the tonemap and the sRGB step (OutputPass), then the
+   * adjustments.
+   *   ssao         GTAO. Godot darkens only the ambient light
+   *                (ssao_light_affect 0), and GTAO darkens the whole frame.
+   *                So its blend is intensity × AO_AMBIENT_SHARE, at most 1.
+   *   glow         UnrealBloomPass: strength intensity × strength,
+   *                threshold hdr_threshold.
+   *   adjustments  apply_bcs on the sRGB values. A pixel check against the
+   *                lanterns Godot capture chose this order: in linear space
+   *                the colors crushed.
    */
-  private renderAdjusted(adj: Dict, size: THREE.Vector2): void {
+  private renderPost(size: THREE.Vector2): void {
+    // The reference runs Godot's gl_compatibility renderer (project.godot), which
+    // does not draw SSAO. So this host does not draw it either. GTAO stays wired
+    // for a reference on Forward+, and AO_AMBIENT_SHARE stays its blend.
+    const ssao = REFERENCE_DRAWS_SSAO ? this.enabledBlock("ssao") : null;
+    const glow = this.enabledBlock("glow");
+    const adj = this.enabledBlock("adjustments");
     if (!this.composer) {
       this.composer = new EffectComposer(this.renderer);
       this.renderPass = new RenderPass(this.scene, this.active);
       this.composer.addPass(this.renderPass);
+      if (ssao) {
+        this.aoPass = new GTAOPass(this.scene, this.active, size.x, size.y);
+        this.aoPass.updateGtaoMaterial({ radius: toFloat(ssao.radius ?? 1) });
+        this.aoPass.blendIntensity = Math.min(toFloat(ssao.intensity ?? 2) * AO_AMBIENT_SHARE, 1);
+        this.composer.addPass(this.aoPass);
+      }
+      if (glow) {
+        this.bloomPass = new UnrealBloomPass(size, toFloat(glow.intensity ?? 0.8) * toFloat(glow.strength ?? 1), 0.4, toFloat(glow.hdr_threshold ?? 1));
+        this.composer.addPass(this.bloomPass);
+      }
       this.composer.addPass(new OutputPass());
-      this.bcsPass = new ShaderPass({
-        uniforms: { tDiffuse: { value: null }, bcs: { value: new THREE.Vector3(1, 1, 1) } },
-        vertexShader: `varying vec2 vUv;
+      if (adj) {
+        this.bcsPass = new ShaderPass({
+          uniforms: { tDiffuse: { value: null }, bcs: { value: new THREE.Vector3(1, 1, 1) } },
+          vertexShader: `varying vec2 vUv;
 void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `uniform sampler2D tDiffuse; uniform vec3 bcs;
+          fragmentShader: `uniform sampler2D tDiffuse; uniform vec3 bcs;
 varying vec2 vUv;
 vec3 applyBcs(vec3 color) {
   color = mix(vec3(0.0), color, bcs.x);
@@ -908,12 +1011,14 @@ void main() {
   vec4 c = texture2D(tDiffuse, vUv);
   gl_FragColor = vec4(clamp(applyBcs(c.rgb), 0.0, 1.0), c.a);
 }`,
-      });
-      this.composer.addPass(this.bcsPass);
+        });
+        this.composer.addPass(this.bcsPass);
+      }
     }
     this.renderPass!.camera = this.active;
+    if (this.aoPass) this.aoPass.camera = this.active;
     this.composer.setSize(size.x, size.y);
-    this.bcsPass!.uniforms.bcs.value.set(toFloat(adj.brightness ?? 1), toFloat(adj.contrast ?? 1), toFloat(adj.saturation ?? 1));
+    if (this.bcsPass && adj) this.bcsPass.uniforms.bcs.value.set(toFloat(adj.brightness ?? 1), toFloat(adj.contrast ?? 1), toFloat(adj.saturation ?? 1));
     this.composer.render();
   }
 }
