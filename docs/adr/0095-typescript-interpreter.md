@@ -286,6 +286,11 @@ the Godot capture. The cause was the `lighting.adjustments` block
 Godot's `apply_bcs` now runs on the tonemapped sRGB frame: the grass
 sample went from 114, 156, 74 to 117, 186, 50, against Godot's 88, 174,
 54. In linear space the colors crushed, so that order is wrong.
+The depth fog then followed Godot's formula, 1 - exp(-density ×
+distance), with the fog color pulled toward the sky by
+`aerial_perspective`. three.js squares the distance. The far trees came
+close to the Godot capture. A near roof stays darker than in Godot
+(148, 129, 90 against 200, 168, 103), with no known cause yet.
 
 More of phase 4 followed. It added the settings rows and their apply
 chains, and the first-person viewmodel. It also added the CSG ops

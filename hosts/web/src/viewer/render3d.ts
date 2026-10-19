@@ -42,6 +42,15 @@ import { Animator, hasDefault, libraryClip } from "./anim.ts";
 import { MeshLib } from "./mesh_lib.ts";
 import { groundMaterial, setTime, skyCloudsMaterial } from "./shaders.ts";
 
+// Godot 4's depth fog is exponential in the view-space distance:
+// 1 - exp(-density * distance). three.js's FogExp2 squares the distance, so
+// the host patches its fog chunks once.
+THREE.ShaderChunk.fog_vertex = THREE.ShaderChunk.fog_vertex.replace("vFogDepth = - mvPosition.z;", "vFogDepth = length( mvPosition.xyz );");
+THREE.ShaderChunk.fog_fragment = THREE.ShaderChunk.fog_fragment.replace(
+  "float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );",
+  "float fogFactor = 1.0 - exp( - fogDensity * vFogDepth );",
+);
+
 /** The fields of LightingDirector.FIELDS["lighting"] that this host draws. */
 export const LIGHTING_DONE = ["directional_light", "ambient", "sky", "fog", "tonemap", "adjustments"];
 
@@ -265,6 +274,7 @@ export class Renderer3D {
     }
     const fog = isDict(cfg.fog) ? cfg.fog : null;
     if (fog && fog.enabled !== false) {
+      // The density is linear here: the fog chunks above follow Godot's formula.
       this.scene.fog = new THREE.FogExp2(colorOf(fog.light_color ?? "#8a9bb5"), toFloat(fog.density ?? 0.01));
     }
     const tm = isDict(cfg.tonemap) ? cfg.tonemap : null;
@@ -325,6 +335,14 @@ export class Renderer3D {
         u.groundHorizon.value.copy(groundH);
         u.groundBottom.value.copy(groundB);
       }
+    }
+    const fogCfg = isDict(cfg.fog) ? cfg.fog : null;
+    if (this.scene.fog && fogCfg) {
+      // Environment.fog_light_color × fog_light_energy, pulled toward the sky by
+      // fog_aerial_perspective. The host takes the horizon color as the sky in the view direction.
+      const base = colorOf(fogCfg.light_color ?? "#8a9bb5").multiplyScalar(toFloat(fogCfg.light_energy ?? 1));
+      const ap = Math.min(Math.max(toFloat(fogCfg.aerial_perspective ?? 0), 0), 1);
+      this.scene.fog.color.copy(base.lerp(horizon, ap));
     }
     if (this.ground) setTime(this.ground.mesh.material as THREE.Material, performance.now() / 1000);
     for (const d of this.decor) if (d instanceof THREE.Mesh) setTime(d.material as THREE.Material, performance.now() / 1000);

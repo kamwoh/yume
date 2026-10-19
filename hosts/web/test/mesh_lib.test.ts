@@ -110,3 +110,9 @@ test("the 3D viewer lists the lighting fields it draws, all from LightingDirecto
   for (const f of LIGHTING_DONE) assert.ok(fields.includes(f), `'${f}' is a lighting field of the reference`);
   assert.ok(fields.some((f) => !LIGHTING_DONE.includes(f)), "the others get a load note (glow, ssao, reflection_probes)");
 });
+
+test("the depth fog follows Godot's formula: 1 - exp(-density × view distance)", async () => {
+  await import("../src/viewer/render3d.ts");
+  assert.ok(THREE.ShaderChunk.fog_fragment.includes("exp( - fogDensity * vFogDepth )"), "the distance is not squared");
+  assert.ok(THREE.ShaderChunk.fog_vertex.includes("length( mvPosition.xyz )"), "the distance is the view-space length");
+});
