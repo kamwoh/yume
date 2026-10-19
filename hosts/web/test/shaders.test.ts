@@ -32,3 +32,18 @@ test("sky_clouds takes shader_params over its defaults, with colors as sRGB", ()
   const c = mat.uniforms.sky_top_color.value as THREE.Color;
   assert.ok(Math.abs(c.r - new THREE.Color().setRGB(0.32, 0.48, 0.72, THREE.SRGBColorSpace).r) < 1e-6, "source_color: sRGB to linear");
 });
+
+test("water is a plane at its level, or a box whose top face is at its level", async () => {
+  const { buildWater } = await import("../src/viewer/water.ts");
+  const plane = buildWater({ mesh: { size: [40, 20], level: -1.5, shader: "water_stylized" } }, () => null)!;
+  assert.equal(plane.position.y, -1.5);
+  const box = buildWater({ mesh: { size: [40, 40], level: -2, box_depth: 8, shader: "water_stylized", shader_params: { depth_fade_m: 1.2 } } }, () => null)!;
+  box.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(box);
+  assert.ok(Math.abs(b.max.y + 2) < 1e-6 && Math.abs(b.min.y + 10) < 1e-6, "the top face at -2, 8 m deep");
+  const u = (box.material as THREE.Material).userData.uniforms;
+  assert.equal(u.depth_fade_m.value, 1.2, "a shader param");
+  assert.equal(u.fresnel_power.value, 3.5, "a default");
+  assert.ok(u.water_normal_tex.value instanceof THREE.DataTexture, "the generated noise normal map");
+  assert.equal(buildWater({ mesh: { shader: "other" } }, () => null), null);
+});

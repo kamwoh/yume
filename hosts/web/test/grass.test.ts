@@ -28,3 +28,11 @@ test("flowers scatter only on the grass half of the splat map, at the ground hei
   }
   assert.deepEqual(buildGrass({ mesh: { shader_params: {} }, flowers: { enabled: true } }, null, null), [], "no grass biome, no decoration");
 });
+
+test("the minimap fits the entity extent with 5% padding (MinimapWidget._resolve_bounds)", async () => {
+  const { fitBounds } = await import("../src/viewer/widgets.ts");
+  const { Entity } = await import("../src/entity.ts");
+  const ents = [Entity.create({ id: "a" }, "a", { position: [0, 0, 0] }), Entity.create({ id: "b" }, "b", { position: [10, 0, 20] })];
+  assert.deepEqual(fitBounds(ents), [-0.5, -1, 10.5, 21]);
+  assert.equal(fitBounds([]), null);
+});

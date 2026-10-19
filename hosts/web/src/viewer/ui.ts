@@ -5,13 +5,16 @@
 //
 // settings_renderer takes its rows from settings.ts.
 //
-// Not in this host yet: slider, checkbox, option_button, slot_grid and
-// minimap as screen elements. Each raises one console note.
+// minimap and slot_grid come from widgets.ts.
+//
+// Not in this host yet: slider, checkbox and option_button as screen
+// elements. Each raises one console note.
 import type { Entity } from "../entity.ts";
 import { evaluate } from "../formula.ts";
 import { run } from "../query.ts";
 import { type Dict, isDict } from "../value.ts";
 import type { World } from "../world.ts";
+import { type LiveWidget, Minimap, SlotGrid } from "./widgets.ts";
 
 /** The services a control needs: text lookup, live bindings and the effect dispatcher. */
 export type UiContext = {
@@ -25,7 +28,7 @@ export type UiContext = {
 };
 
 /** A control with visible_if, enabled_if or binds, which the shell updates each frame. */
-export type Bound = { el: HTMLElement; cfg: Dict };
+export type Bound = { el: HTMLElement; cfg: Dict; widget?: LiveWidget };
 
 const warned = new Set<string>();
 function note(msg: string): void {
@@ -80,6 +83,13 @@ export function build(spec: Dict, parent: HTMLElement, ui: UiContext, bound: Bou
     case "list":
       el = list(spec, ui, bound);
       break;
+    case "minimap":
+    case "slot_grid": {
+      const w = t === "minimap" ? new Minimap(spec) : new SlotGrid(spec);
+      el = w.el;
+      bound.push({ el, cfg: spec, widget: w });
+      break;
+    }
     default:
       note(`element type '${t}' is not in this host yet`);
       return null;
@@ -271,7 +281,11 @@ export function cssColor(c: string, alpha: number | null = null): string {
 export function updateBound(bound: Bound[], ui: UiContext): void {
   const w = ui.world();
   const ctx = { world: w.env.world };
-  for (const { el, cfg } of bound) {
+  for (const { el, cfg, widget } of bound) {
+    if (widget) {
+      widget.update(w, ui.binding);
+      continue;
+    }
     if ("visible_if" in cfg) {
       const v = evaluate(String(cfg.visible_if), ctx, w.env);
       el.style.visibility = v === null || v === undefined || Boolean(v) ? "" : "hidden";

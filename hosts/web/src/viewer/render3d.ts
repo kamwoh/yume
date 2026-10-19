@@ -19,12 +19,12 @@
 // Animation (anim.ts): a GLB's clips under visual.animation_state_rules,
 // and the `animations` block of a library mesh, as the reference does.
 //
-// The sky_clouds sky and the two ground shaders come from shaders.ts.
+// The sky_clouds sky and the two ground shaders come from shaders.ts. The
+// water_stylized surface comes from water.ts.
 //
 // The first-person viewmodel (camera.viewmodel) hangs under the camera.
 //
-// Not in this host yet: the water and toon shaders, glow, SSAO, reflection
-// probes.
+// Not in this host yet: the toon shader, glow, SSAO, reflection probes.
 import * as THREE from "three";
 import { type GLTF, GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
@@ -41,6 +41,7 @@ import { colorOf } from "./color.ts";
 import { Animator, hasDefault, libraryClip } from "./anim.ts";
 import { MeshLib } from "./mesh_lib.ts";
 import { groundMaterial, setTime, skyCloudsMaterial } from "./shaders.ts";
+import { buildWater } from "./water.ts";
 
 // Godot 4's depth fog is exponential in the view-space distance:
 // 1 - exp(-density * distance). three.js's FogExp2 squares the distance, so
@@ -121,6 +122,10 @@ export class Renderer3D {
     this.camera.layers.enable(0);
     this.ortho.layers.enable(0);
     this.buildGround(scene);
+    if (isDict(scene.water)) {
+      this.water = buildWater(scene.water, (p, srgb) => this.loadTexture(p, srgb));
+      if (this.water) this.scene.add(this.water);
+    }
     this.buildLighting();
   }
 
@@ -138,14 +143,27 @@ export class Renderer3D {
     const shaded = groundMaterial(String(cfg.shader ?? "").trim(), isDict(cfg.shader_params) ? cfg.shader_params : {}, Math.max(w, d), (p, srgb) =>
       this.loadTexture(p, srgb),
     );
-    if (!shaded && ("shader" in cfg || "albedo_texture" in cfg)) console.info(`[ground] shader '${String(cfg.shader ?? "")}' or texture is not in this host yet: flat color`);
-    const mat =
-      shaded ??
-      new THREE.MeshStandardMaterial({
+    if (!shaded && "shader" in cfg) console.info(`[ground] shader '${String(cfg.shader ?? "")}' is not in this host yet: flat color`);
+    if ("shader_dag" in cfg) console.info("[ground] shader_dag (ADR 0058) is not in this host yet: flat color");
+    let mat = shaded;
+    if (!mat) {
+      // StandardMaterial3D: color × albedo_texture, a normal map, both tiled uv1_scale times.
+      const m = new THREE.MeshStandardMaterial({
         color: colorOf(cfg.color ?? "#808080"),
         roughness: toFloat(cfg.roughness ?? 0.9),
         metalness: toFloat(cfg.metallic ?? 0),
       });
+      const tile = toFloat(cfg.uv1_scale ?? 1);
+      const tiled = (t: THREE.Texture | null) => {
+        if (t) t.repeat.set(tile, tile);
+        return t;
+      };
+      const albedo = String(cfg.albedo_texture ?? "").trim();
+      if (albedo !== "") m.map = tiled(this.loadTexture(albedo, true));
+      const normal = String(cfg.normal_texture ?? "").trim();
+      if (normal !== "") m.normalMap = tiled(this.loadTexture(normal, false));
+      mat = m;
+    }
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), mat);
     mesh.receiveShadow = true;
     mesh.name = "Ground";
@@ -822,12 +840,40 @@ export class Renderer3D {
       this.camera.aspect = size.x / Math.max(size.y, 1);
       this.camera.updateProjectionMatrix();
     }
+    this.renderWaterInputs();
     const adj = isDict(this.lighting.adjustments) ? this.lighting.adjustments : null;
     if (adj && adj.enabled !== false) {
       this.renderAdjusted(adj, size);
       return;
     }
     this.renderer.render(this.scene, this.active);
+  }
+
+  private water: THREE.Mesh | null = null;
+  private waterTarget: THREE.WebGLRenderTarget | null = null;
+
+  /** hint_screen_texture and hint_depth_texture: the opaque scene with the water hidden, for the water shader. */
+  private renderWaterInputs(): void {
+    if (!this.water) return;
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    if (!this.waterTarget || this.waterTarget.width !== size.x || this.waterTarget.height !== size.y) {
+      this.waterTarget?.dispose();
+      this.waterTarget = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(size.x, size.y) });
+    }
+    this.water.visible = false;
+    this.renderer.setRenderTarget(this.waterTarget);
+    this.renderer.render(this.scene, this.active);
+    this.renderer.setRenderTarget(null);
+    this.water.visible = true;
+    const u = (this.water.material as THREE.Material).userData.uniforms as Record<string, THREE.IUniform>;
+    const cam = this.active as THREE.PerspectiveCamera | THREE.OrthographicCamera;
+    u.screen_tex.value = this.waterTarget.texture;
+    u.depth_tex.value = this.waterTarget.depthTexture;
+    u.screenSize.value.copy(size);
+    u.camNear.value = cam.near;
+    u.camFar.value = cam.far;
+    u.camOrtho.value = cam instanceof THREE.OrthographicCamera;
+    u.TIME.value = performance.now() / 1000;
   }
 
   private composer: EffectComposer | null = null;

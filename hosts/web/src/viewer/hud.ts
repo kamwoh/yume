@@ -1,10 +1,11 @@
 // The HUD as HTML. Mirrors hud_builder.gd for panels of `label`, `spacer`,
-// `progress_bar` and `crosshair` elements, the controls hint and the win
-// panel. The minimap, slot_grid and list are not in this host yet. They
-// are skipped, with one console note each.
+// `progress_bar`, `crosshair`, `minimap` and `slot_grid` elements, the
+// controls hint and the win panel. A HUD `list` is not in this host yet.
+// It is skipped, with one console note.
 import type { Entity } from "../entity.ts";
 import { type Dict, isDict } from "../value.ts";
 import type { World } from "../world.ts";
+import { type LiveWidget, Minimap, SlotGrid } from "./widgets.ts";
 
 type BoundLabel = { el: HTMLElement; binds: string; format: string; phases: string[] };
 type BoundBar = { fill: HTMLElement; binds: string; max: number; lerp: [string, string] | null };
@@ -24,6 +25,7 @@ const ANCHORS: Record<string, string> = {
 export class Hud {
   private labels: BoundLabel[] = [];
   private bars: BoundBar[] = [];
+  private widgets: LiveWidget[] = [];
   private win: { binds: string; op: string; value: unknown; el: HTMLElement } | null = null;
   private strings: Dict;
 
@@ -50,6 +52,10 @@ export class Hud {
           // A centered glyph. The third-person aim point (crosshair_screen_x/y) comes with the camera slice.
           const ch = div(box, `font-size:${Number(el.size ?? 28)}px;color:${String(el.color ?? "#ffffff")};line-height:1;text-shadow:0 0 3px #000,0 0 3px #000`);
           ch.textContent = String(el.glyph ?? "+");
+        } else if (type === "minimap" || type === "slot_grid") {
+          const w = type === "minimap" ? new Minimap(el) : new SlotGrid(el);
+          box.appendChild(w.el);
+          this.widgets.push(w);
         } else console.info(`[hud] element type '${type}' is not in this host yet, skipped`);
       }
     }
@@ -78,6 +84,7 @@ export class Hud {
       }
       l.el.textContent = this.text(l.format).replace("{}", formatValue(v));
     }
+    for (const w of this.widgets) w.update(world, (p) => resolveBinding(world, p));
     for (const b of this.bars) {
       const v = Number(resolveBinding(world, b.binds));
       if (!Number.isFinite(v)) continue;
@@ -110,6 +117,23 @@ export function resolveBinding(world: World, path: string): unknown {
   const m = /^(.*)\[(\d+)\]$/.exec(parts[1]);
   const field = m ? m[1] : parts[1];
   let value: unknown;
+  if (parts[0] === "def") {
+    // "def.<def_id>.<path>", or "def.@<root>.<field>.<path>" where the binding <root>.<field> names the def.
+    let defId = field;
+    let start = 2;
+    if (field.startsWith("@") && parts.length >= 3) {
+      const r = resolveBinding(world, `${field.slice(1)}.${parts[2]}`);
+      if (typeof r !== "string" || r === "") return null;
+      defId = r;
+      start = 3;
+    }
+    let cur: unknown = world.env.defs.get(defId);
+    for (const seg of parts.slice(start)) {
+      if (!isDict(cur) || !(seg in cur)) return null;
+      cur = cur[seg];
+    }
+    return cur ?? null;
+  }
   if (parts[0] === "world") value = world.env.world[field] ?? null;
   else {
     const ent = findByTag(world, parts[0]);

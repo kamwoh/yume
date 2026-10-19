@@ -296,3 +296,10 @@ More of phase 4 followed. It added the settings rows and their apply
 chains, and the first-person viewmodel. It also added the CSG ops
 `lathe`, `extrude` and `sweep`, and the grass blades and flowers. A boolean CSG group (`csg` subtract or
 intersect) is not in the host yet. No content uses one.
+
+The water surface (`water_stylized`) needs the screen and depth
+textures. The host renders the opaque scene into a target with a depth
+texture each frame, with the water hidden, and the water material reads
+both. The minimap and `slot_grid` widgets and the plain ground textures
+followed. Still open in phase 4: the toon shader, `shader_dag` (ADR
+0058), CSG booleans, glow, SSAO and reflection probes.
