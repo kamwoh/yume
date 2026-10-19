@@ -280,9 +280,12 @@ for line. A ground shader patches the standard material, so it keeps
 the lighting of every other mesh. One host difference showed at once.
 Godot's texture UV (0, 0) is the image's top-left corner, so the host
 loads shader textures with no vertical flip. Before that fix, the
-lanterns path was mirrored. One gap stays open. The lanterns grass is
-less saturated than in the Godot capture: a pixel sample gives 114, 156,
-74 against 88, 174, 54. The cause is not known yet.
+lanterns path was mirrored. The lanterns grass was less saturated than in
+the Godot capture. The cause was the `lighting.adjustments` block
+(contrast 1.18, saturation 1.34), which the viewer ignored with no note.
+Godot's `apply_bcs` now runs on the tonemapped sRGB frame: the grass
+sample went from 114, 156, 74 to 117, 186, 50, against Godot's 88, 174,
+54. In linear space the colors crushed, so that order is wrong.
 
 More of phase 4 followed. It added the settings rows and their apply
 chains, and the first-person viewmodel. It also added the CSG ops

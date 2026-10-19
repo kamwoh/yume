@@ -21,7 +21,7 @@ exact behavior (contract doc, §Two behavior classes).
 | The browser viewer, 2D: shapes (`shapes.json`), the 2D camera and its shake, the keyboard and the mouse buttons | |
 | The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`. HUD labels, progress bars and the crosshair | The minimap, `slot_grid` |
 | Audio (phase 4): the procedural sounds of `sounds.json` with WebAudio, `@cues.*`, the music slot, the master, music and sfx channels | Audio files (.ogg) |
-| The browser viewer, 3D: `meshes.json`, GLB models, the ground and its heightmap relief, sun, sky, fog, the 3D camera modes, mouse look, articulated links | CSG booleans (`csg` subtract and intersect), the water and toon shaders, SSAO, glow |
+| The browser viewer, 3D: `meshes.json`, GLB models, the ground and its relief, sun, sky, fog, color adjustments, the 3D cameras, mouse look, articulated links | CSG booleans (`csg` subtract and intersect), the water and toon shaders, SSAO, glow |
 | Settings (ADR 0013): the rows of `settings_schema.json`, the apply chains at boot and on change, kept in `localStorage`. The first-person viewmodel. The CSG ops `lathe`, `extrude` and `sweep`. Grass blades and flowers | |
 | Animation (phase 4): GLB clips under `animation_state_rules` with `clip_alias`, library-mesh `animations`, `anim_phase` | |
 | Shaders (phase 4): `sky_clouds`, `ground_biome_displace`, `ground_ortho_displace` | `water_stylized`, `toon`, `shader_dag` |

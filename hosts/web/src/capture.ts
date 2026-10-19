@@ -7,6 +7,7 @@
 //                                   K:down keeps key K down through the capture (a walk pose).
 //     [--size=960x540] [--server=http://localhost:8095] [--timeout=120] [--verbose]
 //     [--browser=<path>]            default: $YUME_CHROME, else a Playwright headless shell
+//     [--query=a=1&b=2]             extra URL parameters for the viewer
 //     [--eval=<expr>]               print a page expression after the keys, e.g. a player position
 //
 // The dev server (src/serve.ts) must be running.
@@ -25,6 +26,8 @@ const server = opt("server", "http://localhost:8095");
 const timeoutS = Number(opt("timeout", "120"));
 const keys = opt("keys", "");
 const evalExpr = opt("eval", "");
+/** Extra URL parameters for the viewer, for example bcs=linear. */
+const query = opt("query", "");
 // A port of its own, so a browser left by a killed run cannot answer.
 const port = 9300 + Math.floor(Math.random() * 600);
 const verbose = args.includes("--verbose");
@@ -137,7 +140,7 @@ async function main(): Promise<void> {
     await cdp.send("Runtime.enable");
     await cdp.send("Inspector.enable");
     await cdp.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
-    await cdp.send("Page.navigate", { url: `${server}/?game=${encodeURIComponent(game)}` });
+    await cdp.send("Page.navigate", { url: `${server}/?game=${encodeURIComponent(game)}${query !== "" ? `&${query}` : ""}` });
     const deadline = Date.now() + timeoutS * 1000;
     const t0 = Date.now();
     let lastLog = 0;

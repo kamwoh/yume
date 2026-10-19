@@ -100,3 +100,13 @@ test("an extrude is centered on pos along Z, and a sweep follows its path", () =
   const s = new THREE.Box3().setFromObject(build([{ op: "sweep", polygon: [[-0.1, -0.1], [0.1, -0.1], [0, 0.1]], path: [[0, 0, 0], [2, 0, 0]] }]));
   assert.ok(s.max.x > 1.9 && s.min.x < 0.1, "the swept shape spans the 2 m path");
 });
+
+test("the 3D viewer lists the lighting fields it draws, all from LightingDirector.FIELDS", async () => {
+  const { LIGHTING_DONE } = await import("../src/viewer/render3d.ts");
+  const gd = readFileSync(new URL("../../../godot/scripts/engine/directors/lighting_director.gd", import.meta.url), "utf8");
+  const m = /"lighting": \[([^\]]*)\]/.exec(gd);
+  assert.ok(m, "LightingDirector.FIELDS has a lighting list");
+  const fields = m![1].split(",").map((x) => x.trim().replace(/"/g, ""));
+  for (const f of LIGHTING_DONE) assert.ok(fields.includes(f), `'${f}' is a lighting field of the reference`);
+  assert.ok(fields.some((f) => !LIGHTING_DONE.includes(f)), "the others get a load note (glow, ssao, reflection_probes)");
+});

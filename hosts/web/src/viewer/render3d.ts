@@ -28,6 +28,10 @@
 import * as THREE from "three";
 import { type GLTF, GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
 import type { Entity } from "../entity.ts";
 import type { GroundHeight } from "../heightmap.ts";
 import { shapeTransform } from "../physics.ts";
@@ -37,6 +41,9 @@ import { colorOf } from "./color.ts";
 import { Animator, hasDefault, libraryClip } from "./anim.ts";
 import { MeshLib } from "./mesh_lib.ts";
 import { groundMaterial, setTime, skyCloudsMaterial } from "./shaders.ts";
+
+/** The fields of LightingDirector.FIELDS["lighting"] that this host draws. */
+export const LIGHTING_DONE = ["directional_light", "ambient", "sky", "fog", "tonemap", "adjustments"];
 
 /** Godot's default clear color, Color(0.3, 0.3, 0.3). */
 const CLEAR_COLOR = 0x4d4d4d;
@@ -214,6 +221,16 @@ export class Renderer3D {
   /** LightingDirector._attach_lighting_nodes. With no lighting block the reference adds no lights. */
   private buildLighting(): void {
     const cfg = this.lighting;
+    // Name each lighting field this host does not draw, so a missing feature
+    // shows at load (2026-10-19: lanterns' `adjustments` was ignored with no note,
+    // and the frame looked washed out against the Godot capture).
+    for (const k of Object.keys(cfg)) {
+      if (k.startsWith("_")) continue;
+      if (!LIGHTING_DONE.includes(k)) console.info(`[lighting] '${k}' is not in this host yet`);
+      else if (k === "adjustments" && isDict(cfg.adjustments) && "color_correction" in cfg.adjustments) {
+        console.info("[lighting] 'adjustments.color_correction' is not in this host yet");
+      }
+    }
     if (Object.keys(cfg).length === 0) return;
     const dl = isDict(cfg.directional_light) ? cfg.directional_light : {};
     if (dl.enabled !== false) {
@@ -787,7 +804,53 @@ export class Renderer3D {
       this.camera.aspect = size.x / Math.max(size.y, 1);
       this.camera.updateProjectionMatrix();
     }
+    const adj = isDict(this.lighting.adjustments) ? this.lighting.adjustments : null;
+    if (adj && adj.enabled !== false) {
+      this.renderAdjusted(adj, size);
+      return;
+    }
     this.renderer.render(this.scene, this.active);
+  }
+
+  private composer: EffectComposer | null = null;
+  private renderPass: RenderPass | null = null;
+  private bcsPass: ShaderPass | null = null;
+
+  /**
+   * LightingDirector._apply_adjustments: brightness, contrast and
+   * saturation over the tonemapped frame, by Godot's apply_bcs, on sRGB
+   * values after the sRGB step. A pixel check against the lanterns Godot
+   * capture chose this order: in linear space the colors crushed.
+   */
+  private renderAdjusted(adj: Dict, size: THREE.Vector2): void {
+    if (!this.composer) {
+      this.composer = new EffectComposer(this.renderer);
+      this.renderPass = new RenderPass(this.scene, this.active);
+      this.composer.addPass(this.renderPass);
+      this.composer.addPass(new OutputPass());
+      this.bcsPass = new ShaderPass({
+        uniforms: { tDiffuse: { value: null }, bcs: { value: new THREE.Vector3(1, 1, 1) } },
+        vertexShader: `varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `uniform sampler2D tDiffuse; uniform vec3 bcs;
+varying vec2 vUv;
+vec3 applyBcs(vec3 color) {
+  color = mix(vec3(0.0), color, bcs.x);
+  color = mix(vec3(0.5), color, bcs.y);
+  color = mix(vec3(dot(vec3(1.0), color) * 0.33333), color, bcs.z);
+  return color;
+}
+void main() {
+  vec4 c = texture2D(tDiffuse, vUv);
+  gl_FragColor = vec4(clamp(applyBcs(c.rgb), 0.0, 1.0), c.a);
+}`,
+      });
+      this.composer.addPass(this.bcsPass);
+    }
+    this.renderPass!.camera = this.active;
+    this.composer.setSize(size.x, size.y);
+    this.bcsPass!.uniforms.bcs.value.set(toFloat(adj.brightness ?? 1), toFloat(adj.contrast ?? 1), toFloat(adj.saturation ?? 1));
+    this.composer.render();
   }
 }
 
