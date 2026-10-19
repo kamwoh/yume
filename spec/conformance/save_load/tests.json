@@ -1,0 +1,197 @@
+{
+  "_comment": "save_state and load_state (ADR 0010). Both run after the tick. Godot keeps saves on disk across runs, so no check reads has_save before the first save.",
+  "scenarios": [
+    {
+      "name": "save_then_load_restores_state",
+      "_": "A load brings back the saved score and the saved state of a persistent entity. A blacklisted field keeps its live value.",
+      "steps": [
+        {
+          "press": "earn"
+        },
+        {
+          "press": "save"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "has_save",
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        },
+        {
+          "press": "earn"
+        },
+        {
+          "press": "earn"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "score",
+                "op": "==",
+                "value": 30
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.coins",
+                "op": "==",
+                "value": 3
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state._temp_note",
+                "op": "==",
+                "value": 3
+              }
+            }
+          ]
+        },
+        {
+          "press": "load"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "score",
+                "op": "==",
+                "value": 10
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state.coins",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "hero",
+                "field": "state._temp_note",
+                "op": "==",
+                "value": 3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "load_swaps_to_the_saved_level",
+      "_": "A save in level b, a swap back to level a, then a load: the world is in level b again, with the entities of level b.",
+      "steps": [
+        {
+          "press": "to_b"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "b"
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "b_thing"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        },
+        {
+          "press": "save"
+        },
+        {
+          "press": "to_a"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "a"
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "a_thing"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "b_thing"
+                  ]
+                },
+                "op": "==",
+                "value": 0
+              }
+            }
+          ]
+        },
+        {
+          "press": "load"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "b"
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "b_thing"
+                  ]
+                },
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_count": {
+                "query": {
+                  "tags_all": [
+                    "a_thing"
+                  ]
+                },
+                "op": "==",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

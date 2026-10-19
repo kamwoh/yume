@@ -255,4 +255,16 @@ The port also found that a load from a save never swaps the level. The
 load writes the saved `current_level` into world state, then compares
 it with `current_level`, which reads that same world state (ADR 0047).
 So a Continue from a save in level 3 shows level 1 under the name of
-level 3. The save slice fixes it, with a conformance case.
+level 3. The save slice fixed it: the load reads the level before the
+state write. The `save_load` conformance case failed on Godot before the
+fix and passes on both hosts after it.
+
+The save slice: `save_state`, `load_state`, the autosave on a level swap
+and `has_save`. Where a save lives is host-defined. A scenario run keeps
+saves in memory for the process, and the viewer keeps them in
+`localStorage`. Sokoban's Continue button works in a browser.
+
+The audio slice: the sounds of `sounds.json`, made by the same synthesis
+at the same 22050 Hz, play through WebAudio. Rules name sounds through
+`@cues.*`. A melody loops on the music slot. A browser starts audio
+only after a key or a click.

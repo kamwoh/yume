@@ -12,7 +12,8 @@ import { SpecRandom } from "./random.ts";
 import { RelationStore } from "./relations.ts";
 import { Rule, VALID_TRIGGERS } from "./rule.ts";
 import { PhaseScheduler } from "./scheduler.ts";
-import { type Dict, type Value, Vec3, isDict, toFloat } from "./value.ts";
+import { MemorySaveStore, type SaveStore, buildPayload, hasAnySave, readSlot } from "./save.ts";
+import { type Dict, type Value, Vec3, isDict, normalizePosition, toFloat } from "./value.ts";
 
 const UNSUPPORTED_FILES = ["macros.json", "actors.json", "world/zones.json", "chunks"];
 
@@ -43,6 +44,10 @@ export class World {
   actionKeys = new Map<string, string[]>();
   /** The mouse button names of each action (`mouse_button`, `mouse_buttons`). */
   actionMouse = new Map<string, string[]>();
+  /** Where saves live (host-defined, ADR 0086). A scenario run keeps them in memory. */
+  saveStore: SaveStore = MemorySaveStore.shared;
+  /** The save namespace: the game folder name (SaveLoadCoordinator.game_name_from_root). */
+  gameName = "";
 
   /**
    * Builds the physics host (ADR 0095 phase 3) from the layer names and a
@@ -69,6 +74,8 @@ export class World {
       advanceCalendar: null,
       pendingLevel: "",
       pendingReset: false,
+      pendingSave: null,
+      pendingLoad: null,
       overlapEvents: [],
       physics: null,
     };
@@ -147,12 +154,23 @@ export class World {
     this.loadEntities(dir);
   }
 
-  /** step_runner._advance: the pending level swap, then the pending world reset. The host drains them after each tick. */
+  /** step_runner._advance: the pending level swap, the save, the load, then the world reset. The host drains them after each tick. */
   processPending(): void {
     const pending = this.env.pendingLevel;
     if (pending !== "") {
       this.env.pendingLevel = "";
       this.doTransition(pending);
+    }
+    // A save goes first, so a save and a load in one tick save the state before the load.
+    if (this.env.pendingSave !== null) {
+      const slot = this.env.pendingSave;
+      this.env.pendingSave = null;
+      this.doSave(slot);
+    }
+    if (this.env.pendingLoad !== null) {
+      const slot = this.env.pendingLoad;
+      this.env.pendingLoad = null;
+      this.doLoad(slot);
     }
     if (this.env.pendingReset) {
       this.env.pendingReset = false;
@@ -183,9 +201,64 @@ export class World {
       this.loadEntities(this.root);
       if (this.currentLevel !== "") this.loadLevel(this.currentLevel);
     } else this.loadEntities(this.root);
-    if (Object.keys(this.savePolicy).length > 0) this.env.world.has_save = 0;
+    if (Object.keys(this.savePolicy).length > 0) this.env.world.has_save = hasAnySave(this.saveStore, this.saveGame, Math.trunc(toFloat(this.savePolicy.slots ?? 1))) ? 1 : 0;
     this.env.world.active_actor_id = "default_player";
     this.scheduler.flush();
+  }
+
+  private get saveGame(): string {
+    return this.gameName !== "" ? this.gameName : this.root.slice(this.root.lastIndexOf("/") + 1);
+  }
+
+  /** SaveLoadCoordinator.do_save. */
+  doSave(slot: number): void {
+    if (Object.keys(this.savePolicy).length === 0) {
+      raise(this.env, "rule.file_missing", "save_state effect fired but no save_policy.json present", "warning");
+      return;
+    }
+    this.saveStore.write(this.saveGame, slot, JSON.stringify(buildPayload(this.env, this.savePolicy, this.saveGame, this.simTick), null, 2));
+    this.env.world.has_save = hasAnySave(this.saveStore, this.saveGame, Math.trunc(toFloat(this.savePolicy.slots ?? 1))) ? 1 : 0;
+  }
+
+  /**
+   * SaveLoadCoordinator.do_load: the saved world state, a swap to the saved
+   * level when it differs, the saved persistent entities, then the saved
+   * relations. The level check reads the level from before the state write.
+   */
+  doLoad(slot: number): void {
+    if (Object.keys(this.savePolicy).length === 0) {
+      raise(this.env, "rule.file_missing", "load_state effect fired but no save_policy.json present", "warning");
+      return;
+    }
+    const r = readSlot(this.saveStore, this.saveGame, slot, this.savePolicy);
+    if (!r.ok) {
+      raise(this.env, "save.load_failed", `load slot ${slot} failed: ${r.error}`, "warning");
+      return;
+    }
+    const levelBefore = this.currentLevel;
+    const ws = isDict(r.payload.world_state) ? r.payload.world_state : {};
+    for (const k of Object.keys(ws)) this.env.world[k] = ws[k];
+    const saved = String(this.env.world.current_level ?? levelBefore);
+    if (saved !== "" && saved !== levelBefore) {
+      // do_transition reads the target, so the current level goes back to the old one first.
+      this.currentLevel = levelBefore;
+      this.doTransition(saved);
+    }
+    for (const rec of Array.isArray(r.payload.persistent_entities) ? r.payload.persistent_entities : []) {
+      if (!isDict(rec)) continue;
+      const id = String(rec.id ?? "");
+      const def = String(rec.def ?? "");
+      if (id === "" || def === "") continue;
+      const state = isDict(rec.state) ? rec.state : {};
+      const ent = this.env.entities.get(id);
+      if (ent) {
+        if (Array.isArray(rec.position)) ent.setPosition(rec.position as Value);
+        for (const k of Object.keys(state)) ent.setState(k, k === "position" || k === "velocity" ? normalizePosition(state[k]) : state[k]);
+      } else this.spawnInstance({ def, id, position: rec.position ?? null, state });
+    }
+    for (const rel of Array.isArray(r.payload.relations) ? r.payload.relations : []) {
+      if (isDict(rel)) this.env.relations.relate(String(rel.type ?? ""), String(rel.from ?? ""), String(rel.to ?? ""));
+    }
   }
 
   /** LevelTransitionCoordinator.reload_global_rules: the swap and the reset both start from the global rules. */
@@ -222,10 +295,8 @@ export class World {
     this.loadLevel(target);
     this.scheduler.flush();
     const auto = this.savePolicy.autosave;
-    if (isDict(auto) && Boolean(auto.on_level_transition)) {
-      // Saving is host-defined storage (ADR 0086). This host records the request.
-      this.env.shellEvents.push({ type: "save_state", slot: 0, autosave: true });
-    }
+    // ADR 0010 autosave: slot 0, drained with the other pending requests.
+    if (isDict(auto) && Boolean(auto.on_level_transition)) this.env.pendingSave = 0;
   }
 
   /** VariantOverlay.apply (ADR 0009 phase 2d): rule, world-state and entity overrides. */
@@ -263,7 +334,8 @@ export class World {
   private loadSavePolicy(): void {
     const p = this.readJson("save_policy.json");
     this.savePolicy = isDict(p) ? p : {};
-    this.env.world.has_save = 0;
+    const any = Object.keys(this.savePolicy).length > 0 && hasAnySave(this.saveStore, this.saveGame, Math.trunc(toFloat(this.savePolicy.slots ?? 1)));
+    this.env.world.has_save = any ? 1 : 0;
   }
 
   private spawnEngineEntity(): void {

@@ -14,11 +14,13 @@ exact behavior (contract doc, §Two behavior classes).
 | Rules with the tick phases, `once`, `once_per`, `chance`, `overlap` | `lod`, `scope` |
 | Exact effects: state, spawn, remove, transform, relations, tags, arrays, emit, `advance_time`, `velocity_set`, `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit` | Zones, `pathfind_to` |
 | Physics on Rapier (phase 3): the static, kinematic, rigid, area, character and articulated bodies, and sensors. Also `blocks_motion` boxes, GLB-sized shapes, and trimesh and heightmap ground in the viewer | The `base` footprint of `from_visual_mesh` |
-| The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call`, saves to disk |
+| The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call` |
+| Saves (ADR 0010): `save_state`, `load_state`, autosave, `has_save`. A scenario keeps them in memory, the viewer in `localStorage` | |
 | Levels (`game/flow.json`), `transition_level`, variants | |
 | `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
 | The browser viewer, 2D: shapes (`shapes.json`), the 2D camera and its shake, the keyboard and the mouse buttons | |
-| The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`. HUD labels, progress bars and the crosshair | Saves, settings rows, the minimap, `slot_grid`, audio |
+| The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`. HUD labels, progress bars and the crosshair | Settings rows, the minimap, `slot_grid` |
+| Audio (phase 4): the procedural sounds of `sounds.json` with WebAudio, `@cues.*`, the music slot, the master, music and sfx channels | Audio files (.ogg) |
 | The browser viewer, 3D: `meshes.json`, GLB models, the ground color and its heightmap relief, sun, sky, fog, the 3D camera modes, mouse look, articulated links | CSG ops, ground and sky shaders, animations, the viewmodel, SSAO, glow |
 
 Shell effects (screens, toasts, save, audio) write a record to
@@ -135,6 +137,8 @@ compare them:
 | `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, bars, crosshair, hint, win panel) |
 | `src/viewer/shell.ts` | `ui/screen_flow.gd`, `ui/overlay.gd`, the event drain of `ui/game_shell.gd` |
 | `src/viewer/ui.ts` | `ui/control_factory.gd` |
+| `src/viewer/audio.ts` | `io/audio_bus.gd`, `io/audio_channels.gd` |
+| `src/save.ts` | `io/save_state.gd`, `coordinators/save_load_coordinator.gd` |
 | `src/viewer/keys.ts` | `io/input_keys.gd` |
 | `src/physics.ts`, `src/physics_rapier.ts` | `coordinators/physics_body_builder.gd`, `character_body_runner.gd`, `articulated_body.gd`, `sensor_array.gd` |
 | `src/heightmap.ts` | `GroundRenderer.sample_y` |

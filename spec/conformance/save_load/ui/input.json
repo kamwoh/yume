@@ -1,0 +1,29 @@
+{
+  "actions": [
+    {
+      "name": "save",
+      "key": "S",
+      "edge": "press"
+    },
+    {
+      "name": "load",
+      "key": "L",
+      "edge": "press"
+    },
+    {
+      "name": "to_a",
+      "key": "A",
+      "edge": "press"
+    },
+    {
+      "name": "to_b",
+      "key": "B",
+      "edge": "press"
+    },
+    {
+      "name": "earn",
+      "key": "E",
+      "edge": "press"
+    }
+  ]
+}

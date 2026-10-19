@@ -19,7 +19,7 @@ export type ShellHost = {
   reload: () => void;
   /** GameShell "shake": the camera shakes by `intensity` for `frames` frames. */
   shake: (intensity: number, frames: number) => void;
-  /** GameShell "play_sound", "play_music" and "stop_music" (the audio slice). */
+  /** GameShell "play_sound", "play_music" and "stop_music", and set_audio_bus_volume (audio.ts). */
   audio: (ev: Dict) => void;
   assetUrl: (path: string) => string;
 };
@@ -79,12 +79,16 @@ export class Shell {
     return this.stack.length > 0 ? this.stack[this.stack.length - 1].id : "";
   }
 
-  /** Once for each frame: the event drain, the bound controls, the global inputs, the overlays, the fades. */
-  update(dt: number, held: Set<string>): void {
+  /**
+   * Once for each frame: the event drain, the bound controls, the global
+   * inputs, the overlays, the fades. `pressed` holds the key-downs since the
+   * last frame, so a tap shorter than one frame still counts.
+   */
+  update(dt: number, held: Set<string>, pressed: Set<string>): void {
     this.drain();
     const top = this.stack[this.stack.length - 1];
     if (top) updateBound(top.bound, this.ui);
-    const edges = new Set([...held].filter((a) => !this.lastHeld.has(a)));
+    const edges = new Set([...pressed, ...[...held].filter((a) => !this.lastHeld.has(a))]);
     this.lastHeld = new Set(held);
     this.globalInputs(edges);
     this.advanceOverlay(dt, edges);
@@ -150,10 +154,8 @@ export class Shell {
         case "emit_shell_event":
           this.shellEvent(ev);
           break;
-        case "save_state":
-        case "load_state":
-          // The save slice of phase 4.
-          console.info(`[shell] ${type} is not in this host yet`);
+        case "set_audio_bus_volume":
+          this.host.audio(ev);
           break;
       }
     }

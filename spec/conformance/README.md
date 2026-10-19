@@ -19,6 +19,7 @@ code-drawn content, so they hold no generated assets.
 | `levels_variants` | level swaps, `persistent_tags`, the kept `_engine` entity, a variant overlay |
 | `motion_effects` | `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit` |
 | `reset_world` | `reset_world`: state, the starting level, and one copy of the global and level rules |
+| `save_load` | `save_state` and `load_state`: world state, persistent entities, the state blacklist, a swap to the saved level |
 | `physics_robot` | an articulated body (ADR 0091) with sensors (ADR 0092): readback fields, motors, masks, contact from a physics position. Checks with margins |
 
 `random_vectors.json` holds reference values of the spec generator.

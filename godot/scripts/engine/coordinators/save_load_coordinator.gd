@@ -86,15 +86,23 @@ func do_load(slot: int) -> void:
 		push_warning("[World] load slot %d failed: %s" % [slot, err])
 		return
 	var payload: Dictionary = result["payload"]
+	# Read the level BEFORE the state write. current_level proxies
+	# world_state (ADR 0047), so after the write it always equals the saved
+	# level, and the swap below never ran. Empirical case 2026-10-19: a load
+	# from level b kept level a's entities and rules under the name of level
+	# b (the save_load conformance case).
+	var level_before := _world.current_level
 	# Apply saved world_state (replaces, doesn't merge — persisted keys are
 	# the source of truth on load)
 	var ws_in: Dictionary = payload.get("world_state", {}) as Dictionary
 	for k in ws_in.keys():
 		_world.world_state[str(k)] = ws_in[k]
-	# Reload current_level if it changed (re-spawns the level's entities)
-	# AFTER state apply so the level loader sees the saved current_level.
-	var saved_level := str(_world.world_state.get("current_level", _world.current_level))
-	if saved_level != "" and saved_level != _world.current_level:
+	# Swap to the saved level if it differs (re-spawns the level's
+	# entities). do_transition reads its target, so current_level goes back
+	# to the old level first.
+	var saved_level := str(_world.world_state.get("current_level", level_before))
+	if saved_level != "" and saved_level != level_before:
+		_world.current_level = level_before
 		_world._level_transitions.do_transition(saved_level)
 	# ADR 0014: restore current_chunk if the save came from chunked-world
 	# mode. Re-anchor the streamer at the saved chunk; the next tick's

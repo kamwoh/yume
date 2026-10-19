@@ -1,0 +1,19 @@
+{
+  "_comment": "The level, the score, and the player's state persist.",
+  "world_state_keys": [
+    "current_level",
+    "score"
+  ],
+  "entity_tags_persistent": [
+    "player"
+  ],
+  "entity_state_blacklist": [
+    "_temp_*"
+  ],
+  "relations_persistent": [],
+  "slots": 1,
+  "autosave": {
+    "on_level_transition": false
+  },
+  "version": 1
+}

@@ -1,0 +1,83 @@
+{
+  "rules": [
+    {
+      "id": "save",
+      "trigger": {
+        "type": "input",
+        "action": "save"
+      },
+      "effect": [
+        {
+          "type": "save_state",
+          "slot": 0
+        }
+      ]
+    },
+    {
+      "id": "load",
+      "trigger": {
+        "type": "input",
+        "action": "load"
+      },
+      "effect": [
+        {
+          "type": "load_state",
+          "slot": 0
+        }
+      ]
+    },
+    {
+      "id": "to_a",
+      "trigger": {
+        "type": "input",
+        "action": "to_a"
+      },
+      "effect": [
+        {
+          "type": "transition_level",
+          "target": "a"
+        }
+      ]
+    },
+    {
+      "id": "to_b",
+      "trigger": {
+        "type": "input",
+        "action": "to_b"
+      },
+      "effect": [
+        {
+          "type": "transition_level",
+          "target": "b"
+        }
+      ]
+    },
+    {
+      "id": "earn",
+      "trigger": {
+        "type": "input",
+        "action": "earn"
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "hero",
+          "field": "coins",
+          "amount": 1
+        },
+        {
+          "type": "state_add",
+          "target": "hero",
+          "field": "_temp_note",
+          "amount": 1
+        },
+        {
+          "type": "state_add",
+          "target": "_engine",
+          "field": "score",
+          "amount": 10
+        }
+      ]
+    }
+  ]
+}

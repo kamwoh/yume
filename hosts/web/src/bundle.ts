@@ -1,6 +1,6 @@
 // The game bundle of the browser viewer: one JSON map of path to text. The
 // browser loads it into MemoryFiles. Keys: game/<path>, lib/<path>,
-// shapes.json and meshes.json, and the GLB bounds table (files.ts
+// shapes.json, meshes.json and sounds.json, and the GLB bounds table (files.ts
 // GLB_BOUNDS_KEY) that collision shapes read.
 import { join, relative } from "node:path";
 import { GLB_BOUNDS_KEY } from "./files.ts";
@@ -32,7 +32,7 @@ export function bundle(dataRoot: string, game: string): Record<string, string> |
   collect(gameDir, "game", out, bounds);
   collect(join(dataRoot, "lib"), "lib", out, bounds);
   out[GLB_BOUNDS_KEY] = JSON.stringify(bounds);
-  for (const lib of ["shapes.json", "meshes.json"]) {
+  for (const lib of ["shapes.json", "meshes.json", "sounds.json"]) {
     const text = files.read(join(dataRoot, lib));
     if (text !== null) out[lib] = text;
   }

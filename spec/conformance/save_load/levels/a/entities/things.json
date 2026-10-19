@@ -1,0 +1,20 @@
+{
+  "definitions": [
+    {
+      "id": "a_thing",
+      "tags": [
+        "a_thing"
+      ]
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "a_thing",
+      "id": "a_thing",
+      "position": [
+        0,
+        0
+      ]
+    }
+  ]
+}

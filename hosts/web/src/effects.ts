@@ -14,7 +14,7 @@ const WORLD_STATE_ALIAS = "_engine";
 
 const SHELL_EFFECTS = [
   "transition_screen", "quit_app", "show_toast", "reload_scene", "scene_change", "screen_fade",
-  "save_state", "load_state", "show_overlay", "dismiss_overlay", "set_audio_bus_volume",
+  "show_overlay", "dismiss_overlay", "set_audio_bus_volume",
   "set_input_mapping", "refresh_screen",
 ];
 
@@ -109,6 +109,14 @@ export function apply(e: Dict, env: Env, ctx: Ctx): void {
     case "advance_time": {
       const units = toInt(value(e.units ?? 1, ctx, env));
       if (units > 0 && env.advanceCalendar) env.advanceCalendar(units);
+      return;
+    }
+    case "save_state":
+    case "load_state": {
+      // EffectShell.save_state and load_state: the slot is drained after the tick (World.processPending).
+      const slot = toInt(value(e.slot ?? 0, ctx, env));
+      if (type === "save_state") env.pendingSave = slot;
+      else env.pendingLoad = slot;
       return;
     }
     case "reset_world":

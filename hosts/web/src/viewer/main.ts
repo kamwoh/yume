@@ -9,10 +9,12 @@
 //   ticks=N                  sim ticks to run after those presses
 import * as THREE from "three";
 import { MemoryFiles } from "../files.ts";
+import type { SaveStore } from "../save.ts";
 import { GroundHeight } from "../heightmap.ts";
 import { LiveClock, PHYSICS_DT } from "../live.ts";
 import { type Dict, isDict } from "../value.ts";
 import { World } from "../world.ts";
+import { AudioBus } from "./audio.ts";
 import { Hud } from "./hud.ts";
 import { Shell } from "./shell.ts";
 import { buttonToActions, codeToActions } from "./keys.ts";
@@ -31,6 +33,9 @@ async function boot(): Promise<void> {
   const entries = (await res.json()) as Record<string, string>;
   const files = new MemoryFiles(entries);
   const world = new World("game", files, "lib");
+  // Saves live in this browser (ADR 0010; where a save lives is host-defined).
+  world.saveStore = new LocalSaveStore();
+  world.gameName = game;
   // The physics host (phase 3) loads only for a game that declares bodies or sensors.
   if (Object.entries(entries).some(([k, v]) => k.startsWith("game/") && /"(physics|sensors)"\s*:/.test(v))) {
     const rapier = await import("../physics_rapier.ts");
@@ -72,23 +77,34 @@ async function boot(): Promise<void> {
   resize();
 
   const clock = new LiveClock(world);
+  const audio = new AudioBus(parse(files.read("sounds.json")), parse(files.read("game/audio/cues.json")));
+  // A browser starts audio only after a user gesture.
+  addEventListener("keydown", () => audio.unlock(), { capture: true });
+  addEventListener("mousedown", () => audio.unlock(), { capture: true });
   const shell = new Shell(document.getElementById("shell")!, world.lib.resolve(parse(files.read("game/screens.json"))) as Dict, parse(files.read("game/ui/strings.json")), {
     world: () => world,
     // reload_scene reloads the whole scene. The page reload is the browser's twin.
     reload: () => location.reload(),
     shake: (i, f) => view.shake(i, f),
-    audio: (ev) => console.info(`[shell] ${String(ev.event)} is the audio slice of phase 4`),
+    audio: (ev) => audio.event(ev),
     assetUrl: (p) => `/asset/${encodeURIComponent(game)}/${p}`,
   });
   // ScreenFlow pushes the starting screen before the first tick, so a title shows before the world runs.
   shell.start();
   const byCode = codeToActions(world.actionKeys);
+  /** The key-downs since the last frame, for the shell's press edges. */
+  const framePressed = new Set<string>();
   addEventListener("keydown", (ev) => {
     const actions = byCode.get(ev.code);
     if (!actions) return;
     // A focused button takes Enter and Space itself, as Godot activates a focused button on ui_accept.
     if (!(document.activeElement instanceof HTMLButtonElement)) ev.preventDefault();
-    if (!ev.repeat) for (const a of actions) clock.keyDown(a);
+    if (!ev.repeat) {
+      for (const a of actions) {
+        clock.keyDown(a);
+        framePressed.add(a);
+      }
+    }
   });
   addEventListener("keyup", (ev) => {
     for (const a of byCode.get(ev.code) ?? []) clock.keyUp(a);
@@ -141,7 +157,8 @@ async function boot(): Promise<void> {
     feedTrimeshes();
     // The reference loads every asset before its first physics frame. The clock waits here too.
     const dt = (now - last) / 1000;
-    shell.update(dt, clock.held);
+    shell.update(dt, clock.held, framePressed);
+    framePressed.clear();
     // GameShell drains the pending level swap and world reset once each frame, also while a screen freezes the world.
     world.processPending();
     if (!(view instanceof Renderer3D) || view.pending === 0) {
@@ -206,6 +223,28 @@ function trimeshOf(root: THREE.Object3D): [Float32Array, Uint32Array] {
     else for (let i = 0; i < pos.count; i++) idx.push(base + i);
   });
   return [new Float32Array(verts), new Uint32Array(idx)];
+}
+
+/** Saves in localStorage under yume.save.<game>.<slot>. A blocked storage keeps them for the page only. */
+class LocalSaveStore implements SaveStore {
+  private mem = new Map<string, string>();
+  read(game: string, slot: number): string | null {
+    const k = `yume.save.${game}.${slot}`;
+    try {
+      return localStorage.getItem(k) ?? this.mem.get(k) ?? null;
+    } catch {
+      return this.mem.get(k) ?? null;
+    }
+  }
+  write(game: string, slot: number, text: string): void {
+    const k = `yume.save.${game}.${slot}`;
+    this.mem.set(k, text);
+    try {
+      localStorage.setItem(k, text);
+    } catch {
+      // Private mode or blocked storage: the save lasts for this page.
+    }
+  }
 }
 
 function parse(text: string | null): Dict {

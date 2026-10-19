@@ -1,0 +1,26 @@
+{
+  "_comment": "The hero is the input actor. It is persistent, so it survives a level swap, and the save keeps its state.",
+  "definitions": [
+    {
+      "id": "hero",
+      "tags": [
+        "player",
+        "persistent"
+      ],
+      "state_init": {
+        "coins": 0,
+        "_temp_note": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "hero",
+      "id": "hero",
+      "position": [
+        0,
+        0
+      ]
+    }
+  ]
+}

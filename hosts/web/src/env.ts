@@ -25,6 +25,9 @@ export interface Env {
   pendingLevel: string;
   /** env._pending_world_reset: set by reset_world, drained after the tick. */
   pendingReset: boolean;
+  /** env._pending_save and env._pending_load: a slot number, drained after the tick. */
+  pendingSave: number | null;
+  pendingLoad: number | null;
   /** ADR 0070: area overlaps from the physics host, drained in the react phase. */
   overlapEvents: { a: string; b: string; change: "enter" | "exit" }[];
   /** The physics host (ADR 0095 phase 3), or null for a world with no bodies. */

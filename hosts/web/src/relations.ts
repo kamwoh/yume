@@ -56,6 +56,17 @@ export class RelationStore {
     for (const [t, f, to] of drops) this.unrelate(t, f, to);
   }
 
+  /** RelationStore.all_of_type: every edge of one type, in the order of the from index. */
+  allOfType(type: string): { from: string; to: string }[] {
+    const out: { from: string; to: string }[] = [];
+    const prefix = key(type, "");
+    for (const [k, tos] of this.fromIdx) {
+      if (!k.startsWith(prefix)) continue;
+      for (const to of tos) out.push({ from: k.slice(prefix.length), to });
+    }
+    return out;
+  }
+
   edgeState(type: string, from: string, to: string): Dict {
     return this.edgeStates.get(ekey(type, from, to)) ?? {};
   }
