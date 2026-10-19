@@ -341,7 +341,7 @@ export class Renderer3D {
       const sky = isDict(cfg.sky) ? cfg.sky : {};
       const shader = String(sky.shader ?? "").trim();
       if (shader !== "" && shader !== "sky_clouds") console.info(`[sky] shader '${shader}' is not in this host yet: procedural sky`);
-      const mat = shader === "sky_clouds" ? skyCloudsMaterial(isDict(sky.shader_params) ? sky.shader_params : {}) : skyMaterial();
+      const mat = withSkyFog(shader === "sky_clouds" ? skyCloudsMaterial(isDict(sky.shader_params) ? sky.shader_params : {}) : skyMaterial());
       this.skyShader = shader === "sky_clouds";
       this.sky = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), mat);
       this.sky.renderOrder = -1;
@@ -425,7 +425,20 @@ export class Renderer3D {
       // fog_aerial_perspective. The host takes the horizon color as the sky in the view direction.
       const base = colorOf(fogCfg.light_color ?? "#8a9bb5").multiplyScalar(toFloat(fogCfg.light_energy ?? 1));
       const ap = Math.min(Math.max(toFloat(fogCfg.aerial_perspective ?? 0), 0), 1);
-      this.scene.fog.color.copy(base.lerp(horizon, ap));
+      this.scene.fog.color.copy(base.clone().lerp(horizon, ap));
+      if (this.sky) {
+        // The sky's own fog (sky.glsl fog_process): the same mix, with the
+        // sky color of each pixel, plus the sun scatter toward the sun.
+        const u = (this.sky.material as THREE.ShaderMaterial).uniforms;
+        u.skyFogOn.value = 1;
+        u.skyFogColor.value.copy(base);
+        u.skyFogAerial.value = ap;
+        u.skyFogScatter.value = this.sun ? toFloat(fogCfg.sun_scatter ?? 0) : 0;
+        if (this.sun) {
+          u.skySunDir.value.copy(sunDirectionAt(t)).negate();
+          u.skySunColor.value.copy(this.sun.color).multiplyScalar(this.sun.intensity / Math.PI);
+        }
+      }
     }
     if (this.ground) {
       setTime(this.ground.mesh.material as THREE.Material, performance.now() / 1000);
@@ -449,7 +462,12 @@ export class Renderer3D {
         this.envKey = key;
         this.envBuiltAt = now;
         this.envTarget?.dispose();
+        // The radiance pass of the reference draws the sky without fog.
+        const fu = (this.sky!.material as THREE.ShaderMaterial).uniforms.skyFogOn;
+        const on = fu.value;
+        fu.value = 0;
         this.envTarget = this.pmrem.fromScene(this.skyScene, 0, 0.1, 1000);
+        fu.value = on;
         this.scene.environment = this.envTarget.texture;
       }
     } else if (this.ambient) {
@@ -1116,6 +1134,39 @@ function skyColorAt(sky: Dict, uniform: string, f: number): THREE.Color {
 /** An sRGB color from Godot's float components, as a linear three.js color. */
 function linear(r: number, g: number, b: number): THREE.Color {
   return new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
+}
+
+/**
+ * Adds the sky fog of Godot 4 (sky.glsl fog_process) to a sky material. The
+ * fog color is fog_light_color × energy mixed toward the sky color by
+ * fog_aerial_perspective, plus light × pow(max(dot(view, to_sun), 0), 8) ×
+ * fog_sun_scatter. The fog amount is 1 - exp(-1e8 × density), which is 1 for
+ * any fog, and fog_sky_affect is Godot's default of 1. skyFogOn stays 0 until
+ * the scene has fog.
+ */
+export function withSkyFog(mat: THREE.ShaderMaterial): THREE.ShaderMaterial {
+  Object.assign(mat.uniforms, {
+    skyFogOn: { value: 0 },
+    skyFogColor: { value: new THREE.Color() },
+    skyFogAerial: { value: 0 },
+    skyFogScatter: { value: 0 },
+    skySunDir: { value: new THREE.Vector3(0, 1, 0) },
+    skySunColor: { value: new THREE.Color() },
+  });
+  const re = /gl_FragColor = vec4\((\w+), 1\.0\);/;
+  if (!re.test(mat.fragmentShader)) throw new Error("withSkyFog: the sky shader has no gl_FragColor = vec4(<color>, 1.0)");
+  mat.fragmentShader = mat.fragmentShader
+    .replace("varying vec3 vDir;", "varying vec3 vDir;\nuniform float skyFogOn; uniform vec3 skyFogColor; uniform float skyFogAerial; uniform float skyFogScatter; uniform vec3 skySunDir; uniform vec3 skySunColor;")
+    .replace(
+      re,
+      `if (skyFogOn > 0.5) {
+    vec3 fogC = mix(skyFogColor, $1, skyFogAerial);
+    fogC += skySunColor * pow(max(dot(normalize(vDir), skySunDir), 0.0), 8.0) * skyFogScatter;
+    $1 = fogC;
+  }
+  gl_FragColor = vec4($1, 1.0);`,
+    );
+  return mat;
 }
 
 /** Godot's ProceduralSkyMaterial: sky_curve 0.15 above the horizon, ground_curve 0.02 below it. */

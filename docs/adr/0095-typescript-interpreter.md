@@ -289,8 +289,11 @@ sample went from 114, 156, 74 to 117, 186, 50, against Godot's 88, 174,
 The depth fog then followed Godot's formula, 1 - exp(-density ×
 distance), with the fog color pulled toward the sky by
 `aerial_perspective`. three.js squares the distance. The far trees came
-close to the Godot capture. A near roof stays darker than in Godot
-(148, 129, 90 against 200, 168, 103), with no known cause yet.
+close to the Godot capture. A near "roof" sample stayed darker than in
+Godot (148, 129, 90 against 200, 168, 103). A later side-by-side showed
+that the sample fell on two yellow slabs in the Godot frame. No entity,
+pattern or scene block declares them, so the browser frame shows the
+right scene there. The slabs wait for the next Godot pass.
 
 More of phase 4 followed. It added the settings rows and their apply
 chains, and the first-person viewmodel. It also added the CSG ops
@@ -329,3 +332,12 @@ place a scattered entity where Godot did. They now draw from the spec
 generator, seeded with `level_seed` XOR the FNV-1a hash of the pattern
 identity. This changes the scatter layout of aldenmere in Godot. The
 `instance_patterns` conformance case pins each position on both hosts.
+
+Godot 4 also fogs the sky (sky.glsl `fog_process`). The fog color is
+the fog light color times its energy, mixed toward the sky color by
+`aerial_perspective`, plus the sun scatter. `fog_sky_affect` is 1 by
+default, so at `aerial_perspective` 0.3 the aldenmere sky is 70% fog
+beige. The radiance pass skips this fog. The viewer now fogs both sky
+materials the same way, and draws the environment map without it. The
+mid-sky sample went from 198, 207, 222 to 218, 202, 167, against
+Godot's 204, 194, 166.

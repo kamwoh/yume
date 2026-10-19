@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as THREE from "three";
 import { groundMaterial, skyCloudsMaterial } from "../src/viewer/shaders.ts";
+import { withSkyFog } from "../src/viewer/render3d.ts";
 
 test("ground_biome_displace takes its biome table, padded to 8, and its textures", () => {
   const asked: string[] = [];
@@ -60,4 +61,13 @@ test("the viewer resolves lib references in scene.json, hud.json and screens.jso
     assert.ok(reads.length > 0, `main.ts reads game/${f}`);
     for (const l of reads) assert.ok(l.includes("world.lib.resolve("), `game/${f} goes through the lib resolver: ${l.trim()}`);
   }
+});
+
+test("the sky takes Godot's sky fog: the fog color mixed toward the sky, plus the sun scatter", () => {
+  const mat = withSkyFog(skyCloudsMaterial({}));
+  assert.equal(mat.uniforms.skyFogOn.value, 0);
+  assert.match(mat.fragmentShader, /vec3 fogC = mix\(skyFogColor, color, skyFogAerial\);/);
+  assert.match(mat.fragmentShader, /pow\(max\(dot\(normalize\(vDir\), skySunDir\), 0\.0\), 8\.0\) \* skyFogScatter/);
+  const bad = new THREE.ShaderMaterial({ fragmentShader: "void main() { gl_FragColor = vec4(1.0); }" });
+  assert.throws(() => withSkyFog(bad), /no gl_FragColor/);
 });
