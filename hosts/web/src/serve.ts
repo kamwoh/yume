@@ -9,6 +9,7 @@
 //   /src/<file>.ts      a source file, as JavaScript
 //   /vendor/three.js    three.js from node_modules
 //   /vendor/addons/...  three.js addons (the GLTF loader)
+//   /vendor/rapier.js   the Rapier physics module, with its WASM inline (phase 3)
 //   /asset/<game>/<p>   an asset file: <game>/<p>, or lib/<p> for @lib/<p> (ADR 0087)
 //   /bundle/<game>      one JSON map of the game, lib/ and the shape and mesh libraries
 //   /games              the game folders that have a scene.json
@@ -38,6 +39,9 @@ const server = createServer((req, res) => {
     if (url.pathname === "/") return send(200, "text/html", readFileSync(join(webRoot, "src/viewer/index.html")));
     if (url.pathname === "/vendor/three.js") {
       return send(200, "text/javascript", readFileSync(join(webRoot, "node_modules/three/build/three.module.js")));
+    }
+    if (url.pathname === "/vendor/rapier.js") {
+      return send(200, "text/javascript", readFileSync(join(webRoot, "node_modules/@dimforge/rapier3d-compat/rapier.mjs")));
     }
     if (url.pathname.startsWith("/vendor/addons/")) {
       const rel = url.pathname.slice("/vendor/addons/".length);

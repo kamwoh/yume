@@ -13,12 +13,17 @@
 // A GLB model loads from /asset/<game>/<path>. One with no animations is
 // scaled to unit height with its base at the origin, as _normalize_glb does.
 //
+// An articulated body (ADR 0091) draws one node for each link at the pose
+// that the physics host reads back, as _mount_links and _sync_links do.
+//
 // Not in this host yet: ground and sky shaders, heightmaps, animations,
-// articulated links, glow, SSAO, reflection probes.
+// glow, SSAO, reflection probes.
 import * as THREE from "three";
 import { type GLTF, GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
 import type { Entity } from "../entity.ts";
+import type { GroundHeight } from "../heightmap.ts";
+import { shapeTransform } from "../physics.ts";
 import { type Dict, Vec2, Vec3, isDict, toFloat } from "../value.ts";
 import type { World } from "../world.ts";
 import { colorOf } from "./color.ts";
@@ -38,7 +43,7 @@ export function is3D(scene: Dict): boolean {
   return isDict(scene.camera) && MODES_3D.includes(String(scene.camera.mode ?? ""));
 }
 
-type Node = { group: THREE.Group; mode: "mesh" | "bare" | "glb"; normalized: boolean };
+type Node = { group: THREE.Group; mode: "mesh" | "bare" | "glb" | "links"; normalized: boolean; links?: Map<string, THREE.Group> };
 
 export class Renderer3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -112,6 +117,48 @@ export class Renderer3D {
     mesh.receiveShadow = true;
     mesh.name = "Ground";
     this.scene.add(mesh);
+    this.ground = { mesh, w, d, subdivide: Math.trunc(toFloat(cfg.subdivide ?? 0)) };
+  }
+
+  private ground: { mesh: THREE.Mesh; w: number; d: number; subdivide: number } | null = null;
+
+  /**
+   * The displaced ground: the vertex heights come from sample_y, the same
+   * function as the physics floor. The displace shader's colors are not in
+   * this host yet.
+   */
+  setGroundHeight(h: GroundHeight): void {
+    if (!this.ground) return;
+    const { mesh, w, d } = this.ground;
+    const seg = Math.min(Math.max(this.ground.subdivide, 64), 400);
+    const geo = new THREE.PlaneGeometry(w, d, seg, seg).rotateX(-Math.PI / 2);
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setY(i, h.sampleY(pos.getX(i), pos.getZ(i)));
+    geo.computeVertexNormals();
+    mesh.geometry.dispose();
+    mesh.geometry = geo;
+  }
+
+  /** The scene of a GLB file in its native space, for a trimesh collider. It counts toward `pending`. */
+  loadModel(path: string): Promise<THREE.Object3D | null> {
+    const url = this.assetUrl(path);
+    if (url === "") return Promise.resolve(null);
+    this.pending++;
+    let load = this.gltfCache.get(url);
+    if (!load) {
+      load = this.gltf.loadAsync(url);
+      this.gltfCache.set(url, load);
+    }
+    return load.then(
+      (g) => {
+        this.pending--;
+        return g.scene;
+      },
+      () => {
+        this.pending--;
+        return null;
+      },
+    );
   }
 
   // -------------------------------------------------------------- lighting
@@ -255,12 +302,21 @@ export class Renderer3D {
       if (e.id === "_engine" || e.visual.hidden === true) continue;
       live.add(e);
       let n = this.nodes.get(e);
+      const poses = world.env.physics?.linkPoses(e) ?? null;
       if (!n) {
-        n = this.build(e);
+        n = poses ? this.buildLinks(world.env.defs.get(e.defId) ?? {}) : this.build(e);
         this.nodes.set(e, n);
         this.scene.add(n.group);
       }
-      this.place(e, n.group, n.normalized);
+      if (poses && n.links) {
+        const s = this.positionScale;
+        for (const [name, g] of n.links) {
+          const pose = poses.get(name);
+          if (!pose) continue;
+          g.position.set(pose.p[0] * s, pose.p[1] * s, pose.p[2] * s);
+          g.quaternion.set(...pose.q);
+        }
+      } else this.place(e, n.group, n.normalized);
     }
     for (const [e, n] of this.nodes) {
       if (live.has(e)) continue;
@@ -299,6 +355,31 @@ export class Renderer3D {
     }
     this.addBareBox(e, group);
     return { group, mode: "bare", normalized: false };
+  }
+
+  /** EntityMesh3D._mount_links: a link visual names a library mesh, or gives a color for the link shape. */
+  private buildLinks(def: Dict): Node {
+    const group = new THREE.Group();
+    const links = new Map<string, THREE.Group>();
+    const cfg = isDict(def.physics) && isDict(def.physics.links) ? def.physics.links : {};
+    for (const name of Object.keys(cfg)) {
+      const link = cfg[name];
+      if (!isDict(link)) continue;
+      const g = new THREE.Group();
+      g.name = `link_${name}`;
+      const visual = isDict(link.visual) ? link.visual : {};
+      const meshName = String(visual.mesh ?? "");
+      if (meshName !== "" && this.lib.has(meshName)) {
+        const md = this.lib.get(meshName);
+        this.lib.buildInto(g, Array.isArray(md.primitives) ? md.primitives : [], MeshLib.mergeParams(md, visual.params), md.cast_shadow !== false);
+      } else {
+        const mesh = linkShapeMesh(isDict(link.shape) ? link.shape : {}, visual.color ?? FALLBACK_COLOR);
+        if (mesh) g.add(mesh);
+      }
+      group.add(g);
+      links.set(name, g);
+    }
+    return { group, mode: "links", normalized: false, links };
   }
 
   private addBareBox(e: Entity, group: THREE.Group): void {
@@ -585,6 +666,46 @@ export class Renderer3D {
     }
     this.renderer.render(this.scene, this.active);
   }
+}
+
+/**
+ * EntityMesh3D._shape_mesh: a mesh that matches a link collision shape, or
+ * null for a link with no shape. A URDF root link often has no shape, and a
+ * default box would hide the robot.
+ */
+function linkShapeMesh(shape: Dict, color: unknown): THREE.Mesh | null {
+  if (!("type" in shape)) return null;
+  let geo: THREE.BufferGeometry;
+  switch (String(shape.type)) {
+    case "box": {
+      const sz = Array.isArray(shape.size) ? shape.size.map(toFloat) : [1, 1, 1];
+      geo = new THREE.BoxGeometry(sz[0], sz[1], sz[2]);
+      break;
+    }
+    case "sphere":
+      geo = new THREE.SphereGeometry(toFloat(shape.radius ?? 0.5), 32, 16);
+      break;
+    case "cylinder": {
+      const r = toFloat(shape.radius ?? 0.4);
+      geo = new THREE.CylinderGeometry(r, r, toFloat(shape.height ?? 1.0), 32);
+      break;
+    }
+    case "capsule": {
+      // Godot's capsule height includes both caps.
+      const r = toFloat(shape.radius ?? 0.4);
+      geo = new THREE.CapsuleGeometry(r, Math.max(toFloat(shape.height ?? 1.0) - 2 * r, 0), 8, 24);
+      break;
+    }
+    default:
+      return null;
+  }
+  const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colorOf(color) }));
+  const t = shapeTransform(shape);
+  mesh.position.set(...t.p);
+  mesh.quaternion.set(...t.q);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 /** CameraDirector.heading_of (ADR 0094): `facing` or `yaw`. */

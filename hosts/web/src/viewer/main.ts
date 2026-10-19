@@ -7,7 +7,9 @@
 //   game=<folder>            the game to load (default demo_sokoban)
 //   press=a,b,c              actions to press, one physics step each, before the first frame
 //   ticks=N                  sim ticks to run after those presses
+import * as THREE from "three";
 import { MemoryFiles } from "../files.ts";
+import { GroundHeight } from "../heightmap.ts";
 import { LiveClock, PHYSICS_DT } from "../live.ts";
 import { type Dict, isDict } from "../value.ts";
 import { World } from "../world.ts";
@@ -25,15 +27,28 @@ async function boot(): Promise<void> {
     status.textContent = `No game '${game}'.`;
     return;
   }
-  const files = new MemoryFiles((await res.json()) as Record<string, string>);
+  const entries = (await res.json()) as Record<string, string>;
+  const files = new MemoryFiles(entries);
   const world = new World("game", files, "lib");
+  // The physics host (phase 3) loads only for a game that declares bodies or sensors.
+  if (Object.entries(entries).some(([k, v]) => k.startsWith("game/") && /"(physics|sensors)"\s*:/.test(v))) {
+    const rapier = await import("../physics_rapier.ts");
+    await rapier.initRapier();
+    world.physicsFactory = (layers, bounds) => new rapier.RapierPhysics(layers, bounds);
+  }
   world.load();
   // The camera block may use $extends with a lib preset (lib/cameras.json).
   const scene = world.lib.resolve(parse(files.read("game/scene.json"))) as Dict;
+  // Live play mounts the ground collider (GroundRenderer). A scenario run has none.
+  const ground = isDict(scene.ground) ? scene.ground : null;
+  const hmPath = ground ? GroundHeight.heightmapPath(ground) : "";
+  const height = ground && hmPath !== "" ? await loadGroundHeight(ground, `/asset/${encodeURIComponent(game)}/${hmPath}`) : null;
+  if (ground) world.env.physics?.addGround(ground, height);
   const canvas = document.getElementById("view") as HTMLCanvasElement;
   const view = is3D(scene)
     ? new Renderer3D(canvas, parse(files.read("meshes.json")), scene, `/asset/${encodeURIComponent(game)}/`)
     : new Renderer2D(canvas, parse(files.read("shapes.json")), scene);
+  if (view instanceof Renderer3D && height) view.setGroundHeight(height);
   if (view instanceof Renderer3D) {
     // A click captures the mouse. Motion then turns the actor, as in the reference.
     canvas.addEventListener("click", () => canvas.requestPointerLock());
@@ -79,6 +94,7 @@ async function boot(): Promise<void> {
   for (let i = 0; i < Number(params.get("ticks") ?? 0); i++) {
     world.advanceOneTick();
     world.processPending();
+    world.env.physics?.step(PHYSICS_DT);
   }
 
   const showStatus = () => {
@@ -89,9 +105,26 @@ async function boot(): Promise<void> {
     status.textContent = `${game} ${level}${done}${note}`;
   };
 
+  /** A trimesh body gets its faces from its GLB (PhysicsBodyBuilder._glb_trimesh_faces). */
+  const feedTrimeshes = () => {
+    const ph = world.env.physics;
+    if (!ph || !(view instanceof Renderer3D)) return;
+    for (const { entity, mesh } of ph.pendingTrimeshes()) {
+      view.loadModel(mesh).then((root) => {
+        if (root) ph.setTrimesh(entity, ...trimeshOf(root));
+      });
+    }
+  };
+  feedTrimeshes();
+
   let last = performance.now();
   const frame = (now: number) => {
-    clock.advance((now - last) / 1000);
+    feedTrimeshes();
+    // The reference loads every asset before its first physics frame. The clock waits here too.
+    if (!(view instanceof Renderer3D) || view.pending === 0) {
+      clock.advance((now - last) / 1000);
+      world.applyGroundConstraint();
+    }
     last = now;
     view.sync(world);
     view.render();
@@ -108,6 +141,48 @@ async function boot(): Promise<void> {
   document.body.dataset.ready = "1";
   requestAnimationFrame(frame);
   (globalThis as unknown as { yume: unknown }).yume = { world };
+}
+
+/** The heightmap of a ground block: the red channel of its image, with no color conversion. */
+async function loadGroundHeight(ground: Dict, url: string): Promise<GroundHeight | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: "none", premultiplyAlpha: "none" });
+    const canvas = new OffscreenCanvas(bmp.width, bmp.height);
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(bmp, 0, 0);
+    const px = ctx.getImageData(0, 0, bmp.width, bmp.height).data;
+    const red = new Float32Array(bmp.width * bmp.height);
+    for (let i = 0; i < red.length; i++) red[i] = px[i * 4] / 255;
+    return GroundHeight.of(ground, { width: bmp.width, height: bmp.height, red });
+  } catch (e) {
+    console.info(`[ground] heightmap did not load: ${String(e)}`);
+    return null;
+  }
+}
+
+/** The faces of a GLB scene in its native space: each mesh with its transform relative to the root. */
+function trimeshOf(root: THREE.Object3D): [Float32Array, Uint32Array] {
+  root.updateMatrixWorld(true);
+  const inv = root.matrixWorld.clone().invert();
+  const verts: number[] = [];
+  const idx: number[] = [];
+  const v = new THREE.Vector3();
+  root.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    const m = inv.clone().multiply(o.matrixWorld);
+    const pos = o.geometry.attributes.position;
+    const base = verts.length / 3;
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(m);
+      verts.push(v.x, v.y, v.z);
+    }
+    const index = o.geometry.index;
+    if (index) for (let i = 0; i < index.count; i++) idx.push(base + index.getX(i));
+    else for (let i = 0; i < pos.count; i++) idx.push(base + i);
+  });
+  return [new Float32Array(verts), new Uint32Array(idx)];
 }
 
 function parse(text: string | null): Dict {

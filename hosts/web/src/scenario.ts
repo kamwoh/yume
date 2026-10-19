@@ -4,9 +4,11 @@
 import { Entity } from "./entity.ts";
 import { type Files, join } from "./files.ts";
 import { pollInput } from "./input.ts";
+import { PHYSICS_DT } from "./live.ts";
+import { attachBody } from "./physics.ts";
 import { matches } from "./query.ts";
 import { SpecRandom } from "./random.ts";
-import { type Dict, Vec2, Vec3, isDict, toFloat } from "./value.ts";
+import { type Dict, Vec2, Vec3, isDict, normalizePosition, toFloat } from "./value.ts";
 import { World } from "./world.ts";
 
 export type Result = { passed: number; failed: number; failures: string[]; errors: string[] };
@@ -18,14 +20,17 @@ const ASSERT_KEYS: Record<string, string[]> = {
   relation_field: ["relation", "from_query", "to_query", "field", "op", "value"],
 };
 
-export function runGame(root: string, files: Files, verbose = false, libRoot = ""): Result {
+/** Builds the physics host of each scenario world (physics_rapier.ts), or null for none. */
+export type PhysicsFactory = World["physicsFactory"];
+
+export function runGame(root: string, files: Files, verbose = false, libRoot = "", physics: PhysicsFactory = null): Result {
   const res: Result = { passed: 0, failed: 0, failures: [], errors: [] };
   const text = files.read(join(root, "tests.json"));
   if (text === null) return res;
   const spec = JSON.parse(text);
   for (const sc of Array.isArray(spec.scenarios) ? spec.scenarios : []) {
     if (!isDict(sc) || sc._skip) continue;
-    runScenario(root, files, sc, res, verbose, libRoot);
+    runScenario(root, files, sc, res, verbose, libRoot, physics);
   }
   return res;
 }
@@ -59,9 +64,18 @@ class Runner {
     pollInput(this.world, this.held, this.justPressed);
   }
 
-  /** step_runner._advance: one tick, then the pending swaps that the shell drains in live play. */
+  /**
+   * step_runner._advance: one tick, the character bodies (tick_headless),
+   * one physics step when the world has an articulated body (_step_physics),
+   * then the pending swaps that the shell drains in live play.
+   */
   private advance(): void {
     this.world.advanceOneTick();
+    const ph = this.world.env.physics;
+    if (ph) {
+      ph.tickCharactersHeadless(this.world.tickSeconds);
+      if (ph.hasArticulated()) ph.step(PHYSICS_DT);
+    }
     this.world.processPending();
   }
 
@@ -225,16 +239,15 @@ class Runner {
   }
 }
 
-function runScenario(root: string, files: Files, sc: Dict, res: Result, verbose: boolean, libRoot: string): void {
+function runScenario(root: string, files: Files, sc: Dict, res: Result, verbose: boolean, libRoot: string, physics: PhysicsFactory): void {
   const name = String(sc.name ?? "<unnamed>");
   if (verbose) console.log(`\n[scenario] ${name}`);
   const world = new World(root, files, libRoot);
+  world.physicsFactory = physics;
   world.variantOverride = String(sc.variant ?? "");
   world.load();
   if ("seed" in sc) SpecRandom.shared.setSeed(Math.trunc(toFloat(sc.seed)));
-  if (isDict(sc.setup) && Object.keys(sc.setup).length > 0) {
-    res.errors.push(`${name} — scenario setup is not in this host yet`);
-  }
+  if (isDict(sc.setup)) applySetup(world, sc.setup);
   if (!Array.isArray(sc.steps)) {
     res.failed++;
     res.failures.push(`${name} — scenario has no 'steps'`);
@@ -307,3 +320,33 @@ function fmt(v: unknown): string {
   return text(v);
 }
 
+
+/** ScenarioRunner._apply_setup: world_state, spawn, then entity_state. */
+function applySetup(world: World, setup: Dict): void {
+  const env = world.env;
+  if (isDict(setup.world_state)) for (const k of Object.keys(setup.world_state)) env.world[k] = setup.world_state[k];
+  let n = 0;
+  for (const spec of Array.isArray(setup.spawn) ? setup.spawn : []) {
+    if (!isDict(spec)) continue;
+    const template = String(spec.def ?? "");
+    const def = env.defs.get(template);
+    if (!def) continue;
+    const override: Dict = {};
+    for (const k of ["position", "state", "tags", "properties"]) if (k in spec) override[k] = spec[k];
+    const id = String(spec.id ?? `${template}_setup_${n++}`);
+    const ent = Entity.create(def, id, override);
+    env.entities.set(id, ent);
+    attachBody(env, ent, def);
+  }
+  if (isDict(setup.entity_state)) {
+    for (const id of Object.keys(setup.entity_state)) {
+      const ent = env.entities.get(id);
+      const fields = setup.entity_state[id];
+      if (!ent || !isDict(fields)) continue;
+      for (const k of Object.keys(fields)) {
+        const v = fields[k];
+        ent.state[k] = (k === "position" || k === "velocity") && Array.isArray(v) ? normalizePosition(v) : v;
+      }
+    }
+  }
+}

@@ -1,0 +1,356 @@
+{
+  "_comment": "A floor, a wall 3.45 m ahead of the robot, a pillar on the npc layer far to the right, and a marker 1 m ahead. The robot is the rover of ADR 0091 with a front ray, a masked ray and a lidar (ADR 0092).",
+  "definitions": [
+    {
+      "id": "floor_slab",
+      "tags": [
+        "floor"
+      ],
+      "visual": {
+        "hidden": true
+      },
+      "physics": {
+        "body_type": "static",
+        "collision_layer": [
+          "floor"
+        ],
+        "collision_mask": "all",
+        "collision_shape": {
+          "type": "box",
+          "size": [
+            12,
+            1,
+            12
+          ],
+          "offset": [
+            0,
+            -0.5,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "id": "wall",
+      "tags": [
+        "wall"
+      ],
+      "physics": {
+        "body_type": "static",
+        "collision_layer": [
+          "wall"
+        ],
+        "collision_mask": "all",
+        "collision_shape": {
+          "type": "box",
+          "size": [
+            4,
+            0.5,
+            0.1
+          ],
+          "offset": [
+            0,
+            0.25,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "id": "pillar",
+      "tags": [
+        "pillar"
+      ],
+      "physics": {
+        "body_type": "static",
+        "collision_layer": [
+          "npc"
+        ],
+        "collision_mask": "all",
+        "collision_shape": {
+          "type": "box",
+          "size": [
+            0.3,
+            0.5,
+            0.3
+          ],
+          "offset": [
+            0,
+            0.25,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "id": "marker",
+      "tags": [
+        "marker"
+      ]
+    },
+    {
+      "id": "score",
+      "tags": [
+        "score"
+      ],
+      "state_init": {
+        "found": 0
+      },
+      "visual": {
+        "hidden": true
+      }
+    },
+    {
+      "id": "robot",
+      "tags": [
+        "robot",
+        "player"
+      ],
+      "state_init": {
+        "throttle": 0.0,
+        "steer": 0.0,
+        "left_cmd": 0.0,
+        "right_cmd": 0.0
+      },
+      "physics": {
+        "body_type": "articulated",
+        "root": "chassis",
+        "collision_layer": [
+          "vehicle"
+        ],
+        "collision_mask": "all",
+        "links": {
+          "chassis": {
+            "shape": {
+              "type": "box",
+              "size": [
+                0.3,
+                0.08,
+                0.4
+              ]
+            },
+            "mass": 2.0
+          },
+          "wheel_l": {
+            "shape": {
+              "type": "cylinder",
+              "radius": 0.1,
+              "height": 0.04,
+              "axis": "x"
+            },
+            "mass": 0.3,
+            "friction": 1.0
+          },
+          "wheel_r": {
+            "shape": {
+              "type": "cylinder",
+              "radius": 0.1,
+              "height": 0.04,
+              "axis": "x"
+            },
+            "mass": 0.3,
+            "friction": 1.0
+          },
+          "caster": {
+            "shape": {
+              "type": "sphere",
+              "radius": 0.05
+            },
+            "mass": 0.1,
+            "friction": 0.0
+          },
+          "mast": {
+            "shape": {
+              "type": "box",
+              "size": [
+                0.03,
+                0.16,
+                0.03
+              ]
+            },
+            "mass": 0.05
+          }
+        },
+        "joints": [
+          {
+            "type": "hinge",
+            "parent": "chassis",
+            "child": "wheel_l",
+            "at": [
+              -0.19,
+              -0.05,
+              -0.1
+            ],
+            "axis": [
+              -1,
+              0,
+              0
+            ],
+            "motor": {
+              "target_velocity": "self.state.left_cmd",
+              "max_torque": 3.0
+            },
+            "report": "wheel_l"
+          },
+          {
+            "type": "hinge",
+            "parent": "chassis",
+            "child": "wheel_r",
+            "at": [
+              0.19,
+              -0.05,
+              -0.1
+            ],
+            "axis": [
+              -1,
+              0,
+              0
+            ],
+            "motor": {
+              "target_velocity": "self.state.right_cmd",
+              "max_torque": 3.0
+            },
+            "report": "wheel_r"
+          },
+          {
+            "type": "ball",
+            "parent": "chassis",
+            "child": "caster",
+            "at": [
+              0,
+              -0.1,
+              0.15
+            ]
+          },
+          {
+            "type": "fixed",
+            "parent": "chassis",
+            "child": "mast",
+            "at": [
+              0,
+              0.12,
+              0.13
+            ]
+          }
+        ]
+      },
+      "sensors": [
+        {
+          "type": "ray",
+          "link": "chassis",
+          "at": [
+            0,
+            0,
+            -0.21
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ],
+          "range": 5.0,
+          "report": "front",
+          "collision_mask": [
+            "wall"
+          ]
+        },
+        {
+          "type": "ray",
+          "link": "chassis",
+          "at": [
+            0,
+            0,
+            -0.21
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ],
+          "range": 5.0,
+          "report": "blind",
+          "collision_mask": [
+            "npc"
+          ]
+        },
+        {
+          "type": "lidar",
+          "link": "chassis",
+          "at": [
+            0,
+            0.06,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ],
+          "rays": 5,
+          "fov": 1.6,
+          "range": 5.0,
+          "report": "lidar",
+          "collision_mask": [
+            "wall"
+          ]
+        }
+      ]
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "floor_slab",
+      "id": "floor_slab",
+      "position": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall_n",
+      "position": [
+        0,
+        0,
+        -2.5
+      ]
+    },
+    {
+      "def": "pillar",
+      "id": "pillar_1",
+      "position": [
+        3,
+        0,
+        1
+      ]
+    },
+    {
+      "def": "marker",
+      "id": "marker_1",
+      "position": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "def": "score",
+      "id": "score",
+      "position": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "def": "robot",
+      "id": "robot_1",
+      "position": [
+        0,
+        0.15,
+        1.0
+      ]
+    }
+  ]
+}

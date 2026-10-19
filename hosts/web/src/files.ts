@@ -1,6 +1,10 @@
 // The file access of the core. The core never imports node:fs, so the same
 // code runs in Node and in a browser. Node uses NodeFiles (node_files.ts).
 // The browser uses MemoryFiles, filled from one JSON bundle.
+import type { Bounds } from "./glb.ts";
+
+/** The bundle entry that holds the bounds of each GLB file: path → [min x, y, z, max x, y, z]. */
+export const GLB_BOUNDS_KEY = "glb_bounds.json";
 
 export interface Files {
   exists(path: string): boolean;
@@ -9,6 +13,8 @@ export interface Files {
   read(path: string): string | null;
   /** The entry names of a folder, sorted. */
   list(dir: string): string[];
+  /** The POSITION bounds of a GLB file (glb.ts), or null. Collision shapes read it (phase 3). */
+  glbBounds(path: string): Bounds | null;
 }
 
 /** POSIX join: one slash between parts, no "." or ".." handling. */
@@ -55,5 +61,19 @@ export class MemoryFiles implements Files {
   }
   list(dir: string): string[] {
     return [...(this.dirs.get(dir.replace(/\/+$/, "")) ?? [])].sort();
+  }
+
+  private boundsTable: Record<string, number[]> | null = null;
+
+  glbBounds(path: string): Bounds | null {
+    if (this.boundsTable === null) {
+      try {
+        this.boundsTable = JSON.parse(this.files.get(GLB_BOUNDS_KEY) ?? "{}");
+      } catch {
+        this.boundsTable = {};
+      }
+    }
+    const b = this.boundsTable![path];
+    return Array.isArray(b) && b.length === 6 ? { min: [b[0], b[1], b[2]], max: [b[3], b[4], b[5]] } : null;
   }
 }

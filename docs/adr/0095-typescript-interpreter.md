@@ -188,3 +188,46 @@ Phase 2 is done for the spec fields that a browser can draw with
 three.js alone. These stay open and move to phase 4: CSG ops, the
 library shaders (ground, sky), heightmaps, GLB animations, the
 viewmodel, SSAO and glow. Articulated links need phase 3.
+
+## Phase 3 findings (2026-10-19)
+
+The physics host runs on Rapier (`hosts/web/src/physics_rapier.ts`).
+The rover demo passes its 34 checks on the new host. It drives in a
+browser, and its autopilot steers it away from walls there. Two new
+conformance cases pass on both hosts. `physics_robot` checks an
+articulated body with sensors, with margins. `motion_effects` checks the
+relative velocity effects and `raycast_hit`, which are exact. The
+doomarena3d and lanterns tests also pass on the new host.
+
+Rapier gives choices that Godot fixes. The host follows Godot:
+
+- **Collision pairs.** Godot pairs two bodies when the layer of either
+  one is in the mask of the other. Rapier needs both. A contact hook
+  applies the Godot rule.
+- **Motors.** Godot applies a capped motor impulse in each solver
+  iteration, between the contact solves. Rapier's JS motor has no cap.
+  An impulse before each step was too weak. Ground friction spun the
+  light wheel back, and a turn in place drifted 0.09 m (the margin is
+  0.05 m). A motor target that moves by a capped amount limited the
+  wheel acceleration instead of the torque, and a wheel could not
+  reverse. The host now takes 8 substeps for each step in a world with
+  motors, with the capped impulse before each one. The drift is 0.03 m.
+- **Ray queries.** A body joins the queries at the next physics step, on
+  both hosts.
+
+Three facts about the reference came out of the port. They are not
+defects, but the contract does not state them yet:
+
+1. A rigid body writes nothing back to entity state. Its motion is
+   invisible to rules and to the renderer.
+2. A scenario run steps the physics server only in a world with an
+   articulated body. In other worlds, character bodies move by Euler
+   integration with no collision. Rigid bodies do not move.
+3. A velocity effect on an entity with no velocity starts from the zero
+   2D vector, even when the position is 3D. The `motion_effects` case
+   pins this.
+
+These stay open: the `base` footprint of `from_visual_mesh`, and the
+hinge `limit` sign. The Godot hinge motor runs against the right-hand
+rule. The sign of its limits thus needs a check against a real step
+before a robot uses limits.

@@ -6,6 +6,7 @@
 //     [--keys=D:0.3,wait:1,R:0.1]   spec key names (ADR 0090) held for N seconds, or wait:N
 //     [--size=960x540] [--server=http://localhost:8095] [--timeout=120] [--verbose]
 //     [--browser=<path>]            default: $YUME_CHROME, else a Playwright headless shell
+//     [--eval=<expr>]               print a page expression after the keys, e.g. a player position
 //
 // The dev server (src/serve.ts) must be running.
 import { spawn } from "node:child_process";
@@ -22,6 +23,7 @@ const [width, height] = opt("size", "960x540").split("x").map(Number);
 const server = opt("server", "http://localhost:8095");
 const timeoutS = Number(opt("timeout", "120"));
 const keys = opt("keys", "");
+const evalExpr = opt("eval", "");
 // A port of its own, so a browser left by a killed run cannot answer.
 const port = 9300 + Math.floor(Math.random() * 600);
 const verbose = args.includes("--verbose");
@@ -64,9 +66,16 @@ class Cdp {
     const id = ++this.seq;
     this.ws.send(JSON.stringify({ id, method, params }));
     return new Promise((r, j) => {
-      this.waiting.set(id, r as (v: unknown) => void);
       // A busy or crashed page never answers. Fail instead of waiting forever.
-      setTimeout(() => j(new Error(`${method}: no answer in ${timeoutMs / 1000} s`)), timeoutMs);
+      // An answer clears the timer, so that no timer keeps Node alive after the capture.
+      const timer = setTimeout(() => {
+        this.waiting.delete(id);
+        j(new Error(`${method}: no answer in ${timeoutMs / 1000} s`));
+      }, timeoutMs);
+      this.waiting.set(id, (v: unknown) => {
+        clearTimeout(timer);
+        r(v as Record<string, unknown>);
+      });
     });
   }
   async eval(expr: string): Promise<unknown> {
@@ -141,6 +150,7 @@ async function main(): Promise<void> {
     }
     // Let a few frames draw the last state.
     await sleep(500);
+    if (evalExpr !== "") console.log(`eval: ${JSON.stringify(await cdp.eval(evalExpr))}`);
     // A large scene on the CPU renderer (SwiftShader) can take many seconds per frame.
     const shot = (await cdp.send("Page.captureScreenshot", { format: "png" }, timeoutS * 1000)) as { data: string };
     writeFileSync(out, Buffer.from(shot.data, "base64"));
@@ -151,7 +161,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => {
-  console.error(String(e));
-  process.exit(1);
-});
+main().then(
+  () => process.exit(0),
+  (e) => {
+    console.error(String(e));
+    process.exit(1);
+  },
+);

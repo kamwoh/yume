@@ -1,23 +1,24 @@
 # Yume web host
 
-_Last updated: 2026-10-18_
+_Last updated: 2026-10-19_
 
 The TypeScript interpreter of the Yume spec (ADR 0095). Godot stays the
 reference interpreter. This host must give the same result for every
 exact behavior (contract doc, §Two behavior classes).
 
-## Status: phase 1 done, phase 2 in progress
+## Status: phases 1 to 3 done, phase 4 next
 
 | In this host | Not in this host yet |
 |---|---|
-| Entities, tags, state, relations, queries, formulas | Physics bodies, sensors (phase 3) |
-| Rules with the tick phases, `once`, `once_per`, `chance` | `lod`, `scope`, `overlap` |
-| Exact effects: state, spawn, remove, transform, relations, tags, arrays, emit, `advance_time`, `velocity_set` | Other motion effects, zones, `pathfind_to`, `raycast_hit` |
+| Entities, tags, state, relations, queries, formulas | |
+| Rules with the tick phases, `once`, `once_per`, `chance`, `overlap` | `lod`, `scope` |
+| Exact effects: state, spawn, remove, transform, relations, tags, arrays, emit, `advance_time`, `velocity_set`, `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit` | Zones, `pathfind_to` |
+| Physics on Rapier (phase 3): the static, kinematic, rigid, area, character and articulated bodies, and sensors. Also `blocks_motion` boxes, GLB-sized shapes, and trimesh and heightmap ground in the viewer | The `base` footprint of `from_visual_mesh` |
 | The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call`, saves to disk |
 | Levels (`game/flow.json`), `transition_level`, variants | |
 | `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
 | The browser viewer, 2D: shapes (`shapes.json`), the 2D camera, the keyboard, HUD labels | Screens, overlays, other HUD widgets (phase 4) |
-| The browser viewer, 3D: `meshes.json`, GLB models, the ground color, sun, sky, fog, the 3D camera modes, mouse look | CSG ops, ground and sky shaders, heightmaps, animations, articulated links, the viewmodel, SSAO, glow |
+| The browser viewer, 3D: `meshes.json`, GLB models, the ground color and its heightmap relief, sun, sky, fog, the 3D camera modes, mouse look, articulated links | CSG ops, ground and sky shaders, animations, the viewmodel, SSAO, glow |
 
 Shell effects (screens, toasts, save, audio) write a record to
 `env.shellEvents` and change no other state. An autosave on a level swap
@@ -32,7 +33,7 @@ a build step.
 ```bash
 cd hosts/web
 npm ci                 # once, for the type checker only
-npm test               # unit tests (the generator vectors)
+npm test               # unit tests
 npm run typecheck
 node src/cli.ts --lib=../../godot/data/lib ../../spec/conformance/*/
 ```
@@ -54,7 +55,35 @@ The core never imports `node:fs`. It reads files through `src/files.ts`.
 `src/live.ts` runs the live loop of the reference: one input poll for
 each 1/60 s physics step, and one sim tick for each `tick_seconds`. A
 press-edge key fires once for each key-down. `test/live.test.ts` checks
-this.
+this. The physics host then steps the bodies. As in the reference, the
+clock waits until every GLB file has loaded.
+
+## Physics (phase 3)
+
+`src/physics.ts` holds the seam: the interface, the closed vocabularies
+and the exact parts (layer names, the tree check of an articulated
+body). `src/physics_rapier.ts` implements it on Rapier
+(`@dimforge/rapier3d-compat`, with its WASM inline). The viewer loads it
+only for a game that declares bodies or sensors.
+
+Motion is host-defined (ADR 0086). Where Rapier gives a choice, the host
+follows Godot:
+
+- A pair collides when the layer of either side is in the mask of the
+  other. A contact hook applies this rule.
+- Friction combines by the minimum. The default friction is 1, and the
+  default damping is 0.1.
+- A hinge motor applies a capped impulse between solves. Rapier's JS
+  motor has no cap, so a world with motors takes 8 substeps for each
+  step. With one substep, ground friction undid the braking of a light
+  wheel, and a turn in place drifted 0.09 m.
+- A new body joins the ray queries at the next physics step.
+- A rigid body writes nothing back to state, as in the reference.
+
+A scenario steps the bodies as `step_runner.gd` does. Character bodies
+move by Euler integration (`tick_headless`). Only a world with an
+articulated body gets one physics step for each tick. Live play adds the ground
+collider of `scene.json`, which a scenario run does not have.
 
 The viewer picks the 3D renderer when the `scene.json` camera mode is a
 3D mode (`top_down_3d`, `isometric_3d`, `third_person_3d`,
@@ -102,6 +131,9 @@ compare them:
 | `src/viewer/mesh_lib.ts` | `renderer_3d/mesh_lib.gd` |
 | `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, hint, win panel) |
 | `src/viewer/keys.ts` | `io/input_keys.gd` |
+| `src/physics.ts`, `src/physics_rapier.ts` | `coordinators/physics_body_builder.gd`, `character_body_runner.gd`, `articulated_body.gd`, `sensor_array.gd` |
+| `src/heightmap.ts` | `GroundRenderer.sample_y` |
+| `src/glb.ts` | `PhysicsBodyBuilder._glb_bbox` |
 
 ## When the two hosts disagree
 

@@ -2,15 +2,17 @@
 // world.gd, world_boot.gd and world_loader.gd for the parts in ADR 0095
 // phase 1. Features outside phase 1 raise host.unsupported once at load.
 import { type Files, dirname, join } from "./files.ts";
+import type { Bounds } from "./glb.ts";
 import { Entity } from "./entity.ts";
 import type { Env } from "./env.ts";
 import { raise } from "./env.ts";
 import { LibResolver } from "./lib_resolver.ts";
+import { type PhysicsHost, attachBody } from "./physics.ts";
 import { SpecRandom } from "./random.ts";
 import { RelationStore } from "./relations.ts";
 import { Rule, VALID_TRIGGERS } from "./rule.ts";
 import { PhaseScheduler } from "./scheduler.ts";
-import { type Dict, type Value, isDict, toFloat } from "./value.ts";
+import { type Dict, type Value, Vec3, isDict, toFloat } from "./value.ts";
 
 const UNSUPPORTED_FILES = ["macros.json", "actors.json", "world/zones.json", "chunks"];
 
@@ -40,6 +42,12 @@ export class World {
   /** The key names of each action, from ui/input.json (InputRegistrar). */
   actionKeys = new Map<string, string[]>();
 
+  /**
+   * Builds the physics host (ADR 0095 phase 3) from the layer names and a
+   * GLB bounds lookup. Without it, physics blocks raise host.unsupported.
+   */
+  physicsFactory: ((layers: Dict, glbBounds: (path: string) => Bounds | null) => PhysicsHost) | null = null;
+
   /** `libRoot` defaults to the `lib/` folder next to the game folder, as in the reference. */
   constructor(root: string, files: Files, libRoot = "") {
     this.files = files;
@@ -58,6 +66,8 @@ export class World {
       dispatchLifecycle: null,
       advanceCalendar: null,
       pendingLevel: "",
+      overlapEvents: [],
+      physics: null,
     };
     this.scheduler = new PhaseScheduler(this.env);
     this.lib = new LibResolver(this.libRoot, files);
@@ -73,6 +83,10 @@ export class World {
     }
     for (const f of UNSUPPORTED_FILES) {
       if (this.files.exists(join(this.root, f))) raise(this.env, "host.unsupported", `${f} is not in this host yet (ADR 0095 phase 1)`, "warning");
+    }
+    if (this.physicsFactory) {
+      const layers = this.lib.resolve("@lib.physics.layers.layers");
+      this.env.physics = this.physicsFactory(isDict(layers) ? layers : {}, (p) => this.glbBounds(p));
     }
     this.spawnEngineEntity();
     this.loadEngineRules();
@@ -158,6 +172,7 @@ export class World {
     for (const [id, e] of [...this.env.entities]) {
       if (keep.some((t) => e.hasTag(t))) continue;
       this.env.relations.clearEntity(id);
+      this.env.physics?.remove(e);
       this.env.entities.delete(id);
     }
     this.scheduler.clearRules();
@@ -360,20 +375,67 @@ export class World {
         if (Array.isArray(p) && p.length >= 2) existing.setPosition(p as Value);
         continue;
       }
-      if (isDict(def.physics)) {
-        raise(this.env, "host.unsupported", `def '${defId}': physics bodies are phase 3 of ADR 0095`, "warning");
-      }
       const e = Entity.create(def, id, overrides);
       this.env.entities.set(id, e);
+      attachBody(this.env, e, def);
       this.env.dispatchLifecycle?.("spawn", id);
     }
   }
 
-  /** world.gd advance_one_tick, for the parts in phase 1. */
+  /** world.gd advance_one_tick. The runner steps the bodies after it. */
   advanceOneTick(): void {
     this.simTick += 1;
     this.env.world._tick = this.simTick;
+    const ph = this.env.physics;
+    ph?.readBack(); // ADR 0091: body poses → state, before rules
+    ph?.readSensors(); // ADR 0092: rays → state, after the poses
     this.scheduler.tick();
+    ph?.drive(this.env); // ADR 0091: motor targets, after rules
+  }
+
+  /**
+   * GroundConstraint.apply, once for each live frame (world.gd _process; a
+   * scenario run has no such call). With `ground.y` in scene.json, an entity
+   * below it with a despawn tag leaves the world, and one with a clamp tag
+   * goes back up to it.
+   */
+  applyGroundConstraint(): void {
+    if (this.groundCfg === undefined) {
+      const scene = this.readJson("scene.json");
+      const g = isDict(scene) && isDict(scene.ground) ? scene.ground : null;
+      this.groundCfg = g && "y" in g
+        ? { y: toFloat(g.y), clamp: asList(g.clamp_tags ?? ["creature"]).map(String), despawn: asList(g.despawn_tags ?? ["projectile"]).map(String) }
+        : null;
+    }
+    const cfg = this.groundCfg;
+    if (!cfg) return;
+    const out: string[] = [];
+    for (const [id, e] of this.env.entities) {
+      const p = e.position();
+      const y = p instanceof Vec3 ? p.y : 0;
+      if (y >= cfg.y) continue;
+      if (cfg.despawn.some((t) => e.hasTag(t))) out.push(id);
+      else if (p instanceof Vec3 && cfg.clamp.some((t) => e.hasTag(t))) e.setPosition(new Vec3(p.x, cfg.y, p.z));
+    }
+    for (const id of out) this.despawn(id);
+  }
+
+  private groundCfg: { y: number; clamp: string[]; despawn: string[] } | null | undefined = undefined;
+
+  /** SpawnManager.despawn: the despawn trigger, the relations, the body, then the entity. */
+  despawn(id: string): void {
+    const e = this.env.entities.get(id);
+    if (!e) return;
+    this.env.dispatchLifecycle?.("despawn", id);
+    this.env.relations.clearEntity(id);
+    this.env.physics?.remove(e);
+    this.env.entities.delete(id);
+  }
+
+  /** AssetPath.resolve (ADR 0087): `@lib/<p>` is under the lib folder, any other path under the game folder. */
+  glbBounds(path: string): Bounds | null {
+    if (path.includes("://") || path.startsWith("/") || path.split("/").includes("..")) return null;
+    return this.files.glbBounds(path.startsWith("@lib/") ? join(this.libRoot, path.slice(5)) : join(this.root, path));
   }
 
   /** ActorManager.resolve_active_entity for the default actor: the first entity with the actor tag. */

@@ -1,0 +1,114 @@
+{
+  "_comment": "Differential drive, as the rover demo: held keys set throttle and steer, and the mixer turns them into wheel commands, then clears them.",
+  "rules": [
+    {
+      "id": "in_move_north_throttle",
+      "trigger": {
+        "type": "input",
+        "action": "move_north"
+      },
+      "query": {
+        "tags_all": [
+          "robot"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "throttle",
+          "value": 1.0
+        }
+      ]
+    },
+    {
+      "id": "in_move_west_steer",
+      "trigger": {
+        "type": "input",
+        "action": "move_west"
+      },
+      "query": {
+        "tags_all": [
+          "robot"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "steer",
+          "value": 1.0
+        }
+      ]
+    },
+    {
+      "id": "mixer",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "robot"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "left_cmd",
+          "value": "8 * self.state.throttle - 5 * self.state.steer"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "right_cmd",
+          "value": "8 * self.state.throttle + 5 * self.state.steer"
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "throttle",
+          "value": 0.0
+        },
+        {
+          "type": "state_set",
+          "target": "self",
+          "field": "steer",
+          "value": 0.0
+        }
+      ]
+    },
+    {
+      "id": "find_marker",
+      "trigger": {
+        "type": "contact"
+      },
+      "query": {
+        "a": {
+          "tags_all": [
+            "robot"
+          ]
+        },
+        "b": {
+          "tags_all": [
+            "marker"
+          ]
+        },
+        "radius": 0.45
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "score",
+          "field": "found",
+          "amount": 1
+        },
+        {
+          "type": "remove",
+          "target": "b"
+        }
+      ]
+    }
+  ]
+}

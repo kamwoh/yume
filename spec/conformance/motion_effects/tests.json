@@ -1,0 +1,230 @@
+{
+  "scenarios": [
+    {
+      "name": "set_relative",
+      "_": "forward 3 at facing 0 is (0, 0, -3). A 3D position gives a 3D velocity.",
+      "steps": [
+        {
+          "press": "dash"
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.x",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.y",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.z",
+                "op": "==",
+                "value": -3
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "set_relative_facing_override",
+      "_": "A facing field overrides state.facing. Facing pi turns forward to +Z.",
+      "steps": [
+        {
+          "press": "turn_back"
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.z",
+                "op": ">",
+                "value": 1.999999
+              }
+            },
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.z",
+                "op": "<",
+                "value": 2.000001
+              }
+            },
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.x",
+                "op": ">",
+                "value": -1e-06
+              }
+            },
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.x",
+                "op": "<",
+                "value": 1e-06
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "add_relative_sums_in_a_tick",
+      "_": "Two fires in one tick sum: forward 1 and strafe 2. A mover with no velocity starts from the zero 2D vector (Entity.get_velocity), so the sum is the 2D vector (2, -1), with z in y. Each tick starts again from zero.",
+      "steps": [
+        {
+          "hold": "walk",
+          "for": 0.05
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.x",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.y",
+                "op": "==",
+                "value": -1
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "add_relative_replaces_an_old_velocity",
+      "_": "The first fire of a tick drops the velocity of an earlier tick.",
+      "steps": [
+        {
+          "press": "dash"
+        },
+        {
+          "hold": "walk",
+          "for": 0.02
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.x",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "mover",
+                "field": "state.velocity.z",
+                "op": "==",
+                "value": -1
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "lerp_halves_the_gap",
+      "_": "rate 0.5 toward (4, 0): 2, then 3.",
+      "steps": [
+        {
+          "press": "ease"
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "drifter",
+                "field": "state.velocity.x",
+                "op": "==",
+                "value": 2
+              }
+            }
+          ]
+        },
+        {
+          "press": "ease"
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "drifter",
+                "field": "state.velocity.x",
+                "op": "==",
+                "value": 3
+              }
+            },
+            {
+              "entity_field": {
+                "id": "drifter",
+                "field": "state.velocity.y",
+                "op": "==",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "raycast_hits_and_blocks",
+      "_": "The dummy is 5 m ahead. A ray that ignores obstacles hits it. A ray that respects them stops at the wall 3 m ahead.",
+      "steps": [
+        {
+          "press": "shoot"
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "shooter",
+                "field": "state.hits",
+                "op": "==",
+                "value": 1
+              }
+            },
+            {
+              "entity_field": {
+                "id": "shooter",
+                "field": "state.misses",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "shooter",
+                "field": "state.blocked",
+                "op": "==",
+                "value": 1
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

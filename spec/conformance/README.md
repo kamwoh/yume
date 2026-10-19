@@ -1,6 +1,6 @@
 # Conformance cases
 
-_Last updated: 2026-10-18_
+_Last updated: 2026-10-19_
 
 Each folder is a small game with a `tests.json`. Every interpreter of
 the spec must pass every case (ADR 0086, ADR 0095). The cases use only
@@ -17,6 +17,8 @@ code-drawn content, so they hold no generated assets.
 | `input_edges` | press-edge and hold-edge actions under `press` and `hold` |
 | `calendar` | `advance_time` and `scheduled` rules (ADR 0078) |
 | `levels_variants` | level swaps, `persistent_tags`, the kept `_engine` entity, a variant overlay |
+| `motion_effects` | `velocity_set_relative`, `velocity_add_relative`, `velocity_lerp`, `raycast_hit` |
+| `physics_robot` | an articulated body (ADR 0091) with sensors (ADR 0092): readback fields, motors, masks, contact from a physics position. Checks with margins |
 
 `random_vectors.json` holds reference values of the spec generator.
 

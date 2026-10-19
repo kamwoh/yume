@@ -1,7 +1,7 @@
 // The four-phase tick loop and the effect write buffer. Mirrors
 // phase_scheduler.gd: input → decide → commit → react, with the same
 // flush points, signal drains, chance rolls (ADR 0095) and once ledger.
-// Not in this host yet: lod, scope tiers, overlap events.
+// Not in this host yet: lod, scope tiers.
 import type { Env } from "./env.ts";
 import { raise } from "./env.ts";
 import { apply, pushSignal } from "./effects.ts";
@@ -155,6 +155,7 @@ export class PhaseScheduler {
 
   private phaseReact(): void {
     for (const r of this.rulesByTrigger.get("contact") ?? []) this.fireContact(r);
+    this.drainOverlaps();
     if (this.relationChanges.length > 0) {
       const changes = [...this.relationChanges];
       this.relationChanges = [];
@@ -186,6 +187,36 @@ export class PhaseScheduler {
         if (oncePerA) break;
       }
     }
+  }
+
+  /** ADR 0070: the physics host buffers area overlaps during its steps. `a` is the area, `b` the body. */
+  private drainOverlaps(): void {
+    const events = this.env.overlapEvents;
+    if (events.length === 0) return;
+    const evs = [...events];
+    events.length = 0;
+    const rules = this.rulesByTrigger.get("overlap") ?? [];
+    for (const ev of evs) {
+      for (const r of rules) {
+        if (String(r.param("change", "enter")) !== ev.change) continue;
+        if (r.chance < 1 && SpecRandom.shared.randf() > r.chance) continue;
+        if (!this.overlapPairMatches(r, ev.a, ev.b)) continue;
+        const ctx: Ctx = { a: ev.a, b: ev.b, self: ev.a, _phase: "react" };
+        if (r.require && !this.requireOk(r.require, ctx)) continue;
+        this.fireEffects(r, ctx);
+      }
+    }
+  }
+
+  private overlapPairMatches(r: Rule, aId: string, bId: string): boolean {
+    const q = r.query;
+    if (!isDict(q)) return true;
+    const a = this.env.entities.get(aId);
+    const b = this.env.entities.get(bId);
+    if (!a || !b) return false;
+    if (isDict(q.a) && !matches(a, q.a, this.env)) return false;
+    if (isDict(q.b) && !matches(b, q.b, this.env)) return false;
+    return true;
   }
 
   private drainSignals(phase: string): void {

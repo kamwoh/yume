@@ -1,0 +1,106 @@
+{
+  "_comment": "Motion effects are exact: they write velocity, and no body moves in a scenario run. A facing of 0 looks toward -Z.",
+  "definitions": [
+    {
+      "id": "mover",
+      "tags": [
+        "mover",
+        "player"
+      ],
+      "state_init": {
+        "facing": 0.0
+      }
+    },
+    {
+      "id": "drifter",
+      "tags": [
+        "drifter"
+      ],
+      "state_init": {
+        "velocity": [
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "id": "shooter",
+      "tags": [
+        "shooter"
+      ],
+      "state_init": {
+        "hits": 0,
+        "misses": 0,
+        "blocked": 0
+      }
+    },
+    {
+      "id": "dummy",
+      "tags": [
+        "target"
+      ],
+      "properties": {
+        "body_radius": 0.5
+      }
+    },
+    {
+      "id": "wall",
+      "tags": [
+        "blocks_motion"
+      ],
+      "properties": {
+        "aabb_extents": [
+          1,
+          1,
+          0.1
+        ]
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "mover",
+      "id": "mover",
+      "position": [
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "def": "drifter",
+      "id": "drifter",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "def": "shooter",
+      "id": "shooter",
+      "position": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "def": "dummy",
+      "id": "dummy",
+      "position": [
+        0,
+        1,
+        -5
+      ]
+    },
+    {
+      "def": "wall",
+      "id": "wall",
+      "position": [
+        0,
+        1,
+        -3
+      ]
+    }
+  ]
+}

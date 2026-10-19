@@ -1,0 +1,184 @@
+{
+  "rules": [
+    {
+      "id": "dash",
+      "trigger": {
+        "type": "input",
+        "action": "dash"
+      },
+      "query": {
+        "tags_all": [
+          "mover"
+        ]
+      },
+      "effect": [
+        {
+          "type": "velocity_set_relative",
+          "target": "self",
+          "forward": 3
+        }
+      ]
+    },
+    {
+      "id": "walk_forward",
+      "trigger": {
+        "type": "input",
+        "action": "walk"
+      },
+      "query": {
+        "tags_all": [
+          "mover"
+        ]
+      },
+      "effect": [
+        {
+          "type": "velocity_add_relative",
+          "target": "self",
+          "forward": 1
+        }
+      ]
+    },
+    {
+      "id": "walk_strafe",
+      "trigger": {
+        "type": "input",
+        "action": "walk"
+      },
+      "query": {
+        "tags_all": [
+          "mover"
+        ]
+      },
+      "effect": [
+        {
+          "type": "velocity_add_relative",
+          "target": "self",
+          "strafe": 2
+        }
+      ]
+    },
+    {
+      "id": "turn_back",
+      "trigger": {
+        "type": "input",
+        "action": "turn_back"
+      },
+      "query": {
+        "tags_all": [
+          "mover"
+        ]
+      },
+      "effect": [
+        {
+          "type": "velocity_set_relative",
+          "target": "self",
+          "forward": 2,
+          "facing": 3.141592653589793
+        }
+      ]
+    },
+    {
+      "id": "ease",
+      "trigger": {
+        "type": "input",
+        "action": "ease"
+      },
+      "query": {
+        "tags_all": [
+          "drifter"
+        ]
+      },
+      "effect": [
+        {
+          "type": "velocity_lerp",
+          "target": "self",
+          "x": 4,
+          "y": 0,
+          "rate": 0.5
+        }
+      ]
+    },
+    {
+      "id": "shoot",
+      "trigger": {
+        "type": "input",
+        "action": "shoot"
+      },
+      "query": {
+        "tags_all": [
+          "shooter"
+        ]
+      },
+      "effect": [
+        {
+          "type": "raycast_hit",
+          "origin": [
+            0,
+            1,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ],
+          "max_distance": 10,
+          "tags_all": [
+            "target"
+          ],
+          "respect_obstacles": false,
+          "on_hit": [
+            {
+              "type": "state_add",
+              "target": "shooter",
+              "field": "hits",
+              "amount": 1
+            }
+          ],
+          "on_miss": [
+            {
+              "type": "state_add",
+              "target": "shooter",
+              "field": "misses",
+              "amount": 1
+            }
+          ]
+        },
+        {
+          "type": "raycast_hit",
+          "origin": [
+            0,
+            1,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            -1
+          ],
+          "max_distance": 10,
+          "tags_all": [
+            "target"
+          ],
+          "respect_obstacles": true,
+          "on_hit": [
+            {
+              "type": "state_add",
+              "target": "shooter",
+              "field": "hits",
+              "amount": 1
+            }
+          ],
+          "on_miss": [
+            {
+              "type": "state_add",
+              "target": "shooter",
+              "field": "blocked",
+              "amount": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

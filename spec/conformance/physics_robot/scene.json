@@ -1,0 +1,4 @@
+{
+  "_comment": "One tick for each physics step, as the robot demos (ADR 0091).",
+  "tick_seconds": 0.0167
+}

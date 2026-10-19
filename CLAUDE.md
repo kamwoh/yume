@@ -298,8 +298,8 @@ hand-authoring freely):
   `python -m tools.yume_urdf robot.urdf [--friction caster=0] [--spawn x,y,z]`.
 
 - **`hosts/web/`** — the TypeScript interpreter of the spec (ADR 0095):
-  the headless core, and a three.js viewer (`node hosts/web/src/serve.ts`,
-  2D games so far). `spec/conformance/` holds the cases that
+  the headless core, Rapier physics, and a three.js viewer
+  (`node hosts/web/src/serve.ts`, 2D and 3D games). `spec/conformance/` holds the cases that
   both hosts must pass: `./scripts/conformance.sh [--ts-only]`. A
   disagreement is a spec bug (see `hosts/web/README.md`).
 

@@ -5,7 +5,7 @@ import type { Entity } from "../entity.ts";
 import { type Dict, isDict } from "../value.ts";
 import type { World } from "../world.ts";
 
-type BoundLabel = { el: HTMLElement; binds: string; format: string };
+type BoundLabel = { el: HTMLElement; binds: string; format: string; phases: string[] };
 
 const ANCHORS: Record<string, string> = {
   "top-left": "top:12px;left:12px",
@@ -36,7 +36,7 @@ export class Hud {
         else if (type === "label") {
           const node = div(box, `font-size:${Number(el.size ?? 16)}px;color:${String(el.color ?? "#ffffff")};white-space:pre`);
           node.textContent = this.text(String(el.text ?? ""));
-          if ("binds" in el) this.labels.push({ el: node, binds: String(el.binds), format: String(el.format ?? "{}") });
+          if ("binds" in el) this.labels.push({ el: node, binds: String(el.binds), format: String(el.format ?? "{}"), phases: Array.isArray(el.format_phases) ? el.format_phases.map(String) : [] });
         } else console.info(`[hud] element type '${type}' is phase 4 of ADR 0095, skipped`);
       }
     }
@@ -58,6 +58,11 @@ export class Hud {
       const v = resolveBinding(world, l.binds);
       // A missing value keeps the old text, as in the reference.
       if (v === null || v === undefined) continue;
+      // HudBuilder: format_phases picks one string by a number in [0, 1].
+      if (l.phases.length > 0 && typeof v === "number") {
+        l.el.textContent = l.phases[Math.min(Math.max(Math.trunc(v * l.phases.length), 0), l.phases.length - 1)];
+        continue;
+      }
       l.el.textContent = this.text(l.format).replace("{}", formatValue(v));
     }
     if (this.win) {

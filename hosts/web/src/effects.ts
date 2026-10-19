@@ -6,6 +6,7 @@ import { Entity } from "./entity.ts";
 import type { Env } from "./env.ts";
 import { raise } from "./env.ts";
 import { type FormulaContext, evaluate, looksLikeFormula } from "./formula.ts";
+import { attachBody } from "./physics.ts";
 import { type Ctx, strOf } from "./query.ts";
 import { type Dict, type Value, Vec2, Vec3, deepCopy, equals, isDict, toFloat, toInt } from "./value.ts";
 
@@ -112,6 +113,14 @@ export function apply(e: Dict, env: Env, ctx: Ctx): void {
     }
     case "velocity_set":
       return velocitySet(e, env, ctx);
+    case "velocity_set_relative":
+      return velocityRelative(e, env, ctx, false);
+    case "velocity_add_relative":
+      return velocityRelative(e, env, ctx, true);
+    case "velocity_lerp":
+      return velocityLerp(e, env, ctx);
+    case "raycast_hit":
+      return raycastHit(e, env, ctx);
     case "transition_level":
       return transitionLevel(e, env, ctx);
   }
@@ -178,6 +187,7 @@ export function spawn(e: Dict, env: Env, ctx: Ctx): string {
   }
   const ent = Entity.create(def, id, overrides);
   env.entities.set(id, ent);
+  attachBody(env, ent, def);
   env.dispatchLifecycle?.("spawn", id);
   return id;
 }
@@ -187,6 +197,7 @@ function remove(e: Dict, env: Env, ctx: Ctx): void {
   if (!ent) return;
   env.dispatchLifecycle?.("despawn", ent.id);
   env.relations.clearEntity(ent.id);
+  env.physics?.remove(ent);
   env.entities.delete(ent.id);
 }
 
@@ -289,6 +300,134 @@ function velocitySet(e: Dict, env: Env, ctx: Ctx): void {
   } else {
     ent.setVelocity(new Vec2(vx, vy));
   }
+}
+
+/**
+ * EffectMotion.velocity_set_relative and velocity_add_relative (ADR 0040,
+ * ADR 0048): forward and strafe turned by the facing. Forward at facing 0 is
+ * -Z, and strafe is to the right (+X). The add form zeros the velocity on its
+ * first fire in a tick, then sums the fires of that tick.
+ */
+function velocityRelative(e: Dict, env: Env, ctx: Ctx, add: boolean): void {
+  const ent = target(e, env, ctx);
+  if (!ent) return;
+  const fwd = toFloat(value(e.forward ?? 0, ctx, env));
+  const strafe = toFloat(value(e.strafe ?? 0, ctx, env));
+  const facing = "facing" in e ? toFloat(value(e.facing, ctx, env)) : toFloat(ent.getState("facing", 0));
+  const vx = -Math.sin(facing) * fwd + Math.cos(facing) * strafe;
+  const vz = -Math.cos(facing) * fwd - Math.sin(facing) * strafe;
+  if (!add) {
+    ent.setVelocity(ent.position() instanceof Vec3 ? new Vec3(vx, 0, vz) : new Vec2(vx, vz));
+    return;
+  }
+  const tick = toInt(env.world._tick ?? -1);
+  const fresh = tick !== toInt(ent.getState("_vel_add_last_tick", -2));
+  if (fresh) ent.setState("_vel_add_last_tick", tick);
+  // Entity.get_velocity: a missing velocity is the zero 2D vector.
+  const cur = ent.getState("velocity", new Vec2(0, 0));
+  if (cur instanceof Vec2) ent.setVelocity(fresh ? new Vec2(vx, vz) : new Vec2(cur.x + vx, cur.y + vz));
+  else if (cur instanceof Vec3) ent.setVelocity(fresh ? new Vec3(vx, 0, vz) : new Vec3(cur.x + vx, cur.y, cur.z + vz));
+  else ent.setVelocity(ent.position() instanceof Vec3 ? new Vec3(vx, 0, vz) : new Vec2(vx, vz));
+}
+
+/** EffectMotion.velocity_lerp: approach (x, y) by `rate` each fire. A 3D velocity counts as zero, as in the reference. */
+function velocityLerp(e: Dict, env: Env, ctx: Ctx): void {
+  const ent = target(e, env, ctx);
+  if (!ent) return;
+  const tx = toFloat(value(e.x ?? 0, ctx, env));
+  const ty = toFloat(value(e.y ?? 0, ctx, env));
+  const rate = Math.min(Math.max(toFloat(value(e.rate ?? 0.15, ctx, env)), 0), 1);
+  const cur = ent.getState("velocity", new Vec2(0, 0));
+  const c = cur instanceof Vec2 ? cur : new Vec2(0, 0);
+  ent.setVelocity(new Vec2(c.x + (tx - c.x) * rate, c.y + (ty - c.y) * rate));
+}
+
+type V3 = [number, number, number];
+const toV3 = (p: Vec2 | Vec3): V3 => (p instanceof Vec3 ? [p.x, p.y, p.z] : [p.x, 0, p.y]);
+
+/**
+ * EffectMotion.raycast_hit: the nearest entity on the tag filters whose
+ * `body_radius` sphere the ray meets before a `blocks_motion` box. It runs
+ * on_hit with `hit` and `hit_point` bound, else on_miss.
+ */
+function raycastHit(e: Dict, env: Env, ctx: Ctx): void {
+  const origin = toV3(position(e.origin ?? [0, 0, 0], env, ctx));
+  let dir = toV3(position(e.direction ?? [0, 0, -1], env, ctx));
+  const l = Math.hypot(...dir);
+  if (l < 1e-6) return;
+  dir = [dir[0] / l, dir[1] / l, dir[2] / l];
+  const maxD = toFloat(value(e.max_distance ?? 100.0, ctx, env));
+  const tagsAll = Array.isArray(e.tags_all) ? e.tags_all.map(String) : [];
+  const tagsNone = Array.isArray(e.tags_none) ? e.tags_none.map(String) : [];
+  let closest = maxD;
+  if (e.respect_obstacles !== false) {
+    for (const b of env.entities.values()) {
+      if (!b.hasTag("blocks_motion") || b.properties.aabb_extents === undefined || b.properties.aabb_extents === null) continue;
+      const ext = toV3(normalizeWorld(b.properties.aabb_extents));
+      const off = toV3(normalizeWorld(b.properties.aabb_offset ?? [0, 0, 0]));
+      const p = b.position();
+      if (!(p instanceof Vec2 || p instanceof Vec3)) continue;
+      const c = toV3(p).map((v, i) => v + off[i]) as V3;
+      const t = rayAabb(origin, dir, c.map((v, i) => v - ext[i]) as V3, c.map((v, i) => v + ext[i]) as V3);
+      if (t > 0 && t < closest) closest = t;
+    }
+  }
+  let hit = "";
+  for (const [id, ent] of env.entities) {
+    if (!tagsAll.every((t) => ent.hasTag(t)) || tagsNone.some((t) => ent.hasTag(t))) continue;
+    const p = ent.position();
+    if (!(p instanceof Vec2 || p instanceof Vec3)) continue;
+    const t = raySphere(origin, dir, toV3(p), toFloat(ent.properties.body_radius ?? 0.4));
+    if (t > 0 && t < closest) {
+      closest = t;
+      hit = id;
+    }
+  }
+  const sub: Ctx = { ...ctx, hit_point: new Vec3(origin[0] + dir[0] * closest, origin[1] + dir[1] * closest, origin[2] + dir[2] * closest) };
+  if (hit !== "") sub.hit = hit;
+  for (const x of Array.isArray(e[hit !== "" ? "on_hit" : "on_miss"]) ? (e[hit !== "" ? "on_hit" : "on_miss"] as unknown[]) : []) {
+    if (isDict(x)) apply(x, env, sub);
+  }
+}
+
+/** Vec3Util.from_world_pos for a property value: [x, y, z], [x, z] or one number. */
+function normalizeWorld(v: unknown): Vec2 | Vec3 {
+  if (typeof v === "number") return new Vec3(v, v, v);
+  if (Array.isArray(v) && v.length >= 3) return new Vec3(toFloat(v[0]), toFloat(v[1]), toFloat(v[2]));
+  if (Array.isArray(v) && v.length === 2) return new Vec2(toFloat(v[0]), toFloat(v[1]));
+  return v instanceof Vec2 || v instanceof Vec3 ? v : new Vec3(0, 0, 0);
+}
+
+/** _ray_aabb_t: the slab method. The first t ≥ 0, or -1. */
+function rayAabb(o: V3, d: V3, mn: V3, mx: V3): number {
+  let near = -Infinity;
+  let far = Infinity;
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(d[i]) < 1e-6) {
+      if (o[i] < mn[i] || o[i] > mx[i]) return -1;
+      continue;
+    }
+    let t1 = (mn[i] - o[i]) / d[i];
+    let t2 = (mx[i] - o[i]) / d[i];
+    if (t1 > t2) [t1, t2] = [t2, t1];
+    near = Math.max(near, t1);
+    far = Math.min(far, t2);
+  }
+  if (near > far || far < 0) return -1;
+  return Math.max(near, 0);
+}
+
+/** _ray_sphere_t: the first t > 0, or -1. */
+function raySphere(o: V3, d: V3, c: V3, r: number): number {
+  const oc: V3 = [o[0] - c[0], o[1] - c[1], o[2] - c[2]];
+  const b = oc[0] * d[0] + oc[1] * d[1] + oc[2] * d[2];
+  const cc = oc[0] * oc[0] + oc[1] * oc[1] + oc[2] * oc[2] - r * r;
+  const disc = b * b - cc;
+  if (disc < 0) return -1;
+  const sq = Math.sqrt(disc);
+  if (-b - sq > 0) return -b - sq;
+  if (-b + sq > 0) return -b + sq;
+  return -1;
 }
 
 // ---------- resolution (effect_resolution.gd) ----------

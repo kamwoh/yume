@@ -1,6 +1,7 @@
 // The shared environment that rules, queries and effects read. Mirrors the
 // env Dictionary of the reference interpreter (world.gd _build_env).
 import type { Entity } from "./entity.ts";
+import type { PhysicsHost } from "./physics.ts";
 import type { RelationStore } from "./relations.ts";
 import type { Dict } from "./value.ts";
 
@@ -22,6 +23,10 @@ export interface Env {
   advanceCalendar: ((units: number) => void) | null;
   /** env._pending_level_transition: set by transition_level, drained after the tick. */
   pendingLevel: string;
+  /** ADR 0070: area overlaps from the physics host, drained in the react phase. */
+  overlapEvents: { a: string; b: string; change: "enter" | "exit" }[];
+  /** The physics host (ADR 0095 phase 3), or null for a world with no bodies. */
+  physics: PhysicsHost | null;
 }
 
 export function raise(env: Env, code: string, message: string, severity: "error" | "warning" = "error"): void {

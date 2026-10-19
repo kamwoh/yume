@@ -1,0 +1,29 @@
+{
+  "actions": [
+    {
+      "name": "dash",
+      "key": "Q",
+      "edge": "press"
+    },
+    {
+      "name": "walk",
+      "key": "W",
+      "edge": "hold"
+    },
+    {
+      "name": "turn_back",
+      "key": "B",
+      "edge": "press"
+    },
+    {
+      "name": "ease",
+      "key": "E",
+      "edge": "press"
+    },
+    {
+      "name": "shoot",
+      "key": "F",
+      "edge": "press"
+    }
+  ]
+}

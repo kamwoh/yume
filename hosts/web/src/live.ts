@@ -1,7 +1,8 @@
 // The live-play clock of the viewer. Mirrors the reference loop (ADR 0068,
 // ADR 0069): the input poll runs once per physics step, and a sim tick runs
 // each time the accumulator passes tick_seconds. Level swaps run after the
-// tick. It has no DOM code, so Node tests can drive it.
+// tick, then the physics host steps the bodies (ADR 0095 phase 3). It has
+// no DOM code, so Node tests can drive it.
 import { pollInput } from "./input.ts";
 import type { World } from "./world.ts";
 
@@ -31,15 +32,25 @@ export class LiveClock {
     this.held.delete(action);
   }
 
-  /** One physics step: the poll, then the sim ticks that are due. */
+  /** One physics step: the poll, the sim ticks that are due, then the bodies. */
   physicsStep(): void {
     pollInput(this.world, this.held, this.justPressed);
-    this.simAccum += PHYSICS_DT;
-    while (this.simAccum >= this.world.tickSeconds - EPS) {
-      this.simAccum -= this.world.tickSeconds;
-      this.world.advanceOneTick();
-      this.world.processPending();
+    // world.gd snap: a tick_seconds within 0.5% of the step is one tick for each step.
+    // Without it, 0.0167 against 1/60 skips one tick every 8 s.
+    if (Math.abs(this.world.tickSeconds - PHYSICS_DT) < PHYSICS_DT * 0.005) this.tick();
+    else {
+      this.simAccum += PHYSICS_DT;
+      while (this.simAccum >= this.world.tickSeconds - EPS) {
+        this.simAccum -= this.world.tickSeconds;
+        this.tick();
+      }
     }
+    this.world.env.physics?.step(PHYSICS_DT);
+  }
+
+  private tick(): void {
+    this.world.advanceOneTick();
+    this.world.processPending();
   }
 
   /** Real time since the last frame, in seconds. A long stall runs at most 0.25 s. */
