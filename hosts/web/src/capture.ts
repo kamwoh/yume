@@ -3,7 +3,8 @@
 // until every asset has loaded, plays real key presses, and saves a PNG.
 //
 //   node src/capture.ts --game=demo_sokoban --out=shot.png
-//     [--keys=D:0.3,wait:1,R:0.1]   spec key names (ADR 0090) held for N seconds, or wait:N
+//     [--keys=D:0.3,wait:1,R:0.1]   spec key names (ADR 0090) held for N seconds, or wait:N.
+//                                   K:down keeps key K down through the capture (a walk pose).
 //     [--size=960x540] [--server=http://localhost:8095] [--timeout=120] [--verbose]
 //     [--browser=<path>]            default: $YUME_CHROME, else a Playwright headless shell
 //     [--eval=<expr>]               print a page expression after the keys, e.g. a player position
@@ -153,7 +154,7 @@ async function main(): Promise<void> {
     if (verbose) console.log(`[capture] loaded after ${Math.round((Date.now() - t0) / 1000)} s`);
     for (const step of keys.split(",").filter((s) => s !== "")) {
       const [name, secs] = step.split(":");
-      const ms = Number(secs ?? "0.1") * 1000;
+      const ms = secs === "down" ? 0 : Number(secs ?? "0.1") * 1000;
       if (name === "wait") {
         await sleep(ms);
         continue;
@@ -163,6 +164,7 @@ async function main(): Promise<void> {
       // A key with text and a virtual key code acts as a real key: Enter and Space press a focused button.
       const k = keyInfo(name);
       await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", code, key: k.key, text: k.text, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk });
+      if (secs === "down") continue;
       await sleep(ms);
       await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", code, key: k.key, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk });
     }

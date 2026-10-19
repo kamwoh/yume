@@ -180,7 +180,7 @@ async function boot(): Promise<void> {
   showStatus();
   document.body.dataset.ready = "1";
   requestAnimationFrame(frame);
-  (globalThis as unknown as { yume: unknown }).yume = { world };
+  (globalThis as unknown as { yume: unknown }).yume = { world, view };
 }
 
 /** The heightmap of a ground block: the red channel of its image, with no color conversion. */

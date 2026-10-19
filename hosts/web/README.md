@@ -21,7 +21,9 @@ exact behavior (contract doc, §Two behavior classes).
 | The browser viewer, 2D: shapes (`shapes.json`), the 2D camera and its shake, the keyboard and the mouse buttons | |
 | The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`. HUD labels, progress bars and the crosshair | Settings rows, the minimap, `slot_grid` |
 | Audio (phase 4): the procedural sounds of `sounds.json` with WebAudio, `@cues.*`, the music slot, the master, music and sfx channels | Audio files (.ogg) |
-| The browser viewer, 3D: `meshes.json`, GLB models, the ground color and its heightmap relief, sun, sky, fog, the 3D camera modes, mouse look, articulated links | CSG ops, ground and sky shaders, animations, the viewmodel, SSAO, glow |
+| The browser viewer, 3D: `meshes.json`, GLB models, the ground and its heightmap relief, sun, sky, fog, the 3D camera modes, mouse look, articulated links | CSG ops, the water and toon shaders, grass blades and flowers, the viewmodel, SSAO, glow |
+| Animation (phase 4): GLB clips under `animation_state_rules` with `clip_alias`, library-mesh `animations`, `anim_phase` | |
+| Shaders (phase 4): `sky_clouds`, `ground_biome_displace`, `ground_ortho_displace` | `water_stylized`, `toon`, `shader_dag` |
 
 Shell effects (screens, toasts, save, audio) write a record to
 `env.shellEvents` and change no other state. An autosave on a level swap
@@ -137,6 +139,8 @@ compare them:
 | `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, bars, crosshair, hint, win panel) |
 | `src/viewer/shell.ts` | `ui/screen_flow.gd`, `ui/overlay.gd`, the event drain of `ui/game_shell.gd` |
 | `src/viewer/ui.ts` | `ui/control_factory.gd` |
+| `src/viewer/anim.ts` | `directors/animation_director.gd`, `directors/animation_translator.gd` |
+| `src/viewer/shaders.ts` | `data/lib/shaders/*.gdshader` |
 | `src/viewer/audio.ts` | `io/audio_bus.gd`, `io/audio_channels.gd` |
 | `src/save.ts` | `io/save_state.gd`, `coordinators/save_load_coordinator.gd` |
 | `src/viewer/keys.ts` | `io/input_keys.gd` |

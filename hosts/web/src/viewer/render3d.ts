@@ -16,8 +16,13 @@
 // An articulated body (ADR 0091) draws one node for each link at the pose
 // that the physics host reads back, as _mount_links and _sync_links do.
 //
-// Not in this host yet: ground and sky shaders, heightmaps, animations,
-// glow, SSAO, reflection probes.
+// Animation (anim.ts): a GLB's clips under visual.animation_state_rules,
+// and the `animations` block of a library mesh, as the reference does.
+//
+// The sky_clouds sky and the two ground shaders come from shaders.ts.
+//
+// Not in this host yet: the water and toon shaders, glow, SSAO, reflection
+// probes.
 import * as THREE from "three";
 import { type GLTF, GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/addons/utils/SkeletonUtils.js";
@@ -27,7 +32,9 @@ import { shapeTransform } from "../physics.ts";
 import { type Dict, Vec2, Vec3, isDict, toFloat } from "../value.ts";
 import type { World } from "../world.ts";
 import { colorOf } from "./color.ts";
+import { Animator, hasDefault, libraryClip } from "./anim.ts";
 import { MeshLib } from "./mesh_lib.ts";
+import { groundMaterial, setTime, skyCloudsMaterial } from "./shaders.ts";
 
 /** Godot's default clear color, Color(0.3, 0.3, 0.3). */
 const CLEAR_COLOR = 0x4d4d4d;
@@ -43,7 +50,7 @@ export function is3D(scene: Dict): boolean {
   return isDict(scene.camera) && MODES_3D.includes(String(scene.camera.mode ?? ""));
 }
 
-type Node = { group: THREE.Group; mode: "mesh" | "bare" | "glb" | "links"; normalized: boolean; links?: Map<string, THREE.Group> };
+type Node = { group: THREE.Group; mode: "mesh" | "bare" | "glb" | "links"; normalized: boolean; links?: Map<string, THREE.Group>; animator?: Animator };
 
 export class Renderer3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -59,6 +66,8 @@ export class Renderer3D {
   private sun: THREE.DirectionalLight | null = null;
   private ambient: THREE.HemisphereLight | null = null;
   private sky: THREE.Mesh | null = null;
+  /** True for the sky_clouds shader, false for the procedural sky. */
+  private skyShader = false;
   /** The sky alone, for the environment map (Godot's AMBIENT_SOURCE_SKY and sky reflections). */
   private skyScene: THREE.Scene | null = null;
   private pmrem: THREE.PMREMGenerator | null = null;
@@ -107,12 +116,18 @@ export class Renderer3D {
     const size = Array.isArray(cfg.size) ? cfg.size : [400, 400];
     const w = toFloat(size[0] ?? 400);
     const d = size.length >= 2 ? toFloat(size[1]) : w;
-    if ("shader" in cfg || "albedo_texture" in cfg) console.info("[ground] shaders and textures are not in this host yet: flat color");
-    const mat = new THREE.MeshStandardMaterial({
-      color: colorOf(cfg.color ?? "#808080"),
-      roughness: toFloat(cfg.roughness ?? 0.9),
-      metalness: toFloat(cfg.metallic ?? 0),
-    });
+    // GroundRenderer: a named ground shader replaces the flat material. plane_size is max(width, depth).
+    const shaded = groundMaterial(String(cfg.shader ?? "").trim(), isDict(cfg.shader_params) ? cfg.shader_params : {}, Math.max(w, d), (p, srgb) =>
+      this.loadTexture(p, srgb),
+    );
+    if (!shaded && ("shader" in cfg || "albedo_texture" in cfg)) console.info(`[ground] shader '${String(cfg.shader ?? "")}' or texture is not in this host yet: flat color`);
+    const mat =
+      shaded ??
+      new THREE.MeshStandardMaterial({
+        color: colorOf(cfg.color ?? "#808080"),
+        roughness: toFloat(cfg.roughness ?? 0.9),
+        metalness: toFloat(cfg.metallic ?? 0),
+      });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), mat);
     mesh.receiveShadow = true;
     mesh.name = "Ground";
@@ -121,6 +136,27 @@ export class Renderer3D {
   }
 
   private ground: { mesh: THREE.Mesh; w: number; d: number; subdivide: number } | null = null;
+
+  /** A texture of the game, by asset path. A source_color texture is sRGB, any other is raw data. */
+  private loadTexture(path: string, srgb: boolean): THREE.Texture | null {
+    const url = this.assetUrl(path);
+    if (url === "") return null;
+    this.pending++;
+    const tex = this.textures.load(
+      url,
+      () => this.pending--,
+      undefined,
+      () => {
+        this.pending--;
+        console.info(`[render3d] texture not found: ${path}`);
+      },
+    );
+    tex.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    // Godot's UV (0, 0) is the top-left of the image. three.js flips images unless told not to.
+    tex.flipY = false;
+    return tex;
+  }
 
   /**
    * The displaced ground: the vertex heights come from sample_y, the same
@@ -187,8 +223,10 @@ export class Renderer3D {
     }
     if ("sky" in cfg) {
       const sky = isDict(cfg.sky) ? cfg.sky : {};
-      if ("shader" in sky) console.info("[sky] sky shaders are not in this host yet: procedural sky");
-      const mat = skyMaterial();
+      const shader = String(sky.shader ?? "").trim();
+      if (shader !== "" && shader !== "sky_clouds") console.info(`[sky] shader '${shader}' is not in this host yet: procedural sky`);
+      const mat = shader === "sky_clouds" ? skyCloudsMaterial(isDict(sky.shader_params) ? sky.shader_params : {}) : skyMaterial();
+      this.skyShader = shader === "sky_clouds";
       this.sky = new THREE.Mesh(new THREE.SphereGeometry(3000, 32, 16), mat);
       this.sky.renderOrder = -1;
       this.scene.add(this.sky);
@@ -248,11 +286,18 @@ export class Renderer3D {
     const groundB = linear(0.2, 0.169, 0.133);
     if (this.sky) {
       const u = (this.sky.material as THREE.ShaderMaterial).uniforms;
-      u.top.value.copy(top);
-      u.horizon.value.copy(horizon);
-      u.groundHorizon.value.copy(groundH);
-      u.groundBottom.value.copy(groundB);
+      if (this.skyShader) {
+        // LightingDirector: each SKY_DAY_NIGHT uniform of the shader sky, each frame.
+        for (const name of Object.keys(SKY_DAY_NIGHT)) u[name].value.copy(skyColorAt(sky, name, f));
+        setTime(this.sky.material as THREE.Material, performance.now() / 1000);
+      } else {
+        u.top.value.copy(top);
+        u.horizon.value.copy(horizon);
+        u.groundHorizon.value.copy(groundH);
+        u.groundBottom.value.copy(groundB);
+      }
     }
+    if (this.ground) setTime(this.ground.mesh.material as THREE.Material, performance.now() / 1000);
     const amb = isDict(cfg.ambient) ? cfg.ambient : {};
     const energy = lerp(toFloat(amb.energy_night ?? 1), toFloat(amb.energy_day ?? 1), f);
     if (this.skyScene && this.pmrem) {
@@ -296,7 +341,10 @@ export class Renderer3D {
 
   // -------------------------------------------------------------- entities
 
+  private frameClock = new THREE.Clock();
+
   sync(world: World): void {
+    const dt = Math.min(this.frameClock.getDelta(), 0.25);
     const live = new Set<Entity>();
     for (const e of world.env.entities.values()) {
       if (e.id === "_engine" || e.visual.hidden === true) continue;
@@ -317,6 +365,7 @@ export class Renderer3D {
           g.quaternion.set(...pose.q);
         }
       } else this.place(e, n.group, n.normalized);
+      n.animator?.update(e, dt);
     }
     for (const [e, n] of this.nodes) {
       if (live.has(e)) continue;
@@ -351,7 +400,18 @@ export class Renderer3D {
       const prims = Array.isArray(def.primitives) ? def.primitives : [];
       this.lib.buildInto(group, prims, MeshLib.mergeParams(def, v.params), def.cast_shadow !== false);
       this.applyShadowOnly(e, group);
-      return { group, mode: "mesh", normalized: false };
+      const node: Node = { group, mode: "mesh", normalized: false };
+      // AnimationTranslator.build_library + AnimationDirector: the mesh's clips, picked by its state rules.
+      if (isDict(def.animations) && Array.isArray(def.animation_state_rules)) {
+        const rules = def.animation_state_rules;
+        if (!hasDefault(rules)) console.warn(`[render3d] mesh '${name}': animation_state_rules has no 'default' fallback`);
+        else {
+          const anims = def.animations;
+          const clips = Object.keys(anims).flatMap((k) => (isDict(anims[k]) ? [libraryClip(k, anims[k] as Dict, group)] : [])).filter((c) => c !== null);
+          node.animator = new Animator(group, clips, rules, Number(def.animation_blend_seconds ?? 0.15), anims);
+        }
+      }
+      return node;
     }
     this.addBareBox(e, group);
     return { group, mode: "bare", normalized: false };
@@ -422,8 +482,13 @@ export class Renderer3D {
         norm.name = "GlbNormalizer";
         norm.add(imported);
         node.group.add(norm);
+        const rules = e.visual.animation_state_rules;
         if (gltf.animations.length > 0) {
-          console.info(`[render3d] '${e.id}': GLB animations are not in this host yet`);
+          // An animated model keeps its authored scale and pivot. Its clips play under the state rules.
+          if (Array.isArray(rules)) {
+            if (hasDefault(rules)) node.animator = new Animator(imported, gltf.animations, rules, Number(e.visual.animation_blend_seconds ?? 0.15));
+            else console.warn(`[render3d] '${e.id}': animation_state_rules has no 'default' fallback`);
+          }
         } else if (normalize) {
           const box = new THREE.Box3().setFromObject(imported);
           const size = box.getSize(new THREE.Vector3());
@@ -749,6 +814,8 @@ function lerp(a: number, b: number, t: number): number {
 const SKY_DAY_NIGHT: Record<string, [string, string, string, string]> = {
   sky_top_color: ["sky_top_color_day", "sky_top_color_night", "#5890d8", "#0a1530"],
   sky_horizon_color: ["horizon_day", "horizon_night", "#80a0e0", "#101020"],
+  cloud_color: ["cloud_color_day", "cloud_color_night", "#f0eee8", "#383848"],
+  cloud_shadow_color: ["cloud_shadow_color_day", "cloud_shadow_color_night", "#888888", "#1a1a25"],
 };
 
 /** LightingDirector.sky_color_at. */

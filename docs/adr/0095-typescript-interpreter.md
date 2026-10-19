@@ -268,3 +268,18 @@ The audio slice: the sounds of `sounds.json`, made by the same synthesis
 at the same 22050 Hz, play through WebAudio. Rules name sounds through
 `@cues.*`. A melody loops on the music slot. A browser starts audio
 only after a key or a click.
+
+The animation slice: the state rules of `animation_director.gd` pick a
+clip, and three.js's mixer cross-fades to it. A GLB's clips loop, as in
+the reference. Library meshes get their clips from the translator's
+rules. The lanterns player stands in its idle pose and walks with a walk
+cycle in a browser.
+
+The shader slice: `sky_clouds` and the two ground shaders, ported line
+for line. A ground shader patches the standard material, so it keeps
+the lighting of every other mesh. One host difference showed at once.
+Godot's texture UV (0, 0) is the image's top-left corner, so the host
+loads shader textures with no vertical flip. Before that fix, the
+lanterns path was mirrored. One gap stays open. The lanterns grass is
+less saturated than in the Godot capture: a pixel sample gives 114, 156,
+74 against 88, 174, 54. The cause is not known yet.
