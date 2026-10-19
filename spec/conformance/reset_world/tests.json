@@ -1,0 +1,151 @@
+{
+  "_comment": "reset_world (effect_actor.gd, WorldResetCoordinator): it runs after the tick, like a level swap. It clears world state and loads world/state.json, the starting level and the root entities again.",
+  "scenarios": [
+    {
+      "name": "reset_restores_state",
+      "_": "World state and a root entity go back to their initial values.",
+      "steps": [
+        {
+          "press": "bump"
+        },
+        {
+          "press": "bump"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "bumps",
+                "op": "==",
+                "value": 2
+              }
+            },
+            {
+              "entity_field": {
+                "id": "marker",
+                "field": "state.hits",
+                "op": "==",
+                "value": 2
+              }
+            }
+          ]
+        },
+        {
+          "press": "restart"
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "bumps",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "marker",
+                "field": "state.hits",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "a"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reset_keeps_one_copy_of_level_rules",
+      "_": "After a reset in level a, its tick rule runs once each tick, not twice.",
+      "steps": [
+        {
+          "press": "restart"
+        },
+        {
+          "tick": 5
+        },
+        {
+          "expect": [
+            {
+              "entity_field": {
+                "id": "counter",
+                "field": "state.n",
+                "op": "==",
+                "value": 5
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "reset_drops_the_rules_of_the_old_level",
+      "_": "A reset from level b goes back to level a. The rules of level b stop. The swap lands after the press tick, so level b counts 3 ticks of the next 3.",
+      "steps": [
+        {
+          "press": "advance"
+        },
+        {
+          "tick": 3
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "b"
+              }
+            },
+            {
+              "world_field": {
+                "field": "b_ticks",
+                "op": "==",
+                "value": 3
+              }
+            }
+          ]
+        },
+        {
+          "press": "restart"
+        },
+        {
+          "tick": 5
+        },
+        {
+          "expect": [
+            {
+              "world_field": {
+                "field": "current_level",
+                "op": "==",
+                "value": "a"
+              }
+            },
+            {
+              "world_field": {
+                "field": "b_ticks",
+                "op": "==",
+                "value": 0
+              }
+            },
+            {
+              "entity_field": {
+                "id": "counter",
+                "field": "state.n",
+                "op": "==",
+                "value": 5
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

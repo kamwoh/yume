@@ -95,3 +95,24 @@ test("the ground constraint removes projectiles and clamps creatures", () => {
   assert.deepEqual([imp.x, imp.y, imp.z], [1, 0, 2], "the creature stands on the ground");
   assert.equal((w.env.entities.get("rock_1")!.state.position as Vec3).y, -0.5, "an untagged entity stays");
 });
+
+// world.gd: a screen or an overlay with freeze_world stops the sim, and a
+// press made during the freeze does not fire when the freeze ends.
+test("a freeze stops the ticks and drops the presses made during it", () => {
+  const w = boot();
+  const clock = new LiveClock(w);
+  w.env.world.screen_freeze_world = 1;
+  clock.keyDown("move_north");
+  clock.advance(1.0);
+  clock.keyUp("move_north");
+  assert.equal(w.simTick, 0, "no tick while frozen");
+  w.env.world.screen_freeze_world = 0;
+  w.env.world.overlay_freeze_world = 1;
+  clock.advance(0.5);
+  assert.equal(w.simTick, 0, "an overlay freeze stops it too");
+  w.env.world.overlay_freeze_world = 0;
+  // One advance runs at most 0.25 s.
+  for (let i = 0; i < 4; i++) clock.advance(0.25);
+  assert.equal(w.simTick, 10, "ticks run again");
+  assert.deepEqual([player(w).x, player(w).y], [48, 80], "the press made during the freeze did not move the player");
+});

@@ -41,6 +41,8 @@ export class World {
   files: Files;
   /** The key names of each action, from ui/input.json (InputRegistrar). */
   actionKeys = new Map<string, string[]>();
+  /** The mouse button names of each action (`mouse_button`, `mouse_buttons`). */
+  actionMouse = new Map<string, string[]>();
 
   /**
    * Builds the physics host (ADR 0095 phase 3) from the layer names and a
@@ -66,6 +68,7 @@ export class World {
       dispatchLifecycle: null,
       advanceCalendar: null,
       pendingLevel: "",
+      pendingReset: false,
       overlapEvents: [],
       physics: null,
     };
@@ -144,12 +147,51 @@ export class World {
     this.loadEntities(dir);
   }
 
-  /** LevelTransitionCoordinator.process_pending. The host drains it after each tick. */
+  /** step_runner._advance: the pending level swap, then the pending world reset. The host drains them after each tick. */
   processPending(): void {
     const pending = this.env.pendingLevel;
-    if (pending === "") return;
-    this.env.pendingLevel = "";
-    this.doTransition(pending);
+    if (pending !== "") {
+      this.env.pendingLevel = "";
+      this.doTransition(pending);
+    }
+    if (this.env.pendingReset) {
+      this.env.pendingReset = false;
+      this.doReset();
+    }
+  }
+
+  /**
+   * WorldResetCoordinator.do_reset: remove each entity with no `persistent`
+   * tag, clear world state and load world/state.json, load the global rules
+   * again, then load the starting level and the root entities again.
+   */
+  doReset(): void {
+    for (const [id, e] of [...this.env.entities]) {
+      if (e.hasTag("persistent")) continue;
+      this.env.relations.clearEntity(id);
+      this.env.physics?.remove(e);
+      this.env.entities.delete(id);
+    }
+    // Clear in place: the _engine entity's state is this same object (ADR 0047).
+    for (const k of Object.keys(this.env.world)) delete this.env.world[k];
+    this.env.world.tick = 0;
+    this.loadWorldFile();
+    this.reloadGlobalRules();
+    const prog = join(this.root, "game/flow.json");
+    if (this.files.exists(prog)) {
+      this.loadProgression(prog);
+      this.loadEntities(this.root);
+      if (this.currentLevel !== "") this.loadLevel(this.currentLevel);
+    } else this.loadEntities(this.root);
+    if (Object.keys(this.savePolicy).length > 0) this.env.world.has_save = 0;
+    this.env.world.active_actor_id = "default_player";
+    this.scheduler.flush();
+  }
+
+  /** LevelTransitionCoordinator.reload_global_rules: the swap and the reset both start from the global rules. */
+  private reloadGlobalRules(): void {
+    this.scheduler.clearRules();
+    this.loadGlobalRules();
   }
 
   /** LevelTransitionCoordinator.do_transition. */
@@ -175,8 +217,7 @@ export class World {
       this.env.physics?.remove(e);
       this.env.entities.delete(id);
     }
-    this.scheduler.clearRules();
-    this.loadGlobalRules();
+    this.reloadGlobalRules();
     this.currentLevel = target;
     this.loadLevel(target);
     this.scheduler.flush();
@@ -259,6 +300,8 @@ export class World {
       // A declaration with keys replaces the bindings. One without keys keeps them.
       const keys = [...("key" in a ? [String(a.key)] : []), ...(Array.isArray(a.keys) ? a.keys.map(String) : [])];
       if (keys.length > 0) this.actionKeys.set(name, keys);
+      const buttons = [...("mouse_button" in a ? [String(a.mouse_button)] : []), ...(Array.isArray(a.mouse_buttons) ? a.mouse_buttons.map(String) : [])];
+      if (buttons.length > 0) this.actionMouse.set(name, buttons);
     }
     for (const [name, edge] of edgeByName) (edge === "hold" ? this.actionsHold : this.actionsPress).push(name);
   }

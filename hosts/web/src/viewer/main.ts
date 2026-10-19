@@ -14,7 +14,8 @@ import { LiveClock, PHYSICS_DT } from "../live.ts";
 import { type Dict, isDict } from "../value.ts";
 import { World } from "../world.ts";
 import { Hud } from "./hud.ts";
-import { codeToActions } from "./keys.ts";
+import { Shell } from "./shell.ts";
+import { buttonToActions, codeToActions } from "./keys.ts";
 import { Renderer2D } from "./render2d.ts";
 import { Renderer3D, is3D } from "./render3d.ts";
 
@@ -71,17 +72,37 @@ async function boot(): Promise<void> {
   resize();
 
   const clock = new LiveClock(world);
+  const shell = new Shell(document.getElementById("shell")!, world.lib.resolve(parse(files.read("game/screens.json"))) as Dict, parse(files.read("game/ui/strings.json")), {
+    world: () => world,
+    // reload_scene reloads the whole scene. The page reload is the browser's twin.
+    reload: () => location.reload(),
+    shake: (i, f) => view.shake(i, f),
+    audio: (ev) => console.info(`[shell] ${String(ev.event)} is the audio slice of phase 4`),
+    assetUrl: (p) => `/asset/${encodeURIComponent(game)}/${p}`,
+  });
+  // ScreenFlow pushes the starting screen before the first tick, so a title shows before the world runs.
+  shell.start();
   const byCode = codeToActions(world.actionKeys);
   addEventListener("keydown", (ev) => {
     const actions = byCode.get(ev.code);
     if (!actions) return;
-    ev.preventDefault();
+    // A focused button takes Enter and Space itself, as Godot activates a focused button on ui_accept.
+    if (!(document.activeElement instanceof HTMLButtonElement)) ev.preventDefault();
     if (!ev.repeat) for (const a of actions) clock.keyDown(a);
   });
   addEventListener("keyup", (ev) => {
     for (const a of byCode.get(ev.code) ?? []) clock.keyUp(a);
   });
   addEventListener("blur", () => clock.held.clear());
+  // Mouse buttons drive actions too (doomarena3d fires on Left). In 3D the first click only captures the mouse.
+  const byButton = buttonToActions(world.actionMouse);
+  canvas.addEventListener("mousedown", (ev) => {
+    if (view instanceof Renderer3D && !view.mouseCaptured) return;
+    for (const a of byButton.get(ev.button) ?? []) clock.keyDown(a);
+  });
+  addEventListener("mouseup", (ev) => {
+    for (const a of byButton.get(ev.button) ?? []) clock.keyUp(a);
+  });
 
   // Scripted input for captures: each press is one key-down for one physics step.
   for (const a of (params.get("press") ?? "").split(",").filter((x) => x !== "")) {
@@ -100,9 +121,7 @@ async function boot(): Promise<void> {
   const showStatus = () => {
     const level = world.currentLevel !== "" ? `level ${world.currentLevel}` : "";
     const done = world.env.world.all_levels_complete === 1 ? " · all levels complete" : "";
-    const last = [...world.env.shellEvents].reverse().find((e) => e.type === "show_overlay" || e.type === "show_toast");
-    const note = last ? ` · ${String(last.title ?? last.text ?? last.message ?? "")}` : "";
-    status.textContent = `${game} ${level}${done}${note}`;
+    status.textContent = `${game} ${level}${done}`;
   };
 
   /** A trimesh body gets its faces from its GLB (PhysicsBodyBuilder._glb_trimesh_faces). */
@@ -121,8 +140,12 @@ async function boot(): Promise<void> {
   const frame = (now: number) => {
     feedTrimeshes();
     // The reference loads every asset before its first physics frame. The clock waits here too.
+    const dt = (now - last) / 1000;
+    shell.update(dt, clock.held);
+    // GameShell drains the pending level swap and world reset once each frame, also while a screen freezes the world.
+    world.processPending();
     if (!(view instanceof Renderer3D) || view.pending === 0) {
-      clock.advance((now - last) / 1000);
+      clock.advance(dt);
       world.applyGroundConstraint();
     }
     last = now;

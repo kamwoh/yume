@@ -1,11 +1,13 @@
-// The HUD as HTML. Mirrors hud_builder.gd for panels of `label` and `spacer`
-// elements, the controls hint and the win panel. The other element types
-// are phase 4 of ADR 0095. They are skipped, with one console note each.
+// The HUD as HTML. Mirrors hud_builder.gd for panels of `label`, `spacer`,
+// `progress_bar` and `crosshair` elements, the controls hint and the win
+// panel. The minimap, slot_grid and list are not in this host yet. They
+// are skipped, with one console note each.
 import type { Entity } from "../entity.ts";
 import { type Dict, isDict } from "../value.ts";
 import type { World } from "../world.ts";
 
 type BoundLabel = { el: HTMLElement; binds: string; format: string; phases: string[] };
+type BoundBar = { fill: HTMLElement; binds: string; max: number; lerp: [string, string] | null };
 
 const ANCHORS: Record<string, string> = {
   "top-left": "top:12px;left:12px",
@@ -21,6 +23,7 @@ const ANCHORS: Record<string, string> = {
 
 export class Hud {
   private labels: BoundLabel[] = [];
+  private bars: BoundBar[] = [];
   private win: { binds: string; op: string; value: unknown; el: HTMLElement } | null = null;
   private strings: Dict;
 
@@ -37,7 +40,17 @@ export class Hud {
           const node = div(box, `font-size:${Number(el.size ?? 16)}px;color:${String(el.color ?? "#ffffff")};white-space:pre`);
           node.textContent = this.text(String(el.text ?? ""));
           if ("binds" in el) this.labels.push({ el: node, binds: String(el.binds), format: String(el.format ?? "{}"), phases: Array.isArray(el.format_phases) ? el.format_phases.map(String) : [] });
-        } else console.info(`[hud] element type '${type}' is phase 4 of ADR 0095, skipped`);
+        } else if (type === "progress_bar") {
+          // A ProgressBar of width × height (280 × 16), filled to value / max. color_lerp tints it from low to high.
+          const bar = div(box, `width:${Number(el.width ?? 280)}px;height:${Number(el.height ?? 16)}px;background:rgba(26,26,31,0.75);border-radius:3px;overflow:hidden;margin:2px 0`);
+          const fill = div(bar, "height:100%;width:0;background:#c8c8c8;border-radius:3px");
+          const lerp = Array.isArray(el.color_lerp) && el.color_lerp.length === 2 ? ([String(el.color_lerp[0]), String(el.color_lerp[1])] as [string, string]) : null;
+          this.bars.push({ fill, binds: String(el.binds ?? ""), max: Number(el.max ?? 100) || 100, lerp });
+        } else if (type === "crosshair") {
+          // A centered glyph. The third-person aim point (crosshair_screen_x/y) comes with the camera slice.
+          const ch = div(box, `font-size:${Number(el.size ?? 28)}px;color:${String(el.color ?? "#ffffff")};line-height:1;text-shadow:0 0 3px #000,0 0 3px #000`);
+          ch.textContent = String(el.glyph ?? "+");
+        } else console.info(`[hud] element type '${type}' is not in this host yet, skipped`);
       }
     }
     const hint = this.text(String(hud.controls_hint ?? ""));
@@ -64,6 +77,13 @@ export class Hud {
         continue;
       }
       l.el.textContent = this.text(l.format).replace("{}", formatValue(v));
+    }
+    for (const b of this.bars) {
+      const v = Number(resolveBinding(world, b.binds));
+      if (!Number.isFinite(v)) continue;
+      const k = Math.min(Math.max(v / b.max, 0), 1);
+      b.fill.style.width = `${k * 100}%`;
+      if (b.lerp) b.fill.style.background = lerpColor(b.lerp[0], b.lerp[1], k);
     }
     if (this.win) {
       const v = resolveBinding(world, this.win.binds);
@@ -108,6 +128,12 @@ function findByTag(world: World, tag: string): Entity | null {
 /** ControlFactory.format_bound_value: a float shows as an integer. Every JSON number is a float there. */
 function formatValue(v: unknown): string {
   return typeof v === "number" ? String(Math.trunc(v)) : String(v);
+}
+
+function lerpColor(a: string, b: string, k: number): string {
+  const rgb = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+  const [x, y] = [rgb(a), rgb(b)];
+  return `rgb(${x.map((v, i) => Math.round(v + (y[i] - v) * k)).join(",")})`;
 }
 
 function compare(a: number, op: string, b: number): boolean {

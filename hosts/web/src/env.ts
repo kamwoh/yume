@@ -23,6 +23,8 @@ export interface Env {
   advanceCalendar: ((units: number) => void) | null;
   /** env._pending_level_transition: set by transition_level, drained after the tick. */
   pendingLevel: string;
+  /** env._pending_world_reset: set by reset_world, drained after the tick. */
+  pendingReset: boolean;
   /** ADR 0070: area overlaps from the physics host, drained in the react phase. */
   overlapEvents: { a: string; b: string; change: "enter" | "exit" }[];
   /** The physics host (ADR 0095 phase 3), or null for a world with no bodies. */

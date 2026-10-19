@@ -1,0 +1,23 @@
+{
+  "definitions": [
+    {
+      "id": "counter",
+      "tags": [
+        "counter"
+      ],
+      "state_init": {
+        "n": 0
+      }
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "counter",
+      "id": "counter",
+      "position": [
+        0,
+        0
+      ]
+    }
+  ]
+}

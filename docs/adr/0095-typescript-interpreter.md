@@ -231,3 +231,28 @@ These stay open: the `base` footprint of `from_visual_mesh`, and the
 hinge `limit` sign. The Godot hinge motor runs against the right-hand
 rule. The sign of its limits thus needs a check against a real step
 before a robot uses limits.
+
+## Phase 4 progress (2026-10-19)
+
+The doomarena3d tests pass on the new host since phase 3, so the done
+condition of phase 4 is met headlessly. Phase 4 goes on in slices, for
+the parts that a player sees and hears.
+
+The shell slice has screens with modal stacks and global inputs,
+overlays, toasts, fades and the hit flash. It also has the freeze of the
+live clock, HUD bars and the crosshair. Sokoban plays from its title screen in a browser. New
+Game, the tutorial overlay, pause and resume all work with the keyboard.
+
+The port found a defect in the reference. `reset_world` loaded the
+starting level's rules again with no clear. After a reset in level 1,
+each of its rules ran twice for each tick. After a reset from level 2,
+the rules of level 2 kept running in level 1. A level swap clears the
+rules first. The fix moved that step into one helper,
+`reload_global_rules`, which the swap and the reset both call. The
+`reset_world` conformance case checks it on both hosts.
+
+The port also found that a load from a save never swaps the level. The
+load writes the saved `current_level` into world state, then compares
+it with `current_level`, which reads that same world state (ADR 0047).
+So a Continue from a save in level 3 shows level 1 under the name of
+level 3. The save slice fixes it, with a conformance case.

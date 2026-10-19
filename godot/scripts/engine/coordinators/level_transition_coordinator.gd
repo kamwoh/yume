@@ -182,17 +182,7 @@ func do_transition(target: String, off_progression: bool = false) -> void:
 			_world.spatial_index.remove_entity(rid)
 		_world.entities.erase(rid)
 		rent.queue_free()
-	# Clear scheduler rules and reload globals (persistent across levels).
-	# physics first (register), game-rules appended. Per-level rules get
-	# appended in load_level.
-	if _world.scheduler != null and _world.scheduler.has_method("clear_rules"):
-		_world.scheduler.clear_rules()
-	var root := _world.data_root.rstrip("/")
-	_world._loader.load_rules_files_for(root + "/world/rules.json")
-	_world._loader.load_rules_files_for(root + "/game/goals.json", true)
-	# ADR 0012: tutorial.json is global (not per-level), re-register here
-	# so sequencing rules survive level transitions.
-	_world._loader.load_rules_file(root + "/tutorial.json", true)
+	reload_global_rules()
 	# Load new level. ADR 0047: current_level setter writes through to
 	# world_state["current_level"] — single source of truth.
 	_world.current_level = target
@@ -217,6 +207,23 @@ func do_transition(target: String, off_progression: bool = false) -> void:
 			_world.scheduler.env["_pending_save"] = 0
 	if _world.verbose:
 		print("[World] transitioned to level: ", target)
+
+
+## Clear the scheduler rules and load the global rules again. The engine
+## rules stay pinned (ADR 0049). Per-level rules get appended in load_level.
+## The level swap and the world reset both call this, so neither can keep
+## the rules of the old level. Empirical case 2026-10-19: a reset appended
+## the starting level's rules with no clear, so its rules ran twice and the
+## old level's rules kept running (the reset_world conformance case).
+func reload_global_rules() -> void:
+	if _world.scheduler != null and _world.scheduler.has_method("clear_rules"):
+		_world.scheduler.clear_rules()
+	var root := _world.data_root.rstrip("/")
+	_world._loader.load_rules_files_for(root + "/world/rules.json")
+	_world._loader.load_rules_files_for(root + "/game/goals.json", true)
+	# ADR 0012: tutorial.json is global (not per-level), re-register here
+	# so sequencing rules survive level transitions.
+	_world._loader.load_rules_file(root + "/tutorial.json", true)
 
 
 ## Load a single level's rules + entities. Used by:

@@ -1,0 +1,24 @@
+{
+  "rules": [
+    {
+      "id": "count_b",
+      "trigger": {
+        "type": "tick",
+        "interval": 1
+      },
+      "query": {
+        "tags_all": [
+          "_engine"
+        ]
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "self",
+          "field": "b_ticks",
+          "amount": 1
+        }
+      ]
+    }
+  ]
+}

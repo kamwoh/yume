@@ -41,6 +41,22 @@ function findBrowser(): string {
   throw new Error("no browser: pass --browser=<path> or set YUME_CHROME");
 }
 
+/** The DOM key, the typed text and the Windows virtual key code of a spec key name. */
+function keyInfo(name: string): { key: string; text: string | undefined; vk: number } {
+  const named: Record<string, [string, string | undefined, number]> = {
+    Enter: ["Enter", "\r", 13], Space: [" ", " ", 32], Escape: ["Escape", undefined, 27], Tab: ["Tab", undefined, 9],
+    Up: ["ArrowUp", undefined, 38], Down: ["ArrowDown", undefined, 40], Left: ["ArrowLeft", undefined, 37], Right: ["ArrowRight", undefined, 39],
+    Shift: ["Shift", undefined, 16], Backspace: ["Backspace", undefined, 8],
+  };
+  if (name in named) {
+    const [key, text, vk] = named[name];
+    return { key, text, vk };
+  }
+  if (/^[A-Z]$/.test(name)) return { key: name.toLowerCase(), text: name.toLowerCase(), vk: name.charCodeAt(0) };
+  if (/^[0-9]$/.test(name)) return { key: name, text: name, vk: name.charCodeAt(0) };
+  return { key: name, text: undefined, vk: 0 };
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 class Cdp {
@@ -144,9 +160,11 @@ async function main(): Promise<void> {
       }
       const code = codesOf(name)[0];
       if (!code) throw new Error(`'${name}' is not a spec key name`);
-      await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", code, key: name });
+      // A key with text and a virtual key code acts as a real key: Enter and Space press a focused button.
+      const k = keyInfo(name);
+      await cdp.send("Input.dispatchKeyEvent", { type: "keyDown", code, key: k.key, text: k.text, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk });
       await sleep(ms);
-      await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", code, key: name });
+      await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", code, key: k.key, windowsVirtualKeyCode: k.vk, nativeVirtualKeyCode: k.vk });
     }
     // Let a few frames draw the last state.
     await sleep(500);

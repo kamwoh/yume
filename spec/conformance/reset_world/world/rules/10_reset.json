@@ -1,0 +1,50 @@
+{
+  "rules": [
+    {
+      "id": "restart",
+      "trigger": {
+        "type": "input",
+        "action": "restart"
+      },
+      "effect": [
+        {
+          "type": "reset_world"
+        }
+      ]
+    },
+    {
+      "id": "advance",
+      "trigger": {
+        "type": "input",
+        "action": "advance"
+      },
+      "effect": [
+        {
+          "type": "transition_level",
+          "target": "next"
+        }
+      ]
+    },
+    {
+      "id": "bump",
+      "trigger": {
+        "type": "input",
+        "action": "bump"
+      },
+      "effect": [
+        {
+          "type": "state_add",
+          "target": "_engine",
+          "field": "bumps",
+          "amount": 1
+        },
+        {
+          "type": "state_add",
+          "target": "marker",
+          "field": "hits",
+          "amount": 1
+        }
+      ]
+    }
+  ]
+}

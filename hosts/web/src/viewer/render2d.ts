@@ -69,15 +69,34 @@ export class Renderer2D {
     this.updateCamera(world);
   }
 
+  private shakeLeft = 0;
+  private shakePx = 0;
+
+  /** CameraDirector.set_shake: the stronger of the new shake and the one in progress. */
+  shake(intensity: number, frames: number): void {
+    if (intensity * frames > this.shakePx * this.shakeLeft) {
+      this.shakePx = intensity;
+      this.shakeLeft = frames;
+    }
+  }
+
   render(): void {
     const size = this.renderer.getSize(new THREE.Vector2());
+    // CameraDirector.apply_shake: a random offset of ±intensity pixels for each frame.
+    let sx = 0;
+    let sy = 0;
+    if (this.shakeLeft > 0) {
+      sx = (Math.random() - 0.5) * 2 * this.shakePx;
+      sy = (Math.random() - 0.5) * 2 * this.shakePx;
+      this.shakeLeft--;
+    }
     const hw = size.x / (2 * this.zoom);
     const hh = size.y / (2 * this.zoom);
     // The root group flips y, so the camera sits at (x, -y).
-    this.camera.left = this.camPos.x - hw;
-    this.camera.right = this.camPos.x + hw;
-    this.camera.top = -this.camPos.y + hh;
-    this.camera.bottom = -this.camPos.y - hh;
+    this.camera.left = this.camPos.x + sx - hw;
+    this.camera.right = this.camPos.x + sx + hw;
+    this.camera.top = -(this.camPos.y + sy) + hh;
+    this.camera.bottom = -(this.camPos.y + sy) - hh;
     this.camera.updateProjectionMatrix();
     this.renderer.render(this.scene, this.camera);
   }

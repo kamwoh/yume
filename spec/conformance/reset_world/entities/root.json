@@ -1,0 +1,39 @@
+{
+  "_comment": "The marker has no persistent tag, so a reset loads it again with its initial state. The hero is the input actor. It is persistent, so it survives a level swap.",
+  "definitions": [
+    {
+      "id": "marker",
+      "tags": [
+        "marker"
+      ],
+      "state_init": {
+        "hits": 0
+      }
+    },
+    {
+      "id": "hero",
+      "tags": [
+        "player",
+        "persistent"
+      ]
+    }
+  ],
+  "initial_instances": [
+    {
+      "def": "marker",
+      "id": "marker",
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "def": "hero",
+      "id": "hero",
+      "position": [
+        0,
+        0
+      ]
+    }
+  ]
+}

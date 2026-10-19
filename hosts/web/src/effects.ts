@@ -111,6 +111,10 @@ export function apply(e: Dict, env: Env, ctx: Ctx): void {
       if (units > 0 && env.advanceCalendar) env.advanceCalendar(units);
       return;
     }
+    case "reset_world":
+      // EffectActor.reset_world: the reset runs after the tick (World.processPending).
+      env.pendingReset = true;
+      return;
     case "velocity_set":
       return velocitySet(e, env, ctx);
     case "velocity_set_relative":

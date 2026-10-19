@@ -32,8 +32,20 @@ export class LiveClock {
     this.held.delete(action);
   }
 
+  /** world.gd: a screen or an overlay with freeze_world set stops the sim and the bodies. */
+  frozen(): boolean {
+    const ws = this.world.env.world;
+    return Number(ws.screen_freeze_world ?? 0) !== 0 || Number(ws.overlay_freeze_world ?? 0) !== 0;
+  }
+
   /** One physics step: the poll, the sim ticks that are due, then the bodies. */
   physicsStep(): void {
+    if (this.frozen()) {
+      // Freeze also skips the poll. A press during the freeze is dropped, so it
+      // cannot fire when the screen closes (empirical 2026-05-16 in world.gd).
+      this.justPressed.clear();
+      return;
+    }
     pollInput(this.world, this.held, this.justPressed);
     // world.gd snap: a tick_seconds within 0.5% of the step is one tick for each step.
     // Without it, 0.0167 against 1/60 skips one tick every 8 s.

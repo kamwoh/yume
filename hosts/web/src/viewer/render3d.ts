@@ -658,6 +658,9 @@ export class Renderer3D {
     return world.env.entities.get(tag) ?? null;
   }
 
+  /** The reference shakes only its 2D camera (CameraDirector.apply_shake moves Camera2D.offset). */
+  shake(_intensity: number, _frames: number): void {}
+
   render(): void {
     const size = this.renderer.getSize(new THREE.Vector2());
     if (this.active === this.camera) {

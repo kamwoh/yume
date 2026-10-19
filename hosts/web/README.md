@@ -6,7 +6,7 @@ The TypeScript interpreter of the Yume spec (ADR 0095). Godot stays the
 reference interpreter. This host must give the same result for every
 exact behavior (contract doc, §Two behavior classes).
 
-## Status: phases 1 to 3 done, phase 4 next
+## Status: phases 1 to 3 done, phase 4 in progress
 
 | In this host | Not in this host yet |
 |---|---|
@@ -17,7 +17,8 @@ exact behavior (contract doc, §Two behavior classes).
 | The engine rules in `lib/engine_rules` | Macros, actors, zones, `level_call`, saves to disk |
 | Levels (`game/flow.json`), `transition_level`, variants | |
 | `press`, `hold`, `release`, `tick`, `wait`, `expect` | `click`, `screenshot`, UI assertions (phase 4) |
-| The browser viewer, 2D: shapes (`shapes.json`), the 2D camera, the keyboard, HUD labels | Screens, overlays, other HUD widgets (phase 4) |
+| The browser viewer, 2D: shapes (`shapes.json`), the 2D camera and its shake, the keyboard and the mouse buttons | |
+| The shell (phase 4): screens (`screens.json`) with modal stacks and global inputs, overlays, toasts, fades, the hit flash, the freeze, `reset_world`. HUD labels, progress bars and the crosshair | Saves, settings rows, the minimap, `slot_grid`, audio |
 | The browser viewer, 3D: `meshes.json`, GLB models, the ground color and its heightmap relief, sun, sky, fog, the 3D camera modes, mouse look, articulated links | CSG ops, ground and sky shaders, animations, the viewmodel, SSAO, glow |
 
 Shell effects (screens, toasts, save, audio) write a record to
@@ -103,9 +104,11 @@ node src/capture.ts --game=demo_sokoban --out=shot.png --keys=Right:0.1,wait:1
 and `wait:N`. The tool finds a Playwright headless shell in
 `~/.cache/ms-playwright`, or takes `--browser=<path>` or `$YUME_CHROME`.
 
-The viewer starts the game at once. Screens (`screens.json`) and
-overlays are phase 4, so the title screen and the tutorial overlay do
-not show. The status line shows the title of the last overlay.
+The viewer shows the starting screen of `screens.json` before the first
+tick, as the reference does. A screen or an overlay with `freeze_world`
+stops the live clock, and a press made during the freeze is dropped.
+The keyboard reaches each screen: the first button has focus, the arrow
+keys move it, and Enter or Space presses it.
 
 ## Layout
 
@@ -129,7 +132,9 @@ compare them:
 | `src/viewer/render2d.ts` | `renderer_2d/entity_sprite_2d.gd`, the 2D part of `ui/widgets/camera_director.gd` |
 | `src/viewer/render3d.ts` | `renderer_3d/entity_mesh_3d.gd`, `coordinators/ground_renderer.gd`, `directors/lighting_director.gd`, the 3D part of `camera_director.gd` |
 | `src/viewer/mesh_lib.ts` | `renderer_3d/mesh_lib.gd` |
-| `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, hint, win panel) |
+| `src/viewer/hud.ts` | `ui/widgets/hud_builder.gd` (labels, bars, crosshair, hint, win panel) |
+| `src/viewer/shell.ts` | `ui/screen_flow.gd`, `ui/overlay.gd`, the event drain of `ui/game_shell.gd` |
+| `src/viewer/ui.ts` | `ui/control_factory.gd` |
 | `src/viewer/keys.ts` | `io/input_keys.gd` |
 | `src/physics.ts`, `src/physics_rapier.ts` | `coordinators/physics_body_builder.gd`, `character_body_runner.gd`, `articulated_body.gd`, `sensor_array.gd` |
 | `src/heightmap.ts` | `GroundRenderer.sample_y` |

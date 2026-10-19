@@ -67,6 +67,10 @@ func do_reset() -> void:
 	_world.world_state.clear()
 	_world.world_state["tick"] = 0
 	_world._loader.load_world_file(root + "/world/state.json")
+	# 2b. Clear the rules and load the global rules again, as a level swap
+	# does. Without it, load_level below appended the starting level's
+	# rules a second time, and the old level's rules kept running.
+	_world._level_transitions.reload_global_rules()
 	# 3. Reload entities + relations. For multi-level games, reset to
 	# the progression's starting_level. For single-level, just re-load
 	# root entities.
